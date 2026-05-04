@@ -1,0 +1,24 @@
+<html>
+  <head>
+    <title>AACP Widget Dev</title>
+  </head>
+  <body>
+    <main style="max-width: 760px; margin: 40px auto; font-family: Inter, Arial, sans-serif;">
+      <h1>Checkout demo</h1>
+      <p>Use os botoes abaixo para simular sinais do checkout.</p>
+      <button onclick="window.dispatchEvent(new CustomEvent('aacp:checkout-event', { detail: { event: 'coupon_field_clicked' }}))">
+        Clicou no cupom
+      </button>
+      <button onclick="window.dispatchEvent(new CustomEvent('aacp:checkout-event', { detail: { event: 'shipping_objection_detected' }}))">
+        Reclamou do frete
+      </button>
+    </main>
+    <aacp-checkout-agent
+      merchant-id="mrc_demo"
+      api-base-url="http://localhost:3001"
+      cart-total="420"
+      shipping-price="39.9"
+    ></aacp-checkout-agent>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

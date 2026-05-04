@@ -1,0 +1,297 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Merchant {
+  id        String   @id
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users     MerchantUser[]
+
+  @@map("merchants")
+}
+
+model MerchantUser {
+  id           String   @id @default(cuid())
+  merchantId   String   @map("merchant_id")
+  email        String
+  passwordHash String   @map("password_hash")
+  role         String
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  agentRules   AgentRule[]
+
+  @@unique([email])
+  @@index([merchantId])
+  @@map("merchant_users")
+}
+
+model AgentRule {
+  id               String   @id @default(cuid())
+  agentId          String   @map("agent_id")
+  merchantId       String   @map("merchant_id")
+  userId           String?  @map("user_id")
+  scope            String
+  identity         Json
+  capabilities     Json
+  guardrails       Json
+  checkoutSettings Json     @map("checkout_settings")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user             MerchantUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, agentId])
+  @@unique([merchantId, userId, scope])
+  @@index([merchantId, userId])
+  @@map("agent_rules")
+}
+
+model CheckoutSetting {
+  id                 String   @id @default(cuid())
+  merchantId         String   @unique @map("merchant_id")
+  mode               String
+  widgetBehavior     Json     @map("widget_behavior")
+  interventionPolicy Json     @map("intervention_policy")
+  triggerRules       Json     @map("trigger_rules")
+  suppressionRules   Json     @map("suppression_rules")
+  handoff            Json
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId])
+  @@map("checkout_settings")
+}
+
+model CheckoutSession {
+  id                 String   @id @default(cuid())
+  merchantId         String   @map("merchant_id")
+  sessionId          String   @map("session_id")
+  globalUserId       String   @map("global_user_id")
+  conversationId     String   @map("conversation_id")
+  cart               Json
+  customer           Json?
+  shipping           Json?
+  abandonmentScore   Float    @default(0) @map("abandonment_score")
+  triggerAgent       Boolean  @default(false) @map("trigger_agent")
+  createdAt          DateTime @map("created_at")
+  updatedAt          DateTime @map("updated_at")
+
+  events             CheckoutEvent[]
+  authorizedOffers   AuthorizedOffer[]
+  acceptedOffers     AcceptedOffer[]
+  completedOrders    CompletedOrder[]
+
+  @@unique([merchantId, sessionId])
+  @@index([merchantId, updatedAt])
+  @@map("checkout_sessions")
+}
+
+model CheckoutEvent {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  sessionId   String   @map("session_id")
+  eventName   String   @map("event_name")
+  occurredAt  DateTime @map("occurred_at")
+
+  session     CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+
+  @@index([merchantId, sessionId, occurredAt])
+  @@map("checkout_events")
+}
+
+model BuyerIdentity {
+  id           String @id @default(cuid())
+  merchantId   String @map("merchant_id")
+  identityKey  String @map("identity_key")
+  globalUserId String @map("global_user_id")
+
+  @@unique([merchantId, identityKey])
+  @@index([merchantId, globalUserId])
+  @@map("buyer_identities")
+}
+
+model MerchantRule {
+  id                                  String   @id @default(cuid())
+  merchantId                          String   @unique @map("merchant_id")
+  maxDiscountPercent                  Float    @map("max_discount_percent")
+  minimumMarginPercent                Float    @map("minimum_margin_percent")
+  allowFreeShipping                   Boolean  @map("allow_free_shipping")
+  allowShippingDiscount               Boolean  @map("allow_shipping_discount")
+  allowBonusItem                      Boolean  @map("allow_bonus_item")
+  allowStackDiscountAndFreeShipping   Boolean  @map("allow_stack_discount_and_free_shipping")
+  freeShippingMinCartValue            Float    @map("free_shipping_min_cart_value")
+  maxShippingSubsidy                  Float    @map("max_shipping_subsidy")
+  maxPartialShippingDiscount          Float    @map("max_partial_shipping_discount")
+  offerExpirationMinutes              Int      @map("offer_expiration_minutes")
+  blockedRegions                      String[] @map("blocked_regions")
+  brandVoice                          String   @map("brand_voice")
+  updatedAt                           DateTime @updatedAt @map("updated_at")
+
+  @@map("merchant_rules")
+}
+
+model AuthorizedOffer {
+  id                 String   @id
+  merchantId          String   @map("merchant_id")
+  sessionId           String   @map("session_id")
+  type                String
+  value               Float
+  approved            Boolean
+  reason              String
+  marginAfterOffer    Float    @map("margin_after_offer")
+  expiresAt           DateTime @map("expires_at")
+  discountCode        String?  @map("discount_code")
+
+  session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  acceptedOffers      AcceptedOffer[]
+
+  @@index([merchantId, sessionId])
+  @@map("authorized_offers")
+}
+
+model AcceptedOffer {
+  id                 String   @id @default(cuid())
+  merchantId          String   @map("merchant_id")
+  sessionId           String   @map("session_id")
+  offerId             String   @map("offer_id")
+  type                String
+  value               Float
+  marginAfterOffer    Float    @map("margin_after_offer")
+  acceptedAt          DateTime @map("accepted_at")
+  expiresAt           DateTime @map("expires_at")
+
+  session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  offer               AuthorizedOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, sessionId, offerId])
+  @@index([merchantId, acceptedAt])
+  @@map("accepted_offers")
+}
+
+model CompletedOrder {
+  id                 String   @id @default(cuid())
+  merchantId          String   @map("merchant_id")
+  sessionId           String   @map("session_id")
+  externalOrderId     String   @map("external_order_id")
+  orderTotal          Float    @map("order_total")
+  currency            String
+  acceptedOfferId     String?  @map("accepted_offer_id")
+  completedAt         DateTime @map("completed_at")
+
+  session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+
+  @@unique([merchantId, sessionId, externalOrderId])
+  @@index([merchantId, completedAt])
+  @@map("completed_orders")
+}
+
+model BuyerPurchaseRecord {
+  id                 String   @id @default(cuid())
+  merchantId          String   @map("merchant_id")
+  orderId             String   @map("order_id")
+  globalUserId        String?  @map("global_user_id")
+  merchantCustomerId  String?  @map("merchant_customer_id")
+  currency            String
+  totalAmount         Float    @map("total_amount")
+  discountAmount      Float    @map("discount_amount")
+  completedAt         DateTime @map("completed_at")
+  items               Json
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, orderId])
+  @@index([merchantId, globalUserId])
+  @@index([merchantId, merchantCustomerId])
+  @@index([merchantId, completedAt])
+  @@map("buyer_purchase_records")
+}
+
+model MerchantNegotiationPolicy {
+  merchantId String   @id @map("merchant_id")
+  policy     Json
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("merchant_negotiation_policies")
+}
+
+model BuyerAgentNegotiationPreference {
+  id           String   @id @default(cuid())
+  merchantId   String   @map("merchant_id")
+  globalUserId String   @map("global_user_id")
+  preferences  Json
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([merchantId, globalUserId])
+  @@index([merchantId])
+  @@map("buyer_agent_negotiation_preferences")
+}
+
+model NegotiationSession {
+  id                   String   @id @default(cuid())
+  merchantId           String   @map("merchant_id")
+  globalUserId         String?  @map("global_user_id")
+  cartFingerprint      String   @map("cart_fingerprint")
+  resultJson           Json     @map("result_json")
+  estimatedAiCalls     Int      @map("estimated_ai_calls")
+  estimatedAiCostCents Int      @map("estimated_ai_cost_cents")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  ledgerEntries NegotiationCostLedgerEntry[]
+
+  @@index([merchantId, createdAt])
+  @@map("negotiation_sessions")
+}
+
+model NegotiationCostLedgerEntry {
+  id                   String   @id @default(cuid())
+  merchantId           String   @map("merchant_id")
+  negotiationSessionId String   @map("negotiation_session_id")
+  eventType            String   @map("event_type")
+  amountCents          Int      @map("amount_cents")
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  session NegotiationSession @relation(fields: [negotiationSessionId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, negotiationSessionId])
+  @@map("negotiation_cost_ledger_entries")
+}
+
+model OutboxMessage {
+  eventId        String    @id @map("event_id")
+  eventType      String    @map("event_type")
+  schemaVersion  Int       @map("schema_version")
+  merchantId     String    @map("merchant_id")
+  occurredAt     DateTime  @map("occurred_at")
+  correlationId  String    @map("correlation_id")
+  causationId    String    @map("causation_id")
+  producer       String
+  payload        Json
+  status         String    @default("pending")
+  publishedAt    DateTime? @map("published_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, createdAt])
+  @@index([status, createdAt])
+  @@map("outbox_messages")
+}
+
+model CheckoutIntervention {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  sessionId  String   @map("session_id")
+  occurredAt DateTime @map("occurred_at")
+  reason     String
+
+  @@index([merchantId, sessionId, occurredAt])
+  @@map("checkout_interventions")
+}

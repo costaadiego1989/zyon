@@ -1,0 +1,23 @@
+import { Module } from "@nestjs/common";
+import { AuthModule } from "./modules/auth/auth.module.js";
+import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
+import { BuyerPurchaseHistoryModule } from "./modules/buyer-purchase-history/buyer-purchase-history.module.js";
+import { CheckoutModule } from "./modules/checkout/checkout.module.js";
+import { CheckoutSettingsModule } from "./modules/checkout-settings/checkout-settings.module.js";
+import { MerchantModule } from "./modules/merchant/merchant.module.js";
+import { NegotiationModule } from "./modules/negotiation/negotiation.module.js";
+import { EmbedModule } from "./modules/embed/embed.module.js";
+
+@Module({
+  imports: [
+    AuthModule,
+    MerchantModule,
+    AgentRulesModule,
+    CheckoutSettingsModule,
+    BuyerPurchaseHistoryModule,
+    CheckoutModule,
+    NegotiationModule,
+    EmbedModule
+  ]
+})
+export class AppModule {}
