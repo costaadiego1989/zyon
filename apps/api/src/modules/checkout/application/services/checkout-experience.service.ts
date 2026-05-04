@@ -1,6 +1,7 @@
 import type {
   AgentContext,
   Cart,
+  ChatStage,
   CheckoutExperienceSnapshot,
   CheckoutItemSnapshot,
   CheckoutSession,
@@ -10,6 +11,8 @@ import type {
   ShippingQuote
 } from "@aacp/shared-types";
 import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
+import type { MerchantRules } from "@aacp/shared-types";
 
 export interface ExperienceInputs {
   merchant_id: string;
@@ -23,14 +26,85 @@ export interface ExperienceDeps {
   theme?: MerchantTheme;
   agent?: AgentContext;
   couponBoxEnabled?: boolean;
+  chatStage?: ChatStage;
+  missingFieldsPreview?: string[];
+  rules?: MerchantRules;
 }
 
-export function buildCheckoutExperience(
-  input: ExperienceInputs,
-  deps: ExperienceDeps
-): CheckoutExperienceSnapshot {
+export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
+  const next = missingFields[0];
+  let customReplies: string[] | undefined;
+
+  if (stage === "data_collection") {
+    const dRules = rules?.quickReplies?.data_collection;
+    if (next === "nome") customReplies = dRules?.nome;
+    else if (next === "email") customReplies = dRules?.email;
+    else if (next === "CPF") customReplies = dRules?.CPF;
+    else if (next === "telefone") customReplies = dRules?.telefone;
+    if (!customReplies?.length) customReplies = dRules?.default;
+  } else if (stage === "shipping") {
+    const sRules = rules?.quickReplies?.shipping;
+    if (next === "CEP") customReplies = sRules?.CEP;
+    else if (next?.includes("confirmar")) customReplies = sRules?.confirmar;
+    else if (next?.includes("número") || next?.includes("complemento")) customReplies = sRules?.numero_complemento;
+    else if (next === "frete") customReplies = sRules?.frete;
+    if (!customReplies?.length) customReplies = sRules?.default;
+  } else if (stage === "payment") {
+    customReplies = rules?.quickReplies?.payment;
+  } else if (stage === "completed") {
+    customReplies = rules?.quickReplies?.completed;
+  }
+
+  if (customReplies && customReplies.length > 0) {
+    if (stage === "payment" && (!rules?.couponBoxEnabled || rules?.maxDiscountPercent === 0)) {
+      return customReplies.filter(r => !/cupom/i.test(r));
+    }
+    return customReplies;
+  }
+
+  switch (stage) {
+    case "data_collection":
+      if (next === "nome")
+        return ["Meu nome completo é…", "Como prefere me chamar?", "Posso usar nome social?"];
+      if (next === "email")
+        return ["Segue meu melhor e-mail", "Quero usar outro e-mail", "Vou digitar meu e-mail agora"];
+      if (next === "CPF")
+        return ["Segue o CPF (só números)", "Não sei o CPF agora"];
+      if (next === "telefone")
+        return ["Meu celular com DDD", "Posso usar WhatsApp?", "Prefiro um telefone fixo"];
+      return ["Combinado!", "Posso responder depois?", "Preciso de ajuda com meus dados"];
+    case "shipping":
+      if (next === "CEP")
+        return [
+          "Vou informar meu CEP agora",
+          "Não sei o CEP — como acho?",
+          "Endereço de entrega é outro lugar"
+        ];
+      if (next?.includes("confirmar"))
+        return ["Corrigindo o CEP…", "É este CEP mesmo", "Preciso formatar os 8 dígitos"];
+      if (next?.includes("número") || next?.includes("complemento"))
+        return ["Número 100, sem complemento", "Apartamento 12, bloco B", "Sem número (S/N)"];
+      if (next === "frete")
+        return ["Quanto ficou o frete?", "O prazo atende bem", "Pode prosseguir"];
+      return ["Informar CEP da entrega", "Qual prazo médio?", "Posso retirar na loja?"];
+    case "payment": {
+      const base = ["Prefiro PIX", "Prefiro cartão", "Finalizar pedido"];
+      if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
+        return ["Tenho um cupom de desconto", ...base];
+      }
+      return base;
+    }
+    case "completed":
+      return ["Obrigado!"];
+    default:
+      return ["Ok"];
+  }
+}
+
+export function buildCheckoutExperience(input: ExperienceInputs, deps: ExperienceDeps): CheckoutExperienceSnapshot {
   const merchantName = deps.merchantName ?? input.merchant_id;
   const theme = deps.theme ?? DEFAULT_MERCHANT_THEME;
+  const chatStage = deps.chatStage ?? "data_collection";
   const items = input.cart.items.map(toItemSnapshot);
   const shipping = input.shipping?.customerPrice ?? 0;
   const discount = input.cart.currentDiscount ?? 0;
@@ -42,7 +116,21 @@ export function buildCheckoutExperience(
     agentIdentity?.greeting ??
     `Olá, sou o assistente da ${merchantName}. Posso te ajudar a finalizar este pedido.`;
 
+  const trustCadastro = chatStage === "data_collection";
+  
+  let expected_input_type: "text" | "email" | "tel" | "number" = "text";
+  if (chatStage === "data_collection") {
+    const next = deps.missingFieldsPreview?.[0];
+    if (next === "email") expected_input_type = "email";
+    else if (next === "telefone") expected_input_type = "tel";
+    else if (next === "CPF") expected_input_type = "number";
+  } else if (chatStage === "shipping") {
+    const next = deps.missingFieldsPreview?.[0];
+    if (next === "CEP" || next?.includes("número")) expected_input_type = "number";
+  }
+
   return {
+    stage: chatStage,
     brand: {
       merchant_id: input.merchant_id,
       name: merchantName,
@@ -72,24 +160,27 @@ export function buildCheckoutExperience(
     copy: {
       headline: `${merchantName}: finalize sua compra com ajuda da IA`,
       subheadline: `${items.length} item(ns) no pedido, total ${formatMoney(total, input.cart.currency)} com contexto real do carrinho.`,
-      trust_badges: [
-        "IA respeita políticas comerciais da loja",
-        "Frete, cupom e pagamento validados pela API",
-        "Resumo do pedido sincronizado com a sessão"
-      ],
-      quick_replies: [
-        "Tenho dúvida sobre o frete",
-        "Existe algum cupom disponível?",
-        "Quero finalizar agora"
-      ]
+      trust_badges: trustCadastro
+        ? [
+          "Dados apenas para esta compra",
+          "Códigos e benefícios comerciais na etapa final",
+          "Frete confirmado antes do pagamento"
+        ]
+        : [
+          "IA respeita políticas comerciais da loja",
+          "Frete e cupom validados pela API",
+          "Resumo do pedido sincronizado"
+        ],
+      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules),
+      focus_input: chatStage !== "completed",
+      expected_input_type
     }
   };
 }
 
-export function buildExperienceFromSession(
-  session: CheckoutSession,
-  deps: ExperienceDeps
-): CheckoutExperienceSnapshot {
+export function buildExperienceFromSession(session: CheckoutSession, deps: ExperienceDeps): CheckoutExperienceSnapshot {
+  const chatStage = deriveChatStage(session);
+  const missingFieldsPreview = missingFieldsForStage(session, chatStage);
   return buildCheckoutExperience(
     {
       merchant_id: session.merchantId,
@@ -97,7 +188,7 @@ export function buildExperienceFromSession(
       customer: session.customer,
       shipping: session.shipping
     },
-    deps
+    { ...deps, chatStage, missingFieldsPreview }
   );
 }
 
