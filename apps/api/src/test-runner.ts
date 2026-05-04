@@ -16,6 +16,8 @@ import "./modules/checkout-settings/infrastructure/prisma-checkout-settings.repo
 import "./modules/commerce/application/validate-cart-for-payment.use-case.spec.js";
 import "./modules/commerce/application/sync-pending-order.use-case.spec.js";
 import "./modules/commerce/application/mark-commerce-order-paid.use-case.spec.js";
+import "./modules/payment/domain/payment-intent.entity.spec.js";
+import "./modules/payment/infrastructure/in-memory-payment.repository.spec.js";
 import "./modules/checkout/domain/entities/checkout-session.entity.spec.js";
 import "./modules/checkout/domain/entities/accepted-offer.entity.spec.js";
 import "./modules/checkout/domain/entities/completed-order.entity.spec.js";
