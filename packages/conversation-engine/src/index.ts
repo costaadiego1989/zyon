@@ -18,6 +18,7 @@ export interface ConversationInput {
   history?: ChatTurn[];
   stage?: ChatStage;
   missingFields?: string[];
+  deliverySummary?: string;
 }
 
 export interface ConversationOutput {
@@ -126,6 +127,9 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
   if (input.stage) {
     lines.push(stageInstructions(input.stage, input.missingFields ?? []));
   }
+  if (input.deliverySummary) {
+    lines.push(`Contexto de entrega já conhecido (use como referência, não repita tudo): ${input.deliverySummary}`);
+  }
   if (input.cart) lines.push(`Carrinho: ${cartSummary(input.cart)}.`);
   if (input.authorizedOffer) {
     lines.push(
@@ -156,14 +160,38 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
       `CAMPOS FALTANDO (em ordem): ${missingFields.join(", ") || "nenhum"}.`,
       `REGRA: peça apenas o PRÓXIMO campo da lista (\"${next}\") em uma única frase.`,
       "Se o comprador levantar uma objeção, responda em uma frase e retome a coleta na frase seguinte.",
-      "Nunca peça vários campos na mesma mensagem."
+      "Nunca peça vários campos na mesma mensagem.",
+      "PROIBIDO nesta etapa: mencionar cupom, desconto, negociação de preço ou frete detalhado — isso vem depois do cadastro.",
+      "NUNCA diga que o cadastro está completo. Apenas peça o próximo dado."
     ].join("\n");
   }
   if (stage === "shipping") {
-    return "ETAPA: cálculo de frete. Peça o CEP do comprador caso ainda não tenha sido informado e confirme a entrega.";
+    const next = missingFields[0] ?? "CEP";
+    if (next.includes("número") || next.includes("complemento")) {
+      return [
+        "ETAPA: endereço de entrega — já localizamos o logradouro pelo CEP.",
+        "Peça somente o número e complemento/referência (apto, bloco) em uma frase curta.",
+        "Não ofereça cupom ou desconto nesta etapa."
+      ].join("\n");
+    }
+    if (next.includes("confirmar")) {
+      return "ETAPA: frete. O CEP informado não retornou endereço — peça que o comprador confira o CEP.";
+    }
+    return [
+      "ETAPA: frete e endereço de entrega.",
+      `Próximo passo obrigatório: \"${next}\" — peça explicitamente só isso.`,
+      "MUITO IMPORTANTE: Não diga 'cadastro completo', 'pedido em andamento' ou 'encaminhando para finalização'. Apenas peça o CEP de entrega diretamente.",
+      "Se falta o CEP, peça os 8 dígitos de CEP antes de qualquer assunto de pagamento.",
+      "PROIBIDO antes do frete ficar claro: mencionar 'opções de pagamento', 'checkout' ou 'finalize a compra'.",
+      "Não mencione cupom nesta etapa."
+    ].join("\n");
   }
   if (stage === "payment") {
-    return "ETAPA: pagamento. Pergunte se o comprador prefere PIX ou cartão de crédito e finalize o pedido.";
+    return [
+      "ETAPA: pagamento e fechamento.",
+      "Agora pode falar de cupom (se a loja permitir) e perguntar PIX ou cartão.",
+      "Seja breve (máx. 2 frases)."
+    ].join("\n");
   }
   return "ETAPA: pedido finalizado. Agradeça e encerre.";
 }
@@ -203,7 +231,9 @@ export function isSafeGeneratedMessage(message: string, offer?: AuthorizedOffer)
     /estoque garantido|temos em estoque garantido|produto reservado/,
     /pagamento (foi )?(aprovado|confirmado)|pix (foi )?confirmado|cartao (foi )?aprovado/,
     /desconto (aprovado|liberado|garantido)/,
-    /oferta (aprovada|liberada|garantida)/
+    /oferta (aprovada|liberada|garantida)/,
+    /pedido (ja esta|segue|esta) (em andamento|para processamento)/,
+    /cadastro (esta|ta) completo|encaminhar para finalizacao/
   ];
   return !forbiddenClaims.some((pattern) => pattern.test(normalized));
 }
@@ -232,9 +262,22 @@ function fallbackReply(
     return { objection, message: `${prefix}${stageMessage}` };
   }
   if (stage === "shipping") {
+    const next = missingFields?.[0] ?? "CEP";
+    if (next.includes("número") || next.includes("complemento")) {
+      return {
+        objection,
+        message: `${prefix}Já achei o endereço pelo CEP. Qual o número e complemento (apto/bloco, se houver)?`
+      };
+    }
+    if (next.includes("confirmar")) {
+      return {
+        objection,
+        message: `${prefix}Não consegui localizar esse CEP. Pode conferir os 8 dígitos e enviar de novo?`
+      };
+    }
     return {
       objection,
-      message: `${prefix}Para calcular o frete, pode informar o seu CEP?`
+      message: `${prefix}Para calcular o frete, pode informar o CEP da entrega?`
     };
   }
   if (stage === "payment") {
