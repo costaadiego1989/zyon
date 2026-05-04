@@ -19,8 +19,8 @@ export class AgentRulesEntity {
         agentName: "Zion",
         persona: "checkout sales agent",
         tone: "consultative",
-        language: "en-US",
-        greeting: "Hi, I'm here to help you finalize with security."
+        language: "pt-BR",
+        greeting: "Olá, estou aqui para te ajudar a finalizar seu pedido com segurança."
       },
       capabilities: {
         priceObjectionHandling: true,
@@ -39,8 +39,8 @@ export class AgentRulesEntity {
         forbidLegalMedicalFinancialAdvice: true,
         forbidAbusivePressure: true,
         blockedPhrases: [],
-        requiredDisclaimers: ["Offers depend on store rules authorization."],
-        escalationTriggers: ["customer requests delivery promise", "customer requests discount outside policy"]
+        requiredDisclaimers: ["As ofertas dependem das regras autorizadas da loja."],
+        escalationTriggers: ["cliente pediu prazo de entrega garantido", "cliente pediu desconto maior que a política"]
       },
       checkoutSettings: {
         agentMode: "silent_until_trigger",
@@ -90,9 +90,9 @@ export class AgentRulesEntity {
       guardrails: this.props.guardrails,
       checkout_settings: this.props.checkoutSettings,
       copy_constraints: [
-        "Mention offers only when authorized by deterministic modules.",
-        "Never invent discounts, free shipping, delivery dates, stock, or payment status.",
-        "Use escalation when the buyer requests something outside configured guardrails."
+        "Mencione ofertas apenas quando autorizadas pelos módulos determinísticos.",
+        "Nunca invente descontos, frete grátis, datas de entrega, estoque ou status de pagamento.",
+        "Use o transbordo (escalation) quando o comprador solicitar algo fora dos guardrails configurados."
       ]
     };
   }
