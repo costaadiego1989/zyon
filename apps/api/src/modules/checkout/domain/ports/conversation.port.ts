@@ -1,14 +1,18 @@
-import type { AuthorizedOffer, MerchantRules } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatTurn, MerchantRules } from "@aacp/shared-types";
 import type { Objection } from "@aacp/conversation-engine";
-import type { AgentContext } from "@aacp/shared-types";
 
 export const CONVERSATION_PORT = Symbol("CONVERSATION_PORT");
 
+export interface ConversationReplyInput {
+  userMessage: string;
+  brandVoice: MerchantRules["brandVoice"];
+  authorizedOffer?: AuthorizedOffer;
+  agentContext?: AgentContext;
+  merchantName?: string;
+  cart?: Cart;
+  history?: ChatTurn[];
+}
+
 export interface ConversationPort {
-  reply(input: {
-    userMessage: string;
-    brandVoice: MerchantRules["brandVoice"];
-    authorizedOffer?: AuthorizedOffer;
-    agentContext?: AgentContext;
-  }): Promise<{ message: string; objection: Objection }>;
+  reply(input: ConversationReplyInput): Promise<{ message: string; objection: Objection }>;
 }

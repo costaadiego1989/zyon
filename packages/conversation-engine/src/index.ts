@@ -1,4 +1,4 @@
-import type { AgentContext, AuthorizedOffer, MerchantRules } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatTurn, MerchantRules } from "@aacp/shared-types";
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
 
@@ -13,6 +13,9 @@ export interface ConversationInput {
   openAiApiKey?: string;
   model?: string;
   failOnProviderError?: boolean;
+  merchantName?: string;
+  cart?: Cart;
+  history?: ChatTurn[];
 }
 
 export interface ConversationOutput {
@@ -54,8 +57,8 @@ async function generateOpenAiResponse(input: ConversationInput, apiKey: string, 
     },
     body: JSON.stringify({
       model: input.model ?? "gpt-5-mini",
-      instructions: systemPrompt(),
-      input: promptContext(input, objection)
+      instructions: systemPrompt(input, objection),
+      input: buildResponsesInput(input)
     })
   });
 
@@ -65,6 +68,7 @@ async function generateOpenAiResponse(input: ConversationInput, apiKey: string, 
 }
 
 async function generateChatCompletion(input: ConversationInput, apiKey: string, objection: Objection): Promise<string> {
+  const messages = buildChatMessages(input, objection);
   const response = await fetch(`${input.baseUrl ?? "https://api.deepseek.com/v1"}/chat/completions`, {
     method: "POST",
     headers: {
@@ -73,12 +77,10 @@ async function generateChatCompletion(input: ConversationInput, apiKey: string, 
     },
     body: JSON.stringify({
       model: input.model ?? "deepseek-chat",
-      messages: [
-        { role: "system", content: systemPrompt() },
-        { role: "user", content: promptContext(input, objection) }
-      ],
-      max_tokens: 600,
-      temperature: 0.4
+      messages,
+      max_tokens: 700,
+      temperature: 0.5,
+      stream: false
     })
   });
 
@@ -87,18 +89,60 @@ async function generateChatCompletion(input: ConversationInput, apiKey: string, 
   return json.choices?.[0]?.message?.content ?? "";
 }
 
-function systemPrompt(): string {
-  return "You are a senior checkout sales closer. Follow the provided agent identity, capabilities, and guardrails. Be direct, helpful, and commercial. Never invent discounts, shipping, delivery promises, stock, or payment status. Only mention an offer if it is included in the authorized offer context.";
+function buildChatMessages(input: ConversationInput, objection: Objection): Array<{ role: "system" | "user" | "assistant"; content: string }> {
+  const history = (input.history ?? []).slice(-12).map((turn) => ({
+    role: (turn.role === "buyer" ? "user" : "assistant") as "user" | "assistant",
+    content: turn.text
+  }));
+  return [
+    { role: "system", content: systemPrompt(input, objection) },
+    ...history,
+    { role: "user", content: input.userMessage }
+  ];
 }
 
-function promptContext(input: ConversationInput, objection: Objection): string {
-  return [
-    `Brand voice: ${input.brandVoice}`,
-    `Agent context: ${input.agentContext ? JSON.stringify(input.agentContext) : "default checkout agent"}`,
-    `Detected objection: ${objection}`,
-    `Authorized offer: ${input.authorizedOffer ? JSON.stringify(input.authorizedOffer) : "none"}`,
-    `Buyer message: ${input.userMessage}`
-  ].join("\n");
+function buildResponsesInput(input: ConversationInput): string {
+  const history = (input.history ?? [])
+    .slice(-12)
+    .map((t) => `${t.role === "buyer" ? "Buyer" : "Agent"}: ${t.text}`)
+    .join("\n");
+  return [history, `Buyer: ${input.userMessage}`].filter(Boolean).join("\n");
+}
+
+function systemPrompt(input: ConversationInput, objection: Objection): string {
+  const lines = [
+    `You are a B2C sales-assistant agent embedded in the merchant "${input.merchantName ?? "(merchant)"}".`,
+    "Speak in pt-BR. Be concise (max 3 sentences). Be commercial, helpful and direct.",
+    `Brand voice: ${input.brandVoice}.`,
+    `Detected objection: ${objection}.`
+  ];
+  if (input.cart) lines.push(`Cart: ${cartSummary(input.cart)}.`);
+  if (input.authorizedOffer) {
+    lines.push(
+      `Authorized offer: ${JSON.stringify({
+        approved: input.authorizedOffer.approved,
+        type: input.authorizedOffer.type,
+        value: input.authorizedOffer.value,
+        reason: input.authorizedOffer.reason
+      })}. NEVER mention any commercial terms beyond this offer.`
+    );
+  } else {
+    lines.push("No offer is authorized; redirect to checkout instead of inventing discounts.");
+  }
+  if (input.agentContext) {
+    lines.push(`Agent identity & guardrails: ${JSON.stringify(input.agentContext)}`);
+  }
+  lines.push(
+    "Hard rules: never promise free shipping, delivery time, stock or payment status unless explicitly present in the authorized offer."
+  );
+  return lines.join("\n");
+}
+
+function cartSummary(cart: Cart): string {
+  const lines = cart.items
+    .map((item) => `${item.quantity}x ${item.name} @ ${item.price.toFixed(2)} ${cart.currency}`)
+    .join("; ");
+  return `${lines || "(empty)"}; total ${cart.total.toFixed(2)} ${cart.currency}`;
 }
 
 export function classifyObjection(message: string): Objection {

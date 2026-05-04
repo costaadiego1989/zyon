@@ -109,6 +109,71 @@ test("generateSalesReply rejects unsafe provider text that exceeds authorized co
   }
 });
 
+test("generateSalesReply forwards cart, merchant and history to the chat completion", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ url: string; body: any }> = [];
+  globalThis.fetch = (async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+    return new Response(
+      JSON.stringify({ choices: [{ message: { content: "Posso aplicar 5% agora?" } }] }),
+      { status: 200 }
+    );
+  }) as typeof fetch;
+
+  try {
+    const reply = await generateSalesReply({
+      userMessage: "esta caro",
+      brandVoice: "consultative",
+      provider: "openai_chat",
+      apiKey: "sk-test",
+      merchantName: "Loja Demo",
+      cart: {
+        currency: "BRL",
+        total: 200,
+        items: [{ sku: "x", name: "Bolsa", price: 200, cost: 100, quantity: 1 }]
+      },
+      authorizedOffer: {
+        id: "off_demo",
+        merchantId: "m",
+        sessionId: "s",
+        type: "discount_percent",
+        value: 10,
+        approved: true,
+        reason: "discount_allowed",
+        marginAfterOffer: 0.5,
+        expiresAt: "2999-01-01T00:00:00.000Z"
+      },
+      history: [
+        { role: "buyer", text: "oi", occurredAt: "2026-05-04T12:00:00Z" },
+        { role: "agent", text: "Olá! Posso ajudar.", occurredAt: "2026-05-04T12:00:01Z" }
+      ],
+      failOnProviderError: true
+    });
+
+    assert.equal(reply.message, "Posso aplicar 5% agora?");
+    const sent = calls[0]?.body as { messages: Array<{ role: string; content: string }> };
+    assert.ok(
+      sent.messages.some((m) => m.role === "system" && m.content.includes("Loja Demo")),
+      "system mentions merchant"
+    );
+    assert.ok(
+      sent.messages.some((m) => m.role === "system" && m.content.includes("Bolsa")),
+      "system mentions cart item name"
+    );
+    assert.equal(
+      sent.messages.find((m) => m.role === "user" && m.content === "esta caro")?.role,
+      "user"
+    );
+    assert.equal(
+      sent.messages.filter((m) => m.role === "user" || m.role === "assistant").length,
+      3,
+      "history (2) + current user (1) forwarded"
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("isSafeGeneratedMessage blocks delivery, stock, payment, and unauthorized shipping claims", () => {
   assert.equal(isSafeGeneratedMessage("Entrega garantida amanha para voce."), false);
   assert.equal(isSafeGeneratedMessage("Produto reservado e estoque garantido."), false);
