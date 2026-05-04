@@ -34,6 +34,8 @@ export interface Cart {
 
 export interface CustomerHints {
   externalCustomerId?: string;
+  /** Cliente cadastrado no Asaas (`cus_...`), vinculado ao pagador da sessão. */
+  asaasCustomerId?: string;
   email?: string;
   phone?: string;
   isReturning?: boolean;
