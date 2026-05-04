@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
@@ -36,7 +37,7 @@ import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-inte
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
 
 @Module({
-  imports: [AgentRulesModule, CheckoutSettingsModule, BuyerPurchaseHistoryModule],
+  imports: [AgentRulesModule, CheckoutSettingsModule, BuyerPurchaseHistoryModule, MerchantModule],
   controllers: [CheckoutController],
   providers: [
     StartCheckoutUseCase,
