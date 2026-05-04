@@ -30,6 +30,7 @@ import "./modules/checkout/domain/entities/accepted-offer.entity.spec.js";
 import "./modules/checkout/domain/entities/completed-order.entity.spec.js";
 import "./modules/checkout/domain/services/checkout-identity.service.spec.js";
 import "./modules/checkout/domain/services/checkout-abandonment.service.spec.js";
+import "./modules/checkout/domain/services/customer-extraction.service.spec.js";
 import "./modules/checkout/domain/events/checkout-domain-event.spec.js";
 import "./modules/checkout/domain/domain-boundary.spec.js";
 import "./modules/checkout/infrastructure/repositories/in-memory-checkout.repository.spec.js";
