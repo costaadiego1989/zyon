@@ -141,6 +141,15 @@ importers:
         specifier: ^3.0.9
         version: 3.2.4(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)
 
+  packages/agentic-checkout-js:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.19.17
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/commerce-adapters:
     dependencies:
       '@aacp/shared-types':

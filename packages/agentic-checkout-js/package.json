@@ -1,0 +1,21 @@
+{
+  "name": "@aacp/agentic-checkout-js",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "main": "dist/embed-client.js",
+  "types": "dist/embed-client.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm build && node dist/embed-client.spec.js"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  },
+  "files": ["dist"]
+}
