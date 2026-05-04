@@ -29,7 +29,24 @@ describe("EmbedCheckoutController", () => {
           global_user_id: "g",
           agent_enabled: true,
           initial_mode: "silent" as const,
-          tracking_token: "t"
+          tracking_token: "t",
+          experience: {
+            brand: { merchant_id: input.merchant_id, name: "Token Merchant" },
+            items: [],
+            totals: { currency: "BRL", subtotal: 0, shipping: 0, discount: 0, total: 0 },
+            agent: {
+              name: "Assistente AACP",
+              greeting: "Olá",
+              tone: "consultative" as const,
+              language: "pt-BR"
+            },
+            copy: {
+              headline: "Checkout assistido",
+              subheadline: "Sessão conectada",
+              trust_badges: [],
+              quick_replies: []
+            }
+          }
         };
       }
     };
