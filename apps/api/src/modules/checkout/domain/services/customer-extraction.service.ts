@@ -1,4 +1,4 @@
-import type { ChatStage, CheckoutSession } from "@aacp/shared-types";
+import type { ChatStage, CheckoutSession, CustomerAddress } from "@aacp/shared-types";
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
 const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;
@@ -30,11 +30,22 @@ export function extractCep(text: string): string | undefined {
 }
 
 export function extractPhone(text: string): string | undefined {
-  const m = text.match(/\(?\s*(\d{2})\s*\)?[\s-](\d{4,5})\s*-?\s*(\d{4})/);
-  if (!m) return undefined;
-  const digits = `${m[1]}${m[2]}${m[3]}`;
-  if (digits.length < 10 || digits.length > 11) return undefined;
-  return digits;
+  const m = text.match(/\(?\s*(\d{2})\s*\)?[\s-]?(\d{4,5})\s*-?\s*(\d{4})/);
+  if (m) {
+    const digits = `${m[1]}${m[2]}${m[3]}`;
+    if (digits.length >= 10 && digits.length <= 11) return digits;
+  }
+  
+  const clean = text.replace(/[\s-]/g, "");
+  const isolated = clean.match(/\b(\d{10,11})\b/);
+  if (isolated) return isolated[1];
+
+  const digitsOnly = text.replace(/\D+/g, "");
+  if (digitsOnly.length >= 10 && digitsOnly.length <= 11) {
+    return digitsOnly;
+  }
+
+  return undefined;
 }
 
 const NAME_FILLERS = ["é", "e", "sou", "meu", "nome", "me", "chamo", "o", "a"];
@@ -56,11 +67,39 @@ export function extractName(text: string, lastAgentTurn?: string): string | unde
     .join(" ");
 }
 
+export function extractAddressDetailLine(
+  text: string
+): Pick<CustomerAddress, "number" | "complement"> | null {
+  const stripped = text
+    .replace(/\b\d{5}-?\d{3}\b/g, " ")
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, " ")
+    .trim();
+  if (/^s\/?n\.?$|^sem\s+n[uú]mero$/i.test(stripped.replace(/\./g, ""))) {
+    return { number: "S/N", complement: undefined };
+  }
+  const m = stripped.match(/^(\d{1,6}[a-zA-Z]?)(?:\s*[,;\-\/]\s*|\s+)(.+)$/);
+  if (m) {
+    return { number: m[1]?.trim(), complement: (m[2] ?? "").trim().slice(0, 160) };
+  }
+  const single = stripped.match(/^(\d{1,6}[a-zA-Z]?)$/);
+  if (single) return { number: single[1]!, complement: undefined };
+  return null;
+}
+
 export function deriveChatStage(session: CheckoutSession, completed = false): ChatStage {
   if (completed) return "completed";
   const c = session.customer ?? {};
   if (!c.fullName || !c.email || !c.cpf || !c.phone) return "data_collection";
-  if (!session.shipping || !c.address?.zip) return "shipping";
+  const addr = c.address ?? {};
+  if (
+    !addr.zip ||
+    !addr.street ||
+    !(addr.city && addr.state) ||
+    !addr.number ||
+    !session.shipping
+  ) {
+    return "shipping";
+  }
   if (!session.paymentMethod) return "payment";
   return "completed";
 }
@@ -77,10 +116,12 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
     return DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
   }
   if (stage === "shipping") {
-    const labels: string[] = [];
-    if (!session.customer?.address?.zip) labels.push("CEP");
-    if (!session.shipping) labels.push("entrega");
-    return labels.length === 0 ? ["CEP"] : labels;
+    const addr = session.customer?.address ?? {};
+    if (!addr.zip) return ["CEP"];
+    if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];
+    if (!addr.number) return ["número e complemento (apto/bloco)"];
+    if (!session.shipping?.customerPrice) return ["frete"];
+    return [];
   }
   if (stage === "payment") return ["forma de pagamento"];
   return [];
