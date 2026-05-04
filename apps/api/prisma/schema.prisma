@@ -295,3 +295,32 @@ model CheckoutIntervention {
   @@index([merchantId, sessionId, occurredAt])
   @@map("checkout_interventions")
 }
+
+model PaymentIntent {
+  id                   String    @id
+  merchantId           String    @map("merchant_id")
+  sessionId            String    @map("session_id")
+  idempotencyKey       String    @map("idempotency_key")
+  amountCents          Int       @map("amount_cents")
+  currency             String
+  method               String
+  status               String
+  providerPaymentId    String?   @map("provider_payment_id")
+  approvedAmountCents  Int?      @map("approved_amount_cents")
+  acceptedOfferId      String?   @map("accepted_offer_id")
+  buyerFacing          Json?     @map("buyer_facing")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@unique([merchantId, sessionId, idempotencyKey])
+  @@unique([merchantId, providerPaymentId])
+  @@index([merchantId, sessionId])
+  @@map("payment_intents")
+}
+
+model PaymentProviderEvent {
+  id          String   @id
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@map("payment_provider_events")
+}
