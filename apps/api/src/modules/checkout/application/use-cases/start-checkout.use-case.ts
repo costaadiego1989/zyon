@@ -3,9 +3,11 @@ import type {
   AgentContext,
   CheckoutExperienceSnapshot,
   CheckoutItemSnapshot,
+  MerchantTheme,
   StartCheckoutRequest,
   StartCheckoutResponse
 } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
@@ -74,6 +76,7 @@ export class StartCheckoutUseCase {
         tracking_token: `trk_${crypto.randomUUID()}`,
         experience: buildCheckoutExperience(input, {
           merchantName: merchant?.name,
+          theme: merchant?.theme,
           agent
         })
       };
@@ -83,9 +86,10 @@ export class StartCheckoutUseCase {
 
 function buildCheckoutExperience(
   input: StartCheckoutRequest,
-  deps: { merchantName?: string; agent?: AgentContext }
+  deps: { merchantName?: string; theme?: MerchantTheme; agent?: AgentContext }
 ): CheckoutExperienceSnapshot {
   const merchantName = deps.merchantName ?? input.merchant_id;
+  const theme = deps.theme ?? DEFAULT_MERCHANT_THEME;
   const items = input.cart.items.map(toItemSnapshot);
   const shipping = input.shipping?.customerPrice ?? 0;
   const discount = input.cart.currentDiscount ?? 0;
@@ -102,7 +106,10 @@ function buildCheckoutExperience(
       merchant_id: input.merchant_id,
       name: merchantName,
       subtitle: "Checkout assistido por IA",
-      support_label: "Compra guiada"
+      support_label: "Compra guiada",
+      logo_url: theme.logoUrl,
+      accent_color: theme.accentColor,
+      theme
     },
     items,
     totals: {

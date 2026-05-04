@@ -63,7 +63,17 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
   const repository = new InMemoryCheckoutRepository();
   const merchantRepository: MerchantRepository = {
     async getProfile() {
-      return { id: "mrc_1", name: "Northstar Atelier" };
+      return {
+        id: "mrc_1",
+        name: "Northstar Atelier",
+        theme: {
+          accentColor: "#FF0066",
+          textColor: "#0F172A",
+          backgroundColor: "#FFFFFF",
+          fontFamily: "Manrope, system-ui, sans-serif",
+          logoUrl: "https://cdn.example.com/northstar-logo.png"
+        }
+      };
     },
     async getRules() {
       return {
@@ -83,6 +93,9 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
     },
     async updateRules() {
       return this.getRules("mrc_1");
+    },
+    async updateTheme(_, theme) {
+      return theme;
     }
   };
   const agentContext: AgentContextPort = {
@@ -165,4 +178,7 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
   assert.equal(response.experience.totals.total, 929.7);
   assert.ok(response.experience.copy.headline.includes("Northstar Atelier"));
   assert.ok(response.experience.copy.quick_replies.includes("Tenho dúvida sobre o frete"));
+  assert.equal(response.experience.brand.theme.accentColor, "#FF0066");
+  assert.equal(response.experience.brand.theme.fontFamily, "Manrope, system-ui, sans-serif");
+  assert.equal(response.experience.brand.logo_url, "https://cdn.example.com/northstar-logo.png");
 });

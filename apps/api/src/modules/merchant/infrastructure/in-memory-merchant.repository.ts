@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { MerchantProfile, MerchantRules } from "../domain/merchant.types.js";
+import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 
 const DEFAULT_RULES: MerchantRules = {
@@ -39,5 +39,11 @@ export class InMemoryMerchantRepository implements MerchantRepository {
     const next = { ...(await this.getRules(merchantId)), ...rules };
     this.rules.set(merchantId, next);
     return next;
+  }
+
+  async updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
+    const existing = this.profiles.get(merchantId) ?? { id: merchantId, name: merchantId };
+    this.profiles.set(merchantId, { ...existing, theme });
+    return theme;
   }
 }

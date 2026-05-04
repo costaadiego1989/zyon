@@ -8,6 +8,8 @@ import { LoginUseCase } from "../application/login.use-case.js";
 import { RegisterMerchantUseCase } from "../application/register-merchant.use-case.js";
 import { PrismaMerchantRepository } from "../../merchant/infrastructure/prisma-merchant.repository.js";
 import { GetMerchantProfileUseCase, GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../../merchant/application/merchant.use-cases.js";
+import { GetMerchantThemeUseCase } from "../../merchant/application/get-merchant-theme.use-case.js";
+import { UpdateMerchantThemeUseCase } from "../../merchant/application/update-merchant-theme.use-case.js";
 import { MerchantController } from "../../merchant/presentation/merchant.controller.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
@@ -26,7 +28,9 @@ test(
     const merchantController = new MerchantController(
       new GetMerchantProfileUseCase(merchantRepository),
       new GetMerchantRulesUseCase(merchantRepository),
-      new UpdateMerchantRulesUseCase(merchantRepository)
+      new UpdateMerchantRulesUseCase(merchantRepository),
+      new GetMerchantThemeUseCase(merchantRepository),
+      new UpdateMerchantThemeUseCase(merchantRepository)
     );
     const merchantId = `mrc_auth_${crypto.randomUUID()}`;
     const email = `${merchantId}@example.com`;

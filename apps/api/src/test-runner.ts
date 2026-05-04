@@ -4,6 +4,7 @@ import "./modules/auth/domain/services/auth-cookie.service.spec.js";
 import "./modules/auth/domain/services/login-rate-limiter.service.spec.js";
 import "./modules/auth/application/auth.use-cases.spec.js";
 import "./modules/merchant/presentation/merchant.controller.spec.js";
+import "./modules/merchant/application/merchant-theme.use-cases.spec.js";
 import "./modules/auth/presentation/auth-merchant.prisma-e2e-spec.js";
 import "./modules/agent-rules/domain/entities/agent-rules.entity.spec.js";
 import "./modules/agent-rules/application/agent-rules.use-cases.spec.js";
@@ -44,6 +45,8 @@ import "./modules/checkout/application/use-cases/send-chat-message.use-case.spec
 import "./modules/checkout/presentation/http/checkout.controller.spec.js";
 import "./modules/checkout/infrastructure/adapters/agent-rules-context.adapter.spec.js";
 import "./modules/checkout/presentation/http/checkout.ai-safety-scenarios.spec.js";
+import "./modules/checkout/domain/policies/omnichannel-confirmation.policy.spec.js";
+import "./modules/checkout/presentation/http/checkout.agentic-journey.e2e-spec.js";
 import "./modules/checkout/presentation/http/checkout.intervention-ledger.e2e-spec.js";
 import "./modules/checkout/infrastructure/prisma/prisma-checkout.repository.int-spec.js";
 import "./modules/checkout/infrastructure/prisma-intervention-ledger.repository.int-spec.js";

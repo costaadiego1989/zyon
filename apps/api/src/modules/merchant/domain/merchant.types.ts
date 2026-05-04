@@ -1,8 +1,9 @@
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules, MerchantTheme } from "@aacp/shared-types";
 
 export interface MerchantProfile {
   id: string;
   name: string;
+  theme?: MerchantTheme;
 }
 
-export { type MerchantRules };
+export { type MerchantRules, type MerchantTheme };

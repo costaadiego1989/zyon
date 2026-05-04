@@ -103,6 +103,22 @@ export interface StartCheckoutRequest {
   shipping?: ShippingQuote;
 }
 
+export interface MerchantTheme {
+  accentColor: string;
+  textColor: string;
+  backgroundColor: string;
+  fontFamily: string;
+  logoUrl?: string;
+  agentAvatarUrl?: string;
+}
+
+export const DEFAULT_MERCHANT_THEME: MerchantTheme = {
+  accentColor: "#0F766E",
+  textColor: "#0F172A",
+  backgroundColor: "#FFFFFF",
+  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+};
+
 export interface CheckoutBrandSnapshot {
   merchant_id: string;
   name: string;
@@ -110,6 +126,7 @@ export interface CheckoutBrandSnapshot {
   logo_url?: string;
   accent_color?: string;
   support_label?: string;
+  theme: MerchantTheme;
 }
 
 export interface CheckoutItemSnapshot {

@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { MerchantProfile, MerchantRules } from "../domain/merchant.types.js";
+import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 
 const DEFAULT_RULES: MerchantRules = {
@@ -22,7 +22,20 @@ export class PrismaMerchantRepository implements MerchantRepository {
 
   async getProfile(merchantId: string): Promise<MerchantProfile | undefined> {
     const row = await this.prisma.merchant.findUnique({ where: { id: merchantId } });
-    return row ? { id: row.id, name: row.name } : undefined;
+    if (!row) return undefined;
+    return {
+      id: row.id,
+      name: row.name,
+      theme: (row.theme ?? undefined) as MerchantTheme | undefined
+    };
+  }
+
+  async updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
+    const updated = await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { theme: theme as unknown as object }
+    });
+    return ((updated.theme as MerchantTheme | null) ?? theme);
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {
