@@ -84,7 +84,7 @@ function fallbackExperience(config: WidgetConfig): CheckoutExperienceSnapshot {
   };
 }
 
-function themeStyle(theme: MerchantTheme): React.CSSProperties {
+export function themeStyle(theme: MerchantTheme): React.CSSProperties {
   return {
     "--aacp-accent": theme.accentColor,
     "--aacp-fg": theme.textColor,
@@ -93,7 +93,9 @@ function themeStyle(theme: MerchantTheme): React.CSSProperties {
   } as React.CSSProperties;
 }
 
-function CheckoutAgent({ config }: { config: WidgetConfig }) {
+export type { WidgetConfig };
+
+export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const isConversational = config.uiPresentation === "conversational";
   const [session, setSession] = useState<StartCheckoutResponse | null>(null);
   const [open, setOpen] = useState(isConversational);
