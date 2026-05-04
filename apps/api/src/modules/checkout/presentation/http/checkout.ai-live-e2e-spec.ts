@@ -110,6 +110,114 @@ test(
   }
 );
 
+test(
+  "live AI checkout e2e simulates a full multi-turn purchase journey",
+  {
+    skip: runLiveAi
+      ? false
+      : "Set RUN_REAL_AI_E2E=true and DEEPSEEK_API_KEY or OPENAI_API_KEY to run live AI checkout e2e."
+  },
+  async () => {
+    const repository = new InMemoryCheckoutRepository();
+    const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+    const controller = new CheckoutController(
+      new StartCheckoutUseCase(repository),
+      new TrackCheckoutEventUseCase(repository),
+      new GetCheckoutSessionUseCase(repository),
+      new GetDecisionUseCase(repository),
+      new SendChatMessageUseCase(repository, new LiveAiConversationPort(), {
+        async get() {
+          return liveAgentContext();
+        }
+      }),
+      new EvaluateShippingUseCase(repository),
+      new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
+      new CompleteOrderUseCase(repository),
+      new GetDashboardOverviewUseCase(repository),
+      new GetMerchantRulesUseCase(repository),
+      new UpdateMerchantRulesUseCase(repository)
+    );
+
+    const merchantId = "mrc_live_ai_journey";
+    const started = await controller.start({
+      merchant_id: merchantId,
+      session_id: `chk_live_journey_${crypto.randomUUID()}`,
+      customer: { email: "buyer-journey@example.com", isReturning: false },
+      cart: {
+        currency: "BRL",
+        total: 459.9,
+        items: [
+          {
+            sku: "bag-pro",
+            name: "Bolsa Executiva Couro Safiano",
+            price: 459.9,
+            cost: 200,
+            quantity: 1
+          }
+        ]
+      },
+      shipping: { customerPrice: 29.9, realCost: 22, region: "SP", deliveryDays: 4 }
+    });
+
+    await controller.track({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      event: "shipping_objection_detected"
+    });
+
+    const r1 = await controller.chat({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      conversation_id: started.conversation_id,
+      user_message: "Achei o frete um pouco salgado, tem como melhorar?"
+    });
+    assert.equal(r1.message.length > 10, true, "AI must produce free-form text");
+    assert.equal(Array.isArray(r1.turns), true, "first turn returns chat history");
+    assert.equal(r1.turns!.length, 2, "2 turns after first round (buyer+agent)");
+
+    const r2 = await controller.chat({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      conversation_id: started.conversation_id,
+      user_message: "E sobre o cupom? voce mencionou frete agora me fala do desconto."
+    });
+    assert.equal(r2.turns!.length, 4, "history grows on subsequent rounds");
+    assert.notEqual(r2.message, r1.message, "AI must produce a different reply on round 2");
+
+    const r3 = await controller.chat({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      conversation_id: started.conversation_id,
+      user_message: "Pode aplicar a melhor condicao autorizada para eu fechar agora?"
+    });
+    assert.ok(r3.authorized_offer, "round 3 produces an authorized offer");
+    assert.equal(r3.authorized_offer!.approved, true);
+
+    const apply = await controller.offer({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      offer_id: r3.authorized_offer!.id
+    });
+    assert.equal(apply.success, true);
+
+    const completed = await controller.complete({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      external_order_id: `ord_${crypto.randomUUID()}`,
+      order_total: 459.9,
+      currency: "BRL",
+      accepted_offer_id: r3.authorized_offer!.id
+    });
+    assert.equal(completed.recorded, true);
+    assert.equal(completed.event_type, "order.completed");
+
+    const snap = await controller.session(merchantId, started.session_id);
+    assert.equal(snap.chatHistory.length, 6, "session keeps full chat history (3 rounds = 6 turns)");
+    assert.equal(snap.chatHistory[0]?.role, "buyer");
+    assert.equal(snap.chatHistory[1]?.role, "agent");
+  }
+);
+
 function liveAgentContext(): AgentContext {
   return {
     merchant_id: "mrc_live_ai",
