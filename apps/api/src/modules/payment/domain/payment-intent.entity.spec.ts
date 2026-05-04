@@ -56,10 +56,26 @@ describe("PaymentIntentEntity", () => {
       currency: "BRL",
       method: "pix"
     });
-    p.markRequiresAction();
+    p.markRequiresAction({ providerPaymentId: "pay_asaas_test" });
     assert.equal(p.status, "requires_action");
-    p.markApproved({ providerPaymentId: "pr_1", approvedAmountCents: 500 });
+    assert.equal(p.snapshot().providerPaymentId, "pay_asaas_test");
+    p.markApproved({ providerPaymentId: "pay_asaas_test", approvedAmountCents: 500 });
     assert.equal(p.status, "approved");
+  });
+
+  it("allows requires_action without provider id before approve attaches id", () => {
+    const p = PaymentIntentEntity.create({
+      merchantId: "m1",
+      sessionId: "s1",
+      idempotencyKey: "k_req",
+      amountCents: 400,
+      currency: "BRL",
+      method: "pix"
+    });
+    p.markRequiresAction();
+    assert.equal(p.snapshot().providerPaymentId, undefined);
+    p.markApproved({ providerPaymentId: "pay_x", approvedAmountCents: 400 });
+    assert.equal(p.snapshot().providerPaymentId, "pay_x");
   });
 
   it("allows pending then failed", () => {

@@ -19,6 +19,7 @@ export type PaymentIntentCreateInput = {
   amountCents: number;
   currency: string;
   method: PaymentMethod;
+  acceptedOfferId?: string;
 };
 
 export type PaymentIntentSnapshot = {
@@ -32,6 +33,8 @@ export type PaymentIntentSnapshot = {
   status: PaymentIntentStatus;
   providerPaymentId?: string;
   approvedAmountCents?: number;
+  acceptedOfferId?: string;
+  buyerFacing?: { qrCodeCopyPaste?: string; invoiceUrl?: string; encodedQrImage?: string };
 };
 
 type MutableState = Omit<PaymentIntentSnapshot, never>;
@@ -53,6 +56,9 @@ export class PaymentIntentEntity {
     if (input.amountCents <= 0) throw new Error("payment_intent_amount_invalid");
     if (!input.currency.trim()) throw new Error("payment_intent_currency_invalid");
 
+    const acceptedOfferId =
+      typeof input.acceptedOfferId === "string" ? input.acceptedOfferId.trim() || undefined : undefined;
+
     return new PaymentIntentEntity({
       id: `pay_int_${randomUUID()}`,
       merchantId,
@@ -61,7 +67,8 @@ export class PaymentIntentEntity {
       amountCents: input.amountCents,
       currency: input.currency.trim().toUpperCase(),
       method: input.method,
-      status: "pending"
+      status: "pending",
+      acceptedOfferId
     });
   }
 
@@ -81,9 +88,18 @@ export class PaymentIntentEntity {
     return this.s.id;
   }
 
-  markRequiresAction(): void {
+  markRequiresAction(params?: { providerPaymentId?: string }): void {
     if (this.s.status !== "pending") throw new Error("illegal_transition");
+    const pid = params?.providerPaymentId?.trim();
+    if (pid) this.s.providerPaymentId = pid;
     this.s.status = "requires_action";
+  }
+
+  setBuyerFacingPayload(payload: NonNullable<PaymentIntentSnapshot["buyerFacing"]>): void {
+    if (this.s.status !== "pending" && this.s.status !== "requires_action") {
+      throw new Error("illegal_transition");
+    }
+    this.s.buyerFacing = { ...payload };
   }
 
   markFailed(): void {
