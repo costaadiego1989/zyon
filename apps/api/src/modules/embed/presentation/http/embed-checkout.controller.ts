@@ -20,6 +20,7 @@ import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
+import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
@@ -53,7 +54,8 @@ export class EmbedCheckoutController {
     private readonly trackEvent: TrackCheckoutEventUseCase,
     private readonly sendChat: SendChatMessageUseCase,
     private readonly embedGuards: EmbedCheckoutGuardHelper,
-    private readonly applyOfferUseCase: ApplyOfferUseCase
+    private readonly applyOfferUseCase: ApplyOfferUseCase,
+    private readonly createPaymentIntent: CreatePaymentIntentUseCase
   ) {}
 
   @Post("start")
@@ -107,6 +109,32 @@ export class EmbedCheckoutController {
     return this.applyOfferUseCase.execute({
       ...(rest as Omit<ApplyOfferRequest, "merchant_id">),
       merchant_id: embed.merchantId
+    });
+  }
+
+  @Post("payment/intents")
+  async intentFromEmbed(
+    @Req() request: EmbedHttpRequest,
+    @Body()
+    body: {
+      session_id: string;
+      idempotency_key: string;
+      method?: "pix" | "card" | "boleto";
+      accepted_offer_id?: string;
+    }
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string" || typeof body.idempotency_key !== "string") {
+      throw new BadRequestException("session_and_idempotency_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    return this.createPaymentIntent.execute({
+      merchant_id: embed.merchantId,
+      session_id: body.session_id.trim(),
+      idempotency_key: body.idempotency_key.trim(),
+      method: body.method,
+      accepted_offer_id:
+        typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined
     });
   }
 }

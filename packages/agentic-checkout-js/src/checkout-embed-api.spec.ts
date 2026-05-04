@@ -71,6 +71,37 @@ test("routes track/chat/applyOffer to slash paths under normalized base", async 
   ]);
 });
 
+test("createPaymentIntent posts /embed/payment/intents JSON sem merchant_id", async () => {
+  const urls: string[] = [];
+  const bodies: unknown[] = [];
+  const mockFetch: typeof fetch = async (input, init) => {
+    urls.push(String(input));
+    bodies.push(JSON.parse(String(init?.body ?? "{}")));
+    return Response.json(
+      {
+        merchantId: "m",
+        sessionId: "s",
+        amountCents: 100,
+        currency: "BRL",
+        status: "requires_action",
+        buyerFacing: { invoiceUrl: "https://x" }
+      },
+      { status: 200 }
+    );
+  };
+
+  const client = new AgenticCheckoutEmbedClient({
+    apiBaseUrl: "https://api.embed/",
+    embedSessionToken: "tok",
+    fetchImpl: mockFetch
+  });
+
+  await client.createPaymentIntent({ session_id: "sess", idempotency_key: "idem-uuid" });
+
+  assert.deepEqual(urls, ["https://api.embed/embed/payment/intents"]);
+  assert.deepEqual(bodies[0], { session_id: "sess", idempotency_key: "idem-uuid" });
+});
+
 test("throws AgenticCheckoutHttpError on non-OK response", async () => {
   const mockFetch: typeof fetch = async () =>
     new Response("nope", { status: 401 }) as Response;

@@ -16,6 +16,13 @@ export type AgenticCheckoutEmbedClientOptions = {
   fetchImpl?: typeof fetch;
 };
 
+export type EmbedCreatePaymentIntentBody = {
+  session_id: string;
+  idempotency_key: string;
+  method?: "pix" | "card" | "boleto";
+  accepted_offer_id?: string;
+};
+
 export class AgenticCheckoutHttpError extends Error {
   readonly name = "AgenticCheckoutHttpError";
 
@@ -72,5 +79,9 @@ export class AgenticCheckoutEmbedClient {
 
   applyOffer(body: Omit<ApplyOfferRequest, "merchant_id">): Promise<ApplyOfferResponse> {
     return this.postJson("/embed/offers/apply", body);
+  }
+
+  createPaymentIntent(body: EmbedCreatePaymentIntentBody): Promise<Record<string, unknown>> {
+    return this.postJson("/embed/payment/intents", body);
   }
 }
