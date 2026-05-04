@@ -87,7 +87,7 @@ export class SendChatMessageUseCase {
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
 
-    const offer = await this.authorizeOffer(input.user_message, working, rules, stage);
+    const offer = await this.authorizeOffer(input.user_message, working, rules, stage, missingFields);
     const agentContext = await this.agentContext?.get({
       merchantId: input.merchant_id,
       userId: input.agent_user_id,
@@ -226,9 +226,13 @@ export class SendChatMessageUseCase {
     userMessage: string,
     sessionObj: CheckoutSession,
     rules: MerchantRules,
-    stage: ChatStage
+    stage: ChatStage,
+    missingFields: string[]
   ): Promise<AuthorizedOffer> {
-    if (stage === "data_collection") {
+    const isDataCollection = stage === "data_collection";
+    const isIncompleteShipping = stage === "shipping" && missingFields.some(f => f.includes("CEP") || f.includes("número") || f.includes("confirmar"));
+
+    if (isDataCollection || isIncompleteShipping) {
       return this.repository.saveOffer(
         createAuthorizedOffer({
           merchantId: sessionObj.merchantId,
