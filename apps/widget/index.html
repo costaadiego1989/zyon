@@ -1,24 +1,41 @@
-<html>
+<!DOCTYPE html>
+<html lang="pt-BR">
   <head>
-    <title>AACP Widget Dev</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Checkout conversacional com IA · AACP Embed Demo</title>
+    <meta
+      name="description"
+      content="Demo: sessão iniciada pela API · fechamento de compra com assistente dentro de grande painel enterprise (modo §6 conversacional)."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/demo-checkout-enterprise.css" />
   </head>
-  <body>
-    <main style="max-width: 760px; margin: 40px auto; font-family: Inter, Arial, sans-serif;">
-      <h1>Checkout demo</h1>
-      <p>Use os botoes abaixo para simular sinais do checkout.</p>
-      <button onclick="window.dispatchEvent(new CustomEvent('aacp:checkout-event', { detail: { event: 'coupon_field_clicked' }}))">
-        Clicou no cupom
-      </button>
-      <button onclick="window.dispatchEvent(new CustomEvent('aacp:checkout-event', { detail: { event: 'shipping_objection_detected' }}))">
-        Reclamou do frete
-      </button>
-    </main>
-    <aacp-checkout-agent
-      merchant-id="mrc_demo"
-      api-base-url="http://localhost:3001"
-      cart-total="420"
-      shipping-price="39.9"
-    ></aacp-checkout-agent>
-    <script type="module" src="/src/main.tsx"></script>
+  <body class="aacp-demo-page">
+    <!--
+      Hospedeiro mínimo: o embed JS pinta marca + área gigante para o chat IA.
+      data-embed-session-token opcional quando a API Nest emitir token secure embed (SEW).
+    -->
+    <div
+      id="aacp-merchant-mount"
+      data-merchant-id="mrc_demo"
+      data-api-base-url="http://localhost:3001"
+      data-brand-title="Northstar Atelier"
+      data-brand-subtitle="Bolsa executiva premium com checkout assistido por IA"
+      data-cart-json='{"currency":"BRL","source":"storefront","total":899.8,"items":[{"sku":"bag-001","name":"Bolsa Executiva Couro Safiano","price":449.9,"cost":210,"quantity":2,"imageUrl":"https://images.unsplash.com/photo-1594223274512-ad4803739b7c?w=640","productUrl":"https://loja.example.com/bolsa-executiva-couro-safiano","category":"Bolsas","variant":"Preta"}]}'
+      data-customer-json='{"email":"buyer@example.com","isReturning":true}'
+      data-shipping-json='{"customerPrice":29.9,"realCost":31,"carrier":"Loggi","method":"Express","deliveryDays":2,"region":"SP"}'
+    ></div>
+    <script type="module" src="/src/merchant-embed-bootstrap.ts"></script>
+    <noscript>
+      <p>
+        Checkout conversacional requer JavaScript para o widget iniciar sessão e renderizar mensagens conforme orchestrator + Decision Engine na API AACP.
+      </p>
+    </noscript>
   </body>
 </html>
