@@ -170,6 +170,10 @@ export interface CheckoutTotalsSnapshot {
 
 export interface CheckoutExperienceSnapshot {
   brand: CheckoutBrandSnapshot;
+  /** Regras comerciais expostas para o embed (somente subset seguro para a UI). */
+  rules?: {
+    couponBoxEnabled: boolean;
+  };
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;
   shipping?: ShippingQuote;

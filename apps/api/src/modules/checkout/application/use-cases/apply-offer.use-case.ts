@@ -42,15 +42,17 @@ export class ApplyOfferUseCase {
     await this.acceptCheckoutOffer.execute(input);
 
     const updatedSession = applyOfferToSession(session, offer);
-    const persisted = await this.repository.saveSession(updatedSession);
+    await this.repository.saveSession(updatedSession);
 
     const followUp = buildAgentFollowUp(offer);
     const sessionWithTurn = await this.repository.appendChatTurn(input.merchant_id, input.session_id, followUp);
 
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
+    const merchantRules = await this.repository.getRules(input.merchant_id);
     const experience = buildExperienceFromSession(sessionWithTurn, {
       merchantName: merchant?.name,
-      theme: merchant?.theme
+      theme: merchant?.theme,
+      couponBoxEnabled: merchantRules.couponBoxEnabled
     });
 
     const subtotal = experience.totals.subtotal;
@@ -60,8 +62,7 @@ export class ApplyOfferUseCase {
       new_total: roundMoney(Math.max(0, subtotal - discount)),
       expires_at: offer.expiresAt,
       experience,
-      agent_turn: followUp,
-      ...(persisted ? {} : {})
+      agent_turn: followUp
     };
   }
 }

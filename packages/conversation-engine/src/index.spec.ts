@@ -56,7 +56,10 @@ test("generateSalesReply falls back when provider is unavailable unless strict m
     });
 
     assert.equal(fallback.objection, "shipping_cost");
-    assert.match(fallback.message, /melhor condicao permitida|condicao autorizada/);
+    const ascii = fallback.message
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
+    assert.match(ascii, /melhor condicao permitida|condicao autorizada/);
     await assert.rejects(
       () =>
         generateSalesReply({

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MessageCircle, Send, X } from "lucide-react";
+import { MessageCircle, Send, ShoppingBag, Sparkles, Tag, X } from "lucide-react";
 import type {
   ApplyOfferResponse,
   Cart,
@@ -21,6 +21,7 @@ import {
   CHECKOUT_LEGACY_PATHS,
   normalizeApiBase
 } from "./embed-client.js";
+import { useStreamedText } from "./use-streamed-text.js";
 import "./styles.css";
 
 interface WidgetConfig {
@@ -79,8 +80,9 @@ function fallbackExperience(config: WidgetConfig): CheckoutExperienceSnapshot {
       headline: "Checkout assistido por IA",
       subheadline: "Carregando contexto real do pedido.",
       trust_badges: ["Sessão será sincronizada pela API"],
-      quick_replies: ["Tenho dúvida sobre o frete", "Quero finalizar agora"]
-    }
+      quick_replies: ["Olá!", "Quero finalizar agora"]
+    },
+    rules: { couponBoxEnabled: true }
   };
 }
 
@@ -95,6 +97,28 @@ export function themeStyle(theme: MerchantTheme): React.CSSProperties {
 
 export type { WidgetConfig };
 
+interface ChatBubbleProps {
+  turn: ChatTurn;
+  agentName: string;
+  shouldStream: boolean;
+}
+
+function ChatBubble({ turn, agentName, shouldStream }: ChatBubbleProps) {
+  const { displayed, isStreaming } = useStreamedText(turn.text, { enabled: shouldStream });
+  const showCaret = shouldStream && isStreaming;
+  return (
+    <div className={`aacp-chat-bubble aacp-chat-bubble--${turn.role}`}>
+      {turn.role === "agent" ? (
+        <span className="aacp-chat-meta">{agentName}</span>
+      ) : null}
+      <span className="aacp-chat-text">
+        {displayed}
+        {showCaret ? <span className="aacp-chat-caret" aria-hidden="true" /> : null}
+      </span>
+    </div>
+  );
+}
+
 export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const isConversational = config.uiPresentation === "conversational";
   const [session, setSession] = useState<StartCheckoutResponse | null>(null);
@@ -105,6 +129,9 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const [busy, setBusy] = useState(false);
   const [experience, setExperience] = useState<CheckoutExperienceSnapshot | null>(null);
   const [networkError, setNetworkError] = useState<string | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [streamingTurnKey, setStreamingTurnKey] = useState<string | null>(null);
+  const [coupon, setCoupon] = useState("");
   const threadRef = useRef<HTMLDivElement | null>(null);
 
   const apiOrigin = useMemo(() => normalizeApiBase(config.apiBaseUrl), [config.apiBaseUrl]);
@@ -131,6 +158,17 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
     threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [turns.length, busy]);
 
+  function appendAgentTurn(text: string, opts: { stream?: boolean } = {}): void {
+    const turn: ChatTurn = {
+      role: "agent",
+      text,
+      occurredAt: new Date().toISOString()
+    };
+    const key = bubbleKey(turn, undefined);
+    setTurns((current) => [...current, turn]);
+    if (opts.stream) setStreamingTurnKey(key);
+  }
+
   async function startCheckout() {
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
     const body =
@@ -152,26 +190,26 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
       setSession(response);
       setExperience(response.experience);
       setNetworkError(null);
-      setTurns([
-        {
-          role: "agent",
-          text: response.experience.agent.greeting,
-          occurredAt: new Date().toISOString()
-        }
-      ]);
+      const greeting: ChatTurn = {
+        role: "agent",
+        text: response.experience.agent.greeting,
+        occurredAt: new Date().toISOString()
+      };
+      setTurns([greeting]);
+      setStreamingTurnKey(bubbleKey(greeting, 0));
       if (response.initial_mode === "open") setOpen(true);
       window.localStorage.setItem("aacp_global_user_id", response.global_user_id);
     } catch {
       setNetworkError(
         "Não consegui sincronizar esta sessão com a API agora. A conversa ficará bloqueada até a conexão voltar."
       );
-      setTurns([
-        {
-          role: "agent",
-          text: "Estou tentando conectar com a API da loja para carregar seu pedido real.",
-          occurredAt: new Date().toISOString()
-        }
-      ]);
+      const fallbackTurn: ChatTurn = {
+        role: "agent",
+        text: "Estou tentando conectar com a API da loja para carregar seu pedido real.",
+        occurredAt: new Date().toISOString()
+      };
+      setTurns([fallbackTurn]);
+      setStreamingTurnKey(bubbleKey(fallbackTurn, 0));
     }
   }
 
@@ -190,20 +228,22 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
     if (response.trigger_agent) {
       setOpen(true);
       if (!isConversational) {
-        setTurns((current) => [
-          ...current,
-          {
-            role: "agent",
-            text: "Vi que talvez exista alguma dúvida no checkout. Posso tentar uma condição melhor para você finalizar agora?",
-            occurredAt: new Date().toISOString()
-          }
-        ]);
+        appendAgentTurn(
+          "Vi que talvez exista alguma dúvida no checkout. Posso tentar uma condição melhor para você finalizar agora?",
+          { stream: true }
+        );
       }
     }
   }
 
   const activeExperience = experience ?? fallbackExperience(config);
   const theme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
+  const offer = lastChat?.authorized_offer;
+  const totals = activeExperience.totals;
+  const showCouponBox =
+    (activeExperience.rules?.couponBoxEnabled !== false) && totals.discount === 0;
+  const showOfferBanner = totals.discount > 0;
+
   const quickReplies: { label: string; event?: CheckoutEventName }[] = isConversational
     ? lastChat?.actions.length
       ? lastChat.actions.map((action) => ({ label: action.label }))
@@ -246,13 +286,26 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
         body
       });
       setLastChat(response);
+      if (response.experience) setExperience(response.experience);
+
       if (Array.isArray(response.turns) && response.turns.length > 0) {
         setTurns(response.turns);
+        const lastIndex = response.turns.length - 1;
+        const last = response.turns[lastIndex];
+        if (last && last.role === "agent") {
+          setStreamingTurnKey(bubbleKey(last, lastIndex));
+        }
       } else {
-        setTurns((current) => [
-          ...current,
-          { role: "agent", text: response.message, occurredAt: new Date().toISOString() }
-        ]);
+        const reply: ChatTurn = {
+          role: "agent",
+          text: response.message,
+          occurredAt: new Date().toISOString()
+        };
+        setTurns((current) => {
+          const next = [...current, reply];
+          setStreamingTurnKey(bubbleKey(reply, next.length - 1));
+          return next;
+        });
       }
       setMessage("");
     } catch {
@@ -287,20 +340,35 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
         ...embedOpts,
         body
       });
-      setTurns((current) => [
-        ...current,
-        {
-          role: "agent",
-          text: response.success
+      if (response.experience) setExperience(response.experience);
+      if (response.agent_turn) {
+        setTurns((current) => {
+          const next = [...current, response.agent_turn as ChatTurn];
+          setStreamingTurnKey(bubbleKey(next[next.length - 1]!, next.length - 1));
+          return next;
+        });
+      } else {
+        appendAgentTurn(
+          response.success
             ? `Oferta aplicada. Código: ${response.discount_code ?? "gerado"}.`
             : `Não consegui aplicar a oferta: ${response.reason ?? "erro desconhecido"}.`,
-          occurredAt: new Date().toISOString()
-        }
-      ]);
-      if (response.apply_url) window.location.href = response.apply_url;
+          { stream: true }
+        );
+      }
     } finally {
       setBusy(false);
     }
+  }
+
+  async function continueToPayment(): Promise<void> {
+    await sendMessageWithOverride("Quero seguir para o pagamento.");
+  }
+
+  async function submitCoupon(): Promise<void> {
+    const code = coupon.trim();
+    if (!code) return;
+    setCoupon("");
+    await sendMessageWithOverride(`Tenho o cupom: ${code}`);
   }
 
   async function createEmbedPaymentIntentDemo() {
@@ -313,12 +381,12 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
         buyerFacing?: { invoiceUrl?: string; qrCodeCopyPaste?: string };
       };
 
-      const offer = lastChat?.authorized_offer;
+      const offerNow = lastChat?.authorized_offer;
       const body = {
         session_id: session.session_id,
         idempotency_key: crypto.randomUUID(),
         method: "pix" as const,
-        ...(offer?.approved && offer.id ? { accepted_offer_id: offer.id } : {})
+        ...(offerNow?.approved && offerNow.id ? { accepted_offer_id: offerNow.id } : {})
       };
 
       const snap = await checkoutJson<EmbedPaySnapshot>(
@@ -342,26 +410,14 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
               }.`
             : "";
 
-      setTurns((current) => [
-        ...current,
-        {
-          role: "agent",
-          text:
-            total.length > 0
-              ? `Cobrança gerada (${total}).${pixLine}`
-              : `Cobrança criada.${pixLine}`,
-          occurredAt: new Date().toISOString()
-        }
-      ]);
+      appendAgentTurn(total.length > 0 ? `Cobrança gerada (${total}).${pixLine}` : `Cobrança criada.${pixLine}`, {
+        stream: true
+      });
     } catch {
-      setTurns((current) => [
-        ...current,
-        {
-          role: "agent",
-          text: "Não foi possível gerar a cobrança (sessão/demo ou servidor). Verifique o token embed e dados do pagador na API.",
-          occurredAt: new Date().toISOString()
-        }
-      ]);
+      appendAgentTurn(
+        "Não foi possível gerar a cobrança (sessão/demo ou servidor). Verifique o token embed e dados do pagador na API.",
+        { stream: true }
+      );
     } finally {
       setBusy(false);
     }
@@ -369,7 +425,7 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
 
   if (!isConversational) {
     return (
-      <section className="aacp-widget">
+      <section className="aacp-widget" style={themeStyle(theme)}>
         {open ? (
           <div className="aacp-panel">
             <header>
@@ -424,136 +480,292 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
     );
   }
 
-  const offer = lastChat?.authorized_offer;
-
-  return (
-    <section className="aacp-widget aacp-widget--conversational" style={themeStyle(theme)}>
-      <div className="aacp-panel aacp-panel--conversational">
-        <header>
+  const cartCard = (
+    <section className="aacp-cart" aria-label="Resumo do pedido">
+      <header className="aacp-cart-header">
+        <div className="aacp-cart-brand">
           {theme.logoUrl ? (
-            <img className="aacp-brand-logo" src={theme.logoUrl} alt={activeExperience.brand.name} />
+            <img src={theme.logoUrl} alt={activeExperience.brand.name} className="aacp-cart-logo" />
           ) : (
-            <div className="aacp-brand-logo" aria-hidden="true" />
+            <div className="aacp-cart-logo aacp-cart-logo--placeholder" aria-hidden="true">
+              <ShoppingBag size={20} />
+            </div>
           )}
-          <div className="aacp-brand-meta">
+          <div>
             <strong>{activeExperience.brand.name}</strong>
-            <span>{activeExperience.brand.subtitle ?? "Checkout assistido por IA"}</span>
+            <span>{activeExperience.copy.headline}</span>
           </div>
-          <span className="aacp-status-pill" aria-label="Fluxo guiado pela IA">
-            IA ativa
-          </span>
-        </header>
-
-        {networkError ? (
-          <p className="aacp-network-error" role="alert">
-            {networkError}
-          </p>
-        ) : null}
-
-        <div className="aacp-chat-thread" role="log" aria-live="polite" ref={threadRef}>
-          {turns.map((turn, index) => (
-            <div
-              key={`${turn.role}-${index}-${turn.occurredAt}`}
-              className={`aacp-chat-bubble aacp-chat-bubble--${turn.role}`}
-            >
-              {turn.text}
-            </div>
-          ))}
-          {busy ? (
-            <div className="aacp-typing" role="status" aria-label="Assistente digitando">
-              <span />
-              <span />
-              <span />
-            </div>
-          ) : null}
         </div>
+        <button
+          type="button"
+          className="aacp-cart-close"
+          aria-label="Fechar resumo"
+          onClick={() => setCartOpen(false)}
+        >
+          <X size={18} />
+        </button>
+      </header>
 
-        <aside className="aacp-summary-sheet" aria-label="Resumo do pedido">
-          <strong>{activeExperience.copy.headline}</strong>
-          {activeExperience.items.slice(0, 4).map((item) => (
-            <div className="aacp-summary-row" key={item.sku}>
-              <span>
-                {item.quantity}× {item.name}
-              </span>
-              <span>{formatCurrency(item.line_total, activeExperience.totals.currency)}</span>
+      <ul className="aacp-cart-items">
+        {activeExperience.items.map((item) => (
+          <li className="aacp-cart-item" key={item.sku}>
+            {item.image_url ? (
+              <img src={item.image_url} alt={item.name} className="aacp-cart-thumb" />
+            ) : (
+              <div className="aacp-cart-thumb aacp-cart-thumb--placeholder" aria-hidden="true">
+                <ShoppingBag size={20} />
+              </div>
+            )}
+            <div className="aacp-cart-item-body">
+              <strong>{item.name}</strong>
+              {item.variant ? <span className="aacp-cart-variant">{item.variant}</span> : null}
+              <span className="aacp-cart-qty">Qtd × {item.quantity}</span>
             </div>
-          ))}
-          <div className="aacp-summary-row">
-            <span>Subtotal</span>
-            <span>{formatCurrency(activeExperience.totals.subtotal, activeExperience.totals.currency)}</span>
-          </div>
-          {activeExperience.totals.shipping > 0 ? (
-            <div className="aacp-summary-row">
-              <span>Frete</span>
-              <span>{formatCurrency(activeExperience.totals.shipping, activeExperience.totals.currency)}</span>
-            </div>
-          ) : null}
-          {activeExperience.totals.discount > 0 ? (
-            <div className="aacp-summary-row">
-              <span>Desconto</span>
-              <span>-{formatCurrency(activeExperience.totals.discount, activeExperience.totals.currency)}</span>
-            </div>
-          ) : null}
-          <div className="aacp-summary-row total">
-            <span>Total</span>
-            <span>{formatCurrency(activeExperience.totals.total, activeExperience.totals.currency)}</span>
-          </div>
-          {offer?.approved ? (
-            <button className="aacp-offer" disabled={busy} onClick={() => void applyOffer()}>
-              Aplicar oferta autorizada
-            </button>
-          ) : null}
-          {config.mode === "embed" && session ? (
-            <button
-              className="aacp-pay-demo"
-              type="button"
-              disabled={busy}
-              onClick={() => void createEmbedPaymentIntentDemo()}
-            >
-              Demo: gerar cobrança (PIX)
-            </button>
-          ) : null}
-        </aside>
+            <span className="aacp-cart-line-total">
+              {formatCurrency(item.line_total, totals.currency)}
+            </span>
+          </li>
+        ))}
+      </ul>
 
-        {quickReplies.length > 0 ? (
-          <div className="aacp-quick-replies" role="group" aria-label="Respostas sugeridas">
-            {quickReplies.map(({ label, event }) => (
-              <button
-                key={label}
-                type="button"
-                disabled={busy || !session || Boolean(networkError)}
-                onClick={() => void tapQuick(label, event)}
-              >
-                {label}
-              </button>
-            ))}
+      <dl className="aacp-cart-totals">
+        <div>
+          <dt>Subtotal</dt>
+          <dd>{formatCurrency(totals.subtotal, totals.currency)}</dd>
+        </div>
+        {totals.shipping > 0 ? (
+          <div>
+            <dt>Frete</dt>
+            <dd>{formatCurrency(totals.shipping, totals.currency)}</dd>
           </div>
         ) : null}
+        {totals.discount > 0 ? (
+          <div className="aacp-cart-discount">
+            <dt>Desconto</dt>
+            <dd>−{formatCurrency(totals.discount, totals.currency)}</dd>
+          </div>
+        ) : null}
+        <div className="aacp-cart-total">
+          <dt>Total</dt>
+          <dd>{formatCurrency(totals.total, totals.currency)}</dd>
+        </div>
+      </dl>
 
+      {showCouponBox ? (
         <form
+          className="aacp-cart-coupon"
           onSubmit={(event) => {
             event.preventDefault();
-            void sendMessage();
+            void submitCoupon();
           }}
         >
+          <Tag size={16} aria-hidden="true" />
           <input
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="Negocie frete, cupom ou pagamento — a regra decide…"
+            value={coupon}
+            onChange={(event) => setCoupon(event.target.value)}
+            placeholder="Cupom de desconto"
+            aria-label="Cupom de desconto"
             disabled={busy || Boolean(networkError)}
-            aria-label="Mensagem para o assistente"
           />
-          <button
-            type="submit"
-            aria-label="Enviar mensagem"
-            disabled={busy || Boolean(networkError) || !message.trim()}
-          >
-            <Send size={18} />
+          <button type="submit" disabled={busy || !coupon.trim()}>
+            Aplicar
           </button>
         </form>
+      ) : null}
+
+      {offer?.approved ? (
+        <button
+          type="button"
+          className="aacp-cart-cta"
+          disabled={busy}
+          onClick={() => void applyOffer()}
+        >
+          Aplicar oferta autorizada
+        </button>
+      ) : null}
+
+      {config.mode === "embed" && session ? (
+        <button
+          type="button"
+          className="aacp-cart-cta aacp-cart-cta--secondary"
+          disabled={busy}
+          onClick={() => void createEmbedPaymentIntentDemo()}
+        >
+          Demo: gerar cobrança (PIX)
+        </button>
+      ) : null}
+
+      <ul className="aacp-cart-trust">
+        {activeExperience.copy.trust_badges.slice(0, 3).map((badge) => (
+          <li key={badge}>{badge}</li>
+        ))}
+      </ul>
+    </section>
+  );
+
+  return (
+    <section
+      className="aacp-widget aacp-widget--conversational"
+      style={themeStyle(theme)}
+      data-cart-open={cartOpen ? "true" : undefined}
+    >
+      {cartOpen ? (
+        <button
+          type="button"
+          className="aacp-sheet-backdrop"
+          aria-label="Fechar resumo do pedido"
+          onClick={() => setCartOpen(false)}
+        />
+      ) : null}
+      <div className="aacp-shell">
+        <div className="aacp-conversation">
+          <header className="aacp-shell-header">
+            <div className="aacp-agent-meta">
+              <div className="aacp-agent-avatar" aria-hidden="true">
+                {theme.agentAvatarUrl ? (
+                  <img src={theme.agentAvatarUrl} alt="" />
+                ) : (
+                  <Sparkles size={18} />
+                )}
+                <span className="aacp-agent-status" />
+              </div>
+              <div>
+                <strong>{activeExperience.agent.name}</strong>
+                <span>{activeExperience.brand.name} · online</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="aacp-cart-toggle"
+              onClick={() => setCartOpen((current) => !current)}
+              aria-expanded={cartOpen}
+              aria-controls="aacp-cart-mobile"
+            >
+              <ShoppingBag size={16} aria-hidden="true" />
+              <span>{formatCurrency(totals.total, totals.currency)}</span>
+            </button>
+          </header>
+
+          {networkError ? (
+            <div className="aacp-network-error" role="alert">
+              <span>{networkError}</span>
+              <button
+                type="button"
+                className="aacp-retry"
+                onClick={() => {
+                  setNetworkError(null);
+                  setTurns([]);
+                  void startCheckout();
+                }}
+              >
+                Tentar novamente
+              </button>
+            </div>
+          ) : null}
+
+          <div className="aacp-chat-thread" role="log" aria-live="polite" ref={threadRef}>
+            {turns.map((turn, index) => {
+              const key = bubbleKey(turn, index);
+              return (
+                <ChatBubble
+                  key={key}
+                  turn={turn}
+                  agentName={activeExperience.agent.name}
+                  shouldStream={key === streamingTurnKey}
+                />
+              );
+            })}
+            {busy ? (
+              <div
+                className="aacp-typing"
+                role="status"
+                aria-label={`${activeExperience.agent.name} está digitando`}
+              >
+                <span className="aacp-typing-name">
+                  {activeExperience.agent.name} está digitando
+                </span>
+                <span className="aacp-typing-dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+              </div>
+            ) : null}
+          </div>
+
+          {showOfferBanner ? (
+            <div className="aacp-offer-banner" role="status">
+              <Sparkles size={16} aria-hidden="true" />
+              <div className="aacp-offer-banner-text">
+                <strong>Oferta aplicada</strong>
+                <span>
+                  −{formatCurrency(totals.discount, totals.currency)} · novo total{" "}
+                  {formatCurrency(totals.total, totals.currency)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => void continueToPayment()}
+                disabled={busy || Boolean(networkError)}
+              >
+                Continuar para pagamento
+              </button>
+            </div>
+          ) : null}
+
+          {quickReplies.length > 0 ? (
+            <div className="aacp-quick-replies" role="group" aria-label="Respostas sugeridas">
+              {quickReplies.map(({ label, event }) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={busy || !session || Boolean(networkError)}
+                  onClick={() => void tapQuick(label, event)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <form
+            className="aacp-input-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void sendMessage();
+            }}
+          >
+            <input
+              value={message}
+              onChange={(event) => setMessage(event.target.value)}
+              placeholder="Digite sua mensagem para a IA…"
+              disabled={busy || Boolean(networkError)}
+              aria-label="Mensagem para o assistente"
+            />
+            <button
+              type="submit"
+              aria-label="Enviar mensagem"
+              disabled={busy || Boolean(networkError) || !message.trim()}
+            >
+              <Send size={18} />
+            </button>
+          </form>
+        </div>
+
+        <aside
+          id="aacp-cart-mobile"
+          className="aacp-cart-pane"
+          aria-hidden={!cartOpen ? undefined : "false"}
+        >
+          {cartCard}
+        </aside>
       </div>
     </section>
   );
+}
+
+function bubbleKey(turn: ChatTurn, index?: number): string {
+  return `${turn.role}-${turn.occurredAt}-${index ?? "x"}`;
 }
 
 const WIDGET_CE_NAME = "aacp-checkout-agent";
@@ -602,7 +814,7 @@ function readConfig(element: HTMLElement): WidgetConfig {
     mode,
     merchantId: merchantIdFromAttr,
     ...(embedSessionToken ? { embedSessionToken } : {}),
-    apiBaseUrl: apiRaw ?? "http://localhost:3001",
+    apiBaseUrl: apiRaw ?? "http://localhost:3000",
     cart: parseAttrJson<Cart>(element.getAttribute("cart-json"), {
       currency: "BRL",
       source: "storefront",

@@ -63,6 +63,8 @@ export class StartCheckoutUseCase {
         })
       );
 
+      const merchantRules = await repository.getRules(input.merchant_id);
+
       return {
         conversation_id: session.conversationId,
         session_id: session.sessionId,
@@ -80,7 +82,8 @@ export class StartCheckoutUseCase {
           {
             merchantName: merchant?.name,
             theme: merchant?.theme,
-            agent
+            agent,
+            couponBoxEnabled: merchantRules.couponBoxEnabled
           }
         )
       };

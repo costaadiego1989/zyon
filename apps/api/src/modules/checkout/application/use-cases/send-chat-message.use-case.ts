@@ -94,7 +94,8 @@ export class SendChatMessageUseCase {
     const experience = buildExperienceFromSession(updated, {
       merchantName: merchant?.name,
       theme: merchant?.theme,
-      agent: agentContext
+      agent: agentContext,
+      couponBoxEnabled: rules.couponBoxEnabled
     });
 
     return {

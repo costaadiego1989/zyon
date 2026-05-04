@@ -22,6 +22,7 @@ export interface ExperienceDeps {
   merchantName?: string;
   theme?: MerchantTheme;
   agent?: AgentContext;
+  couponBoxEnabled?: boolean;
 }
 
 export function buildCheckoutExperience(
@@ -51,6 +52,7 @@ export function buildCheckoutExperience(
       accent_color: theme.accentColor,
       theme
     },
+    rules: { couponBoxEnabled: deps.couponBoxEnabled ?? true },
     items,
     totals: {
       currency: input.cart.currency,

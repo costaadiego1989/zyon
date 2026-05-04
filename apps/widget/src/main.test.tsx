@@ -21,7 +21,7 @@ function buildConfig(overrides: Partial<WidgetConfig> = {}): WidgetConfig {
     mode: "embed",
     embedSessionToken: "tok.test",
     merchantId: "mrc_demo",
-    apiBaseUrl: "http://localhost:3001",
+    apiBaseUrl: "http://localhost:3000",
     uiPresentation: "conversational",
     cart: {
       currency: "BRL",
@@ -59,6 +59,7 @@ function buildStartResponse(theme: MerchantTheme): StartCheckoutResponse {
         support_label: "Sincronizado",
         theme
       },
+      rules: { couponBoxEnabled: true },
       items: [
         {
           sku: "bag-001",
@@ -143,6 +144,7 @@ describe("CheckoutAgent (conversational)", () => {
 
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    vi.stubEnv("AACP_DISABLE_STREAMING", "1");
 
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -152,7 +154,7 @@ describe("CheckoutAgent (conversational)", () => {
           headers: { "content-type": "application/json" }
         });
       }
-      if (url.endsWith("/embed/chat/messages")) {
+      if (url.endsWith("/embed/chat")) {
         return new Response(
           JSON.stringify(buildChatResponse("Posso aplicar 5% agora com o cupom AURORA5?")),
           { status: 200, headers: { "content-type": "application/json" } }
@@ -164,14 +166,15 @@ describe("CheckoutAgent (conversational)", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
-  it("applies merchant theme variables and renders greeting + summary", async () => {
+  it("applies merchant theme variables and renders greeting + cart total", async () => {
     const { container } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-brand-meta strong")?.textContent).toBe(
+      expect(container.querySelector(".aacp-cart-brand strong")?.textContent).toBe(
         "Northstar Atelier"
       );
     });
@@ -181,17 +184,18 @@ describe("CheckoutAgent (conversational)", () => {
     expect(widget.style.getPropertyValue("--aacp-font")).toBe(
       "Manrope, system-ui, sans-serif"
     );
-    expect(container.querySelector("img.aacp-brand-logo")?.getAttribute("src")).toBe(
+    expect(container.querySelector("img.aacp-cart-logo")?.getAttribute("src")).toBe(
       "https://cdn.example.com/logo.png"
     );
 
-    const bubbles = container.querySelectorAll(".aacp-chat-bubble--agent");
-    expect(bubbles.length).toBeGreaterThan(0);
-    expect(bubbles[0]?.textContent).toContain("Aurora");
+    await waitFor(() => {
+      const bubble = container.querySelector(".aacp-chat-bubble--agent .aacp-chat-text");
+      expect(bubble?.textContent ?? "").toContain("Aurora");
+    });
 
     expect(
-      container.querySelector(".aacp-summary-row.total span:last-child")?.textContent
-    ).toContain("929");
+      container.querySelector(".aacp-cart-total dd")?.textContent
+    ).toMatch(/929/);
   });
 
   it("sends message, shows typing, then renders agent reply from server turns", async () => {
@@ -218,9 +222,9 @@ describe("CheckoutAgent (conversational)", () => {
     await waitFor(() => {
       expect(container.querySelector(".aacp-typing")).not.toBeNull();
     });
-    expect(container.querySelector(".aacp-chat-bubble--buyer")?.textContent).toBe(
-      "esta caro"
-    );
+    expect(
+      container.querySelector(".aacp-chat-bubble--buyer .aacp-chat-text")?.textContent
+    ).toBe("esta caro");
 
     await act(async () => {
       resolveChat(
@@ -235,23 +239,25 @@ describe("CheckoutAgent (conversational)", () => {
       expect(container.querySelector(".aacp-typing")).toBeNull();
     });
 
-    const bubbles = Array.from(container.querySelectorAll(".aacp-chat-bubble"));
-    const texts = bubbles.map((b) => b.textContent ?? "");
+    const texts = Array.from(container.querySelectorAll(".aacp-chat-text")).map((b) =>
+      (b.textContent ?? "").trim()
+    );
     expect(texts).toContain("esta caro");
     expect(texts.some((t) => t.includes("AURORA5"))).toBe(true);
 
-    expect(container.querySelector(".aacp-offer")?.textContent).toContain(
-      "Aplicar oferta"
-    );
+    const ctaButtons = container.querySelectorAll(".aacp-cart-cta");
+    expect(
+      Array.from(ctaButtons).some((b) =>
+        (b.textContent ?? "").includes("Aplicar oferta")
+      )
+    ).toBe(true);
   });
 
   it("falls back to default quick replies before any chat round", async () => {
     const { container } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelectorAll(".aacp-quick-replies button").length).toBeGreaterThan(
-        0
-      );
+      expect(container.querySelectorAll(".aacp-quick-replies button").length).toBeGreaterThan(0);
     });
 
     const chips = Array.from(
