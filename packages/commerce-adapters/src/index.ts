@@ -1,6 +1,11 @@
 import type { AuthorizedOffer } from "@aacp/shared-types";
 
 export * from "./ports.js";
+export {
+  ShopifyCommerceAdapter,
+  type ShopifyCommerceAdapterConfig,
+  type ShopifyFetchFn
+} from "./shopify/shopify-commerce.adapter.js";
 
 export interface ShopifyConfig {
   shopDomain?: string;
