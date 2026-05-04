@@ -1,173 +1,120 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
-import { RefreshCw, Save } from "lucide-react";
-import type { DashboardOverview, MerchantRules } from "@aacp/shared-types";
+import {
+  createDashboardApi,
+  type MerchantProfile as MerchantDashboardProfile,
+  DashboardHttpError
+} from "./api-client.js";
+import { OverviewDemoPage } from "./pages/overview-demo-page.js";
+import { MerchantRulesAuthenticatedPage } from "./pages/merchant-rules-page.js";
+import { CheckoutSettingsPage } from "./pages/checkout-settings-page.js";
+import { NegotiationPage } from "./pages/negotiation-page.js";
 import "./styles.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 const DEFAULT_MERCHANT_ID = import.meta.env.VITE_MERCHANT_ID ?? "mrc_demo";
 
-function Dashboard() {
-  const [merchantId, setMerchantId] = useState(DEFAULT_MERCHANT_ID);
-  const [overview, setOverview] = useState<DashboardOverview | null>(null);
-  const [rules, setRules] = useState<MerchantRules | null>(null);
-  const [saving, setSaving] = useState(false);
+type TabKey = "overview" | "rules" | "settings" | "negotiation";
 
-  useEffect(() => {
-    void load();
-  }, [merchantId]);
+function App() {
+  const api = useMemo(() => createDashboardApi({ baseUrl: API_BASE_URL }), []);
+  const [tab, setTab] = useState<TabKey>("overview");
+  const [me, setMe] = useState<MerchantDashboardProfile | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginHint, setLoginHint] = useState<string | null>(null);
 
-  async function load() {
-    const [overviewResponse, rulesResponse] = await Promise.all([
-      fetch(`${API_BASE_URL}/dashboard/overview/${merchantId}`),
-      fetch(`${API_BASE_URL}/dashboard/rules/${merchantId}`)
-    ]);
-    setOverview((await overviewResponse.json()) as DashboardOverview);
-    setRules((await rulesResponse.json()) as MerchantRules);
+  async function refreshSessionHint() {
+    try {
+      const profile = await api.merchantProfile();
+      setMe(profile);
+      setLoginHint(null);
+    } catch {
+      setMe(null);
+      setLoginHint(null);
+    }
   }
 
-  async function saveRules() {
-    if (!rules) return;
-    setSaving(true);
+  useEffect(() => {
+    void refreshSessionHint();
+    // apenas ao montar
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function submitLogin(event: React.FormEvent) {
+    event.preventDefault();
+    setLoginHint(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/dashboard/rules/${merchantId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(rules)
-      });
-      setRules((await response.json()) as MerchantRules);
-    } finally {
-      setSaving(false);
+      await api.login(email.trim(), password);
+      setPassword("");
+      await refreshSessionHint();
+    } catch (e) {
+      const txt =
+        e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e);
+      setLoginHint(txt || "Credenciais invalidas");
+      setMe(null);
     }
   }
 
   return (
     <main>
-      <header className="topbar">
+      <header className="topbar dash-top">
         <div>
-          <h1>AI Checkout Sales Agent</h1>
-          <p>Regras, ofertas e conversao por merchant.</p>
+          <h1>Merchant dashboard</h1>
+          <p>
+            API <code>{API_BASE_URL}</code> · demos públicas sem login e rotas JWT com cookie.
+          </p>
         </div>
-        <label>
-          Merchant
-          <input value={merchantId} onChange={(event) => setMerchantId(event.target.value)} />
-        </label>
+        <section className="login-bar">
+          {me ? (
+            <span className="session-pill">{me.name}</span>
+          ) : (
+            <form className="login-form" onSubmit={submitLogin}>
+              <input
+                aria-label="email"
+                placeholder="Email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                autoComplete="username"
+              />
+              <input
+                aria-label="password"
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="current-password"
+              />
+              <button type="submit">Entrar</button>
+            </form>
+          )}
+          {loginHint ? <small className="login-hint">{loginHint}</small> : null}
+        </section>
       </header>
 
-      <section className="metrics">
-        <Metric label="Conversas" value={overview?.conversations_started ?? 0} />
-        <Metric label="Ofertas aceitas" value={overview?.offers_accepted ?? 0} />
-        <Metric label="Pedidos" value={overview?.orders_completed ?? 0} />
-        <Metric label="Conversao agente" value={`${Math.round((overview?.conversion_rate_with_agent ?? 0) * 100)}%`} />
-        <Metric label="Receita atribuida" value={`R$ ${(overview?.incremental_revenue ?? 0).toFixed(2)}`} />
-      </section>
+      <nav className="dash-nav" aria-label="Modulos dashboard">
+        <button type="button" className={tab === "overview" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("overview")}>
+          Visão geral (demo)
+        </button>
+        <button type="button" className={tab === "rules" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("rules")}>
+          Regras JWT
+        </button>
+        <button type="button" className={tab === "settings" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("settings")}>
+          Checkout settings
+        </button>
+        <button type="button" className={tab === "negotiation" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("negotiation")}>
+          Negociação técnica
+        </button>
+      </nav>
 
-      <section className="layout">
-        <div className="panel">
-          <div className="panel-title">
-            <h2>Regras comerciais</h2>
-            <button onClick={saveRules} disabled={saving || !rules}>
-              <Save size={16} />
-              Salvar
-            </button>
-          </div>
-          {rules ? <RulesForm rules={rules} onChange={setRules} /> : <p>Carregando regras...</p>}
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">
-            <h2>Atividade</h2>
-            <button onClick={() => void load()}>
-              <RefreshCw size={16} />
-              Atualizar
-            </button>
-          </div>
-          <h3>Ofertas recentes</h3>
-          <div className="list">
-            {overview?.recent_offers.length ? (
-              overview.recent_offers.map((offer) => (
-                <article key={offer.id}>
-                  <strong>{offer.type}</strong>
-                  <span>{offer.approved ? "Aprovada" : "Bloqueada"} · {offer.reason}</span>
-                  <span>Margem: {Math.round(offer.marginAfterOffer * 100)}%</span>
-                </article>
-              ))
-            ) : (
-              <p>Nenhuma oferta registrada ainda.</p>
-            )}
-          </div>
-          <h3>Sessoes recentes</h3>
-          <div className="list">
-            {overview?.recent_sessions.length ? (
-              overview.recent_sessions.map((session) => (
-                <article key={session.sessionId}>
-                  <strong>{session.sessionId}</strong>
-                  <span>{session.globalUserId}</span>
-                  <span>Score: {Math.round(session.abandonmentScore * 100)}%</span>
-                </article>
-              ))
-            ) : (
-              <p>Nenhuma sessao registrada ainda.</p>
-            )}
-          </div>
-        </div>
-      </section>
+      {tab === "overview" ? (
+        <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={DEFAULT_MERCHANT_ID} />
+      ) : null}
+      {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+      {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+      {tab === "negotiation" ? <NegotiationPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
     </main>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function RulesForm({ rules, onChange }: { rules: MerchantRules; onChange: (rules: MerchantRules) => void }) {
-  function patch(next: Partial<MerchantRules>) {
-    onChange({ ...rules, ...next });
-  }
-
-  return (
-    <div className="rules-grid">
-      <NumberField label="Desconto maximo %" value={rules.maxDiscountPercent} onChange={(value) => patch({ maxDiscountPercent: value })} />
-      <NumberField label="Margem minima %" value={rules.minimumMarginPercent} onChange={(value) => patch({ minimumMarginPercent: value })} />
-      <NumberField label="Minimo frete gratis" value={rules.freeShippingMinCartValue} onChange={(value) => patch({ freeShippingMinCartValue: value })} />
-      <NumberField label="Subsidio maximo frete" value={rules.maxShippingSubsidy} onChange={(value) => patch({ maxShippingSubsidy: value })} />
-      <NumberField label="Frete parcial maximo" value={rules.maxPartialShippingDiscount} onChange={(value) => patch({ maxPartialShippingDiscount: value })} />
-      <NumberField label="Expira em minutos" value={rules.offerExpirationMinutes} onChange={(value) => patch({ offerExpirationMinutes: value })} />
-      <label className="toggle">
-        <input type="checkbox" checked={rules.allowFreeShipping} onChange={(event) => patch({ allowFreeShipping: event.target.checked })} />
-        Permitir frete gratis
-      </label>
-      <label className="toggle">
-        <input type="checkbox" checked={rules.allowShippingDiscount} onChange={(event) => patch({ allowShippingDiscount: event.target.checked })} />
-        Permitir frete parcial
-      </label>
-      <label>
-        Voz da marca
-        <select value={rules.brandVoice} onChange={(event) => patch({ brandVoice: event.target.value as MerchantRules["brandVoice"] })}>
-          <option value="consultative">Consultiva</option>
-          <option value="aggressive">Agressiva</option>
-          <option value="premium">Premium</option>
-          <option value="young">Jovem</option>
-          <option value="technical">Tecnica</option>
-          <option value="popular">Popular</option>
-        </select>
-      </label>
-    </div>
-  );
-}
-
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return (
-    <label>
-      {label}
-      <input type="number" value={value} onChange={(event) => onChange(Number(event.target.value))} />
-    </label>
-  );
-}
-
-createRoot(document.getElementById("root")!).render(<Dashboard />);
+createRoot(document.getElementById("root")!).render(<App />);
