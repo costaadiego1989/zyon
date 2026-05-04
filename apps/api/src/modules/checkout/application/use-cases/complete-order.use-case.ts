@@ -2,6 +2,7 @@ import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common"
 import type { CompleteOrderRequest, CompleteOrderResponse } from "@aacp/shared-types";
 import { CompletedOrderEntity } from "../../domain/entities/completed-order.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
+import { planOmnichannelConfirmation } from "../../domain/policies/omnichannel-confirmation.policy.js";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
@@ -28,6 +29,7 @@ export class CompleteOrderUseCase {
       const saved = await repository.saveCompletedOrder(order);
       if (!saved.idempotent) {
         await repository.recordEvent(input.merchant_id, input.session_id, "order_completed");
+        const confirmation_touchpoints = planOmnichannelConfirmation(input.order_total);
         await repository.appendOutbox(
           createCheckoutEventEnvelope({
             eventType: "order.completed",
@@ -37,7 +39,8 @@ export class CompleteOrderUseCase {
               external_order_id: input.external_order_id,
               order_total: input.order_total,
               currency: input.currency,
-              accepted_offer_id: input.accepted_offer_id
+              accepted_offer_id: input.accepted_offer_id,
+              confirmation_touchpoints
             },
             causationId: input.external_order_id
           })

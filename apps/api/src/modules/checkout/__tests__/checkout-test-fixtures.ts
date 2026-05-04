@@ -86,6 +86,7 @@ export function merchantRules(overrides: Partial<MerchantRules> = {}): MerchantR
     offerExpirationMinutes: 15,
     blockedRegions: [],
     brandVoice: "consultative",
+    couponBoxEnabled: true,
     ...overrides
   };
 }

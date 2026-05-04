@@ -28,7 +28,8 @@ const DEFAULT_RULES: MerchantRules = {
   maxPartialShippingDiscount: 20,
   offerExpirationMinutes: 15,
   blockedRegions: [],
-  brandVoice: "consultative"
+  brandVoice: "consultative",
+  couponBoxEnabled: true
 };
 
 @Injectable()

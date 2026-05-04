@@ -37,13 +37,25 @@ export interface Cart {
   source?: "storefront" | "checkout" | "platform_api" | "manual";
 }
 
+export interface CustomerAddress {
+  zip?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+}
+
 export interface CustomerHints {
   externalCustomerId?: string;
-  /** Cliente cadastrado no Asaas (`cus_...`), vinculado ao pagador da sessão. */
   asaasCustomerId?: string;
   email?: string;
   phone?: string;
   isReturning?: boolean;
+  fullName?: string;
+  cpf?: string;
+  address?: CustomerAddress;
 }
 
 export interface ShippingQuote {
@@ -69,7 +81,13 @@ export interface MerchantRules {
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
+  /** Quando true, o widget exibe input de cupom; o engine nunca aplica cupom não autorizado. */
+  couponBoxEnabled: boolean;
 }
+
+export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
+
+export type PaymentMethod = "pix" | "credit_card";
 
 export type ChatTurnRole = "buyer" | "agent";
 
@@ -91,6 +109,7 @@ export interface CheckoutSession {
   abandonmentScore: number;
   triggerAgent: boolean;
   chatHistory: ChatTurn[];
+  paymentMethod?: PaymentMethod;
   createdAt: string;
   updatedAt: string;
 }
@@ -448,6 +467,9 @@ export interface ChatMessageResponse {
   authorized_offer?: AuthorizedOffer;
   actions: ChatAction[];
   turns: ChatTurn[];
+  experience?: CheckoutExperienceSnapshot;
+  stage?: ChatStage;
+  missing_fields?: string[];
 }
 
 export interface ShippingEvaluateRequest {
@@ -482,6 +504,9 @@ export interface ApplyOfferResponse {
   new_total?: number;
   expires_at?: string;
   reason?: string;
+  experience?: CheckoutExperienceSnapshot;
+  /** Turno do agente acrescentado quando a oferta foi aplicada com sucesso. */
+  agent_turn?: ChatTurn;
 }
 
 export interface DashboardOverview {

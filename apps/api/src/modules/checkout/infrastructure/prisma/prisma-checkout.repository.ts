@@ -31,7 +31,8 @@ const DEFAULT_RULES: MerchantRules = {
   maxPartialShippingDiscount: 20,
   offerExpirationMinutes: 15,
   blockedRegions: [],
-  brandVoice: "consultative"
+  brandVoice: "consultative",
+  couponBoxEnabled: true
 };
 
 export class PrismaCheckoutRepository implements CheckoutRepository {
@@ -452,6 +453,7 @@ function toMerchantRules(row: {
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: string;
+  couponBoxEnabled?: boolean | null;
 }): MerchantRules {
   return {
     maxDiscountPercent: row.maxDiscountPercent,
@@ -465,7 +467,8 @@ function toMerchantRules(row: {
     maxPartialShippingDiscount: row.maxPartialShippingDiscount,
     offerExpirationMinutes: row.offerExpirationMinutes,
     blockedRegions: row.blockedRegions,
-    brandVoice: row.brandVoice as MerchantRules["brandVoice"]
+    brandVoice: row.brandVoice as MerchantRules["brandVoice"],
+    couponBoxEnabled: row.couponBoxEnabled ?? true
   };
 }
 

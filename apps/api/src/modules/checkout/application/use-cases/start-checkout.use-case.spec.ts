@@ -88,7 +88,8 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
         maxPartialShippingDiscount: 20,
         offerExpirationMinutes: 15,
         blockedRegions: [],
-        brandVoice: "premium"
+        brandVoice: "premium",
+        couponBoxEnabled: true
       };
     },
     async updateRules() {
