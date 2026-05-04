@@ -83,3 +83,6 @@ function blocked(reason: string, cart: Cart, subsidy: number): OfferEvaluation {
     marginAfterOffer: estimateMargin(cart, subsidy).marginPercent
   };
 }
+
+export { selectCheapestQuote } from "./select-cheapest-quote.js";
+export type { CarrierQuoteInput } from "./select-cheapest-quote.js";
