@@ -3,6 +3,7 @@ import type {
   AcceptedOffer,
   AuthorizedOffer,
   Cart,
+  ChatTurn,
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
@@ -261,6 +262,7 @@ function toCheckoutSession(row: {
   shipping: unknown | null;
   abandonmentScore: number;
   triggerAgent: boolean;
+  chatHistory?: unknown | null;
   createdAt: Date;
   updatedAt: Date;
 }): CheckoutSession {
@@ -274,6 +276,7 @@ function toCheckoutSession(row: {
     shipping: (row.shipping ?? undefined) as ShippingQuote | undefined,
     abandonmentScore: row.abandonmentScore,
     triggerAgent: row.triggerAgent,
+    chatHistory: ((row.chatHistory ?? []) as ChatTurn[]),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   };

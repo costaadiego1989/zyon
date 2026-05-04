@@ -71,6 +71,15 @@ export interface MerchantRules {
   brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
 }
 
+export type ChatTurnRole = "buyer" | "agent";
+
+export interface ChatTurn {
+  role: ChatTurnRole;
+  text: string;
+  occurredAt: string;
+  authorizedOfferId?: string;
+}
+
 export interface CheckoutSession {
   merchantId: string;
   sessionId: string;
@@ -81,6 +90,7 @@ export interface CheckoutSession {
   shipping?: ShippingQuote;
   abandonmentScore: number;
   triggerAgent: boolean;
+  chatHistory: ChatTurn[];
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,7 @@
-import type { Cart, CheckoutSession, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, ChatTurn, CheckoutSession, CustomerHints, ShippingQuote } from "@aacp/shared-types";
 import { CHECKOUT_TRIGGER_THRESHOLD } from "../services/checkout-abandonment.service.js";
+
+const CHAT_HISTORY_LIMIT = 50;
 
 export class CheckoutSessionEntity {
   private constructor(private readonly props: CheckoutSession) {}
@@ -24,13 +26,17 @@ export class CheckoutSessionEntity {
       shipping: input.shipping,
       abandonmentScore: 0,
       triggerAgent: false,
+      chatHistory: [],
       createdAt: now,
       updatedAt: now
     });
   }
 
   static rehydrate(snapshot: CheckoutSession): CheckoutSessionEntity {
-    return new CheckoutSessionEntity(snapshot);
+    return new CheckoutSessionEntity({
+      ...snapshot,
+      chatHistory: snapshot.chatHistory ?? []
+    });
   }
 
   updateScore(score: number): CheckoutSessionEntity {
@@ -42,7 +48,16 @@ export class CheckoutSessionEntity {
     });
   }
 
+  appendTurn(turn: ChatTurn): CheckoutSessionEntity {
+    const next = [...this.props.chatHistory, turn].slice(-CHAT_HISTORY_LIMIT);
+    return new CheckoutSessionEntity({
+      ...this.props,
+      chatHistory: next,
+      updatedAt: new Date().toISOString()
+    });
+  }
+
   snapshot(): CheckoutSession {
-    return { ...this.props };
+    return { ...this.props, chatHistory: [...this.props.chatHistory] };
   }
 }

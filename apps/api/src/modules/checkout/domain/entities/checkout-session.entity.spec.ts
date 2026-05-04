@@ -28,3 +28,36 @@ test("CheckoutSessionEntity updates score immutably and applies trigger threshol
   assert.equal(updated.snapshot().abandonmentScore, 0.55);
   assert.equal(updated.snapshot().triggerAgent, true);
 });
+
+test("CheckoutSessionEntity appendTurn keeps last 50 chat turns", () => {
+  let session = CheckoutSessionEntity.create({
+    merchantId: "m",
+    sessionId: "s",
+    globalUserId: "g",
+    conversationId: "c",
+    cart: testCart()
+  });
+  for (let i = 0; i < 55; i++) {
+    session = session.appendTurn({
+      role: i % 2 === 0 ? "buyer" : "agent",
+      text: `msg-${i}`,
+      occurredAt: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString()
+    });
+  }
+  const history = session.snapshot().chatHistory;
+  assert.equal(history.length, 50);
+  assert.equal(history[0]?.text, "msg-5");
+  assert.equal(history[49]?.text, "msg-54");
+});
+
+test("CheckoutSessionEntity creates session with empty chatHistory", () => {
+  const session = CheckoutSessionEntity.create({
+    merchantId: "m",
+    sessionId: "s",
+    globalUserId: "g",
+    conversationId: "c",
+    cart: testCart()
+  }).snapshot();
+
+  assert.deepEqual(session.chatHistory, []);
+});

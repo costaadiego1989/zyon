@@ -38,6 +38,7 @@ export function checkoutSession(overrides: Partial<CheckoutSession> = {}): Check
     shipping: { customerPrice: 35, realCost: 37, region: "SP" },
     abandonmentScore: 0,
     triggerAgent: false,
+    chatHistory: [],
     createdAt: now,
     updatedAt: now,
     ...overrides
