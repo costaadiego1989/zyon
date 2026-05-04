@@ -86,6 +86,7 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
   ],
   exports: [
     CHECKOUT_REPOSITORY,
+    CompleteOrderUseCase,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     SendChatMessageUseCase,

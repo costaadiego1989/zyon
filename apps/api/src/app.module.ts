@@ -7,6 +7,7 @@ import { CheckoutSettingsModule } from "./modules/checkout-settings/checkout-set
 import { MerchantModule } from "./modules/merchant/merchant.module.js";
 import { NegotiationModule } from "./modules/negotiation/negotiation.module.js";
 import { EmbedModule } from "./modules/embed/embed.module.js";
+import { PaymentModule } from "./modules/payment/payment.module.js";
 
 @Module({
   imports: [
@@ -17,7 +18,8 @@ import { EmbedModule } from "./modules/embed/embed.module.js";
     BuyerPurchaseHistoryModule,
     CheckoutModule,
     NegotiationModule,
-    EmbedModule
+    EmbedModule,
+    PaymentModule
   ]
 })
 export class AppModule {}
