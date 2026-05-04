@@ -1,18 +1,27 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { ApplyOfferRequest, ApplyOfferResponse } from "@aacp/shared-types";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import type {
+  ApplyOfferRequest,
+  ApplyOfferResponse,
+  AuthorizedOffer,
+  CheckoutSession,
+  ChatTurn
+} from "@aacp/shared-types";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
 } from "../../domain/ports/checkout-repository.port.js";
 import { COMMERCE_OFFER_PORT, type CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 
 @Injectable()
 export class ApplyOfferUseCase {
   constructor(
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
     @Inject(COMMERCE_OFFER_PORT) private readonly commerce: CommerceOfferPort,
-    private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase
+    private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase,
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
   ) {}
 
   async execute(input: ApplyOfferRequest): Promise<ApplyOfferResponse> {
@@ -23,14 +32,80 @@ export class ApplyOfferUseCase {
     if (Date.parse(offer.expiresAt) <= Date.now()) return { success: false, reason: "offer_expired" };
 
     const applied = await this.commerce.apply(offer);
-    if (applied.success) {
-      await this.acceptCheckoutOffer.execute(input);
+    if (!applied.success) {
+      return {
+        ...applied,
+        expires_at: offer.expiresAt
+      };
     }
 
+    await this.acceptCheckoutOffer.execute(input);
+
+    const updatedSession = applyOfferToSession(session, offer);
+    const persisted = await this.repository.saveSession(updatedSession);
+
+    const followUp = buildAgentFollowUp(offer);
+    const sessionWithTurn = await this.repository.appendChatTurn(input.merchant_id, input.session_id, followUp);
+
+    const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
+    const experience = buildExperienceFromSession(sessionWithTurn, {
+      merchantName: merchant?.name,
+      theme: merchant?.theme
+    });
+
+    const subtotal = experience.totals.subtotal;
+    const discount = experience.totals.discount;
     return {
       ...applied,
-      new_total: offer.type === "discount_percent" ? session.cart.total * (1 - offer.value / 100) : session.cart.total,
-      expires_at: offer.expiresAt
+      new_total: roundMoney(Math.max(0, subtotal - discount)),
+      expires_at: offer.expiresAt,
+      experience,
+      agent_turn: followUp,
+      ...(persisted ? {} : {})
     };
   }
+}
+
+function applyOfferToSession(session: CheckoutSession, offer: AuthorizedOffer): CheckoutSession {
+  const cart = { ...session.cart };
+  const shipping = session.shipping ? { ...session.shipping } : undefined;
+  if (offer.type === "discount_percent") {
+    const previous = cart.currentDiscount ?? 0;
+    const newDiscount = roundMoney(cart.total * (offer.value / 100));
+    cart.currentDiscount = Math.max(previous, newDiscount);
+  } else if (offer.type === "shipping_free" && shipping) {
+    shipping.customerPrice = 0;
+  } else if (offer.type === "shipping_discount_fixed" && shipping) {
+    shipping.customerPrice = Math.max(0, roundMoney((shipping.customerPrice ?? 0) - offer.value));
+  } else if (offer.type === "discount_fixed") {
+    const previous = cart.currentDiscount ?? 0;
+    cart.currentDiscount = Math.max(previous, roundMoney(offer.value));
+  }
+  return {
+    ...session,
+    cart,
+    shipping,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function buildAgentFollowUp(offer: AuthorizedOffer): ChatTurn {
+  const label =
+    offer.type === "discount_percent"
+      ? `${offer.value}% de desconto`
+      : offer.type === "discount_fixed"
+        ? `R$${offer.value.toFixed(2)} de desconto`
+        : offer.type === "shipping_free"
+          ? "frete grátis"
+          : `R$${offer.value.toFixed(2)} de redução no frete`;
+  return {
+    role: "agent",
+    text: `Pronto! Apliquei ${label}. Vamos para o pagamento — prefere PIX ou cartão de crédito?`,
+    occurredAt: new Date().toISOString(),
+    authorizedOfferId: offer.id
+  };
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
