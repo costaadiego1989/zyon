@@ -68,6 +68,25 @@ export interface ShippingQuote {
   region?: string;
 }
 
+export interface StageQuickReplies {
+  data_collection?: {
+    nome?: string[];
+    email?: string[];
+    CPF?: string[];
+    telefone?: string[];
+    default?: string[];
+  };
+  shipping?: {
+    CEP?: string[];
+    confirmar?: string[];
+    numero_complemento?: string[];
+    frete?: string[];
+    default?: string[];
+  };
+  payment?: string[];
+  completed?: string[];
+}
+
 export interface MerchantRules {
   maxDiscountPercent: number;
   minimumMarginPercent: number;
@@ -81,8 +100,8 @@ export interface MerchantRules {
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
-  /** Quando true, o widget exibe input de cupom; o engine nunca aplica cupom não autorizado. */
   couponBoxEnabled: boolean;
+  quickReplies?: StageQuickReplies;
 }
 
 export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
@@ -170,7 +189,7 @@ export interface CheckoutTotalsSnapshot {
 
 export interface CheckoutExperienceSnapshot {
   brand: CheckoutBrandSnapshot;
-  /** Regras comerciais expostas para o embed (somente subset seguro para a UI). */
+  stage?: ChatStage;
   rules?: {
     couponBoxEnabled: boolean;
   };
@@ -189,6 +208,8 @@ export interface CheckoutExperienceSnapshot {
     subheadline: string;
     trust_badges: string[];
     quick_replies: string[];
+    focus_input?: boolean;
+    expected_input_type?: "text" | "email" | "tel" | "number";
   };
 }
 
