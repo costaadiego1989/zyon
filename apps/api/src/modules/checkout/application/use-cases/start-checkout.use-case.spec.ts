@@ -178,7 +178,8 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
   assert.equal(response.experience.totals.shipping, 29.9);
   assert.equal(response.experience.totals.total, 929.7);
   assert.ok(response.experience.copy.headline.includes("Northstar Atelier"));
-  assert.ok(response.experience.copy.quick_replies.includes("Tenho dúvida sobre o frete"));
+  assert.equal(response.experience.stage, "data_collection");
+  assert.ok(response.experience.copy.quick_replies.includes("Por que precisa do meu nome?"));
   assert.equal(response.experience.brand.theme.accentColor, "#FF0066");
   assert.equal(response.experience.brand.theme.fontFamily, "Manrope, system-ui, sans-serif");
   assert.equal(response.experience.brand.logo_url, "https://cdn.example.com/northstar-logo.png");

@@ -44,7 +44,7 @@ test("agent rules use cases create defaults and update user-specific agent conte
 
   assert.equal(context.agent.agentName, "Nina");
   assert.equal(context.capabilities.machineToMachineNegotiation, true);
-  assert.equal(context.copy_constraints.some((constraint) => constraint.includes("deterministic")), true);
+  assert.equal(context.copy_constraints.some((constraint) => constraint.includes("determinístic")), true);
 });
 
 test("agent rules use cases can manage named merchant agents", async () => {
