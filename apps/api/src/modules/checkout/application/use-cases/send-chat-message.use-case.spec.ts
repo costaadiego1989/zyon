@@ -4,9 +4,18 @@ import type { AgentContext } from "@aacp/shared-types";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { startCheckoutRequest } from "../../__tests__/checkout-test-fixtures.js";
+import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import type { MerchantTheme } from "../../../merchant/domain/merchant.types.js";
+import type { BuyerEmailCapturePayload } from "../../infrastructure/brevo-buyer-email.notifier.js";
+import {
+  merchantRules,
+  startCheckoutRequest,
+  completeOrderRequest
+} from "../../__tests__/checkout-test-fixtures.js";
 import { StartCheckoutUseCase } from "./start-checkout.use-case.js";
 import { SendChatMessageUseCase } from "./send-chat-message.use-case.js";
+import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
+import { CompleteOrderUseCase } from "./complete-order.use-case.js";
 
 class RecordingConversationPort implements ConversationPort {
   calls: Parameters<ConversationPort["reply"]>[0][] = [];
@@ -165,6 +174,207 @@ test("SendChatMessageUseCase appends buyer + agent turns and forwards history", 
   assert.equal(second.turns.length, 4);
   assert.equal(conversation.calls[1]?.history?.length, 2, "second call gets history of previous round");
   assert.ok(conversation.calls[1]?.cart, "cart forwarded to engine");
+});
+
+test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → frete estimado → etapa pagamento e complete-order", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await new StartCheckoutUseCase(repository).execute(
+    startCheckoutRequest({ session_id: "chk_full_journey", customer: undefined, shipping: undefined })
+  );
+
+  await repository.appendChatTurn("mrc_1", "chk_full_journey", {
+    role: "agent",
+    text: "Antes de continuar, qual é o seu nome completo?",
+    occurredAt: new Date().toISOString()
+  });
+
+  const conversation = new RecordingConversationPort();
+  const merchantRepo: MerchantRepository = {
+    async getProfile(id) {
+      return { id, name: "Loja E2E Journey" };
+    },
+    async getRules() {
+      return merchantRules();
+    },
+    async updateRules(mid, patch) {
+      void mid;
+      return { ...merchantRules(), ...patch };
+    },
+    async updateTheme(mid, theme) {
+      void mid;
+      return theme as MerchantTheme;
+    }
+  };
+
+  const brevoCaptured: BuyerEmailCapturePayload[] = [];
+  const brevoNotifier = {
+    notifyCaptured(p: BuyerEmailCapturePayload) {
+      brevoCaptured.push(p);
+    }
+  } as BrevoBuyerEmailNotifier;
+
+  const useCase = new SendChatMessageUseCase(repository, conversation, undefined, merchantRepo, brevoNotifier);
+
+  const baseReq = {
+    merchant_id: "mrc_1",
+    session_id: "chk_full_journey",
+    conversation_id: "conv_j_full"
+  } as const;
+
+  await useCase.execute({ ...baseReq, user_message: "Maria Silva Santos" });
+
+  await useCase.execute({ ...baseReq, user_message: "meuemail.journey@test.com" });
+  assert.equal(brevoCaptured.length, 1);
+  assert.equal(brevoCaptured[0]?.buyerEmail, "meuemail.journey@test.com");
+  assert.equal(brevoCaptured[0]?.buyerFirstNameHint, "Maria");
+
+  await useCase.execute({ ...baseReq, user_message: "529.982.247-25" });
+  await useCase.execute({ ...baseReq, user_message: "(21) 99300-1883" });
+
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("viacep.com.br")) {
+      return new Response(
+        JSON.stringify({
+          logradouro: "Avenida Paulista",
+          bairro: "Bela Vista",
+          localidade: "São Paulo",
+          uf: "SP"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    }
+    return originalFetch(input, init);
+  };
+
+  try {
+    const afterCep = await useCase.execute({ ...baseReq, user_message: "CEP de entrega 01310-100" });
+    assert.equal(afterCep.stage, "shipping");
+    assert.ok(
+      (afterCep.missing_fields ?? []).some((f) => f.includes("número") || f.includes("complemento")),
+      "após ViaCEP ainda falta número/complemento"
+    );
+    assert.ok((afterCep.experience?.copy.quick_replies?.length ?? 0) > 0);
+
+    const afterAddr = await useCase.execute({ ...baseReq, user_message: "1500, apartamento 42" });
+
+    assert.equal(afterAddr.stage, "payment");
+    assert.ok((afterAddr.experience?.copy.quick_replies ?? []).includes("Prefiro PIX"));
+
+    const session = await repository.getSession("mrc_1", "chk_full_journey");
+    assert.ok(session?.shipping?.customerPrice && session.shipping.customerPrice > 0);
+    assert.ok(session.customer?.address?.street?.includes("Paulista"));
+
+    const completed = await new CompleteOrderUseCase(repository).execute(
+      completeOrderRequest({
+        session_id: "chk_full_journey",
+        external_order_id: "ord_full_journey_1",
+        order_total: session.cart.total + (session.shipping?.customerPrice ?? 0),
+        currency: "BRL"
+      })
+    );
+    assert.equal(completed.recorded, true);
+    assert.ok(completed.idempotent === false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acordo com guardrails (CRUD lojista)", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await new StartCheckoutUseCase(repository).execute(
+    startCheckoutRequest({ session_id: "chk_qr", customer: undefined, shipping: undefined })
+  );
+
+  const customRules = merchantRules();
+  customRules.quickReplies = {
+    data_collection: {
+      telefone: ["Ligar no fixo", "Chamar no zap"]
+    },
+    payment: ["Quero pagar com Crypto", "Tenho um cupom"]
+  };
+  customRules.maxDiscountPercent = 0; // Lojista proibiu cupom
+  customRules.couponBoxEnabled = false;
+  repository.setRules("mrc_1", customRules);
+
+  const merchantRepo: MerchantRepository = {
+    async getProfile(id) {
+      return { id, name: "QR Store" };
+    },
+    async getRules() {
+      return customRules;
+    },
+    async updateRules() {
+      return customRules;
+    },
+    async updateTheme(mid, theme) {
+      return theme as MerchantTheme;
+    }
+  };
+
+  const useCase = new SendChatMessageUseCase(repository, new RecordingConversationPort(), undefined, merchantRepo);
+
+  // Testa o campo aninhado para telefone
+  const sessionTel = await repository.getSession("mrc_1", "chk_qr");
+  if (sessionTel) {
+    sessionTel.customer = {
+      fullName: "Teste Nome",
+      email: "teste@teste.com",
+      cpf: "05178178700"
+    };
+    await repository.saveSession(sessionTel);
+  }
+
+  const resTel = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_qr",
+    conversation_id: "c1",
+    user_message: "esse é meu cpf"
+  });
+
+  assert.equal(resTel.stage, "data_collection");
+  const qrTel = resTel.experience?.copy.quick_replies ?? [];
+  assert.equal(qrTel.includes("Chamar no zap"), true, "Retornou o custom reply aninhado para telefone");
+  assert.equal(resTel.experience?.copy.expected_input_type, "tel");
+  assert.equal(resTel.experience?.copy.focus_input, true);
+
+  // Força o preenchimento da sessão para etapa de pagamento
+  const session = await repository.getSession("mrc_1", "chk_qr");
+  if (session) {
+    session.customer = {
+      fullName: "Teste Nome",
+      email: "teste@teste.com",
+      cpf: "05178178700",
+      phone: "21993001883",
+      address: {
+        zip: "01310100",
+        city: "SP",
+        state: "SP",
+        street: "Av",
+        number: "100"
+      }
+    };
+    session.shipping = {
+      customerPrice: 10,
+      realCost: 10,
+      carrier: "Correios",
+      deliveryDays: 5
+    };
+    await repository.saveSession(session);
+  }
+
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_qr",
+    conversation_id: "c1",
+    user_message: "E o frete?"
+  });
+
+  assert.equal(res.stage, "payment");
+  const qr = res.experience?.copy.quick_replies ?? [];
+  assert.equal(qr.includes("Quero pagar com Crypto"), true, "Retornou o custom reply do lojista");
+  assert.equal(qr.includes("Tenho um cupom"), false, "Filtrou a menção de cupom porque maxDiscount=0 e couponBoxEnabled=false");
 });
 
 function testAgentContext(): AgentContext {
