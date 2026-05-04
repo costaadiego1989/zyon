@@ -110,6 +110,20 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
   }
 
+  async appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): Promise<CheckoutSession> {
+    const current = await this.getSession(merchantId, sessionId);
+    if (!current) throw new Error("checkout_session_not_found");
+    const next = [...current.chatHistory, turn].slice(-50);
+    const row = await this.prisma.checkoutSession.update({
+      where: { merchantId_sessionId: { merchantId, sessionId } },
+      data: {
+        chatHistory: next as unknown as Prisma.InputJsonValue,
+        updatedAt: new Date()
+      }
+    });
+    return toCheckoutSession(row);
+  }
+
   async saveOffer(offer: AuthorizedOffer): Promise<AuthorizedOffer> {
     const row = await this.prisma.authorizedOffer.upsert({
       where: { id: offer.id },
@@ -234,6 +248,7 @@ function toCheckoutSessionCreate(session: CheckoutSession) {
     shipping: (session.shipping ?? undefined) as unknown as Prisma.InputJsonValue,
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
+    chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
     createdAt: new Date(session.createdAt),
     updatedAt: new Date(session.updatedAt)
   };
@@ -248,6 +263,7 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     shipping: (session.shipping ?? undefined) as unknown as Prisma.InputJsonValue,
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
+    chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
     updatedAt: new Date(session.updatedAt)
   };
 }

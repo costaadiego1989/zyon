@@ -4,6 +4,7 @@ import { CheckoutIdentityService } from "../../domain/services/checkout-identity
 import type {
   AcceptedOffer,
   AuthorizedOffer,
+  ChatTurn,
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
@@ -13,6 +14,7 @@ import type {
   MerchantRules
 } from "@aacp/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
+import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
 
 const DEFAULT_RULES: MerchantRules = {
   maxDiscountPercent: 10,
@@ -85,6 +87,14 @@ export class InMemoryCheckoutRepository implements CheckoutRepository {
       triggerAgent: score.triggerAgent,
       updatedAt: new Date().toISOString()
     });
+  }
+
+  appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): CheckoutSession {
+    const existing = this.getSession(merchantId, sessionId);
+    if (!existing) throw new Error("checkout_session_not_found");
+    const next = CheckoutSessionEntity.rehydrate(existing).appendTurn(turn).snapshot();
+    this.saveSession(next);
+    return next;
   }
 
   saveOffer(offer: AuthorizedOffer): AuthorizedOffer {

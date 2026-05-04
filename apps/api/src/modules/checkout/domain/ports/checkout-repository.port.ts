@@ -1,6 +1,7 @@
 import type {
   AuthorizedOffer,
   AcceptedOffer,
+  ChatTurn,
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
@@ -22,6 +23,7 @@ export interface CheckoutRepository {
   saveSession(session: CheckoutSession): MaybePromise<CheckoutSession>;
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): MaybePromise<void>;
+  appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): MaybePromise<CheckoutSession>;
   saveOffer(offer: AuthorizedOffer): MaybePromise<AuthorizedOffer>;
   getOffer(merchantId: string, offerId: string): MaybePromise<AuthorizedOffer | undefined>;
   saveAcceptedOffer(acceptedOffer: AcceptedOffer): MaybePromise<AcceptedOffer>;

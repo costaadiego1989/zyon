@@ -9,6 +9,7 @@ datasource db {
 model Merchant {
   id        String   @id
   name      String
+  theme     Json?
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -82,6 +83,7 @@ model CheckoutSession {
   shipping           Json?
   abandonmentScore   Float    @default(0) @map("abandonment_score")
   triggerAgent       Boolean  @default(false) @map("trigger_agent")
+  chatHistory        Json     @default("[]") @map("chat_history")
   createdAt          DateTime @map("created_at")
   updatedAt          DateTime @map("updated_at")
 
