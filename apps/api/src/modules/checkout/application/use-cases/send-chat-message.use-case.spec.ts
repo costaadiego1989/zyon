@@ -71,6 +71,33 @@ test("SendChatMessageUseCase remains compatible when agent context is not config
   assert.equal(conversation.calls[0]?.authorizedOffer instanceof Object, true);
 });
 
+test("SendChatMessageUseCase appends buyer + agent turns and forwards history", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_h" }));
+  const conversation = new RecordingConversationPort();
+  const useCase = new SendChatMessageUseCase(repository, conversation);
+
+  const first = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_h",
+    conversation_id: "conv_1",
+    user_message: "esta caro"
+  });
+  const second = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_h",
+    conversation_id: "conv_1",
+    user_message: "ainda caro"
+  });
+
+  assert.equal(first.turns.length, 2, "first call: buyer + agent turn appended");
+  assert.equal(first.turns[0]?.role, "buyer");
+  assert.equal(first.turns[1]?.role, "agent");
+  assert.equal(second.turns.length, 4);
+  assert.equal(conversation.calls[1]?.history?.length, 2, "second call gets history of previous round");
+  assert.ok(conversation.calls[1]?.cart, "cart forwarded to engine");
+});
+
 function testAgentContext(): AgentContext {
   return {
     merchant_id: "mrc_1",

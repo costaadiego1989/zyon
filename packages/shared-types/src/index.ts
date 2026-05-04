@@ -430,6 +430,7 @@ export interface ChatMessageResponse {
   objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
   authorized_offer?: AuthorizedOffer;
   actions: ChatAction[];
+  turns: ChatTurn[];
 }
 
 export interface ShippingEvaluateRequest {

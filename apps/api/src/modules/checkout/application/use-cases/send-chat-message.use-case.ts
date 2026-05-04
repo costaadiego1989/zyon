@@ -14,6 +14,10 @@ import {
 } from "../../domain/ports/checkout-repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
+import {
+  MERCHANT_REPOSITORY,
+  type MerchantRepository
+} from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { createAuthorizedOffer } from "./offer-factory.js";
 
 @Injectable()
@@ -21,7 +25,8 @@ export class SendChatMessageUseCase {
   constructor(
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
     @Inject(CONVERSATION_PORT) private readonly conversation: ConversationPort,
-    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort
+    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -35,11 +40,29 @@ export class SendChatMessageUseCase {
       agentId: input.agent_id,
       globalUserId: session.globalUserId
     });
+    const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
+
     const reply = await this.conversation.reply({
       userMessage: input.user_message,
       brandVoice: rules.brandVoice,
       authorizedOffer: offer,
-      agentContext
+      agentContext,
+      merchantName: merchant?.name,
+      cart: session.cart,
+      history: session.chatHistory
+    });
+
+    const now = new Date().toISOString();
+    await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+      role: "buyer",
+      text: input.user_message,
+      occurredAt: now
+    });
+    const updated = await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+      role: "agent",
+      text: reply.message,
+      occurredAt: new Date().toISOString(),
+      authorizedOfferId: offer.approved ? offer.id : undefined
     });
 
     return {
@@ -47,8 +70,9 @@ export class SendChatMessageUseCase {
       objection: reply.objection,
       authorized_offer: offer,
       actions: offer.approved
-        ? [{ label: "Apply offer", type: "apply_offer", offer_id: offer.id }]
-        : [{ label: "Continue checkout", type: "continue_checkout" }]
+        ? [{ label: "Aplicar oferta", type: "apply_offer", offer_id: offer.id }]
+        : [{ label: "Continuar checkout", type: "continue_checkout" }],
+      turns: updated.chatHistory
     };
   }
 
