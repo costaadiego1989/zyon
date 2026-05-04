@@ -65,28 +65,28 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
   switch (stage) {
     case "data_collection":
       if (next === "nome")
-        return ["Meu nome completo é…", "Como prefere me chamar?", "Posso usar nome social?"];
+        return ["Por que precisa do meu nome?", "Posso usar nome de empresa?", "É seguro informar dados aqui?"];
       if (next === "email")
-        return ["Segue meu melhor e-mail", "Quero usar outro e-mail", "Vou digitar meu e-mail agora"];
+        return ["Vão me mandar SPAM?", "Posso usar outro e-mail?", "Vocês enviam a nota por e-mail?"];
       if (next === "CPF")
-        return ["Segue o CPF (só números)", "Não sei o CPF agora"];
+        return ["Por que o CPF é obrigatório?", "Posso informar CNPJ?", "É seguro enviar meu CPF?"];
       if (next === "telefone")
-        return ["Meu celular com DDD", "Posso usar WhatsApp?", "Prefiro um telefone fixo"];
-      return ["Combinado!", "Posso responder depois?", "Preciso de ajuda com meus dados"];
+        return ["Vocês vão me ligar?", "Mandam rastreio por WhatsApp?", "Pode ser telefone fixo?"];
+      return ["Precisa de mais algum dado?", "Como funciona a entrega?", "Quais as formas de pagamento?"];
     case "shipping":
       if (next === "CEP")
         return [
-          "Vou informar meu CEP agora",
-          "Não sei o CEP — como acho?",
-          "Endereço de entrega é outro lugar"
+          "Como calculo o frete?",
+          "Entregam em todo o Brasil?",
+          "Não sei meu CEP, como faço?"
         ];
       if (next?.includes("confirmar"))
-        return ["Corrigindo o CEP…", "É este CEP mesmo", "Preciso formatar os 8 dígitos"];
+        return ["O CEP está correto", "Não encontram meu endereço", "Qual o problema com o CEP?"];
       if (next?.includes("número") || next?.includes("complemento"))
-        return ["Número 100, sem complemento", "Apartamento 12, bloco B", "Sem número (S/N)"];
+        return ["Minha casa não tem número", "Como informo o bloco?", "Moro em zona rural"];
       if (next === "frete")
-        return ["Quanto ficou o frete?", "O prazo atende bem", "Pode prosseguir"];
-      return ["Informar CEP da entrega", "Qual prazo médio?", "Posso retirar na loja?"];
+        return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
+      return ["Qual o prazo médio?", "Tem opção de retirada?", "Como acompanho o pedido?"];
     case "payment": {
       const base = ["Prefiro PIX", "Prefiro cartão", "Finalizar pedido"];
       if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
