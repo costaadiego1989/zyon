@@ -6,9 +6,12 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "pnpm --filter @aacp/shared-types build && tsc -p tsconfig.json",
+    "build": "pnpm --filter @aacp/shared-types build && tsc -p tsconfig.json && tsup",
+    "build:library": "pnpm --filter @aacp/shared-types build && tsc -p tsconfig.json",
+    "build:umd": "tsup",
     "typecheck": "pnpm --filter @aacp/shared-types build && tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node --test dist/embed-client.spec.js dist/checkout-embed-api.spec.js"
+    "test": "pnpm build && node --test dist/embed-client.spec.js dist/checkout-embed-api.spec.js dist/umd-bundle.spec.js",
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
     "@aacp/shared-types": "workspace:*"
@@ -18,7 +21,8 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "tsup": "^8.5.1",
     "typescript": "^5.7.2"
   },
-  "files": ["dist"]
+  "files": ["dist", "dist-umd"]
 }
