@@ -23,6 +23,10 @@ export interface CartItem {
   cost?: number;
   quantity: number;
   weightGrams?: number;
+  imageUrl?: string;
+  productUrl?: string;
+  category?: string;
+  variant?: string;
 }
 
 export interface Cart {
@@ -30,6 +34,7 @@ export interface Cart {
   total: number;
   items: CartItem[];
   currentDiscount?: number;
+  source?: "storefront" | "checkout" | "platform_api" | "manual";
 }
 
 export interface CustomerHints {
@@ -88,6 +93,55 @@ export interface StartCheckoutRequest {
   shipping?: ShippingQuote;
 }
 
+export interface CheckoutBrandSnapshot {
+  merchant_id: string;
+  name: string;
+  subtitle?: string;
+  logo_url?: string;
+  accent_color?: string;
+  support_label?: string;
+}
+
+export interface CheckoutItemSnapshot {
+  sku: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  image_url?: string;
+  product_url?: string;
+  category?: string;
+  variant?: string;
+}
+
+export interface CheckoutTotalsSnapshot {
+  currency: CurrencyCode;
+  subtotal: number;
+  shipping: number;
+  discount: number;
+  total: number;
+}
+
+export interface CheckoutExperienceSnapshot {
+  brand: CheckoutBrandSnapshot;
+  items: CheckoutItemSnapshot[];
+  totals: CheckoutTotalsSnapshot;
+  shipping?: ShippingQuote;
+  customer?: CustomerHints;
+  agent: {
+    name: string;
+    greeting: string;
+    tone: AgentTone;
+    language: string;
+  };
+  copy: {
+    headline: string;
+    subheadline: string;
+    trust_badges: string[];
+    quick_replies: string[];
+  };
+}
+
 export interface StartCheckoutResponse {
   conversation_id: string;
   session_id: string;
@@ -95,6 +149,7 @@ export interface StartCheckoutResponse {
   agent_enabled: boolean;
   initial_mode: "silent" | "open";
   tracking_token: string;
+  experience: CheckoutExperienceSnapshot;
 }
 
 export interface TrackEventRequest {
