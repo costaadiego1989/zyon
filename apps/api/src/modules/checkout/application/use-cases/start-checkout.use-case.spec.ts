@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
+import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { startCheckoutRequest } from "../../__tests__/checkout-test-fixtures.js";
 import { StartCheckoutUseCase } from "./start-checkout.use-case.js";
@@ -55,4 +57,112 @@ test("StartCheckoutUseCase respects manual-only checkout settings", async () => 
 
   assert.equal(response.agent_enabled, false);
   assert.equal(response.initial_mode, "silent");
+});
+
+test("StartCheckoutUseCase returns enterprise experience from merchant, cart, shipping, and agent context", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const merchantRepository: MerchantRepository = {
+    async getProfile() {
+      return { id: "mrc_1", name: "Northstar Atelier" };
+    },
+    async getRules() {
+      return {
+        maxDiscountPercent: 10,
+        minimumMarginPercent: 38,
+        allowFreeShipping: true,
+        allowShippingDiscount: true,
+        allowBonusItem: false,
+        allowStackDiscountAndFreeShipping: false,
+        freeShippingMinCartValue: 250,
+        maxShippingSubsidy: 45,
+        maxPartialShippingDiscount: 20,
+        offerExpirationMinutes: 15,
+        blockedRegions: [],
+        brandVoice: "premium"
+      };
+    },
+    async updateRules() {
+      return this.getRules("mrc_1");
+    }
+  };
+  const agentContext: AgentContextPort = {
+    async get() {
+      return {
+        merchant_id: "mrc_1",
+        agent_id: "default",
+        agent: {
+          agentName: "Clara",
+          persona: "consultora de checkout",
+          tone: "premium",
+          language: "pt-BR",
+          greeting: "Sou a Clara, posso ajudar a fechar sua compra com segurança."
+        },
+        capabilities: {
+          priceObjectionHandling: true,
+          shippingObjectionHandling: true,
+          trustReassurance: true,
+          paymentFrictionGuidance: true,
+          escalation: true,
+          machineToMachineNegotiation: true
+        },
+        guardrails: {
+          forbidUnauthorizedDiscounts: true,
+          forbidUnauthorizedFreeShipping: true,
+          forbidDeliveryPromisesWithoutSource: true,
+          forbidStockPromisesWithoutSource: true,
+          forbidPaymentStatusClaims: true,
+          forbidLegalMedicalFinancialAdvice: true,
+          forbidAbusivePressure: true,
+          blockedPhrases: [],
+          requiredDisclaimers: [],
+          escalationTriggers: []
+        },
+        checkout_settings: {
+          agentMode: "proactive",
+          openWidgetOnTrigger: true,
+          cooldownSeconds: 60,
+          maxInterventionsPerSession: 3,
+          triggerPreferences: ["shipping_objection_detected"],
+          handoffEnabled: true
+        },
+        copy_constraints: []
+      };
+    }
+  };
+  const useCase = new StartCheckoutUseCase(repository, undefined, merchantRepository, agentContext);
+
+  const response = await useCase.execute(
+    startCheckoutRequest({
+      session_id: "chk_enterprise",
+      cart: {
+        currency: "BRL",
+        total: 899.8,
+        source: "storefront",
+        items: [
+          {
+            sku: "bag-001",
+            name: "Bolsa Executiva Couro Safiano",
+            price: 449.9,
+            cost: 210,
+            quantity: 2,
+            imageUrl: "https://cdn.example.com/bag.png",
+            productUrl: "https://shop.example.com/bag-001",
+            category: "Bolsas",
+            variant: "Preta"
+          }
+        ]
+      },
+      shipping: { customerPrice: 29.9, realCost: 31, carrier: "Loggi", method: "Express", deliveryDays: 2, region: "SP" }
+    })
+  );
+
+  assert.equal(response.experience.brand.name, "Northstar Atelier");
+  assert.equal(response.experience.agent.name, "Clara");
+  assert.equal(response.experience.items[0]?.name, "Bolsa Executiva Couro Safiano");
+  assert.equal(response.experience.items[0]?.line_total, 899.8);
+  assert.equal(response.experience.totals.subtotal, 899.8);
+  assert.equal(response.experience.totals.shipping, 29.9);
+  assert.equal(response.experience.totals.total, 929.7);
+  assert.ok(response.experience.copy.headline.includes("Northstar Atelier"));
+  assert.ok(response.experience.copy.quick_replies.includes("Tenho dúvida sobre o frete"));
 });
