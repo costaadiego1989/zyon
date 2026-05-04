@@ -71,6 +71,75 @@ test("SendChatMessageUseCase remains compatible when agent context is not config
   assert.equal(conversation.calls[0]?.authorizedOffer instanceof Object, true);
 });
 
+test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.customer", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await new StartCheckoutUseCase(repository).execute(
+    startCheckoutRequest({ session_id: "chk_extract", customer: undefined, shipping: undefined })
+  );
+  const conversation = new RecordingConversationPort();
+  const useCase = new SendChatMessageUseCase(repository, conversation);
+
+  await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_extract",
+    conversation_id: "conv_x",
+    user_message: "Meu email é JOAO@ex.com, CPF 123.456.789-09, fone (11) 98888-7777, CEP 01001-000"
+  });
+
+  const session = await repository.getSession("mrc_1", "chk_extract");
+  assert.equal(session?.customer?.email, "joao@ex.com");
+  assert.equal(session?.customer?.cpf, "12345678909");
+  assert.equal(session?.customer?.phone, "11988887777");
+  assert.equal(session?.customer?.address?.zip, "01001000");
+  assert.equal(conversation.calls[0]?.stage, "data_collection");
+});
+
+test("SendChatMessageUseCase captures fullName when previous agent turn asked for the name", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await new StartCheckoutUseCase(repository).execute(
+    startCheckoutRequest({ session_id: "chk_name", customer: undefined })
+  );
+  await repository.appendChatTurn("mrc_1", "chk_name", {
+    role: "agent",
+    text: "Antes de continuar, posso saber seu nome completo?",
+    occurredAt: new Date().toISOString()
+  });
+  const conversation = new RecordingConversationPort();
+  const useCase = new SendChatMessageUseCase(repository, conversation);
+
+  await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_name",
+    conversation_id: "conv_name",
+    user_message: "Joao Silva"
+  });
+
+  const session = await repository.getSession("mrc_1", "chk_name");
+  assert.equal(session?.customer?.fullName, "Joao Silva");
+});
+
+test("SendChatMessageUseCase returns refreshed experience snapshot with stage and missing fields", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await new StartCheckoutUseCase(repository).execute(
+    startCheckoutRequest({ session_id: "chk_exp", customer: undefined })
+  );
+  const conversation = new RecordingConversationPort();
+  const useCase = new SendChatMessageUseCase(repository, conversation);
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_exp",
+    conversation_id: "conv_exp",
+    user_message: "joao@ex.com"
+  });
+
+  assert.ok(response.experience, "experience snapshot returned");
+  assert.equal(response.experience?.totals.currency, "BRL");
+  assert.equal(response.experience?.customer?.email, "joao@ex.com");
+  assert.equal(response.stage, "data_collection");
+  assert.ok(response.missing_fields && response.missing_fields.length > 0);
+});
+
 test("SendChatMessageUseCase appends buyer + agent turns and forwards history", async () => {
   const repository = new InMemoryCheckoutRepository();
   await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_h" }));

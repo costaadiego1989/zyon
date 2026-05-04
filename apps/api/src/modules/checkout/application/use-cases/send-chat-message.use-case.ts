@@ -6,6 +6,7 @@ import type {
   ChatMessageRequest,
   ChatMessageResponse,
   CheckoutSession,
+  CustomerHints,
   MerchantRules
 } from "@aacp/shared-types";
 import {
@@ -19,6 +20,16 @@ import {
   type MerchantRepository
 } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { createAuthorizedOffer } from "./offer-factory.js";
+import {
+  deriveChatStage,
+  extractCep,
+  extractCpf,
+  extractEmail,
+  extractName,
+  extractPhone,
+  missingFieldsForStage
+} from "../../domain/services/customer-extraction.service.js";
+import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 
 @Injectable()
 export class SendChatMessageUseCase {
@@ -33,14 +44,27 @@ export class SendChatMessageUseCase {
     const session = await this.repository.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const rules = await this.repository.getRules(input.merchant_id);
-    const offer = await this.authorizeOffer(input.user_message, session, rules);
+    const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
+
+    const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
+    const customerPatch = this.buildCustomerPatch(input.user_message, session.customer, lastAgentTurn);
+    const sessionWithCustomer: CheckoutSession = customerPatch
+      ? await this.repository.saveSession({
+          ...session,
+          customer: { ...session.customer, ...customerPatch }
+        })
+      : session;
+
+    const stage = deriveChatStage(sessionWithCustomer);
+    const missingFields = missingFieldsForStage(sessionWithCustomer, stage);
+
+    const offer = await this.authorizeOffer(input.user_message, sessionWithCustomer, rules);
     const agentContext = await this.agentContext?.get({
       merchantId: input.merchant_id,
       userId: input.agent_user_id,
       agentId: input.agent_id,
-      globalUserId: session.globalUserId
+      globalUserId: sessionWithCustomer.globalUserId
     });
-    const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
 
     const reply = await this.conversation.reply({
       userMessage: input.user_message,
@@ -48,8 +72,10 @@ export class SendChatMessageUseCase {
       authorizedOffer: offer,
       agentContext,
       merchantName: merchant?.name,
-      cart: session.cart,
-      history: session.chatHistory
+      cart: sessionWithCustomer.cart,
+      history: sessionWithCustomer.chatHistory,
+      stage,
+      missingFields
     });
 
     const now = new Date().toISOString();
@@ -65,6 +91,12 @@ export class SendChatMessageUseCase {
       authorizedOfferId: offer.approved ? offer.id : undefined
     });
 
+    const experience = buildExperienceFromSession(updated, {
+      merchantName: merchant?.name,
+      theme: merchant?.theme,
+      agent: agentContext
+    });
+
     return {
       message: reply.message,
       objection: reply.objection,
@@ -72,8 +104,42 @@ export class SendChatMessageUseCase {
       actions: offer.approved
         ? [{ label: "Aplicar oferta", type: "apply_offer", offer_id: offer.id }]
         : [{ label: "Continuar checkout", type: "continue_checkout" }],
-      turns: updated.chatHistory
+      turns: updated.chatHistory,
+      experience,
+      stage,
+      missing_fields: missingFields
     };
+  }
+
+  private buildCustomerPatch(
+    userMessage: string,
+    existing: CustomerHints | undefined,
+    lastAgentTurn: string | undefined
+  ): Partial<CustomerHints> | null {
+    const patch: Partial<CustomerHints> = {};
+    if (!existing?.email) {
+      const email = extractEmail(userMessage);
+      if (email) patch.email = email.toLowerCase();
+    }
+    if (!existing?.cpf) {
+      const cpf = extractCpf(userMessage);
+      if (cpf) patch.cpf = cpf;
+    }
+    if (!existing?.phone) {
+      const phone = extractPhone(userMessage);
+      if (phone) patch.phone = phone;
+    }
+    if (!existing?.address?.zip) {
+      const zip = extractCep(userMessage);
+      if (zip) {
+        patch.address = { ...(existing?.address ?? {}), zip };
+      }
+    }
+    if (!existing?.fullName) {
+      const name = extractName(userMessage, lastAgentTurn);
+      if (name) patch.fullName = name;
+    }
+    return Object.keys(patch).length === 0 ? null : patch;
   }
 
   private async authorizeOffer(

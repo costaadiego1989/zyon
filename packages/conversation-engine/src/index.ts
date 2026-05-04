@@ -1,4 +1,4 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatTurn, MerchantRules } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules } from "@aacp/shared-types";
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
 
@@ -16,6 +16,8 @@ export interface ConversationInput {
   merchantName?: string;
   cart?: Cart;
   history?: ChatTurn[];
+  stage?: ChatStage;
+  missingFields?: string[];
 }
 
 export interface ConversationOutput {
@@ -26,25 +28,30 @@ export interface ConversationOutput {
 export async function generateSalesReply(input: ConversationInput): Promise<ConversationOutput> {
   const objection = classifyObjection(input.userMessage);
   const apiKey = input.apiKey ?? input.openAiApiKey;
-  if (!apiKey) {
-    return fallbackReply(objection, input.authorizedOffer, input.agentContext);
-  }
+  const fb = () =>
+    fallbackReply(
+      objection,
+      input.authorizedOffer,
+      input.agentContext,
+      input.stage,
+      input.missingFields,
+      input.merchantName
+    );
+  if (!apiKey) return fb();
 
   try {
     const text =
       input.provider === "openai_chat"
         ? await generateChatCompletion(input, apiKey, objection)
         : await generateOpenAiResponse(input, apiKey, objection);
-    if (!isSafeGeneratedMessage(text, input.authorizedOffer)) {
-      return fallbackReply(objection, input.authorizedOffer, input.agentContext);
-    }
+    if (!isSafeGeneratedMessage(text, input.authorizedOffer)) return fb();
     return {
       objection,
-      message: text.trim() || fallbackReply(objection, input.authorizedOffer, input.agentContext).message
+      message: text.trim() || fb().message
     };
   } catch (error) {
     if (input.failOnProviderError) throw error;
-    return fallbackReply(objection, input.authorizedOffer, input.agentContext);
+    return fb();
   }
 }
 
@@ -111,31 +118,54 @@ function buildResponsesInput(input: ConversationInput): string {
 
 function systemPrompt(input: ConversationInput, objection: Objection): string {
   const lines = [
-    `You are a B2C sales-assistant agent embedded in the merchant "${input.merchantName ?? "(merchant)"}".`,
-    "Speak in pt-BR. Be concise (max 3 sentences). Be commercial, helpful and direct.",
-    `Brand voice: ${input.brandVoice}.`,
-    `Detected objection: ${objection}.`
+    `Você é um agente de vendas B2C consultivo da loja "${input.merchantName ?? "(merchant)"}".`,
+    "Fale em pt-BR. Seja conciso (no máximo 2 frases por resposta). Use tom comercial, útil e direto.",
+    `Voz da marca: ${input.brandVoice}.`,
+    `Objeção detectada: ${objection}.`
   ];
-  if (input.cart) lines.push(`Cart: ${cartSummary(input.cart)}.`);
+  if (input.stage) {
+    lines.push(stageInstructions(input.stage, input.missingFields ?? []));
+  }
+  if (input.cart) lines.push(`Carrinho: ${cartSummary(input.cart)}.`);
   if (input.authorizedOffer) {
     lines.push(
-      `Authorized offer: ${JSON.stringify({
+      `Oferta autorizada: ${JSON.stringify({
         approved: input.authorizedOffer.approved,
         type: input.authorizedOffer.type,
         value: input.authorizedOffer.value,
         reason: input.authorizedOffer.reason
-      })}. NEVER mention any commercial terms beyond this offer.`
+      })}. NUNCA mencione termos comerciais além desta oferta.`
     );
   } else {
-    lines.push("No offer is authorized; redirect to checkout instead of inventing discounts.");
+    lines.push("Nenhuma oferta foi autorizada; nunca invente descontos.");
   }
   if (input.agentContext) {
-    lines.push(`Agent identity & guardrails: ${JSON.stringify(input.agentContext)}`);
+    lines.push(`Identidade do agente e guardrails: ${JSON.stringify(input.agentContext)}`);
   }
   lines.push(
-    "Hard rules: never promise free shipping, delivery time, stock or payment status unless explicitly present in the authorized offer."
+    "Regras rígidas: nunca prometa frete grátis, prazo, estoque ou status de pagamento que não estejam explicitamente na oferta autorizada."
   );
   return lines.join("\n");
+}
+
+function stageInstructions(stage: ChatStage, missingFields: string[]): string {
+  if (stage === "data_collection") {
+    const next = missingFields[0] ?? "nome";
+    return [
+      `ETAPA: cadastro do comprador.`,
+      `CAMPOS FALTANDO (em ordem): ${missingFields.join(", ") || "nenhum"}.`,
+      `REGRA: peça apenas o PRÓXIMO campo da lista (\"${next}\") em uma única frase.`,
+      "Se o comprador levantar uma objeção, responda em uma frase e retome a coleta na frase seguinte.",
+      "Nunca peça vários campos na mesma mensagem."
+    ].join("\n");
+  }
+  if (stage === "shipping") {
+    return "ETAPA: cálculo de frete. Peça o CEP do comprador caso ainda não tenha sido informado e confirme a entrega.";
+  }
+  if (stage === "payment") {
+    return "ETAPA: pagamento. Pergunte se o comprador prefere PIX ou cartão de crédito e finalize o pedido.";
+  }
+  return "ETAPA: pedido finalizado. Agradeça e encerre.";
 }
 
 function cartSummary(cart: Cart): string {
@@ -188,20 +218,42 @@ function normalize(value: string): string {
 function fallbackReply(
   objection: Objection,
   offer?: AuthorizedOffer,
-  agentContext?: ConversationInput["agentContext"]
+  agentContext?: ConversationInput["agentContext"],
+  stage?: ChatStage,
+  missingFields?: string[],
+  merchantName?: string
 ): ConversationOutput {
   const agentName = agentContext?.agent.agentName;
   const prefix = agentName ? `${agentName}: ` : "";
+
+  if (stage === "data_collection") {
+    const next = missingFields?.[0];
+    const stageMessage = stageMessageForField(next, merchantName, agentName);
+    return { objection, message: `${prefix}${stageMessage}` };
+  }
+  if (stage === "shipping") {
+    return {
+      objection,
+      message: `${prefix}Para calcular o frete, pode informar o seu CEP?`
+    };
+  }
+  if (stage === "payment") {
+    return {
+      objection,
+      message: `${prefix}Vamos finalizar — prefere pagar com PIX ou cartão de crédito?`
+    };
+  }
+
   if (offer?.approved) {
     const label =
       offer.type === "shipping_free"
-        ? "frete gratis"
+        ? "frete grátis"
         : offer.type === "shipping_discount_fixed"
-          ? `R$${offer.value.toFixed(2)} de reducao no frete`
+          ? `R$${offer.value.toFixed(2)} de redução no frete`
           : `${offer.value}% de desconto`;
     return {
       objection,
-      message: `${prefix}Consegui uma condicao autorizada para este pedido: ${label}. Quer que eu aplique agora?`
+      message: `${prefix}Consegui uma condição autorizada para este pedido: ${label}. Quer que eu aplique agora?`
     };
   }
 
@@ -209,13 +261,31 @@ function fallbackReply(
     return {
       objection,
       message:
-        `${prefix}Posso te ajudar a finalizar com seguranca. O pagamento continua no checkout oficial da loja, e eu so uso informacoes autorizadas pela loja.`
+        `${prefix}Posso te ajudar a finalizar com segurança. O pagamento continua no checkout oficial da loja e eu só uso informações autorizadas.`
     };
   }
 
   return {
     objection,
     message:
-      `${prefix}Vou verificar a melhor condicao permitida para este pedido. Se nenhuma oferta for liberada, eu te mostro a alternativa mais segura para continuar.`
+      `${prefix}Vou verificar a melhor condição permitida para este pedido. Se nenhuma oferta for liberada, te mostro a alternativa mais segura para continuar.`
   };
+}
+
+function stageMessageForField(field: string | undefined, merchantName?: string, agentName?: string): string {
+  const greetingTail = merchantName ? ` da ${merchantName}` : "";
+  switch (field) {
+    case "nome":
+      return `Olá! Sou ${agentName ?? "o assistente"}${greetingTail}. Antes de continuar, posso saber seu nome completo?`;
+    case "email":
+      return "Perfeito. Qual o seu melhor email para o pedido?";
+    case "CPF":
+      return "Obrigado. Pode me informar o CPF para emitir a nota?";
+    case "telefone":
+      return "Anotado. Qual o telefone com DDD para acompanharmos a entrega?";
+    case "CEP":
+      return "Para calcular o frete, pode informar o CEP da entrega?";
+    default:
+      return "Para começar, posso saber seu nome completo?";
+  }
 }
