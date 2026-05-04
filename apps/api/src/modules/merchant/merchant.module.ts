@@ -29,6 +29,7 @@ import { MerchantController } from "./presentation/merchant.controller.js";
       },
       inject: [InMemoryMerchantRepository]
     }
-  ]
+  ],
+  exports: [MERCHANT_REPOSITORY]
 })
 export class MerchantModule {}
