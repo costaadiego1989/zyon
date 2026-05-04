@@ -190,6 +190,7 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
     return [
       "ETAPA: pagamento e fechamento.",
       "Agora pode falar de cupom (se a loja permitir) e perguntar PIX ou cartão.",
+      "NUNCA peça senhas, código de segurança do cartão ou dados bancários no chat.",
       "Seja breve (máx. 2 frases)."
     ].join("\n");
   }
@@ -233,7 +234,8 @@ export function isSafeGeneratedMessage(message: string, offer?: AuthorizedOffer)
     /desconto (aprovado|liberado|garantido)/,
     /oferta (aprovada|liberada|garantida)/,
     /pedido (ja esta|segue|esta) (em andamento|para processamento)/,
-    /cadastro (esta|ta) completo|encaminhar para finalizacao/
+    /cadastro (esta|ta) completo|encaminhar para finalizacao/,
+    /senha|c[óo]digo de seguran[çc]a|cvv|token do cart[ãa]o/
   ];
   return !forbiddenClaims.some((pattern) => pattern.test(normalized));
 }
