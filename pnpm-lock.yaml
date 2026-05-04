@@ -142,6 +142,10 @@ importers:
         version: 3.2.4(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)
 
   packages/agentic-checkout-js:
+    dependencies:
+      '@aacp/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
     devDependencies:
       '@types/node':
         specifier: ^22.10.2
