@@ -1,0 +1,45 @@
+import { Inject, Injectable } from "@nestjs/common";
+import type { TrustedCartSnapshot } from "@aacp/commerce-adapters";
+import { COMMERCE_ORDER_PORT, type CommerceOrderPort } from "../domain/ports/commerce-order.port.js";
+import {
+  COMMERCE_PENDING_ORDER_INDEX,
+  type PendingCommerceOrderIndexPort
+} from "../domain/ports/pending-commerce-order-index.port.js";
+
+export type SyncPendingOrderInput = {
+  merchantId: string;
+  sessionId: string;
+  cart: TrustedCartSnapshot;
+};
+
+export type SyncPendingOrderOutput = {
+  commerceOrderId: string;
+};
+
+@Injectable()
+export class SyncPendingOrderUseCase {
+  constructor(
+    @Inject(COMMERCE_ORDER_PORT)
+    private readonly orders: CommerceOrderPort,
+    @Inject(COMMERCE_PENDING_ORDER_INDEX)
+    private readonly index: PendingCommerceOrderIndexPort
+  ) {}
+
+  async execute(input: SyncPendingOrderInput): Promise<SyncPendingOrderOutput> {
+    const merchantId = input.merchantId.trim();
+    const sessionId = input.sessionId.trim();
+
+    const existing = await this.index.find(merchantId, sessionId);
+    if (existing !== undefined) {
+      return { commerceOrderId: existing };
+    }
+
+    const { commerceOrderId } = await this.orders.createPendingOrder({
+      merchantId,
+      sessionId,
+      cart: input.cart
+    });
+    await this.index.remember(merchantId, sessionId, commerceOrderId);
+    return { commerceOrderId };
+  }
+}

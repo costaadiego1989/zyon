@@ -14,6 +14,7 @@ import "./modules/checkout-settings/application/checkout-settings.use-cases.spec
 import "./modules/checkout-settings/presentation/http/checkout-settings.controller.spec.js";
 import "./modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.int-spec.js";
 import "./modules/commerce/application/validate-cart-for-payment.use-case.spec.js";
+import "./modules/commerce/application/sync-pending-order.use-case.spec.js";
 import "./modules/checkout/domain/entities/checkout-session.entity.spec.js";
 import "./modules/checkout/domain/entities/accepted-offer.entity.spec.js";
 import "./modules/checkout/domain/entities/completed-order.entity.spec.js";
