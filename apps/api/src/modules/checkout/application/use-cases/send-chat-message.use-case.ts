@@ -5,6 +5,7 @@ import type {
   AuthorizedOffer,
   ChatMessageRequest,
   ChatMessageResponse,
+  ChatStage,
   CheckoutSession,
   CustomerHints,
   MerchantRules
@@ -22,6 +23,7 @@ import {
 import { createAuthorizedOffer } from "./offer-factory.js";
 import {
   deriveChatStage,
+  extractAddressDetailLine,
   extractCep,
   extractCpf,
   extractEmail,
@@ -30,6 +32,13 @@ import {
   missingFieldsForStage
 } from "../../domain/services/customer-extraction.service.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
+import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
+
+function structuredCloneDeep(session: CheckoutSession): CheckoutSession {
+  if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(session);
+  return JSON.parse(JSON.stringify(session)) as CheckoutSession;
+}
 
 @Injectable()
 export class SendChatMessageUseCase {
@@ -37,7 +46,8 @@ export class SendChatMessageUseCase {
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
     @Inject(CONVERSATION_PORT) private readonly conversation: ConversationPort,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
-    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -47,23 +57,42 @@ export class SendChatMessageUseCase {
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
 
     const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
-    const customerPatch = this.buildCustomerPatch(input.user_message, session.customer, lastAgentTurn);
-    const sessionWithCustomer: CheckoutSession = customerPatch
-      ? await this.repository.saveSession({
-          ...session,
-          customer: { ...session.customer, ...customerPatch }
-        })
-      : session;
+    let working = structuredCloneDeep(session);
 
-    const stage = deriveChatStage(sessionWithCustomer);
-    const missingFields = missingFieldsForStage(sessionWithCustomer, stage);
+    const hadEmailAlready = Boolean(session.customer?.email?.trim());
 
-    const offer = await this.authorizeOffer(input.user_message, sessionWithCustomer, rules);
+    const customerPatch = this.buildCustomerPatch(input.user_message, working.customer, lastAgentTurn);
+    if (customerPatch) {
+      working = await this.repository.saveSession(mergeCustomers(working, customerPatch));
+      if (customerPatch.email && !hadEmailAlready && this.buyerEmailNotifier) {
+        const merged = mergeHints(session.customer, customerPatch);
+        const buyerFirstHint = merged.fullName?.trim().split(/\s+/).filter(Boolean)[0];
+        this.buyerEmailNotifier.notifyCaptured({
+          buyerEmail: customerPatch.email.toLowerCase(),
+          merchantId: input.merchant_id,
+          sessionId: input.session_id,
+          merchantName: merchant?.name,
+          buyerFirstNameHint: buyerFirstHint
+        });
+      }
+    }
+
+    working = await this.tryFillPostalAndShipping(working);
+
+    const numberPatch = this.tryParseAddressNumbers(input.user_message, working);
+    if (numberPatch) working = await this.repository.saveSession(mergeCustomers(working, numberPatch));
+
+    working = await this.tryEnsureShippingQuote(working);
+
+    const stage = deriveChatStage(working);
+    const missingFields = missingFieldsForStage(working, stage);
+
+    const offer = await this.authorizeOffer(input.user_message, working, rules, stage);
     const agentContext = await this.agentContext?.get({
       merchantId: input.merchant_id,
       userId: input.agent_user_id,
       agentId: input.agent_id,
-      globalUserId: sessionWithCustomer.globalUserId
+      globalUserId: working.globalUserId
     });
 
     const reply = await this.conversation.reply({
@@ -72,10 +101,11 @@ export class SendChatMessageUseCase {
       authorizedOffer: offer,
       agentContext,
       merchantName: merchant?.name,
-      cart: sessionWithCustomer.cart,
-      history: sessionWithCustomer.chatHistory,
+      cart: working.cart,
+      history: working.chatHistory,
       stage,
-      missingFields
+      missingFields,
+      deliverySummary: summarizeDelivery(working)
     });
 
     const now = new Date().toISOString();
@@ -95,16 +125,15 @@ export class SendChatMessageUseCase {
       merchantName: merchant?.name,
       theme: merchant?.theme,
       agent: agentContext,
-      couponBoxEnabled: rules.couponBoxEnabled
+      couponBoxEnabled: rules.couponBoxEnabled,
+      rules
     });
 
     return {
       message: reply.message,
       objection: reply.objection,
       authorized_offer: offer,
-      actions: offer.approved
-        ? [{ label: "Aplicar oferta", type: "apply_offer", offer_id: offer.id }]
-        : [{ label: "Continuar checkout", type: "continue_checkout" }],
+      actions: offer.approved ? [{ label: "Aplicar oferta", type: "apply_offer", offer_id: offer.id }] : [],
       turns: updated.chatHistory,
       experience,
       stage,
@@ -118,6 +147,7 @@ export class SendChatMessageUseCase {
     lastAgentTurn: string | undefined
   ): Partial<CustomerHints> | null {
     const patch: Partial<CustomerHints> = {};
+    const addr = existing?.address ?? {};
     if (!existing?.email) {
       const email = extractEmail(userMessage);
       if (email) patch.email = email.toLowerCase();
@@ -132,9 +162,7 @@ export class SendChatMessageUseCase {
     }
     if (!existing?.address?.zip) {
       const zip = extractCep(userMessage);
-      if (zip) {
-        patch.address = { ...(existing?.address ?? {}), zip };
-      }
+      if (zip) patch.address = { ...addr, zip };
     }
     if (!existing?.fullName) {
       const name = extractName(userMessage, lastAgentTurn);
@@ -143,26 +171,138 @@ export class SendChatMessageUseCase {
     return Object.keys(patch).length === 0 ? null : patch;
   }
 
+  private async tryFillPostalAndShipping(session: CheckoutSession): Promise<CheckoutSession> {
+    const zip = session.customer?.address?.zip?.replace(/\D/g, "");
+    const beforeStreet = session.customer?.address?.street;
+    if (zip?.length === 8 && !beforeStreet) {
+      const via = await lookupAddressByViaCep(zip);
+      if (via) {
+        const next = mergeCustomers(session, {
+          address: mergeAddr(session.customer?.address, via)
+        });
+        return this.repository.saveSession(next);
+      }
+    }
+    return session;
+  }
+
+  private tryParseAddressNumbers(text: string, session: CheckoutSession): Partial<CustomerHints> | null {
+    const addr = session.customer?.address ?? {};
+    if (!addr.street || addr.number || !addr.zip) return null;
+    const ln = extractAddressDetailLine(text);
+    if (!ln?.number) return null;
+    return { address: { ...addr, number: ln.number, complement: ln.complement ?? addr.complement } };
+  }
+
+  private async tryEnsureShippingQuote(session: CheckoutSession): Promise<CheckoutSession> {
+    const addr = session.customer?.address;
+    if (
+      !addr?.zip ||
+      !addr?.street ||
+      !addr.city ||
+      !addr.state ||
+      !addr.number ||
+      session.shipping?.customerPrice
+    ) {
+      return session;
+    }
+    const q = estimatePacQuote({ zip: addr.zip, state: addr.state });
+    return this.repository.saveSession({
+      ...session,
+      shipping: {
+        customerPrice: q.customerPrice,
+        realCost: q.realCost,
+        carrier: q.carrier,
+        method: q.method,
+        deliveryDays: q.deliveryDays,
+        region: q.region,
+        destinationZip: q.destinationZip
+      },
+      updatedAt: new Date().toISOString()
+    });
+  }
+
   private async authorizeOffer(
     userMessage: string,
-    session: CheckoutSession,
-    rules: MerchantRules
+    sessionObj: CheckoutSession,
+    rules: MerchantRules,
+    stage: ChatStage
   ): Promise<AuthorizedOffer> {
+    if (stage === "data_collection") {
+      return this.repository.saveOffer(
+        createAuthorizedOffer({
+          merchantId: sessionObj.merchantId,
+          sessionId: sessionObj.sessionId,
+          rules,
+          evaluation: {
+            approved: false,
+            type: "none",
+            value: 0,
+            reason: "complete_customer_before_offers",
+            marginAfterOffer: 0
+          }
+        })
+      );
+    }
+
     const wantsShipping = /(frete|envio|shipping)/.test(userMessage.toLowerCase());
     const evaluation = wantsShipping
       ? evaluateShippingOffer({
-          cart: session.cart,
-          shipping: session.shipping,
+          cart: sessionObj.cart,
+          shipping: sessionObj.shipping,
           rules,
-          abandonmentScore: Math.max(session.abandonmentScore, 0.7)
+          abandonmentScore: Math.max(sessionObj.abandonmentScore, 0.7)
         })
-      : evaluateDiscountOffer(session.cart, rules, rules.maxDiscountPercent);
+      : evaluateDiscountOffer(sessionObj.cart, rules, rules.maxDiscountPercent);
     const offer = createAuthorizedOffer({
-      merchantId: session.merchantId,
-      sessionId: session.sessionId,
+      merchantId: sessionObj.merchantId,
+      sessionId: sessionObj.sessionId,
       rules,
       evaluation
     });
     return this.repository.saveOffer(offer);
   }
+}
+
+function mergeCustomers(s: CheckoutSession, partial: Partial<CustomerHints>): CheckoutSession {
+  return {
+    ...s,
+    customer: mergeHints(s.customer, partial),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function mergeHints(a: CustomerHints | undefined, b: Partial<CustomerHints>): CustomerHints {
+  const { address: addrPatch, ...rest } = b;
+  const merged = { ...(a ?? {}), ...rest } as CustomerHints;
+  if (addrPatch !== undefined) merged.address = mergeAddr(a?.address, addrPatch);
+  return merged;
+}
+
+function mergeAddr(
+  a: CustomerHints["address"] | undefined,
+  b: Partial<NonNullable<CustomerHints["address"]>> | undefined
+): CustomerHints["address"] | undefined {
+  if (!b && !a) return undefined;
+  return {
+    ...(a ?? {}),
+    ...(b ?? {})
+  };
+}
+
+function summarizeDelivery(session: CheckoutSession): string | undefined {
+  const a = session.customer?.address;
+  if (!a?.street) return undefined;
+  const parts = [
+    a.street,
+    a.number ? `nº ${a.number}` : undefined,
+    a.complement ?? undefined,
+    a.neighborhood,
+    a.city && a.state ? `${a.city}/${a.state}` : undefined,
+    a.zip ? `CEP ${a.zip.slice(0, 5)}-${a.zip.slice(5)}` : undefined,
+    session.shipping?.customerPrice ? `Frete cliente: R$${session.shipping.customerPrice.toFixed(2)}` : undefined,
+    session.shipping?.deliveryDays ? `Prazo est.: ~${session.shipping.deliveryDays} dias úteis` : undefined
+  ].filter(Boolean);
+  if (parts.length === 0) return undefined;
+  return `Referência para entrega: ${parts.join(" · ")}`;
 }
