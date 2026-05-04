@@ -18,7 +18,7 @@
 |--------|-------|
 | Ficheiros de plano modular | **8** em `docs/superpowers/plans/modules/` |
 | Tasks explícitas (IDs `*-T*` nos headings) **somatório** | **52** |
-| Tasks **implementadas ou substancialmente cobertas** no código atual | **~27** (**~52%** do backlog modular planeado) |
+| Tasks **implementadas ou substancialmente cobertas** no código atual | **~28** (**~54%** do backlog modular planeado) |
 | “Módulos” com **≥1 task em aberto relevante MVP** | **5** |
 
 > Nota percentual: apenas **plans/modules** são contadas; excludes “fundação” já entregue (checkout, auth, …) — ver secção seguinte.
@@ -42,7 +42,7 @@ Legenda **`done / planned`**: contagens de IDs de task nos respetivos `.md` vs c
 | **Secure embed widget** | [secure-embed-widget-implementation-plan.md](modules/secure-embed-widget-implementation-plan.md) | ~83–90% | 5–6 / 6 | ✅ Token, sessões JWT, `/embed/start|track|chat|offers/apply`, testes segurança. ⚠️ Sem `/embed/payment/start`; e2e global parcial vs nome SEW-T007. |
 | **Machine negotiation continuation** | [machine-negotiation-continuation-implementation-plan.md](modules/machine-negotiation-continuation-implementation-plan.md) | ~95% | 5 / 5 | ✅ Policy, prefs, sessão + ledger, apply-checkout; MN-T008 SKIP. |
 | **Payment Asaas** | [payment-asaas-implementation-plan.md](modules/payment-asaas-implementation-plan.md) | 0% | 0 / 9 | ❌ Sem `modules/payment`. |
-| **Commerce sync** | [commerce-sync-implementation-plan.md](modules/commerce-sync-implementation-plan.md) | ~45–60% | ~4–5 / 6 | ✅ COM-T002 ports; COM-T003 `ValidateCartForPaymentUseCase`; COM-T004 `SyncPendingOrderUseCase` + `InMemoryPendingCommerceOrderIndex` + `COMMERCE_ORDER_PORT`. ⚠️ Shopify `applyShopifyOffer`. ❌ COM-T005 webhook + COM-T006 adapter fake + COM-T007 Woo |
+| **Commerce sync** | [commerce-sync-implementation-plan.md](modules/commerce-sync-implementation-plan.md) | ~55–70% | ~5–6 / 6 | ✅ COM-T002–T005 (validate cart, sync pending idempotent, `MarkCommerceOrderPaidUseCase` + dedup webhook in-memory). ⚠️ Shopify `applyShopifyOffer` vs COM-T006 adapter fake completo. ❌ Wire HTTP PAY/webhook + COM-T006 matriz + COM-T007 Woo |
 | **Billing Asaas** | [billing-asaas-implementation-plan.md](modules/billing-asaas-implementation-plan.md) | 0% | 0 / 7 | ❌ Sem billing planeado. |
 | **Checkout intervention ledger** | [checkout-intervention-ledger-implementation-plan.md](modules/checkout-intervention-ledger-implementation-plan.md) | ~100% | 6 / 6 | ✅ Porta `CheckoutInterventionLedgerPort`, política pura, ledger in-memory + Prisma, `TrackCheckoutEvent` / `GetDecision` com gate; `checkout.module` provider; specs + E2E `checkout.intervention-ledger.e2e-spec.ts`; int-spec Prisma opcional (`AACP_RUN_PRISMA_TESTS`). |
 | **Outbox + RabbitMQ** | [infrastructure-outbox-rabbitmq-implementation-plan.md](modules/infrastructure-outbox-rabbitmq-implementation-plan.md) | ~15% | ~0–1 / 6 | ✅ Outbox Prisma. ❌ Rabbit publisher/inbox OUT-T002+. |
@@ -80,7 +80,7 @@ Usa ✅ = detectado no código; ⬜ = não detectado.
 - ✅ `COM-T002` `packages/commerce-adapters/src/ports.ts` + `ports.spec.ts` (contratos alinhados ao plano COM)
 - ✅ `COM-T003` `ValidateCartForPaymentUseCase` + specs
 - ✅ `COM-T004` `SyncPendingOrderUseCase` + `InMemoryPendingCommerceOrderIndex` + specs (idempotência por merchant+session)
-- ⬜ `COM-T005` `mark-commerce-order-paid` + webhook Asaas
+- ✅ `COM-T005` `MarkCommerceOrderPaidUseCase` + `CommercePaidWebhookDedupPort` / `InMemoryCommercePaidWebhookDedup` + specs (idempotência `paymentReference` por merchant)
 - ⚠️ `COM-T006` Parcial (Shopify apply existente; não matriz completa do plano)
 - ⬜ `COM-T007` Woo notas only
 
@@ -158,6 +158,6 @@ pnpm --filter @aacp/api test:prisma
 
 **Plan saved:** `docs/superpowers/plans/2026-05-03-aacp-module-progress-dashboard.md`.
 
-**TLC Execute (2026-05-04):** **COM** — concluídos **COM-T004**; seguinte **COM-T005** (`mark-commerce-order-paid` idempotente + `HandleAsaasWebhookUseCase` quando existir módulo PAY).
+**TLC Execute (2026-05-04):** **COM** — concluídos **COM-T005** (use case + dedup); seguinte **COM-T006** (adapter Shopify + fetch fake nos testes) ou integração PAY → webhook → `MarkCommerceOrderPaidUseCase`.
 
 **Orchestração agentica:** Subagent-Driven por task (recomendado) **ou** Inline com checkpoints executing-plans. **PAY / FED** ficam atrás de COM+PAY segundo o fluxo MVP acima.
