@@ -2,8 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { checkoutSession, completeOrderRequest } from "../../__tests__/checkout-test-fixtures.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
+import { BuyerPurchaseHistoryAdapter } from "../../infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CompleteOrderUseCase } from "./complete-order.use-case.js";
 import type { PurchaseHistoryPort, RecordCheckoutPurchaseInput } from "../../domain/ports/purchase-history.port.js";
+import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
+import {
+  GetBuyerPurchaseContextUseCase,
+  RecordCompletedPurchaseUseCase
+} from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 
 class RecordingPurchaseHistoryPort implements PurchaseHistoryPort {
   public records: RecordCheckoutPurchaseInput[] = [];
@@ -49,4 +55,66 @@ test("CompleteOrderUseCase records completed checkout into buyer purchase histor
   assert.equal(purchaseHistory.records[0]?.globalUserId, "usr_1");
   assert.equal(purchaseHistory.records[0]?.discountAmount, 20);
   assert.deepEqual(purchaseHistory.records[0]?.items.map((item) => item.title), ["Running Shoe"]);
+});
+
+test("CompleteOrderUseCase feeds buyer purchase history so IA can read ticket médio", async () => {
+  const checkoutRepository = new InMemoryCheckoutRepository();
+  checkoutRepository.saveSession(
+    checkoutSession({
+      sessionId: "chk_1",
+      globalUserId: "usr_global_1",
+      cart: {
+        currency: "BRL",
+        total: 300,
+        currentDiscount: 0,
+        items: [{ sku: "sku_1", name: "First Item", price: 300, quantity: 1 }]
+      }
+    })
+  );
+
+  const purchaseHistoryRepository = new InMemoryBuyerPurchaseHistoryRepository();
+  const recordPurchase = new RecordCompletedPurchaseUseCase(purchaseHistoryRepository);
+  const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(recordPurchase);
+  const completeOrder = new CompleteOrderUseCase(checkoutRepository, purchaseHistoryPort);
+  const getContext = new GetBuyerPurchaseContextUseCase(purchaseHistoryRepository);
+
+  await completeOrder.execute(
+    completeOrderRequest({
+      session_id: "chk_1",
+      external_order_id: "ord_1",
+      order_total: 300
+    })
+  );
+
+  checkoutRepository.saveSession(
+    checkoutSession({
+      sessionId: "chk_2",
+      globalUserId: "usr_global_1",
+      cart: {
+        currency: "BRL",
+        total: 500,
+        currentDiscount: 50,
+        items: [{ sku: "sku_2", name: "Second Item", price: 500, quantity: 1 }]
+      }
+    })
+  );
+
+  await completeOrder.execute(
+    completeOrderRequest({
+      session_id: "chk_2",
+      external_order_id: "ord_2",
+      order_total: 450,
+      currency: "BRL"
+    })
+  );
+
+  const context = await getContext.execute({
+    merchantId: "mrc_1",
+    globalUserId: "usr_global_1"
+  });
+
+  assert.equal(context.purchase_history.orders_count, 2);
+  assert.equal(context.purchase_history.lifetime_value, 750);
+  assert.equal(context.purchase_history.average_order_value, 375);
+  assert.equal(context.purchase_history.known_buyer, true);
 });
