@@ -13,6 +13,7 @@ export interface ConversationReplyInput {
   history?: ChatTurn[];
   stage?: ChatStage;
   missingFields?: string[];
+  deliverySummary?: string;
 }
 
 export interface ConversationPort {

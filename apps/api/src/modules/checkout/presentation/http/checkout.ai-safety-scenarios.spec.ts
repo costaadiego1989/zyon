@@ -149,7 +149,21 @@ for (const scenario of scenarios) {
     const started = await controller.start({
       merchant_id: "mrc_ai_safety",
       session_id: `chk_${crypto.randomUUID()}`,
-      customer: { email: "buyer@example.com", isReturning: true },
+        customer: {
+          fullName: "Compradora Seguranca",
+          email: "buyer@example.com",
+          email_verified: true,
+          cpf: "39784089095",
+          phone: "11988887777",
+          isReturning: true,
+        address: {
+          zip: "01310100",
+          street: "Avenida Paulista",
+          number: "1578",
+          city: "São Paulo",
+          state: "SP"
+        }
+      },
       cart: {
         currency: "BRL",
         total: 300,

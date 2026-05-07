@@ -20,6 +20,7 @@ import {
   UpdateMerchantRulesUseCase
 } from "../../application/use-cases/dashboard.use-cases.js";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
+import { merchantRules } from "../../__tests__/checkout-test-fixtures.js";
 
 const runLiveAi =
   process.env.RUN_REAL_AI_E2E === "true" && Boolean(process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY);
@@ -215,6 +216,106 @@ test(
     assert.equal(snap.chatHistory.length, 6, "session keeps full chat history (3 rounds = 6 turns)");
     assert.equal(snap.chatHistory[0]?.role, "buyer");
     assert.equal(snap.chatHistory[1]?.role, "agent");
+  }
+);
+
+test(
+  "live AI checkout e2e respects configurable guardrails and quick replies",
+  {
+    skip: runLiveAi
+      ? false
+      : "Set RUN_REAL_AI_E2E=true and DEEPSEEK_API_KEY or OPENAI_API_KEY to run live AI checkout e2e."
+  },
+  async () => {
+    const repository = new InMemoryCheckoutRepository();
+    const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+    const controller = new CheckoutController(
+      new StartCheckoutUseCase(repository),
+      new TrackCheckoutEventUseCase(repository),
+      new GetCheckoutSessionUseCase(repository),
+      new GetDecisionUseCase(repository),
+      new SendChatMessageUseCase(repository, new LiveAiConversationPort(), {
+        async get() {
+          return liveAgentContext();
+        }
+      }),
+      new EvaluateShippingUseCase(repository),
+      new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
+      new CompleteOrderUseCase(repository),
+      new GetDashboardOverviewUseCase(repository),
+      new GetMerchantRulesUseCase(repository),
+      new UpdateMerchantRulesUseCase(repository)
+    );
+
+    const merchantId = "mrc_live_ai_matrix";
+    const sessionId = `chk_live_matrix_${crypto.randomUUID()}`;
+
+    await controller.update(merchantId, {
+      ...merchantRules({
+        couponBoxEnabled: false,
+        maxDiscountPercent: 10,
+        allowStackDiscountAndFreeShipping: false,
+        quickReplies: {
+          payment: ["Tenho um cupom", "Prefiro PIX", "Prefiro cartão"]
+        }
+      })
+    });
+
+    const started = await controller.start({
+      merchant_id: merchantId,
+      session_id: sessionId,
+      customer: {
+        fullName: "Compradora Matrix",
+        email: "buyer-matrix@example.com",
+        email_verified: true,
+        cpf: "39784089095",
+        phone: "11988887777",
+        address: {
+          zip: "01310100",
+          street: "Avenida Paulista",
+          number: "1578",
+          city: "São Paulo",
+          state: "SP"
+        }
+      },
+      cart: {
+        currency: "BRL",
+        total: 300,
+        items: [{ sku: "kit-matrix", name: "Kit Matrix", price: 300, cost: 120, quantity: 1 }]
+      },
+      shipping: { customerPrice: 39, realCost: 37, region: "SP", deliveryDays: 4 }
+    });
+
+    const paymentRound = await controller.chat({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      conversation_id: started.conversation_id,
+      user_message: "Tenho um cupom e quero pagar agora.",
+      agent_id: "checkout-live-ai"
+    });
+
+    assert.equal(paymentRound.stage, "payment");
+    assert.equal(paymentRound.experience?.copy.quick_replies?.includes("Tenho um cupom"), false);
+    assert.equal(paymentRound.experience?.copy.quick_replies?.includes("Prefiro PIX"), true);
+
+    const shippingSession = await repository.getSession(merchantId, started.session_id);
+    if (shippingSession) {
+      shippingSession.cart.currentDiscount = 40;
+      await repository.saveSession(shippingSession);
+    }
+
+    const shippingQuote = await controller.shipping({
+      merchant_id: merchantId,
+      session_id: started.session_id,
+      cart_value: 300,
+      shipping_price: 39,
+      shipping_real_cost: 37,
+      abandonment_score: 0.9
+    });
+
+    assert.equal(shippingQuote.approved, false);
+    assert.equal(shippingQuote.reason, "stack_discount_and_free_shipping_not_allowed");
+    assert.ok(["shipping_free", "shipping_discount_fixed", "none"].includes(shippingQuote.action));
   }
 );
 

@@ -28,6 +28,7 @@ import { AgentRulesContextAdapter } from "./infrastructure/adapters/agent-rules-
 import { BuyerPurchaseHistoryAdapter } from "./infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-settings.adapter.js";
 import { OpenAiConversationAdapter } from "./infrastructure/adapters/openai-conversation.adapter.js";
+import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { createPrismaClient } from "./infrastructure/prisma/prisma-client.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
@@ -68,6 +69,7 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
     BuyerPurchaseHistoryAdapter,
     CheckoutSettingsAdapter,
     OpenAiConversationAdapter,
+    BrevoBuyerEmailNotifier,
     ShopifyCommerceOfferAdapter,
     {
       provide: CHECKOUT_REPOSITORY,

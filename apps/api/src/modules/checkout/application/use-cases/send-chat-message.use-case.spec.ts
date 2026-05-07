@@ -228,6 +228,11 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   assert.equal(brevoCaptured[0]?.buyerEmail, "meuemail.journey@test.com");
   assert.equal(brevoCaptured[0]?.buyerFirstNameHint, "Maria");
 
+  const afterEmail = await repository.getSession("mrc_1", "chk_full_journey");
+  const otpCode = afterEmail?.customer?.otp_code;
+  assert.ok(otpCode, "gerou codigo de verificacao por e-mail");
+  await useCase.execute({ ...baseReq, user_message: otpCode! });
+
   await useCase.execute({ ...baseReq, user_message: "529.982.247-25" });
   await useCase.execute({ ...baseReq, user_message: "(21) 99300-1883" });
 
@@ -321,6 +326,7 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
     sessionTel.customer = {
       fullName: "Teste Nome",
       email: "teste@teste.com",
+      email_verified: true,
       cpf: "05178178700"
     };
     await repository.saveSession(sessionTel);
@@ -341,13 +347,14 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
 
   // Força o preenchimento da sessão para etapa de pagamento
   const session = await repository.getSession("mrc_1", "chk_qr");
-  if (session) {
-    session.customer = {
-      fullName: "Teste Nome",
-      email: "teste@teste.com",
-      cpf: "05178178700",
-      phone: "21993001883",
-      address: {
+    if (session) {
+      session.customer = {
+        fullName: "Teste Nome",
+        email: "teste@teste.com",
+        email_verified: true,
+        cpf: "05178178700",
+        phone: "21993001883",
+        address: {
         zip: "01310100",
         city: "SP",
         state: "SP",

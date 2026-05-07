@@ -130,6 +130,7 @@ model MerchantRule {
   allowShippingDiscount               Boolean  @map("allow_shipping_discount")
   allowBonusItem                      Boolean  @map("allow_bonus_item")
   allowStackDiscountAndFreeShipping   Boolean  @map("allow_stack_discount_and_free_shipping")
+  couponBoxEnabled                    Boolean  @map("coupon_box_enabled")
   freeShippingMinCartValue            Float    @map("free_shipping_min_cart_value")
   maxShippingSubsidy                  Float    @map("max_shipping_subsidy")
   maxPartialShippingDiscount          Float    @map("max_partial_shipping_discount")

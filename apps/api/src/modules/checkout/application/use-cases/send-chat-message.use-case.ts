@@ -28,6 +28,7 @@ import {
   extractCpf,
   extractEmail,
   extractName,
+  extractOtp,
   extractPhone,
   missingFieldsForStage
 } from "../../domain/services/customer-extraction.service.js";
@@ -129,11 +130,27 @@ export class SendChatMessageUseCase {
       rules
     });
 
+    const wantsPix = /\b(pix|qr code)\b/i.test(input.user_message) && stage === "payment";
+    const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.user_message) && stage === "payment";
+    const chatActions: any[] = [];
+    
+    if (wantsPix) {
+      chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
+    } else if (wantsCard) {
+      chatActions.push({ label: "Pagar com Cartão", type: "continue_checkout" });
+    } else if (offer.approved) {
+      const alreadyHasDiscount = offer.type.includes("discount") && working.cart.currentDiscount && working.cart.currentDiscount > 0;
+      const alreadyHasFreeShipping = offer.type.includes("shipping") && working.shipping?.customerPrice === 0;
+      if (!alreadyHasDiscount && !alreadyHasFreeShipping) {
+        chatActions.push({ label: "Aplicar oferta", type: "apply_offer", offer_id: offer.id });
+      }
+    }
+
     return {
       message: reply.message,
       objection: reply.objection,
       authorized_offer: offer,
-      actions: offer.approved ? [{ label: "Aplicar oferta", type: "apply_offer", offer_id: offer.id }] : [],
+      actions: chatActions,
       turns: updated.chatHistory,
       experience,
       stage,
@@ -148,10 +165,31 @@ export class SendChatMessageUseCase {
   ): Partial<CustomerHints> | null {
     const patch: Partial<CustomerHints> = {};
     const addr = existing?.address ?? {};
-    if (!existing?.email) {
+    
+    let currentEmail = existing?.email;
+    const otpPending = Boolean(existing?.otp_code);
+    if (!currentEmail || (!otpPending && !existing?.email_verified)) {
       const email = extractEmail(userMessage);
-      if (email) patch.email = email.toLowerCase();
+      if (email) {
+        patch.email = email.toLowerCase();
+        currentEmail = patch.email;
+      }
     }
+
+    if (currentEmail && !existing?.email_verified) {
+      if (!existing?.otp_code && !patch.otp_code && patch.email) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        patch.otp_code = code;
+        console.log(`\n=========================================\n🔐 OTP GERADO PARA ${currentEmail}: ${code}\n=========================================\n`);
+      } else if (existing?.otp_code) {
+        const extracted = extractOtp(userMessage);
+        if (extracted === existing.otp_code) {
+          patch.email_verified = true;
+          patch.otp_code = "";
+        }
+      }
+    }
+
     if (!existing?.cpf) {
       const cpf = extractCpf(userMessage);
       if (cpf) patch.cpf = cpf;

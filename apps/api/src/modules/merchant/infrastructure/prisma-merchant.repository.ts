@@ -72,6 +72,7 @@ function toUpdate(rules: MerchantRules) {
     allowShippingDiscount: rules.allowShippingDiscount,
     allowBonusItem: rules.allowBonusItem,
     allowStackDiscountAndFreeShipping: rules.allowStackDiscountAndFreeShipping,
+    couponBoxEnabled: rules.couponBoxEnabled,
     freeShippingMinCartValue: rules.freeShippingMinCartValue,
     maxShippingSubsidy: rules.maxShippingSubsidy,
     maxPartialShippingDiscount: rules.maxPartialShippingDiscount,

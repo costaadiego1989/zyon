@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   deriveChatStage,
+  extractAddressDetailLine,
   extractCep,
   extractCpf,
   extractEmail,
@@ -53,27 +54,54 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
     customer: {
       fullName: "Joao",
       email: "j@x.com",
+      email_verified: true,
       cpf: "12345678901",
       phone: "11988887777"
     }
   });
   assert.equal(deriveChatStage(withCustomer), "shipping");
 
-  const withShipping = checkoutSession({
+  const withZipOnly = checkoutSession({
     customer: {
-      fullName: "Joao",
-      email: "j@x.com",
-      cpf: "12345678901",
-      phone: "11988887777",
+      ...withCustomer.customer!,
       address: { zip: "01001000" }
     },
     shipping: { customerPrice: 29.9, region: "SP" }
   });
-  assert.equal(deriveChatStage(withShipping), "payment");
+  assert.equal(deriveChatStage(withZipOnly), "shipping");
+
+  const addrReadyNoNumber = checkoutSession({
+    customer: {
+      ...withCustomer.customer!,
+      address: {
+        zip: "01001000",
+        street: "Praça da Sé",
+        city: "São Paulo",
+        state: "SP"
+      }
+    },
+    shipping: { customerPrice: 29.9, region: "SP" }
+  });
+  assert.equal(deriveChatStage(addrReadyNoNumber), "shipping");
+
+  const addrComplete = checkoutSession({
+    customer: {
+      ...withCustomer.customer!,
+      address: {
+        zip: "01001000",
+        street: "Rua Augusta",
+        number: "100",
+        city: "São Paulo",
+        state: "SP"
+      }
+    },
+    shipping: { customerPrice: 29.9, region: "SP" }
+  });
+  assert.equal(deriveChatStage(addrComplete), "payment");
 
   const ready = checkoutSession({
-    customer: withShipping.customer,
-    shipping: withShipping.shipping,
+    customer: addrComplete.customer,
+    shipping: addrComplete.shipping,
     paymentMethod: "pix"
   });
   assert.equal(deriveChatStage(ready), "completed");
@@ -81,36 +109,81 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
 
 test("missingFieldsForStage lists user-facing labels for each stage in order", () => {
   const empty = checkoutSession({ customer: {} });
-  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), [
-    "nome",
-    "email",
-    "CPF",
-    "telefone"
-  ]);
+  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["nome", "email", "código de verificação", "CPF", "telefone"]);
 
   const withName = checkoutSession({
     customer: { fullName: "Joao" }
   });
-  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), [
-    "email",
-    "CPF",
-    "telefone"
-  ]);
+  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["email", "código de verificação", "CPF", "telefone"]);
 
-  const ready = checkoutSession({
+  const readyCadastro = checkoutSession({
     customer: {
       fullName: "Joao",
       email: "j@x.com",
+      email_verified: true,
       cpf: "12345678901",
       phone: "11988887777"
+    }
+  });
+  assert.deepEqual(missingFieldsForStage(readyCadastro, "shipping"), ["CEP"]);
+
+  const cepOnly = checkoutSession({
+    customer: {
+      ...readyCadastro.customer!,
+      address: { zip: "01001000" }
+    }
+  });
+  assert.deepEqual(missingFieldsForStage(cepOnly, "shipping"), ["confirmar CEP"]);
+
+  const stroked = checkoutSession({
+    customer: {
+      ...readyCadastro.customer!,
+      address: {
+        zip: "01001000",
+        street: "Rua X",
+        city: "São Paulo",
+        state: "SP"
+      }
+    }
+  });
+  assert.deepEqual(missingFieldsForStage(stroked, "shipping"), ["número e complemento (apto/bloco)"]);
+
+  const numberedNoQuote = checkoutSession({
+    customer: {
+      ...readyCadastro.customer!,
+      address: {
+        zip: "01001000",
+        street: "Rua X",
+        number: "10",
+        city: "São Paulo",
+        state: "SP"
+      }
     },
     shipping: undefined
   });
-  assert.deepEqual(missingFieldsForStage(ready, "shipping"), ["CEP", "entrega"]);
+  assert.deepEqual(missingFieldsForStage(numberedNoQuote, "shipping"), ["frete"]);
 
   const withShipping = checkoutSession({
-    customer: ready.customer,
+    customer: numberedNoQuote.customer,
     shipping: { customerPrice: 29.9 }
   });
   assert.deepEqual(missingFieldsForStage(withShipping, "payment"), ["forma de pagamento"]);
+});
+
+test("extractAddressDetailLine strips CEP and parses number with optional complement", () => {
+  assert.deepEqual(extractAddressDetailLine("42, apto 12 bloco sul"), {
+    number: "42",
+    complement: "apto 12 bloco sul"
+  });
+  assert.deepEqual(extractAddressDetailLine("120 / Torre Alfa"), {
+    number: "120",
+    complement: "Torre Alfa"
+  });
+  assert.deepEqual(extractAddressDetailLine("99"), {
+    number: "99",
+    complement: undefined
+  });
+  assert.deepEqual(extractAddressDetailLine("s/n"), { number: "S/N", complement: undefined });
+  assert.deepEqual(extractAddressDetailLine("sem numero"), { number: "S/N", complement: undefined });
+  assert.equal(extractAddressDetailLine("somente texto"), null);
 });

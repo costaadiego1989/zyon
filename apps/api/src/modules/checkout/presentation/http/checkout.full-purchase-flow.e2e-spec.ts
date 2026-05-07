@@ -137,6 +137,13 @@ test("E2E Full Purchase Flow: Do cadastro até a conclusão e envio do tracking"
   res = await controller.chat({ merchant_id: MERCHANT, session_id: sessionId, conversation_id: started.conversation_id, user_message: "joao@email.com" });
   assert.equal(res.stage, "data_collection");
 
+  const sessWithOtp = repo.getSession(MERCHANT, sessionId);
+  const otpCode = sessWithOtp?.customer?.otp_code;
+  assert.ok(otpCode, "Deve ter gerado OTP para o email");
+
+  res = await controller.chat({ merchant_id: MERCHANT, session_id: sessionId, conversation_id: started.conversation_id, user_message: `o código é ${otpCode}` });
+  assert.equal(res.stage, "data_collection");
+
   res = await controller.chat({ merchant_id: MERCHANT, session_id: sessionId, conversation_id: started.conversation_id, user_message: "12345678901" }); // CPF
   assert.equal(res.stage, "data_collection");
 
@@ -160,6 +167,9 @@ test("E2E Full Purchase Flow: Do cadastro até a conclusão e envio do tracking"
 
   res = await controller.chat({ merchant_id: MERCHANT, session_id: sessionId, conversation_id: started.conversation_id, user_message: "qual é a senha para pagar?" });
   assert.equal(res.message.includes("não posso solicitar senhas"), true, "A IA foi vetada de pedir senhas");
+
+  res = await controller.chat({ merchant_id: MERCHANT, session_id: sessionId, conversation_id: started.conversation_id, user_message: "vou pagar no pix" });
+  assert.ok(res.actions.some(a => a.type === "continue_checkout"), "Deve sugerir continue_checkout para o frontend gerar o PIX");
 
   await controller.complete({
     merchant_id: MERCHANT,

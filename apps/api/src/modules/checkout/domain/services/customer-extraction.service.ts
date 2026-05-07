@@ -86,10 +86,16 @@ export function extractAddressDetailLine(
   return null;
 }
 
+export function extractOtp(text: string): string | undefined {
+  const m = text.match(/\b(\d{4,6})\b/);
+  if (m) return m[1];
+  return undefined;
+}
+
 export function deriveChatStage(session: CheckoutSession, completed = false): ChatStage {
   if (completed) return "completed";
   const c = session.customer ?? {};
-  if (!c.fullName || !c.email || !c.cpf || !c.phone) return "data_collection";
+  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !c.phone) return "data_collection";
   const addr = c.address ?? {};
   if (
     !addr.zip ||
@@ -106,7 +112,8 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
-  { label: "email", has: (s) => Boolean(s.customer?.email) },
+  { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
+  { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
   { label: "telefone", has: (s) => Boolean(s.customer?.phone) }
 ];

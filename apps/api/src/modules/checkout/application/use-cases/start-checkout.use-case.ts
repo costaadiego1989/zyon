@@ -13,7 +13,7 @@ import {
 } from "../../domain/ports/checkout-repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { withCheckoutTransaction } from "./checkout-transaction.js";
-import { buildCheckoutExperience } from "../services/checkout-experience.service.js";
+import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -72,20 +72,12 @@ export class StartCheckoutUseCase {
         agent_enabled: settings?.checkout_settings.mode !== "manual_only",
         initial_mode: settings?.checkout_settings.mode === "proactive" ? "open" : "silent",
         tracking_token: `trk_${crypto.randomUUID()}`,
-        experience: buildCheckoutExperience(
-          {
-            merchant_id: input.merchant_id,
-            cart: input.cart,
-            customer: input.customer,
-            shipping: input.shipping
-          },
-          {
-            merchantName: merchant?.name,
-            theme: merchant?.theme,
-            agent,
-            couponBoxEnabled: merchantRules.couponBoxEnabled
-          }
-        )
+        experience: buildExperienceFromSession(session, {
+          merchantName: merchant?.name,
+          theme: merchant?.theme,
+          agent,
+          couponBoxEnabled: merchantRules.couponBoxEnabled
+        })
       };
     });
   }

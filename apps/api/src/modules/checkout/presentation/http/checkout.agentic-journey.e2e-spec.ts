@@ -278,7 +278,9 @@ test("AGENTIC-015 chat cliente humano retorna texto + campo authorized_offer est
     user_message: "Quero saber se consigo parcelar sem aumentar demais meu valor final."
   });
   assert.ok(response.message.length > 5);
-  assert.ok(response.actions?.length && response.actions.length > 0);
+  const hasApplyOfferChip =
+    (response.actions ?? []).some((a) => a.type === "apply_offer");
+  assert.ok(hasApplyOfferChip || (response.experience?.copy.quick_replies?.length ?? 0) > 0);
   assert.ok(response.authorized_offer);
 });
 
