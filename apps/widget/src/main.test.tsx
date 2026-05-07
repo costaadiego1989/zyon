@@ -431,4 +431,50 @@ describe("CheckoutAgent (conversational)", () => {
     });
     expect(container.querySelector(".aacp-offer-banner")?.textContent).toContain("novo total");
   });
+
+  it("opens the global auth modal and authenticates against the real auth route", async () => {
+    const { container, getByText, getByPlaceholderText } = render(<CheckoutAgent config={buildConfig()} />);
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-shell-header")).not.toBeNull();
+    });
+
+    fireEvent.click(getByText("Entrar com Google"));
+
+    await waitFor(() => {
+      expect(getByText("Entrar na aplicação global")).not.toBeNull();
+    });
+
+    fireEvent.change(getByPlaceholderText("voce@empresa.com"), {
+      target: { value: "global@example.com" }
+    });
+    fireEvent.change(getByPlaceholderText("••••••••"), {
+      target: { value: "super-secret-123" }
+    });
+
+    fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      expect(url.endsWith("/auth/login")).toBe(true);
+      return new Response(
+        JSON.stringify({
+          merchant_id: "mrc_demo",
+          user_id: "usr_1",
+          email: "global@example.com",
+          access_token: "token_123",
+          token_type: "Bearer",
+          expires_in: 3600
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      );
+    });
+
+    fireEvent.click(getByText("Entrar na conta global"));
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-auth-modal")).toBeNull();
+    });
+
+    expect(container.querySelector(".aacp-google-login strong")?.textContent).toBe("Conta global");
+    expect(window.localStorage.getItem("aacp_global_auth_session")).toContain("global@example.com");
+  });
 });

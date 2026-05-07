@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import {
   CheckCircle2,
   CreditCard,
+  Chrome,
   LockKeyhole,
   MessageCircle,
   Send,
@@ -35,19 +36,12 @@ import {
   CHECKOUT_LEGACY_PATHS,
   normalizeApiBase
 } from "./embed-client.js";
+import { GlobalAuthModal } from "./global-auth-modal.js";
+import { parseWidgetConfig } from "./widget-schemas.js";
+import { useGlobalAuth } from "./use-global-auth.js";
+import type { WidgetConfig } from "./widget-types.js";
 import { useStreamedText } from "./use-streamed-text.js";
 import "./styles.css";
-
-interface WidgetConfig {
-  mode: "legacy" | "embed";
-  embedSessionToken?: string;
-  merchantId: string;
-  apiBaseUrl: string;
-  cart: Cart;
-  customer?: CustomerHints;
-  shipping?: ShippingQuote;
-  uiPresentation: "floating" | "conversational";
-}
 
 function formatCurrency(value: number, currency: string): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
@@ -393,6 +387,11 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const progress = stageProgress(checkoutStage);
   const hasVerifiedEmail = Boolean(activeExperience.customer?.email_verified);
   const stageNote = stageNarrative(checkoutStage, nextMissingField);
+  const auth = useGlobalAuth({
+    apiBaseUrl: apiOrigin,
+    defaultMerchantName: activeExperience.brand.name,
+    defaultEmail: config.customer?.email
+  });
   const guardrailSignals = [
     "Oferta por politica",
     "Margem protegida",
@@ -401,7 +400,8 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const heroSignals = [
     { label: "Stage", value: stageLabel(checkoutStage) },
     { label: "Identity", value: hasVerifiedEmail ? "Verified" : "Awaiting email" },
-    { label: "Total", value: formatCurrency(totals.total, totals.currency) }
+    { label: "Total", value: formatCurrency(totals.total, totals.currency) },
+    { label: "Global auth", value: auth.session ? "Signed in" : "Not signed in" }
   ];
 
   function handleAgentTypingDone(key: string): void {
@@ -895,16 +895,31 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
                 </span>
               </div>
             </div>
-            <button
-              type="button"
-              className="aacp-cart-toggle"
-              onClick={() => setCartOpen((current) => !current)}
-              aria-expanded={cartOpen}
-              aria-controls="aacp-cart-mobile"
-            >
-              <ShoppingBag size={16} aria-hidden="true" />
-              <span>{formatCurrency(totals.total, totals.currency)}</span>
-            </button>
+            <div className="aacp-shell-actions">
+              <button
+                type="button"
+                className={`aacp-google-login${auth.session ? " is-authenticated" : ""}`}
+                onClick={auth.openLogin}
+              >
+                <span className="aacp-google-mark" aria-hidden="true">
+                  <Chrome size={14} />
+                </span>
+                <span>
+                  <strong>{auth.session ? "Conta global" : "Entrar com Google"}</strong>
+                  <em>{auth.session ? auth.session.email : "Acesse a aplicação global"}</em>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="aacp-cart-toggle"
+                onClick={() => setCartOpen((current) => !current)}
+                aria-expanded={cartOpen}
+                aria-controls="aacp-cart-mobile"
+              >
+                <ShoppingBag size={16} aria-hidden="true" />
+                <span>{formatCurrency(totals.total, totals.currency)}</span>
+              </button>
+            </div>
           </header>
 
           {networkError ? (
@@ -1139,6 +1154,7 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
           {cartCard}
         </aside>
       </div>
+      <GlobalAuthModal auth={auth} />
     </section>
   );
 }
@@ -1165,20 +1181,9 @@ function widgetReloadKey(cfg: WidgetConfig): string {
   return `${base}:${cfg.uiPresentation}:${cfg.cart.total}`;
 }
 
-function parseAttrJson<T>(value: string | null, fallback: T): T {
-  if (!value?.trim()) return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function readConfig(element: HTMLElement): WidgetConfig {
   const embedSessionToken = element.getAttribute("embed-session-token")?.trim() || undefined;
   const merchantIdFromAttr = element.getAttribute("merchant-id")?.trim() || "mrc_demo";
-
-  const mode = embedSessionToken ? ("embed" as const) : ("legacy" as const);
 
   const apiRaw =
     element.getAttribute("embed-api-base-url")?.trim() ??
@@ -1189,21 +1194,24 @@ function readConfig(element: HTMLElement): WidgetConfig {
   const uiPresentation =
     pres === "conversational" ? ("conversational" as const) : ("floating" as const);
 
-  return {
-    mode,
-    merchantId: merchantIdFromAttr,
-    ...(embedSessionToken ? { embedSessionToken } : {}),
-    apiBaseUrl: apiRaw ?? "http://localhost:3000",
-    cart: parseAttrJson<Cart>(element.getAttribute("cart-json"), {
-      currency: "BRL",
-      source: "storefront",
-      total: 0,
-      items: []
-    }),
-    customer: parseAttrJson<CustomerHints | undefined>(element.getAttribute("customer-json"), undefined),
-    shipping: parseAttrJson<ShippingQuote | undefined>(element.getAttribute("shipping-json"), undefined),
-    uiPresentation
+  const parseJson = <T,>(value: string | null): T | undefined => {
+    if (!value?.trim()) return undefined;
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return undefined;
+    }
   };
+
+  return parseWidgetConfig({
+    merchantId: merchantIdFromAttr,
+    embedSessionToken,
+    apiBaseUrl: apiRaw ?? "http://localhost:3000",
+    cart: parseJson<Cart>(element.getAttribute("cart-json")),
+    customer: parseJson<CustomerHints>(element.getAttribute("customer-json")),
+    shipping: parseJson<ShippingQuote>(element.getAttribute("shipping-json")),
+    uiPresentation
+  });
 }
 
 class AacpCheckoutAgentElement extends HTMLElement {
