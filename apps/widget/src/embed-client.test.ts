@@ -51,4 +51,87 @@ describe("checkoutJson", () => {
     expect(headers["x-aacp-embed-token"]).toBeUndefined();
     expect(headers["Content-Type"]).toBe("application/json");
   });
+
+  it("CHECKOUT_EMBED_PATHS.paymentIntents aponta para rota POST embed", async () => {
+    const spy = vi.mocked(fetch);
+    await checkoutJson(origin, CHECKOUT_EMBED_PATHS.paymentIntents, {
+      embedToken: "tok.embed.pay",
+      body: { session_id: "sess_1", idempotency_key: "idem_abc" }
+    });
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:3001/embed/payment/intents",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "x-aacp-embed-token": "tok.embed.pay"
+        }),
+        body: JSON.stringify({
+          session_id: "sess_1",
+          idempotency_key: "idem_abc"
+        })
+      })
+    );
+  });
+
+  it("envia dados reais do carrinho da loja com credencial embed", async () => {
+    const spy = vi.mocked(fetch);
+    await checkoutJson(origin, CHECKOUT_EMBED_PATHS.start, {
+      embedToken: "tok.storefront",
+      body: {
+        customer: { email: "buyer@example.com", isReturning: true },
+        cart: {
+          currency: "BRL",
+          source: "storefront",
+          total: 899.8,
+          items: [
+            {
+              sku: "bag-001",
+              name: "Bolsa Executiva Couro Safiano",
+              price: 449.9,
+              cost: 210,
+              quantity: 2,
+              imageUrl: "https://cdn.example.com/bag.png",
+              productUrl: "https://shop.example.com/bag-001",
+              category: "Bolsas",
+              variant: "Preta"
+            }
+          ]
+        },
+        shipping: { customerPrice: 29.9, realCost: 31, carrier: "Loggi", method: "Express", deliveryDays: 2, region: "SP" }
+      }
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:3001/embed/start",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-aacp-embed-token": "tok.storefront"
+        }),
+        body: JSON.stringify({
+          customer: { email: "buyer@example.com", isReturning: true },
+          cart: {
+            currency: "BRL",
+            source: "storefront",
+            total: 899.8,
+            items: [
+              {
+                sku: "bag-001",
+                name: "Bolsa Executiva Couro Safiano",
+                price: 449.9,
+                cost: 210,
+                quantity: 2,
+                imageUrl: "https://cdn.example.com/bag.png",
+                productUrl: "https://shop.example.com/bag-001",
+                category: "Bolsas",
+                variant: "Preta"
+              }
+            ]
+          },
+          shipping: { customerPrice: 29.9, realCost: 31, carrier: "Loggi", method: "Express", deliveryDays: 2, region: "SP" }
+        })
+      })
+    );
+  });
 });

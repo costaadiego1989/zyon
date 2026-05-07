@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 export interface StreamedTextOptions {
   enabled?: boolean;
   charDurationMs?: number;
+  onComplete?: () => void;
+  skipCompleteWhenDisabled?: boolean;
 }
 
 const DEFAULT_DURATION_MS = 22;
@@ -13,7 +15,7 @@ function disableStreamingByEnv(): boolean {
       .process?.env;
     if (env?.AACP_DISABLE_STREAMING === "1") return true;
   } catch {
-    // ignore — env not accessible in browser bundles
+    // ignore
   }
   return false;
 }
@@ -31,15 +33,24 @@ export function useStreamedText(
   text: string,
   options: StreamedTextOptions = {}
 ): { displayed: string; isStreaming: boolean } {
-  const { enabled = true, charDurationMs = DEFAULT_DURATION_MS } = options;
+  const { enabled = true, charDurationMs = DEFAULT_DURATION_MS, onComplete, skipCompleteWhenDisabled } = options;
   const [displayed, setDisplayed] = useState<string>(() =>
     enabled && !reducedMotionPreferred() && !disableStreamingByEnv() ? "" : text
   );
   const intervalRef = useRef<number | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
-    if (!enabled || reducedMotionPreferred() || disableStreamingByEnv()) {
+    const disabledByEnv = disableStreamingByEnv();
+    const treatAsStaticPlayback = !enabled || reducedMotionPreferred() || disabledByEnv;
+    const skipStaticComplete =
+      Boolean(skipCompleteWhenDisabled) &&
+      (!reducedMotionPreferred() || !enabled) &&
+      !disabledByEnv;
+    if (treatAsStaticPlayback) {
       setDisplayed(text);
+      if (!skipStaticComplete) queueMicrotask(() => onCompleteRef.current?.());
       return;
     }
     setDisplayed("");
@@ -52,6 +63,7 @@ export function useStreamedText(
           window.clearInterval(intervalRef.current);
           intervalRef.current = null;
         }
+        onCompleteRef.current?.();
         return;
       }
       setDisplayed(text.slice(0, index));
@@ -62,7 +74,7 @@ export function useStreamedText(
         intervalRef.current = null;
       }
     };
-  }, [text, enabled, charDurationMs]);
+  }, [text, enabled, charDurationMs, skipCompleteWhenDisabled]);
 
   return { displayed, isStreaming: displayed.length < text.length };
 }

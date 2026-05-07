@@ -7,7 +7,8 @@ export const CHECKOUT_EMBED_PATHS = {
   start: "/embed/start",
   track: "/embed/track",
   chatMessage: "/embed/chat",
-  applyOffer: "/embed/offers/apply"
+  applyOffer: "/embed/offers/apply",
+  paymentIntents: "/embed/payment/intents"
 } as const;
 
 export const CHECKOUT_LEGACY_PATHS = {

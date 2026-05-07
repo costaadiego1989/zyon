@@ -68,7 +68,7 @@ describe("readMerchantEmbedOptions", () => {
     const options = readMerchantEmbedOptions(host);
 
     expect(options.merchantId).toBe("mrc_demo");
-    expect(options.apiBaseUrl).toBe("http://localhost:3001");
+    expect(options.apiBaseUrl).toBe("http://localhost:3000");
     expect(options.embedSessionToken).toBeUndefined();
     expect(options.cart.total).toBeGreaterThan(0);
     expect(options.cart.items[0]?.sku).toBe("bag-001");

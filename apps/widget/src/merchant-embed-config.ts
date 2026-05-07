@@ -51,7 +51,7 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
     brandTitle: ds.brandTitle?.trim() || "Northstar Atelier",
     brandSubtitle: ds.brandSubtitle?.trim() || "Atendimento de compra premium com IA conectada ao checkout",
     merchantId: ds.merchantId?.trim() || "mrc_demo",
-    apiBaseUrl: ds.apiBaseUrl?.trim() || "http://localhost:3001",
+    apiBaseUrl: ds.apiBaseUrl?.trim() || "http://localhost:3000",
     cart: parseJsonAttr<Cart>(ds.cartJson, DEFAULT_CART),
     customer: parseJsonAttr<CustomerHints>(ds.customerJson, fallbackCustomer),
     shipping: parseJsonAttr<ShippingQuote>(ds.shippingJson, DEFAULT_SHIPPING),

@@ -1,7 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { MessageCircle, Send, ShoppingBag, Sparkles, Tag, X } from "lucide-react";
+import {
+  CheckCircle2,
+  CreditCard,
+  LockKeyhole,
+  MessageCircle,
+  Send,
+  ShieldCheck,
+  ShoppingBag,
+  Sparkles,
+  Tag,
+  Truck,
+  UserRound,
+  X
+} from "lucide-react";
 import type {
+  ChatAction,
   ApplyOfferResponse,
   Cart,
   ChatMessageResponse,
@@ -97,19 +111,139 @@ export function themeStyle(theme: MerchantTheme): React.CSSProperties {
 
 export type { WidgetConfig };
 
+function filterSuggestedQuickReplies(
+  replies: { label: string; event?: CheckoutEventName }[],
+  stage?: CheckoutExperienceSnapshot["stage"]
+): { label: string; event?: CheckoutEventName }[] {
+  if (stage === "payment") return replies;
+  const couponLike = /\b(cup[oô]m|promo|c[oó]digo(\s+(promocional|de\s+desconto))?|desconto\s+extra|%?\s*off)\b/i;
+  return replies.filter(({ label }) => !couponLike.test(label));
+}
+
+const CHECKOUT_STAGES: Array<NonNullable<CheckoutExperienceSnapshot["stage"]>> = [
+  "data_collection",
+  "shipping",
+  "payment",
+  "completed"
+];
+
+function stageLabel(stage: CheckoutExperienceSnapshot["stage"]): string {
+  switch (stage) {
+    case "data_collection":
+      return "Cadastro";
+    case "shipping":
+      return "Frete e endereço";
+    case "payment":
+      return "Pagamento";
+    case "completed":
+      return "Pedido confirmado";
+    default:
+      return "Cadastro";
+  }
+}
+
+interface QuickReplyChoice {
+  label: string;
+  event?: CheckoutEventName;
+  type?: ChatAction["type"];
+  offerId?: string;
+}
+
+function stageNarrative(stage: CheckoutExperienceSnapshot["stage"], nextField?: string): string {
+  switch (stage) {
+    case "data_collection":
+      if (nextField === "nome") return "Welcome message. Vamos iniciar com seu nome completo para personalizar a jornada.";
+      if (nextField === "email") return "Envie seu e-mail para receber o código de confirmação e validar o cadastro.";
+      if (nextField === "CPF") return "Agora vamos registrar o CPF para seguir com a etapa fiscal com segurança.";
+      if (nextField === "telefone") return "Quase lá. Informe o telefone com DDD para destravar a próxima etapa.";
+      return "Vamos fechar seu cadastro antes de negociar preço, frete ou cupom.";
+    case "shipping":
+      if (nextField === "CEP") return "Agora vamos cotar o frete com o CEP de entrega.";
+      if (nextField === "confirmar CEP") return "O CEP precisa ser confirmado para prosseguirmos com o endereço.";
+      if (nextField?.includes("número")) return "Só falta o número do endereço para concluir a cotação.";
+      if (nextField?.includes("frete")) return "A cotação está em andamento e a próxima mensagem destrava o valor final.";
+      return "Endereço validado. Agora seguimos para o frete e a conferência final.";
+    case "payment":
+      return "Escolha o tipo de pagamento, confirme no link seguro e finalize a compra.";
+    case "completed":
+      return "Pedido confirmado. O rastreio e os detalhes da compra seguem no resumo final.";
+    default:
+      return "Checkout assistido por IA em andamento.";
+  }
+}
+
+function quickReplyId(reply: QuickReplyChoice): string {
+  return [reply.label, reply.type ?? "copy", reply.offerId ?? "", reply.event ?? ""].join("|");
+}
+
+function stageIcon(stage: CheckoutExperienceSnapshot["stage"]) {
+  switch (stage) {
+    case "data_collection":
+      return <UserRound size={15} aria-hidden="true" />;
+    case "shipping":
+      return <Truck size={15} aria-hidden="true" />;
+    case "payment":
+      return <CreditCard size={15} aria-hidden="true" />;
+    case "completed":
+      return <CheckCircle2 size={15} aria-hidden="true" />;
+    default:
+      return <UserRound size={15} aria-hidden="true" />;
+  }
+}
+
+function stageProgress(stage: CheckoutExperienceSnapshot["stage"]): number {
+  const current = stage ?? "data_collection";
+  const index = Math.max(0, CHECKOUT_STAGES.indexOf(current));
+  return Math.round(((index + 1) / CHECKOUT_STAGES.length) * 100);
+}
+
+function agentGivenAndRest(agentFullName: string): { given: string; rest: string } {
+  const trimmed = agentFullName.trim();
+  if (!trimmed) return { given: "Assistente", rest: "" };
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  const given = tokens[0] ?? trimmed;
+  const rest = tokens.slice(1).join(" ").trim();
+  return { given, rest };
+}
+
+function agentTypingLine(agentFullName: string): string {
+  const trimmed = agentFullName.trim();
+  if (!trimmed) return "Assistente está digitando";
+  return `${trimmed} está digitando`;
+}
+
 interface ChatBubbleProps {
   turn: ChatTurn;
   agentName: string;
-  shouldStream: boolean;
+  bubbleKey: string;
+  streamingKey: string | null;
+  onAgentTypingDone?: (key: string) => void;
 }
 
-function ChatBubble({ turn, agentName, shouldStream }: ChatBubbleProps) {
-  const { displayed, isStreaming } = useStreamedText(turn.text, { enabled: shouldStream });
+function ChatBubble({ turn, agentName, bubbleKey, streamingKey, onAgentTypingDone }: ChatBubbleProps) {
+  const shouldStream =
+    streamingKey !== null && bubbleKey === streamingKey && turn.role === "agent";
+  const { displayed, isStreaming } = useStreamedText(turn.text, {
+    enabled: shouldStream,
+    skipCompleteWhenDisabled: turn.role === "agent",
+    onComplete: turn.role === "agent" ? () => onAgentTypingDone?.(bubbleKey) : undefined
+  });
   const showCaret = shouldStream && isStreaming;
+  const { given, rest } = agentGivenAndRest(agentName);
   return (
     <div className={`aacp-chat-bubble aacp-chat-bubble--${turn.role}`}>
       {turn.role === "agent" ? (
-        <span className="aacp-chat-meta">{agentName}</span>
+        <span className={`aacp-chat-meta${rest ? " aacp-chat-meta--compound" : ""}`}>
+          <span className="aacp-chat-meta-given">{given}</span>
+          {rest ? (
+            <>
+              <span className="aacp-chat-meta-sep" aria-hidden="true">
+                ·
+              </span>
+              <span className="aacp-chat-meta-rest">{rest}</span>
+            </>
+          ) : null}
+        </span>
       ) : null}
       <span className="aacp-chat-text">
         {displayed}
@@ -131,8 +265,19 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
   const [streamingTurnKey, setStreamingTurnKey] = useState<string | null>(null);
+  const [streamingDoneKey, setStreamingDoneKey] = useState<string | null>(null);
   const [coupon, setCoupon] = useState("");
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const composerInputRef = useRef<HTMLInputElement | null>(null);
+
+  const prevStreamingTurnKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (streamingTurnKey == null) return;
+    if (prevStreamingTurnKey.current === streamingTurnKey) return;
+    prevStreamingTurnKey.current = streamingTurnKey;
+    setStreamingDoneKey(null);
+  }, [streamingTurnKey]);
 
   const apiOrigin = useMemo(() => normalizeApiBase(config.apiBaseUrl), [config.apiBaseUrl]);
   const embedOpts = config.mode === "embed" ? { embedToken: config.embedSessionToken! } : {};
@@ -156,7 +301,7 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   useEffect(() => {
     if (!threadRef.current) return;
     threadRef.current.scrollTop = threadRef.current.scrollHeight;
-  }, [turns.length, busy]);
+  }, [turns.length, busy, streamingTurnKey, streamingDoneKey]);
 
   function appendAgentTurn(text: string, opts: { stream?: boolean } = {}): void {
     const turn: ChatTurn = {
@@ -164,9 +309,11 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
       text,
       occurredAt: new Date().toISOString()
     };
-    const key = bubbleKey(turn, undefined);
-    setTurns((current) => [...current, turn]);
-    if (opts.stream) setStreamingTurnKey(key);
+    setTurns((current) => {
+      const next = [...current, turn];
+      if (opts.stream) setStreamingTurnKey(bubbleKey(turn, next.length - 1));
+      return next;
+    });
   }
 
   async function startCheckout() {
@@ -240,24 +387,83 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const theme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
   const offer = lastChat?.authorized_offer;
   const totals = activeExperience.totals;
+  const checkoutStage = activeExperience.stage ?? "data_collection";
+  const nextMissingField = lastChat?.missing_fields?.[0];
+  const agentNameParts = agentGivenAndRest(activeExperience.agent.name);
+  const progress = stageProgress(checkoutStage);
+  const hasVerifiedEmail = Boolean(activeExperience.customer?.email_verified);
+  const stageNote = stageNarrative(checkoutStage, nextMissingField);
+  const guardrailSignals = [
+    "Oferta por politica",
+    "Margem protegida",
+    "Sem dados sensiveis"
+  ];
+  const heroSignals = [
+    { label: "Stage", value: stageLabel(checkoutStage) },
+    { label: "Identity", value: hasVerifiedEmail ? "Verified" : "Awaiting email" },
+    { label: "Total", value: formatCurrency(totals.total, totals.currency) }
+  ];
+
+  function handleAgentTypingDone(key: string): void {
+    if (streamingTurnKey === key) setStreamingDoneKey(key);
+  }
+
+  const awaitingAgentPlayback =
+    streamingTurnKey !== null && streamingDoneKey !== streamingTurnKey;
+  const composerLockedConversational =
+    busy || Boolean(networkError) || awaitingAgentPlayback;
+
+  /** Só quando a IA terminou — mostra slot de digitação / chips no fluxo da conversa. */
+  const conversationalReplyReady =
+    isConversational &&
+    Boolean(session) &&
+    !networkError &&
+    !busy &&
+    !awaitingAgentPlayback;
+  const showComposer = conversationalReplyReady && checkoutStage !== "completed";
+
+  useEffect(() => {
+    if (!showComposer) return;
+    composerInputRef.current?.focus();
+  }, [showComposer]);
+
   const showCouponBox =
-    (activeExperience.rules?.couponBoxEnabled !== false) && totals.discount === 0;
+    checkoutStage === "payment" &&
+    (activeExperience.rules?.couponBoxEnabled !== false) &&
+    totals.discount === 0;
   const showOfferBanner = totals.discount > 0;
 
-  const quickReplies: { label: string; event?: CheckoutEventName }[] = isConversational
-    ? lastChat?.actions.length
-      ? lastChat.actions.map((action) => ({ label: action.label }))
-      : activeExperience.copy.quick_replies.map((label) => ({ label }))
+  const mergedQuickReplies: QuickReplyChoice[] = isConversational
+    ? [
+        ...(lastChat?.actions ?? []).map((action) => ({
+          label: action.label,
+          type: action.type,
+          offerId: action.offer_id
+        })),
+        ...filterSuggestedQuickReplies(
+          activeExperience.copy.quick_replies.map((label) => ({ label })),
+          checkoutStage
+        )
+      ]
     : [];
 
-  async function tapQuick(label: string, event?: CheckoutEventName): Promise<void> {
-    if (!session || networkError) return;
-    if (event) void track(event);
-    await sendMessageWithOverride(label);
+  const quickReplies: QuickReplyChoice[] = mergedQuickReplies.filter(
+    (reply, index, list) =>
+      index === list.findIndex((item) => item.label === reply.label && item.type === reply.type)
+  );
+
+  async function tapQuick(reply: QuickReplyChoice): Promise<void> {
+    if (!session || networkError || composerLockedConversational) return;
+    if (reply.event) void track(reply.event);
+    if (reply.type === "apply_offer") {
+      await applyOfferById(reply.offerId);
+      return;
+    }
+    await sendMessageWithOverride(reply.label);
   }
 
   async function sendMessageWithOverride(userText: string): Promise<void> {
-    if (!session || networkError || !userText.trim()) return;
+    if (!session || networkError || !userText.trim() || composerLockedConversational) return;
     setBusy(true);
     const optimisticTurn: ChatTurn = {
       role: "buyer",
@@ -290,10 +496,15 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
 
       if (Array.isArray(response.turns) && response.turns.length > 0) {
         setTurns(response.turns);
-        const lastIndex = response.turns.length - 1;
-        const last = response.turns[lastIndex];
-        if (last && last.role === "agent") {
-          setStreamingTurnKey(bubbleKey(last, lastIndex));
+        let foundAgentIdx = -1;
+        for (let i = response.turns.length - 1; i >= 0; i--) {
+          if (response.turns[i]!.role === "agent") {
+            foundAgentIdx = i;
+            break;
+          }
+        }
+        if (foundAgentIdx >= 0) {
+          setStreamingTurnKey(bubbleKey(response.turns[foundAgentIdx]!, foundAgentIdx));
         }
       } else {
         const reply: ChatTurn = {
@@ -322,18 +533,23 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
     await sendMessageWithOverride(userText);
   }
 
-  async function applyOffer() {
-    if (!session || !lastChat?.authorized_offer) return;
+  async function applyOfferById(offerId?: string) {
+    if (!session) return;
+    const targetOffer =
+      offerId && lastChat?.authorized_offer?.id === offerId
+        ? lastChat.authorized_offer
+        : lastChat?.authorized_offer;
+    if (!targetOffer) return;
     setBusy(true);
     try {
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const body =
         config.mode === "embed"
-          ? { session_id: session.session_id, offer_id: lastChat.authorized_offer!.id }
+          ? { session_id: session.session_id, offer_id: targetOffer.id }
           : {
               merchant_id: config.merchantId,
               session_id: session.session_id,
-              offer_id: lastChat.authorized_offer!.id
+              offer_id: targetOffer.id
             };
 
       const response = await checkoutJson<ApplyOfferResponse>(apiOrigin, paths.applyOffer, {
@@ -358,6 +574,10 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function applyOffer(): Promise<void> {
+    await applyOfferById(lastChat?.authorized_offer?.id);
   }
 
   async function continueToPayment(): Promise<void> {
@@ -496,6 +716,10 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
             <span>{activeExperience.copy.headline}</span>
           </div>
         </div>
+        <div className="aacp-cart-header-badge">
+          <span>Agentic</span>
+          <strong>{stageLabel(checkoutStage)}</strong>
+        </div>
         <button
           type="button"
           className="aacp-cart-close"
@@ -505,6 +729,29 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
           <X size={18} />
         </button>
       </header>
+
+      <div className="aacp-cart-orbit">
+        <span>Premium checkout rail</span>
+        <strong>{stageNote}</strong>
+        <p>
+          IA, regras comerciais, frete e pagamento sincronizados em tempo real pela API da loja.
+        </p>
+      </div>
+
+      <div className="aacp-cart-intel" aria-label="Sinais comerciais do checkout">
+        <div>
+          <span>Etapa</span>
+          <strong>{stageLabel(checkoutStage)}</strong>
+        </div>
+        <div>
+          <span>Frete</span>
+          <strong>{totals.shipping > 0 ? formatCurrency(totals.shipping, totals.currency) : "A validar"}</strong>
+        </div>
+        <div>
+          <span>Protecao</span>
+          <strong>{showOfferBanner ? "Oferta aplicada" : "Ativa"}</strong>
+        </div>
+      </div>
 
       <ul className="aacp-cart-items">
         {activeExperience.items.map((item) => (
@@ -596,6 +843,8 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
       ) : null}
 
       <ul className="aacp-cart-trust">
+        <li>Regras comerciais validadas pela API</li>
+        <li>Agente nao solicita senha ou CVV no chat</li>
         {activeExperience.copy.trust_badges.slice(0, 3).map((badge) => (
           <li key={badge}>{badge}</li>
         ))}
@@ -630,8 +879,20 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
                 <span className="aacp-agent-status" />
               </div>
               <div>
-                <strong>{activeExperience.agent.name}</strong>
-                <span>{activeExperience.brand.name} · online</span>
+                <div className="aacp-shell-agent-name">
+                  <strong className="aacp-shell-name-given">{agentNameParts.given}</strong>
+                  {agentNameParts.rest ? (
+                    <>
+                      <span className="aacp-shell-name-sep" aria-hidden="true">
+                        ·
+                      </span>
+                      <span className="aacp-shell-name-rest">{agentNameParts.rest}</span>
+                    </>
+                  ) : null}
+                </div>
+                <span className="aacp-agent-subtitle">
+                  {activeExperience.brand.name} · online
+                </span>
               </div>
             </div>
             <button
@@ -663,93 +924,211 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
             </div>
           ) : null}
 
-          <div className="aacp-chat-thread" role="log" aria-live="polite" ref={threadRef}>
-            {turns.map((turn, index) => {
-              const key = bubbleKey(turn, index);
-              return (
-                <ChatBubble
-                  key={key}
-                  turn={turn}
-                  agentName={activeExperience.agent.name}
-                  shouldStream={key === streamingTurnKey}
-                />
-              );
-            })}
-            {busy ? (
-              <div
-                className="aacp-typing"
-                role="status"
-                aria-label={`${activeExperience.agent.name} está digitando`}
-              >
-                <span className="aacp-typing-name">
-                  {activeExperience.agent.name} está digitando
+          <div className="aacp-conversation-flow">
+            <section className="aacp-hero" aria-label="Resumo executivo do checkout">
+              <div className="aacp-hero-copy">
+                <span className="aacp-hero-kicker">
+                  <Sparkles size={14} aria-hidden="true" />
+                  Agentic enterprise checkout
                 </span>
-                <span className="aacp-typing-dots" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </span>
+                <h1>{activeExperience.copy.headline}</h1>
+                <p>{activeExperience.copy.subheadline}</p>
+                <div className="aacp-hero-tags" aria-label="Indicadores do checkout">
+                  {heroSignals.map((signal) => (
+                    <span key={signal.label}>
+                      <strong>{signal.label}</strong>
+                      <em>{signal.value}</em>
+                    </span>
+                  ))}
+                </div>
               </div>
-            ) : null}
-          </div>
-
-          {showOfferBanner ? (
-            <div className="aacp-offer-banner" role="status">
-              <Sparkles size={16} aria-hidden="true" />
-              <div className="aacp-offer-banner-text">
-                <strong>Oferta aplicada</strong>
-                <span>
-                  −{formatCurrency(totals.discount, totals.currency)} · novo total{" "}
-                  {formatCurrency(totals.total, totals.currency)}
-                </span>
+              <div className="aacp-hero-panel">
+                <div>
+                  <span>Agent mode</span>
+                  <strong>{isConversational ? "Conversational" : "Floating"}</strong>
+                </div>
+                <div>
+                  <span>Trust gate</span>
+                  <strong>{hasVerifiedEmail ? "Identity cleared" : "Email pending"}</strong>
+                </div>
+                <div>
+                  <span>Rule engine</span>
+                  <strong>{showOfferBanner ? "Discount active" : "Guardrails on"}</strong>
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => void continueToPayment()}
-                disabled={busy || Boolean(networkError)}
-              >
-                Continuar para pagamento
-              </button>
-            </div>
-          ) : null}
-
-          {quickReplies.length > 0 ? (
-            <div className="aacp-quick-replies" role="group" aria-label="Respostas sugeridas">
-              {quickReplies.map(({ label, event }) => (
-                <button
-                  key={label}
-                  type="button"
-                  disabled={busy || !session || Boolean(networkError)}
-                  onClick={() => void tapQuick(label, event)}
+            </section>
+            <div className="aacp-command-strip" aria-label="Status do checkout agentico">
+              <div className="aacp-stage-card">
+                <div className="aacp-stage-card-head">
+                  <span className="aacp-stage-icon">{stageIcon(checkoutStage)}</span>
+                  <div>
+                    <span>Mission stage</span>
+                    <strong>{stageLabel(checkoutStage)}</strong>
+                  </div>
+                </div>
+                <p className="aacp-stage-note">{stageNote}</p>
+                <div className="aacp-stage-subgrid" aria-label="Detalhes executivos do checkout">
+                  <div>
+                    <span>Canal</span>
+                    <strong>{isConversational ? "Conversational AI" : "Floating checkout"}</strong>
+                  </div>
+                  <div>
+                    <span>Identidade</span>
+                    <strong>{hasVerifiedEmail ? "Verificada" : "Em validação"}</strong>
+                  </div>
+                </div>
+                <div
+                  className="aacp-stage-progress"
+                  role="progressbar"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={progress}
+                  aria-label="Progresso do checkout"
                 >
-                  {label}
-                </button>
-              ))}
+                  <span style={{ width: `${progress}%` }} />
+                </div>
+              </div>
+              <div className="aacp-guardrail-row" aria-label="Guardrails ativos">
+                {guardrailSignals.map((signal) => (
+                  <span key={signal}>
+                    <ShieldCheck size={14} aria-hidden="true" />
+                    {signal}
+                  </span>
+                ))}
+                <span>
+                  <LockKeyhole size={14} aria-hidden="true" />
+                  {hasVerifiedEmail ? "Email verificado" : "Identidade em coleta"}
+                </span>
+              </div>
             </div>
-          ) : null}
+            <div className="aacp-chat-thread" role="log" aria-live="polite" ref={threadRef}>
+              {turns.map((turn, index) => {
+                const key = bubbleKey(turn, index);
+                return (
+                  <ChatBubble
+                    key={key}
+                    turn={turn}
+                    agentName={activeExperience.agent.name}
+                    bubbleKey={key}
+                    streamingKey={streamingTurnKey}
+                    onAgentTypingDone={handleAgentTypingDone}
+                  />
+                );
+              })}
+              {busy ? (
+                <div
+                  className="aacp-typing"
+                  role="status"
+                  aria-label={agentTypingLine(activeExperience.agent.name)}
+                >
+                  <span className="aacp-typing-name">
+                    <span className="aacp-typing-name-given">{agentNameParts.given}</span>
+                    {agentNameParts.rest ? (
+                      <span className="aacp-typing-name-rest">{` ${agentNameParts.rest}`}</span>
+                    ) : null}
+                    <span className="aacp-typing-name-tail"> está digitando</span>
+                  </span>
+                  <span className="aacp-typing-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </span>
+                </div>
+              ) : null}
 
-          <form
-            className="aacp-input-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void sendMessage();
-            }}
-          >
-            <input
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Digite sua mensagem para a IA…"
-              disabled={busy || Boolean(networkError)}
-              aria-label="Mensagem para o assistente"
-            />
-            <button
-              type="submit"
-              aria-label="Enviar mensagem"
-              disabled={busy || Boolean(networkError) || !message.trim()}
-            >
-              <Send size={18} />
-            </button>
-          </form>
+              {showOfferBanner ? (
+                <div className="aacp-offer-banner aacp-offer-banner--in-thread" role="status">
+                  <Sparkles size={16} aria-hidden="true" />
+                  <div className="aacp-offer-banner-text">
+                    <strong>Oferta aplicada</strong>
+                    <span>
+                      −{formatCurrency(totals.discount, totals.currency)} · novo total{" "}
+                      {formatCurrency(totals.total, totals.currency)}
+                    </span>
+                  </div>
+                  <button type="button" onClick={() => void continueToPayment()} disabled={busy}>
+                    Continuar para pagamento
+                  </button>
+                </div>
+              ) : null}
+
+              {showComposer && quickReplies.length > 0 ? (
+                <div
+                  className="aacp-quick-replies aacp-quick-replies--in-thread"
+                  role="group"
+                  aria-label="Respostas sugeridas"
+                >
+                  {quickReplies.map((reply) => (
+                    <button key={quickReplyId(reply)} type="button" onClick={() => void tapQuick(reply)}>
+                      {reply.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {checkoutStage === "completed" ? (
+                <div className="aacp-completion-card" role="status">
+                  <CheckCircle2 size={16} aria-hidden="true" />
+                  <div>
+                    <strong>Pedido confirmado</strong>
+                    <span>
+                      {lastChat?.message ??
+                        "Seu pedido foi confirmado. Em breve você receberá os detalhes, o código de rastreio e o resumo do checkout."}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+
+              {showComposer ? (
+                <div className="aacp-reply-slot">
+                  <p className="aacp-reply-slot-hint" id="aacp-inline-composer-label">
+                    {activeExperience.copy.expected_input_type === "email"
+                      ? "Digite seu email para avançar"
+                      : activeExperience.copy.expected_input_type === "tel"
+                        ? "Digite seu telefone com DDD"
+                        : activeExperience.copy.expected_input_type === "number"
+                          ? "Digite o dado solicitado apenas com números"
+                          : "Sua vez - quando quiser, responda"}
+                  </p>
+                  <form
+                    className="aacp-input-form aacp-input-form--inline"
+                    aria-labelledby="aacp-inline-composer-label"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void sendMessage();
+                    }}
+                  >
+                    <input
+                      ref={composerInputRef}
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      placeholder={
+                        checkoutStage === "payment"
+                          ? "Prefiro PIX"
+                          : checkoutStage === "shipping"
+                            ? "Digite o CEP ou o número"
+                            : "Escreva sua mensagem..."
+                      }
+                      aria-label="Mensagem para o assistente"
+                      autoComplete="off"
+                      type={
+                        activeExperience.copy.expected_input_type === "email"
+                          ? "email"
+                          : activeExperience.copy.expected_input_type === "tel"
+                            ? "tel"
+                            : "text"
+                      }
+                      inputMode={activeExperience.copy.expected_input_type === "number" ? "numeric" : undefined}
+                      pattern={activeExperience.copy.expected_input_type === "number" ? "[0-9]*" : undefined}
+                    />
+                    <button type="submit" aria-label="Enviar mensagem" disabled={!message.trim()}>
+                      <Send size={18} />
+                    </button>
+                  </form>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
 
         <aside
