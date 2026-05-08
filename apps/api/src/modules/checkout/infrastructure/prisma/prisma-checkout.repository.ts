@@ -77,8 +77,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async saveSession(session: CheckoutSession): Promise<CheckoutSession> {
     const row = await this.prisma.checkoutSession.upsert({
       where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
-      create: toCheckoutSessionCreate(session),
-      update: toCheckoutSessionUpdate(session)
+      create: toCheckoutSessionCreate(session) as any,
+      update: toCheckoutSessionUpdate(session) as any
     });
     return toCheckoutSession(row);
   }
@@ -164,7 +164,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> {
     const existing = await this.getCompletedOrder(order.merchantId, order.sessionId, order.externalOrderId);
     if (existing) return { order: existing, idempotent: true };
-    const row = await this.prisma.completedOrder.create({ data: toCompletedOrderCreate(order) });
+    const row = await this.prisma.completedOrder.create({ data: toCompletedOrderCreate(order) as any });
     return { order: toCompletedOrder(row), idempotent: false };
   }
 
@@ -247,6 +247,7 @@ function toCheckoutSessionCreate(session: CheckoutSession) {
     cart: session.cart as unknown as Prisma.InputJsonValue,
     customer: (session.customer ?? undefined) as unknown as Prisma.InputJsonValue,
     shipping: (session.shipping ?? undefined) as unknown as Prisma.InputJsonValue,
+    shippingOptions: (session.shippingOptions ?? undefined) as unknown as Prisma.InputJsonValue,
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
@@ -262,6 +263,7 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     cart: session.cart as unknown as Prisma.InputJsonValue,
     customer: (session.customer ?? undefined) as unknown as Prisma.InputJsonValue,
     shipping: (session.shipping ?? undefined) as unknown as Prisma.InputJsonValue,
+    shippingOptions: (session.shippingOptions ?? undefined) as unknown as Prisma.InputJsonValue,
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
@@ -277,6 +279,7 @@ function toCheckoutSession(row: {
   cart: unknown;
   customer: unknown | null;
   shipping: unknown | null;
+  shippingOptions?: unknown | null;
   abandonmentScore: number;
   triggerAgent: boolean;
   chatHistory?: unknown | null;
@@ -291,6 +294,7 @@ function toCheckoutSession(row: {
     cart: row.cart as Cart,
     customer: (row.customer ?? undefined) as CustomerHints | undefined,
     shipping: (row.shipping ?? undefined) as ShippingQuote | undefined,
+    shippingOptions: (row.shippingOptions ?? undefined) as ShippingQuote[] | undefined,
     abandonmentScore: row.abandonmentScore,
     triggerAgent: row.triggerAgent,
     chatHistory: ((row.chatHistory ?? []) as ChatTurn[]),
@@ -395,6 +399,7 @@ function toCompletedOrderCreate(order: CompletedOrder) {
     orderTotal: order.orderTotal,
     currency: order.currency,
     acceptedOfferId: order.acceptedOfferId,
+    trackingCode: order.trackingCode,
     completedAt: new Date(order.completedAt)
   };
 }
@@ -406,6 +411,7 @@ function toCompletedOrder(row: {
   orderTotal: number;
   currency: string;
   acceptedOfferId: string | null;
+  trackingCode?: string | null;
   completedAt: Date;
 }): CompletedOrder {
   return {
@@ -415,6 +421,7 @@ function toCompletedOrder(row: {
     orderTotal: row.orderTotal,
     currency: row.currency as CurrencyCode,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
+    trackingCode: row.trackingCode ?? undefined,
     completedAt: row.completedAt.toISOString()
   };
 }
