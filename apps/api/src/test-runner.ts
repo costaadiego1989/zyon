@@ -45,6 +45,7 @@ import "./modules/checkout/application/use-cases/apply-offer.use-case.spec.js";
 import "./modules/checkout/application/use-cases/complete-order.use-case.spec.js";
 import "./modules/checkout/application/use-cases/send-chat-message.use-case.spec.js";
 import "./modules/checkout/presentation/http/checkout.controller.spec.js";
+import "./modules/checkout/presentation/http/checkout.full-purchase-flow.e2e-spec.js";
 import "./modules/checkout/infrastructure/brevo-buyer-email.notifier.spec.js";
 import "./modules/checkout/infrastructure/adapters/agent-rules-context.adapter.spec.js";
 import "./modules/checkout/presentation/http/checkout.ai-safety-scenarios.spec.js";
