@@ -2,10 +2,10 @@ import React from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
 import { CheckoutShell } from "./components/checkout/CheckoutShell.js";
-import { DEFAULT_WIDGET_API_BASE_URL, parseWidgetConfig } from "./widget-schemas.js";
-import { useCheckoutAgentViewModel } from "./use-checkout-agent-view-model.js";
-import type { ProductSelectionLine, WidgetConfig } from "./widget-types.js";
-import { themeStyle } from "./checkout-view-model.js";
+import { DEFAULT_WIDGET_API_BASE_URL, parseWidgetConfig } from "./lib/widget-schemas.js";
+import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model.js";
+import type { ProductSelectionLine, WidgetConfig } from "./lib/widget-types.js";
+import { themeStyle } from "./hooks/checkout-view-model.js";
 import "./styles.css";
 
 export { themeStyle };

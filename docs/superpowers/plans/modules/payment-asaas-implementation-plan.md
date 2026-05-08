@@ -6,7 +6,7 @@
 
 **Architecture:** Domínio com máquina de estados `pending | requires_action | approved | failed | cancelled | refunded`; ports `PaymentRepository`, `PaymentProviderPort`, `CheckoutPaymentPort` (consulta sessão / completa ordem); adapter Asaas só em `infrastructure`; webhook grava `PaymentProviderEvent` idempotente por `provider_event_id`.
 
-**Tech Stack:** NestJS, Prisma, `node:test`, fetch mockável, env `ASAAS_API_KEY`, `ASAAS_WEBHOOK_TOKEN` (ou HMAC conforme doc Asaas).
+**Tech Stack:** NestJS, Prisma, `node:test`, fetch mockável; `.env`: `ASAAS_SANDBOX`, `ASAAS_API_KEY`, `ASAAS_API_KEY_SANDBOX`, URLs default (`asaas-env.ts`), `ASAAS_WEBHOOK_TOKEN`; pagador com `cus_` em `customer.asaasCustomerId` na sessão de checkout (`StartCheckout`).
 
 ---
 

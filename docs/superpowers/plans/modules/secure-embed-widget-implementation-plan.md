@@ -217,7 +217,7 @@ Provar que com token válido para `m_A`, mesmo que body traga `merchant_id: "m_B
 
 - [ ] **Step 2: Implement guard Nest** que popula `@EmbedClaims()` decorator com resultado de `EmbedTokenService.verify`.
 
-- [ ] **Step 3: Wire POST** `/embed/start`, `/embed/track`, `/embed/chat`, `/embed/offers/apply`, `/embed/payment/start` para os use cases existentes de checkout (mesmos contratos `@aacp/shared-types` onde aplicável).
+- [ ] **Step 3: Wire POST** `/embed/start`, `/embed/track`, `/embed/chat`, `/embed/offers/apply`, **`POST /embed/payment/intents`** para os use cases existentes de checkout/pagamento (mesmos contratos `@aacp/shared-types` onde aplicável).
 
 Run: `pnpm --filter @aacp/api test -- --test-name-pattern=EmbedCheckout`
 Expected: PASS.

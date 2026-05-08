@@ -67,6 +67,14 @@ PUT /merchants/me/theme
 
 The theme is returned inside `StartCheckoutResponse.experience.brand.theme` and the widget injects it as CSS custom properties (`--aacp-accent`, `--aacp-fg`, `--aacp-bg`, `--aacp-font`). See [`docs/integrations/checkout-widget-and-api.md`](docs/integrations/checkout-widget-and-api.md) for the full theme contract and validation rules.
 
+## Premium widget surfaces
+
+The buyer-facing widget is intentionally not a dashboard. The public surface now follows the Lovable checkout baseline: dark premium shell, mobile-first chat, icon stepper, quick replies, fixed composer and a Stripe-like cart with item removal, totals and payment CTA. Internal telemetry, rule-engine labels and conversion metrics are not rendered to the buyer.
+
+After global login, the same widget can open an authenticated account hub with order history, account metrics, user/merchant configuration and agent configuration. See [`docs/product/premium-widget-ui-system.md`](docs/product/premium-widget-ui-system.md) and [`docs/product/agentic-checkout-differentiation.md`](docs/product/agentic-checkout-differentiation.md).
+
+The widget implementation is split as MVVM: `main.tsx` handles the Web Component bootstrap, `useCheckoutAgentViewModel` owns state/API actions, and checkout components render the public experience. Phone login is the target UX; Google remains visually present but disabled until buyer OAuth is implemented.
+
 ## Database (PostgreSQL)
 
 Local development uses Docker Compose (`docker-compose.yml`): Postgres 16 on host port **55432**, database `aacp_test`, user/password `postgres`/`postgres`.
@@ -110,3 +118,8 @@ Smoke test local sem Docker:
 5. Confirme que o painel mostra a marca `Northstar Atelier`, o item `Bolsa Executiva Couro Safiano`, total com frete e mensagem inicial retornada pela API.
 
 Integrações de clientes podem escolher entre dois modelos: **Embed UI**, com a interface enterprise da AACP instalada por script/Web Component, ou **API-only**, em que a loja mantém sua própria UI e consome nossas rotas de sessão, chat, eventos, ofertas e pagamento. Consulte `docs/integrations/checkout-widget-and-api.md` para snippets, payloads e requisitos de segurança.
+
+Para alinhar posicionamento e UI, leia também:
+
+- `docs/product/agentic-checkout-differentiation.md`
+- `docs/product/premium-widget-ui-system.md`

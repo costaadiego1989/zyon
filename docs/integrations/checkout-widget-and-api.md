@@ -216,6 +216,38 @@ Content-Type: application/json
 - Browser requests in Embed UI must use `/embed/*`; server requests in API-only may use `/checkout/*`.
 - The API is the source of truth for discounts, free shipping, payment status and policy constraints.
 - The UI can display `experience.copy.quick_replies`, but cannot invent offer labels that were not returned by API actions.
+- The public buyer UI must never expose internal metrics, telemetry or guardrail labels.
+- Cart mutation actions such as item removal should be surfaced as UX actions in the widget, even when the underlying cart mutation contract is implemented in a later API step.
+
+## Public checkout vs authenticated hub
+
+O embed possui duas superficies:
+
+1. **Checkout publico**: conversa, quick replies, progresso, carrinho, frete, cupom, pagamento e confirmacao.
+2. **Hub autenticado**: historico, metricas, configuracao do usuario/merchant e configuracao do agente.
+
+Metricas, regras internas e configuracoes operacionais nunca entram no checkout publico. Elas so aparecem depois do login global, com `Authorization: Bearer <token>`, consumindo rotas reais como `/merchants/me`, `/merchants/me/theme`, `/checkout-settings/context`, `/agent-rules/context` e `/checkout/dashboard/overview/:merchantId`.
+
+Visualmente, o checkout publico deve seguir uma experiencia Typebot x Stripe: conversa premium como foco e carrinho disciplinado como rail lateral. O hub autenticado pode ser mais operacional, mas ainda deve herdar os tokens do merchant para parecer parte da mesma experiencia.
+
+## Widget architecture and Lovable UI baseline
+
+O widget público usa a referência visual de `apps/widget_clone/spark-checkout-assistant`, mas não copia o fluxo mockado. A arquitetura real fica em MVVM:
+
+- `main.tsx` registra o Web Component e lê configuração.
+- `useCheckoutAgentViewModel` orquestra estado, API, chat, carrinho, cupom, pagamento, auth e hub.
+- componentes de UI renderizam shell, header, stepper, chat, composer e cart.
+
+O comportamento real continua usando `/embed/start`, `/embed/chat`, `/embed/offers/apply` e `/embed/payment/intents`. A API continua sendo fonte de verdade para desconto, frete, pagamento e confirmação.
+
+### Phone-first auth target
+
+A superfície de login do widget é desenhada para celular + código. O botão de Google pode aparecer desabilitado como preparação de OAuth, mas não deve autenticar enquanto não houver provider real.
+
+Rotas futuras necessárias para OTP real:
+
+- `POST /auth/phone/request-code`
+- `POST /auth/phone/verify-code`
 
 ## Choosing the integration model
 
