@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { PaymentIntentEntity, type PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import { HandleAsaasWebhookUseCase, UnauthorizedWebhookError, assertWebhookToken } from "./handle-asaas-webhook.use-case.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
@@ -8,6 +8,7 @@ import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domai
 class RecordingCheckoutPayment implements CheckoutPaymentPort {
   public approved: CheckoutPaymentApprovedInput[] = [];
   public failures: Array<{ merchantId: string; sessionId: string }> = [];
+  public statuses: Array<{ paymentIntentId: string; status: PaymentIntentStatus; reason?: string }> = [];
 
   async completeAfterApproval(input: CheckoutPaymentApprovedInput): Promise<void> {
     this.approved.push(input);
@@ -16,6 +17,22 @@ class RecordingCheckoutPayment implements CheckoutPaymentPort {
   async recordPaymentFailure(params: { merchantId: string; sessionId: string; reason: string }): Promise<void> {
     void params.reason;
     this.failures.push({ merchantId: params.merchantId, sessionId: params.sessionId });
+  }
+
+  async recordPaymentStatusChanged(params: {
+    merchantId: string;
+    sessionId: string;
+    paymentIntentId: string;
+    status: PaymentIntentStatus;
+    reason?: string;
+  }): Promise<void> {
+    void params.merchantId;
+    void params.sessionId;
+    this.statuses.push({
+      paymentIntentId: params.paymentIntentId,
+      status: params.status,
+      reason: params.reason
+    });
   }
 }
 
@@ -78,6 +95,7 @@ test("PAYMENT_RECEIVED approves intent and completes checkout once", async () =>
   assert.equal(checkoutPort.approved[0]?.externalOrderId, "pay_asaas_1");
   assert.equal(checkoutPort.approved[0]?.orderTotalMajorUnits, 300);
   assert.equal(checkoutPort.approved[0]?.acceptedOfferId, "off_a");
+  assert.ok(checkoutPort.statuses.some((entry) => entry.status === "approved"));
 });
 
 test("PAYMENT_DELETED marks failed and records payment_failed event", async () => {
@@ -107,6 +125,8 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
 
   const reload = await payments.getIntentById(ext);
   assert.equal(reload?.snapshot().status, "failed");
+  assert.ok(reload?.snapshot().statusHistory.some((entry) => entry.status === "failed"));
+  assert.ok(checkoutPort.statuses.some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));
 });
 
 test("HandleAsaasWebhookUseCase rejects when ASAAS_WEBHOOK_TOKEN mismatches header", async (t) => {
