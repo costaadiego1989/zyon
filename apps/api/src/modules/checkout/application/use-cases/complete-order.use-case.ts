@@ -40,11 +40,29 @@ export class CompleteOrderUseCase {
               order_total: input.order_total,
               currency: input.currency,
               accepted_offer_id: input.accepted_offer_id,
+              tracking_code: order.trackingCode,
               confirmation_touchpoints
             },
             causationId: input.external_order_id
           })
         );
+        if (session.customer?.phone) {
+          await repository.appendOutbox(
+            createCheckoutEventEnvelope({
+              eventType: "whatsapp.message.requested",
+              merchantId: input.merchant_id,
+              payload: {
+                session_id: input.session_id,
+                phone: session.customer.phone,
+                template: "order_tracking",
+                external_order_id: input.external_order_id,
+                tracking_code: order.trackingCode,
+                message: `Pagamento confirmado. Seu codigo de rastreio e ${order.trackingCode}.`
+              },
+              causationId: input.external_order_id
+            })
+          );
+        }
         await this.purchaseHistory?.recordCheckoutPurchase({
           merchantId: input.merchant_id,
           sessionId: input.session_id,
