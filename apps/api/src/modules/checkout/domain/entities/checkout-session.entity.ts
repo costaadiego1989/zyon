@@ -14,6 +14,7 @@ export class CheckoutSessionEntity {
     cart: Cart;
     customer?: CustomerHints;
     shipping?: ShippingQuote;
+    shippingOptions?: ShippingQuote[];
   }): CheckoutSessionEntity {
     const now = new Date().toISOString();
     return new CheckoutSessionEntity({
@@ -24,6 +25,7 @@ export class CheckoutSessionEntity {
       cart: input.cart,
       customer: input.customer,
       shipping: input.shipping,
+      shippingOptions: input.shippingOptions,
       abandonmentScore: 0,
       triggerAgent: false,
       chatHistory: [],
