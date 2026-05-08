@@ -75,6 +75,36 @@ export class TrackCheckoutEventUseCase {
         })
       );
     }
+    if (input.event === "checkout_abandoned") {
+      await repository.appendOutbox(
+        createCheckoutEventEnvelope({
+          eventType: "checkout.abandoned",
+          merchantId: input.merchant_id,
+          payload: {
+            session_id: input.session_id,
+            abandonment_score: finalSession.abandonmentScore
+          },
+          causationId: input.event
+        })
+      );
+      const rules = await repository.getRules(input.merchant_id);
+      if (finalSession.customer?.phone && rules.couponBoxEnabled !== false && rules.maxDiscountPercent > 0) {
+        await repository.appendOutbox(
+          createCheckoutEventEnvelope({
+            eventType: "whatsapp.message.requested",
+            merchantId: input.merchant_id,
+            payload: {
+              session_id: input.session_id,
+              phone: finalSession.customer.phone,
+              template: "checkout_abandonment_discount",
+              discount_percent: rules.maxDiscountPercent,
+              message: `Voce deixou seu pedido no checkout. Mantive ${rules.maxDiscountPercent}% de desconto para voce fechar a compra agora.`
+            },
+            causationId: input.event
+          })
+        );
+      }
+    }
     return {
       received: true,
       abandonment_score: finalSession.abandonmentScore,
