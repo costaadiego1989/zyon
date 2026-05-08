@@ -10,6 +10,7 @@ import type { PaymentProviderPort } from "../domain/ports/payment-provider.port.
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession } from "@aacp/shared-types";
 import { isAsaasConfigured } from "../infrastructure/asaas-env.js";
+import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -48,7 +49,11 @@ export class CreatePaymentIntentUseCase {
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) return existing.snapshot();
 
-    const amountCents = Math.round(session.cart.total * 100);
+    const amountMajorUnits = Math.max(
+      0,
+      session.cart.total + (session.shipping?.customerPrice ?? 0) - (session.cart.currentDiscount ?? 0)
+    );
+    const amountCents = Math.round(amountMajorUnits * 100);
     if (amountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
     const method: PaymentMethod = body.method ?? "pix";
@@ -85,6 +90,20 @@ export class CreatePaymentIntentUseCase {
     });
 
     await this.payments.saveIntent({ intent });
+    await this.checkout.appendOutbox(
+      createCheckoutEventEnvelope({
+        eventType: "payment.status.changed",
+        merchantId,
+        payload: {
+          session_id: sessionId,
+          payment_intent_id: intent.id,
+          status: intent.snapshot().status,
+          amount_cents: amountCents,
+          method
+        },
+        causationId: intent.id
+      })
+    );
 
     return intent.snapshot();
   }
