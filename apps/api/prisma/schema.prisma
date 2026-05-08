@@ -81,6 +81,7 @@ model CheckoutSession {
   cart               Json
   customer           Json?
   shipping           Json?
+  shippingOptions    Json?    @map("shipping_options")
   abandonmentScore   Float    @default(0) @map("abandonment_score")
   triggerAgent       Boolean  @default(false) @map("trigger_agent")
   chatHistory        Json     @default("[]") @map("chat_history")
@@ -188,6 +189,7 @@ model CompletedOrder {
   orderTotal          Float    @map("order_total")
   currency            String
   acceptedOfferId     String?  @map("accepted_offer_id")
+  trackingCode        String?  @map("tracking_code")
   completedAt         DateTime @map("completed_at")
 
   session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
@@ -312,6 +314,7 @@ model PaymentIntent {
   approvedAmountCents  Int?      @map("approved_amount_cents")
   acceptedOfferId      String?   @map("accepted_offer_id")
   buyerFacing          Json?     @map("buyer_facing")
+  statusHistory        Json      @default("[]") @map("status_history")
   createdAt            DateTime  @default(now()) @map("created_at")
   updatedAt            DateTime  @updatedAt @map("updated_at")
 
