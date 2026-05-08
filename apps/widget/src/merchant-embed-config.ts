@@ -1,5 +1,6 @@
 import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
 import type { HybridCheckoutOptions } from "./merchant-checkout-shell";
+import { DEFAULT_WIDGET_API_BASE_URL } from "./widget-schemas";
 
 const DEFAULT_CART: Cart = {
   currency: "BRL",
@@ -51,7 +52,7 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
     brandTitle: ds.brandTitle?.trim() || "Northstar Atelier",
     brandSubtitle: ds.brandSubtitle?.trim() || "Atendimento de compra premium com IA conectada ao checkout",
     merchantId: ds.merchantId?.trim() || "mrc_demo",
-    apiBaseUrl: ds.apiBaseUrl?.trim() || "http://localhost:3000",
+    apiBaseUrl: ds.apiBaseUrl?.trim() || DEFAULT_WIDGET_API_BASE_URL,
     cart: parseJsonAttr<Cart>(ds.cartJson, DEFAULT_CART),
     customer: parseJsonAttr<CustomerHints>(ds.customerJson, fallbackCustomer),
     shipping: parseJsonAttr<ShippingQuote>(ds.shippingJson, DEFAULT_SHIPPING),
