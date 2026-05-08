@@ -56,6 +56,30 @@ test("TrackCheckoutEventUseCase records event, updates score, and appends facts"
   );
 });
 
+test("TrackCheckoutEventUseCase emits fake WhatsApp abandonment discount", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(
+    checkoutSession({
+      customer: { phone: "11999998888" }
+    })
+  );
+  repository.setRules("mrc_1", { maxDiscountPercent: 12, couponBoxEnabled: true });
+  const useCase = new TrackCheckoutEventUseCase(repository);
+
+  await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "checkout_abandoned"
+  });
+
+  const outbox = repository.listOutbox("mrc_1");
+  assert.ok(outbox.some((event) => event.event_type === "checkout.abandoned"));
+  const whatsapp = outbox.find((event) => event.event_type === "whatsapp.message.requested");
+  assert.equal(whatsapp?.payload.template, "checkout_abandonment_discount");
+  assert.equal(whatsapp?.payload.discount_percent, 12);
+  assert.equal(whatsapp?.payload.phone, "11999998888");
+});
+
 test("TrackCheckoutEventUseCase suppresses trigger when checkout-settings disables the event", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession({ abandonmentScore: 0.5 }));
