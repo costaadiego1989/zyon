@@ -8,7 +8,8 @@ import type {
   ChatStage,
   CheckoutSession,
   CustomerHints,
-  MerchantRules
+  MerchantRules,
+  ShippingQuote
 } from "@aacp/shared-types";
 import {
   CHECKOUT_REPOSITORY,
@@ -39,6 +40,42 @@ import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.
 function structuredCloneDeep(session: CheckoutSession): CheckoutSession {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(session);
   return JSON.parse(JSON.stringify(session)) as CheckoutSession;
+}
+
+function selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+
+  if (/\b(1|primeir[ao]|pac|economi[ac]|barat[ao])\b/.test(normalized)) {
+    return findOption(options, /pac|econom/i) ?? options[0] ?? null;
+  }
+  if (/\b(2|segund[ao]|sedex|express|rapid[ao])\b/.test(normalized)) {
+    return findOption(options, /sedex|express|rapid/i) ?? options[1] ?? options[0] ?? null;
+  }
+
+  for (const option of options) {
+    const method = normalizeShippingToken(option.method);
+    const carrier = normalizeShippingToken(option.carrier);
+    if ((method && normalized.includes(method)) || (carrier && normalized.includes(carrier))) {
+      return option;
+    }
+  }
+
+  return null;
+}
+
+function findOption(options: ShippingQuote[], pattern: RegExp): ShippingQuote | null {
+  return options.find((option) => pattern.test(`${option.method ?? ""} ${option.carrier ?? ""}`)) ?? null;
+}
+
+function normalizeShippingToken(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .split(/\s+/)[0] ?? "";
 }
 
 @Injectable()
@@ -83,7 +120,8 @@ export class SendChatMessageUseCase {
     const numberPatch = this.tryParseAddressNumbers(input.user_message, working);
     if (numberPatch) working = await this.repository.saveSession(mergeCustomers(working, numberPatch));
 
-    working = await this.tryEnsureShippingQuote(working);
+    working = await this.tryEnsureShippingOptions(working);
+    working = await this.trySelectShippingOption(input.user_message, working);
 
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
@@ -196,7 +234,8 @@ export class SendChatMessageUseCase {
     }
     if (!existing?.phone) {
       const phone = extractPhone(userMessage);
-      if (phone) patch.phone = phone;
+      const cpfInThisTurn = patch.cpf ?? existing?.cpf;
+      if (phone && phone !== cpfInThisTurn) patch.phone = phone;
     }
     if (!existing?.address?.zip) {
       const zip = extractCep(userMessage);
@@ -232,7 +271,7 @@ export class SendChatMessageUseCase {
     return { address: { ...addr, number: ln.number, complement: ln.complement ?? addr.complement } };
   }
 
-  private async tryEnsureShippingQuote(session: CheckoutSession): Promise<CheckoutSession> {
+  private async tryEnsureShippingOptions(session: CheckoutSession): Promise<CheckoutSession> {
     const addr = session.customer?.address;
     if (
       !addr?.zip ||
@@ -240,22 +279,47 @@ export class SendChatMessageUseCase {
       !addr.city ||
       !addr.state ||
       !addr.number ||
-      session.shipping?.customerPrice
+      session.shipping ||
+      (session.shippingOptions?.length ?? 0) > 0
     ) {
       return session;
     }
     const q = estimatePacQuote({ zip: addr.zip, state: addr.state });
+    const sedexPrice = Math.round((q.customerPrice + 10) * 100) / 100;
+    const sedexRealCost = Math.round((q.realCost + 8) * 100) / 100;
     return this.repository.saveSession({
       ...session,
-      shipping: {
-        customerPrice: q.customerPrice,
-        realCost: q.realCost,
-        carrier: q.carrier,
-        method: q.method,
-        deliveryDays: q.deliveryDays,
-        region: q.region,
-        destinationZip: q.destinationZip
-      },
+      shippingOptions: [
+        {
+          customerPrice: q.customerPrice,
+          realCost: q.realCost,
+          carrier: q.carrier,
+          method: "PAC",
+          deliveryDays: q.deliveryDays,
+          region: q.region,
+          destinationZip: q.destinationZip
+        },
+        {
+          customerPrice: sedexPrice,
+          realCost: sedexRealCost,
+          carrier: "Correios (estimativa)",
+          method: "Sedex",
+          deliveryDays: Math.max(1, q.deliveryDays - 2),
+          region: q.region,
+          destinationZip: q.destinationZip
+        }
+      ],
+      updatedAt: new Date().toISOString()
+    });
+  }
+
+  private async trySelectShippingOption(text: string, session: CheckoutSession): Promise<CheckoutSession> {
+    if (session.shipping || !session.shippingOptions?.length) return session;
+    const selected = selectShippingOption(text, session.shippingOptions);
+    if (!selected) return session;
+    return this.repository.saveSession({
+      ...session,
+      shipping: selected,
       updatedAt: new Date().toISOString()
     });
   }
