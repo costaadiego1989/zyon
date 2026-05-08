@@ -8,6 +8,7 @@ const cartItemSchema = z.object({
   price: z.number().finite().nonnegative(),
   cost: z.number().finite().nonnegative().optional(),
   quantity: z.number().int().positive(),
+  weightGrams: z.number().finite().nonnegative().optional(),
   imageUrl: z.string().min(1).optional(),
   productUrl: z.string().min(1).optional(),
   category: z.string().min(1).optional(),
@@ -62,6 +63,15 @@ const widgetConfigSchema = z.object({
   embedSessionToken: z.string().min(1).optional(),
   merchantId: z.string().min(1),
   apiBaseUrl: z.string().min(1),
+  productApiBaseUrl: z.string().min(1).optional(),
+  productSelection: z
+    .array(
+      z.object({
+        sku: z.string().min(1),
+        quantity: z.number().int().positive()
+      })
+    )
+    .optional(),
   cart: cartSchema,
   customer: customerHintsSchema.optional(),
   shipping: shippingSchema.optional(),
@@ -100,10 +110,14 @@ const defaultCart: Cart = {
   items: []
 };
 
+export const DEFAULT_WIDGET_API_BASE_URL = "http://localhost:3009";
+
 export function parseWidgetConfig(input: {
   merchantId: string;
   embedSessionToken?: string;
   apiBaseUrl?: string;
+  productApiBaseUrl?: string;
+  productSelection?: WidgetConfig["productSelection"];
   cart?: Cart;
   customer?: CustomerHints;
   shipping?: ShippingQuote;
@@ -113,7 +127,9 @@ export function parseWidgetConfig(input: {
     mode: input.embedSessionToken ? "embed" : "legacy",
     embedSessionToken: input.embedSessionToken,
     merchantId: input.merchantId || "mrc_demo",
-    apiBaseUrl: input.apiBaseUrl || "http://localhost:3000",
+    apiBaseUrl: input.apiBaseUrl || DEFAULT_WIDGET_API_BASE_URL,
+    productApiBaseUrl: input.productApiBaseUrl,
+    productSelection: input.productSelection,
     cart: input.cart ?? defaultCart,
     customer: input.customer,
     shipping: input.shipping,
@@ -126,7 +142,9 @@ export function parseWidgetConfig(input: {
     mode: input.embedSessionToken ? "embed" : "legacy",
     merchantId: input.merchantId || "mrc_demo",
     ...(input.embedSessionToken ? { embedSessionToken: input.embedSessionToken } : {}),
-    apiBaseUrl: input.apiBaseUrl || "http://localhost:3000",
+    apiBaseUrl: input.apiBaseUrl || DEFAULT_WIDGET_API_BASE_URL,
+    productApiBaseUrl: input.productApiBaseUrl,
+    productSelection: input.productSelection,
     cart: input.cart ?? defaultCart,
     customer: input.customer,
     shipping: input.shipping,
