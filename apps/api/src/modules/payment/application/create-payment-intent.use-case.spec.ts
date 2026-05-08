@@ -49,6 +49,33 @@ test("CreatePaymentIntentUseCase is idempotent on (merchant, session, idempotenc
   assert.equal(a.status, "requires_action");
   assert.equal(a.providerPaymentId, "fake_pay_1");
   assert.equal(a.acceptedOfferId, "offer_1");
+  assert.deepEqual(a.statusHistory.map((entry) => entry.status), ["pending", "requires_action"]);
+  assert.equal(checkout.listOutbox("mrc_1").some((event) => event.event_type === "payment.status.changed"), true);
+});
+
+test("CreatePaymentIntentUseCase charges cart total with selected shipping and discount", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      cart: {
+        currency: "BRL",
+        total: 200,
+        currentDiscount: 20,
+        items: [{ sku: "sku", name: "Item", price: 200, quantity: 1 }]
+      },
+      shipping: { customerPrice: 30, realCost: 20, method: "PAC" },
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+
+  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider());
+  const intent = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "idem_total"
+  });
+
+  assert.equal(intent.amountCents, 21000);
 });
 
 test("CreatePaymentIntentUseCase rejects when Asaas is configured but session buyer has no asaasCustomerId", async () => {
