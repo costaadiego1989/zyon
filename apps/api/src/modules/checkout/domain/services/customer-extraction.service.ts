@@ -49,9 +49,43 @@ export function extractPhone(text: string): string | undefined {
 }
 
 const NAME_FILLERS = ["é", "e", "sou", "meu", "nome", "me", "chamo", "o", "a"];
+const NAME_STOPWORDS = new Set([
+  "quero",
+  "cupom",
+  "desconto",
+  "frete",
+  "gratis",
+  "grátis",
+  "caro",
+  "pix",
+  "cartao",
+  "cartão",
+  "boleto",
+  "pedido",
+  "comprar",
+  "finalizar",
+  "preco",
+  "preço"
+]);
 
 export function extractName(text: string, lastAgentTurn?: string): string | undefined {
   if (!lastAgentTurn || !NAME_QUESTION_RE.test(lastAgentTurn)) return undefined;
+  return normalizeNameCandidate(text);
+}
+
+export function extractStandaloneName(text: string): string | undefined {
+  const normalized = normalizeNameCandidate(text);
+  if (!normalized) return undefined;
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  const hasExplicitNameIntent = /\b(meu\s+nome|me\s+chamo|sou)\b/i.test(text);
+  const hasCapitalizedToken = tokens.some((token) =>
+    /^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇ][\p{L}'-]+$/u.test(token.replace(/[.,;:]/g, ""))
+  );
+  if (!hasExplicitNameIntent && !hasCapitalizedToken) return undefined;
+  return normalized;
+}
+
+function normalizeNameCandidate(text: string): string | undefined {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > 80) return undefined;
   if (/[\d@/]/.test(trimmed)) return undefined;
@@ -60,7 +94,8 @@ export function extractName(text: string, lastAgentTurn?: string): string | unde
     .filter((t) => !NAME_FILLERS.includes(t.toLowerCase()))
     .map((t) => t.replace(/[.,;:]/g, ""))
     .filter((t) => t.length > 0);
-  if (tokens.length === 0) return undefined;
+  if (tokens.length < 2 || tokens.length > 5) return undefined;
+  if (tokens.some((t) => NAME_STOPWORDS.has(t.toLowerCase()))) return undefined;
   if (tokens.some((t) => !/^[\p{L}'-]+$/u.test(t))) return undefined;
   return tokens
     .map((t) => t.charAt(0).toLocaleUpperCase("pt-BR") + t.slice(1).toLocaleLowerCase("pt-BR"))
@@ -127,7 +162,7 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
     if (!addr.zip) return ["CEP"];
     if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];
     if (!addr.number) return ["número e complemento (apto/bloco)"];
-    if (!session.shipping?.customerPrice) return ["frete"];
+    if (typeof session.shipping?.customerPrice !== "number") return ["frete"];
     return [];
   }
   if (stage === "payment") return ["forma de pagamento"];
