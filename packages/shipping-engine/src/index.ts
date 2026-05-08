@@ -25,6 +25,10 @@ export function evaluateShippingOffer(input: ShippingDecisionInput): OfferEvalua
     return blocked("abandonment_score_too_low", input.cart, 0);
   }
 
+  if (!input.rules.allowStackDiscountAndFreeShipping && (input.cart.currentDiscount ?? 0) > 0) {
+    return blocked("stack_discount_and_free_shipping_not_allowed", input.cart, 0);
+  }
+
   if (input.rules.allowFreeShipping && input.cart.total >= input.rules.freeShippingMinCartValue) {
     const freeShipping = evaluateSubsidy(input.cart, input.rules, shippingCost, "shipping_free");
     if (freeShipping.approved) {
