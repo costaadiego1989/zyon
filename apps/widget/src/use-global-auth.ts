@@ -36,6 +36,7 @@ function stableDeviceId(): string {
 
 export interface GlobalAuthController {
   open: boolean;
+  panel: "auth" | "hub";
   mode: GlobalAuthMode;
   email: string;
   password: string;
@@ -46,6 +47,7 @@ export interface GlobalAuthController {
   session: GlobalAuthSession | null;
   openLogin: () => void;
   openRegister: () => void;
+  openHub: () => void;
   close: () => void;
   setMode: (mode: GlobalAuthMode) => void;
   setEmail: (value: string) => void;
@@ -61,6 +63,7 @@ export function useGlobalAuth(options: {
   defaultEmail?: string;
 }): GlobalAuthController {
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<"auth" | "hub">("auth");
   const [mode, setMode] = useState<GlobalAuthMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -96,6 +99,7 @@ export function useGlobalAuth(options: {
   }
 
   function openLogin(): void {
+    setPanel("auth");
     setMode("login");
     setError(null);
     setStatus(null);
@@ -103,7 +107,15 @@ export function useGlobalAuth(options: {
   }
 
   function openRegister(): void {
+    setPanel("auth");
     setMode("register");
+    setError(null);
+    setStatus(null);
+    setOpen(true);
+  }
+
+  function openHub(): void {
+    setPanel("hub");
     setError(null);
     setStatus(null);
     setOpen(true);
@@ -116,6 +128,7 @@ export function useGlobalAuth(options: {
 
   function logout(): void {
     setSession(null);
+    setPanel("auth");
     setStatus("Sessão global removida.");
     if (typeof window !== "undefined") {
       window.localStorage.removeItem(AUTH_STORAGE_KEY);
@@ -222,6 +235,7 @@ export function useGlobalAuth(options: {
 
   return {
     open,
+    panel,
     mode,
     email,
     password,
@@ -232,6 +246,7 @@ export function useGlobalAuth(options: {
     session,
     openLogin,
     openRegister,
+    openHub,
     close,
     setMode,
     setEmail,
