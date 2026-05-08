@@ -12,7 +12,7 @@ describe("parseWidgetConfig", () => {
 
     expect(config.mode).toBe("legacy");
     expect(config.merchantId).toBe("mrc_demo");
-    expect(config.apiBaseUrl).toBe("http://localhost:3000");
+    expect(config.apiBaseUrl).toBe("http://localhost:3009");
     expect(config.cart.currency).toBe("BRL");
     expect(config.cart.items).toEqual([]);
   });
