@@ -112,9 +112,16 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
   const agentIdentity = deps.agent?.agent;
   const agentName = agentIdentity?.agentName ?? "Assistente AACP";
-  const greeting =
+  const baseGreeting =
     agentIdentity?.greeting ??
     `Olá, sou o assistente da ${merchantName}. Posso te ajudar a finalizar este pedido.`;
+  const canMentionDiscount =
+    chatStage === "data_collection" &&
+    deps.rules?.couponBoxEnabled !== false &&
+    (deps.rules?.maxDiscountPercent ?? 0) > 0;
+  const greeting = canMentionDiscount
+    ? `${baseGreeting} A loja autorizou ate ${deps.rules!.maxDiscountPercent}% de desconto conforme a configuracao da empresa, e eu valido isso no final do checkout.`
+    : baseGreeting;
 
   const trustCadastro = chatStage === "data_collection";
   
@@ -150,6 +157,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       total
     },
     shipping: input.shipping,
+    shippingOptions: undefined,
     customer: input.customer,
     agent: {
       name: agentName,
@@ -181,7 +189,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
 export function buildExperienceFromSession(session: CheckoutSession, deps: ExperienceDeps): CheckoutExperienceSnapshot {
   const chatStage = deriveChatStage(session);
   const missingFieldsPreview = missingFieldsForStage(session, chatStage);
-  return buildCheckoutExperience(
+  const experience = buildCheckoutExperience(
     {
       merchant_id: session.merchantId,
       cart: session.cart,
@@ -190,6 +198,24 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     },
     { ...deps, chatStage, missingFieldsPreview }
   );
+  const shippingOptionReplies =
+    chatStage === "shipping" && missingFieldsPreview[0] === "frete" && session.shippingOptions?.length
+      ? session.shippingOptions.map(shippingOptionLabel)
+      : undefined;
+  return {
+    ...experience,
+    shippingOptions: session.shippingOptions,
+    copy: shippingOptionReplies
+      ? { ...experience.copy, quick_replies: shippingOptionReplies }
+      : experience.copy
+  };
+}
+
+function shippingOptionLabel(option: ShippingQuote): string {
+  const method = option.method ?? option.carrier ?? "Frete";
+  const price = formatMoney(option.customerPrice, "BRL");
+  const eta = typeof option.deliveryDays === "number" ? ` (${option.deliveryDays} dias)` : "";
+  return `${method}${eta} - ${price}`;
 }
 
 function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {
