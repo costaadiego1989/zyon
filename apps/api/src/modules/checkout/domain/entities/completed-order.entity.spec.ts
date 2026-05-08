@@ -11,6 +11,7 @@ test("CompletedOrderEntity records order completion and stable idempotency key",
 
   assert.equal(order.externalOrderId, "ord_1");
   assert.equal(order.acceptedOfferId, "off_1");
+  assert.match(order.trackingCode ?? "", /^TRK-MRC1-ORD1$/);
   assert.equal(order.completedAt, "2026-05-01T12:00:00.000Z");
   assert.equal(
     CompletedOrderEntity.idempotencyKey({
@@ -20,4 +21,13 @@ test("CompletedOrderEntity records order completion and stable idempotency key",
     }),
     "mrc_1:chk_1:ord_1"
   );
+});
+
+test("CompletedOrderEntity keeps provided tracking code", () => {
+  const order = CompletedOrderEntity.complete(
+    completeOrderRequest({ tracking_code: "BR123456789AA" }),
+    new Date("2026-05-01T12:00:00.000Z")
+  ).snapshot();
+
+  assert.equal(order.trackingCode, "BR123456789AA");
 });
