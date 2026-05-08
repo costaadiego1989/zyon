@@ -56,7 +56,6 @@ export class UnauthorizedWebhookError extends Error {
   }
 }
 
-/** Docs Asaas: header `asaas-access-token`; token configurado ao criar o webhook. */
 export function assertWebhookToken(expectedToken: string | undefined, inboundHeader?: string): void {
   const expected = expectedToken?.trim();
   if (!expected) return;
@@ -139,8 +138,15 @@ export class HandleAsaasWebhookUseCase {
       case "PAYMENT_REFUNDED": {
         const snap = intentEntity.snapshot();
         if (snap.status === "approved") {
-          intentEntity.markRefunded();
+          intentEntity.markRefunded(eventName);
           await this.payments.saveIntent({ intent: intentEntity });
+          await this.checkoutPayment.recordPaymentStatusChanged({
+            merchantId: snap.merchantId,
+            sessionId: snap.sessionId,
+            paymentIntentId: snap.id,
+            status: "refunded",
+            reason: eventName
+          });
         }
         return "payment_refunded";
       }
@@ -166,8 +172,15 @@ export class HandleAsaasWebhookUseCase {
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
     if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
     if (centsFromWebhook !== snap.amountCents) {
-      intentEntity.markFailed();
+      intentEntity.markFailed("payment_value_mismatch");
       await this.payments.saveIntent({ intent: intentEntity });
+      await this.checkoutPayment.recordPaymentStatusChanged({
+        merchantId: snap.merchantId,
+        sessionId: snap.sessionId,
+        paymentIntentId: snap.id,
+        status: "failed",
+        reason: "payment_value_mismatch"
+      });
       await this.checkoutPayment.recordPaymentFailure({
         merchantId: snap.merchantId,
         sessionId: snap.sessionId,
@@ -182,6 +195,12 @@ export class HandleAsaasWebhookUseCase {
 
     intentEntity.markApproved({ providerPaymentId: payId, approvedAmountCents: snap.amountCents });
     await this.payments.saveIntent({ intent: intentEntity });
+    await this.checkoutPayment.recordPaymentStatusChanged({
+      merchantId: snap.merchantId,
+      sessionId: snap.sessionId,
+      paymentIntentId: snap.id,
+      status: "approved"
+    });
 
     await this.checkoutPayment.completeAfterApproval({
       merchantId: snap.merchantId,
@@ -200,8 +219,15 @@ export class HandleAsaasWebhookUseCase {
     if (snap.status === "approved") return;
 
     if (snap.status === "requires_action" || snap.status === "pending") {
-      intentEntity.markFailed();
+      intentEntity.markFailed(reason);
       await this.payments.saveIntent({ intent: intentEntity });
+      await this.checkoutPayment.recordPaymentStatusChanged({
+        merchantId: snap.merchantId,
+        sessionId: snap.sessionId,
+        paymentIntentId: snap.id,
+        status: "failed",
+        reason
+      });
       await this.checkoutPayment.recordPaymentFailure({
         merchantId: snap.merchantId,
         sessionId: snap.sessionId,
