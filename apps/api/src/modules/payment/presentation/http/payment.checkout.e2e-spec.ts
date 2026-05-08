@@ -23,7 +23,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
       total: 300,
       items: [{ sku: "sku1", name: "Item", price: 300, quantity: 1 }]
     },
-    customer: { email: "buyer@test.com", asaasCustomerId: "cus_fixture_e2e" }
+    customer: { email: "buyer@test.com", phone: "11999998888", asaasCustomerId: "cus_fixture_e2e" }
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider()).execute({
@@ -54,6 +54,22 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const order = checkout.getCompletedOrder(merchantId, sessionId, providerPaymentId);
   assert.ok(order);
   assert.equal(order!.orderTotal, 300);
+  assert.ok(order!.trackingCode);
+
+  const approved = await payments.getIntentById(intentSnap.id);
+  assert.deepEqual(approved?.snapshot().statusHistory.map((entry) => entry.status), [
+    "pending",
+    "requires_action",
+    "approved"
+  ]);
+  const outbox = checkout.listOutbox(merchantId);
+  assert.ok(outbox.some((event) => event.event_type === "payment.status.changed" && (event.payload as any).status === "approved"));
+  assert.ok(outbox.some((event) => event.event_type === "whatsapp.message.requested" && (event.payload as any).tracking_code === order!.trackingCode));
+  assert.ok(
+    checkout
+      .getSession(merchantId, sessionId)
+      ?.chatHistory.some((turn) => turn.text.includes("Pagamento confirmado"))
+  );
 });
 
 test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
@@ -94,4 +110,16 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
   });
 
   assert.equal(checkout.getCompletedOrder(merchantId, sessionId, providerPaymentId), undefined);
+  const failed = await payments.getIntentById(intentSnap.id);
+  assert.deepEqual(failed?.snapshot().statusHistory.map((entry) => entry.status), [
+    "pending",
+    "requires_action",
+    "failed"
+  ]);
+  assert.ok(checkout.listOutbox(merchantId).some((event) => event.event_type === "payment.status.changed" && (event.payload as any).status === "failed"));
+  assert.ok(
+    checkout
+      .getSession(merchantId, sessionId)
+      ?.chatHistory.some((turn) => turn.text.includes("Pagamento falhou"))
+  );
 });
