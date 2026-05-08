@@ -2,6 +2,9 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "tailwindcss";
+import autoprefixer from "autoprefixer";
+import tailwindConfig from "./tailwind.config.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
@@ -9,6 +12,11 @@ export default defineConfig({
   /** Evita servir pasta errada quando o comando é corrido com cwd inesperado. */
   root: resolve(__dirname),
   plugins: [react()],
+  css: {
+    postcss: {
+      plugins: [tailwindcss(tailwindConfig), autoprefixer()]
+    }
+  },
   server: {
     host: true,
     port: 5173,
