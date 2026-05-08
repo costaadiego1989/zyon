@@ -1,4 +1,4 @@
-/** Base da API HTTP sem barra final (ex.: `http://localhost:3001`). */
+/** Base da API HTTP sem barra final (ex.: `http://localhost:3009`). */
 export function normalizeApiBase(url: string): string {
   return url.replace(/\/$/, "");
 }
