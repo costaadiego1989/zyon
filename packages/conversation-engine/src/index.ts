@@ -118,10 +118,14 @@ function buildResponsesInput(input: ConversationInput): string {
 }
 
 function systemPrompt(input: ConversationInput, objection: Objection): string {
+  const agent = input.agentContext?.agent ?? { agentName: "Assistente", persona: "ajudante", language: "pt-BR" };
   const lines = [
-    `Você é um agente de vendas B2C consultivo da loja "${input.merchantName ?? "(merchant)"}".`,
-    "Fale em pt-BR. Seja conciso (no máximo 2 frases por resposta). Use tom comercial, útil e direto.",
-    `Voz da marca: ${input.brandVoice}.`,
+    `Você é ${agent.agentName}, persona: ${agent.persona}, atuando para ${input.merchantName || "nossa loja"}.`,
+    `Voz da marca: ${input.brandVoice || "consultativa"}`,
+    `Idioma: ${agent.language}`,
+    "Seja breve, direto e focado no checkout. Não perca tempo com conversas fiadas.",
+    "NUNCA use formatação markdown (como asteriscos ** para negrito ou itálico) em suas respostas. Use texto puro.",
+    "Não repita a saudação se a conversa já começou.",
     `Objeção detectada: ${objection}.`
   ];
   if (input.stage) {
@@ -154,11 +158,19 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
 
 function stageInstructions(stage: ChatStage, missingFields: string[]): string {
   if (stage === "data_collection") {
-    const next = missingFields[0] ?? "nome";
+    const next = missingFields[0] ?? "";
+    if (next === "código de verificação") {
+      return [
+        "ETAPA: Verificação OTP.",
+        "Diga que enviou um código de verificação de 6 dígitos para o e-mail e peça para ele digitar.",
+        "Não fale mais nada além disso. Apenas peça o código."
+      ].join("\n");
+    }
+    const nextField = missingFields[0] ?? "nome";
     return [
       `ETAPA: cadastro do comprador.`,
       `CAMPOS FALTANDO (em ordem): ${missingFields.join(", ") || "nenhum"}.`,
-      `REGRA: peça apenas o PRÓXIMO campo da lista (\"${next}\") em uma única frase.`,
+      `REGRA: peça apenas o PRÓXIMO campo da lista (\"${nextField}\") em uma única frase.`,
       "Se o comprador levantar uma objeção, responda em uma frase e retome a coleta na frase seguinte.",
       "Nunca peça vários campos na mesma mensagem.",
       "PROIBIDO nesta etapa: mencionar cupom, desconto, negociação de preço ou frete detalhado — isso vem depois do cadastro.",
