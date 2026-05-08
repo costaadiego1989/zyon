@@ -37,6 +37,7 @@ function snapshotFromRecord(row: {
   approvedAmountCents: number | null;
   acceptedOfferId: string | null;
   buyerFacing: unknown;
+  statusHistory?: unknown;
 }): PaymentIntentSnapshot {
   return {
     id: row.id,
@@ -50,7 +51,10 @@ function snapshotFromRecord(row: {
     providerPaymentId: row.providerPaymentId ?? undefined,
     approvedAmountCents: row.approvedAmountCents ?? undefined,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
-    buyerFacing: normalizeBuyerFacing(row.buyerFacing)
+    buyerFacing: normalizeBuyerFacing(row.buyerFacing),
+    statusHistory: Array.isArray(row.statusHistory)
+      ? (row.statusHistory as PaymentIntentSnapshot["statusHistory"])
+      : [{ status: row.status as PaymentIntentStatus, occurredAt: new Date().toISOString() }]
   };
 }
 
@@ -61,34 +65,38 @@ export class PrismaPaymentRepository implements PaymentRepository {
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const d = input.intent.snapshot();
     const s = strip(d);
+    const createData = {
+      id: d.id,
+      merchantId: s.merchantId,
+      sessionId: s.sessionId,
+      idempotencyKey: s.idempotencyKey,
+      amountCents: d.amountCents,
+      currency: d.currency,
+      method: d.method,
+      status: d.status,
+      providerPaymentId: d.providerPaymentId ?? null,
+      approvedAmountCents: d.approvedAmountCents ?? null,
+      acceptedOfferId: d.acceptedOfferId ?? null,
+      buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
+      statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue
+    };
+    const updateData = {
+      status: d.status,
+      providerPaymentId: d.providerPaymentId ?? null,
+      approvedAmountCents: d.approvedAmountCents ?? null,
+      acceptedOfferId: d.acceptedOfferId ?? null,
+      buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
+      statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue,
+      currency: d.currency,
+      method: d.method,
+      amountCents: d.amountCents
+    };
     await this.prisma.paymentIntent.upsert({
       where: {
         merchantId_sessionId_idempotencyKey: s
       },
-      create: {
-        id: d.id,
-        merchantId: s.merchantId,
-        sessionId: s.sessionId,
-        idempotencyKey: s.idempotencyKey,
-        amountCents: d.amountCents,
-        currency: d.currency,
-        method: d.method,
-        status: d.status,
-        providerPaymentId: d.providerPaymentId ?? null,
-        approvedAmountCents: d.approvedAmountCents ?? null,
-        acceptedOfferId: d.acceptedOfferId ?? null,
-        buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull
-      },
-      update: {
-        status: d.status,
-        providerPaymentId: d.providerPaymentId ?? null,
-        approvedAmountCents: d.approvedAmountCents ?? null,
-        acceptedOfferId: d.acceptedOfferId ?? null,
-        buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
-        currency: d.currency,
-        method: d.method,
-        amountCents: d.amountCents
-      }
+      create: createData as any,
+      update: updateData as any
     });
   }
 
