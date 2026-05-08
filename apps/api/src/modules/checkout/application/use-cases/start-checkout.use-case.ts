@@ -76,7 +76,8 @@ export class StartCheckoutUseCase {
           merchantName: merchant?.name,
           theme: merchant?.theme,
           agent,
-          couponBoxEnabled: merchantRules.couponBoxEnabled
+          couponBoxEnabled: merchantRules.couponBoxEnabled,
+          rules: merchantRules
         })
       };
     });
