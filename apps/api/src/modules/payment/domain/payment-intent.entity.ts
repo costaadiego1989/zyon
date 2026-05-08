@@ -12,6 +12,12 @@ export type PaymentIntentStatus =
   | "cancelled"
   | "refunded";
 
+export type PaymentIntentStatusHistoryEntry = {
+  status: PaymentIntentStatus;
+  occurredAt: string;
+  reason?: string;
+};
+
 export type PaymentIntentCreateInput = {
   merchantId: string;
   sessionId: string;
@@ -35,6 +41,7 @@ export type PaymentIntentSnapshot = {
   approvedAmountCents?: number;
   acceptedOfferId?: string;
   buyerFacing?: { qrCodeCopyPaste?: string; invoiceUrl?: string; encodedQrImage?: string };
+  statusHistory: PaymentIntentStatusHistoryEntry[];
 };
 
 type MutableState = Omit<PaymentIntentSnapshot, never>;
@@ -68,12 +75,18 @@ export class PaymentIntentEntity {
       currency: input.currency.trim().toUpperCase(),
       method: input.method,
       status: "pending",
-      acceptedOfferId
+      acceptedOfferId,
+      statusHistory: [{ status: "pending", occurredAt: new Date().toISOString() }]
     });
   }
 
   static rehydrate(snapshot: PaymentIntentSnapshot): PaymentIntentEntity {
-    return new PaymentIntentEntity({ ...snapshot });
+    return new PaymentIntentEntity({
+      ...snapshot,
+      statusHistory: snapshot.statusHistory ?? [
+        { status: snapshot.status, occurredAt: new Date().toISOString() }
+      ]
+    });
   }
 
   snapshot(): PaymentIntentSnapshot {
@@ -93,6 +106,7 @@ export class PaymentIntentEntity {
     const pid = params?.providerPaymentId?.trim();
     if (pid) this.s.providerPaymentId = pid;
     this.s.status = "requires_action";
+    this.pushStatus("requires_action");
   }
 
   setBuyerFacingPayload(payload: NonNullable<PaymentIntentSnapshot["buyerFacing"]>): void {
@@ -102,18 +116,20 @@ export class PaymentIntentEntity {
     this.s.buyerFacing = { ...payload };
   }
 
-  markFailed(): void {
+  markFailed(reason?: string): void {
     if (this.s.status !== "pending" && this.s.status !== "requires_action") {
       throw new Error("illegal_transition");
     }
     this.s.status = "failed";
+    this.pushStatus("failed", reason);
   }
 
-  markCancelled(): void {
+  markCancelled(reason?: string): void {
     if (this.s.status !== "pending" && this.s.status !== "requires_action") {
       throw new Error("illegal_transition");
     }
     this.s.status = "cancelled";
+    this.pushStatus("cancelled", reason);
   }
 
   markApproved(params: { providerPaymentId: string; approvedAmountCents: number }): void {
@@ -126,10 +142,19 @@ export class PaymentIntentEntity {
     this.s.providerPaymentId = params.providerPaymentId.trim();
     this.s.approvedAmountCents = params.approvedAmountCents;
     this.s.status = "approved";
+    this.pushStatus("approved");
   }
 
-  markRefunded(): void {
+  markRefunded(reason?: string): void {
     if (this.s.status !== "approved") throw new Error("illegal_transition");
     this.s.status = "refunded";
+    this.pushStatus("refunded", reason);
+  }
+
+  private pushStatus(status: PaymentIntentStatus, reason?: string): void {
+    this.s.statusHistory = [
+      ...(this.s.statusHistory ?? []),
+      { status, occurredAt: new Date().toISOString(), ...(reason ? { reason } : {}) }
+    ];
   }
 }
