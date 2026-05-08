@@ -13,6 +13,7 @@ describe("PaymentIntentEntity", () => {
       method: "pix"
     });
     assert.equal(p.status, "pending");
+    assert.deepEqual(p.snapshot().statusHistory.map((entry) => entry.status), ["pending"]);
   });
 
   it("cannot approve twice with different totals", () => {
@@ -61,6 +62,11 @@ describe("PaymentIntentEntity", () => {
     assert.equal(p.snapshot().providerPaymentId, "pay_asaas_test");
     p.markApproved({ providerPaymentId: "pay_asaas_test", approvedAmountCents: 500 });
     assert.equal(p.status, "approved");
+    assert.deepEqual(p.snapshot().statusHistory.map((entry) => entry.status), [
+      "pending",
+      "requires_action",
+      "approved"
+    ]);
   });
 
   it("allows requires_action without provider id before approve attaches id", () => {
@@ -89,6 +95,7 @@ describe("PaymentIntentEntity", () => {
     });
     p.markFailed();
     assert.equal(p.status, "failed");
+    assert.deepEqual(p.snapshot().statusHistory.map((entry) => entry.status), ["pending", "failed"]);
   });
 
   it("allows cancel from pending", () => {
