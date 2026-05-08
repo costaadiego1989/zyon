@@ -51,6 +51,8 @@ export interface CustomerHints {
   externalCustomerId?: string;
   asaasCustomerId?: string;
   email?: string;
+  email_verified?: boolean;
+  otp_code?: string;
   phone?: string;
   isReturning?: boolean;
   fullName?: string;
@@ -125,6 +127,7 @@ export interface CheckoutSession {
   cart: Cart;
   customer?: CustomerHints;
   shipping?: ShippingQuote;
+  shippingOptions?: ShippingQuote[];
   abandonmentScore: number;
   triggerAgent: boolean;
   chatHistory: ChatTurn[];
@@ -196,6 +199,7 @@ export interface CheckoutExperienceSnapshot {
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;
   shipping?: ShippingQuote;
+  shippingOptions?: ShippingQuote[];
   customer?: CustomerHints;
   agent: {
     name: string;
@@ -287,6 +291,7 @@ export interface CompletedOrder {
   orderTotal: number;
   currency: CurrencyCode;
   acceptedOfferId?: string;
+  trackingCode?: string;
   completedAt: string;
 }
 
@@ -297,6 +302,7 @@ export interface CompleteOrderRequest {
   order_total: number;
   currency: CurrencyCode;
   accepted_offer_id?: string;
+  tracking_code?: string;
 }
 
 export interface CompleteOrderResponse {
@@ -310,7 +316,9 @@ export type CheckoutDomainEventType =
   | "checkout.event.tracked"
   | "checkout.abandonment.scored"
   | "checkout.abandoned"
-  | "order.completed";
+  | "order.completed"
+  | "whatsapp.message.requested"
+  | "payment.status.changed";
 
 export interface DomainEventEnvelope<TPayload = Record<string, unknown>> {
   event_id: string;
