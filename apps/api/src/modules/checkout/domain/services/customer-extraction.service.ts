@@ -130,12 +130,13 @@ export function extractOtp(text: string): string | undefined {
 export function deriveChatStage(session: CheckoutSession, completed = false): ChatStage {
   if (completed) return "completed";
   const c = session.customer ?? {};
-  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !c.phone) return "data_collection";
+  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !c.phone || !c.phone_verified) return "data_collection";
   const addr = c.address ?? {};
   if (
     !addr.zip ||
     !addr.street ||
     !(addr.city && addr.state) ||
+    !c.address_verified ||
     !addr.number ||
     addr.complement === undefined ||
     !session.shipping
@@ -151,7 +152,8 @@ const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => bool
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
-  { label: "telefone", has: (s) => Boolean(s.customer?.phone) }
+  { label: "telefone", has: (s) => Boolean(s.customer?.phone && (s.customer?.phone_otp_code || s.customer?.phone_verified)) },
+  { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) }
 ];
 
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
@@ -162,6 +164,7 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
     const addr = session.customer?.address ?? {};
     if (!addr.zip) return ["CEP"];
     if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];
+    if (!session.customer?.address_verified) return ["confirmar endereço"];
     if (!addr.number) return ["número"];
     if (addr.complement === undefined) return ["complemento (ou responda que não tem)"];
     if (typeof session.shipping?.customerPrice !== "number") return ["frete"];
