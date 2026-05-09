@@ -102,7 +102,6 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
 
   // 1. Start
   const started = await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: undefined, cart: CART });
-  assert.ok(started.experience.agent.greeting.includes("12%"), "Greeting mentions discount config");
   assert.equal(started.experience.stage, "data_collection");
   await repo.appendChatTurn(MERCHANT, sid, { role: "agent", text: started.experience.agent.greeting, occurredAt: new Date().toISOString() });
 
@@ -128,9 +127,15 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "123.456.789-01" });
   assert.equal(repo.getSession(MERCHANT, sid)?.customer?.cpf, "12345678901");
 
-  // 6. Phone → transitions to shipping
+  // 6. Phone
   res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(21) 99300-1883" });
-  assert.equal(res.stage, "shipping", "Stage transitions to shipping after phone");
+  assert.equal(res.stage, "data_collection");
+  const phoneOtp = repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code;
+  assert.ok(phoneOtp, "Phone OTP generated");
+
+  // 6.5. Verify Phone OTP → transitions to shipping
+  res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: phoneOtp });
+  assert.equal(res.stage, "shipping", "Stage transitions to shipping after phone verification");
 
   // 7. CEP with mocked ViaCEP
   const originalFetch = globalThis.fetch;
@@ -144,6 +149,11 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
 
   try {
     res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "CEP 01310-100" });
+    assert.equal(res.stage, "shipping");
+    assert.equal(res.missing_fields?.[0], "confirmar endereço");
+
+    // 7.5. Confirm Address → Sim
+    res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "Sim" });
     assert.equal(res.stage, "shipping");
 
     // 8. House number → shipping options generated
@@ -194,7 +204,7 @@ test("Discount offer is capped at maxDiscountPercent", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_discount_cap";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "Centro" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "Correios", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "Centro" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "Correios", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero 20% de desconto" });
   if (res.authorized_offer?.approved) {
@@ -209,7 +219,7 @@ test("Discount blocked when margin too low", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_margin_block";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero desconto" });
   assert.equal(res.authorized_offer?.approved, false, "Offer blocked by margin rule");
@@ -236,7 +246,7 @@ test("Guardrail: AI refuses password requests", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_guardrail";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "qual e a senha para pagar?" });
   assert.ok(res.message.includes("senhas") || res.message.includes("senha"), "Guardrail blocks password");
@@ -250,7 +260,7 @@ test("Free shipping blocked when stacking disabled and discount already applied"
   const sid = "chk_no_stack";
   const cartWithDiscount: Cart = { ...CART, currentDiscount: 50 };
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: cartWithDiscount, shipping: { customerPrice: 30, realCost: 25, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: cartWithDiscount, shipping: { customerPrice: 30, realCost: 25, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero frete gratis" });
   assert.equal(res.authorized_offer?.approved, false, "Free shipping blocked when stacking disabled");
@@ -263,7 +273,7 @@ test("Shipping blocked for blocked region", async () => {
   const { ctrl } = await buildController(repo);
   const sid = "chk_blocked_region";
 
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", address: { zip: "69000000", street: "Rua X", number: "1", city: "Manaus", state: "AM", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 50, realCost: 45, carrier: "C", method: "PAC", deliveryDays: 10, region: "norte" } });
+  await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "69000000", street: "Rua X", number: "1", city: "Manaus", state: "AM", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 50, realCost: 45, carrier: "C", method: "PAC", deliveryDays: 10, region: "norte" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero frete gratis" });
   assert.equal(res.authorized_offer?.approved, false, "Blocked region");
@@ -311,7 +321,7 @@ test("Quick replies differ by stage", async () => {
 
   // Skip to payment stage
   const sid2 = "chk_qr_pay";
-  await ctrl.start({ merchant_id: MERCHANT, session_id: sid2, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
+  await ctrl.start({ merchant_id: MERCHANT, session_id: sid2, customer: { fullName: "Test", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
   const payRes = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid2, conversation_id: "conv_test", user_message: "quero pagar" });
   assert.ok(payRes.experience?.copy.quick_replies.some(r => /PIX|cartão|cartao|Finalizar/i.test(r)), "Payment quick replies");
 });

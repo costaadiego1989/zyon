@@ -417,6 +417,155 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
   assert.equal(qr.includes("Tenho um cupom"), false, "Filtrou a menção de cupom porque maxDiscount=0 e couponBoxEnabled=false");
 });
 
+test("SendChatMessageUseCase blocks duplicate email registration and returns chat error turn", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  // Setup session 1 with registered email
+  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  const session1 = await repository.getSession("mrc_1", "chk_1");
+  if (session1) {
+    session1.customer = { email: "duplicado@aacp.io", fullName: "Comprador Um" };
+    await repository.saveSession(session1);
+  }
+
+  // Setup session 2
+  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
+  const session2 = await repository.getSession("mrc_1", "chk_2");
+  if (session2) {
+    session2.customer = { fullName: "Comprador Dois" };
+    await repository.saveSession(session2);
+  }
+
+  // Try to register session 2 with duplicate email
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_2",
+    conversation_id: "conv_2",
+    user_message: "Meu email é duplicado@aacp.io"
+  });
+
+  assert.equal(res.message.includes("Não é possível cadastrar com este e-mail"), true, "Retornou mensagem amigável de e-mail duplicado");
+  const session2After = await repository.getSession("mrc_1", "chk_2");
+  assert.notEqual(session2After?.customer?.email, "duplicado@aacp.io", "Não salvou o e-mail duplicado");
+});
+
+test("SendChatMessageUseCase blocks mismatched email OTP validation and returns chat error turn", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_otp" }));
+  const session = await repository.getSession("mrc_1", "chk_otp");
+  if (session) {
+    session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "123456", email_verified: false };
+    await repository.saveSession(session);
+  }
+
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_otp",
+    conversation_id: "conv_otp",
+    user_message: "654321" // Incorrect OTP
+  });
+
+  assert.equal(res.message.includes("Código de verificação inválido"), true, "Retornou mensagem de erro de OTP");
+  const sessionAfter = await repository.getSession("mrc_1", "chk_otp");
+  assert.equal(sessionAfter?.customer?.email_verified, false, "E-mail permaneceu como não verificado");
+});
+
+test("SendChatMessageUseCase handles phone input, SMS OTP generation, and validation", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_phone" }));
+  const session = await repository.getSession("mrc_1", "chk_phone");
+  if (session) {
+    session.customer = {
+      fullName: "Thiago Silva",
+      email: "thiago@aacp.io",
+      email_verified: true,
+      cpf: "11122233344"
+    };
+    await repository.saveSession(session);
+  }
+
+  // 1. Enter phone number
+  const res1 = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_phone",
+    conversation_id: "conv_phone",
+    user_message: "21988887777"
+  });
+
+  const sessionAfterPhone = await repository.getSession("mrc_1", "chk_phone");
+  assert.equal(sessionAfterPhone?.customer?.phone, "21988887777");
+  assert.ok(sessionAfterPhone?.customer?.phone_otp_code, "Gerou phone_otp_code");
+  assert.equal(sessionAfterPhone?.customer?.phone_verified ?? false, false);
+
+  const otp = sessionAfterPhone?.customer?.phone_otp_code!;
+
+  // 2. Validate with incorrect SMS OTP
+  const res2 = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_phone",
+    conversation_id: "conv_phone",
+    user_message: "000000" // Wrong code
+  });
+  assert.equal(res2.message.includes("Código de verificação do celular inválido"), true, "Retornou erro para SMS OTP errado");
+  
+  // 3. Validate with correct SMS OTP
+  await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_phone",
+    conversation_id: "conv_phone",
+    user_message: otp
+  });
+  const sessionVerified = await repository.getSession("mrc_1", "chk_phone");
+  assert.equal(sessionVerified?.customer?.phone_verified, true, "Celular foi verificado com sucesso");
+});
+
+test("SendChatMessageUseCase handles address rejection 'Não', clearing fields and asking for CEP again", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_addr" }));
+  const session = await repository.getSession("mrc_1", "chk_addr");
+  if (session) {
+    session.customer = {
+      fullName: "Ana Cruz",
+      email: "ana@aacp.io",
+      email_verified: true,
+      cpf: "22233344455",
+      phone: "21977776666",
+      phone_verified: true,
+      address: {
+        zip: "25958180",
+        street: "Rua Paulo Lóssio",
+        city: "Teresópolis",
+        state: "RJ"
+      }
+    };
+    await repository.saveSession(session);
+  }
+
+  // Address needs confirmation (address_verified is falsy)
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_addr",
+    conversation_id: "conv_addr",
+    user_message: "Não"
+  });
+
+  const sessionAfter = await repository.getSession("mrc_1", "chk_addr");
+  assert.equal(sessionAfter?.customer?.address?.zip, undefined, "Limpou o CEP após rejeição");
+  assert.equal(sessionAfter?.customer?.address?.street, undefined, "Limpou o logradouro");
+  assert.equal(sessionAfter?.customer?.address_verified, false, "Setou address_verified para false");
+});
+
 function testAgentContext(): AgentContext {
   return {
     merchant_id: "mrc_1",
