@@ -9,6 +9,7 @@ import { CartPanel } from "./CartPanel.js";
 import { UserPanel } from "../checkout/UserPanel.js";
 import { SupportFAB } from "./SupportFAB.js";
 import { SupportPanel } from "./SupportPanel.js";
+import { CartFAB } from "./CartFAB.js";
 import { FloatingCheckout } from "./FloatingCheckout.js";
 
 export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
@@ -31,8 +32,6 @@ export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
 
         <CartPanel vm={vm} />
         <UserPanel vm={vm} />
-        <SupportPanel vm={vm} />
-        <SupportFAB vm={vm} />
 
         <div
           className={cn("aacp-cart-overlay", vm.cartOpen ? "open" : "")}
@@ -40,6 +39,10 @@ export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
           aria-label="Fechar resumo do pedido"
         />
       </div>
+
+      <SupportFAB vm={vm} />
+      <SupportPanel vm={vm} />
+      <CartFAB vm={vm} />
       <GlobalAuthModal auth={vm.auth} hub={vm.hub} />
     </section>
   );

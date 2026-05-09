@@ -1,9 +1,10 @@
-import { Check, CheckCircle2, Package, ShoppingBag, Store, Trash2, X, ShieldCheck, LockKeyhole, BadgeCheck, RefreshCw, Tag } from "lucide-react";
+import { Package, ShoppingBag, Store, Trash2, X, ShieldCheck, LockKeyhole } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { cn, formatCurrency, stageLabel } from "../../hooks/checkout-view-model.js";
 
 export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   const experience = vm.activeExperience;
+  const trustBadges = experience.copy.trust_badges ?? [];
 
   return (
     <aside
@@ -50,7 +51,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
         <div>
           <span>Frete</span>
-          <strong>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</strong>
+          <strong>{vm.visibleTotals.shipping > 0 ? formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency) : "Aguardando"}</strong>
         </div>
         <div>
           <span>Proteção</span>
@@ -58,15 +59,25 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       </div>
 
-      <div className="aacp-guardrails-cart" role="group" aria-label="Garantias e segurança da sessão">
-        <span className="aacp-badge"><ShieldCheck size={12} />Margem protegida</span>
-        <span className="aacp-badge"><ShieldCheck size={12} />Sem dados sensíveis</span>
-      </div>
+      {/* Dynamic trust badges from merchant config */}
+      {trustBadges.length > 0 && (
+        <div className="aacp-trust-row" role="group" aria-label="Garantias e segurança">
+          {trustBadges.map((badge, i) => (
+            <span key={i} className="aacp-trust-pill">
+              <ShieldCheck size={12} />
+              {badge}
+            </span>
+          ))}
+        </div>
+      )}
 
-      <div className="aacp-trust-row">
-        <span className="aacp-trust-pill"><ShieldCheck size={12} />Compra segura</span>
-        <span className="aacp-trust-pill"><LockKeyhole size={12} />SSL 256-bit</span>
-      </div>
+      {/* Fallback security badges */}
+      {trustBadges.length === 0 && (
+        <div className="aacp-trust-row" role="group" aria-label="Garantias e segurança">
+          <span className="aacp-trust-pill"><ShieldCheck size={12} />Compra segura</span>
+          <span className="aacp-trust-pill"><LockKeyhole size={12} />SSL 256-bit</span>
+        </div>
+      )}
 
       <div>
         <div className="aacp-section-title">Seu pedido agora · {vm.visibleItems.length}</div>
@@ -83,10 +94,16 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                 </div>
                 <div className="aacp-item-info">
                   <div className="aacp-item-name">{item.name}</div>
-                  <div className="aacp-item-meta">{item.variant ? `${item.variant} · ` : ""}Qtd × {item.quantity}</div>
+                  <div className="aacp-item-meta">{item.variant ? `${item.variant} · ` : ""}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px 4px', width: 'fit-content' }}>
+                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }}>-</button>
+                      <span>{item.quantity}</span>
+                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }}>+</button>
+                    </div>
+                  </div>
                   <button
                     type="button"
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase mt-1 text-red-400 hover:text-red-300 transition-colors"
+                    className="flex items-center gap-1 text-[10px] font-bold uppercase mt-2 text-red-400 hover:text-red-300 transition-colors"
                     onClick={() => vm.handleRemoveCartItem(item.sku)}
                     disabled={vm.busy}
                   >
@@ -124,33 +141,13 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         )}
         {vm.visibleTotals.discount > 0 && (
           <>
-            <dt className="text-green-500 font-bold">Desconto</dt>
-            <dd className="text-green-500 font-bold">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
+            <dt style={{ color: "var(--aacp-success)", fontWeight: 700 }}>Desconto</dt>
+            <dd style={{ color: "var(--aacp-success)", fontWeight: 700 }}>-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
           </>
         )}
         <dt className="total-row">Total</dt>
         <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
       </dl>
-
-      {vm.showCouponBox && (
-        <form
-          className="aacp-coupon"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void vm.submitCoupon();
-          }}
-        >
-          <Tag size={16} />
-          <input
-            type="text"
-            value={vm.coupon}
-            onChange={(e) => vm.setCoupon(e.target.value)}
-            placeholder="Código do cupom"
-            aria-label="Cupom"
-          />
-          <button type="submit" disabled={!vm.coupon.trim() || vm.busy} style={{ background: 'var(--aacp-grad-primary)', color: '#fff', border: 'none', borderRadius: '999px', padding: '6px 14px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>Aplicar</button>
-        </form>
-      )}
     </aside>
   );
 }
