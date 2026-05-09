@@ -24,7 +24,6 @@ export function SupportFAB({ vm }: { vm: CheckoutAgentViewModel }) {
         onClick={() => vm.setSupportOpen(true)}
         aria-label="Suporte AI"
       >
-        <div className="aacp-fab-pulse" />
         <MessageSquare size={24} />
       </button>
     </div>
