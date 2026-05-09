@@ -138,6 +138,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const [streamingTurnKey, setStreamingTurnKey] = useState<string | null>(null);
   const [streamingDoneKey, setStreamingDoneKey] = useState<string | null>(null);
   const [coupon, setCoupon] = useState("");
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [userTab, setUserTab] = useState<"profile" | "agent" | "orders" | "settings">("profile");
   const [showCardForm, setShowCardForm] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -202,13 +205,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       );
     }
 
-    if (activeExperience.stage === "data_collection" && (!lastChat || turns.length <= 2)) {
-      list.push(
-        { label: "Olá!" },
-        { label: "Quero começar" },
-        { label: "Quero finalizar agora" }
-      );
-    }
+    // Respostas dinâmicas baseadas no estágio e contexto
 
     if (activeExperience.copy.quick_replies.length > 0) {
       list.push(
@@ -408,7 +405,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       setOpen(true);
       if (!isConversational) {
         appendAgentTurn(
-          "Vi que talvez exista alguma dúvida no checkout. Posso tentar uma condição melhor para você finalizar agora?",
+          "Vi que talvez exista alguma duvida no checkout. Posso tentar uma condicao melhor para voce finalizar agora?",
           { stream: true }
         );
       }
@@ -424,10 +421,6 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     if (reply.event) void track(reply.event);
     if (reply.type === "apply_offer") {
       await applyOfferById(reply.offerId);
-      return;
-    }
-    if (reply.label === "Pagar com Cartão") {
-      setShowCardForm(true);
       return;
     }
     await sendMessageWithOverride(reply.label);
@@ -586,63 +579,6 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     setVisibleCart((current) => removeVisibleCartItem(current, sku));
   }
 
-  async function createPaymentIntent(
-    method: "pix" | "card",
-    cardData?: { holderName: string; number: string; expiryMonth: string; expiryYear: string; ccv: string }
-  ) {
-    if (!session) return;
-    setBusy(true);
-    setCardError(null);
-    try {
-      const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
-      const offerNow = lastChat?.authorized_offer;
-      
-      const body: Record<string, any> = {
-        session_id: session.session_id,
-        idempotency_key: crypto.randomUUID(),
-        method,
-        ...(offerNow?.approved && offerNow.id ? { accepted_offer_id: offerNow.id } : {})
-      };
-
-      if (method === "card" && cardData) {
-        body.credit_card = cardData;
-      }
-      if (config.mode !== "embed") {
-        body.merchant_id = config.merchantId;
-      }
-
-      const pathUrl = paths.paymentIntents;
-      const snap = await checkoutJson<any>(apiOrigin, pathUrl, { ...embedOpts, body });
-
-      if (method === "pix") {
-        const total = typeof snap.amountCents === "number" ? `${(snap.amountCents / 100).toFixed(2)} ${snap.currency ?? ""}`.trim() : "";
-        const bf = snap.buyerFacing;
-        const pixLine = bf?.qrCodeCopyPaste != null && bf.qrCodeCopyPaste.length > 0
-          ? ` Copia e cola PIX: ${bf.qrCodeCopyPaste}`
-          : "";
-        appendAgentTurn(`Cobrança gerada (${total}).${pixLine}`, { stream: true });
-      } else {
-        appendAgentTurn("Pagamento com cartão de crédito autorizado e processado com sucesso!", { stream: true });
-        syncExperience({
-          ...activeExperience,
-          stage: "completed"
-        });
-        setShowCardForm(false);
-      }
-    } catch {
-      if (method === "card") {
-        setCardError("Não foi possível autorizar a transação. Verifique os dados do cartão, validade e limite.");
-      } else {
-        appendAgentTurn(
-          "Não foi possível gerar a cobrança. Verifique os dados na API.",
-          { stream: true }
-        );
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function createEmbedPaymentIntentDemo() {
     if (!session || config.mode !== "embed") return;
     setBusy(true);
@@ -744,13 +680,18 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     submitCoupon,
     handleRemoveCartItem,
     createEmbedPaymentIntentDemo,
-    createPaymentIntent,
+    colorMode,
+    toggleColorMode: () => setColorMode((m) => m === "light" ? "dark" : "light"),
+    supportOpen,
+    setSupportOpen,
+    userPanelOpen,
+    setUserPanelOpen,
+    userTab,
+    setUserTab,
     showCardForm,
     setShowCardForm,
     cardError,
-    setCardError,
-    colorMode,
-    toggleColorMode: () => setColorMode((m) => m === "light" ? "dark" : "light")
+    setCardError
   };
 }
 
