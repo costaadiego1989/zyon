@@ -1,4 +1,4 @@
-import { CheckCircle2, Gift } from "lucide-react";
+import { CheckCircle2, Gift, Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { ChatTurn } from "@aacp/shared-types";
 import { useStreamedText } from "../../hooks/use-streamed-text.js";
@@ -25,6 +25,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
             key={key}
             turn={turn}
             agentName={vm.activeExperience.agent.name}
+            agentAvatarUrl={vm.theme.agentAvatarUrl}
             bubbleKey={key}
             streamingKey={vm.streamingTurnKey}
             onAgentTypingDone={vm.handleAgentTypingDone}
@@ -79,12 +80,14 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 export function ChatBubble({
   turn,
   agentName,
+  agentAvatarUrl,
   bubbleKey: key,
   streamingKey,
   onAgentTypingDone
 }: {
   turn: ChatTurn;
   agentName: string;
+  agentAvatarUrl?: string;
   bubbleKey: string;
   streamingKey: string | null;
   onAgentTypingDone?: (key: string) => void;
@@ -105,24 +108,31 @@ export function ChatBubble({
   }, [displayed]);
 
   return (
-    <div
-      ref={bubbleRef}
-      className={cn(
-        "relative max-w-[85%] p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm",
-        turn.role === "agent"
-          ? "bg-[#1c1830] text-[#f4f1ff] border border-white/5 rounded-bl-none self-start"
-          : "bg-gradient-to-br from-[#7c3aed] via-[#a855f7] to-[#ec4899] text-white rounded-br-none self-end shadow-[0_8px_20px_rgba(168,85,247,0.3)]"
-      )}
-    >
+    <div className={cn("flex items-end gap-3 max-w-[85%]", turn.role === "agent" ? "self-start" : "self-end flex-row-reverse")}>
       {turn.role === "agent" ? (
-        <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400/60 mb-2">{given}</div>
+        <div className="w-8 h-8 rounded-lg bg-[#1c1830] flex items-center justify-center text-white shrink-0 shadow-lg overflow-hidden border border-white/10 mb-1" aria-hidden="true">
+          {agentAvatarUrl ? <img src={agentAvatarUrl} alt="" className="w-full h-full object-cover" /> : <Sparkles size={16} className="text-purple-400" />}
+        </div>
       ) : null}
-      <span className="whitespace-pre-wrap">
-        {displayed}
-        {showCaret ? (
-          <span className="inline-block w-1.5 h-4 bg-purple-400 ml-1 animate-pulse align-middle" aria-hidden="true" />
+      <div
+        ref={bubbleRef}
+        className={cn(
+          "relative p-4 rounded-2xl text-[14px] leading-relaxed shadow-sm",
+          turn.role === "agent"
+            ? "bg-[#1c1830] text-[#f4f1ff] border border-white/5 rounded-bl-none"
+            : "bg-gradient-to-br from-[#7c3aed] via-[#a855f7] to-[#ec4899] text-white rounded-br-none shadow-[0_8px_20px_rgba(168,85,247,0.3)]"
+        )}
+      >
+        {turn.role === "agent" ? (
+          <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400/60 mb-2">{given}</div>
         ) : null}
-      </span>
+        <span className="whitespace-pre-wrap">
+          {displayed}
+          {showCaret ? (
+            <span className="inline-block w-1.5 h-4 bg-purple-400 ml-1 animate-pulse align-middle" aria-hidden="true" />
+          ) : null}
+        </span>
+      </div>
     </div>
   );
 }
