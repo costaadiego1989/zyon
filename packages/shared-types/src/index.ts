@@ -54,6 +54,9 @@ export interface CustomerHints {
   email_verified?: boolean;
   otp_code?: string;
   phone?: string;
+  phone_verified?: boolean;
+  phone_otp_code?: string;
+  address_verified?: boolean;
   isReturning?: boolean;
   fullName?: string;
   cpf?: string;
