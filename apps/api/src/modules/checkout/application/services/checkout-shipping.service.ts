@@ -10,10 +10,35 @@ export class CheckoutShippingService {
   constructor(
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
     private readonly customerService: CheckoutCustomerService
-  ) {}
+  ) { }
 
   async processShippingState(session: CheckoutSession, userMessage: string): Promise<CheckoutSession> {
-    let working = await this.tryFillPostalAndShipping(session);
+    let working = session;
+
+    if (working.customer?.address?.street && !working.customer?.address_verified) {
+      const normalizedMsg = userMessage.trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "");
+      const isYes = /^(sim|s|correto|esta\s+correto|está\s+correto|confirmado|confirma)$/i.test(normalizedMsg);
+      const isNo = /^(nao|não|n|errado|esta\s+errado|está\s+errado|rejeitado|rejeito)$/i.test(normalizedMsg);
+      if (isYes) {
+        working = await this.repository.saveSession(this.customerService.mergeCustomers(working, { address_verified: true }));
+      } else if (isNo) {
+        working = await this.repository.saveSession(this.customerService.mergeCustomers(working, {
+          address: {
+            zip: undefined,
+            street: undefined,
+            number: undefined,
+            complement: undefined,
+            neighborhood: undefined,
+            city: undefined,
+            state: undefined
+          },
+          address_verified: false
+        }));
+        return working;
+      }
+    }
+
+    working = await this.tryFillPostalAndShipping(working);
 
     const numberPatch = this.tryParseAddressNumbers(userMessage, working);
     if (numberPatch) {

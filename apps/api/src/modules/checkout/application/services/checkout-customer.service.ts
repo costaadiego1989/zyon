@@ -12,6 +12,20 @@ import {
   extractPhone
 } from "../../domain/services/customer-extraction.service.js";
 
+export class EmailConflictError extends Error {
+  constructor() {
+    super("Email already exists in another session");
+    this.name = "EmailConflictError";
+  }
+}
+
+export class OtpValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OtpValidationError";
+  }
+}
+
 @Injectable()
 export class CheckoutCustomerService {
   constructor(
@@ -27,6 +41,15 @@ export class CheckoutCustomerService {
   ): Promise<CheckoutSession> {
     const patch = this.buildCustomerPatch(userMessage, session.customer, lastAgentTurn);
     if (!patch) return session;
+
+    // 1. Email uniqueness check
+    if (patch.email) {
+      const existingSessions = await this.repository.findSessionsByEmail(session.merchantId, patch.email);
+      const isDuplicate = existingSessions.some((s) => s.sessionId !== session.sessionId);
+      if (isDuplicate) {
+        throw new EmailConflictError();
+      }
+    }
 
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
     const working = await this.repository.saveSession(this.mergeCustomers(session, patch));
@@ -69,6 +92,7 @@ export class CheckoutCustomerService {
     const patch: Partial<CustomerHints> = {};
     const addr = existing?.address ?? {};
 
+    // --- E-mail & OTP flow ---
     let currentEmail = existing?.email;
     const otpPending = Boolean(existing?.otp_code);
     if (!currentEmail || (!otpPending && !existing?.email_verified)) {
@@ -89,28 +113,59 @@ export class CheckoutCustomerService {
         if (extracted === existing.otp_code) {
           patch.email_verified = true;
           patch.otp_code = "";
+        } else {
+          throw new OtpValidationError("Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente.");
         }
       }
     }
 
+    // --- CPF flow ---
     if (!existing?.cpf) {
       const cpf = extractCpf(userMessage);
       if (cpf) patch.cpf = cpf;
     }
-    if (!existing?.phone) {
+
+    // --- Phone & SMS OTP flow ---
+    let currentPhone = existing?.phone;
+    const phoneOtpPending = Boolean(existing?.phone_otp_code);
+    if (!currentPhone || (!phoneOtpPending && !existing?.phone_verified)) {
       const phone = extractPhone(userMessage);
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
-      if (phone && phone !== cpfInThisTurn) patch.phone = phone;
+      if (phone && phone !== cpfInThisTurn) {
+        patch.phone = phone;
+        currentPhone = phone;
+      }
     }
+
+    if (currentPhone && !existing?.phone_verified) {
+      if (!existing?.phone_otp_code && !patch.phone_otp_code && patch.phone) {
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        patch.phone_otp_code = code;
+        console.log(`\n=========================================\n🔐 SMS OTP GERADO PARA ${currentPhone}: ${code}\n=========================================\n`);
+      } else if (existing?.phone_otp_code) {
+        const extracted = extractOtp(userMessage);
+        if (extracted === existing.phone_otp_code) {
+          patch.phone_verified = true;
+          patch.phone_otp_code = "";
+        } else {
+          throw new OtpValidationError("Código de verificação do celular inválido. Por favor, confira o código enviado por SMS e tente novamente.");
+        }
+      }
+    }
+
+    // --- Address zip flow ---
     if (!existing?.address?.zip) {
       const zip = extractCep(userMessage);
       if (zip) patch.address = { ...addr, zip };
     }
+
+    // --- Name flow ---
     if (!existing?.fullName) {
       let name = extractName(userMessage, lastAgentTurn);
       if (!name) name = extractStandaloneName(userMessage);
       if (name) patch.fullName = name;
     }
+
     return Object.keys(patch).length === 0 ? null : patch;
   }
 

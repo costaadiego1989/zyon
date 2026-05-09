@@ -48,12 +48,52 @@ export class SendChatMessageUseCase {
     const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
     let working = structuredCloneDeep(session);
 
-    working = await this.customerService.processCustomerInput(
-      working,
-      input.user_message,
-      lastAgentTurn,
-      merchant?.name
-    );
+    try {
+      working = await this.customerService.processCustomerInput(
+        working,
+        input.user_message,
+        lastAgentTurn,
+        merchant?.name
+      );
+    } catch (error: any) {
+      if (error.name === "EmailConflictError" || error.name === "OtpValidationError") {
+        const errorMsg = error.name === "EmailConflictError"
+          ? "Não é possível cadastrar com este e-mail. Este e-mail já está associado a outro cadastro em nossa loja. Por favor, informe um e-mail diferente."
+          : error.message;
+
+        const now = new Date().toISOString();
+        await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+          role: "buyer",
+          text: input.user_message,
+          occurredAt: now
+        });
+        const updated = await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+          role: "agent",
+          text: errorMsg,
+          occurredAt: new Date().toISOString()
+        });
+
+        const currentStage = deriveChatStage(updated);
+        const missingFields = missingFieldsForStage(updated, currentStage);
+        const experience = buildExperienceFromSession(updated, {
+          merchantName: merchant?.name,
+          theme: merchant?.theme,
+          couponBoxEnabled: rules.couponBoxEnabled,
+          rules
+        });
+
+        return {
+          message: errorMsg,
+          objection: "unknown",
+          actions: [],
+          turns: updated.chatHistory,
+          experience,
+          stage: currentStage,
+          missing_fields: missingFields
+        };
+      }
+      throw error;
+    }
 
     working = await this.shippingService.processShippingState(working, input.user_message);
 

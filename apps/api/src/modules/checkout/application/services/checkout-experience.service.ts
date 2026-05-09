@@ -33,6 +33,9 @@ export interface ExperienceDeps {
 
 export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
   const next = missingFields[0];
+  if (next === "confirmar endereço") {
+    return ["Sim", "Não"];
+  }
   let customReplies: string[] | undefined;
 
   if (stage === "data_collection") {
