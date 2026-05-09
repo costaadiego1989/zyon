@@ -14,7 +14,7 @@ export function CheckoutStepper({ vm }: { vm: CheckoutAgentViewModel }) {
   const isDark = vm.colorMode === "dark";
 
   return (
-    <section className={cn("flex border-b h-[60px]", isDark ? "border-white/5 bg-white/[0.02]" : "border-slate-200 bg-white")} aria-label="Fluxo do checkout">
+    <section className={cn("flex h-[60px] border-b", isDark ? "border-white/5" : "border-slate-100")} aria-label="Fluxo do checkout">
       <div
         className="flex-1 flex items-stretch h-full overflow-hidden aacp-flow-rail"
         role="progressbar"
@@ -34,7 +34,7 @@ export function CheckoutStepper({ vm }: { vm: CheckoutAgentViewModel }) {
                   ? isDark ? "text-purple-400 font-bold bg-purple-500/5" : "text-purple-600 font-bold bg-purple-50"
                   : status === "done"
                     ? isDark ? "text-emerald-400/80" : "text-emerald-600"
-                    : isDark ? "text-white/20" : "text-slate-300"
+                    : isDark ? "text-white/20" : "text-slate-400"
               )}>
                 <div className={cn(
                   "w-6 h-6 rounded-lg flex items-center justify-center shadow-inner",
@@ -44,7 +44,7 @@ export function CheckoutStepper({ vm }: { vm: CheckoutAgentViewModel }) {
                       ? isDark ? "bg-emerald-500/10" : "bg-emerald-100"
                       : isDark ? "bg-white/5" : "bg-slate-50"
                 )} aria-hidden="true">
-                  {status === "done" ? <CheckCircle2 size={14} /> : <Icon size={14} />}
+                  {status === "done" ? <CheckCircle2 size={14} /> : <Icon size={14} className={status === "active" ? (isDark ? "text-white" : "text-purple-900") : ""} />}
                 </div>
                 <div className="text-[10px] uppercase tracking-widest">{step.shortLabel}</div>
                 {status === "active" ? (
