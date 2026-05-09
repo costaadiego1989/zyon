@@ -37,13 +37,14 @@ export function CheckoutStepper({ vm }: { vm: CheckoutAgentViewModel }) {
                     : isDark ? "text-white/20" : "text-slate-400"
               )}>
                 <div className={cn(
-                  "w-6 h-6 rounded-lg flex items-center justify-center shadow-inner",
+                  "w-6 h-6 rounded-lg flex items-center justify-center shadow-inner relative",
                   status === "active"
                     ? isDark ? "bg-purple-500/10" : "bg-purple-100"
                     : status === "done"
                       ? isDark ? "bg-emerald-500/10" : "bg-emerald-100"
                       : isDark ? "bg-white/5" : "bg-slate-50"
                 )} aria-hidden="true">
+                  {status === "active" && <div className="aacp-stepper-pulse" />}
                   {status === "done" ? <CheckCircle2 size={14} /> : <Icon size={14} className={status === "active" ? (isDark ? "text-white" : "text-purple-900") : ""} />}
                 </div>
                 <div className="text-[10px] uppercase tracking-widest">{step.shortLabel}</div>
