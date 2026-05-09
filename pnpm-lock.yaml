@@ -139,6 +139,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      react-qr-code:
+        specifier: ^2.0.21
+        version: 2.0.21(react@18.3.1)
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -2613,6 +2616,9 @@ packages:
       typescript:
         optional: true
 
+  prop-types@15.8.1:
+    resolution: {integrity: sha512-oj87CgZICdulUohogVAR7AjlC0327U4el4L6eAvOqCeudMDVU0NThNaV+b9Df4dXgSP1gXMTnPdhfe/2qDH5cg==}
+
   proper-lockfile@4.1.2:
     resolution: {integrity: sha512-TjNPblN4BwAWMXU8s9AEz4JmQxnD1NNL7bNOY/AKUzyamc379FWASUhc/K1pL2noVb+XmZKLL68cjzLsiOAMaA==}
 
@@ -2626,6 +2632,9 @@ packages:
 
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
+
+  qr.js@0.0.0:
+    resolution: {integrity: sha512-c4iYnWb+k2E+vYpRimHqSu575b1/wKl4XFeJGpFmrJQz5I88v9aY2czh7s0w36srfCM1sXgC/xpoJz5dJfq+OQ==}
 
   qs@6.14.2:
     resolution: {integrity: sha512-V/yCWTTF7VJ9hIh18Ugr2zhJMP01MY7c5kh4J870L7imm6/DIzBsNLTXzMwUA3yZ5b/KBqLx8Kp3uRvd7xSe3Q==}
@@ -2650,8 +2659,16 @@ packages:
     peerDependencies:
       react: ^18.3.1
 
+  react-is@16.13.1:
+    resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
+
   react-is@17.0.2:
     resolution: {integrity: sha512-w2GsyukL62IJnlaff/nRegPQR94C/XXamvMWmSHRJ4y7Ts/4ocGRmTHvOs8PSE6pB3dWOrD/nueuU5sduBsQ4w==}
+
+  react-qr-code@2.0.21:
+    resolution: {integrity: sha512-xaywjo0eaF4S3LOz6ns5eoPbM2E+q9HYl4VATYpxK4bBniOhQ9noY2RJ9G4SnZFhUwzx63FUT6KdHzfKgUwyuQ==}
+    peerDependencies:
+      react: '*'
 
   react-refresh@0.17.0:
     resolution: {integrity: sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==}
@@ -5596,6 +5613,12 @@ snapshots:
       - react
       - react-dom
 
+  prop-types@15.8.1:
+    dependencies:
+      loose-envify: 1.4.0
+      object-assign: 4.1.1
+      react-is: 16.13.1
+
   proper-lockfile@4.1.2:
     dependencies:
       graceful-fs: 4.2.11
@@ -5610,6 +5633,8 @@ snapshots:
   punycode@2.3.1: {}
 
   pure-rand@6.1.0: {}
+
+  qr.js@0.0.0: {}
 
   qs@6.14.2:
     dependencies:
@@ -5637,7 +5662,15 @@ snapshots:
       react: 18.3.1
       scheduler: 0.23.2
 
+  react-is@16.13.1: {}
+
   react-is@17.0.2: {}
+
+  react-qr-code@2.0.21(react@18.3.1):
+    dependencies:
+      prop-types: 15.8.1
+      qr.js: 0.0.0
+      react: 18.3.1
 
   react-refresh@0.17.0: {}
 

@@ -173,16 +173,22 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
       `REGRA: peça apenas o PRÓXIMO campo da lista (\"${nextField}\") em uma única frase.`,
       "Se o comprador levantar uma objeção, responda em uma frase e retome a coleta na frase seguinte.",
       "Nunca peça vários campos na mesma mensagem.",
-      "PROIBIDO nesta etapa: mencionar cupom, desconto, negociação de preço ou frete detalhado — isso vem depois do cadastro.",
-      "NUNCA diga que o cadastro está completo. Apenas peça o próximo dado."
+      "PROIBIDO nesta etapa: mencionar cupom, desconto, negociação de preço ou frete detalhado — isso vem depois do cadastro."
     ].join("\n");
   }
   if (stage === "shipping") {
     const next = missingFields[0] ?? "CEP";
-    if (next.includes("número") || next.includes("complemento")) {
+    if (next.includes("número")) {
       return [
         "ETAPA: endereço de entrega — já localizamos o logradouro pelo CEP.",
-        "Peça somente o número e complemento/referência (apto, bloco) em uma frase curta.",
+        "Peça somente o número do imóvel em uma frase curta.",
+        "Não ofereça cupom ou desconto nesta etapa."
+      ].join("\n");
+    }
+    if (next.includes("complemento")) {
+      return [
+        "ETAPA: endereço de entrega — já temos o número.",
+        "Peça apenas se há algum complemento (apto, bloco, casa). Diga que se não houver, o comprador pode responder 'não tem'.",
         "Não ofereça cupom ou desconto nesta etapa."
       ].join("\n");
     }
@@ -201,7 +207,10 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
   if (stage === "payment") {
     return [
       "ETAPA: pagamento e fechamento.",
-      "Agora pode falar de cupom (se a loja permitir) e perguntar PIX ou cartão.",
+      "Agora você DEVE checar o desconto autorizado (em Authorized Offer) e oferecê-lo.",
+      "INSTRUÇÃO DE NEGOCIAÇÃO: O sistema autoriza o desconto progressivamente (ex: de 1/3 até 100% do máximo).",
+      "Sempre anuncie exatamente o valor que o sistema ativou na Oferta e espere. Se o comprador pedir mais, negue ou aguarde o backend aumentar na próxima rodada.",
+      "Pergunte PIX ou cartão.",
       "NUNCA peça senhas, código de segurança do cartão ou dados bancários no chat.",
       "Seja breve (máx. 2 frases)."
     ].join("\n");
@@ -246,7 +255,7 @@ export function isSafeGeneratedMessage(message: string, offer?: AuthorizedOffer)
     /desconto (aprovado|liberado|garantido)/,
     /oferta (aprovada|liberada|garantida)/,
     /pedido (ja esta|segue|esta) (em andamento|para processamento)/,
-    /cadastro (esta|ta) completo|encaminhar para finalizacao/,
+    /cadastro (esta|ta) completo|encaminhar para finalizacao|cadastro confirmado/,
     /senha|c[óo]digo de seguran[çc]a|cvv|token do cart[ãa]o/
   ];
   return !forbiddenClaims.some((pattern) => pattern.test(normalized));

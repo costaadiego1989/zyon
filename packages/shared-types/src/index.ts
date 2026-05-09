@@ -225,6 +225,7 @@ export interface StartCheckoutResponse {
   initial_mode: "silent" | "open";
   tracking_token: string;
   experience: CheckoutExperienceSnapshot;
+  turns?: ChatTurn[];
 }
 
 export interface TrackEventRequest {
