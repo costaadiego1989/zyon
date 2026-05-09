@@ -1,5 +1,5 @@
 import type { CheckoutExperienceSnapshot } from "@aacp/shared-types";
-import { GlobalAuthModal } from "../GlobalAuthModal.js";
+import { GlobalAuthModal } from "./GlobalAuthModal.js";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { cn, themeStyle } from "../../hooks/checkout-view-model.js";
 import { CheckoutHeader } from "./CheckoutHeader.js";
@@ -7,7 +7,7 @@ import { CheckoutStepper } from "./CheckoutStepper.js";
 import { ChatThread } from "./ChatThread.js";
 import { Composer } from "./Composer.js";
 import { CartPanel } from "./CartPanel.js";
-import { UserPanel } from "./UserPanel.js";
+import { UserPanel } from "../checkout/UserPanel.js";
 import { SupportFAB } from "./SupportFAB.js";
 import { SupportPanel } from "./SupportPanel.js";
 import { FloatingCheckout } from "./FloatingCheckout.js";
