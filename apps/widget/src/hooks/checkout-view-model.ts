@@ -21,7 +21,7 @@ export const STAGE_FLOW = [
   { key: "data_collection", label: "Cadastro", shortLabel: "Cadastro" },
   { key: "shipping", label: "Entrega", shortLabel: "Entrega" },
   { key: "payment", label: "Pagamento", shortLabel: "Pagamento" },
-  { key: "completed", label: "Concluido", shortLabel: "Concluido" }
+  { key: "completed", label: "Concluído", shortLabel: "Concluído" }
 ] as const;
 
 export function cn(...classes: Array<string | false | null | undefined>): string {
