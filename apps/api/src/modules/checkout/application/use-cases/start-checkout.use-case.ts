@@ -1,5 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import type {
+  CheckoutSession,
   StartCheckoutRequest,
   StartCheckoutResponse
 } from "@aacp/shared-types";
@@ -22,7 +23,7 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepository?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort
-  ) {}
+  ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
     return withCheckoutTransaction(this.repository, async (repository) => {
@@ -34,18 +35,25 @@ export class StartCheckoutUseCase {
         merchantId: input.merchant_id,
         globalUserId
       });
-      const session = CheckoutSessionEntity.create({
-        merchantId: input.merchant_id,
-        sessionId,
-        globalUserId,
-        conversationId: `conv_${crypto.randomUUID()}`,
-        cart: input.cart,
-        customer: input.customer,
-        shipping: input.shipping
-      }).snapshot();
 
-      await repository.saveSession(session);
-      await repository.recordEvent(input.merchant_id, sessionId, "checkout_started");
+      const existingSession = await repository.getSession(input.merchant_id, sessionId);
+
+      let session: CheckoutSession;
+      if (existingSession) {
+        session = CheckoutSessionEntity.rehydrate(existingSession).snapshot();
+      } else {
+        session = CheckoutSessionEntity.create({
+          merchantId: input.merchant_id,
+          sessionId,
+          globalUserId,
+          conversationId: `conv_${crypto.randomUUID()}`,
+          cart: input.cart,
+          customer: input.customer,
+          shipping: input.shipping
+        }).snapshot();
+        await repository.saveSession(session);
+        await repository.recordEvent(input.merchant_id, sessionId, "checkout_started");
+      }
       await repository.appendOutbox(
         createCheckoutEventEnvelope({
           eventType: "checkout.session.started",
@@ -78,7 +86,8 @@ export class StartCheckoutUseCase {
           agent,
           couponBoxEnabled: merchantRules.couponBoxEnabled,
           rules: merchantRules
-        })
+        }),
+        turns: session.chatHistory
       };
     });
   }
