@@ -85,7 +85,9 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
         ];
       if (next?.includes("confirmar"))
         return ["O CEP está correto", "Não encontram meu endereço", "Qual o problema com o CEP?"];
-      if (next?.includes("número") || next?.includes("complemento"))
+      if (next?.includes("complemento"))
+        return ["Não tem", "Como informo o bloco?", "Moro em zona rural"];
+      if (next?.includes("número"))
         return ["Minha casa não tem número", "Como informo o bloco?", "Moro em zona rural"];
       if (next === "frete")
         return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];

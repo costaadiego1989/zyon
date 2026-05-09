@@ -151,7 +151,7 @@ export class SendChatMessageUseCase {
       chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
     } else if (wantsCard) {
       chatActions.push({ label: "Pagar com Cartão", type: "continue_checkout" });
-    } else if (offer.approved) {
+    } else if (offer.approved && stage === "payment") {
       const alreadyHasDiscount = offer.type.includes("discount") && working.cart.currentDiscount && working.cart.currentDiscount > 0;
       const alreadyHasFreeShipping = offer.type.includes("shipping") && working.shipping?.customerPrice === 0;
       if (!alreadyHasDiscount && !alreadyHasFreeShipping) {
