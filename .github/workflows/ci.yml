@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: aacp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aacp_test
+      # Disable real AI / external calls in CI
+      RUN_REAL_AI_E2E: "false"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Lint: continue-on-error until Wave 1–3 clears the 12 existing boundary violations.
+      # Remove continue-on-error after Wave 3 is merged.
+      - name: Lint
+        run: pnpm --filter @aacp/api lint
+        continue-on-error: true
+
+      - name: Typecheck
+        run: pnpm -r typecheck
+
+      - name: Unit + integration tests
+        run: pnpm -r test
+
+      - name: Build shared types + API
+        run: |
+          pnpm --filter @aacp/shared-types build
+          pnpm --filter @aacp/api build
+
+      - name: Apply Prisma migrations
+        run: pnpm --filter @aacp/api prisma:deploy
+
+      - name: Prisma integration tests
+        run: pnpm --filter @aacp/api test:prisma
+
+      - name: Widget coverage
+        run: pnpm --filter @aacp/widget test:coverage
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: |
+            apps/widget/coverage/
+          retention-days: 14

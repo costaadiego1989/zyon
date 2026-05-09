@@ -2,6 +2,22 @@
 
 ## Decisions
 
+### Architecture Hardening (added 2026-05-09 from `docs/architecture/refactor-plan.md`)
+
+- Prisma client will be extracted from `checkout/infrastructure/prisma/` to `apps/api/src/shared/persistence/prisma-client.ts` and exposed via a global `PersistenceModule` (ADR-0004). No bounded context may import the client directly from another context's path.
+- `CheckoutRepository` (17 methods, 6 aggregates) will be split into: `CheckoutSessionRepository`, `OfferRepository`, `OrderRepository`, `MerchantRulesRepository` (owner → `merchant`), `BuyerIdentityRepository` (owner → `buyer-purchase-history`), `OutboxRepository` (new `MessagingModule`), `DashboardReadModel` (future `analytics` module). Each use-case mocks only its own port.
+- `@nestjs/cqrs` EventBus (or a minimal custom implementation) is adopted for all in-process cross-context communication. Payment publishes `payment.approved`; Negotiation publishes `negotiation.agreement.accepted`; Checkout handles both via `@OnEvent` handlers. No bounded context may inject a use-case from another context.
+- `OutboxDispatcher` uses BullMQ + Redis to read `pending` `OutboxMessage` rows in batches, publish to EventBus, mark `delivered`, and route failures to DLQ. Idempotency key: `event_id`. Multi-instance lock: Redis `SET NX EX` on `event_id`.
+- `AsyncLocalStorage` carries `{ merchantId, userId, role }` for the lifetime of each request. A global `TenantGuard` populates it from the authenticated JWT and rejects requests with mismatched tenant. Postgres RLS is optional (`PRISMA_RLS=true` feature flag) and adds a second enforcement layer.
+- Structured logging: `pino` + `nestjs-pino` with correlation-id propagated to all external adapter calls.
+- OpenTelemetry SDK exports traces. Prometheus `/metrics` covers: `checkout_started_total`, `order_completed_total`, `payment_approved_total`, `outbox_lag_seconds`, `llm_latency_seconds`.
+- All external HTTP calls (OpenAI, Shopify, Asaas, Brevo, ViaCEP, future scraper) go through a shared `HttpClient` in `apps/api/src/shared/http/` that enforces 5 s default timeout, 3× exponential retry, and per-provider circuit breaker.
+- `useCheckoutAgentViewModel` (706 lines) will be split into five focused hooks: `useCheckoutSession`, `useCheckoutChat`, `useCheckoutCart`, `useCheckoutPayment`, `useCheckoutPanels`.
+- Widget will add Zod runtime validation of all API responses before rendering, and a Playwright suite covering the 8 critical flows documented in `docs/testing/test-strategy.md`.
+- Wave 7 (new features) may not start before Wave 3 (EventBus) is complete. Cross-sell, buyer wallet, scraping agent, and fulfillment all depend on the event-driven architecture.
+
+### Original Decisions
+
 - MVP is end-to-end and functional, not documentation-only.
 - Checkout is the first module selected for closure and implementation sequencing.
 - Checkout closure must start with TDD documentation under `.specs/features/checkout-module/` before domain/use case changes.

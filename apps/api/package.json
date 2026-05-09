@@ -7,6 +7,7 @@
     "dev": "nest start --watch",
     "build": "pnpm --filter @aacp/shared-types build && prisma generate --schema prisma/schema.prisma && nest build",
     "start": "node dist/main.js",
+    "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm --filter @aacp/shared-types build && pnpm build && node dist/test-runner.js",
     "test:prisma": "pnpm --filter @aacp/shared-types build && pnpm build && node dist/test-runner-prisma.js",
@@ -35,7 +36,12 @@
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
     "@types/node": "^22.10.2",
+    "eslint": "^9.0.0",
+    "eslint-import-resolver-typescript": "^3.7.0",
+    "eslint-plugin-boundaries": "^5.0.0",
+    "eslint-plugin-import": "^2.29.0",
     "prisma": "^7.8.0",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.0.0"
   }
 }

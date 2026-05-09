@@ -87,6 +87,77 @@
 
 ---
 
+## Architecture Hardening
+
+**Goal:** Eliminate critical couplings before new features land (cross-sell, buyer wallet, scraping agent, fulfillment).
+**Plan doc:** `docs/architecture/refactor-plan.md`
+**ADRs:** `docs/architecture/adr/0003` (EventBus), `0004` (Prisma isolation), `0005` (multi-tenant)
+
+Waves ship independently — no big-bang. Each wave leaves the system deployable.
+
+### Wave 0 — CI Hygiene (1 sprint) - PLANNED
+
+- `eslint-plugin-boundaries` blocking cross-layer and cross-context infra imports.
+- CI gate: test + lint + typecheck + Prisma integration on every PR.
+- Coverage reporting (`--coverage`) published to CI.
+- Feature spec: `.specs/features/hardening-wave-0-ci-hygiene/`.
+
+### Wave 1 — PersistenceModule + Prisma Isolation (1–2 sprints) - PLANNED
+
+- Move `prisma-client.ts` from `checkout/` to `shared/persistence/`.
+- `PersistenceModule` global — single registered client.
+- Tenant middleware filters all `findMany`/`findFirst`/`update`/`delete` by `merchantId`.
+- Success: zero cross-module `../checkout/infrastructure/prisma` imports.
+- Feature spec: `.specs/features/hardening-wave-1-persistence-module/`.
+
+### Wave 2 — CheckoutRepository Split (2 sprints) - PLANNED
+
+- Explode 17-method God Port into: `CheckoutSessionRepository`, `OfferRepository`, `OrderRepository`, `MerchantRulesRepository`, `BuyerIdentityRepository`, `OutboxRepository`, `DashboardReadModel`.
+- Migrate use-case by use-case; each ships as a small PR with tests.
+- Success: `CheckoutRepository` deleted; each use-case test mocks only its own port.
+- Feature spec: `.specs/features/hardening-wave-2-checkout-repo-split/`.
+
+### Wave 3 — EventBus + OutboxDispatcher (2 sprints) - PLANNED
+
+- `@nestjs/cqrs` in-process EventBus.
+- `OutboxDispatcher` (BullMQ + Redis) with idempotency by `event_id`.
+- Payment/Negotiation/Embed decoupled from checkout use-case injection.
+- Success: `payment` and `negotiation` import nothing from `checkout/application/`.
+- Feature spec: `.specs/features/hardening-wave-3-event-bus-outbox/`.
+
+### Wave 4 — TenantContext + RLS (1 sprint) - PLANNED
+
+- `AsyncLocalStorage` loading `{ merchantId, userId, role }` per request.
+- `TenantGuard` global + `@CurrentTenant()` decorator.
+- Postgres RLS optional via `PRISMA_RLS=true`.
+- Success: 1000-request cross-tenant fuzz test returns 403/404 every time.
+- Feature spec: `.specs/features/hardening-wave-4-tenant-context/`.
+
+### Wave 5 — Observability + Resilient HttpClient (1 sprint) - PLANNED
+
+- `pino` + `nestjs-pino` structured logs with correlation-id.
+- OpenTelemetry SDK + exporter.
+- Prometheus metrics: `checkout_started_total`, `order_completed_total`, `payment_approved_total`, `outbox_lag_seconds`, `llm_latency_seconds`.
+- `HttpClient` in `shared/http/`: 5 s default timeout, 3× exponential retry, circuit breaker.
+- Feature spec: `.specs/features/hardening-wave-5-observability/`.
+
+### Wave 6 — Widget Refactor + Playwright (2 sprints) - PLANNED
+
+- Split 706-line `useCheckoutAgentViewModel` into: `useCheckoutSession`, `useCheckoutChat`, `useCheckoutCart`, `useCheckoutPayment`, `useCheckoutPanels`.
+- Zod runtime validation of API responses before render.
+- Playwright suite covering 8 critical flows from `docs/testing/test-strategy.md`.
+- Feature spec: `.specs/features/hardening-wave-6-widget-refactor/`.
+
+### Wave 7 — New Features (parallel after Wave 3) - PLANNED
+
+- Cross-sell + coupons: `docs/features/cross-sell-and-coupons.md`
+- Buyer self-checkout wallet: `docs/features/buyer-self-checkout.md`
+- Price scraping agent: `docs/features/price-scraping-agent.md`
+- Delivery + fulfillment: `docs/features/delivery-and-fulfillment.md`
+- Feature spec: `.specs/features/hardening-wave-7-new-features/`.
+
+---
+
 ## Future Considerations
 
 - WhatsApp/email recovery.
