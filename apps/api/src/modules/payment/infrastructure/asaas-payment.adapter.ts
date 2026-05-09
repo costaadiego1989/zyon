@@ -30,14 +30,61 @@ function defaultDueDate(): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Documentação oficial: header HTTP `access_token` com valor da API key (schema OpenAPI v3 da Asaas). */
 @Injectable()
 export class AsaasPaymentAdapter implements PaymentProviderPort {
   constructor(
     private readonly apiBaseUrl: string,
     private readonly apiKey: string,
     private readonly fetchImpl: typeof fetch
-  ) {}
+  ) { }
+
+  private async tokenizeCreditCard(input: CreateProviderPaymentInput): Promise<string> {
+    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const tokenizeBody: Record<string, unknown> = {
+      customer: input.asaasCustomerId,
+      creditCard: {
+        holderName: input.creditCard!.holderName,
+        number: input.creditCard!.number.replace(/\s+/g, ""),
+        expiryMonth: input.creditCard!.expiryMonth,
+        expiryYear: input.creditCard!.expiryYear,
+        ccv: input.creditCard!.ccv
+      },
+      creditCardHolderInfo: {
+        name: input.creditCardHolderInfo?.name ?? input.creditCard!.holderName,
+        email: input.creditCardHolderInfo?.email ?? "",
+        cpfCnpj: (input.creditCardHolderInfo?.cpfCnpj ?? "").replace(/\D/g, ""),
+        postalCode: (input.creditCardHolderInfo?.postalCode ?? "").replace(/\D/g, ""),
+        addressNumber: input.creditCardHolderInfo?.addressNumber ?? "S/N",
+        phone: (input.creditCardHolderInfo?.phone ?? "").replace(/\D/g, "")
+      }
+    };
+
+    if (input.remoteIp) {
+      tokenizeBody.remoteIp = input.remoteIp;
+    }
+
+    const res = await this.fetchImpl(`${base}/v3/creditCard/tokenize`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        access_token: this.apiKey
+      },
+      body: JSON.stringify(tokenizeBody)
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      throw new Error(`asaas_tokenize_failed:${res.status}:${errorText}`);
+    }
+
+    const result = (await res.json()) as { creditCardToken?: string };
+    if (!result.creditCardToken) {
+      throw new Error("asaas_tokenize_missing_token");
+    }
+
+    return result.creditCardToken;
+  }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");
@@ -51,6 +98,11 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       externalReference: input.intentId
     };
 
+    if (billingType === "CREDIT_CARD" && input.creditCard) {
+      const creditCardToken = await this.tokenizeCreditCard(input);
+      body.creditCardToken = creditCardToken;
+    }
+
     const res = await this.fetchImpl(`${base}/v3/payments`, {
       method: "POST",
       headers: {
@@ -62,10 +114,11 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     });
 
     if (!res.ok) {
-      throw new Error(`asaas_payment_create_failed:${res.status}`);
+      const errorText = await res.text().catch(() => "");
+      throw new Error(`asaas_payment_create_failed:${res.status}:${errorText}`);
     }
 
-    const created = (await res.json()) as { id?: string; invoiceUrl?: string };
+    const created = (await res.json()) as { id?: string; status?: string; invoiceUrl?: string };
     const providerPaymentId = typeof created?.id === "string" ? created.id.trim() : "";
     if (!providerPaymentId) throw new Error("asaas_payment_missing_id");
 
@@ -87,9 +140,16 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       }
     }
 
+    const status: CreateProviderPaymentOutput["status"] =
+      billingType === "CREDIT_CARD" && (created.status === "CONFIRMED" || created.status === "RECEIVED")
+        ? "pending"
+        : billingType === "PIX"
+          ? "requires_action"
+          : "pending";
+
     return {
       providerPaymentId,
-      status: billingType === "PIX" ? "requires_action" : "pending",
+      status,
       buyerFacingPayload
     };
   }

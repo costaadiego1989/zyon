@@ -121,6 +121,13 @@ export class EmbedCheckoutController {
       idempotency_key: string;
       method?: "pix" | "card" | "boleto";
       accepted_offer_id?: string;
+      credit_card?: {
+        holderName: string;
+        number: string;
+        expiryMonth: string;
+        expiryYear: string;
+        ccv: string;
+      };
     }
   ) {
     const embed = request.embedClaims!;
@@ -128,13 +135,22 @@ export class EmbedCheckoutController {
       throw new BadRequestException("session_and_idempotency_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+
+    // Extract buyer's real IP for Asaas tokenization (PCI compliance)
+    const forwarded = request.headers?.["x-forwarded-for"];
+    const remoteIp = typeof forwarded === "string"
+      ? forwarded.split(",")[0]?.trim()
+      : Array.isArray(forwarded) ? forwarded[0]?.trim() : undefined;
+
     return this.createPaymentIntent.execute({
       merchant_id: embed.merchantId,
       session_id: body.session_id.trim(),
       idempotency_key: body.idempotency_key.trim(),
       method: body.method,
       accepted_offer_id:
-        typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined
+        typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
+      credit_card: body.credit_card,
+      remote_ip: remoteIp
     });
   }
 }

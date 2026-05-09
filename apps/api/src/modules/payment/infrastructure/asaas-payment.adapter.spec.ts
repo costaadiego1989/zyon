@@ -1,53 +1,211 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
+import type { CreateProviderPaymentInput } from "../domain/ports/payment-provider.port.js";
 
-test("AsaasPaymentAdapter posts /v3/payments with access_token and fetches PIX QR when method is pix", async () => {
-  let step = 0;
-  const fetchImpl: typeof fetch = async (url, init) => {
-    const href = typeof url === "string" ? url : url instanceof URL ? url.href : String(url);
-    if (href.endsWith("/pixQrCode")) {
-      step += 1;
-      assert.equal(init?.method ?? "GET", "GET");
-      assert.equal((init?.headers as Record<string, string>).access_token, "test_key_hidden");
-      return new Response(JSON.stringify({ payload: "br_code_here", encodedImage: "Zm9v" }), {
-        status: 200,
-        headers: { "content-type": "application/json" }
-      });
-    }
+const API_BASE = "https://sandbox.asaas.com";
+const API_KEY = "test_api_key_secret";
 
-    assert.match(href, /\/v3\/payments$/);
-    assert.equal(init?.method, "POST");
-    const headers = init?.headers as Record<string, string>;
-    assert.equal(headers.access_token, "test_key_hidden");
-    const bodyJson = typeof init?.body === "string" ? JSON.parse(init.body) : {};
-    assert.equal(bodyJson.externalReference, "pay_int_test");
-    assert.equal(bodyJson.billingType, "PIX");
-
-    step += 1;
-
-    return new Response(JSON.stringify({ id: "pay_123", invoiceUrl: "https://sandbox.asaas.com/i/123" }), {
-      status: 200,
-      headers: { "content-type": "application/json" }
-    });
-  };
-
-  const adapter = new AsaasPaymentAdapter("https://api-sandbox.asaas.com", "test_key_hidden", fetchImpl);
-
-  const out = await adapter.createPayment({
-    merchantId: "m1",
-    sessionId: "s1",
-    intentId: "pay_int_test",
-    amountCents: 15025,
+function makePixInput(overrides: Partial<CreateProviderPaymentInput> = {}): CreateProviderPaymentInput {
+  return {
+    merchantId: "merchant_123",
+    sessionId: "session_abc",
+    intentId: "intent_xyz",
+    amountCents: 15000,
     currency: "BRL",
     method: "pix",
-    asaasCustomerId: "cus_1"
-  });
+    asaasCustomerId: "cus_000005113026",
+    description: "Test checkout",
+    ...overrides
+  };
+}
 
-  assert.equal(step, 2);
-  assert.equal(out.providerPaymentId, "pay_123");
-  assert.equal(out.status, "requires_action");
-  assert.ok(out.buyerFacingPayload.invoiceUrl?.startsWith("https://"));
-  assert.equal(out.buyerFacingPayload.qrCodeCopyPaste, "br_code_here");
-  assert.ok(!JSON.stringify(out).includes("test_key_hidden"));
+function makeCardInput(overrides: Partial<CreateProviderPaymentInput> = {}): CreateProviderPaymentInput {
+  return {
+    ...makePixInput(),
+    method: "card",
+    creditCard: {
+      holderName: "João da Silva",
+      number: "4111 1111 1111 1111",
+      expiryMonth: "12",
+      expiryYear: "2030",
+      ccv: "123"
+    },
+    creditCardHolderInfo: {
+      name: "João da Silva",
+      email: "joao@example.com",
+      cpfCnpj: "123.456.789-00",
+      postalCode: "01001-000",
+      addressNumber: "100",
+      phone: "(11) 99999-8888"
+    },
+    remoteIp: "189.44.100.50",
+    ...overrides
+  };
+}
+
+function createMockFetch(responses: Array<{ ok: boolean; status: number; body: any }>) {
+  let callIndex = 0;
+  const calls: Array<{ url: string; init: any }> = [];
+  const fn = async (url: string, init?: any) => {
+    calls.push({ url, init });
+    const resp = responses[callIndex] ?? responses[responses.length - 1];
+    callIndex++;
+    return {
+      ok: resp.ok,
+      status: resp.status,
+      json: async () => resp.body,
+      text: async () => JSON.stringify(resp.body)
+    };
+  };
+  return { fn: fn as unknown as typeof fetch, calls };
+}
+
+// ── PIX tests ──
+
+test("PIX: should create payment and fetch QR code", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { id: "pay_pix_001", status: "PENDING", invoiceUrl: "https://asaas.com/i/pay_pix_001" } },
+    { ok: true, status: 200, body: { payload: "000201...PIX_PAYLOAD", encodedImage: "base64image==" } }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  const result = await adapter.createPayment(makePixInput());
+
+  assert.equal(result.providerPaymentId, "pay_pix_001");
+  assert.equal(result.status, "requires_action");
+  assert.equal(result.buyerFacingPayload.qrCodeCopyPaste, "000201...PIX_PAYLOAD");
+  assert.equal(result.buyerFacingPayload.encodedQrImage, "base64image==");
+  assert.equal(calls.length, 2);
+
+  const paymentBody = JSON.parse(calls[0].init.body);
+  assert.equal(paymentBody.billingType, "PIX");
+  assert.equal(paymentBody.creditCardToken, undefined);
+});
+
+test("PIX: should return requires_action even if QR code fetch fails", async () => {
+  const { fn } = createMockFetch([
+    { ok: true, status: 200, body: { id: "pay_pix_002", status: "PENDING" } },
+    { ok: false, status: 500, body: {} }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  const result = await adapter.createPayment(makePixInput());
+
+  assert.equal(result.providerPaymentId, "pay_pix_002");
+  assert.equal(result.status, "requires_action");
+  assert.equal(result.buyerFacingPayload.qrCodeCopyPaste, undefined);
+});
+
+// ── Credit card tokenization tests ──
+
+test("Card: should tokenize first, then create payment with token only", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { creditCardToken: "tok_abc123_secure", creditCardNumber: "1111" } },
+    { ok: true, status: 200, body: { id: "pay_card_001", status: "CONFIRMED", invoiceUrl: "https://asaas.com/i/c" } }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  const result = await adapter.createPayment(makeCardInput());
+
+  assert.equal(result.providerPaymentId, "pay_card_001");
+  assert.equal(result.status, "pending"); // CONFIRMED → pending
+  assert.equal(calls.length, 2);
+
+  // 1st call: tokenization
+  assert.ok(calls[0].url.includes("/v3/creditCard/tokenize"));
+  const tokenizeBody = JSON.parse(calls[0].init.body);
+  assert.equal(tokenizeBody.creditCard.number, "4111111111111111"); // spaces stripped
+  assert.equal(tokenizeBody.creditCardHolderInfo.cpfCnpj, "12345678900"); // non-digits stripped
+  assert.equal(tokenizeBody.creditCardHolderInfo.postalCode, "01001000");
+  assert.equal(tokenizeBody.remoteIp, "189.44.100.50");
+
+  // 2nd call: payment — token only, no raw card data
+  const paymentBody = JSON.parse(calls[1].init.body);
+  assert.equal(paymentBody.creditCardToken, "tok_abc123_secure");
+  assert.equal(paymentBody.creditCard, undefined);
+  assert.equal(paymentBody.billingType, "CREDIT_CARD");
+});
+
+test("Card: should throw if tokenization fails", async () => {
+  const { fn } = createMockFetch([
+    { ok: false, status: 400, body: { errors: [{ description: "Invalid card" }] } }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  await assert.rejects(adapter.createPayment(makeCardInput()), /asaas_tokenize_failed:400/);
+});
+
+test("Card: should throw if tokenization returns no token", async () => {
+  const { fn } = createMockFetch([
+    { ok: true, status: 200, body: {} }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  await assert.rejects(adapter.createPayment(makeCardInput()), /asaas_tokenize_missing_token/);
+});
+
+test("Card: should throw if payment creation after tokenization fails", async () => {
+  const { fn } = createMockFetch([
+    { ok: true, status: 200, body: { creditCardToken: "tok_valid" } },
+    { ok: false, status: 500, body: { errors: [{ description: "Internal error" }] } }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  await assert.rejects(adapter.createPayment(makeCardInput()), /asaas_payment_create_failed:500/);
+});
+
+test("Card: should strip sensitive characters from holder info fields", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { creditCardToken: "tok_clean" } },
+    { ok: true, status: 200, body: { id: "pay_clean", status: "RECEIVED" } }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  await adapter.createPayment(makeCardInput({
+    creditCardHolderInfo: {
+      name: "Maria Teste",
+      email: "maria@test.com",
+      cpfCnpj: "987.654.321-00",
+      postalCode: "12345-678",
+      addressNumber: "42A",
+      phone: "+55 (21) 98765-4321"
+    }
+  }));
+
+  const tokenizeBody = JSON.parse(calls[0].init.body);
+  assert.equal(tokenizeBody.creditCardHolderInfo.cpfCnpj, "98765432100");
+  assert.equal(tokenizeBody.creditCardHolderInfo.postalCode, "12345678");
+  assert.equal(tokenizeBody.creditCardHolderInfo.phone, "5521987654321");
+});
+
+// ── Security guarantees ──
+
+test("Security: payment body must never contain raw card data", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { creditCardToken: "tok_sec" } },
+    { ok: true, status: 200, body: { id: "pay_sec", status: "CONFIRMED" } }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  await adapter.createPayment(makeCardInput());
+
+  const paymentBody = JSON.parse(calls[1].init.body);
+  assert.equal(paymentBody.creditCard, undefined);
+  assert.equal(paymentBody.creditCardHolderInfo, undefined);
+  assert.equal(paymentBody.creditCardToken, "tok_sec");
+});
+
+test("Security: should use access_token header, not Bearer authorization", async () => {
+  const { fn, calls } = createMockFetch([
+    { ok: true, status: 200, body: { id: "pay_hdr", status: "PENDING" } },
+    { ok: true, status: 200, body: {} }
+  ]);
+
+  const adapter = new AsaasPaymentAdapter(API_BASE, API_KEY, fn);
+  await adapter.createPayment(makePixInput());
+
+  const headers = calls[0].init.headers;
+  assert.equal(headers.access_token, API_KEY);
+  assert.equal(headers.Authorization, undefined);
 });

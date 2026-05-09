@@ -18,11 +18,19 @@ export type CreatePaymentIntentRequest = {
   idempotency_key: string;
   method?: PaymentMethod;
   accepted_offer_id?: string;
+  credit_card?: {
+    holderName: string;
+    number: string;
+    expiryMonth: string;
+    expiryYear: string;
+    ccv: string;
+  };
+  /** IP do comprador — repassado para tokenização Asaas (PCI compliance). */
+  remote_ip?: string;
 };
 
 export type CreatePaymentIntentResponseBody = PaymentIntentSnapshot;
 
-/** Cliente Asaas deve vir do pagador já guardado na sessão (`customer.asaasCustomerId`). */
 function resolveAsaasCustomerIdFromSession(session: CheckoutSession): string | undefined {
   const cid = session.customer?.asaasCustomerId;
   const trimmed = typeof cid === "string" ? cid.trim() : "";
@@ -35,7 +43,7 @@ export class CreatePaymentIntentUseCase {
     @Inject(CHECKOUT_REPOSITORY) private readonly checkout: CheckoutRepository,
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort
-  ) {}
+  ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
     const merchantId = body.merchant_id.trim();
@@ -73,6 +81,18 @@ export class CreatePaymentIntentUseCase {
       acceptedOfferId: typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined
     });
 
+    let creditCardHolderInfo: any = undefined;
+    if (method === "card" && session.customer) {
+      creditCardHolderInfo = {
+        name: session.customer.fullName || "Comprador",
+        email: session.customer.email || "",
+        cpfCnpj: session.customer.cpf || "",
+        postalCode: session.customer.address?.zip || "",
+        addressNumber: session.customer.address?.number || "S/N",
+        phone: session.customer.phone || ""
+      };
+    }
+
     const created = await this.provider.createPayment({
       merchantId,
       sessionId,
@@ -81,7 +101,10 @@ export class CreatePaymentIntentUseCase {
       currency: intent.snapshot().currency,
       method,
       asaasCustomerId: asaasCustomer ?? "cust_fake_test_placeholder",
-      description: `${merchantId}:${sessionId}`
+      description: `${merchantId}:${sessionId}`,
+      creditCard: method === "card" ? body.credit_card : undefined,
+      creditCardHolderInfo,
+      remoteIp: body.remote_ip
     });
 
     intent.markRequiresAction({ providerPaymentId: created.providerPaymentId });
