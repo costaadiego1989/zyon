@@ -158,11 +158,14 @@ for (const scenario of scenarios) {
           email_verified: true,
           cpf: "39784089095",
           phone: "11988887777",
+          phone_verified: true,
           isReturning: true,
+          address_verified: true,
         address: {
           zip: "01310100",
           street: "Avenida Paulista",
           number: "1578",
+          complement: "",
           city: "São Paulo",
           state: "SP"
         }
@@ -195,23 +198,23 @@ for (const scenario of scenarios) {
 
 function createController(providerMessage: string) {
   const repository = new InMemoryCheckoutRepository();
-  const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+  const acceptOffer = new AcceptCheckoutOfferUseCase(repository, repository, repository);
   const custService = new CheckoutCustomerService(repository);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   const controller = new CheckoutController(
-    new StartCheckoutUseCase(repository),
-    new TrackCheckoutEventUseCase(repository),
+    new StartCheckoutUseCase(repository, repository, repository, undefined, repository),
+    new TrackCheckoutEventUseCase(repository, repository),
     new GetCheckoutSessionUseCase(repository),
     new GetDecisionUseCase(repository),
     new SendChatMessageUseCase(repository, new ScriptedAiConversationPort(providerMessage), custService, shipService, offerService, {
       async get() {
         return safetyAgentContext();
       }
-    }),
-    new EvaluateShippingUseCase(repository),
-    new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
-    new CompleteOrderUseCase(repository),
+    }, repository),
+    new EvaluateShippingUseCase(repository, repository, repository),
+    new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
+    new CompleteOrderUseCase(repository, repository, repository),
     new GetDashboardOverviewUseCase(repository),
     new GetMerchantRulesUseCase(repository),
     new UpdateMerchantRulesUseCase(repository)

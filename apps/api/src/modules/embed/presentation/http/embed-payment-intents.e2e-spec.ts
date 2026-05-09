@@ -28,8 +28,8 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
     })
   );
 
-  const start = new StartCheckoutUseCase(repo);
-  const track = new TrackCheckoutEventUseCase(repo);
+  const start = new StartCheckoutUseCase(repo, repo, repo);
+  const track = new TrackCheckoutEventUseCase(repo, repo);
   const helper = new EmbedCheckoutGuardHelper(repo);
   const createIntent = new CreatePaymentIntentUseCase(repo, payments, provider);
 

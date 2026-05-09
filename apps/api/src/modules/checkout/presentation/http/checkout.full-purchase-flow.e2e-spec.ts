@@ -250,19 +250,19 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(
       new RecordCompletedPurchaseUseCase(purchaseHistoryRepo)
     );
-    const completeOrder = new CompleteOrderUseCase(repo, purchaseHistoryPort);
+    const completeOrder = new CompleteOrderUseCase(repo, repo, repo, purchaseHistoryPort);
     const conv = new RecordingConversationPort();
     const custService = new CheckoutCustomerService(repo);
     const shipService = new CheckoutShippingService(repo, custService);
     const offerService = new CheckoutOfferService(repo);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repo),
-      new TrackCheckoutEventUseCase(repo),
+      new StartCheckoutUseCase(repo, repo, repo, undefined, repo),
+      new TrackCheckoutEventUseCase(repo, repo),
       new GetCheckoutSessionUseCase(repo),
       new GetDecisionUseCase(repo),
-      new SendChatMessageUseCase(repo, conv, custService, shipService, offerService, new FakeAgentContextPort()),
-      new EvaluateShippingUseCase(repo),
-      new ApplyOfferUseCase(repo, new FakeCommerceOfferPort(), new AcceptCheckoutOfferUseCase(repo)),
+      new SendChatMessageUseCase(repo, conv, custService, shipService, offerService, new FakeAgentContextPort(), repo),
+      new EvaluateShippingUseCase(repo, repo, repo),
+      new ApplyOfferUseCase(repo, repo, new FakeCommerceOfferPort(), new AcceptCheckoutOfferUseCase(repo, repo, repo)),
       completeOrder,
       new GetDashboardOverviewUseCase(repo),
       new GetMerchantRulesUseCase(repo),
@@ -320,6 +320,17 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       conversation_id: started.conversation_id,
       user_message: "(21) 99300-1883"
     });
+    assert.equal(res.stage, "data_collection");
+
+    const phoneOtp = repo.getSession(MERCHANT, sessionId)?.customer?.phone_otp_code;
+    assert.ok(phoneOtp, "Deve ter gerado OTP para o telefone");
+
+    res = await controller.chat({
+      merchant_id: MERCHANT,
+      session_id: sessionId,
+      conversation_id: started.conversation_id,
+      user_message: phoneOtp!
+    });
     assert.equal(res.stage, "shipping");
 
     const originalFetch = globalThis.fetch;
@@ -347,6 +358,14 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
         user_message: "CEP de entrega 01310-100"
       });
       assert.equal(res.stage, "shipping");
+
+      // Confirm address returned by ViaCEP
+      await controller.chat({
+        merchant_id: MERCHANT,
+        session_id: sessionId,
+        conversation_id: started.conversation_id,
+        user_message: "Sim"
+      });
 
       res = await controller.chat({
         merchant_id: MERCHANT,

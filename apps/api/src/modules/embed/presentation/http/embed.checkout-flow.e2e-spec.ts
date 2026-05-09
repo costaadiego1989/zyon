@@ -23,8 +23,8 @@ test("embed smoke: start checkout then track with token-bound merchant", async (
     })
   );
 
-  const start = new StartCheckoutUseCase(repo);
-  const track = new TrackCheckoutEventUseCase(repo);
+  const start = new StartCheckoutUseCase(repo, repo, repo);
+  const track = new TrackCheckoutEventUseCase(repo, repo);
   const helper = new EmbedCheckoutGuardHelper(repo);
   const c = new EmbedCheckoutController(start, track, {} as never, helper, {} as never, {} as never);
 

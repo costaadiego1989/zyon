@@ -61,13 +61,13 @@ test(
   },
   async () => {
     const repository = new InMemoryCheckoutRepository();
-    const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+    const acceptOffer = new AcceptCheckoutOfferUseCase(repository, repository, repository);
     const custService = new CheckoutCustomerService(repository);
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository),
-      new TrackCheckoutEventUseCase(repository),
+      new StartCheckoutUseCase(repository, repository, repository),
+      new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
       new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, {
@@ -75,9 +75,9 @@ test(
           return liveAgentContext();
         }
       }),
-      new EvaluateShippingUseCase(repository),
-      new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
-      new CompleteOrderUseCase(repository),
+      new EvaluateShippingUseCase(repository, repository, repository),
+      new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
+      new CompleteOrderUseCase(repository, repository, repository),
       new GetDashboardOverviewUseCase(repository),
       new GetMerchantRulesUseCase(repository),
       new UpdateMerchantRulesUseCase(repository)
@@ -126,13 +126,13 @@ test(
   },
   async () => {
     const repository = new InMemoryCheckoutRepository();
-    const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+    const acceptOffer = new AcceptCheckoutOfferUseCase(repository, repository, repository);
     const custService = new CheckoutCustomerService(repository);
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository),
-      new TrackCheckoutEventUseCase(repository),
+      new StartCheckoutUseCase(repository, repository, repository),
+      new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
       new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, {
@@ -140,9 +140,9 @@ test(
           return liveAgentContext();
         }
       }),
-      new EvaluateShippingUseCase(repository),
-      new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
-      new CompleteOrderUseCase(repository),
+      new EvaluateShippingUseCase(repository, repository, repository),
+      new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
+      new CompleteOrderUseCase(repository, repository, repository),
       new GetDashboardOverviewUseCase(repository),
       new GetMerchantRulesUseCase(repository),
       new UpdateMerchantRulesUseCase(repository)
@@ -237,13 +237,13 @@ test(
   },
   async () => {
     const repository = new InMemoryCheckoutRepository();
-    const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+    const acceptOffer = new AcceptCheckoutOfferUseCase(repository, repository, repository);
     const custService = new CheckoutCustomerService(repository);
     const shipService = new CheckoutShippingService(repository, custService);
     const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
-      new StartCheckoutUseCase(repository),
-      new TrackCheckoutEventUseCase(repository),
+      new StartCheckoutUseCase(repository, repository, repository),
+      new TrackCheckoutEventUseCase(repository, repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
       new SendChatMessageUseCase(repository, new LiveAiConversationPort(), custService, shipService, offerService, {
@@ -251,9 +251,9 @@ test(
           return liveAgentContext();
         }
       }),
-      new EvaluateShippingUseCase(repository),
-      new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
-      new CompleteOrderUseCase(repository),
+      new EvaluateShippingUseCase(repository, repository, repository),
+      new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
+      new CompleteOrderUseCase(repository, repository, repository),
       new GetDashboardOverviewUseCase(repository),
       new GetMerchantRulesUseCase(repository),
       new UpdateMerchantRulesUseCase(repository)

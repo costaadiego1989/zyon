@@ -2,25 +2,26 @@ import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { AcceptedOffer } from "@aacp/shared-types";
 import { AcceptedOfferEntity } from "../../domain/entities/accepted-offer.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
-import { withCheckoutTransaction } from "./checkout-transaction.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
+import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 
 @Injectable()
 export class AcceptCheckoutOfferUseCase {
-  constructor(@Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository) {}
+  constructor(
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository
+  ) {}
 
   async execute(input: { merchant_id: string; session_id: string; offer_id: string }): Promise<AcceptedOffer> {
-    return withCheckoutTransaction(this.repository, async (repository) => {
-    const session = await repository.getSession(input.merchant_id, input.session_id);
+    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
 
-    const offer = await repository.getOffer(input.merchant_id, input.offer_id);
+    const offer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!offer) throw new NotFoundException("offer_not_found");
 
-    const existing = await repository.getAcceptedOffer(input.merchant_id, input.session_id, input.offer_id);
+    const existing = await this.offers.getAcceptedOffer(input.merchant_id, input.session_id, input.offer_id);
     if (existing) return existing;
 
     const acceptedOffer = AcceptedOfferEntity.accept({
@@ -29,10 +30,10 @@ export class AcceptCheckoutOfferUseCase {
       offer
     }).snapshot();
 
-    await repository.saveAcceptedOffer(acceptedOffer);
-    await repository.recordEvent(input.merchant_id, input.session_id, "offer_accepted");
-    const updated = await repository.getSession(input.merchant_id, input.session_id);
-    await repository.appendOutbox(
+    await this.offers.saveAcceptedOffer(acceptedOffer);
+    await this.sessions.recordEvent(input.merchant_id, input.session_id, "offer_accepted");
+    const updated = await this.sessions.getSession(input.merchant_id, input.session_id);
+    await this.outbox.appendOutbox(
       createCheckoutEventEnvelope({
         eventType: "checkout.event.tracked",
         merchantId: input.merchant_id,
@@ -48,6 +49,5 @@ export class AcceptCheckoutOfferUseCase {
     );
 
     return acceptedOffer;
-    });
   }
 }

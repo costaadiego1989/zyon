@@ -9,6 +9,7 @@ import {
 import { GetMerchantThemeUseCase } from "./application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "./application/update-merchant-theme.use-case.js";
 import { MERCHANT_REPOSITORY } from "./domain/ports/merchant-repository.port.js";
+import { MERCHANT_RULES_REPOSITORY } from "./domain/ports/merchant-rules.repository.port.js";
 import { InMemoryMerchantRepository } from "./infrastructure/in-memory-merchant.repository.js";
 import { PrismaMerchantRepository } from "./infrastructure/prisma-merchant.repository.js";
 import { MerchantController } from "./presentation/merchant.controller.js";
@@ -32,8 +33,9 @@ import { MerchantController } from "./presentation/merchant.controller.js";
         return inMemory;
       },
       inject: [InMemoryMerchantRepository]
-    }
+    },
+    { provide: MERCHANT_RULES_REPOSITORY, useExisting: MERCHANT_REPOSITORY }
   ],
-  exports: [MERCHANT_REPOSITORY]
+  exports: [MERCHANT_REPOSITORY, MERCHANT_RULES_REPOSITORY]
 })
 export class MerchantModule {}

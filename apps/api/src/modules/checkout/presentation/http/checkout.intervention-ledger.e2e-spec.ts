@@ -74,19 +74,19 @@ test("Checkout flow caps trigger_agent after intervention ledger reaches max int
   const repository = new InMemoryCheckoutRepository();
   const settings = new InterventionLedgerCheckoutSettings();
   const ledger = new InMemoryInterventionLedger();
-  const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+  const acceptOffer = new AcceptCheckoutOfferUseCase(repository, repository, repository);
   const custService = new CheckoutCustomerService(repository);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   const controller = new CheckoutController(
-    new StartCheckoutUseCase(repository),
-    new TrackCheckoutEventUseCase(repository, settings, ledger),
+    new StartCheckoutUseCase(repository, repository, repository, undefined, repository),
+    new TrackCheckoutEventUseCase(repository, repository, settings, undefined, ledger),
     new GetCheckoutSessionUseCase(repository),
     new GetDecisionUseCase(repository, settings, ledger),
     new SendChatMessageUseCase(repository, new FakeConversationPort(), custService, shipService, offerService),
-    new EvaluateShippingUseCase(repository),
-    new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
-    new CompleteOrderUseCase(repository),
+    new EvaluateShippingUseCase(repository, repository, repository),
+    new ApplyOfferUseCase(repository, repository, new FakeCommerceOfferPort(), acceptOffer),
+    new CompleteOrderUseCase(repository, repository, repository),
     new GetDashboardOverviewUseCase(repository),
     new GetMerchantRulesUseCase(repository),
     new UpdateMerchantRulesUseCase(repository)

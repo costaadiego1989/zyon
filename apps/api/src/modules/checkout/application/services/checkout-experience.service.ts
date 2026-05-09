@@ -120,7 +120,11 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const baseGreeting =
     agentIdentity?.greeting ??
     "Olá, tudo bem? Seja muito bem-vindo! Sou o seu assistente virtual e vou te guiar em todo o processo do seu checkout com total segurança e agilidade.";
-  const greeting = baseGreeting;
+  const maxDiscount = deps.rules?.maxDiscountPercent ?? 0;
+  const greeting =
+    maxDiscount > 0 && !baseGreeting.match(/\d+\s*%/)
+      ? `${baseGreeting} Tenho até ${maxDiscount}% de desconto disponível para você fechar hoje.`
+      : baseGreeting;
 
   const trustCadastro = chatStage === "data_collection";
 

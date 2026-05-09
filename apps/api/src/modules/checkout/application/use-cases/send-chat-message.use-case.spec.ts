@@ -66,7 +66,7 @@ class FakeAgentContextPort implements AgentContextPort {
 
 test("SendChatMessageUseCase passes merchant agent context to conversation without authorizing from capabilities", async () => {
   const repository = new InMemoryCheckoutRepository();
-  const started = await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  const started = await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const conversation = new RecordingConversationPort();
   const agentContext = new FakeAgentContextPort(testAgentContext());
   const useCase = createTestUseCase(repository, conversation, agentContext);
@@ -89,7 +89,7 @@ test("SendChatMessageUseCase passes merchant agent context to conversation witho
 
 test("SendChatMessageUseCase remains compatible when agent context is not configured", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
@@ -106,7 +106,7 @@ test("SendChatMessageUseCase remains compatible when agent context is not config
 
 test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.customer", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_extract", customer: undefined, shipping: undefined })
   );
   const conversation = new RecordingConversationPort();
@@ -129,7 +129,7 @@ test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.cu
 
 test("SendChatMessageUseCase captures fullName when previous agent turn asked for the name", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_name", customer: undefined })
   );
   await repository.appendChatTurn("mrc_1", "chk_name", {
@@ -153,7 +153,7 @@ test("SendChatMessageUseCase captures fullName when previous agent turn asked fo
 
 test("SendChatMessageUseCase returns refreshed experience snapshot with stage and missing fields", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_exp", customer: undefined })
   );
   const conversation = new RecordingConversationPort();
@@ -175,7 +175,7 @@ test("SendChatMessageUseCase returns refreshed experience snapshot with stage an
 
 test("SendChatMessageUseCase appends buyer + agent turns and forwards history", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_h" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_h" }));
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
@@ -202,7 +202,7 @@ test("SendChatMessageUseCase appends buyer + agent turns and forwards history", 
 
 test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → frete estimado → etapa pagamento e complete-order", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_full_journey", customer: undefined, shipping: undefined })
   );
 
@@ -261,6 +261,11 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   await useCase.execute({ ...baseReq, user_message: "529.982.247-25" });
   await useCase.execute({ ...baseReq, user_message: "(21) 99300-1883" });
 
+  const afterPhone = await repository.getSession("mrc_1", "chk_full_journey");
+  const phoneOtpCode = afterPhone?.customer?.phone_otp_code;
+  assert.ok(phoneOtpCode, "gerou codigo de verificacao por sms");
+  await useCase.execute({ ...baseReq, user_message: phoneOtpCode! });
+
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
@@ -282,10 +287,13 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
     const afterCep = await useCase.execute({ ...baseReq, user_message: "CEP de entrega 01310-100" });
     assert.equal(afterCep.stage, "shipping");
     assert.ok(
-      (afterCep.missing_fields ?? []).some((f) => f.includes("número") || f.includes("complemento")),
-      "após ViaCEP ainda falta número/complemento"
+      (afterCep.missing_fields ?? []).some((f) => f.includes("número") || f.includes("complemento") || f.includes("confirmar")),
+      "após ViaCEP ainda falta confirmação/número/complemento"
     );
     assert.ok((afterCep.experience?.copy.quick_replies?.length ?? 0) > 0);
+
+    // Confirm address returned by ViaCEP
+    await useCase.execute({ ...baseReq, user_message: "Sim" });
 
     const afterAddr = await useCase.execute({ ...baseReq, user_message: "1500, apartamento 42" });
 
@@ -305,7 +313,7 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
     assert.equal(session?.shippingOptions?.length, 2);
     assert.ok(session.customer?.address?.street?.includes("Paulista"));
 
-    const completed = await new CompleteOrderUseCase(repository).execute(
+    const completed = await new CompleteOrderUseCase(repository, repository, repository).execute(
       completeOrderRequest({
         session_id: "chk_full_journey",
         external_order_id: "ord_full_journey_1",
@@ -322,7 +330,7 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
 
 test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acordo com guardrails (CRUD lojista)", async () => {
   const repository = new InMemoryCheckoutRepository();
-  await new StartCheckoutUseCase(repository).execute(
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
     startCheckoutRequest({ session_id: "chk_qr", customer: undefined, shipping: undefined })
   );
 
@@ -387,12 +395,15 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
       email_verified: true,
       cpf: "05178178700",
       phone: "21993001883",
+      phone_verified: true,
+      address_verified: true,
       address: {
         zip: "01310100",
         city: "SP",
         state: "SP",
         street: "Av",
-        number: "100"
+        number: "100",
+        complement: ""
       }
     };
     session.shipping = {
@@ -423,7 +434,7 @@ test("SendChatMessageUseCase blocks duplicate email registration and returns cha
   const useCase = createTestUseCase(repository, conversation);
 
   // Setup session 1 with registered email
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const session1 = await repository.getSession("mrc_1", "chk_1");
   if (session1) {
     session1.customer = { email: "duplicado@aacp.io", fullName: "Comprador Um" };
@@ -431,7 +442,7 @@ test("SendChatMessageUseCase blocks duplicate email registration and returns cha
   }
 
   // Setup session 2
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
   const session2 = await repository.getSession("mrc_1", "chk_2");
   if (session2) {
     session2.customer = { fullName: "Comprador Dois" };
@@ -456,7 +467,7 @@ test("SendChatMessageUseCase blocks mismatched email OTP validation and returns 
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_otp" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp" }));
   const session = await repository.getSession("mrc_1", "chk_otp");
   if (session) {
     session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "123456", email_verified: false };
@@ -480,7 +491,7 @@ test("SendChatMessageUseCase handles phone input, SMS OTP generation, and valida
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_phone" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_phone" }));
   const session = await repository.getSession("mrc_1", "chk_phone");
   if (session) {
     session.customer = {
@@ -532,7 +543,7 @@ test("SendChatMessageUseCase handles address rejection 'Não', clearing fields a
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
 
-  await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_addr" }));
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_addr" }));
   const session = await repository.getSession("mrc_1", "chk_addr");
   if (session) {
     session.customer = {

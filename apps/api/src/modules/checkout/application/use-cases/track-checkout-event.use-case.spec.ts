@@ -29,7 +29,7 @@ class PaymentOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
 test("TrackCheckoutEventUseCase rejects missing or cross-tenant sessions", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession({ merchantId: "mrc_1", sessionId: "chk_1" }));
-  const useCase = new TrackCheckoutEventUseCase(repository);
+  const useCase = new TrackCheckoutEventUseCase(repository, repository);
 
   await assert.rejects(
     () => useCase.execute({ merchant_id: "mrc_2", session_id: "chk_1", event: "coupon_field_clicked" }),
@@ -40,7 +40,7 @@ test("TrackCheckoutEventUseCase rejects missing or cross-tenant sessions", async
 test("TrackCheckoutEventUseCase records event, updates score, and appends facts", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession());
-  const useCase = new TrackCheckoutEventUseCase(repository);
+  const useCase = new TrackCheckoutEventUseCase(repository, repository);
 
   const response = await useCase.execute({
     merchant_id: "mrc_1",
@@ -64,7 +64,7 @@ test("TrackCheckoutEventUseCase emits fake WhatsApp abandonment discount", async
     })
   );
   repository.setRules("mrc_1", { maxDiscountPercent: 12, couponBoxEnabled: true });
-  const useCase = new TrackCheckoutEventUseCase(repository);
+  const useCase = new TrackCheckoutEventUseCase(repository, repository, undefined, repository);
 
   await useCase.execute({
     merchant_id: "mrc_1",
@@ -83,7 +83,7 @@ test("TrackCheckoutEventUseCase emits fake WhatsApp abandonment discount", async
 test("TrackCheckoutEventUseCase suppresses trigger when checkout-settings disables the event", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession({ abandonmentScore: 0.5 }));
-  const useCase = new TrackCheckoutEventUseCase(repository, new PaymentOnlyCheckoutSettingsPort());
+  const useCase = new TrackCheckoutEventUseCase(repository, repository, new PaymentOnlyCheckoutSettingsPort());
 
   const response = await useCase.execute({
     merchant_id: "mrc_1",
@@ -128,7 +128,7 @@ test("TrackCheckoutEventUseCase applies intervention ledger cap after repeated o
   repository.saveSession(checkoutSession());
   const ledger = new InMemoryInterventionLedger();
   const settings = new LedgerCapCheckoutSettings();
-  const useCase = new TrackCheckoutEventUseCase(repository, settings, ledger);
+  const useCase = new TrackCheckoutEventUseCase(repository, repository, settings, undefined, ledger);
 
   await useCase.execute({
     merchant_id: "mrc_1",

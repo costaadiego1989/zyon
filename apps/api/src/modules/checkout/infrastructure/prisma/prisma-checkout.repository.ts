@@ -51,6 +51,10 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return toMerchantRules(row);
   }
 
+  async updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
+    return this.setRules(merchantId, rules);
+  }
+
   async setRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
     const current = await this.getRules(merchantId);
     const next = { ...current, ...rules };
@@ -74,13 +78,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row.globalUserId;
   }
 
-  async saveSession(session: CheckoutSession): Promise<CheckoutSession> {
-    const row = await this.prisma.checkoutSession.upsert({
+  async saveSession(session: CheckoutSession): Promise<void> {
+    await this.prisma.checkoutSession.upsert({
       where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
       create: toCheckoutSessionCreate(session) as any,
       update: toCheckoutSessionUpdate(session) as any
     });
-    return toCheckoutSession(row);
   }
 
   async getSession(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
@@ -148,8 +151,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row ? toAuthorizedOffer(row) : undefined;
   }
 
-  async saveAcceptedOffer(acceptedOffer: AcceptedOffer): Promise<AcceptedOffer> {
-    const row = await this.prisma.acceptedOffer.upsert({
+  async saveAcceptedOffer(acceptedOffer: AcceptedOffer): Promise<void> {
+    await this.prisma.acceptedOffer.upsert({
       where: {
         merchantId_sessionId_offerId: {
           merchantId: acceptedOffer.merchantId,
@@ -160,7 +163,6 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       create: toAcceptedOfferCreate(acceptedOffer),
       update: {}
     });
-    return toAcceptedOffer(row);
   }
 
   async getAcceptedOffer(merchantId: string, sessionId: string, offerId: string): Promise<AcceptedOffer | undefined> {

@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
+import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";
 
 const DEFAULT_RULES: MerchantRules = {
   maxDiscountPercent: 10,
@@ -19,7 +20,7 @@ const DEFAULT_RULES: MerchantRules = {
 };
 
 @Injectable()
-export class InMemoryMerchantRepository implements MerchantRepository {
+export class InMemoryMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   private profiles = new Map<string, MerchantProfile>();
   private rules = new Map<string, MerchantRules>();
 

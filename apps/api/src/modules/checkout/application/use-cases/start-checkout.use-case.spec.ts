@@ -27,7 +27,7 @@ class ManualOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
 
 test("StartCheckoutUseCase creates session, records start event, and appends outbox fact", async () => {
   const repository = new InMemoryCheckoutRepository();
-  const useCase = new StartCheckoutUseCase(repository);
+  const useCase = new StartCheckoutUseCase(repository, repository, repository);
   const response = await useCase.execute(startCheckoutRequest({ session_id: "chk_custom" }));
 
   const session = repository.getSession("mrc_1", "chk_custom");
@@ -39,7 +39,7 @@ test("StartCheckoutUseCase creates session, records start event, and appends out
 
 test("StartCheckoutUseCase reuses global user only inside the same merchant", async () => {
   const repository = new InMemoryCheckoutRepository();
-  const useCase = new StartCheckoutUseCase(repository);
+  const useCase = new StartCheckoutUseCase(repository, repository, repository);
 
   const first = await useCase.execute(startCheckoutRequest({ merchant_id: "mrc_1", session_id: "chk_1" }));
   const second = await useCase.execute(startCheckoutRequest({ merchant_id: "mrc_1", session_id: "chk_2" }));
@@ -51,7 +51,7 @@ test("StartCheckoutUseCase reuses global user only inside the same merchant", as
 
 test("StartCheckoutUseCase respects manual-only checkout settings", async () => {
   const repository = new InMemoryCheckoutRepository();
-  const useCase = new StartCheckoutUseCase(repository, new ManualOnlyCheckoutSettingsPort());
+  const useCase = new StartCheckoutUseCase(repository, repository, repository, new ManualOnlyCheckoutSettingsPort());
 
   const response = await useCase.execute(startCheckoutRequest({ session_id: "chk_manual" }));
 
@@ -143,7 +143,7 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
       };
     }
   };
-  const useCase = new StartCheckoutUseCase(repository, undefined, merchantRepository, agentContext);
+  const useCase = new StartCheckoutUseCase(repository, repository, repository, undefined, merchantRepository, agentContext);
 
   const response = await useCase.execute(
     startCheckoutRequest({

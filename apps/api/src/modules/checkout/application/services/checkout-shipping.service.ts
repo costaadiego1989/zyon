@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints, ShippingQuote } from "@aacp/shared-types";
-import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
 import { extractAddressDetailLine } from "../../domain/services/customer-extraction.service.js";
 import { CheckoutCustomerService } from "./checkout-customer.service.js";
@@ -8,7 +8,7 @@ import { CheckoutCustomerService } from "./checkout-customer.service.js";
 @Injectable()
 export class CheckoutShippingService {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly repository: CheckoutSessionRepository,
     private readonly customerService: CheckoutCustomerService
   ) { }
 
@@ -20,9 +20,10 @@ export class CheckoutShippingService {
       const isYes = /^(sim|s|correto|esta\s+correto|está\s+correto|confirmado|confirma)$/i.test(normalizedMsg);
       const isNo = /^(nao|não|n|errado|esta\s+errado|está\s+errado|rejeitado|rejeito)$/i.test(normalizedMsg);
       if (isYes) {
-        working = await this.repository.saveSession(this.customerService.mergeCustomers(working, { address_verified: true }));
+        working = this.customerService.mergeCustomers(working, { address_verified: true });
+        await this.repository.saveSession(working);
       } else if (isNo) {
-        working = await this.repository.saveSession(this.customerService.mergeCustomers(working, {
+        working = this.customerService.mergeCustomers(working, {
           address: {
             zip: undefined,
             street: undefined,
@@ -33,7 +34,8 @@ export class CheckoutShippingService {
             state: undefined
           },
           address_verified: false
-        }));
+        });
+        await this.repository.saveSession(working);
         return working;
       }
     }
@@ -42,7 +44,8 @@ export class CheckoutShippingService {
 
     const numberPatch = this.tryParseAddressNumbers(userMessage, working);
     if (numberPatch) {
-      working = await this.repository.saveSession(this.customerService.mergeCustomers(working, numberPatch));
+      working = this.customerService.mergeCustomers(working, numberPatch);
+      await this.repository.saveSession(working);
     }
 
     working = await this.tryEnsureShippingOptions(working);
@@ -60,7 +63,8 @@ export class CheckoutShippingService {
         const next = this.customerService.mergeCustomers(session, {
           address: this.customerService.mergeAddr(session.customer?.address, via)
         });
-        return this.repository.saveSession(next);
+        await this.repository.saveSession(next);
+        return next;
       }
     }
     return session;
@@ -102,7 +106,7 @@ export class CheckoutShippingService {
     const q = estimatePacQuote({ zip: addr.zip, state: addr.state });
     const sedexPrice = Math.round((q.customerPrice + 10) * 100) / 100;
     const sedexRealCost = Math.round((q.realCost + 8) * 100) / 100;
-    return this.repository.saveSession({
+    const next: CheckoutSession = {
       ...session,
       shippingOptions: [
         {
@@ -125,18 +129,22 @@ export class CheckoutShippingService {
         }
       ],
       updatedAt: new Date().toISOString()
-    });
+    };
+    await this.repository.saveSession(next);
+    return next;
   }
 
   private async trySelectShippingOption(text: string, session: CheckoutSession): Promise<CheckoutSession> {
     if (session.shipping || !session.shippingOptions?.length) return session;
     const selected = this.selectShippingOption(text, session.shippingOptions);
     if (!selected) return session;
-    return this.repository.saveSession({
+    const next: CheckoutSession = {
       ...session,
       shipping: selected,
       updatedAt: new Date().toISOString()
-    });
+    };
+    await this.repository.saveSession(next);
+    return next;
   }
 
   private selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {

@@ -56,7 +56,8 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
       email: "j@x.com",
       email_verified: true,
       cpf: "12345678901",
-      phone: "11988887777"
+      phone: "11988887777",
+      phone_verified: true
     }
   });
   assert.equal(deriveChatStage(withCustomer), "shipping");
@@ -87,6 +88,7 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
   const addrComplete = checkoutSession({
     customer: {
       ...withCustomer.customer!,
+      address_verified: true,
       address: {
         zip: "01001000",
         street: "Rua Augusta",
@@ -110,12 +112,12 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
 
 test("missingFieldsForStage lists user-facing labels for each stage in order", () => {
   const empty = checkoutSession({ customer: {} });
-  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["nome", "email", "código de verificação", "CPF", "telefone"]);
+  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["nome", "email", "código de verificação", "CPF", "telefone", "código de verificação do celular"]);
 
   const withName = checkoutSession({
     customer: { fullName: "Joao" }
   });
-  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["email", "código de verificação", "CPF", "telefone"]);
+  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["email", "código de verificação", "CPF", "telefone", "código de verificação do celular"]);
 
   const readyCadastro = checkoutSession({
     customer: {
@@ -123,7 +125,9 @@ test("missingFieldsForStage lists user-facing labels for each stage in order", (
       email: "j@x.com",
       email_verified: true,
       cpf: "12345678901",
-      phone: "11988887777"
+      phone: "11988887777",
+      phone_verified: true,
+      address_verified: true
     }
   });
   assert.deepEqual(missingFieldsForStage(readyCadastro, "shipping"), ["CEP"]);

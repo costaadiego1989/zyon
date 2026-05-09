@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints } from "@aacp/shared-types";
-import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
 import {
   extractCep,
@@ -29,7 +29,7 @@ export class OtpValidationError extends Error {
 @Injectable()
 export class CheckoutCustomerService {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly repository: CheckoutSessionRepository,
     @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier
   ) {}
 
@@ -52,7 +52,8 @@ export class CheckoutCustomerService {
     }
 
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
-    const working = await this.repository.saveSession(this.mergeCustomers(session, patch));
+    const working = this.mergeCustomers(session, patch);
+    await this.repository.saveSession(working);
 
     if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
       const merged = this.mergeHints(session.customer, patch);

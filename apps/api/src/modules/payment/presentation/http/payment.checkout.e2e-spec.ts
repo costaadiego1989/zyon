@@ -15,7 +15,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const merchantId = `m_pay_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
   const sessionId = `chk_e2e_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout).execute({
+  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -35,7 +35,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const providerPaymentId = intentSnap.providerPaymentId!;
   assert.equal(intentSnap.amountCents / 100, 300);
 
-  const checkoutPayment = new CheckoutPaymentAdapter(checkout, new CompleteOrderUseCase(checkout));
+  const checkoutPayment = new CheckoutPaymentAdapter(checkout, new CompleteOrderUseCase(checkout, checkout, checkout));
   const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
 
   const processed = await webhook.execute(undefined, {
@@ -78,7 +78,7 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
   const merchantId = `m_pay_fail_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
   const sessionId = `chk_fail_${crypto.randomUUID().slice(0, 12)}`;
 
-  await new StartCheckoutUseCase(checkout).execute({
+  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     cart: {
@@ -96,7 +96,7 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
   });
 
   const providerPaymentId = intentSnap.providerPaymentId!;
-  const checkoutPayment = new CheckoutPaymentAdapter(checkout, new CompleteOrderUseCase(checkout));
+  const checkoutPayment = new CheckoutPaymentAdapter(checkout, new CompleteOrderUseCase(checkout, checkout, checkout));
   const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
 
   await webhook.execute(undefined, {

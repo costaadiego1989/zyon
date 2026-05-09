@@ -3,10 +3,7 @@ import type {
   ChatMessageRequest,
   ChatMessageResponse
 } from "@aacp/shared-types";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
 import {
@@ -30,7 +27,7 @@ function structuredCloneDeep<T>(obj: T): T {
 @Injectable()
 export class SendChatMessageUseCase {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(CONVERSATION_PORT) private readonly conversation: ConversationPort,
     private readonly customerService: CheckoutCustomerService,
     private readonly shippingService: CheckoutShippingService,
@@ -40,9 +37,23 @@ export class SendChatMessageUseCase {
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
-    const session = await this.repository.getSession(input.merchant_id, input.session_id);
+    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    const rules = await this.repository.getRules(input.merchant_id);
+    const rules = await this.merchantRepo?.getRules(input.merchant_id) ?? {
+      maxDiscountPercent: 0,
+      minimumMarginPercent: 38,
+      allowFreeShipping: false,
+      allowShippingDiscount: false,
+      allowBonusItem: false,
+      allowStackDiscountAndFreeShipping: false,
+      freeShippingMinCartValue: 250,
+      maxShippingSubsidy: 0,
+      maxPartialShippingDiscount: 0,
+      offerExpirationMinutes: 15,
+      blockedRegions: [] as string[],
+      brandVoice: "consultative" as const,
+      couponBoxEnabled: true
+    };
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
 
     const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
@@ -62,12 +73,12 @@ export class SendChatMessageUseCase {
           : error.message;
 
         const now = new Date().toISOString();
-        await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+        await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
           role: "buyer",
           text: input.user_message,
           occurredAt: now
         });
-        const updated = await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+        const updated = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
           role: "agent",
           text: errorMsg,
           occurredAt: new Date().toISOString()
@@ -101,7 +112,7 @@ export class SendChatMessageUseCase {
     const missingFields = missingFieldsForStage(working, stage);
 
     const offer = await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
-    
+
     const agentContext = await this.agentContext?.get({
       merchantId: input.merchant_id,
       userId: input.agent_user_id,
@@ -123,12 +134,12 @@ export class SendChatMessageUseCase {
     });
 
     const now = new Date().toISOString();
-    await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+    await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
       role: "buyer",
       text: input.user_message,
       occurredAt: now
     });
-    const updated = await this.repository.appendChatTurn(input.merchant_id, input.session_id, {
+    const updated = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
       role: "agent",
       text: reply.message,
       occurredAt: new Date().toISOString(),

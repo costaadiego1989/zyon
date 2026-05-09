@@ -1,50 +1,48 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { CheckoutSettingsContext, TrackEventRequest, TrackEventResponse } from "@aacp/shared-types";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
+import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import {
   CHECKOUT_INTERVENTION_LEDGER,
   type CheckoutInterventionLedgerPort
 } from "../../domain/ports/checkout-intervention-ledger.port.js";
 import { decideInterventions } from "../../domain/services/intervention-policy.service.js";
-import { withCheckoutTransaction } from "./checkout-transaction.js";
+import type { CheckoutSession } from "@aacp/shared-types";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
+    @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRepository?: MerchantRulesRepository,
     @Optional() @Inject(CHECKOUT_INTERVENTION_LEDGER)
     private readonly interventionLedger?: CheckoutInterventionLedgerPort
   ) {}
 
   async execute(input: TrackEventRequest): Promise<TrackEventResponse> {
-    return withCheckoutTransaction(this.repository, async (repository) => {
-    const session = await repository.getSession(input.merchant_id, input.session_id);
+    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) {
       throw new NotFoundException("checkout_session_not_found");
     }
-    await repository.recordEvent(input.merchant_id, input.session_id, input.event);
+    await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event);
     const updated = await this.applyOperationalSettings(
-      repository,
       input.merchant_id,
       input.session_id,
       input.event,
-      (await repository.getSession(input.merchant_id, input.session_id))!
+      (await this.sessions.getSession(input.merchant_id, input.session_id))!
     );
     const settingsCtx = await this.checkoutSettings?.getContext(input.merchant_id);
     const finalSession = await this.applyInterventionLedgerGate(
-      repository,
       input.merchant_id,
       input.session_id,
       updated,
       settingsCtx ?? undefined
     );
-    await repository.appendOutbox(
+    await this.outbox.appendOutbox(
       createCheckoutEventEnvelope({
         eventType: "checkout.event.tracked",
         merchantId: input.merchant_id,
@@ -60,7 +58,7 @@ export class TrackCheckoutEventUseCase {
       })
     );
     if (finalSession.abandonmentScore !== session.abandonmentScore) {
-      await repository.appendOutbox(
+      await this.outbox.appendOutbox(
         createCheckoutEventEnvelope({
           eventType: "checkout.abandonment.scored",
           merchantId: input.merchant_id,
@@ -76,7 +74,7 @@ export class TrackCheckoutEventUseCase {
       );
     }
     if (input.event === "checkout_abandoned") {
-      await repository.appendOutbox(
+      await this.outbox.appendOutbox(
         createCheckoutEventEnvelope({
           eventType: "checkout.abandoned",
           merchantId: input.merchant_id,
@@ -87,9 +85,9 @@ export class TrackCheckoutEventUseCase {
           causationId: input.event
         })
       );
-      const rules = await repository.getRules(input.merchant_id);
-      if (finalSession.customer?.phone && rules.couponBoxEnabled !== false && rules.maxDiscountPercent > 0) {
-        await repository.appendOutbox(
+      const rules = await this.merchantRepository?.getRules(input.merchant_id);
+      if (finalSession.customer?.phone && rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
+        await this.outbox.appendOutbox(
           createCheckoutEventEnvelope({
             eventType: "whatsapp.message.requested",
             merchantId: input.merchant_id,
@@ -97,8 +95,8 @@ export class TrackCheckoutEventUseCase {
               session_id: input.session_id,
               phone: finalSession.customer.phone,
               template: "checkout_abandonment_discount",
-              discount_percent: rules.maxDiscountPercent,
-              message: `Voce deixou seu pedido no checkout. Mantive ${rules.maxDiscountPercent}% de desconto para voce fechar a compra agora.`
+              discount_percent: rules!.maxDiscountPercent,
+              message: `Voce deixou seu pedido no checkout. Mantive ${rules!.maxDiscountPercent}% de desconto para voce fechar a compra agora.`
             },
             causationId: input.event
           })
@@ -110,16 +108,14 @@ export class TrackCheckoutEventUseCase {
       abandonment_score: finalSession.abandonmentScore,
       trigger_agent: finalSession.triggerAgent
     };
-    });
   }
 
   private async applyInterventionLedgerGate(
-    repository: CheckoutRepository,
     merchantId: string,
     sessionId: string,
-    session: NonNullable<Awaited<ReturnType<CheckoutRepository["getSession"]>>>,
+    session: CheckoutSession,
     settingsCtx: CheckoutSettingsContext | undefined
-  ): Promise<NonNullable<Awaited<ReturnType<CheckoutRepository["getSession"]>>>> {
+  ): Promise<CheckoutSession> {
     if (!this.interventionLedger || !settingsCtx || !session.triggerAgent) {
       return session;
     }
@@ -137,7 +133,7 @@ export class TrackCheckoutEventUseCase {
     });
     if (!pol.triggerAgent) {
       const next = { ...session, triggerAgent: false, updatedAt: new Date().toISOString() };
-      await repository.saveSession(next);
+      await this.sessions.saveSession(next);
       return next;
     }
     await this.interventionLedger.record({
@@ -150,13 +146,11 @@ export class TrackCheckoutEventUseCase {
   }
 
   private async applyOperationalSettings(
-    repository: CheckoutRepository,
     merchantId: string,
     sessionId: string,
     eventName: TrackEventRequest["event"],
-    session: Awaited<ReturnType<CheckoutRepository["getSession"]>>
+    session: CheckoutSession
   ) {
-    if (!session) return session!;
     const settings = await this.checkoutSettings?.getContext(merchantId);
     if (!settings) return session;
     const configured = settings.checkout_settings;
@@ -169,7 +163,7 @@ export class TrackCheckoutEventUseCase {
     const finalTrigger = shouldTrigger;
     if (session.triggerAgent === finalTrigger) return session;
     const next = { ...session, triggerAgent: finalTrigger, updatedAt: new Date().toISOString() };
-    await repository.saveSession(next);
+    await this.sessions.saveSession(next);
     return next;
   }
 }

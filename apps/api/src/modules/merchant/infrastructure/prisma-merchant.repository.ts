@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
+import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";
 
 const DEFAULT_RULES: MerchantRules = {
   maxDiscountPercent: 10,
@@ -18,7 +19,7 @@ const DEFAULT_RULES: MerchantRules = {
   couponBoxEnabled: true
 };
 
-export class PrismaMerchantRepository implements MerchantRepository {
+export class PrismaMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async getProfile(merchantId: string): Promise<MerchantProfile | undefined> {

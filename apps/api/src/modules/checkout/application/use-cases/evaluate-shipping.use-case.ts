@@ -1,20 +1,37 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { evaluateShippingOffer } from "@aacp/shipping-engine";
 import type { ShippingEvaluateRequest, ShippingEvaluateResponse } from "@aacp/shared-types";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
+import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { createAuthorizedOffer } from "./offer-factory.js";
 
 @Injectable()
 export class EvaluateShippingUseCase {
-  constructor(@Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository) {}
+  constructor(
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,
+    @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRepository?: MerchantRulesRepository
+  ) {}
 
   async execute(input: ShippingEvaluateRequest): Promise<ShippingEvaluateResponse> {
-    const session = await this.repository.getSession(input.merchant_id, input.session_id);
+    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    const rules = await this.repository.getRules(input.merchant_id);
+    const rules = await this.merchantRepository?.getRules(input.merchant_id) ?? {
+      maxDiscountPercent: 0,
+      minimumMarginPercent: 38,
+      allowFreeShipping: false,
+      allowShippingDiscount: false,
+      allowBonusItem: false,
+      allowStackDiscountAndFreeShipping: false,
+      freeShippingMinCartValue: 250,
+      maxShippingSubsidy: 0,
+      maxPartialShippingDiscount: 0,
+      offerExpirationMinutes: 15,
+      blockedRegions: [],
+      brandVoice: "consultative" as const,
+      couponBoxEnabled: true
+    };
     const evaluation = evaluateShippingOffer({
       cart: { ...session.cart, total: input.cart_value ?? session.cart.total },
       shipping: {
@@ -25,7 +42,7 @@ export class EvaluateShippingUseCase {
       rules,
       abandonmentScore: input.abandonment_score ?? session.abandonmentScore
     });
-    const offer = await this.repository.saveOffer(
+    const offer = await this.offers.saveOffer(
       createAuthorizedOffer({ merchantId: input.merchant_id, sessionId: input.session_id, rules, evaluation })
     );
 

@@ -6,10 +6,8 @@ import type {
   CheckoutSession,
   ChatTurn
 } from "@aacp/shared-types";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { COMMERCE_OFFER_PORT, type CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -18,16 +16,17 @@ import { buildExperienceFromSession } from "../services/checkout-experience.serv
 @Injectable()
 export class ApplyOfferUseCase {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,
     @Inject(COMMERCE_OFFER_PORT) private readonly commerce: CommerceOfferPort,
     private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
   ) {}
 
   async execute(input: ApplyOfferRequest): Promise<ApplyOfferResponse> {
-    const session = await this.repository.getSession(input.merchant_id, input.session_id);
+    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    const offer = await this.repository.getOffer(input.merchant_id, input.offer_id);
+    const offer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!offer || !offer.approved) return { success: false, reason: "offer_not_found_or_not_approved" };
     if (Date.parse(offer.expiresAt) <= Date.now()) return { success: false, reason: "offer_expired" };
 
@@ -42,17 +41,17 @@ export class ApplyOfferUseCase {
     await this.acceptCheckoutOffer.execute(input);
 
     const updatedSession = applyOfferToSession(session, offer);
-    await this.repository.saveSession(updatedSession);
+    await this.sessions.saveSession(updatedSession);
 
     const followUp = buildAgentFollowUp(offer);
-    const sessionWithTurn = await this.repository.appendChatTurn(input.merchant_id, input.session_id, followUp);
+    const sessionWithTurn = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, followUp);
 
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
-    const merchantRules = await this.repository.getRules(input.merchant_id);
+    const merchantRules = await this.merchantRepo?.getRules(input.merchant_id);
     const experience = buildExperienceFromSession(sessionWithTurn, {
       merchantName: merchant?.name,
       theme: merchant?.theme,
-      couponBoxEnabled: merchantRules.couponBoxEnabled
+      couponBoxEnabled: merchantRules?.couponBoxEnabled
     });
 
     const subtotal = experience.totals.subtotal;

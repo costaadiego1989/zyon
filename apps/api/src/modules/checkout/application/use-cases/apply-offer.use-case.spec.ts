@@ -23,8 +23,9 @@ test("ApplyOfferUseCase applies approved offers and records checkout acceptance"
   repository.saveOffer(authorizedOffer());
   const useCase = new ApplyOfferUseCase(
     repository,
+    repository,
     new FakeCommerceOfferPort(),
-    new AcceptCheckoutOfferUseCase(repository)
+    new AcceptCheckoutOfferUseCase(repository, repository, repository)
   );
 
   const response = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });
@@ -40,8 +41,9 @@ test("ApplyOfferUseCase blocks expired offers before commerce application", asyn
   repository.saveOffer(authorizedOffer({ expiresAt: "2020-01-01T00:00:00.000Z" }));
   const useCase = new ApplyOfferUseCase(
     repository,
+    repository,
     new FakeCommerceOfferPort(),
-    new AcceptCheckoutOfferUseCase(repository)
+    new AcceptCheckoutOfferUseCase(repository, repository, repository)
   );
 
   const response = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });
@@ -56,8 +58,9 @@ test("ApplyOfferUseCase returns refreshed experience and appends agent turn afte
   repository.saveOffer(authorizedOffer({ type: "discount_percent", value: 10 }));
   const useCase = new ApplyOfferUseCase(
     repository,
+    repository,
     new FakeCommerceOfferPort(),
-    new AcceptCheckoutOfferUseCase(repository)
+    new AcceptCheckoutOfferUseCase(repository, repository, repository)
   );
 
   const response = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });
@@ -82,8 +85,9 @@ test("ApplyOfferUseCase keeps the largest discount when applied twice", async ()
   repository.saveOffer(authorizedOffer({ type: "discount_percent", value: 10 }));
   const useCase = new ApplyOfferUseCase(
     repository,
+    repository,
     new FakeCommerceOfferPort(),
-    new AcceptCheckoutOfferUseCase(repository)
+    new AcceptCheckoutOfferUseCase(repository, repository, repository)
   );
 
   await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });

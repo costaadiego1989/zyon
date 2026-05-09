@@ -22,7 +22,7 @@ class RecordingPurchaseHistoryPort implements PurchaseHistoryPort {
 test("CompleteOrderUseCase records order completion idempotently and emits once", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession());
-  const useCase = new CompleteOrderUseCase(repository);
+  const useCase = new CompleteOrderUseCase(repository, repository, repository);
 
   const first = await useCase.execute(completeOrderRequest());
   const second = await useCase.execute(completeOrderRequest());
@@ -41,7 +41,7 @@ test("CompleteOrderUseCase emits fake WhatsApp tracking request when phone exist
       customer: { phone: "11999998888" }
     })
   );
-  const useCase = new CompleteOrderUseCase(repository);
+  const useCase = new CompleteOrderUseCase(repository, repository, repository);
 
   await useCase.execute(completeOrderRequest({ tracking_code: "BR123456789AA" }));
 
@@ -65,7 +65,7 @@ test("CompleteOrderUseCase records completed checkout into buyer purchase histor
     })
   );
   const purchaseHistory = new RecordingPurchaseHistoryPort();
-  const useCase = new CompleteOrderUseCase(repository, purchaseHistory);
+  const useCase = new CompleteOrderUseCase(repository, repository, repository, purchaseHistory);
 
   await useCase.execute(completeOrderRequest({ order_total: 180, accepted_offer_id: "offer_1" }));
   await useCase.execute(completeOrderRequest({ order_total: 180, accepted_offer_id: "offer_1" }));
@@ -95,7 +95,7 @@ test("CompleteOrderUseCase feeds buyer purchase history so IA can read ticket m√
   const purchaseHistoryRepository = new InMemoryBuyerPurchaseHistoryRepository();
   const recordPurchase = new RecordCompletedPurchaseUseCase(purchaseHistoryRepository);
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(recordPurchase);
-  const completeOrder = new CompleteOrderUseCase(checkoutRepository, purchaseHistoryPort);
+  const completeOrder = new CompleteOrderUseCase(checkoutRepository, checkoutRepository, checkoutRepository, purchaseHistoryPort);
   const getContext = new GetBuyerPurchaseContextUseCase(purchaseHistoryRepository);
 
   await completeOrder.execute(

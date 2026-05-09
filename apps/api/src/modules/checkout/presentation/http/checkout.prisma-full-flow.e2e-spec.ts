@@ -76,17 +76,17 @@ function buildController(repo: InMemoryCheckoutRepository) {
   const payments = new InMemoryPaymentRepository();
   const purchaseHistoryRepo = new InMemoryBuyerPurchaseHistoryRepository();
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
-  const completeOrder = new CompleteOrderUseCase(repo, purchaseHistoryPort);
+  const completeOrder = new CompleteOrderUseCase(repo, repo, repo, purchaseHistoryPort);
   const conv = new FakeConv();
   const custService = new CheckoutCustomerService(repo);
   const shipService = new CheckoutShippingService(repo, custService);
   const offerService = new CheckoutOfferService(repo);
   const ctrl = new CheckoutController(
-    new StartCheckoutUseCase(repo), new TrackCheckoutEventUseCase(repo),
+    new StartCheckoutUseCase(repo, repo, repo, undefined, repo), new TrackCheckoutEventUseCase(repo, repo),
     new GetCheckoutSessionUseCase(repo), new GetDecisionUseCase(repo),
-    new SendChatMessageUseCase(repo, conv, custService, shipService, offerService, new FakeAgent()),
-    new EvaluateShippingUseCase(repo),
-    new ApplyOfferUseCase(repo, new FakeCommerceOffer(), new AcceptCheckoutOfferUseCase(repo)),
+    new SendChatMessageUseCase(repo, conv, custService, shipService, offerService, new FakeAgent(), repo),
+    new EvaluateShippingUseCase(repo, repo, repo),
+    new ApplyOfferUseCase(repo, repo, new FakeCommerceOffer(), new AcceptCheckoutOfferUseCase(repo, repo, repo)),
     completeOrder, new GetDashboardOverviewUseCase(repo),
     new GetMerchantRulesUseCase(repo), new UpdateMerchantRulesUseCase(repo)
   );

@@ -14,6 +14,15 @@ import type {
   MerchantRules
 } from "@aacp/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
+import type { CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import type { OfferRepository } from "../../domain/ports/offer.repository.port.js";
+import type { OrderRepository } from "../../domain/ports/order.repository.port.js";
+import type { DashboardReadModel } from "../../domain/ports/dashboard-read-model.port.js";
+import type { BuyerIdentityRepository } from "../../../buyer-purchase-history/domain/ports/buyer-identity.repository.port.js";
+import type { OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import type { MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
+import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import type { MerchantTheme } from "../../../merchant/domain/merchant.types.js";
 import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
 
 const DEFAULT_RULES: MerchantRules = {
@@ -33,7 +42,8 @@ const DEFAULT_RULES: MerchantRules = {
 };
 
 @Injectable()
-export class InMemoryCheckoutRepository implements CheckoutRepository {
+export class InMemoryCheckoutRepository
+  implements CheckoutRepository, CheckoutSessionRepository, OfferRepository, OrderRepository, DashboardReadModel, BuyerIdentityRepository, OutboxRepository, MerchantRulesRepository, MerchantRepository {
   private sessions = new Map<string, CheckoutSession>();
   private rules = new Map<string, MerchantRules>();
   private identityIndex = new Map<string, string>();
@@ -47,15 +57,31 @@ export class InMemoryCheckoutRepository implements CheckoutRepository {
     return work(this);
   }
 
-  getRules(merchantId: string): MerchantRules {
+  private _getRulesSync(merchantId: string): MerchantRules {
     if (!this.rules.has(merchantId)) this.rules.set(merchantId, { ...DEFAULT_RULES });
     return this.rules.get(merchantId)!;
   }
 
+  async getRules(merchantId: string): Promise<MerchantRules> {
+    return this._getRulesSync(merchantId);
+  }
+
   setRules(merchantId: string, rules: Partial<MerchantRules>): MerchantRules {
-    const next = { ...this.getRules(merchantId), ...rules };
+    const next = { ...this._getRulesSync(merchantId), ...rules };
     this.rules.set(merchantId, next);
     return next;
+  }
+
+  async updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
+    return this.setRules(merchantId, rules);
+  }
+
+  async getProfile(merchantId: string) {
+    return { id: merchantId, name: merchantId };
+  }
+
+  async updateTheme(_merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
+    return theme;
   }
 
   resolveGlobalUserId(merchantId: string, customer?: CustomerHints): string {
@@ -68,9 +94,8 @@ export class InMemoryCheckoutRepository implements CheckoutRepository {
     return created;
   }
 
-  saveSession(session: CheckoutSession): CheckoutSession {
+  saveSession(session: CheckoutSession): void {
     this.sessions.set(this.key(session.merchantId, session.sessionId), session);
-    return session;
   }
 
   getSession(merchantId: string, sessionId: string): CheckoutSession | undefined {
@@ -114,12 +139,11 @@ export class InMemoryCheckoutRepository implements CheckoutRepository {
     return offer?.merchantId === merchantId ? offer : undefined;
   }
 
-  saveAcceptedOffer(acceptedOffer: AcceptedOffer): AcceptedOffer {
+  saveAcceptedOffer(acceptedOffer: AcceptedOffer): void {
     this.acceptedOffers.set(
       this.offerKey(acceptedOffer.merchantId, acceptedOffer.sessionId, acceptedOffer.offerId),
       acceptedOffer
     );
-    return acceptedOffer;
   }
 
   getAcceptedOffer(merchantId: string, sessionId: string, offerId: string): AcceptedOffer | undefined {

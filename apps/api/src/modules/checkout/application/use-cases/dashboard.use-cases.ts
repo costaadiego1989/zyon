@@ -1,33 +1,31 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { DashboardOverview, MerchantRules } from "@aacp/shared-types";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
+import { DASHBOARD_READ_MODEL, type DashboardReadModel } from "../../domain/ports/dashboard-read-model.port.js";
+import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 
 @Injectable()
 export class GetDashboardOverviewUseCase {
-  constructor(@Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository) {}
+  constructor(@Inject(DASHBOARD_READ_MODEL) private readonly readModel: DashboardReadModel) {}
 
   async execute(merchantId: string): Promise<DashboardOverview> {
-    return this.repository.overview(merchantId);
+    return this.readModel.overview(merchantId);
   }
 }
 
 @Injectable()
 export class GetMerchantRulesUseCase {
-  constructor(@Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository) {}
+  constructor(@Inject(MERCHANT_RULES_REPOSITORY) private readonly rulesRepo: MerchantRulesRepository) {}
 
   async execute(merchantId: string): Promise<MerchantRules> {
-    return this.repository.getRules(merchantId);
+    return this.rulesRepo.getRules(merchantId);
   }
 }
 
 @Injectable()
 export class UpdateMerchantRulesUseCase {
-  constructor(@Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository) {}
+  constructor(@Inject(MERCHANT_RULES_REPOSITORY) private readonly rulesRepo: MerchantRulesRepository) {}
 
   async execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
-    return this.repository.setRules(merchantId, rules);
+    return this.rulesRepo.updateRules(merchantId, rules);
   }
 }

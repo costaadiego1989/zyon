@@ -1,10 +1,7 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { decideIntervention } from "@aacp/decision-engine";
 import type { DecisionRequest, DecisionResponse } from "@aacp/shared-types";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import {
   CHECKOUT_INTERVENTION_LEDGER,
@@ -15,14 +12,14 @@ import { decideInterventions } from "../../domain/services/intervention-policy.s
 @Injectable()
 export class GetDecisionUseCase {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Optional() @Inject(CHECKOUT_INTERVENTION_LEDGER)
     private readonly interventionLedger?: CheckoutInterventionLedgerPort
   ) {}
 
   async execute(input: DecisionRequest): Promise<DecisionResponse> {
-    const session = await this.repository.getSession(input.merchant_id, input.session_id);
+    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     if (settings?.checkout_settings.mode === "manual_only") {

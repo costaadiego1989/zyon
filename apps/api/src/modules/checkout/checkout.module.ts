@@ -22,6 +22,10 @@ import { CheckoutShippingService } from "./application/services/checkout-shippin
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
 import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
 import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY } from "./domain/ports/offer.repository.port.js";
+import { ORDER_REPOSITORY } from "./domain/ports/order.repository.port.js";
+import { DASHBOARD_READ_MODEL } from "./domain/ports/dashboard-read-model.port.js";
 import { AGENT_CONTEXT_PORT } from "./domain/ports/agent-context.port.js";
 import { CHECKOUT_SETTINGS_PORT } from "./domain/ports/checkout-settings.port.js";
 import { CHECKOUT_INTERVENTION_LEDGER } from "./domain/ports/checkout-intervention-ledger.port.js";
@@ -87,6 +91,10 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
       },
       inject: [InMemoryCheckoutRepository]
     },
+    { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+    { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+    { provide: ORDER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+    { provide: DASHBOARD_READ_MODEL, useExisting: CHECKOUT_REPOSITORY },
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },

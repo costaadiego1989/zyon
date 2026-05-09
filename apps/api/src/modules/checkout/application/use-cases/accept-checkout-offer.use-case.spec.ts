@@ -8,7 +8,7 @@ test("AcceptCheckoutOfferUseCase records accepted offers once", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(checkoutSession());
   repository.saveOffer(authorizedOffer());
-  const useCase = new AcceptCheckoutOfferUseCase(repository);
+  const useCase = new AcceptCheckoutOfferUseCase(repository, repository, repository);
 
   const first = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });
   const second = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });
