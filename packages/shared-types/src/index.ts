@@ -507,6 +507,7 @@ export interface ChatMessageResponse {
   experience?: CheckoutExperienceSnapshot;
   stage?: ChatStage;
   missing_fields?: string[];
+  expected_input_type?: string;
 }
 
 export interface ShippingEvaluateRequest {
