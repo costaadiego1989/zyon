@@ -10,14 +10,18 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       <div className="aacp-side-backdrop" onClick={() => vm.setSupportOpen(false)} />
       <aside className="aacp-ai-panel">
         <div className="aacp-ai-head">
-          <div className="aacp-ai-brand">
-            <div className="aacp-ai-logo"><Sparkles size={18} /></div>
+          <div className="aacp-ai-brand" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div className="aacp-ai-avatar">
+              <Sparkles size={18} />
+            </div>
             <div>
               <div className="aacp-ai-title">Assistência Especializada</div>
-              <div className="aacp-ai-status"><span className="live-dot" /> Sempre online para ajudar</div>
+              <div className="aacp-ai-sub">
+                <span className="live-dot" /> Sempre online
+              </div>
             </div>
           </div>
-          <button className="aacp-ai-close" onClick={() => vm.setSupportOpen(false)}>
+          <button className="aacp-ai-close" onClick={() => vm.setSupportOpen(false)} style={{ marginLeft: 'auto' }}>
             <X size={20} />
           </button>
         </div>
