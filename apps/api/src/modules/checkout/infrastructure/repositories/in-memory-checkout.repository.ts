@@ -77,6 +77,12 @@ export class InMemoryCheckoutRepository implements CheckoutRepository {
     return this.sessions.get(this.key(merchantId, sessionId));
   }
 
+  findSessionsByEmail(merchantId: string, email: string): CheckoutSession[] {
+    return Array.from(this.sessions.values()).filter(
+      (s) => s.merchantId === merchantId && s.customer?.email?.toLowerCase() === email.toLowerCase()
+    );
+  }
+
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): void {
     this.events.push({ merchantId, sessionId, event, at: new Date().toISOString() });
     const session = this.getSession(merchantId, sessionId);

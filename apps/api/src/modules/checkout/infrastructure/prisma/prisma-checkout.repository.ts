@@ -90,6 +90,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row ? toCheckoutSession(row) : undefined;
   }
 
+  async findSessionsByEmail(merchantId: string, email: string): Promise<CheckoutSession[]> {
+    const rows = await this.prisma.checkoutSession.findMany({
+      where: { merchantId }
+    });
+    return rows
+      .map(toCheckoutSession)
+      .filter((s) => s.customer?.email?.toLowerCase() === email.toLowerCase());
+  }
+
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const session = await tx.checkoutSession.findUnique({

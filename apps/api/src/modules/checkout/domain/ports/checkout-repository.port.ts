@@ -22,6 +22,7 @@ export interface CheckoutRepository {
   resolveGlobalUserId(merchantId: string, customer?: CustomerHints): MaybePromise<string>;
   saveSession(session: CheckoutSession): MaybePromise<CheckoutSession>;
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
+  findSessionsByEmail(merchantId: string, email: string): MaybePromise<CheckoutSession[]>;
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): MaybePromise<void>;
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): MaybePromise<CheckoutSession>;
   saveOffer(offer: AuthorizedOffer): MaybePromise<AuthorizedOffer>;
