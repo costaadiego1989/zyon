@@ -630,6 +630,11 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     }
   }
 
+  async function tapShippingOption(option: ShippingQuote): Promise<void> {
+    if (!session || networkError || busy) return;
+    await sendMessageWithOverride(option.method || "Selecionar frete");
+  }
+
   function retryStartCheckout(): void {
     setNetworkError(null);
     setTurns([]);
@@ -691,7 +696,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     showCardForm,
     setShowCardForm,
     cardError,
-    setCardError
+    setCardError,
+    shippingOptions: activeExperience.shippingOptions ?? [],
+    tapShippingOption
   };
 }
 

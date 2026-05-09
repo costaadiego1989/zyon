@@ -1,5 +1,6 @@
-import { CheckCircle2, Gift, Copy, Check } from "lucide-react";
+import { CheckCircle2, Gift, Copy, Check, Truck } from "lucide-react";
 import { CreditCardForm } from "./CreditCardForm.js";
+import { ShippingSelector } from "./ShippingSelector.js";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import type { ChatTurn } from "@aacp/shared-types";
@@ -43,6 +44,14 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       ) : null}
 
       {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
+
+      {!vm.activeExperience.shipping && vm.shippingOptions.length > 0 && vm.checkoutStage === "shipping" ? (
+        <ShippingSelector 
+          options={vm.shippingOptions} 
+          onSelect={(opt) => void vm.tapShippingOption(opt)}
+          busy={vm.busy}
+        />
+      ) : null}
 
       {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
 
