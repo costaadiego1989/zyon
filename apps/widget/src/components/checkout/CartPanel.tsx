@@ -122,6 +122,12 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             <dd>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</dd>
           </>
         )}
+        {vm.visibleTotals.discount > 0 && (
+          <>
+            <dt className="text-green-500 font-bold">Desconto</dt>
+            <dd className="text-green-500 font-bold">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
+          </>
+        )}
         <dt className="total-row">Total</dt>
         <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
       </dl>
