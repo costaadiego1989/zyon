@@ -200,6 +200,14 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       );
     }
 
+    if (activeExperience.stage === "data_collection" && (!lastChat || turns.length <= 2)) {
+      list.push(
+        { label: "Olá!" },
+        { label: "Quero começar" },
+        { label: "Quero finalizar agora" }
+      );
+    }
+
     if (activeExperience.copy.quick_replies.length > 0) {
       list.push(
         ...filterSuggestedQuickReplies(
@@ -209,8 +217,18 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       );
     }
 
-    return list;
-  }, [activeExperience.copy.quick_replies, checkoutStage, isConversational, lastChat?.actions, busy, turns.length]);
+    const uniqueList: QuickReplyChoice[] = [];
+    const seenLabels = new Set<string>();
+    for (const item of list) {
+      const labelTrimmed = (item.label ?? "").trim();
+      if (labelTrimmed && !seenLabels.has(labelTrimmed)) {
+        seenLabels.add(labelTrimmed);
+        uniqueList.push(item);
+      }
+    }
+
+    return uniqueList;
+  }, [activeExperience.copy.quick_replies, checkoutStage, isConversational, lastChat?.actions, busy, turns.length, activeExperience.stage]);
 
   useEffect(() => {
     if (streamingTurnKey == null) return;
@@ -336,6 +354,22 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
         };
         setTurns([greeting]);
         setStreamingTurnKey(bubbleKey(greeting, 0));
+
+        // After 1.5 seconds, append friendly registration prompt
+        setTimeout(() => {
+          const registrationTurn: ChatTurn = {
+            role: "agent",
+            text: "Antes de começar, preciso fazer o seu cadastro. Qual é o seu nome completo?",
+            occurredAt: new Date().toISOString()
+          };
+          setTurns((curr) => {
+            if (curr.length === 1 && curr[0].text === greeting.text) {
+              setStreamingTurnKey(bubbleKey(registrationTurn, 1));
+              return [...curr, registrationTurn];
+            }
+            return curr;
+          });
+        }, 1500);
       }
 
       if (response.initial_mode === "open") setOpen(true);

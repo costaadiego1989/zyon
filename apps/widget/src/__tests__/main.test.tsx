@@ -646,6 +646,9 @@ describe("CheckoutAgent (conversational)", () => {
       container.querySelectorAll(".aacp-quick-replies button")
     ).map((b) => b.textContent);
     expect(chips).toEqual([
+      "Olá!",
+      "Quero começar",
+      "Quero finalizar agora",
       "Meu nome completo é…",
       "Como prefere me chamar?",
       "Posso usar nome social?"
