@@ -166,6 +166,13 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
         "Não fale mais nada além disso. Apenas peça o código."
       ].join("\n");
     }
+    if (next === "código de verificação do celular") {
+      return [
+        "ETAPA: Verificação OTP de Celular.",
+        "Diga que enviou um código de verificação por SMS para o telefone dele e peça para ele digitar.",
+        "Não fale mais nada além disso. Apenas peça o código."
+      ].join("\n");
+    }
     const nextField = missingFields[0] ?? "nome";
     return [
       `ETAPA: cadastro do comprador.`,
@@ -178,6 +185,13 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
   }
   if (stage === "shipping") {
     const next = missingFields[0] ?? "CEP";
+    if (next === "confirmar endereço") {
+      return [
+        "ETAPA: confirmar endereço.",
+        "Apresente o endereço localizado (Rua, Cidade, UF) e peça para o comprador confirmar se está correto com 'Sim' ou 'Não'.",
+        "Você DEVE sugerir os botões de resposta rápida Sim/Não."
+      ].join("\n");
+    }
     if (next.includes("número")) {
       return [
         "ETAPA: endereço de entrega — já localizamos o logradouro pelo CEP.",
@@ -345,12 +359,18 @@ function stageMessageForField(field: string | undefined, merchantName?: string, 
       return `Olá! Sou ${agentName ?? "o assistente"}${greetingTail}. Antes de continuar, posso saber seu nome completo?`;
     case "email":
       return "Perfeito. Qual o seu melhor email para o pedido?";
+    case "código de verificação":
+      return "Enviei um código de 6 dígitos para o seu email. Pode digitá-lo aqui?";
     case "CPF":
       return "Obrigado. Pode me informar o CPF para emitir a nota?";
     case "telefone":
       return "Anotado. Qual o telefone com DDD para acompanharmos a entrega?";
+    case "código de verificação do celular":
+      return "Enviei um SMS de confirmação para o seu celular. Pode me informar o código recebido?";
     case "CEP":
       return "Para calcular o frete, pode informar o CEP da entrega?";
+    case "confirmar endereço":
+      return "Localizei o seu endereço. Está correto?";
     default:
       return "Para começar, posso saber seu nome completo?";
   }
