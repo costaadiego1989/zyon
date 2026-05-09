@@ -11,9 +11,9 @@ import {
   X
 } from "lucide-react";
 import { useState } from "react";
-import type { AccountHubSection, AccountHubState } from "../hooks/use-account-hub.js";
-import type { GlobalAuthController } from "../hooks/use-global-auth.js";
-import { cn } from "../hooks/checkout-view-model.js";
+import type { AccountHubSection, AccountHubState } from "../../hooks/use-account-hub.js";
+import type { GlobalAuthController } from "../../hooks/use-global-auth.js";
+import { cn } from "../../hooks/checkout-view-model.js";
 
 interface GlobalAuthModalProps {
   auth: GlobalAuthController;

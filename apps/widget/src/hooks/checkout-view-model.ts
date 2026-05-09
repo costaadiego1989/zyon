@@ -33,17 +33,24 @@ export function formatCurrency(value: number, currency: string): string {
 }
 
 export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CSSProperties {
-  const styles: React.CSSProperties = {
-    "--aacp-accent": theme.accentColor,
-    "--aacp-font": theme.fontFamily
-  } as any;
+  const accent = theme.accentColor || "#a855f7";
+
+  const styles: Record<string, string> = {
+    "--aacp-accent": accent,
+    "--aacp-font": theme.fontFamily,
+    "--aacp-grad-primary": `linear-gradient(135deg, ${accent} 0%, ${accent}cc 50%, ${accent}99 100%)`,
+    "--aacp-grad-soft": `linear-gradient(135deg, ${accent}26, ${accent}1a)`,
+    "--aacp-grad-bubble-buyer": `linear-gradient(135deg, ${accent}dd 0%, ${accent} 60%, ${accent}99 100%)`,
+    "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${accent}59, transparent 70%)`,
+    "--aacp-glow": `0 0 40px ${accent}59`,
+  };
 
   if (!isForcedMode) {
-    if (theme.textColor) (styles as any)["--aacp-fg"] = theme.textColor;
-    if (theme.backgroundColor) (styles as any)["--aacp-bg"] = theme.backgroundColor;
+    if (theme.textColor) styles["--aacp-fg"] = theme.textColor;
+    if (theme.backgroundColor) styles["--aacp-bg"] = theme.backgroundColor;
   }
 
-  return styles;
+  return styles as unknown as React.CSSProperties;
 }
 
 export function buildVisibleCart(experience: CheckoutExperienceSnapshot): VisibleCartState {
@@ -112,13 +119,19 @@ export function filterSuggestedQuickReplies(
   stage: string
 ): QuickReplyChoice[] {
   if (stage === "data_collection") {
-    return replies.filter(r => !/frete|pagamento|cartao|pix/i.test(r.label));
+    return replies.filter(r => !/frete|pagamento|cartao|pix|cupom/i.test(r.label));
   }
   if (stage === "shipping") {
-    return replies.filter(r => !/cadastro|identificar/i.test(r.label));
+    return replies.filter(r => !/cadastro|identificar|cupom/i.test(r.label));
   }
   if (stage === "payment") {
-    return replies.filter(r => /pagamento|finalizar|cartao|pix/i.test(r.label));
+    const filtered = replies.filter(r => /pagamento|finalizar|cartao|pix|cupom/i.test(r.label));
+    // Add coupon option if not already present
+    const hasCoupon = filtered.some(r => /cupom/i.test(r.label));
+    if (!hasCoupon) {
+      filtered.push({ label: "Não possuo cupom" });
+    }
+    return filtered;
   }
   return replies;
 }
