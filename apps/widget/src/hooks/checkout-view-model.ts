@@ -111,6 +111,14 @@ export function filterSuggestedQuickReplies(
   replies: QuickReplyChoice[],
   stage: string
 ): QuickReplyChoice[] {
-  // Simple heuristic for now
+  if (stage === "data_collection") {
+    return replies.filter(r => !/frete|pagamento|cartao|pix/i.test(r.label));
+  }
+  if (stage === "shipping") {
+    return replies.filter(r => !/cadastro|identificar/i.test(r.label));
+  }
+  if (stage === "payment") {
+    return replies.filter(r => /pagamento|finalizar|cartao|pix/i.test(r.label));
+  }
   return replies;
 }
