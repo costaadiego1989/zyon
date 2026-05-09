@@ -5,7 +5,6 @@ import { cn, themeStyle } from "../../hooks/checkout-view-model.js";
 import { CheckoutHeader } from "./CheckoutHeader.js";
 import { CheckoutStepper } from "./CheckoutStepper.js";
 import { ChatThread } from "./ChatThread.js";
-import { Composer } from "./Composer.js";
 import { CartPanel } from "./CartPanel.js";
 import { UserPanel } from "../checkout/UserPanel.js";
 import { SupportFAB } from "./SupportFAB.js";
@@ -28,7 +27,6 @@ export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
           <CheckoutHeader vm={vm} />
           <CheckoutStepper vm={vm} />
           <ChatThread vm={vm} />
-          <Composer vm={vm} />
         </main>
 
         <CartPanel vm={vm} />

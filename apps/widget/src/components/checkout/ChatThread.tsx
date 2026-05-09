@@ -1,6 +1,7 @@
 import { CheckCircle2, Gift, Copy, Check, Truck } from "lucide-react";
 import { CreditCardForm } from "./CreditCardForm.js";
 import { ShippingSelector } from "./ShippingSelector.js";
+import { Composer } from "./Composer.js";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import type { ChatTurn } from "@aacp/shared-types";
@@ -69,6 +70,12 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
           ))}
         </div>
       ) : null}
+
+      {!vm.busy && vm.showComposer && (
+        <div className="aacp-thread-composer-wrap">
+          <Composer vm={vm} />
+        </div>
+      )}
 
       {vm.checkoutStage === "completed" ? (
         <div className="aacp-offer" style={{ borderColor: "var(--aacp-success)", background: "rgba(16, 185, 129, 0.05)" }}>
