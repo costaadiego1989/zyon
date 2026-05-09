@@ -1,15 +1,7 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
-import { evaluateShippingOffer } from "@aacp/shipping-engine";
 import type {
-  AuthorizedOffer,
   ChatMessageRequest,
-  ChatMessageResponse,
-  ChatStage,
-  CheckoutSession,
-  CustomerHints,
-  MerchantRules,
-  ShippingQuote
+  ChatMessageResponse
 } from "@aacp/shared-types";
 import {
   CHECKOUT_REPOSITORY,
@@ -21,61 +13,18 @@ import {
   MERCHANT_REPOSITORY,
   type MerchantRepository
 } from "../../../merchant/domain/ports/merchant-repository.port.js";
-import { createAuthorizedOffer } from "./offer-factory.js";
 import {
   deriveChatStage,
-  extractAddressDetailLine,
-  extractCep,
-  extractCpf,
-  extractEmail,
-  extractName,
-  extractOtp,
-  extractPhone,
   missingFieldsForStage
 } from "../../domain/services/customer-extraction.service.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
-import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
-import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
+import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 
-function structuredCloneDeep(session: CheckoutSession): CheckoutSession {
-  if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(session);
-  return JSON.parse(JSON.stringify(session)) as CheckoutSession;
-}
-
-function selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {
-  const normalized = text
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase();
-
-  if (/\b(1|primeir[ao]|pac|economi[ac]|barat[ao])\b/.test(normalized)) {
-    return findOption(options, /pac|econom/i) ?? options[0] ?? null;
-  }
-  if (/\b(2|segund[ao]|sedex|express|rapid[ao])\b/.test(normalized)) {
-    return findOption(options, /sedex|express|rapid/i) ?? options[1] ?? options[0] ?? null;
-  }
-
-  for (const option of options) {
-    const method = normalizeShippingToken(option.method);
-    const carrier = normalizeShippingToken(option.carrier);
-    if ((method && normalized.includes(method)) || (carrier && normalized.includes(carrier))) {
-      return option;
-    }
-  }
-
-  return null;
-}
-
-function findOption(options: ShippingQuote[], pattern: RegExp): ShippingQuote | null {
-  return options.find((option) => pattern.test(`${option.method ?? ""} ${option.carrier ?? ""}`)) ?? null;
-}
-
-function normalizeShippingToken(value: string | undefined): string {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .toLowerCase()
-    .split(/\s+/)[0] ?? "";
+function structuredCloneDeep<T>(obj: T): T {
+  if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
+  return JSON.parse(JSON.stringify(obj)) as T;
 }
 
 @Injectable()
@@ -83,9 +32,11 @@ export class SendChatMessageUseCase {
   constructor(
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
     @Inject(CONVERSATION_PORT) private readonly conversation: ConversationPort,
+    private readonly customerService: CheckoutCustomerService,
+    private readonly shippingService: CheckoutShippingService,
+    private readonly offerService: CheckoutOfferService,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
-    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
-    @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -97,36 +48,20 @@ export class SendChatMessageUseCase {
     const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
     let working = structuredCloneDeep(session);
 
-    const hadEmailAlready = Boolean(session.customer?.email?.trim());
+    working = await this.customerService.processCustomerInput(
+      working,
+      input.user_message,
+      lastAgentTurn,
+      merchant?.name
+    );
 
-    const customerPatch = this.buildCustomerPatch(input.user_message, working.customer, lastAgentTurn);
-    if (customerPatch) {
-      working = await this.repository.saveSession(mergeCustomers(working, customerPatch));
-      if (customerPatch.email && !hadEmailAlready && this.buyerEmailNotifier) {
-        const merged = mergeHints(session.customer, customerPatch);
-        const buyerFirstHint = merged.fullName?.trim().split(/\s+/).filter(Boolean)[0];
-        this.buyerEmailNotifier.notifyCaptured({
-          buyerEmail: customerPatch.email.toLowerCase(),
-          merchantId: input.merchant_id,
-          sessionId: input.session_id,
-          merchantName: merchant?.name,
-          buyerFirstNameHint: buyerFirstHint
-        });
-      }
-    }
-
-    working = await this.tryFillPostalAndShipping(working);
-
-    const numberPatch = this.tryParseAddressNumbers(input.user_message, working);
-    if (numberPatch) working = await this.repository.saveSession(mergeCustomers(working, numberPatch));
-
-    working = await this.tryEnsureShippingOptions(working);
-    working = await this.trySelectShippingOption(input.user_message, working);
+    working = await this.shippingService.processShippingState(working, input.user_message);
 
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
 
-    const offer = await this.authorizeOffer(input.user_message, working, rules, stage, missingFields);
+    const offer = await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
+    
     const agentContext = await this.agentContext?.get({
       merchantId: input.merchant_id,
       userId: input.agent_user_id,
@@ -144,7 +79,7 @@ export class SendChatMessageUseCase {
       history: working.chatHistory,
       stage,
       missingFields,
-      deliverySummary: summarizeDelivery(working)
+      deliverySummary: this.shippingService.summarizeDelivery(working)
     });
 
     const now = new Date().toISOString();
@@ -171,7 +106,7 @@ export class SendChatMessageUseCase {
     const wantsPix = /\b(pix|qr code)\b/i.test(input.user_message) && stage === "payment";
     const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.user_message) && stage === "payment";
     const chatActions: any[] = [];
-    
+
     if (wantsPix) {
       chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
     } else if (wantsCard) {
@@ -195,220 +130,4 @@ export class SendChatMessageUseCase {
       missing_fields: missingFields
     };
   }
-
-  private buildCustomerPatch(
-    userMessage: string,
-    existing: CustomerHints | undefined,
-    lastAgentTurn: string | undefined
-  ): Partial<CustomerHints> | null {
-    const patch: Partial<CustomerHints> = {};
-    const addr = existing?.address ?? {};
-    
-    let currentEmail = existing?.email;
-    const otpPending = Boolean(existing?.otp_code);
-    if (!currentEmail || (!otpPending && !existing?.email_verified)) {
-      const email = extractEmail(userMessage);
-      if (email) {
-        patch.email = email.toLowerCase();
-        currentEmail = patch.email;
-      }
-    }
-
-    if (currentEmail && !existing?.email_verified) {
-      if (!existing?.otp_code && !patch.otp_code && patch.email) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        patch.otp_code = code;
-        console.log(`\n=========================================\n🔐 OTP GERADO PARA ${currentEmail}: ${code}\n=========================================\n`);
-      } else if (existing?.otp_code) {
-        const extracted = extractOtp(userMessage);
-        if (extracted === existing.otp_code) {
-          patch.email_verified = true;
-          patch.otp_code = "";
-        }
-      }
-    }
-
-    if (!existing?.cpf) {
-      const cpf = extractCpf(userMessage);
-      if (cpf) patch.cpf = cpf;
-    }
-    if (!existing?.phone) {
-      const phone = extractPhone(userMessage);
-      const cpfInThisTurn = patch.cpf ?? existing?.cpf;
-      if (phone && phone !== cpfInThisTurn) patch.phone = phone;
-    }
-    if (!existing?.address?.zip) {
-      const zip = extractCep(userMessage);
-      if (zip) patch.address = { ...addr, zip };
-    }
-    if (!existing?.fullName) {
-      const name = extractName(userMessage, lastAgentTurn);
-      if (name) patch.fullName = name;
-    }
-    return Object.keys(patch).length === 0 ? null : patch;
-  }
-
-  private async tryFillPostalAndShipping(session: CheckoutSession): Promise<CheckoutSession> {
-    const zip = session.customer?.address?.zip?.replace(/\D/g, "");
-    const beforeStreet = session.customer?.address?.street;
-    if (zip?.length === 8 && !beforeStreet) {
-      const via = await lookupAddressByViaCep(zip);
-      if (via) {
-        const next = mergeCustomers(session, {
-          address: mergeAddr(session.customer?.address, via)
-        });
-        return this.repository.saveSession(next);
-      }
-    }
-    return session;
-  }
-
-  private tryParseAddressNumbers(text: string, session: CheckoutSession): Partial<CustomerHints> | null {
-    const addr = session.customer?.address ?? {};
-    if (!addr.street || addr.number || !addr.zip) return null;
-    const ln = extractAddressDetailLine(text);
-    if (!ln?.number) return null;
-    return { address: { ...addr, number: ln.number, complement: ln.complement ?? addr.complement } };
-  }
-
-  private async tryEnsureShippingOptions(session: CheckoutSession): Promise<CheckoutSession> {
-    const addr = session.customer?.address;
-    if (
-      !addr?.zip ||
-      !addr?.street ||
-      !addr.city ||
-      !addr.state ||
-      !addr.number ||
-      session.shipping ||
-      (session.shippingOptions?.length ?? 0) > 0
-    ) {
-      return session;
-    }
-    const q = estimatePacQuote({ zip: addr.zip, state: addr.state });
-    const sedexPrice = Math.round((q.customerPrice + 10) * 100) / 100;
-    const sedexRealCost = Math.round((q.realCost + 8) * 100) / 100;
-    return this.repository.saveSession({
-      ...session,
-      shippingOptions: [
-        {
-          customerPrice: q.customerPrice,
-          realCost: q.realCost,
-          carrier: q.carrier,
-          method: "PAC",
-          deliveryDays: q.deliveryDays,
-          region: q.region,
-          destinationZip: q.destinationZip
-        },
-        {
-          customerPrice: sedexPrice,
-          realCost: sedexRealCost,
-          carrier: "Correios (estimativa)",
-          method: "Sedex",
-          deliveryDays: Math.max(1, q.deliveryDays - 2),
-          region: q.region,
-          destinationZip: q.destinationZip
-        }
-      ],
-      updatedAt: new Date().toISOString()
-    });
-  }
-
-  private async trySelectShippingOption(text: string, session: CheckoutSession): Promise<CheckoutSession> {
-    if (session.shipping || !session.shippingOptions?.length) return session;
-    const selected = selectShippingOption(text, session.shippingOptions);
-    if (!selected) return session;
-    return this.repository.saveSession({
-      ...session,
-      shipping: selected,
-      updatedAt: new Date().toISOString()
-    });
-  }
-
-  private async authorizeOffer(
-    userMessage: string,
-    sessionObj: CheckoutSession,
-    rules: MerchantRules,
-    stage: ChatStage,
-    missingFields: string[]
-  ): Promise<AuthorizedOffer> {
-    const isDataCollection = stage === "data_collection";
-    const isIncompleteShipping = stage === "shipping" && missingFields.some(f => f.includes("CEP") || f.includes("número") || f.includes("confirmar"));
-
-    if (isDataCollection || isIncompleteShipping) {
-      return this.repository.saveOffer(
-        createAuthorizedOffer({
-          merchantId: sessionObj.merchantId,
-          sessionId: sessionObj.sessionId,
-          rules,
-          evaluation: {
-            approved: false,
-            type: "none",
-            value: 0,
-            reason: "complete_customer_before_offers",
-            marginAfterOffer: 0
-          }
-        })
-      );
-    }
-
-    const wantsShipping = /(frete|envio|shipping)/.test(userMessage.toLowerCase());
-    const evaluation = wantsShipping
-      ? evaluateShippingOffer({
-          cart: sessionObj.cart,
-          shipping: sessionObj.shipping,
-          rules,
-          abandonmentScore: Math.max(sessionObj.abandonmentScore, 0.7)
-        })
-      : evaluateDiscountOffer(sessionObj.cart, rules, rules.maxDiscountPercent);
-    const offer = createAuthorizedOffer({
-      merchantId: sessionObj.merchantId,
-      sessionId: sessionObj.sessionId,
-      rules,
-      evaluation
-    });
-    return this.repository.saveOffer(offer);
-  }
-}
-
-function mergeCustomers(s: CheckoutSession, partial: Partial<CustomerHints>): CheckoutSession {
-  return {
-    ...s,
-    customer: mergeHints(s.customer, partial),
-    updatedAt: new Date().toISOString()
-  };
-}
-
-function mergeHints(a: CustomerHints | undefined, b: Partial<CustomerHints>): CustomerHints {
-  const { address: addrPatch, ...rest } = b;
-  const merged = { ...(a ?? {}), ...rest } as CustomerHints;
-  if (addrPatch !== undefined) merged.address = mergeAddr(a?.address, addrPatch);
-  return merged;
-}
-
-function mergeAddr(
-  a: CustomerHints["address"] | undefined,
-  b: Partial<NonNullable<CustomerHints["address"]>> | undefined
-): CustomerHints["address"] | undefined {
-  if (!b && !a) return undefined;
-  return {
-    ...(a ?? {}),
-    ...(b ?? {})
-  };
-}
-
-function summarizeDelivery(session: CheckoutSession): string | undefined {
-  const a = session.customer?.address;
-  if (!a?.street) return undefined;
-  const parts = [
-    a.street,
-    a.number ? `nº ${a.number}` : undefined,
-    a.complement ?? undefined,
-    a.neighborhood,
-    a.city && a.state ? `${a.city}/${a.state}` : undefined,
-    a.zip ? `CEP ${a.zip.slice(0, 5)}-${a.zip.slice(5)}` : undefined,
-    session.shipping?.customerPrice ? `Frete cliente: R$${session.shipping.customerPrice.toFixed(2)}` : undefined,
-    session.shipping?.deliveryDays ? `Prazo est.: ~${session.shipping.deliveryDays} dias úteis` : undefined
-  ].filter(Boolean);
-  if (parts.length === 0) return undefined;
-  return `Referência para entrega: ${parts.join(" · ")}`;
 }

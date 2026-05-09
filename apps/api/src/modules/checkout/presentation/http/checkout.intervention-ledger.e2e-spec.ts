@@ -21,6 +21,9 @@ import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-me
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { CheckoutController } from "./checkout.controller.js";
+import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
 
 const ALL_LEDGER_TEST_TRIGGERS: CheckoutTriggerName[] = [
   "shipping_objection_detected",
@@ -72,12 +75,15 @@ test("Checkout flow caps trigger_agent after intervention ledger reaches max int
   const settings = new InterventionLedgerCheckoutSettings();
   const ledger = new InMemoryInterventionLedger();
   const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+  const custService = new CheckoutCustomerService(repository);
+  const shipService = new CheckoutShippingService(repository, custService);
+  const offerService = new CheckoutOfferService(repository);
   const controller = new CheckoutController(
     new StartCheckoutUseCase(repository),
     new TrackCheckoutEventUseCase(repository, settings, ledger),
     new GetCheckoutSessionUseCase(repository),
     new GetDecisionUseCase(repository, settings, ledger),
-    new SendChatMessageUseCase(repository, new FakeConversationPort()),
+    new SendChatMessageUseCase(repository, new FakeConversationPort(), custService, shipService, offerService),
     new EvaluateShippingUseCase(repository),
     new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
     new CompleteOrderUseCase(repository),

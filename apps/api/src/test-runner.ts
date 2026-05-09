@@ -79,3 +79,4 @@ import "./modules/buyer-purchase-history/infrastructure/in-memory-buyer-purchase
 import "./modules/buyer-purchase-history/application/buyer-purchase-history.use-cases.spec.js";
 import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.int-spec.js";
 import "./modules/buyer-purchase-history/presentation/http/buyer-purchase-history.controller.spec.js";
+import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.js";

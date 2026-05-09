@@ -88,7 +88,7 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
         return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
       return ["Qual o prazo médio?", "Tem opção de retirada?", "Como acompanho o pedido?"];
     case "payment": {
-      const base = ["Prefiro PIX", "Prefiro cartão", "Finalizar pedido"];
+      const base = ["Cartão de crédito", "Cartão de débito", "PIX", "Boleto"];
       if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
         return ["Tenho um cupom de desconto", ...base];
       }
@@ -120,18 +120,18 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     deps.rules?.couponBoxEnabled !== false &&
     (deps.rules?.maxDiscountPercent ?? 0) > 0;
   const greeting = canMentionDiscount
-    ? `${baseGreeting} A loja autorizou ate ${deps.rules!.maxDiscountPercent}% de desconto conforme a configuracao da empresa, e eu valido isso no final do checkout.`
+    ? `${baseGreeting} Tenho uma ótima notícia: o sistema me autorizou a liberar até ${deps.rules!.maxDiscountPercent}% de desconto exclusivo para você neste pedido! Vamos começar a preparar o seu envio?`
     : baseGreeting;
 
   const trustCadastro = chatStage === "data_collection";
-  
+
   let expected_input_type: "text" | "email" | "tel" | "number" = "text";
   if (chatStage === "data_collection") {
     const next = deps.missingFieldsPreview?.[0];
     if (next === "email") expected_input_type = "email";
-    else if (next === "telefone") expected_input_type = "tel";
-    else if (next === "CPF") expected_input_type = "number";
-  } else if (chatStage === "shipping") {
+    if (next === "telefone") expected_input_type = "tel";
+    if (next === "CPF") expected_input_type = "number";
+  } if (chatStage === "shipping") {
     const next = deps.missingFieldsPreview?.[0];
     if (next === "CEP" || next?.includes("número")) expected_input_type = "number";
   }

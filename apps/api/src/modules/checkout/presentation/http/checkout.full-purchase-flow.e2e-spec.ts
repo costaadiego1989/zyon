@@ -23,6 +23,9 @@ import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
+import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -249,12 +252,15 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     );
     const completeOrder = new CompleteOrderUseCase(repo, purchaseHistoryPort);
     const conv = new RecordingConversationPort();
+    const custService = new CheckoutCustomerService(repo);
+    const shipService = new CheckoutShippingService(repo, custService);
+    const offerService = new CheckoutOfferService(repo);
     const controller = new CheckoutController(
       new StartCheckoutUseCase(repo),
       new TrackCheckoutEventUseCase(repo),
       new GetCheckoutSessionUseCase(repo),
       new GetDecisionUseCase(repo),
-      new SendChatMessageUseCase(repo, conv, new FakeAgentContextPort()),
+      new SendChatMessageUseCase(repo, conv, custService, shipService, offerService, new FakeAgentContextPort()),
       new EvaluateShippingUseCase(repo),
       new ApplyOfferUseCase(repo, new FakeCommerceOfferPort(), new AcceptCheckoutOfferUseCase(repo)),
       completeOrder,

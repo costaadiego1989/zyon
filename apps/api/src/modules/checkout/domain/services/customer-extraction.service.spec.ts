@@ -91,6 +91,7 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
         zip: "01001000",
         street: "Rua Augusta",
         number: "100",
+        complement: "",
         city: "São Paulo",
         state: "SP"
       }
@@ -146,7 +147,7 @@ test("missingFieldsForStage lists user-facing labels for each stage in order", (
       }
     }
   });
-  assert.deepEqual(missingFieldsForStage(stroked, "shipping"), ["número e complemento (apto/bloco)"]);
+  assert.deepEqual(missingFieldsForStage(stroked, "shipping"), ["número"]);
 
   const numberedNoQuote = checkoutSession({
     customer: {
@@ -161,10 +162,22 @@ test("missingFieldsForStage lists user-facing labels for each stage in order", (
     },
     shipping: undefined
   });
-  assert.deepEqual(missingFieldsForStage(numberedNoQuote, "shipping"), ["frete"]);
+  assert.deepEqual(missingFieldsForStage(numberedNoQuote, "shipping"), ["complemento (ou responda que não tem)"]);
+
+  const readyNoQuote = checkoutSession({
+    customer: {
+      ...numberedNoQuote.customer!,
+      address: {
+        ...numberedNoQuote.customer!.address!,
+        complement: ""
+      }
+    },
+    shipping: undefined
+  });
+  assert.deepEqual(missingFieldsForStage(readyNoQuote, "shipping"), ["frete"]);
 
   const withShipping = checkoutSession({
-    customer: numberedNoQuote.customer,
+    customer: readyNoQuote.customer,
     shipping: { customerPrice: 29.9 }
   });
   assert.deepEqual(missingFieldsForStage(withShipping, "payment"), ["forma de pagamento"]);

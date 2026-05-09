@@ -21,6 +21,9 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
 import { OMNICHANNEL_WHATSAPP_TOTAL_THRESHOLD_BRL } from "../../domain/policies/omnichannel-confirmation.policy.js";
+import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
 
 const MERCHANT = "mrc_agentic_matrix";
 
@@ -128,6 +131,9 @@ function agentContext(partial?: Partial<AgentContext["capabilities"]>): AgentCon
 function makeController(repository: InMemoryCheckoutRepository, conversation?: ConversationPort, m2m?: boolean) {
   const conv = conversation ?? new SimpleConversationPort();
   const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+  const custService = new CheckoutCustomerService(repository);
+  const shipService = new CheckoutShippingService(repository, custService);
+  const offerService = new CheckoutOfferService(repository);
   return new CheckoutController(
     new StartCheckoutUseCase(repository),
     new TrackCheckoutEventUseCase(repository),
@@ -136,6 +142,9 @@ function makeController(repository: InMemoryCheckoutRepository, conversation?: C
     new SendChatMessageUseCase(
       repository,
       conv,
+      custService,
+      shipService,
+      offerService,
       new StaticAgentContextPort(agentContext({ machineToMachineNegotiation: Boolean(m2m) }))
     ),
     new EvaluateShippingUseCase(repository),

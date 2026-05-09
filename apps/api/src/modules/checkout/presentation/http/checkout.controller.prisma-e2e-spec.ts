@@ -20,6 +20,9 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { createPrismaClient } from "../../infrastructure/prisma/prisma-client.js";
 import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
+import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
 
@@ -49,12 +52,15 @@ test(
     const prisma = createPrismaClient();
     const repository = new PrismaCheckoutRepository(prisma);
     const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+    const custService = new CheckoutCustomerService(repository);
+    const shipService = new CheckoutShippingService(repository, custService);
+    const offerService = new CheckoutOfferService(repository);
     const controller = new CheckoutController(
       new StartCheckoutUseCase(repository),
       new TrackCheckoutEventUseCase(repository),
       new GetCheckoutSessionUseCase(repository),
       new GetDecisionUseCase(repository),
-      new SendChatMessageUseCase(repository, new FakeConversationPort()),
+      new SendChatMessageUseCase(repository, new FakeConversationPort(), custService, shipService, offerService),
       new EvaluateShippingUseCase(repository),
       new ApplyOfferUseCase(repository, new FakeCommerceOfferPort(), acceptOffer),
       new CompleteOrderUseCase(repository),

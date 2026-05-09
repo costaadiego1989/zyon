@@ -17,6 +17,9 @@ import { GetCheckoutSessionUseCase } from "./application/use-cases/get-checkout-
 import { SendChatMessageUseCase } from "./application/use-cases/send-chat-message.use-case.js";
 import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
+import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
 import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
 import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
 import { AGENT_CONTEXT_PORT } from "./domain/ports/agent-context.port.js";
@@ -46,6 +49,9 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
     GetCheckoutSessionUseCase,
     GetDecisionUseCase,
     SendChatMessageUseCase,
+    CheckoutCustomerService,
+    CheckoutShippingService,
+    CheckoutOfferService,
     InMemoryInterventionLedger,
     {
       provide: CHECKOUT_INTERVENTION_LEDGER,

@@ -94,7 +94,7 @@ function normalizeNameCandidate(text: string): string | undefined {
     .filter((t) => !NAME_FILLERS.includes(t.toLowerCase()))
     .map((t) => t.replace(/[.,;:]/g, ""))
     .filter((t) => t.length > 0);
-  if (tokens.length < 2 || tokens.length > 5) return undefined;
+  if (tokens.length < 1 || tokens.length > 5) return undefined;
   if (tokens.some((t) => NAME_STOPWORDS.has(t.toLowerCase()))) return undefined;
   if (tokens.some((t) => !/^[\p{L}'-]+$/u.test(t))) return undefined;
   return tokens
@@ -137,6 +137,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
     !addr.street ||
     !(addr.city && addr.state) ||
     !addr.number ||
+    addr.complement === undefined ||
     !session.shipping
   ) {
     return "shipping";
@@ -161,7 +162,8 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
     const addr = session.customer?.address ?? {};
     if (!addr.zip) return ["CEP"];
     if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];
-    if (!addr.number) return ["número e complemento (apto/bloco)"];
+    if (!addr.number) return ["número"];
+    if (addr.complement === undefined) return ["complemento (ou responda que não tem)"];
     if (typeof session.shipping?.customerPrice !== "number") return ["frete"];
     return [];
   }

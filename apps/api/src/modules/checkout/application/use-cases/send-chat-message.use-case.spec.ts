@@ -16,6 +16,30 @@ import { StartCheckoutUseCase } from "./start-checkout.use-case.js";
 import { SendChatMessageUseCase } from "./send-chat-message.use-case.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
 import { CompleteOrderUseCase } from "./complete-order.use-case.js";
+import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../services/checkout-offer.service.js";
+
+function createTestUseCase(
+  repository: InMemoryCheckoutRepository,
+  conversation: ConversationPort,
+  agentContext?: AgentContextPort,
+  merchantRepo?: MerchantRepository,
+  brevoNotifier?: BrevoBuyerEmailNotifier
+) {
+  const custService = new CheckoutCustomerService(repository, brevoNotifier);
+  const shipService = new CheckoutShippingService(repository, custService);
+  const offerService = new CheckoutOfferService(repository);
+  return new SendChatMessageUseCase(
+    repository,
+    conversation,
+    custService,
+    shipService,
+    offerService,
+    agentContext,
+    merchantRepo
+  );
+}
 
 class RecordingConversationPort implements ConversationPort {
   calls: Parameters<ConversationPort["reply"]>[0][] = [];
@@ -32,7 +56,7 @@ class RecordingConversationPort implements ConversationPort {
 class FakeAgentContextPort implements AgentContextPort {
   calls: Parameters<AgentContextPort["get"]>[0][] = [];
 
-  constructor(private readonly context?: AgentContext) {}
+  constructor(private readonly context?: AgentContext) { }
 
   async get(input: Parameters<AgentContextPort["get"]>[0]) {
     this.calls.push(input);
@@ -45,7 +69,7 @@ test("SendChatMessageUseCase passes merchant agent context to conversation witho
   const started = await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const conversation = new RecordingConversationPort();
   const agentContext = new FakeAgentContextPort(testAgentContext());
-  const useCase = new SendChatMessageUseCase(repository, conversation, agentContext);
+  const useCase = createTestUseCase(repository, conversation, agentContext);
 
   const response = await useCase.execute({
     merchant_id: "mrc_1",
@@ -67,7 +91,7 @@ test("SendChatMessageUseCase remains compatible when agent context is not config
   const repository = new InMemoryCheckoutRepository();
   await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
   const conversation = new RecordingConversationPort();
-  const useCase = new SendChatMessageUseCase(repository, conversation);
+  const useCase = createTestUseCase(repository, conversation);
 
   await useCase.execute({
     merchant_id: "mrc_1",
@@ -86,7 +110,7 @@ test("SendChatMessageUseCase extracts email/CPF/phone/CEP and patches session.cu
     startCheckoutRequest({ session_id: "chk_extract", customer: undefined, shipping: undefined })
   );
   const conversation = new RecordingConversationPort();
-  const useCase = new SendChatMessageUseCase(repository, conversation);
+  const useCase = createTestUseCase(repository, conversation);
 
   await useCase.execute({
     merchant_id: "mrc_1",
@@ -114,7 +138,7 @@ test("SendChatMessageUseCase captures fullName when previous agent turn asked fo
     occurredAt: new Date().toISOString()
   });
   const conversation = new RecordingConversationPort();
-  const useCase = new SendChatMessageUseCase(repository, conversation);
+  const useCase = createTestUseCase(repository, conversation);
 
   await useCase.execute({
     merchant_id: "mrc_1",
@@ -133,7 +157,7 @@ test("SendChatMessageUseCase returns refreshed experience snapshot with stage an
     startCheckoutRequest({ session_id: "chk_exp", customer: undefined })
   );
   const conversation = new RecordingConversationPort();
-  const useCase = new SendChatMessageUseCase(repository, conversation);
+  const useCase = createTestUseCase(repository, conversation);
 
   const response = await useCase.execute({
     merchant_id: "mrc_1",
@@ -153,7 +177,7 @@ test("SendChatMessageUseCase appends buyer + agent turns and forwards history", 
   const repository = new InMemoryCheckoutRepository();
   await new StartCheckoutUseCase(repository).execute(startCheckoutRequest({ session_id: "chk_h" }));
   const conversation = new RecordingConversationPort();
-  const useCase = new SendChatMessageUseCase(repository, conversation);
+  const useCase = createTestUseCase(repository, conversation);
 
   const first = await useCase.execute({
     merchant_id: "mrc_1",
@@ -210,10 +234,11 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   const brevoNotifier = {
     notifyCaptured(p: BuyerEmailCapturePayload) {
       brevoCaptured.push(p);
-    }
-  } as BrevoBuyerEmailNotifier;
+    },
+    async sendOtpCode() { }
+  } as unknown as BrevoBuyerEmailNotifier;
 
-  const useCase = new SendChatMessageUseCase(repository, conversation, undefined, merchantRepo, brevoNotifier);
+  const useCase = createTestUseCase(repository, conversation, undefined, merchantRepo, brevoNotifier);
 
   const baseReq = {
     merchant_id: "mrc_1",
@@ -272,7 +297,7 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
     const afterFrete = await useCase.execute({ ...baseReq, user_message: "Quero PAC" });
 
     assert.equal(afterFrete.stage, "payment");
-    assert.ok((afterFrete.experience?.copy.quick_replies ?? []).includes("Prefiro PIX"));
+    assert.ok((afterFrete.experience?.copy.quick_replies ?? []).includes("PIX"));
 
     const session = await repository.getSession("mrc_1", "chk_full_journey");
     assert.ok(session?.shipping?.customerPrice && session.shipping.customerPrice > 0);
@@ -327,9 +352,8 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
     }
   };
 
-  const useCase = new SendChatMessageUseCase(repository, new RecordingConversationPort(), undefined, merchantRepo);
+  const useCase = createTestUseCase(repository, new RecordingConversationPort(), undefined, merchantRepo);
 
-  // Testa o campo aninhado para telefone
   const sessionTel = await repository.getSession("mrc_1", "chk_qr");
   if (sessionTel) {
     sessionTel.customer = {
@@ -356,14 +380,14 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
 
   // Força o preenchimento da sessão para etapa de pagamento
   const session = await repository.getSession("mrc_1", "chk_qr");
-    if (session) {
-      session.customer = {
-        fullName: "Teste Nome",
-        email: "teste@teste.com",
-        email_verified: true,
-        cpf: "05178178700",
-        phone: "21993001883",
-        address: {
+  if (session) {
+    session.customer = {
+      fullName: "Teste Nome",
+      email: "teste@teste.com",
+      email_verified: true,
+      cpf: "05178178700",
+      phone: "21993001883",
+      address: {
         zip: "01310100",
         city: "SP",
         state: "SP",

@@ -20,6 +20,9 @@ import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.j
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
+import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
 
 type SafetyScenario = {
   name: string;
@@ -193,12 +196,15 @@ for (const scenario of scenarios) {
 function createController(providerMessage: string) {
   const repository = new InMemoryCheckoutRepository();
   const acceptOffer = new AcceptCheckoutOfferUseCase(repository);
+  const custService = new CheckoutCustomerService(repository);
+  const shipService = new CheckoutShippingService(repository, custService);
+  const offerService = new CheckoutOfferService(repository);
   const controller = new CheckoutController(
     new StartCheckoutUseCase(repository),
     new TrackCheckoutEventUseCase(repository),
     new GetCheckoutSessionUseCase(repository),
     new GetDecisionUseCase(repository),
-    new SendChatMessageUseCase(repository, new ScriptedAiConversationPort(providerMessage), {
+    new SendChatMessageUseCase(repository, new ScriptedAiConversationPort(providerMessage), custService, shipService, offerService, {
       async get() {
         return safetyAgentContext();
       }
