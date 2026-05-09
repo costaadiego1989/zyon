@@ -27,6 +27,7 @@ export function renderConversationalCheckoutChrome(mount: HTMLElement, opts: Hyb
             <p>${escapeHtml(opts.brandSubtitle)}</p>
           </div>
         </div>
+        
         <div class="trust-chip trust-chip-ai" role="status">
           <span aria-hidden="true">✨</span>
           <span>Checkout conversacional · agente fecha frete, cupom e pagamento dentro da política</span>

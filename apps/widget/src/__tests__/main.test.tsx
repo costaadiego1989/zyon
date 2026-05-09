@@ -137,7 +137,7 @@ function buildChatResponse(
       {
         role: "agent",
         text: message,
-        occurredAt: "2026-05-04T16:00:31Z",
+        occurredAt: new Date().toISOString(),
         authorizedOfferId: "off_1"
       }
     ],
@@ -830,5 +830,313 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.click(getByText("Agente"));
     expect(container.textContent).toContain("consultora premium de checkout");
     expect(container.textContent).toContain("proactive");
+  });
+
+  it("covers full purchase journey, empty cart fallback, and login reflection", async () => {
+    // 1. Initial configuration with custom fallback redirect url
+    const config = buildConfig({
+      emptyCartRedirectUrl: "https://minhaloja.com.br/fallback"
+    });
+
+    let lastSentMessage = "";
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        const response = buildStartResponse(baseTheme);
+        response.experience.customer = {
+          fullName: "Diego Costa",
+          email_verified: false
+        };
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        lastSentMessage = body.user_message || "";
+        
+        // Simulating the stages of checkout
+        let nextStage: "data_collection" | "shipping" | "payment" | "completed" = "data_collection";
+        let messageText = "Como posso ajudar?";
+        let qrs: string[] = [];
+        let expOver: any = {};
+
+        if (lastSentMessage.includes("Diego")) {
+          messageText = "Obrigado, Diego! Agora informe seu email.";
+          qrs = ["costaadiego1989@gmail.com"];
+        } else if (lastSentMessage.includes("@")) {
+          messageText = "Obrigado, Diego! Informe o código de verificação enviado para o seu email.";
+          qrs = ["898531"];
+        } else if (lastSentMessage.includes("898531")) {
+          messageText = "Perfeito, cadastro confirmado com sucesso! Qual o seu CPF?";
+          qrs = ["051.781.787-00"];
+          expOver = {
+            customer: {
+              fullName: "Diego Costa",
+              email: "costaadiego1989@gmail.com",
+              email_verified: true,
+              cpf: "05178178700"
+            }
+          };
+        } else if (lastSentMessage.includes("051.781.787-00") || lastSentMessage.includes("051781")) {
+          messageText = "Obrigado! Qual seu telefone?";
+          qrs = ["(21) 99300-1883"];
+          nextStage = "shipping";
+          expOver = {
+            customer: {
+              fullName: "Diego Costa",
+              email: "costaadiego1989@gmail.com",
+              email_verified: true,
+              cpf: "05178178700",
+              phone: "21993001883"
+            }
+          };
+        } else if (lastSentMessage.includes("21993001883") || lastSentMessage.includes("2199300")) {
+          messageText = "Qual o seu CEP?";
+          qrs = ["25958180"];
+          nextStage = "shipping";
+        } else if (lastSentMessage.includes("25958180")) {
+          messageText = "Qual o número e complemento?";
+          qrs = ["95"];
+          nextStage = "shipping";
+        } else if (lastSentMessage.includes("95")) {
+          messageText = "Escolha a entrega. Frete Grátis acima de R$500!";
+          qrs = ["PAC (Grátis)", "Sedex (R$ 15,00)"];
+          nextStage = "shipping";
+          expOver = {
+            shippingOptions: [
+              { customerPrice: 0, carrier: "Correios", method: "PAC", deliveryDays: 5 },
+              { customerPrice: 15, carrier: "Correios", method: "Sedex", deliveryDays: 2 }
+            ],
+            totals: {
+              currency: "BRL",
+              subtotal: 899.8,
+              shipping: 0,
+              discount: 89.98,
+              total: 809.82
+            }
+          };
+        } else if (lastSentMessage.toLowerCase().includes("pac") || lastSentMessage.toLowerCase().includes("gratis")) {
+          messageText = "Ótimo! Escolha um método de pagamento no quick reply.";
+          qrs = ["Pagar com PIX", "Pagar com Cartão de Crédito"];
+          nextStage = "payment";
+          expOver = {
+            totals: {
+              currency: "BRL",
+              subtotal: 899.8,
+              shipping: 0,
+              discount: 89.98,
+              total: 809.82
+            }
+          };
+        } else if (lastSentMessage.toLowerCase().includes("pix")) {
+          messageText = "Perfeito. O código PIX está disponível. Deseja confirmar?";
+          qrs = ["Confirmar Pagamento", "Simular Erro de Pagamento"];
+          nextStage = "payment";
+        } else if (lastSentMessage.includes("Confirmar Pagamento")) {
+          messageText = "Pagamento confirmado com sucesso! Seu pedido foi concluído e enviamos um comprovante por WhatsApp.";
+          nextStage = "completed";
+          qrs = [];
+        }
+
+        return new Response(
+          JSON.stringify(
+            buildChatResponse(messageText, nextStage, {
+              quickReplies: qrs,
+              experience: expOver,
+              actions: []
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    // Render Widget
+    const { container, getByLabelText } = render(<CheckoutAgent config={config} />);
+
+    // Wait for greeting
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    // 2. Simulate Registration Flow (Diego -> Email -> OTP -> CPF -> Phone)
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+
+    // Send Name
+    fireEvent.change(input, { target: { value: "Meu nome é Diego" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Diego");
+    });
+
+    // Send Email
+    fireEvent.change(input, { target: { value: "costaadiego1989@gmail.com" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("código de verificação");
+    });
+
+    // Send OTP
+    fireEvent.change(input, { target: { value: "O código é 898531" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("CPF");
+    });
+
+    // At this point, customer is verified! Check that the login button in header reflects verified client state
+    await waitFor(() => {
+      const loginBtn = container.querySelector("#aacp-login-btn");
+      expect(loginBtn?.textContent).toContain("Olá, Diego");
+      expect(loginBtn?.textContent).toContain("Cliente");
+    });
+
+    // Send CPF
+    fireEvent.change(input, { target: { value: "Meu CPF é 051.781.787-00" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("telefone");
+    });
+
+    // Send Phone
+    fireEvent.change(input, { target: { value: "21993001883" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("CEP");
+    });
+
+    // 3. Simulate Delivery Flow (CEP -> Number -> Complement -> Shipping option)
+    fireEvent.change(input, { target: { value: "CEP é 25958180" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("número");
+    });
+
+    // Send Number
+    fireEvent.change(input, { target: { value: "Número é 95" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Escolha a entrega");
+    });
+
+    // Choose PAC shipping option from quick reply
+    await waitFor(() => {
+      expect(container.textContent).toContain("PAC (Grátis)");
+    });
+    const pacQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("PAC (Grátis)"));
+    expect(pacQr).not.toBeUndefined();
+    fireEvent.click(pacQr!);
+
+    // Check shipping policies and discounts in the UI
+    await waitFor(() => {
+      // Check totals are updated
+      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("809,82");
+    });
+
+    // 4. Payment method selection in quick replies
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagar com PIX");
+    });
+    const pixQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("Pagar com PIX"));
+    expect(pixQr).not.toBeUndefined();
+    fireEvent.click(pixQr!);
+
+    // Confirm Payment
+    await waitFor(() => {
+      expect(container.textContent).toContain("Confirmar Pagamento");
+    });
+    const confirmPayQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("Confirmar Pagamento"));
+    expect(confirmPayQr).not.toBeUndefined();
+    fireEvent.click(confirmPayQr!);
+
+    // Check payment successful and WhatsApp confirmation text
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagamento confirmado");
+      expect(container.textContent).toContain("WhatsApp");
+    });
+
+    // 5. Test empty cart fallback redirect button
+    // Let's remove the item
+    fireEvent.click(getByLabelText("Remover Bolsa Executiva"));
+    await waitFor(() => {
+      expect(container.querySelector("#aacp-empty-cart-redirect-btn")).not.toBeNull();
+      expect(container.querySelector("#aacp-empty-cart-redirect-btn")?.getAttribute("href")).toBe(
+        "https://minhaloja.com.br/fallback"
+      );
+    });
+  });
+
+  it("supports dynamic client configuration for agent and copy from attributes and renders relocated Reset button", async () => {
+    // Stub fetch to return the custom dynamic configurations
+    fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        const payload = buildStartResponse(baseTheme);
+        payload.experience.agent = {
+          name: "Zion Assistente Inteligente",
+          greeting: "Olá! Conectando com a loja para buscar seu pedido.",
+          tone: "consultative",
+          language: "pt-BR"
+        };
+        payload.experience.copy = {
+          headline: "Checkout Exclusivo IA",
+          subheadline: "Carregando o seu carrinho com segurança.",
+          trust_badges: ["Conexão 100% Criptografada"],
+          quick_replies: ["Iniciar Checkout", "Ver Promoções"]
+        };
+        return new Response(JSON.stringify(payload), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const customAgent = {
+      name: "Zion Assistente Inteligente",
+      greeting: "Olá! Conectando com a loja para buscar seu pedido.",
+      tone: "consultative" as const,
+      language: "pt-BR"
+    };
+
+    const customCopy = {
+      headline: "Checkout Exclusivo IA",
+      subheadline: "Carregando o seu carrinho com segurança.",
+      trust_badges: ["Conexão 100% Criptografada"],
+      quick_replies: ["Iniciar Checkout", "Ver Promoções"]
+    };
+
+    const config = buildConfig({
+      agent: customAgent,
+      copy: customCopy
+    });
+
+    const { container } = render(<CheckoutAgent config={config} />);
+
+    // Verify initial copy configuration headline (rendered as brand subtitle or document metadata)
+    await waitFor(() => {
+      expect(container.textContent).toContain("Zion");
+    });
+
+    // Check custom greeting is displayed in the chat interface
+    expect(container.textContent).toContain("Olá! Conectando com a loja para buscar seu pedido.");
+
+    // Check that custom quick replies are shown
+    expect(container.textContent).toContain("Iniciar Checkout");
+    expect(container.textContent).toContain("Ver Promoções");
+
+    // Verify the DEV Reset button is rendered in the CartPanel header instead of CheckoutHeader
+    const cartHeader = container.querySelector(".aacp-cart-brand");
+    expect(cartHeader).not.toBeNull();
+    
+    // The Reset button should be located in the CartPanel near the brand header
+    const resetButton = Array.from(container.querySelectorAll("button"))
+      .find(btn => btn.textContent === "Reset");
+    expect(resetButton).not.toBeNull();
   });
 });

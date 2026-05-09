@@ -61,7 +61,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
     return (
       <div className="fixed inset-0 z-50 grid place-items-center p-4 sm:p-6" role="presentation">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={auth.close} />
-        <section className="relative flex h-[85vh] max-h-[800px] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#0c0a16] text-white shadow-2xl" role="dialog" aria-modal="true">
+        <section className="relative flex h-[85vh] max-h-[800px] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#0c0a16] text-white shadow-2xl aacp-hub-sheet" role="dialog" aria-modal="true">
           <header className="px-8 h-20 border-b border-white/5 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
@@ -125,7 +125,64 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                   </div>
                 </div>
               )}
-              {/* Other sections can be added here as needed */}
+
+              {hub.section === "orders" && (
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-black tracking-tight">Sessões Recentes</h3>
+                  <div className="flex flex-col gap-4">
+                    {overview?.recent_sessions?.map((sess) => (
+                      <div key={sess.sessionId} className="p-5 rounded-2xl bg-white/[0.02] border border-white/5 flex justify-between items-center">
+                        <div className="flex flex-col">
+                          <strong className="text-sm font-bold tracking-tight text-white">{sess.sessionId}</strong>
+                          <span className="text-xs text-white/40 mt-1">Total: R$ {sess.cart.total.toFixed(2)}</span>
+                        </div>
+                        <span className="text-xs text-purple-400 font-bold">{sess.customer?.email}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {hub.section === "metrics" && (
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-black tracking-tight">Estatísticas Operacionais</h3>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Receita IA</span>
+                      <strong className="block text-emerald-400 text-2xl font-black mt-2">R$ {overview?.incremental_revenue?.toLocaleString()}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {hub.section === "agent" && (
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-black tracking-tight">Informações do Agente</h3>
+                  <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Nome</span>
+                      <strong className="text-white font-bold">{agentContext?.agent?.agentName}</strong>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Persona</span>
+                      <p className="text-white/80 text-sm leading-relaxed">{agentContext?.agent?.persona}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/20 block mb-1">Modo de Operação</span>
+                      <strong className="text-purple-400 font-bold uppercase text-xs tracking-wider">{agentContext?.checkout_settings?.agentMode}</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {hub.section === "account" && (
+                <div className="space-y-6">
+                  <h3 className="text-2xl font-black tracking-tight">Sua Conta</h3>
+                  <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                    <p className="text-sm text-white/60">Detalhes da conta de administrador do merchant.</p>
+                  </div>
+                </div>
+              )}
             </main>
           </div>
         </section>
@@ -133,7 +190,6 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
     );
   }
 
-  // Render Login Panel (Prototype Layout)
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center p-4 sm:p-6" role="presentation">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={auth.close} />
@@ -149,8 +205,8 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
           </div>
         </div>
 
-        <h2 className="text-3xl font-black text-white tracking-tight mb-2">Bem-vindo de volta</h2>
-        <p className="text-white/40 text-sm font-medium mb-8">Entre para acelerar o checkout e acessar seus pedidos</p>
+        <h2 className="text-3xl font-black text-white tracking-tight mb-2">Entrar com celular</h2>
+        <p className="text-white/40 text-sm font-medium mb-8">Bem-vindo de volta! Entre para acelerar o checkout e acessar seus pedidos</p>
 
         <button
           type="button"
@@ -158,7 +214,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
           disabled
         >
           <img src="https://www.google.com/favicon.ico" alt="" className="w-5 h-5 grayscale opacity-50" />
-          Continuar com Google
+          Entrar com Google em breve
         </button>
 
         <div className="flex items-center gap-4 mb-8">
@@ -179,7 +235,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                 value={phone}
                 onChange={(e) => handlePhoneChange(e.target.value)}
                 type="tel"
-                placeholder="(00) 00000-0000"
+                placeholder="(11) 99999-9999"
               />
             </div>
           ) : (
@@ -194,6 +250,12 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                 maxLength={6}
               />
             </div>
+          )}
+
+          {codeSent && (
+            <p className="text-emerald-400 text-xs text-center font-bold">
+              Codigo enviado para {normalizedPhone}
+            </p>
           )}
 
           {auth.error ? <p className="text-red-400 text-[11px] font-bold text-center px-2">{auth.error}</p> : null}
@@ -211,7 +273,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
               }
             }}
           >
-            {auth.loading ? "Processando..." : codeSent ? "Entrar" : "Enviar senha"}
+            {auth.loading ? "Processando..." : codeSent ? "Confirmar codigo" : "Enviar codigo por SMS"}
           </button>
         </form>
       </section>

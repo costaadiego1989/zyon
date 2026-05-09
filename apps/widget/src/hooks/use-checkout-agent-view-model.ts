@@ -78,7 +78,7 @@ function fallbackExperience(config: WidgetConfig): CheckoutExperienceSnapshot {
     brand: {
       merchant_id: config.merchantId,
       name: config.merchantId,
-      subtitle: "Checkout assistido por IA",
+      subtitle: config.copy?.headline ?? "Checkout assistido por IA",
       support_label: "Sincronizando",
       theme: DEFAULT_MERCHANT_THEME
     },
@@ -103,16 +103,17 @@ function fallbackExperience(config: WidgetConfig): CheckoutExperienceSnapshot {
     shipping: config.shipping,
     customer: config.customer,
     agent: {
-      name: "Assistente AACP",
-      greeting: "Estou conectando com a API da loja para carregar o pedido.",
-      tone: "consultative",
-      language: "pt-BR"
+      name: config.agent?.name ?? "Assistente AACP",
+      greeting: config.agent?.greeting ?? "Estou conectando com a API da loja para carregar o pedido.",
+      tone: (config.agent?.tone as any) ?? "consultative",
+      language: config.agent?.language ?? "pt-BR"
     },
     copy: {
-      headline: "Checkout assistido por IA",
-      subheadline: "Carregando contexto real do pedido.",
-      trust_badges: ["Sessao sera sincronizada pela API"],
-      quick_replies: ["Ola!", "Quero finalizar agora"]
+      headline: config.copy?.headline ?? "Checkout assistido por IA",
+      subheadline: config.copy?.subheadline ?? "Carregando contexto real do pedido.",
+      trust_badges: config.copy?.trust_badges ?? ["Sessão será sincronizada pela API"],
+      quick_replies: config.copy?.quick_replies ?? ["Olá!", "Quero finalizar agora"],
+      expected_input_type: undefined
     },
     rules: { couponBoxEnabled: true }
   };
@@ -130,6 +131,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const [resolvedCart, setResolvedCart] = useState<Cart>(config.cart);
   const [networkError, setNetworkError] = useState<string | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [visibleCart, setVisibleCart] = useState<VisibleCartState>(() =>
     buildVisibleCart(fallbackExperience(config))
   );
@@ -152,7 +154,13 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const cartItemCount = countVisibleItems(visibleItems);
   const theme: MerchantTheme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
   const offer = lastChat?.authorized_offer;
-  const checkoutStage = activeExperience.stage ?? "data_collection";
+
+  const checkoutStage = useMemo(() => {
+    const apiStage = lastChat?.stage ?? activeExperience.stage;
+    if (apiStage) return apiStage;
+    return "data_collection";
+  }, [activeExperience.stage, lastChat?.stage]);
+
   const nextMissingField = lastChat?.missing_fields?.[0];
   const stageNote = stageNarrative(checkoutStage, nextMissingField);
   const awaitingAgentPlayback =
@@ -178,23 +186,31 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   });
 
   const quickReplies: QuickReplyChoice[] = useMemo(() => {
-    if (!isConversational) return [];
-    const merged: QuickReplyChoice[] = [
-      ...(lastChat?.actions ?? []).map((action) => ({
-        label: action.label,
-        type: action.type,
-        offerId: action.offer_id
-      })),
-      ...filterSuggestedQuickReplies(
-        activeExperience.copy.quick_replies.map((label) => ({ label })),
-        checkoutStage
-      )
-    ];
-    return merged.filter(
-      (reply, index, list) =>
-        index === list.findIndex((item) => item.label === reply.label && item.type === reply.type)
-    );
-  }, [activeExperience.copy.quick_replies, checkoutStage, isConversational, lastChat?.actions]);
+    if (!isConversational || turns.length < 1 || busy) return [];
+
+    const list: QuickReplyChoice[] = [];
+
+    if (lastChat?.actions && lastChat.actions.length > 0) {
+      list.push(
+        ...lastChat.actions.map((action) => ({
+          label: action.label,
+          type: action.type as any,
+          offerId: action.offer_id
+        }))
+      );
+    }
+
+    if (activeExperience.copy.quick_replies.length > 0) {
+      list.push(
+        ...filterSuggestedQuickReplies(
+          activeExperience.copy.quick_replies.map((label) => ({ label })),
+          checkoutStage
+        )
+      );
+    }
+
+    return list;
+  }, [activeExperience.copy.quick_replies, checkoutStage, isConversational, lastChat?.actions, busy, turns.length]);
 
   useEffect(() => {
     if (streamingTurnKey == null) return;
@@ -221,9 +237,17 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       window.clearTimeout(idleTimer);
       window.removeEventListener("aacp:checkout-event", listener);
     };
-    // The checkout session intentionally starts once per mounted widget instance.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (isConversational && session && turns.length === 1 && !config.customer?.fullName && !busy && !networkError) {
+      const timer = setTimeout(() => {
+        void autoTriggerRegistration();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [session, turns.length, isConversational, busy, networkError, config.customer?.fullName]);
 
   useEffect(() => {
     if (!threadRef.current) return;
@@ -278,16 +302,18 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   async function startCheckout() {
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
     try {
+      const savedSessionId = window.localStorage.getItem("aacp_session_id");
       const cart = await resolveCheckoutCart();
       const body =
         config.mode === "embed"
-          ? { customer: config.customer, cart, shipping: config.shipping }
+          ? { customer: config.customer, cart, shipping: config.shipping, session_id: savedSessionId || undefined }
           : {
-              merchant_id: config.merchantId,
-              customer: config.customer,
-              cart,
-              shipping: config.shipping
-            };
+            merchant_id: config.merchantId,
+            customer: config.customer,
+            cart,
+            shipping: config.shipping,
+            session_id: savedSessionId || undefined
+          };
       const response = await checkoutJson<StartCheckoutResponse>(apiOrigin, paths.start, {
         ...embedOpts,
         body
@@ -295,20 +321,31 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
       setSession(response);
       syncExperience(response.experience);
-      const greeting: ChatTurn = {
-        role: "agent",
-        text: response.experience.agent.greeting,
-        occurredAt: new Date().toISOString()
-      };
-      setTurns([greeting]);
-      setStreamingTurnKey(bubbleKey(greeting, 0));
+
+      if (Array.isArray(response.turns) && response.turns.length > 0) {
+        setTurns(response.turns);
+        const lastAgentIdx = response.turns.map(t => t.role).lastIndexOf("agent");
+        if (lastAgentIdx >= 0) {
+          setStreamingTurnKey(bubbleKey(response.turns[lastAgentIdx]!, lastAgentIdx));
+        }
+      } else {
+        const greeting: ChatTurn = {
+          role: "agent",
+          text: response.experience.agent.greeting,
+          occurredAt: new Date().toISOString()
+        };
+        setTurns([greeting]);
+        setStreamingTurnKey(bubbleKey(greeting, 0));
+      }
+
       if (response.initial_mode === "open") setOpen(true);
       window.localStorage.setItem("aacp_global_user_id", response.global_user_id);
+      window.localStorage.setItem("aacp_session_id", response.session_id);
     } catch {
       setNetworkError(
         productApiOrigin && config.productSelection?.length
-          ? "Nao consegui carregar os produtos ou sincronizar esta sessao com a API agora. A conversa ficara bloqueada ate a conexao voltar."
-          : "Nao consegui sincronizar esta sessao com a API agora. A conversa ficara bloqueada ate a conexao voltar."
+          ? "Não consegui carregar os produtos ou sincronizar esta sessão com a API agora. A conversa ficará bloqueada até a conexão voltar."
+          : "Não consegui sincronizar esta sessão com a API agora. A conversa ficará bloqueada até a conexão voltar."
       );
       const fallbackTurn: ChatTurn = {
         role: "agent",
@@ -357,6 +394,35 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     await sendMessageWithOverride(reply.label);
   }
 
+  async function autoTriggerRegistration(): Promise<void> {
+    if (!session || networkError || composerLocked) return;
+    setBusy(true);
+    try {
+      const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+      const body =
+        config.mode === "embed"
+          ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Iniciar cadastro" }
+          : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Iniciar cadastro" };
+      const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, { ...embedOpts, body });
+      setLastChat(response);
+      if (response.experience) syncExperience(response.experience);
+      if (Array.isArray(response.turns) && response.turns.length > 0) {
+        setTurns(response.turns);
+        let foundAgentIdx = -1;
+        for (let i = response.turns.length - 1; i >= 0; i--) {
+          if (response.turns[i]!.role === "agent") { foundAgentIdx = i; break; }
+        }
+        if (foundAgentIdx >= 0) setStreamingTurnKey(bubbleKey(response.turns[foundAgentIdx]!, foundAgentIdx));
+      } else {
+        appendAgentTurn(response.message, { stream: true });
+      }
+    } catch {
+      setNetworkError("Falha ao falar com a IA. Tente novamente em instantes.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function sendMessageWithOverride(userText: string): Promise<void> {
     if (!session || networkError || !userText.trim() || composerLocked) return;
     setBusy(true);
@@ -371,16 +437,16 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       const body =
         config.mode === "embed"
           ? {
-              session_id: session.session_id,
-              conversation_id: session.conversation_id,
-              user_message: userText.trim()
-            }
+            session_id: session.session_id,
+            conversation_id: session.conversation_id,
+            user_message: userText.trim()
+          }
           : {
-              merchant_id: config.merchantId,
-              session_id: session.session_id,
-              conversation_id: session.conversation_id,
-              user_message: userText.trim()
-            };
+            merchant_id: config.merchantId,
+            session_id: session.session_id,
+            conversation_id: session.conversation_id,
+            user_message: userText.trim()
+          };
 
       const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
         ...embedOpts,
@@ -433,10 +499,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
         config.mode === "embed"
           ? { session_id: session.session_id, offer_id: targetOffer.id }
           : {
-              merchant_id: config.merchantId,
-              session_id: session.session_id,
-              offer_id: targetOffer.id
-            };
+            merchant_id: config.merchantId,
+            session_id: session.session_id,
+            offer_id: targetOffer.id
+          };
 
       const response = await checkoutJson<ApplyOfferResponse>(apiOrigin, paths.applyOffer, {
         ...embedOpts,
@@ -453,7 +519,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
         appendAgentTurn(
           response.success
             ? `Oferta aplicada. Codigo: ${response.discount_code ?? "gerado"}.`
-            : `Nao consegui aplicar a oferta: ${response.reason ?? "erro desconhecido"}.`,
+            : `Não consegui aplicar a oferta: ${response.reason ?? "erro desconhecido"}.`,
           { stream: true }
         );
       }
@@ -515,17 +581,16 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
         bf?.invoiceUrl != null && bf.invoiceUrl.length > 0
           ? ` Fatura/link: ${bf.invoiceUrl}.`
           : bf?.qrCodeCopyPaste != null && bf.qrCodeCopyPaste.length > 0
-            ? ` Copia e cola PIX: ${bf.qrCodeCopyPaste.slice(0, 80)}${
-                bf.qrCodeCopyPaste.length > 80 ? "..." : ""
-              }.`
+            ? ` Copia e cola PIX: ${bf.qrCodeCopyPaste.slice(0, 80)}${bf.qrCodeCopyPaste.length > 80 ? "..." : ""
+            }.`
             : "";
 
-      appendAgentTurn(total.length > 0 ? `Cobranca gerada (${total}).${pixLine}` : `Cobranca criada.${pixLine}`, {
+      appendAgentTurn(total.length > 0 ? `Cobrança gerada (${total}).${pixLine}` : `Cobrança criada.${pixLine}`, {
         stream: true
       });
     } catch {
       appendAgentTurn(
-        "Nao foi possivel gerar a cobranca. Verifique o token embed e os dados do pagador na API.",
+        "Não foi possível gerar a cobrança. Verifique o token embed e os dados do pagador na API.",
         { stream: true }
       );
     } finally {
@@ -582,7 +647,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     continueToPayment,
     submitCoupon,
     handleRemoveCartItem,
-    createEmbedPaymentIntentDemo
+    createEmbedPaymentIntentDemo,
+    colorMode,
+    toggleColorMode: () => setColorMode((m) => m === "light" ? "dark" : "light")
   };
 }
 

@@ -28,7 +28,10 @@ const ATTRS = [
   "product-selection-json",
   "customer-json",
   "shipping-json",
-  "ui-presentation"
+  "ui-presentation",
+  "empty-cart-redirect-url",
+  "agent-json",
+  "copy-json"
 ] as const;
 
 function widgetReloadKey(cfg: WidgetConfig): string {
@@ -36,7 +39,7 @@ function widgetReloadKey(cfg: WidgetConfig): string {
   const productSelectionKey = cfg.productSelection
     ?.map((item) => `${item.sku}:${item.quantity}`)
     .join(",") ?? "";
-  return `${base}:${cfg.uiPresentation}:${cfg.cart.total}:${cfg.productApiBaseUrl ?? ""}:${productSelectionKey}`;
+  return `${base}:${cfg.uiPresentation}:${cfg.cart.total}:${cfg.productApiBaseUrl ?? ""}:${productSelectionKey}:${cfg.emptyCartRedirectUrl ?? ""}`;
 }
 
 function readConfig(element: HTMLElement): WidgetConfig {
@@ -72,7 +75,10 @@ function readConfig(element: HTMLElement): WidgetConfig {
     cart: parseJson<Cart>(element.getAttribute("cart-json")),
     customer: parseJson<CustomerHints>(element.getAttribute("customer-json")),
     shipping: parseJson<ShippingQuote>(element.getAttribute("shipping-json")),
-    uiPresentation
+    uiPresentation,
+    emptyCartRedirectUrl: element.getAttribute("empty-cart-redirect-url")?.trim() || undefined,
+    agent: parseJson(element.getAttribute("agent-json")),
+    copy: parseJson(element.getAttribute("copy-json"))
   });
 }
 

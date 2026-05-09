@@ -35,7 +35,9 @@ export function formatCurrency(value: number, currency: string): string {
 export function themeStyle(theme: MerchantTheme): React.CSSProperties {
   return {
     "--aacp-accent": theme.accentColor,
-    "--aacp-font": theme.fontFamily
+    "--aacp-font": theme.fontFamily,
+    "--aacp-fg": theme.textColor,
+    "--aacp-bg": theme.backgroundColor
   } as React.CSSProperties;
 }
 
@@ -107,9 +109,7 @@ export function filterSuggestedQuickReplies(
   replies: { label: string; event?: CheckoutEventName }[],
   stage?: CheckoutExperienceSnapshot["stage"]
 ): { label: string; event?: CheckoutEventName }[] {
-  if (stage === "payment") return replies;
-  const couponLike = /\b(cup[oô]m|promo|c[oó]digo(\s+(promocional|de\s+desconto))?|desconto\s+extra|%?\s*off)\b/i;
-  return replies.filter(({ label }) => !couponLike.test(label));
+  return replies;
 }
 
 export function quickReplyId(reply: QuickReplyChoice): string {

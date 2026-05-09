@@ -16,6 +16,19 @@ export interface WidgetConfig {
   customer?: CustomerHints;
   shipping?: ShippingQuote;
   uiPresentation: "floating" | "conversational";
+  emptyCartRedirectUrl?: string;
+  agent?: {
+    name?: string;
+    greeting?: string;
+    tone?: string;
+    language?: string;
+  };
+  copy?: {
+    headline?: string;
+    subheadline?: string;
+    trust_badges?: string[];
+    quick_replies?: string[];
+  };
 }
 
 export type GlobalAuthMode = "login" | "register";

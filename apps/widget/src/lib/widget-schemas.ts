@@ -58,6 +58,20 @@ const shippingSchema: z.ZodType<ShippingQuote> = z.object({
   })
   .strict();
 
+const agentConfigSchema = z.object({
+  name: z.string().optional(),
+  greeting: z.string().optional(),
+  tone: z.string().optional(),
+  language: z.string().optional()
+});
+
+const copyConfigSchema = z.object({
+  headline: z.string().optional(),
+  subheadline: z.string().optional(),
+  trust_badges: z.array(z.string()).optional(),
+  quick_replies: z.array(z.string()).optional()
+});
+
 const widgetConfigSchema = z.object({
   mode: z.enum(["legacy", "embed"]),
   embedSessionToken: z.string().min(1).optional(),
@@ -75,7 +89,10 @@ const widgetConfigSchema = z.object({
   cart: cartSchema,
   customer: customerHintsSchema.optional(),
   shipping: shippingSchema.optional(),
-  uiPresentation: z.enum(["floating", "conversational"])
+  uiPresentation: z.enum(["floating", "conversational"]),
+  emptyCartRedirectUrl: z.string().or(z.string().url()).optional(),
+  agent: agentConfigSchema.optional(),
+  copy: copyConfigSchema.optional()
 });
 
 export const authCredentialsSchema = z.object({
@@ -122,6 +139,9 @@ export function parseWidgetConfig(input: {
   customer?: CustomerHints;
   shipping?: ShippingQuote;
   uiPresentation?: "floating" | "conversational";
+  emptyCartRedirectUrl?: string;
+  agent?: WidgetConfig["agent"];
+  copy?: WidgetConfig["copy"];
 }): WidgetConfig {
   const parsed = widgetConfigSchema.safeParse({
     mode: input.embedSessionToken ? "embed" : "legacy",
@@ -133,7 +153,10 @@ export function parseWidgetConfig(input: {
     cart: input.cart ?? defaultCart,
     customer: input.customer,
     shipping: input.shipping,
-    uiPresentation: input.uiPresentation ?? "floating"
+    uiPresentation: input.uiPresentation ?? "floating",
+    emptyCartRedirectUrl: input.emptyCartRedirectUrl,
+    agent: input.agent,
+    copy: input.copy
   });
 
   if (parsed.success) return parsed.data;
@@ -148,6 +171,7 @@ export function parseWidgetConfig(input: {
     cart: input.cart ?? defaultCart,
     customer: input.customer,
     shipping: input.shipping,
-    uiPresentation: input.uiPresentation ?? "floating"
+    uiPresentation: input.uiPresentation ?? "floating",
+    emptyCartRedirectUrl: input.emptyCartRedirectUrl
   };
 }
