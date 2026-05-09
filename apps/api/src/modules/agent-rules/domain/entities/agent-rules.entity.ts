@@ -1,7 +1,7 @@
 import type { AgentContext, AgentRules, AgentRulesPatch } from "../agent-rules.types.js";
 
 export class AgentRulesEntity {
-  private constructor(private readonly props: AgentRules) {}
+  private constructor(private readonly props: AgentRules) { }
 
   static createDefault(input: {
     merchantId: string;

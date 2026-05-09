@@ -114,14 +114,8 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const agentName = agentIdentity?.agentName ?? "Assistente AACP";
   const baseGreeting =
     agentIdentity?.greeting ??
-    `Olá, sou o assistente da ${merchantName}. Posso te ajudar a finalizar este pedido.`;
-  const canMentionDiscount =
-    chatStage === "data_collection" &&
-    deps.rules?.couponBoxEnabled !== false &&
-    (deps.rules?.maxDiscountPercent ?? 0) > 0;
-  const greeting = canMentionDiscount
-    ? `${baseGreeting} Tenho uma ótima notícia: o sistema me autorizou a liberar até ${deps.rules!.maxDiscountPercent}% de desconto exclusivo para você neste pedido! Vamos começar a preparar o seu envio?`
-    : baseGreeting;
+    "Olá, tudo bem? Seja muito bem-vindo! Sou o seu assistente virtual e vou te guiar em todo o processo do seu checkout com total segurança e agilidade.";
+  const greeting = baseGreeting;
 
   const trustCadastro = chatStage === "data_collection";
 
