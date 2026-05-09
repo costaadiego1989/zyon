@@ -15,7 +15,8 @@ export const CHECKOUT_LEGACY_PATHS = {
   start: "/start-checkout",
   track: "/track-event",
   chatMessage: "/chat/message",
-  applyOffer: "/offers/apply"
+  applyOffer: "/offers/apply",
+  paymentIntents: "/payment/intents"
 } as const;
 
 export async function checkoutJson<T>(

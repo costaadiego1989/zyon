@@ -263,31 +263,16 @@ body.aacp-demo-page {
     @apply h-1.5 w-1.5 animate-aacp-pulse rounded-full bg-white/50;
   }
 
-  .aacp-offer-banner,
   .aacp-completion-card {
     @apply flex items-start gap-3 rounded-[28px] border border-emerald-300/20 bg-emerald-300/10 p-4 text-white shadow-agentic-card backdrop-blur-2xl;
   }
 
-  .aacp-offer-banner {
-    @apply items-center;
-  }
-
-  .aacp-offer-banner-text {
-    @apply grid min-w-0 flex-1 gap-1;
-  }
-
-  .aacp-offer-banner strong,
   .aacp-completion-card strong {
     @apply block text-sm font-black text-white;
   }
 
-  .aacp-offer-banner span,
   .aacp-completion-card span {
     @apply block text-xs leading-relaxed text-white/60;
-  }
-
-  .aacp-offer-banner button {
-    @apply rounded-full bg-emerald-300 px-4 py-2.5 text-xs font-black text-slate-950 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50;
   }
 }
 

@@ -1,4 +1,5 @@
 import { CheckCircle2, Gift, Sparkles, Copy, Check } from "lucide-react";
+import { CreditCardForm } from "./CreditCardForm.js";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
 import type { ChatTurn } from "@aacp/shared-types";
@@ -51,6 +52,8 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       ) : null}
 
       {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
+
+      {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
 
       {vm.showComposer && !vm.composerLocked && vm.quickReplies.length > 0 ? (
         <div className="flex flex-wrap gap-2 py-2 aacp-quick-replies aacp-quick-replies--in-thread" role="group" aria-label="Respostas sugeridas">
@@ -205,26 +208,31 @@ export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
   const isDark = vm.colorMode === "dark";
   return (
     <div className={cn(
-      "p-5 rounded-3xl border flex items-center gap-4 aacp-offer-banner",
+      "p-5 rounded-3xl border flex items-center gap-4 transition-all",
       isDark
-        ? "border-purple-500/30 bg-gradient-to-br from-purple-500/20 to-pink-500/10 shadow-[0_8px_32px_rgba(168,85,247,0.2)]"
-        : "border-purple-200 bg-gradient-to-br from-purple-50 to-pink-50 shadow-sm"
+        ? "border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 to-purple-500/10 shadow-[0_8px_32px_rgba(16,185,129,0.15)]"
+        : "border-emerald-300/60 bg-gradient-to-br from-emerald-50 to-purple-50/30 shadow-sm"
     )} role="status">
       <div className={cn(
-        "w-10 h-10 rounded-2xl flex items-center justify-center text-purple-400 shrink-0",
-        isDark ? "bg-white/10 shadow-inner" : "bg-purple-100"
+        "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0",
+        isDark ? "bg-emerald-500/20 text-emerald-400" : "bg-emerald-100 text-emerald-600"
       )}>
         <Gift size={20} />
       </div>
       <div className="flex-1 min-w-0">
         <strong className={cn("block text-sm font-bold mb-1", isDark ? "text-white" : "text-slate-800")}>Oferta aplicada</strong>
-        <span className={cn("block text-xs", isDark ? "text-purple-300/80" : "text-purple-600")}>
+        <span className={cn("block text-xs", isDark ? "text-emerald-300/80" : "text-emerald-700")}>
           -{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)} · novo total{" "}
           <span className={cn("font-bold", isDark ? "text-white" : "text-slate-800")}>{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</span>
         </span>
       </div>
       <button
-        className="px-5 py-2.5 rounded-xl bg-gradient-to-br from-purple-600 to-purple-700 text-white text-xs font-bold shadow-lg hover:scale-105 transition-transform"
+        className={cn(
+          "px-5 py-2.5 rounded-xl text-xs font-bold shadow-lg hover:scale-105 transition-all disabled:opacity-50",
+          isDark
+            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-[0_8px_24px_rgba(16,185,129,0.3)]"
+            : "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-md"
+        )}
         type="button"
         onClick={() => void vm.continueToPayment()}
         disabled={vm.busy}
