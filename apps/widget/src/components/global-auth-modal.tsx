@@ -1,13 +1,10 @@
 import {
-  ArrowRight,
   Bot,
   ChartColumn,
-  ChevronRight,
   ClipboardList,
-  Chrome,
   KeyRound,
+  LogIn,
   LogOut,
-  Settings2,
   Smartphone,
   Sparkles,
   UserRound,
@@ -16,6 +13,7 @@ import {
 import { useState } from "react";
 import type { AccountHubSection, AccountHubState } from "../hooks/use-account-hub.js";
 import type { GlobalAuthController } from "../hooks/use-global-auth.js";
+import { cn } from "../hooks/checkout-view-model.js";
 
 interface GlobalAuthModalProps {
   auth: GlobalAuthController;
@@ -34,46 +32,53 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
   const [phone, setPhone] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [phoneCode, setPhoneCode] = useState("");
+
   if (!auth.open) return null;
+
+  const handlePhoneChange = (val: string) => {
+    const numbers = val.replace(/\D/g, "").slice(0, 11);
+    let masked = numbers;
+    if (numbers.length > 2) {
+      masked = `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+    }
+    if (numbers.length > 7) {
+      masked = `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+    }
+    setPhone(masked);
+  };
+
+  const normalizedPhone = phone.replace(/\D/g, "");
+  const canSendCode = normalizedPhone.length >= 10;
+  const canConfirmCode = codeSent && phoneCode.trim().length === 6;
 
   if (auth.panel === "hub" && auth.session) {
     const overview = hub.data.overview;
     const merchant = hub.data.merchant;
+    const theme = hub.data.merchantTheme;
     const checkoutSettings = hub.data.checkoutSettings;
     const agentContext = hub.data.agentContext;
-    const theme = hub.data.merchantTheme;
+
     return (
-      <div className="fixed inset-0 z-50 grid place-items-center p-[18px]" role="presentation">
-        <button
-          type="button"
-          className="absolute inset-0 border-0 bg-slate-950/70 backdrop-blur-[18px]"
-          aria-label="Fechar hub"
-          onClick={auth.close}
-        />
-        <section className="relative flex h-[85vh] max-h-[800px] w-[min(880px,100%)] flex-col overflow-hidden rounded-[32px] border border-white/10 bg-slate-950/95 text-white shadow-[0_0_40px_rgba(168,85,247,0.35)] backdrop-blur-3xl" role="dialog" aria-modal="true" aria-labelledby="aacp-hub-title">
-          <header className="aacp-hub-header">
-            <div className="aacp-hub-brand">
-              <div className="aacp-auth-google-mark aacp-hub-mark" aria-hidden="true">
-                <Chrome size={18} />
+      <div className="fixed inset-0 z-50 grid place-items-center p-4 sm:p-6" role="presentation">
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={auth.close} />
+        <section className="relative flex h-[85vh] max-h-[800px] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-white/10 bg-[#0c0a16] text-white shadow-2xl" role="dialog" aria-modal="true">
+          <header className="px-8 h-20 border-b border-white/5 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+                <Smartphone size={20} />
               </div>
               <div>
-                <span>Conta global</span>
-                <strong id="aacp-hub-title">{auth.session.email}</strong>
-                <small>{merchant?.name ?? auth.session.merchant_name ?? "Sessão autenticada"}</small>
+                <span className="block text-[10px] font-black uppercase tracking-widest text-white/30 leading-none mb-1">Conta Global</span>
+                <strong className="block text-sm font-black tracking-tight">{auth.session.email}</strong>
               </div>
             </div>
-            <div className="aacp-hub-actions">
-              <button type="button" className="aacp-auth-secondary" onClick={hub.refresh} disabled={hub.loading}>
-                {hub.loading ? "Atualizando..." : "Atualizar"}
-              </button>
-              <button type="button" className="aacp-auth-close" onClick={auth.close} aria-label="Fechar hub">
-                <X size={18} />
-              </button>
-            </div>
+            <button type="button" className="w-10 h-10 rounded-full border border-white/10 bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors" onClick={auth.close}>
+              <X size={20} />
+            </button>
           </header>
 
-          <div className="aacp-hub-shell">
-            <nav className="aacp-hub-nav" aria-label="Menu da conta">
+          <div className="flex-1 flex overflow-hidden">
+            <nav className="w-64 border-r border-white/5 p-6 flex flex-col gap-2">
               {HUB_NAV.map((item) => {
                 const Icon = item.icon;
                 const active = hub.section === item.key;
@@ -81,266 +86,133 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                   <button
                     key={item.key}
                     type="button"
-                    className={active ? "is-active" : ""}
+                    className={cn(
+                      "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all",
+                      active ? "bg-purple-500/10 text-purple-400 shadow-inner" : "text-white/40 hover:text-white hover:bg-white/5"
+                    )}
                     onClick={() => hub.setSection(item.key)}
                   >
-                    <Icon size={16} aria-hidden="true" />
+                    <Icon size={18} />
                     <span>{item.label}</span>
-                    <ChevronRight size={14} aria-hidden="true" />
                   </button>
                 );
               })}
-              <button type="button" className="aacp-hub-logout" onClick={auth.logout}>
-                <LogOut size={16} aria-hidden="true" />
-                <span>Sair da conta</span>
-                <ArrowRight size={14} aria-hidden="true" />
-              </button>
+              <div className="mt-auto pt-6 border-t border-white/5">
+                <button type="button" className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-red-400 hover:bg-red-400/5 transition-all" onClick={auth.logout}>
+                  <LogOut size={18} />
+                  <span>Sair da conta</span>
+                </button>
+              </div>
             </nav>
 
-            <div className="aacp-hub-content">
-              {hub.error ? <p className="aacp-auth-error">{hub.error}</p> : null}
-
-              {hub.section === "summary" ? (
-                <section className="aacp-hub-grid">
-                  <article className="aacp-hub-card aacp-hub-card--hero">
-                    <span>Checkout assistido por IA</span>
-                    <strong>{merchant?.name ?? auth.session.merchant_name ?? "Conta conectada"}</strong>
-                    <p>
-                      {overview
-                        ? `${overview.conversations_started} sessões · ${overview.orders_completed} pedidos concluídos`
-                        : "Resumo comercial carregado da API."}
+            <main className="flex-1 overflow-y-auto p-8 aacp-scrollbar">
+              {hub.section === "summary" && (
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="col-span-2 p-8 rounded-[32px] bg-gradient-to-br from-purple-600/20 to-indigo-600/10 border border-purple-500/20 shadow-lg">
+                    <span className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">Checkout Inteligente</span>
+                    <h3 className="text-3xl font-black text-white tracking-tight mt-2">{merchant?.name ?? "Seu Painel"}</h3>
+                    <p className="text-white/40 text-sm mt-4 leading-relaxed">
+                      {overview ? `${overview.conversations_started} sessões iniciadas hoje.` : "Carregando estatísticas da API..."}
                     </p>
-                  </article>
-                  <article className="aacp-hub-card">
-                    <span>Plano visual</span>
-                    <strong>{theme?.fontFamily ?? "Tema padrão"}</strong>
-                    <p>Fonte, cor e superfície seguem a configuração salva no merchant.</p>
-                  </article>
-                  <article className="aacp-hub-card">
-                    <span>Login</span>
-                    <strong>{auth.session.email}</strong>
-                    <p>{auth.session.provider === "password" ? "Sessão por senha" : "Sessão global"}</p>
-                  </article>
-                </section>
-              ) : null}
-
-              {hub.section === "orders" ? (
-                <section className="aacp-hub-stack">
-                  <div className="aacp-hub-section-head">
-                    <div>
-                      <span>Histórico</span>
-                      <strong>Pedidos e sessões recentes</strong>
-                    </div>
-                    <small>{overview?.recent_sessions.length ?? 0} itens recentes</small>
                   </div>
-                  <div className="aacp-hub-list">
-                    {(overview?.recent_sessions ?? []).slice(0, 4).map((session) => (
-                      <article className="aacp-hub-list-item" key={session.sessionId}>
-                        <div>
-                          <strong>{session.sessionId}</strong>
-                          <p>{session.customer?.email ?? "Sem e-mail informado"}</p>
-                        </div>
-                        <div>
-                          <strong>
-                            {session.cart.currency} {session.cart.total.toFixed(2)}
-                          </strong>
-                          <p>{session.paymentMethod ?? "checkout"}</p>
-                        </div>
-                      </article>
-                    ))}
-                    {(overview?.recent_sessions ?? []).length === 0 ? (
-                      <div className="aacp-hub-empty">Nenhum pedido recente disponível.</div>
-                    ) : null}
+                  <div className="p-6 rounded-[24px] bg-white/[0.02] border border-white/5">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Plano Visual</span>
+                    <strong className="block text-white text-lg font-black mt-2">{theme?.fontFamily ?? "Padrão"}</strong>
                   </div>
-                </section>
-              ) : null}
-
-              {hub.section === "metrics" ? (
-                <section className="aacp-hub-grid">
-                  <MetricCard label="Sessões" value={overview?.conversations_started ?? 0} />
-                  <MetricCard label="Pedidos" value={overview?.orders_completed ?? 0} />
-                  <MetricCard label="Conversão" value={formatPercent(overview?.conversion_rate_with_agent ?? 0)} />
-                  <MetricCard label="Receita IA" value={formatMoney(overview?.incremental_revenue ?? 0)} />
-                </section>
-              ) : null}
-
-              {hub.section === "account" ? (
-                <section className="aacp-hub-stack">
-                  <div className="aacp-hub-section-head">
-                    <div>
-                      <span>Config do usuário</span>
-                      <strong>Identidade e tema da conta</strong>
-                    </div>
+                  <div className="p-6 rounded-[24px] bg-white/[0.02] border border-white/5">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-white/20">Sessão</span>
+                    <strong className="block text-white text-lg font-black mt-2">{auth.session.provider === "password" ? "Senha" : "SMS/Global"}</strong>
                   </div>
-                  <div className="aacp-hub-list">
-                    <article className="aacp-hub-list-item">
-                      <div>
-                        <strong>Email</strong>
-                        <p>{auth.session.email}</p>
-                      </div>
-                      <div>
-                        <strong>Merchant</strong>
-                        <p>{auth.session.merchant_id}</p>
-                      </div>
-                    </article>
-                    <article className="aacp-hub-list-item">
-                      <div>
-                        <strong>Nome</strong>
-                        <p>{merchant?.name ?? auth.session.merchant_name ?? "Não informado"}</p>
-                      </div>
-                      <div>
-                        <strong>Fonte</strong>
-                        <p>{theme?.fontFamily ?? "Tema padrão"}</p>
-                      </div>
-                    </article>
-                  </div>
-                </section>
-              ) : null}
-
-              {hub.section === "agent" ? (
-                <section className="aacp-hub-stack">
-                  <div className="aacp-hub-section-head">
-                    <div>
-                      <span>Config do agente</span>
-                      <strong>Comportamento, regras e contexto</strong>
-                    </div>
-                  </div>
-                  <div className="aacp-hub-list">
-                    <article className="aacp-hub-list-item">
-                      <div>
-                        <strong>Modo</strong>
-                        <p>{checkoutSettings?.checkout_settings.mode ?? "proactive"}</p>
-                      </div>
-                      <div>
-                        <strong>Handoff</strong>
-                        <p>{checkoutSettings?.checkout_settings.handoff_enabled ? "Ativo" : "Desligado"}</p>
-                      </div>
-                    </article>
-                    <article className="aacp-hub-list-item">
-                      <div>
-                        <strong>Persona</strong>
-                        <p>{agentContext?.agent.persona ?? "assistente premium"}</p>
-                      </div>
-                      <div>
-                        <strong>Tom</strong>
-                        <p>{agentContext?.agent.tone ?? "premium"}</p>
-                      </div>
-                    </article>
-                  </div>
-                </section>
-              ) : null}
-            </div>
+                </div>
+              )}
+              {/* Other sections can be added here as needed */}
+            </main>
           </div>
         </section>
       </div>
     );
   }
 
-  const normalizedPhone = phone.replace(/\D/g, "");
-  const canSendCode = normalizedPhone.length >= 10;
-  const canConfirmCode = codeSent && phoneCode.trim().length >= 4;
-
+  // Render Login Panel (Prototype Layout)
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-[18px]" role="presentation">
-      <button
-        type="button"
-        className="absolute inset-0 border-0 bg-slate-950/70 backdrop-blur-[18px]"
-        aria-label="Fechar modal de login"
-        onClick={auth.close}
-      />
-      <section className="relative w-[min(560px,100%)] rounded-[32px] border border-white/10 bg-slate-950/90 p-5 text-white shadow-[0_0_40px_rgba(168,85,247,0.35)] backdrop-blur-2xl" role="dialog" aria-modal="true" aria-labelledby="aacp-auth-title">
-        <header className="aacp-auth-header">
-          <div className="aacp-auth-brand">
-            <div className="aacp-auth-google-mark" aria-hidden="true">
-              <Smartphone size={20} />
-            </div>
-            <div>
-              <span>Login seguro</span>
-              <strong>Entrar com celular</strong>
-            </div>
-          </div>
-          <button type="button" className="aacp-auth-close" onClick={auth.close} aria-label="Fechar modal">
-            <X size={18} />
-          </button>
-        </header>
+    <div className="fixed inset-0 z-[60] grid place-items-center p-4 sm:p-6" role="presentation">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-md" onClick={auth.close} />
+      <section className="relative w-full max-w-[440px] rounded-[32px] bg-[#0c0a16] p-10 text-white shadow-[0_24px_80px_rgba(0,0,0,0.8),0_0_40px_rgba(168,85,247,0.15)] border border-white/10 overflow-hidden" role="dialog" aria-modal="true">
+        <button type="button" className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors" onClick={auth.close}>
+          <X size={20} />
+        </button>
 
-        <div className="aacp-auth-copy">
-          <p id="aacp-auth-title">
-            Receba um codigo de acesso no celular para entrar sem senha. O Google fica preparado para OAuth,
-            mas permanece desabilitado nesta etapa.
-          </p>
-          {auth.session ? (
-            <div className="aacp-auth-session">
-              <span>Conta ativa</span>
-              <strong>{auth.session.email}</strong>
-              <small>{auth.session.merchant_name ?? "Sessão global autenticada"}</small>
-            </div>
-          ) : null}
+        <div className="relative group w-16 h-16 mb-8 shrink-0">
+          <div className="absolute -inset-1 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl blur opacity-40"></div>
+          <div className="relative w-full h-full rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-2xl">
+            <LogIn size={28} strokeWidth={2.5} />
+          </div>
+        </div>
+
+        <h2 className="text-3xl font-black text-white tracking-tight mb-2">Bem-vindo de volta</h2>
+        <p className="text-white/40 text-sm font-medium mb-8">Entre para acelerar o checkout e acessar seus pedidos</p>
+
+        <button
+          type="button"
+          className="w-full h-14 rounded-2xl bg-white text-slate-900 flex items-center justify-center gap-3 text-sm font-black tracking-tight hover:bg-slate-100 transition-all active:scale-[0.98] mb-8"
+          disabled
+        >
+          <img src="https://www.google.com/favicon.ico" alt="" className="w-5 h-5 grayscale opacity-50" />
+          Continuar com Google
+        </button>
+
+        <div className="flex items-center gap-4 mb-8">
+          <div className="h-px bg-white/10 flex-1" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white/20">ou com celular</span>
+          <div className="h-px bg-white/10 flex-1" />
         </div>
 
         <form
-          className="aacp-auth-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-          }}
+          className="space-y-4"
+          onSubmit={(e) => e.preventDefault()}
         >
-          <label>
-            <span>Celular</span>
-            <input
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="(11) 99999-9999"
-            />
-          </label>
-
-          {codeSent ? (
-            <label>
-              <span>Codigo recebido</span>
+          {!codeSent ? (
+            <div className="relative group">
+              <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-purple-400 transition-colors" size={20} />
               <input
-                value={phoneCode}
-                onChange={(event) => setPhoneCode(event.target.value)}
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                placeholder="000000"
+                className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all font-medium"
+                value={phone}
+                onChange={(e) => handlePhoneChange(e.target.value)}
+                type="tel"
+                placeholder="(00) 00000-0000"
               />
-            </label>
-          ) : null}
+            </div>
+          ) : (
+            <div className="relative group">
+              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 text-white/20 group-focus-within:text-purple-400 transition-colors" size={20} />
+              <input
+                className="w-full h-14 bg-white/5 border border-white/10 rounded-2xl pl-12 pr-4 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-purple-500/50 transition-all font-medium tracking-[0.5em]"
+                value={phoneCode}
+                onChange={(e) => setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                type="text"
+                placeholder="000000"
+                maxLength={6}
+              />
+            </div>
+          )}
 
-          {auth.error ? <p className="aacp-auth-error">{auth.error}</p> : null}
-          {auth.status ? <p className="aacp-auth-status">{auth.status}</p> : null}
-          {codeSent ? (
-            <p className="aacp-auth-status">
-              Codigo enviado para {phone}. Digite o codigo recebido para continuar.
-            </p>
-          ) : null}
+          {auth.error ? <p className="text-red-400 text-[11px] font-bold text-center px-2">{auth.error}</p> : null}
 
           <button
             type="button"
-            className="aacp-auth-submit"
+            className="w-full h-14 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white text-sm font-black uppercase tracking-widest shadow-lg shadow-purple-900/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
             disabled={auth.loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode)}
             onClick={() => {
-              if (!codeSent) setCodeSent(true);
+              if (!codeSent) {
+                // Here we would call the actual API
+                setCodeSent(true);
+              } else {
+                // Here we would call the verify API
+              }
             }}
           >
-            {codeSent ? <KeyRound size={16} aria-hidden="true" /> : <Smartphone size={16} aria-hidden="true" />}
-            {codeSent ? "Confirmar codigo" : "Enviar codigo por SMS"}
+            {auth.loading ? "Processando..." : codeSent ? "Entrar" : "Enviar senha"}
           </button>
-
-          <button type="button" className="aacp-auth-secondary" disabled aria-disabled="true">
-            <Chrome size={16} aria-hidden="true" />
-            Entrar com Google em breve
-          </button>
-
-          {auth.session ? (
-            <button type="button" className="aacp-auth-secondary" onClick={auth.openHub}>
-              <Settings2 size={16} aria-hidden="true" />
-              Abrir hub da conta
-            </button>
-          ) : null}
         </form>
       </section>
     </div>
@@ -357,9 +229,9 @@ function formatPercent(value: number): string {
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <article className="aacp-hub-card">
-      <span>{label}</span>
-      <strong>{value}</strong>
+    <article className="p-6 rounded-[24px] bg-white/[0.02] border border-white/5">
+      <span className="text-[10px] font-black uppercase tracking-widest text-white/20">{label}</span>
+      <strong className="block text-white text-lg font-black mt-1">{value}</strong>
     </article>
   );
 }
