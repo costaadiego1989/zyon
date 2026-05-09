@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { PersistenceModule } from "./shared/persistence/persistence.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "./modules/buyer-purchase-history/buyer-purchase-history.module.js";
@@ -11,6 +12,7 @@ import { PaymentModule } from "./modules/payment/payment.module.js";
 
 @Module({
   imports: [
+    PersistenceModule,
     AuthModule,
     MerchantModule,
     AgentRulesModule,

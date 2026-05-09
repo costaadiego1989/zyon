@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPrismaClient } from "../../checkout/infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { PrismaPaymentRepository } from "./prisma-payment.repository.js";
 

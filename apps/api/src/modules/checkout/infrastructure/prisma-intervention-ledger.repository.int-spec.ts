@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPrismaClient } from "./prisma/prisma-client.js";
+import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
 import { PrismaInterventionLedgerRepository } from "./prisma-intervention-ledger.repository.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);

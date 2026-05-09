@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { CheckoutModule } from "../checkout/checkout.module.js";
-import { createPrismaClient } from "../checkout/infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";

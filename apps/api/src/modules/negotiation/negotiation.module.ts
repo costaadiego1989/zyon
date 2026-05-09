@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
-import { createPrismaClient } from "../checkout/infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { EvaluateNegotiationUseCase } from "./application/evaluate-negotiation.use-case.js";
 import {
   GetMerchantNegotiationPolicyUseCase,

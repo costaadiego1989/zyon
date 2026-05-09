@@ -7,7 +7,7 @@ import {
 import { BUYER_PURCHASE_HISTORY_REPOSITORY } from "./domain/ports/buyer-purchase-history-repository.port.js";
 import { InMemoryBuyerPurchaseHistoryRepository } from "./infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { PrismaBuyerPurchaseHistoryRepository } from "./infrastructure/prisma-buyer-purchase-history.repository.js";
-import { createPrismaClient } from "../checkout/infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purchase-history.controller.js";
 
 @Module({

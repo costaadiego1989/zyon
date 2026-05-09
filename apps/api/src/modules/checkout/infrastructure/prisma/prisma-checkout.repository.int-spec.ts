@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { authorizedOffer, checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
-import { createPrismaClient } from "./prisma-client.js";
+import { createPrismaClient } from "../../../../shared/persistence/prisma-client.js";
 import { PrismaCheckoutRepository } from "./prisma-checkout.repository.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);

@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { createPrismaClient } from "../checkout/infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { LoginUseCase } from "./application/login.use-case.js";
 import { RegisterMerchantUseCase } from "./application/register-merchant.use-case.js";
 import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";

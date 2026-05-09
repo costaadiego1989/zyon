@@ -33,7 +33,7 @@ import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-sett
 import { OpenAiConversationAdapter } from "./infrastructure/adapters/openai-conversation.adapter.js";
 import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
-import { createPrismaClient } from "./infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
 import { InMemoryCheckoutRepository } from "./infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryInterventionLedger } from "./infrastructure/in-memory-intervention-ledger.js";

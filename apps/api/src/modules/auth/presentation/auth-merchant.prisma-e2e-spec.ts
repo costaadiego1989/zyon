@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPrismaClient } from "../../checkout/infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
 import { JwtService } from "../domain/services/jwt.service.js";
 import { PasswordHasher } from "../domain/services/password-hasher.service.js";
 import { PrismaAuthRepository } from "../infrastructure/prisma-auth.repository.js";

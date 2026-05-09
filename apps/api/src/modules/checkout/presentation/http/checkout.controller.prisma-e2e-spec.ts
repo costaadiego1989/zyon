@@ -17,7 +17,7 @@ import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
-import { createPrismaClient } from "../../infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../../../shared/persistence/prisma-client.js";
 import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";

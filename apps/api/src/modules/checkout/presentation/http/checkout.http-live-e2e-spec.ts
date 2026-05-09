@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { NestFactory } from "@nestjs/core";
 import type { INestApplication } from "@nestjs/common";
 import { AppModule } from "../../../../app.module.js";
-import { createPrismaClient } from "../../infrastructure/prisma/prisma-client.js";
+import { createPrismaClient } from "../../../../shared/persistence/prisma-client.js";
 import { merchantRules } from "../../__tests__/checkout-test-fixtures.js";
 
 const runHttpLive =
