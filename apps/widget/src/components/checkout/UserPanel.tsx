@@ -91,20 +91,10 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           {vm.userTab === "orders" && (
             <div className="aacp-side-section">
               <div className="aacp-side-section-title">Histórico de pedidos</div>
-              {[
-                { id: "TS-2814", date: "Hoje", total: 899.8, status: "Em andamento" },
-                { id: "TS-2719", date: "12 mai 2026", total: 489, status: "Entregue" },
-              ].map((o) => (
-                <div key={o.id} className="aacp-order">
-                  <div className="aacp-order-icon"><Package size={16} /></div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div className="aacp-order-id">Pedido #{o.id}</div>
-                    <div className="aacp-order-meta">{o.date} · <span className={o.status === "Entregue" ? "ok" : "live"}>{o.status}</span></div>
-                  </div>
-                  <div className="aacp-order-total">{fmtBRL(o.total)}</div>
-                  <ChevronRight size={14} className="aacp-order-arrow" />
-                </div>
-              ))}
+              <div style={{ textAlign: "center", padding: "32px 0", color: "var(--aacp-muted)", fontSize: 13 }}>
+                <Package size={28} style={{ margin: "0 auto 12px", opacity: 0.3 }} />
+                <div>Histórico de pedidos disponível em breve.</div>
+              </div>
             </div>
           )}
 

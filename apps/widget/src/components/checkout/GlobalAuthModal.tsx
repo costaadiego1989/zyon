@@ -106,7 +106,17 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
             </nav>
 
             <main className="flex-1 overflow-y-auto p-8 aacp-scrollbar">
-              {hub.section === "summary" && (
+              {hub.loading && (
+                <div className="flex items-center justify-center h-40 text-white/30 text-sm font-bold">
+                  Carregando...
+                </div>
+              )}
+              {hub.error && !hub.loading && (
+                <div className="flex items-center justify-center h-40 text-red-400 text-sm font-bold">
+                  {hub.error}
+                </div>
+              )}
+              {!hub.loading && !hub.error && hub.section === "summary" && (
                 <div className="grid grid-cols-2 gap-6">
                   <div className="col-span-2 p-8 rounded-[32px] bg-gradient-to-br from-purple-600/20 to-indigo-600/10 border border-purple-500/20 shadow-lg">
                     <span className="text-xs font-black uppercase tracking-[0.2em] text-purple-400">Checkout Inteligente</span>
@@ -126,7 +136,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                 </div>
               )}
 
-              {hub.section === "orders" && (
+              {!hub.loading && !hub.error && hub.section === "orders" && (
                 <div className="space-y-6">
                   <h3 className="text-2xl font-black tracking-tight">Sessões Recentes</h3>
                   <div className="flex flex-col gap-4">
@@ -143,7 +153,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                 </div>
               )}
 
-              {hub.section === "metrics" && (
+              {!hub.loading && !hub.error && hub.section === "metrics" && (
                 <div className="space-y-6">
                   <h3 className="text-2xl font-black tracking-tight">Estatísticas Operacionais</h3>
                   <div className="grid grid-cols-2 gap-6">
@@ -155,7 +165,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                 </div>
               )}
 
-              {hub.section === "agent" && (
+              {!hub.loading && !hub.error && hub.section === "agent" && (
                 <div className="space-y-6">
                   <h3 className="text-2xl font-black tracking-tight">Informações do Agente</h3>
                   <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
@@ -175,7 +185,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                 </div>
               )}
 
-              {hub.section === "account" && (
+              {!hub.loading && !hub.error && hub.section === "account" && (
                 <div className="space-y-6">
                   <h3 className="text-2xl font-black tracking-tight">Sua Conta</h3>
                   <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
