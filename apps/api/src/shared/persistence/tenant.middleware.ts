@@ -1,12 +1,18 @@
 import type { PrismaClient } from "@prisma/client";
+import type { TenantContextService } from "../tenant/tenant-context.service.js";
 
 export type TenantContext = { merchantId: string; userId: string; role: string };
 
-let getTenantContext: (() => TenantContext | null) = () => null;
-
-export function setTenantContextProvider(provider: () => TenantContext | null): void {
-  getTenantContext = provider;
-}
+const TENANT_SCOPED_MODELS = new Set([
+  "CheckoutSession",
+  "Offer",
+  "Order",
+  "OutboxEvent",
+  "NegotiationSession",
+  "MerchantNegotiationPolicy",
+  "BuyerAgentPreferences",
+  "Payment",
+]);
 
 const TENANT_SCOPED_ACTIONS = new Set([
   "findMany",
@@ -18,14 +24,19 @@ const TENANT_SCOPED_ACTIONS = new Set([
   "deleteMany",
 ]);
 
-export function registerTenantMiddleware(prisma: PrismaClient): void {
+export function registerTenantMiddleware(prisma: PrismaClient, tenantCtx: TenantContextService): void {
   // @ts-expect-error Prisma middleware API
   prisma.$use(async (params: Record<string, unknown>, next: (p: Record<string, unknown>) => Promise<unknown>) => {
-    const ctx = getTenantContext();
-    if (ctx && TENANT_SCOPED_ACTIONS.has(params.action as string)) {
+    const ctx = tenantCtx.get();
+    if (
+      ctx &&
+      TENANT_SCOPED_ACTIONS.has(params.action as string) &&
+      TENANT_SCOPED_MODELS.has(params.model as string)
+    ) {
       const args = (params.args ?? {}) as Record<string, unknown>;
-      // Inject merchantId filter only if the model has that field.
-      // Wave 4 activates this by providing a real ALS-backed getTenantContext.
+      const where = (args.where ?? {}) as Record<string, unknown>;
+      args.where = { ...where, merchantId: ctx.merchantId };
+      params = { ...params, args };
     }
     return next(params);
   });

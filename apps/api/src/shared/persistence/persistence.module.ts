@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { createPrismaClient } from "./prisma-client.js";
 import { registerTenantMiddleware } from "./tenant.middleware.js";
+import { TenantContextService } from "../tenant/tenant-context.service.js";
 import type { PrismaClient } from "@prisma/client";
 
 export const PRISMA_CLIENT = Symbol("PRISMA_CLIENT");
@@ -10,11 +11,12 @@ export const PRISMA_CLIENT = Symbol("PRISMA_CLIENT");
   providers: [
     {
       provide: PRISMA_CLIENT,
-      useFactory: (): PrismaClient => {
+      useFactory: (tenantCtx: TenantContextService): PrismaClient => {
         const client = createPrismaClient();
-        registerTenantMiddleware(client);
+        registerTenantMiddleware(client, tenantCtx);
         return client;
       },
+      inject: [TenantContextService],
     },
   ],
   exports: [PRISMA_CLIENT],

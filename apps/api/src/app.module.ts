@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { PersistenceModule } from "./shared/persistence/persistence.module.js";
 import { MessagingModule } from "./shared/messaging/messaging.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
@@ -13,6 +14,7 @@ import { PaymentModule } from "./modules/payment/payment.module.js";
 
 @Module({
   imports: [
+    TenantModule,
     PersistenceModule,
     MessagingModule,
     AuthModule,
