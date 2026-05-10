@@ -9,7 +9,7 @@ export interface StreamedTextOptions {
 
 const DEFAULT_DURATION_MS = 22;
 
-function disableStreamingByEnv(): boolean {
+export function disableStreamingByEnv(): boolean {
   try {
     const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } })
       .process?.env;

@@ -71,7 +71,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : null}
 
-      {!vm.busy && vm.showComposer && (
+      {vm.showComposer && (
         <div className="aacp-thread-composer-wrap">
           <Composer vm={vm} />
         </div>
@@ -122,8 +122,8 @@ export function ChatBubble({
   }, [displayed]);
 
   return (
-    <div key={key} ref={bubbleRef} className={`aacp-bubble aacp-bubble-${turn.role}`}>
-      {displayed}
+    <div key={key} ref={bubbleRef} className={`aacp-bubble aacp-bubble-${turn.role} aacp-chat-bubble aacp-chat-bubble--${turn.role}`}>
+      <span className="aacp-chat-text">{displayed}</span>
       {showCaret && <span className="chat-caret" aria-hidden="true" />}
       
       {pixCode && turn.role === "agent" && !showCaret ? (
@@ -170,7 +170,7 @@ export function NetworkError({ vm }: { vm: CheckoutAgentViewModel }) {
 
 export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
-    <div className="aacp-offer">
+    <div className="aacp-offer aacp-offer-banner">
       <div className="aacp-offer-icon">
         <Gift size={18} />
       </div>

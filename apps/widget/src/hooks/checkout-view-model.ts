@@ -1,9 +1,12 @@
 import type {
+  Cart,
   ChatAction,
   CheckoutEventName,
   CheckoutExperienceSnapshot,
   MerchantTheme
 } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import type { WidgetConfig } from "../lib/widget-types.js";
 
 export type VisibleCartState = {
   items: CheckoutExperienceSnapshot["items"];
@@ -112,6 +115,77 @@ export function agentTypingLine(agentName: string): string {
 
 export function quickReplyId(reply: QuickReplyChoice): string {
   return reply.label + (reply.event ?? "") + (reply.offerId ?? "");
+}
+
+const GOOGLE_FONT_WEIGHTS = "400;500;600;700;800";
+const GOOGLE_FONT_FAMILIES = new Set([
+  "Inter", "Manrope", "Plus Jakarta Sans", "DM Sans", "Poppins",
+  "Roboto", "Sora", "Space Grotesk", "Montserrat", "Outfit", "Raleway"
+]);
+
+function extractPrimaryFontFamily(fontFamily: string): string {
+  return fontFamily.split(",")[0]?.trim().replace(/^['"]|['"]$/g, "") || "";
+}
+
+export function injectGoogleFont(fontFamily: string): void {
+  if (typeof document === "undefined") return;
+  const family = extractPrimaryFontFamily(fontFamily);
+  if (!family || !GOOGLE_FONT_FAMILIES.has(family)) return;
+  const id = `aacp-font-${family.toLowerCase().replace(/\s+/g, "-")}`;
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@${GOOGLE_FONT_WEIGHTS}&display=swap`;
+  document.head.appendChild(link);
+}
+
+export function fallbackExperience(config: WidgetConfig & { cart: Cart }): CheckoutExperienceSnapshot {
+  const shipping = config.shipping?.customerPrice ?? 0;
+  const discount = config.cart.currentDiscount ?? 0;
+  return {
+    brand: {
+      merchant_id: config.merchantId,
+      name: config.merchantId,
+      subtitle: config.copy?.headline ?? "Checkout assistido por IA",
+      support_label: "Sincronizando",
+      theme: DEFAULT_MERCHANT_THEME
+    },
+    items: config.cart.items.map((item) => ({
+      sku: item.sku,
+      name: item.name,
+      quantity: item.quantity,
+      unit_price: item.price,
+      line_total: item.price * item.quantity,
+      image_url: item.imageUrl,
+      product_url: item.productUrl,
+      category: item.category,
+      variant: item.variant
+    })),
+    totals: {
+      currency: config.cart.currency,
+      subtotal: config.cart.total,
+      shipping,
+      discount,
+      total: Math.max(0, config.cart.total + shipping - discount)
+    },
+    shipping: config.shipping,
+    customer: config.customer,
+    agent: {
+      name: config.agent?.name ?? "Assistente AACP",
+      greeting: config.agent?.greeting ?? "Estou conectando com a API da loja para carregar o pedido.",
+      tone: (config.agent?.tone as never) ?? "consultative",
+      language: config.agent?.language ?? "pt-BR"
+    },
+    copy: {
+      headline: config.copy?.headline ?? "Checkout assistido por IA",
+      subheadline: config.copy?.subheadline ?? "Carregando contexto real do pedido.",
+      trust_badges: config.copy?.trust_badges ?? ["Sessão será sincronizada pela API"],
+      quick_replies: config.copy?.quick_replies ?? ["Olá!", "Quero finalizar agora"],
+      expected_input_type: undefined
+    },
+    rules: { couponBoxEnabled: true }
+  };
 }
 
 export function filterSuggestedQuickReplies(

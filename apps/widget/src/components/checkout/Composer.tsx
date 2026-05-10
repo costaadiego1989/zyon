@@ -144,7 +144,7 @@ export function Composer({ vm }: { vm: CheckoutAgentViewModel }) {
             value={vm.message}
             onChange={handleChange}
             disabled={vm.composerLocked}
-            aria-label="Mensagem"
+            aria-label="Mensagem para o assistente"
             autoComplete={meta.autoComplete || "off"}
             maxLength={meta.maxLength}
           />
@@ -152,7 +152,7 @@ export function Composer({ vm }: { vm: CheckoutAgentViewModel }) {
             type="submit"
             className="aacp-send"
             disabled={!vm.message.trim() || vm.composerLocked}
-            aria-label="Enviar"
+            aria-label="Enviar mensagem"
           >
             <Send size={18} />
           </button>

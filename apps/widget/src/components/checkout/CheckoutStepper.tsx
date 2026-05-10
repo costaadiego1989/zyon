@@ -14,7 +14,7 @@ export function CheckoutStepper({ vm }: { vm: CheckoutAgentViewModel }) {
   const activeIndex = STAGE_FLOW.findIndex((step) => step.key === vm.checkoutStage);
 
   return (
-    <nav className="aacp-timeline" aria-label="Progresso do checkout">
+    <nav className="aacp-timeline aacp-flow-rail" aria-label="Progresso do checkout">
       {STAGE_FLOW.map((step, index) => {
         const status = index < activeIndex ? "done" : index === activeIndex ? "active" : "";
         const Icon = STEP_ICONS[step.key];

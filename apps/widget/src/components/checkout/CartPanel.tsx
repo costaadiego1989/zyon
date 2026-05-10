@@ -13,15 +13,15 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       aria-label="Resumo do pedido"
     >
       <div className="aacp-cart-header">
-        <div className="aacp-cart-logo">
+        <div className="aacp-cart-logo-wrap">
           {vm.theme.logoUrl ? (
-            <img src={vm.theme.logoUrl} alt={experience.brand.name} />
+            <img className="aacp-cart-logo" src={vm.theme.logoUrl} alt={experience.brand.name} />
           ) : (
             <Store size={20} />
           )}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="aacp-cart-store">{experience.brand.name}</div>
+          <div className="aacp-cart-brand aacp-cart-store"><strong>{experience.brand.name}</strong></div>
           <span className="aacp-cart-headline">Pedido #{vm.session?.session_id?.slice(-6) ?? "3EE8A6"}</span>
         </div>
 
@@ -80,7 +80,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       )}
 
       <div>
-        <div className="aacp-section-title">Seu pedido agora · {vm.visibleItems.length}</div>
+        <div className="aacp-section-title aacp-cart-title">Seu pedido agora · {vm.visibleItems.length}</div>
         <div className="aacp-items">
           {vm.visibleItems.length > 0 ? (
             vm.visibleItems.map((item) => (
@@ -106,6 +106,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                     className="flex items-center gap-1 text-[10px] font-bold uppercase mt-2 text-red-400 hover:text-red-300 transition-colors"
                     onClick={() => vm.handleRemoveCartItem(item.sku)}
                     disabled={vm.busy}
+                    aria-label={`Remover ${item.name}`}
                   >
                     <Trash2 size={10} /> Remover
                   </button>
@@ -114,11 +115,12 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
               </div>
             ))
           ) : (
-            <div className="py-12 text-center flex flex-col items-center justify-center gap-4 text-[var(--aacp-muted)]">
+            <div className="aacp-cart-empty py-12 text-center flex flex-col items-center justify-center gap-4 text-[var(--aacp-muted)]">
               <ShoppingBag size={32} className="opacity-20" />
               <div className="text-sm font-semibold">Seu carrinho está vazio</div>
               {vm.config.emptyCartRedirectUrl && (
                 <a
+                  id="aacp-empty-cart-redirect-btn"
                   href={vm.config.emptyCartRedirectUrl}
                   className="mt-2 text-xs font-bold text-[var(--aacp-accent)] border border-[var(--aacp-accent)] rounded-full px-4 py-2 hover:bg-[var(--aacp-accent)] hover:text-white transition-colors"
                 >
@@ -145,9 +147,25 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             <dd style={{ color: "var(--aacp-success)", fontWeight: 700 }}>-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
           </>
         )}
-        <dt className="total-row">Total</dt>
-        <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
+        <div className="aacp-cart-total">
+          <dt className="total-row">Total</dt>
+          <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
+        </div>
       </dl>
+
+      {vm.showCouponBox && (
+        <form className="aacp-coupon-form" onSubmit={(e) => { e.preventDefault(); void vm.submitCoupon(); }}>
+          <input
+            type="text"
+            className="aacp-coupon-input"
+            aria-label="Cupom de desconto"
+            placeholder="Código do cupom"
+            value={vm.coupon}
+            onChange={(e) => vm.setCoupon(e.target.value)}
+          />
+          <button type="submit" className="aacp-coupon-submit">Aplicar</button>
+        </form>
+      )}
     </aside>
   );
 }

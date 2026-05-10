@@ -7,7 +7,7 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const isDark = vm.colorMode === "dark";
 
   return (
-    <header className="aacp-header">
+    <header className="aacp-header aacp-shell-header">
       <div className="aacp-header-left">
         <div className="aacp-avatar" aria-hidden="true">
           {vm.theme.agentAvatarUrl ? (
@@ -39,17 +39,25 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           {isDark ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
-        {vm.auth.session || vm.activeExperience?.customer?.email_verified ? (
-          <button className="aacp-user-chip" onClick={() => vm.setUserPanelOpen(true)} aria-label="Abrir conta">
+        {vm.auth.session ? (
+          <button className="aacp-user-chip" onClick={vm.auth.openHub} aria-label="Minha conta">
+            <span className="aacp-user-avatar">
+              {(vm.auth.session.email?.[0] ?? "C").toUpperCase()}
+            </span>
+            <span className="aacp-user-chip-name">Minha conta</span>
+          </button>
+        ) : vm.activeExperience?.customer?.email_verified ? (
+          <button id="aacp-login-btn" className="aacp-user-chip" onClick={() => vm.setUserPanelOpen(true)} aria-label="Abrir conta">
             <span className="aacp-user-avatar">
               {(vm.activeExperience?.customer?.fullName || "C")[0]}
             </span>
             <span className="aacp-user-chip-name">
-              {vm.activeExperience?.customer?.fullName?.split(" ")[0] || "Cliente"}
+              Olá, {vm.activeExperience?.customer?.fullName?.split(" ")[0] || "Cliente"}
             </span>
+            <span className="aacp-user-role">Cliente</span>
           </button>
         ) : (
-          <button className="aacp-login-btn" onClick={vm.auth.openLogin} aria-label="Entrar">
+          <button className="aacp-login-btn aacp-google-login" onClick={vm.auth.openLogin} aria-label="Entrar">
             <LogIn size={15} />
             <span>Entrar</span>
           </button>
