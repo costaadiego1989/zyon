@@ -457,7 +457,7 @@ textarea {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px 32px;
+  padding: 28px 1rem;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1120,6 +1120,10 @@ textarea {
   -webkit-text-fill-color: transparent;
 }
 
+.aacp-cart-total {
+  display: contents;
+}
+
 .aacp-coupon {
   display: flex;
   gap: 6px;
@@ -1517,6 +1521,7 @@ textarea {
     border-left: 1px solid var(--aacp-line-strong) !important;
     transform: translateX(100%) !important;
     opacity: 1 !important;
+    pointer-events: none !important;
     transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
     z-index: 105 !important;
   }
@@ -1567,7 +1572,7 @@ textarea {
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-radius: 12px;
+  border-radius: 999px;
   font-size: 13px;
   font-weight: 600;
   color: var(--aacp-fg);
@@ -1957,7 +1962,10 @@ textarea {
   border-radius: 22px;
   overflow: hidden;
   box-shadow: var(--aacp-shadow-lg), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  animation: bubble-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(20px) scale(0.95);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .aacp-ai-panel::before {
