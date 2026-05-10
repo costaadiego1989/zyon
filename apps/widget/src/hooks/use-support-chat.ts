@@ -16,6 +16,7 @@ export interface SupportChatState {
   loading: boolean;
   error: string | null;
   send: (text: string) => Promise<void>;
+  reset: () => void;
 }
 
 const FALLBACK = "Entendo sua dúvida. Para mais detalhes, entre em contato com nosso suporte humano.";
@@ -52,5 +53,10 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
     [apiBaseUrl, merchantId, sessionId, loading]
   );
 
-  return { messages, loading, error, send };
+  const reset = useCallback(() => {
+    setMessages([]);
+    setError(null);
+  }, []);
+
+  return { messages, loading, error, send, reset };
 }

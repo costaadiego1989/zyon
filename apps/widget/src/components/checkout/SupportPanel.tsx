@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import { X, Send, Sparkles, ShieldCheck, Truck, CreditCard, Package, Headphones, ArrowRight } from "lucide-react";
+import { X, Send, Sparkles, ShieldCheck, Truck, CreditCard, Package, Headphones, ArrowRight, ArrowLeft } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { useSupportChat } from "../../hooks/use-support-chat.js";
 
@@ -27,6 +27,13 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
     }
   }, [chat.messages]);
 
+  useEffect(() => {
+    if (!vm.supportOpen) {
+      setInput("");
+      chat.reset();
+    }
+  }, [vm.supportOpen]);
+
   const handleSend = (text: string) => {
     if (!text.trim() || chat.loading) return;
     setInput("");
@@ -50,6 +57,16 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       <aside className={`aacp-ai-panel ${vm.supportOpen ? "open" : ""}`}>
         {/* Header */}
         <div className="aacp-ai-head">
+          {hasMessages && (
+            <button
+              className="aacp-ai-close"
+              onClick={() => { chat.reset(); setInput(""); }}
+              aria-label="Voltar"
+              style={{ marginRight: 4 }}
+            >
+              <ArrowLeft size={18} />
+            </button>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
             <div className="aacp-ai-avatar">
               <Headphones size={18} />
