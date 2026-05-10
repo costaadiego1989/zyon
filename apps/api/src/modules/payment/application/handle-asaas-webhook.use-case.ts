@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import type { CurrencyCode } from "@aacp/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import {
@@ -7,6 +7,7 @@ import {
 } from "../domain/ports/payment-repository.port.js";
 import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
+import { MetricsService } from "../../../shared/observability/metrics.service.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -76,7 +77,8 @@ function paymentValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["paym
 export class HandleAsaasWebhookUseCase {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
-    @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort
+    @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
+    @Optional() private readonly metrics?: MetricsService
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown): Promise<HandleAsaasWebhookResult> {
@@ -202,6 +204,7 @@ export class HandleAsaasWebhookUseCase {
       status: "approved"
     });
 
+    this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
     await this.checkoutPayment.completeAfterApproval({
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,

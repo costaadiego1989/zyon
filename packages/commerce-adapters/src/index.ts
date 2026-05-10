@@ -11,6 +11,7 @@ export interface ShopifyConfig {
   shopDomain?: string;
   adminAccessToken?: string;
   apiVersion?: string;
+  fetchFn?: typeof fetch;
 }
 
 export interface ApplyCommerceOfferResult {
@@ -40,7 +41,8 @@ export async function applyShopifyOffer(
   const priceRule = await createPriceRule(offer, discountCode, {
     shopDomain,
     adminAccessToken: config.adminAccessToken,
-    apiVersion
+    apiVersion,
+    fetchFn: config.fetchFn
   });
 
   return {
@@ -54,14 +56,15 @@ export async function applyShopifyOffer(
 async function createPriceRule(
   offer: AuthorizedOffer,
   discountCode: string,
-  config: Required<ShopifyConfig>
+  config: Required<Omit<ShopifyConfig, "fetchFn">> & { fetchFn?: typeof fetch }
 ): Promise<{ success: boolean; reason?: string }> {
+  const fetchFn = config.fetchFn ?? globalThis.fetch;
   const valueType = offer.type === "discount_percent" ? "percentage" : "fixed_amount";
   const value = offer.type === "discount_percent" ? `-${offer.value}` : `-${offer.value.toFixed(2)}`;
   const title = `AACP ${discountCode}`;
 
   try {
-    const ruleResponse = await fetch(
+    const ruleResponse = await fetchFn(
       `https://${config.shopDomain}/admin/api/${config.apiVersion}/price_rules.json`,
       {
         method: "POST",
@@ -94,7 +97,7 @@ async function createPriceRule(
     const priceRuleId = ruleJson.price_rule?.id;
     if (!priceRuleId) return { success: false, reason: "shopify_price_rule_id_missing" };
 
-    const codeResponse = await fetch(
+    const codeResponse = await fetchFn(
       `https://${config.shopDomain}/admin/api/${config.apiVersion}/price_rules/${priceRuleId}/discount_codes.json`,
       {
         method: "POST",

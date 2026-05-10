@@ -13,6 +13,7 @@ import { BUYER_IDENTITY_REPOSITORY, type BuyerIdentityRepository } from "../../.
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -22,7 +23,8 @@ export class StartCheckoutUseCase {
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepository?: MerchantRepository,
-    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort
+    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
+    @Optional() private readonly metrics?: MetricsService
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
@@ -36,6 +38,7 @@ export class StartCheckoutUseCase {
       globalUserId
     });
 
+    this.metrics?.checkoutStarted.inc({ merchant_id: input.merchant_id });
     const existingSession = await this.sessions.getSession(input.merchant_id, sessionId);
 
     let session: CheckoutSession;

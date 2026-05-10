@@ -1,15 +1,17 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints, ShippingQuote } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
 import { extractAddressDetailLine } from "../../domain/services/customer-extraction.service.js";
 import { CheckoutCustomerService } from "./checkout-customer.service.js";
+import { HttpClientService } from "../../../../shared/http/http-client.service.js";
 
 @Injectable()
 export class CheckoutShippingService {
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly repository: CheckoutSessionRepository,
-    private readonly customerService: CheckoutCustomerService
+    private readonly customerService: CheckoutCustomerService,
+    @Optional() private readonly http?: HttpClientService
   ) { }
 
   async processShippingState(session: CheckoutSession, userMessage: string): Promise<CheckoutSession> {
@@ -58,7 +60,7 @@ export class CheckoutShippingService {
     const zip = session.customer?.address?.zip?.replace(/\D/g, "");
     const beforeStreet = session.customer?.address?.street;
     if (zip?.length === 8 && !beforeStreet) {
-      const via = await lookupAddressByViaCep(zip);
+      const via = await lookupAddressByViaCep(zip, this.http?.toFetch());
       if (via) {
         const next = this.customerService.mergeCustomers(session, {
           address: this.customerService.mergeAddr(session.customer?.address, via)

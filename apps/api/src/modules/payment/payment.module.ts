@@ -15,6 +15,7 @@ import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapte
 import { PaymentHttpController } from "./presentation/http/payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
 import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-env.js";
+import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { InMemoryDomainEventBus } from "../../shared/events/in-memory-domain-event-bus.js";
 import { DOMAIN_EVENT_BUS } from "../../shared/events/domain-event-bus.port.js";
 
@@ -40,10 +41,11 @@ import { DOMAIN_EVENT_BUS } from "../../shared/events/domain-event-bus.port.js";
     },
     {
       provide: AsaasPaymentAdapter,
-      useFactory: () => {
+      useFactory: (http: HttpClientService) => {
         const { apiKey, baseUrl } = readAsaasConnection();
-        return new AsaasPaymentAdapter(baseUrl, apiKey ?? "__missing_api_key__", globalThis.fetch.bind(globalThis));
-      }
+        return new AsaasPaymentAdapter(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
+      },
+      inject: [HttpClientService]
     },
     {
       provide: PAYMENT_REPOSITORY,

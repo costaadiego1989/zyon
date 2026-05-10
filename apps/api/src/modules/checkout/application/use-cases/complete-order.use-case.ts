@@ -10,6 +10,7 @@ import {
   PURCHASE_HISTORY_PORT,
   type PurchaseHistoryPort
 } from "../../domain/ports/purchase-history.port.js";
+import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 
 @Injectable()
 export class CompleteOrderUseCase {
@@ -17,7 +18,8 @@ export class CompleteOrderUseCase {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
-    @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort
+    @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort,
+    @Optional() private readonly metrics?: MetricsService
   ) { }
 
   async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
@@ -27,6 +29,7 @@ export class CompleteOrderUseCase {
     const order = CompletedOrderEntity.complete(input).snapshot();
     const saved = await this.orders.saveCompletedOrder(order);
     if (!saved.idempotent) {
+      this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
       await this.sessions.recordEvent(input.merchant_id, input.session_id, "order_completed");
       const confirmation_touchpoints = planOmnichannelConfirmation(input.order_total);
       await this.outbox.appendOutbox(

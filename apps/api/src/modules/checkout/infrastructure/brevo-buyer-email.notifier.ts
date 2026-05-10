@@ -1,4 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
+import { HttpClientService } from "../../../shared/http/http-client.service.js";
 
 export interface BuyerEmailCapturePayload {
   buyerEmail: string;
@@ -19,6 +20,8 @@ export interface OtpEmailPayload {
 @Injectable()
 export class BrevoBuyerEmailNotifier {
   private readonly logger = new Logger(BrevoBuyerEmailNotifier.name);
+
+  constructor(@Optional() private readonly http?: HttpClientService) {}
 
   notifyCaptured(payload: BuyerEmailCapturePayload): void {
     void this.trySend(payload);
@@ -48,18 +51,14 @@ export class BrevoBuyerEmailNotifier {
 <p style="color:#666;font-size:13px">Este código expira em 10 minutos. Se você não iniciou esta compra, ignore este e-mail.</p>
 </div>`;
 
-    const controller = new AbortController();
-    const timer = globalThis.setTimeout(() => controller.abort(), 5500);
-
     try {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      const res = await (this.http ?? this.fallbackHttp()).fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
         headers: {
           accept: "application/json",
           "content-type": "application/json",
           "api-key": apiKey
         },
-        signal: controller.signal,
         body: JSON.stringify({
           sender: { name: senderName, email: senderEmail },
           to: [{ email: payload.buyerEmail }],
@@ -76,8 +75,6 @@ export class BrevoBuyerEmailNotifier {
       }
     } catch (err) {
       this.logger.debug(`brevo_otp_skipped ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      globalThis.clearTimeout(timer);
     }
   }
 
@@ -92,18 +89,14 @@ export class BrevoBuyerEmailNotifier {
     const html = `<p>${greeting}Registramos o e-mail <strong>${payload.buyerEmail}</strong> nesta sessão de checkout (${payload.sessionId}).</p>
 <p>Se você não iniciou esta compra, pode ignorar este aviso ou falar com a loja.</p>`;
 
-    const controller = new AbortController();
-    const timer = globalThis.setTimeout(() => controller.abort(), 5500);
-
     try {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      const res = await (this.http ?? this.fallbackHttp()).fetch("https://api.brevo.com/v3/smtp/email", {
         method: "POST",
         headers: {
           accept: "application/json",
           "content-type": "application/json",
           "api-key": apiKey
         },
-        signal: controller.signal,
         body: JSON.stringify({
           sender: { name: senderName, email: senderEmail },
           to: [{ email: payload.buyerEmail }],
@@ -118,8 +111,10 @@ export class BrevoBuyerEmailNotifier {
       }
     } catch (err) {
       this.logger.debug(`brevo_send_skipped ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      globalThis.clearTimeout(timer);
     }
+  }
+
+  private fallbackHttp(): HttpClientService {
+    return new HttpClientService({ timeout: 5500, retries: 1 });
   }
 }

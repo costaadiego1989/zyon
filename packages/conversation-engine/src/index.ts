@@ -19,6 +19,7 @@ export interface ConversationInput {
   stage?: ChatStage;
   missingFields?: string[];
   deliverySummary?: string;
+  fetchFn?: typeof fetch;
 }
 
 export interface ConversationOutput {
@@ -57,7 +58,8 @@ export async function generateSalesReply(input: ConversationInput): Promise<Conv
 }
 
 async function generateOpenAiResponse(input: ConversationInput, apiKey: string, objection: Objection): Promise<string> {
-  const response = await fetch(`${input.baseUrl ?? "https://api.openai.com/v1"}/responses`, {
+  const fetchFn = input.fetchFn ?? globalThis.fetch;
+  const response = await fetchFn(`${input.baseUrl ?? "https://api.openai.com/v1"}/responses`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -76,8 +78,9 @@ async function generateOpenAiResponse(input: ConversationInput, apiKey: string, 
 }
 
 async function generateChatCompletion(input: ConversationInput, apiKey: string, objection: Objection): Promise<string> {
+  const fetchFn = input.fetchFn ?? globalThis.fetch;
   const messages = buildChatMessages(input, objection);
-  const response = await fetch(`${input.baseUrl ?? "https://api.deepseek.com/v1"}/chat/completions`, {
+  const response = await fetchFn(`${input.baseUrl ?? "https://api.deepseek.com/v1"}/chat/completions`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
