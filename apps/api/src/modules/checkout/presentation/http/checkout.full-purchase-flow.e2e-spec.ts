@@ -33,6 +33,8 @@ import { OMNICHANNEL_WHATSAPP_TOTAL_THRESHOLD_BRL } from "../../domain/policies/
 import { BuyerPurchaseHistoryAdapter } from "../../infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
+import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
+import { PaymentApprovedHandler } from "../../application/handlers/payment-approved.handler.js";
 
 const MERCHANT = "mrc_e2e_full";
 
@@ -421,7 +423,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       customer: { ...readySession!.customer, asaasCustomerId: "cus_fixture_full_flow" }
     });
 
-    const intent = await new CreatePaymentIntentUseCase(repo, payments, new FakePaymentProvider()).execute({
+    const intent = await new CreatePaymentIntentUseCase(repo, payments, new FakePaymentProvider(), repo).execute({
       merchant_id: MERCHANT,
       session_id: sessionId,
       idempotency_key: "idem_full_flow_pix",
@@ -429,7 +431,9 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     });
     assert.deepEqual(intent.statusHistory.map((entry) => entry.status), ["pending", "requires_action"]);
 
-    const webhook = new HandleAsaasWebhookUseCase(payments, new CheckoutPaymentAdapter(repo, completeOrder));
+    const eventBus = new InMemoryDomainEventBus();
+    new PaymentApprovedHandler(eventBus, completeOrder).onModuleInit();
+    const webhook = new HandleAsaasWebhookUseCase(payments, new CheckoutPaymentAdapter(repo, repo, eventBus));
     const processed = await webhook.execute(undefined, {
       id: "evt_full_flow_paid",
       event: "PAYMENT_RECEIVED",

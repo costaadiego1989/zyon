@@ -1,7 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
-import type { CheckoutRepository } from "../../checkout/domain/ports/checkout-repository.port.js";
-import { CHECKOUT_REPOSITORY } from "../../checkout/domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
+import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
@@ -40,9 +40,10 @@ function resolveAsaasCustomerIdFromSession(session: CheckoutSession): string | u
 @Injectable()
 export class CreatePaymentIntentUseCase {
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly checkout: CheckoutRepository,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout: CheckoutSessionRepository,
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
-    @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort
+    @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -113,7 +114,7 @@ export class CreatePaymentIntentUseCase {
     });
 
     await this.payments.saveIntent({ intent });
-    await this.checkout.appendOutbox(
+    await this.outbox.appendOutbox(
       createCheckoutEventEnvelope({
         eventType: "payment.status.changed",
         merchantId,

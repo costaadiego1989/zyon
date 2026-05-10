@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { EvaluateNegotiationUseCase } from "./application/evaluate-negotiation.use-case.js";
 import {
@@ -21,7 +22,7 @@ import { MerchantNegotiationPolicyController } from "./presentation/http/merchan
 import { BuyerAgentNegotiationPreferencesController } from "./presentation/http/buyer-agent-negotiation-preferences.controller.js";
 
 @Module({
-  imports: [AuthModule, CheckoutModule],
+  imports: [AuthModule, CheckoutModule, MerchantModule],
   controllers: [
     NegotiationController,
     MerchantNegotiationPolicyController,

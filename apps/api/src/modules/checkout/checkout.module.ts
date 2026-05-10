@@ -103,6 +103,10 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
   ],
   exports: [
     CHECKOUT_REPOSITORY,
+    CHECKOUT_SESSION_REPOSITORY,
+    OFFER_REPOSITORY,
+    ORDER_REPOSITORY,
+    DASHBOARD_READ_MODEL,
     CompleteOrderUseCase,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,

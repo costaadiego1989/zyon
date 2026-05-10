@@ -1,11 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import type { AuthorizedOffer } from "@aacp/shared-types";
 import { evaluateDiscountOffer } from "@aacp/rules-engine";
-import {
-  CHECKOUT_REPOSITORY,
-  type CheckoutRepository
-} from "../../checkout/domain/ports/checkout-repository.port.js";
-import { createAuthorizedOffer } from "../../checkout/application/use-cases/offer-factory.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
+import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../merchant/domain/ports/merchant-rules.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";
+import { createAuthorizedOffer } from "../../checkout/domain/services/offer-factory.js";
 import { checkoutCartFingerprint } from "../domain/cart-fingerprint.js";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 
@@ -13,7 +12,9 @@ import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negoti
 export class ApplyNegotiationAgreementToCheckoutUseCase {
   constructor(
     @Inject(NEGOTIATION_STORE) private readonly store: NegotiationStore,
-    @Inject(CHECKOUT_REPOSITORY) private readonly checkout: CheckoutRepository
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRules: MerchantRulesRepository,
+    @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository
   ) {}
 
   async execute(input: {
@@ -28,7 +29,7 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
     );
     if (!negRow) throw new NotFoundException("negotiation_session_not_found");
 
-    const checkoutSession = await this.checkout.getSession(input.merchantId, input.checkoutSessionId);
+    const checkoutSession = await this.sessions.getSession(input.merchantId, input.checkoutSessionId);
     if (!checkoutSession) throw new NotFoundException("checkout_session_not_found");
 
     if (checkoutCartFingerprint(checkoutSession.cart) !== negRow.cartFingerprint) {
@@ -41,7 +42,7 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
       throw new BadRequestException("negotiation_discount_mismatch");
     }
 
-    const rules = await this.checkout.getRules(input.merchantId);
+    const rules = await this.merchantRules.getRules(input.merchantId);
     const evaluation = evaluateDiscountOffer(
       checkoutSession.cart,
       rules,
@@ -61,7 +62,7 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
       rules,
       evaluation
     });
-    await this.checkout.saveOffer(offer);
+    await this.offers.saveOffer(offer);
 
     await this.store.appendNegotiationLedgerEntry({
       merchantId: input.merchantId,

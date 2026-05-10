@@ -26,6 +26,8 @@ import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.j
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CheckoutController } from "./checkout.controller.js";
+import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
+import { PaymentApprovedHandler } from "../../application/handlers/payment-approved.handler.js";
 
 const MERCHANT = "mrc_prisma_e2e";
 const CART: Cart = {
@@ -184,10 +186,12 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
 
   // 12. Payment intent + webhook → order completed
   repo.saveSession({ ...finalSession!, customer: { ...finalSession!.customer, asaasCustomerId: "cus_test" } });
-  const intent = await new CreatePaymentIntentUseCase(repo, payments, new FakePaymentProvider()).execute({
+  const intent = await new CreatePaymentIntentUseCase(repo, payments, new FakePaymentProvider(), repo).execute({
     merchant_id: MERCHANT, session_id: sid, idempotency_key: "idem_pix", method: "pix"
   });
-  const webhook = new HandleAsaasWebhookUseCase(payments, new CheckoutPaymentAdapter(repo, completeOrder));
+  const eventBus = new InMemoryDomainEventBus();
+  new PaymentApprovedHandler(eventBus, completeOrder).onModuleInit();
+  const webhook = new HandleAsaasWebhookUseCase(payments, new CheckoutPaymentAdapter(repo, repo, eventBus));
   const processed = await webhook.execute(undefined, {
     id: "evt_paid", event: "PAYMENT_RECEIVED",
     payment: { id: intent.providerPaymentId, value: intent.amountCents / 100, externalReference: intent.id }

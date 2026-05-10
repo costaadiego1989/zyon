@@ -8,6 +8,15 @@ import { HandleAsaasWebhookUseCase } from "../../application/handle-asaas-webhoo
 import { InMemoryPaymentRepository } from "../../infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../infrastructure/fake-payment-provider.js";
 import { CheckoutPaymentAdapter } from "../../infrastructure/checkout-payment.adapter.js";
+import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
+import { PaymentApprovedHandler } from "../../../checkout/application/handlers/payment-approved.handler.js";
+
+function makeCheckoutPaymentAdapter(checkout: InMemoryCheckoutRepository): CheckoutPaymentAdapter {
+  const eventBus = new InMemoryDomainEventBus();
+  const handler = new PaymentApprovedHandler(eventBus, new CompleteOrderUseCase(checkout, checkout, checkout));
+  handler.onModuleInit();
+  return new CheckoutPaymentAdapter(checkout, checkout, eventBus);
+}
 
 test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVED → pedido completado", async () => {
   const checkout = new InMemoryCheckoutRepository();
@@ -26,7 +35,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
     customer: { email: "buyer@test.com", phone: "11999998888", asaasCustomerId: "cus_fixture_e2e" }
   });
 
-  const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider()).execute({
+  const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider(), checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     idempotency_key: `idem_${crypto.randomUUID()}`
@@ -35,7 +44,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const providerPaymentId = intentSnap.providerPaymentId!;
   assert.equal(intentSnap.amountCents / 100, 300);
 
-  const checkoutPayment = new CheckoutPaymentAdapter(checkout, new CompleteOrderUseCase(checkout, checkout, checkout));
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
   const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
 
   const processed = await webhook.execute(undefined, {
@@ -89,14 +98,14 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
     customer: { email: "buyer@test.com", asaasCustomerId: "cus_fixture_e2e" }
   });
 
-  const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider()).execute({
+  const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider(), checkout).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     idempotency_key: `idem_del_${crypto.randomUUID()}`
   });
 
   const providerPaymentId = intentSnap.providerPaymentId!;
-  const checkoutPayment = new CheckoutPaymentAdapter(checkout, new CompleteOrderUseCase(checkout, checkout, checkout));
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
   const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
 
   await webhook.execute(undefined, {

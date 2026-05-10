@@ -9,7 +9,7 @@ import { FakePaymentProvider } from "../infrastructure/fake-payment-provider.js"
 
 test("CreatePaymentIntentUseCase throws NotFound when checkout session is missing", async () => {
   const checkout = new InMemoryCheckoutRepository();
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider());
+  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
   await assert.rejects(
     () =>
       uc.execute({
@@ -29,7 +29,7 @@ test("CreatePaymentIntentUseCase is idempotent on (merchant, session, idempotenc
     })
   );
 
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider());
+  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
 
   const a = await uc.execute({
     merchant_id: "mrc_1",
@@ -68,7 +68,7 @@ test("CreatePaymentIntentUseCase charges cart total with selected shipping and d
     })
   );
 
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider());
+  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
   const intent = await uc.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
@@ -96,7 +96,7 @@ test("CreatePaymentIntentUseCase rejects when Asaas is configured but session bu
     const checkout = new InMemoryCheckoutRepository();
     await checkout.saveSession(checkoutSession({ customer: { email: "a@b.com" } }));
 
-    const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider());
+    const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
 
     await assert.rejects(() => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "z1" }), (err: unknown) => err instanceof BadRequestException);
   } finally {

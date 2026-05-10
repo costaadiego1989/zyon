@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { PaymentApprovedHandler } from "../checkout/application/handlers/payment-approved.handler.js";
 import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
@@ -14,6 +15,8 @@ import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapte
 import { PaymentHttpController } from "./presentation/http/payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
 import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-env.js";
+import { InMemoryDomainEventBus } from "../../shared/events/in-memory-domain-event-bus.js";
+import { DOMAIN_EVENT_BUS } from "../../shared/events/domain-event-bus.port.js";
 
 @Module({
   imports: [CheckoutModule],
@@ -23,7 +26,10 @@ import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-e
     HandleAsaasWebhookUseCase,
     InMemoryPaymentRepository,
     FakePaymentProvider,
+    InMemoryDomainEventBus,
+    { provide: DOMAIN_EVENT_BUS, useExisting: InMemoryDomainEventBus },
     CheckoutPaymentAdapter,
+    PaymentApprovedHandler,
     { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
     {
       provide: PAYMENT_PROVIDER_PORT,

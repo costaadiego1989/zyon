@@ -54,7 +54,7 @@ describe("ApplyNegotiationAgreementToCheckoutUseCase", () => {
       result
     });
 
-    const uc = new ApplyNegotiationAgreementToCheckoutUseCase(store, checkout);
+    const uc = new ApplyNegotiationAgreementToCheckoutUseCase(store, checkout, checkout, checkout);
 
     const out = await uc.execute({
       merchantId: "mrc_1",
@@ -108,7 +108,7 @@ describe("ApplyNegotiationAgreementToCheckoutUseCase", () => {
       result: snapshot
     });
 
-    const uc = new ApplyNegotiationAgreementToCheckoutUseCase(store, checkout);
+    const uc = new ApplyNegotiationAgreementToCheckoutUseCase(store, checkout, checkout, checkout);
 
     await assert.rejects(
       () =>
