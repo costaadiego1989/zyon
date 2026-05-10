@@ -79,11 +79,7 @@ textarea {
 .aacp-page {
   position: relative;
   min-height: 100vh;
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(168, 85, 247, 0.18), transparent 60%),
-    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(99, 102, 241, 0.12), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 0% 80%, rgba(236, 72, 153, 0.08), transparent 60%),
-    var(--aacp-bg);
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -91,18 +87,6 @@ textarea {
   overflow: hidden;
 }
 
-/* Subtle grid overlay */
-.aacp-page::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
-  pointer-events: none;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
-}
 
 .aacp-shell {
   position: relative;
@@ -457,7 +441,7 @@ textarea {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px 1rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1951,7 +1935,7 @@ textarea {
   position: fixed;
   bottom: 96px;
   right: 24px;
-  z-index: 95;
+  z-index: 110;
   width: min(380px, calc(100vw - 32px));
   height: min(560px, calc(100vh - 140px));
   display: flex;
