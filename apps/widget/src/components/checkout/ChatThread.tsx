@@ -47,8 +47,9 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
 
       {!vm.activeExperience.shipping && vm.shippingOptions.length > 0 && vm.checkoutStage === "shipping" ? (
-        <ShippingSelector 
-          options={vm.shippingOptions} 
+        <ShippingSelector
+          options={vm.shippingOptions}
+          selectedMethod={vm.selectedShippingMethod}
           onSelect={(opt) => void vm.tapShippingOption(opt)}
           busy={vm.busy}
         />

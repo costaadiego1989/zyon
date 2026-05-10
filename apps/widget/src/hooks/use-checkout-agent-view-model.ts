@@ -19,8 +19,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const panels = useCheckoutPanels();
   const chatState = useCheckoutChat(config, sessionState);
   const payment = useCheckoutPayment(config, sessionState, chatState);
-  const { activeExperience, session, networkError, track } = sessionState;
-  const { visibleItems, visibleTotals, cartItemCount, handleRemoveCartItem } = cartState;
+  const { activeExperience, session, networkError, track, apiOrigin } = sessionState;
+  const { visibleItems, visibleTotals, cartItemCount, handleRemoveCartItem, incrementItem, decrementItem, applyShipping, selectedShippingMethod } = cartState;
   const { checkoutStage, composerLocked, streamingTurnKey } = chatState;
   const theme: MerchantTheme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
   const offer = chatState.lastChat?.authorized_offer;
@@ -68,6 +68,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
   async function tapShippingOption(option: ShippingQuote): Promise<void> {
     if (!session || networkError || chatState.busy) return;
+    applyShipping(option.method ?? "Frete", option.customerPrice);
     await chatState.sendMessageWithOverride(option.method || "Selecionar frete");
   }
 
@@ -118,6 +119,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     continueToPayment: chatState.continueToPayment,
     submitCoupon: chatState.submitCoupon,
     handleRemoveCartItem,
+    incrementItem,
+    decrementItem,
+    selectedShippingMethod,
     createEmbedPaymentIntentDemo: payment.createEmbedPaymentIntentDemo,
     createPaymentIntent: payment.createPaymentIntent,
     colorMode: panels.colorMode,
@@ -133,7 +137,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     cardError: panels.cardError,
     setCardError: panels.setCardError,
     shippingOptions,
-    tapShippingOption
+    tapShippingOption,
+    apiOrigin
   };
 }
 
