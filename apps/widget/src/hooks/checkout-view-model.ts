@@ -96,6 +96,39 @@ export function removeVisibleCartItem(current: VisibleCartState, sku: string): V
   };
 }
 
+export function incrementVisibleCartItem(current: VisibleCartState, sku: string): VisibleCartState {
+  const nextItems = current.items.map((it) =>
+    it.sku !== sku ? it : { ...it, quantity: it.quantity + 1, line_total: it.unit_price * (it.quantity + 1) }
+  );
+  const nextSubtotal = nextItems.reduce((acc, it) => acc + it.line_total, 0);
+  return {
+    items: nextItems,
+    totals: {
+      ...current.totals,
+      subtotal: nextSubtotal,
+      total: Math.max(0, nextSubtotal + current.totals.shipping - current.totals.discount)
+    }
+  };
+}
+
+export function decrementVisibleCartItem(current: VisibleCartState, sku: string): VisibleCartState {
+  const item = current.items.find((it) => it.sku === sku);
+  if (!item) return current;
+  if (item.quantity <= 1) return removeVisibleCartItem(current, sku);
+  const nextItems = current.items.map((it) =>
+    it.sku !== sku ? it : { ...it, quantity: it.quantity - 1, line_total: it.unit_price * (it.quantity - 1) }
+  );
+  const nextSubtotal = nextItems.reduce((acc, it) => acc + it.line_total, 0);
+  return {
+    items: nextItems,
+    totals: {
+      ...current.totals,
+      subtotal: nextSubtotal,
+      total: Math.max(0, nextSubtotal + current.totals.shipping - current.totals.discount)
+    }
+  };
+}
+
 export function bubbleKey(turn: { role: string; text: string; occurredAt: string }, index: number): string {
   return `${turn.role}-${index}-${turn.occurredAt}`;
 }

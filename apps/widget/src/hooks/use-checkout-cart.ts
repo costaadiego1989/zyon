@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { CheckoutExperienceSnapshot } from "@aacp/shared-types";
-import { buildVisibleCart, countVisibleItems, removeVisibleCartItem, fallbackExperience, type VisibleCartState } from "./checkout-view-model.js";
+import { buildVisibleCart, countVisibleItems, removeVisibleCartItem, incrementVisibleCartItem, decrementVisibleCartItem, fallbackExperience, type VisibleCartState } from "./checkout-view-model.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 
 export function useCheckoutCart(
@@ -10,6 +10,7 @@ export function useCheckoutCart(
   const [visibleCart, setVisibleCart] = useState<VisibleCartState>(() =>
     buildVisibleCart(fallbackExperience(config))
   );
+  const [selectedShippingMethod, setSelectedShippingMethod] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (!experience) return;
@@ -18,6 +19,26 @@ export function useCheckoutCart(
 
   function handleRemoveCartItem(sku: string): void {
     setVisibleCart((current) => removeVisibleCartItem(current, sku));
+  }
+
+  function incrementItem(sku: string): void {
+    setVisibleCart((current) => incrementVisibleCartItem(current, sku));
+  }
+
+  function decrementItem(sku: string): void {
+    setVisibleCart((current) => decrementVisibleCartItem(current, sku));
+  }
+
+  function applyShipping(method: string, price: number): void {
+    setSelectedShippingMethod(method);
+    setVisibleCart((current) => ({
+      ...current,
+      totals: {
+        ...current.totals,
+        shipping: price,
+        total: Math.max(0, current.totals.subtotal + price - current.totals.discount)
+      }
+    }));
   }
 
   const visibleItems = visibleCart.items;
@@ -30,6 +51,10 @@ export function useCheckoutCart(
     visibleTotals,
     cartItemCount,
     handleRemoveCartItem,
+    incrementItem,
+    decrementItem,
+    applyShipping,
+    selectedShippingMethod,
     setVisibleCart,
   };
 }

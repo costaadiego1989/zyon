@@ -96,9 +96,9 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                   <div className="aacp-item-name">{item.name}</div>
                   <div className="aacp-item-meta">{item.variant ? `${item.variant} · ` : ""}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px 4px', width: 'fit-content' }}>
-                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }}>-</button>
+                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }} onClick={() => vm.decrementItem(item.sku)} aria-label={`Diminuir quantidade de ${item.name}`} disabled={vm.busy}>-</button>
                       <span>{item.quantity}</span>
-                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }}>+</button>
+                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }} onClick={() => vm.incrementItem(item.sku)} aria-label={`Aumentar quantidade de ${item.name}`} disabled={vm.busy}>+</button>
                     </div>
                   </div>
                   <button
