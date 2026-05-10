@@ -101,9 +101,12 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                       <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }} onClick={() => vm.incrementItem(item.sku)} aria-label={`Aumentar quantidade de ${item.name}`} disabled={vm.busy}>+</button>
                     </div>
                   </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
+                  <div className="aacp-item-price">{formatCurrency(item.line_total, vm.visibleTotals.currency)}</div>
                   <button
                     type="button"
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase mt-2 text-red-400 hover:text-red-300 transition-colors"
+                    className="flex items-center gap-1 text-[10px] font-bold uppercase text-red-400 hover:text-red-300 transition-colors"
                     onClick={() => vm.handleRemoveCartItem(item.sku)}
                     disabled={vm.busy}
                     aria-label={`Remover ${item.name}`}
@@ -111,7 +114,6 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                     <Trash2 size={10} /> Remover
                   </button>
                 </div>
-                <div className="aacp-item-price">{formatCurrency(item.line_total, vm.visibleTotals.currency)}</div>
               </div>
             ))
           ) : (
