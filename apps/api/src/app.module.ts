@@ -14,6 +14,13 @@ import { MerchantModule } from "./modules/merchant/merchant.module.js";
 import { NegotiationModule } from "./modules/negotiation/negotiation.module.js";
 import { EmbedModule } from "./modules/embed/embed.module.js";
 import { PaymentModule } from "./modules/payment/payment.module.js";
+import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
+import { CouponsModule } from "./modules/coupons/coupons.module.js";
+import { ScrapingAgentModule } from "./modules/scraping-agent/scraping-agent.module.js";
+import { ShippingModule } from "./modules/shipping/shipping.module.js";
+import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module.js";
+import { SupportModule } from "./modules/support/support.module.js";
+import { SelfCheckoutModule } from "./modules/self-checkout/self-checkout.module.js";
 
 @Module({
   imports: [
@@ -42,7 +49,14 @@ import { PaymentModule } from "./modules/payment/payment.module.js";
     CheckoutModule,
     NegotiationModule,
     EmbedModule,
-    PaymentModule
+    PaymentModule,
+    CrossSellModule,
+    CouponsModule,
+    ScrapingAgentModule,
+    ShippingModule,
+    FulfillmentModule,
+    SupportModule,
+    SelfCheckoutModule
   ]
 })
 export class AppModule {}
