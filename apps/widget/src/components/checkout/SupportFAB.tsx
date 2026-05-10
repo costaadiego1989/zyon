@@ -12,19 +12,19 @@ export function SupportFAB({ vm }: { vm: CheckoutAgentViewModel }) {
 
   return (
     <div className="aacp-fab-container">
-      {showTooltip && (
+      {showTooltip && !vm.supportOpen && (
         <div className="aacp-fab-tooltip">
           <Sparkles size={12} className="text-purple-400" />
           <span>Precisa de ajuda com o pedido?</span>
           <button onClick={() => setShowTooltip(false)}><X size={10} /></button>
         </div>
       )}
-      <button 
-        className="aacp-fab" 
-        onClick={() => vm.setSupportOpen(true)}
-        aria-label="Suporte AI"
+      <button
+        className={`aacp-fab${vm.supportOpen ? " active" : ""}`}
+        onClick={() => vm.setSupportOpen(!vm.supportOpen)}
+        aria-label={vm.supportOpen ? "Fechar suporte" : "Abrir suporte"}
       >
-        <MessageSquare size={24} />
+        {vm.supportOpen ? <X size={24} /> : <MessageSquare size={24} />}
       </button>
     </div>
   );
