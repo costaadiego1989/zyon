@@ -138,9 +138,21 @@ model MerchantRule {
   offerExpirationMinutes              Int      @map("offer_expiration_minutes")
   blockedRegions                      String[] @map("blocked_regions")
   brandVoice                          String   @map("brand_voice")
+  quickReplies                        Json?    @map("quick_replies")
   updatedAt                           DateTime @updatedAt @map("updated_at")
 
   @@map("merchant_rules")
+}
+
+model SupportSetting {
+  id         String   @id @default(cuid())
+  merchantId String   @unique @map("merchant_id")
+  faqItems   Json     @map("faq_items")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId])
+  @@map("support_settings")
 }
 
 model AuthorizedOffer {
@@ -329,4 +341,38 @@ model PaymentProviderEvent {
   processedAt DateTime @default(now()) @map("processed_at")
 
   @@map("payment_provider_events")
+}
+
+model BuyerAccount {
+  globalUserId  String   @id @default(cuid()) @map("global_user_id")
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  displayName   String   @map("display_name")
+  phone         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  agentProfile  BuyerAgentProfile?
+
+  @@map("buyer_accounts")
+}
+
+model BuyerAgentProfile {
+  id                               String    @id @default(cuid())
+  globalUserId                     String    @unique @map("global_user_id")
+  name                             String
+  personality                      String
+  maxRounds                        Int       @map("max_rounds")
+  targetDiscountPercent            Float     @map("target_discount_percent")
+  minimumAcceptableDiscountPercent Float     @map("minimum_acceptable_discount_percent")
+  autoAcceptThreshold              Float?    @map("auto_accept_threshold")
+  m2mEnabled                       Boolean   @default(false) @map("m2m_enabled")
+  m2mTokenHash                     String?   @map("m2m_token_hash")
+  m2mTokenCreatedAt                DateTime? @map("m2m_token_created_at")
+  createdAt                        DateTime  @default(now()) @map("created_at")
+  updatedAt                        DateTime  @updatedAt @map("updated_at")
+
+  account  BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@map("buyer_agent_profiles")
 }
