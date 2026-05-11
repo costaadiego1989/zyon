@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
+import type { StageQuickReplies } from "@aacp/shared-types";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";
@@ -79,7 +80,10 @@ function toUpdate(rules: MerchantRules) {
     maxPartialShippingDiscount: rules.maxPartialShippingDiscount,
     offerExpirationMinutes: rules.offerExpirationMinutes,
     blockedRegions: rules.blockedRegions,
-    brandVoice: rules.brandVoice
+    brandVoice: rules.brandVoice,
+    quickReplies: rules.quickReplies != null
+      ? (rules.quickReplies as unknown as Prisma.InputJsonValue)
+      : Prisma.JsonNull,
   };
 }
 
@@ -97,6 +101,7 @@ function toRules(row: {
   blockedRegions: string[];
   brandVoice: string;
   couponBoxEnabled?: boolean | null;
+  quickReplies?: unknown;
 }): MerchantRules {
   return {
     maxDiscountPercent: row.maxDiscountPercent,
@@ -111,6 +116,9 @@ function toRules(row: {
     offerExpirationMinutes: row.offerExpirationMinutes,
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],
-    couponBoxEnabled: row.couponBoxEnabled ?? true
+    couponBoxEnabled: row.couponBoxEnabled ?? true,
+    quickReplies: row.quickReplies != null
+      ? (row.quickReplies as unknown as StageQuickReplies)
+      : undefined,
   };
 }
