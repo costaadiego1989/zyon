@@ -18,6 +18,7 @@ import { buildExperienceFromSession } from "../services/checkout-experience.serv
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
+import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -33,7 +34,8 @@ export class SendChatMessageUseCase {
     private readonly shippingService: CheckoutShippingService,
     private readonly offerService: CheckoutOfferService,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
-    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -57,6 +59,7 @@ export class SendChatMessageUseCase {
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
 
     const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
+    const previousStage = deriveChatStage(session);
     let working = structuredCloneDeep(session);
 
     try {
@@ -93,14 +96,36 @@ export class SendChatMessageUseCase {
           rules
         });
 
+        const alreadyResolved =
+          error.name === "OtpValidationError" && updated.customer?.phone_verified === true;
+
+        // Override quick replies and missing_fields for OTP errors so composer shows correct state
+        let responseStage = currentStage;
+        let responseMissingFields = missingFields;
+        let responseExperience = experience;
+
+        if (error.name === "OtpValidationError" && !alreadyResolved) {
+          const isPhoneOtp = Boolean(updated.customer?.phone_otp_code);
+          const otpMissingField = isPhoneOtp ? "código de verificação do celular" : "código de verificação";
+          const otpQuickReplies = isPhoneOtp
+            ? ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"]
+            : ["Reenviar código de e-mail", "Não recebi o código", "Qual e-mail foi usado?"];
+          responseStage = "data_collection";
+          responseMissingFields = [otpMissingField];
+          responseExperience = {
+            ...experience,
+            copy: { ...experience.copy, quick_replies: otpQuickReplies }
+          };
+        }
+
         return {
-          message: errorMsg,
+          message: alreadyResolved ? "Verificação concluída. Vamos continuar com o seu pedido." : errorMsg,
           objection: "unknown",
           actions: [],
           turns: updated.chatHistory,
-          experience,
-          stage: currentStage,
-          missing_fields: missingFields
+          experience: responseExperience,
+          stage: responseStage,
+          missing_fields: responseMissingFields
         };
       }
       throw error;
@@ -130,7 +155,8 @@ export class SendChatMessageUseCase {
       history: working.chatHistory,
       stage,
       missingFields,
-      deliverySummary: this.shippingService.summarizeDelivery(working)
+      deliverySummary: this.shippingService.summarizeDelivery(working),
+      shippingOptions: working.shippingOptions
     });
 
     const now = new Date().toISOString();
@@ -157,6 +183,21 @@ export class SendChatMessageUseCase {
     const wantsPix = /\b(pix|qr code)\b/i.test(input.user_message) && stage === "payment";
     const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.user_message) && stage === "payment";
     const chatActions: any[] = [];
+
+    if (stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
+      try {
+        const suggestions = await this.crossSellUseCase.execute({
+          session_id: input.session_id,
+          merchant_id: input.merchant_id,
+          cart: working.cart
+        });
+        if (suggestions.length > 0) {
+          chatActions.push({ type: "cross_sell", suggestions });
+        }
+      } catch {
+        // cross-sell is non-critical; swallow errors
+      }
+    }
 
     if (wantsPix) {
       chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
