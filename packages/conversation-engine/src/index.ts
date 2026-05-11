@@ -1,4 +1,4 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@aacp/shared-types";
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
 
@@ -19,6 +19,7 @@ export interface ConversationInput {
   stage?: ChatStage;
   missingFields?: string[];
   deliverySummary?: string;
+  shippingOptions?: ShippingQuote[];
   fetchFn?: typeof fetch;
 }
 
@@ -136,6 +137,12 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
   }
   if (input.deliverySummary) {
     lines.push(`Contexto de entrega já conhecido (use como referência, não repita tudo): ${input.deliverySummary}`);
+  }
+  if (input.shippingOptions?.length && !input.deliverySummary) {
+    const opts = input.shippingOptions
+      .map((o) => `${o.method ?? o.carrier ?? "Frete"}: R$${o.customerPrice.toFixed(2)} (${o.deliveryDays ?? "?"} dias úteis)`)
+      .join(" | ");
+    lines.push(`Opções de frete disponíveis — apresente estas opções ao comprador e aguarde a escolha: ${opts}`);
   }
   if (input.cart) lines.push(`Carrinho: ${cartSummary(input.cart)}.`);
   if (input.authorizedOffer) {
