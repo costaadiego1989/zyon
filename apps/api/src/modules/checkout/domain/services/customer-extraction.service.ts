@@ -122,7 +122,9 @@ export function extractAddressDetailLine(
 }
 
 export function extractOtp(text: string): string | undefined {
-  const m = text.match(/\b(\d{4,6})\b/);
+  // Strip hyphens/spaces from digit groups first (handles "84875-4" → "848754")
+  const stripped = text.replace(/(\d)[-\s](\d)/g, "$1$2");
+  const m = stripped.match(/\b(\d{4,6})\b/);
   if (m) return m[1];
   return undefined;
 }
