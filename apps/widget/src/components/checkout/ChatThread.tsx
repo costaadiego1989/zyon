@@ -1,4 +1,5 @@
-import { CheckCircle2, Gift, Copy, Check, Truck } from "lucide-react";
+import { CheckCircle2, Gift, Copy, Check, Truck, Tag } from "lucide-react";
+import { CrossSellBanner } from "./CrossSellBanner.js";
 import { CreditCardForm } from "./CreditCardForm.js";
 import { ShippingSelector } from "./ShippingSelector.js";
 import { Composer } from "./Composer.js";
@@ -54,6 +55,17 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
           busy={vm.busy}
         />
       ) : null}
+
+      {vm.suggestedProducts && vm.suggestedProducts.length > 0 && !vm.crossSellDismissed ? (
+        <CrossSellBanner
+          products={vm.suggestedProducts}
+          currency={vm.visibleTotals.currency}
+          onAdd={(p) => vm.addSuggestedProduct(p)}
+          onDismiss={vm.dismissCrossSell}
+        />
+      ) : null}
+
+      {vm.showCouponBox ? <CouponBox vm={vm} /> : null}
 
       {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
 
@@ -166,6 +178,38 @@ export function NetworkError({ vm }: { vm: CheckoutAgentViewModel }) {
         Tentar novamente
       </button>
     </div>
+  );
+}
+
+export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
+  return (
+    <form
+      className="aacp-coupon-box mt-3 flex gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        void vm.submitCoupon();
+      }}
+    >
+      <div className="relative flex-1">
+        <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--aacp-muted)]" aria-hidden="true" />
+        <input
+          className="w-full rounded-xl border border-[var(--aacp-line)] bg-[var(--aacp-surface-2)] pl-9 pr-3 py-2.5 text-sm text-[var(--aacp-fg)] placeholder:text-[var(--aacp-muted)] focus:outline-none focus:border-[var(--aacp-accent)]"
+          value={vm.coupon}
+          onChange={(e) => vm.setCoupon(e.target.value)}
+          placeholder="Código do cupom"
+          aria-label="Cupom de desconto"
+          disabled={vm.busy}
+          autoComplete="off"
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={!vm.coupon.trim() || vm.busy}
+        className="rounded-xl px-4 py-2.5 text-sm font-bold bg-[var(--aacp-grad-primary)] text-white disabled:opacity-40 transition-opacity"
+      >
+        Aplicar
+      </button>
+    </form>
   );
 }
 
