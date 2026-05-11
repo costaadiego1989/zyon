@@ -7,8 +7,9 @@ export type CreateProviderPaymentInput = {
   amountCents: number;
   currency: string;
   method: string;
-  asaasCustomerId: string;
   description?: string;
+  // Asaas-only (pix / boleto / card via Asaas)
+  asaasCustomerId?: string;
   creditCard?: {
     holderName: string;
     number: string;
@@ -30,7 +31,13 @@ export type CreateProviderPaymentInput = {
 export type CreateProviderPaymentOutput = {
   providerPaymentId: string;
   status: "pending" | "requires_action";
-  buyerFacingPayload: { qrCodeCopyPaste?: string; invoiceUrl?: string; encodedQrImage?: string };
+  buyerFacingPayload: {
+    qrCodeCopyPaste?: string;
+    invoiceUrl?: string;
+    encodedQrImage?: string;
+    clientSecret?: string;
+    stripePublishableKey?: string;
+  };
 };
 
 export interface PaymentProviderPort {
