@@ -9,12 +9,13 @@ import { OverviewDemoPage } from "./pages/overview-demo-page.js";
 import { MerchantRulesAuthenticatedPage } from "./pages/merchant-rules-page.js";
 import { CheckoutSettingsPage } from "./pages/checkout-settings-page.js";
 import { NegotiationPage } from "./pages/negotiation-page.js";
+import { SupportSettingsPage } from "./pages/support-settings-page.js";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 const DEFAULT_MERCHANT_ID = import.meta.env.VITE_MERCHANT_ID ?? "mrc_demo";
 
-type TabKey = "overview" | "rules" | "settings" | "negotiation";
+type TabKey = "overview" | "rules" | "settings" | "negotiation" | "support";
 
 function App() {
   const api = useMemo(() => createDashboardApi({ baseUrl: API_BASE_URL }), []);
@@ -105,6 +106,9 @@ function App() {
         <button type="button" className={tab === "negotiation" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("negotiation")}>
           Negociação técnica
         </button>
+        <button type="button" className={tab === "support" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("support")}>
+          Suporte FAQ
+        </button>
       </nav>
 
       {tab === "overview" ? (
@@ -113,6 +117,7 @@ function App() {
       {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
       {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
       {tab === "negotiation" ? <NegotiationPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+      {tab === "support" ? <SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
     </main>
   );
 }
