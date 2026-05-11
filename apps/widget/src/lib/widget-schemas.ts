@@ -115,7 +115,7 @@ export const authResponseSchema = z.object({
 
 export const globalAuthSessionSchema = authResponseSchema.extend({
   merchant_name: z.string().min(1).optional(),
-  provider: z.literal("password").default("password")
+  provider: z.enum(["password", "phone"]).default("password")
 });
 
 export type GlobalAuthSession = z.infer<typeof globalAuthSessionSchema>;
