@@ -95,10 +95,10 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                 <div className="aacp-item-info">
                   <div className="aacp-item-name">{item.name}</div>
                   <div className="aacp-item-meta">{item.variant ? `${item.variant} · ` : ""}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px', background: 'rgba(255,255,255,0.05)', borderRadius: '6px', padding: '2px 4px', width: 'fit-content' }}>
-                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }} onClick={() => vm.decrementItem(item.sku)} aria-label={`Diminuir quantidade de ${item.name}`} disabled={vm.busy}>-</button>
-                      <span>{item.quantity}</span>
-                      <button type="button" style={{ padding: '0 4px', color: 'var(--aacp-fg)' }} onClick={() => vm.incrementItem(item.sku)} aria-label={`Aumentar quantidade de ${item.name}`} disabled={vm.busy}>+</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '2px', width: 'fit-content' }}>
+                      <button type="button" style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', color: 'var(--aacp-fg)', fontSize: '18px', fontWeight: 600, lineHeight: 1, flexShrink: 0 }} onClick={() => vm.decrementItem(item.sku)} aria-label={`Diminuir quantidade de ${item.name}`} disabled={vm.busy}>−</button>
+                      <span style={{ minWidth: '28px', textAlign: 'center', fontSize: '14px', fontWeight: 600 }}>{item.quantity}</span>
+                      <button type="button" style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', color: 'var(--aacp-fg)', fontSize: '18px', fontWeight: 600, lineHeight: 1, flexShrink: 0 }} onClick={() => vm.incrementItem(item.sku)} aria-label={`Aumentar quantidade de ${item.name}`} disabled={vm.busy}>+</button>
                     </div>
                   </div>
                 </div>
@@ -155,19 +155,6 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       </dl>
 
-      {vm.showCouponBox && (
-        <form className="aacp-coupon-form" onSubmit={(e) => { e.preventDefault(); void vm.submitCoupon(); }}>
-          <input
-            type="text"
-            className="aacp-coupon-input"
-            aria-label="Cupom de desconto"
-            placeholder="Código do cupom"
-            value={vm.coupon}
-            onChange={(e) => vm.setCoupon(e.target.value)}
-          />
-          <button type="submit" className="aacp-coupon-submit">Aplicar</button>
-        </form>
-      )}
     </aside>
   );
 }
