@@ -4,6 +4,7 @@ import type { MerchantRules } from "@aacp/shared-types";
 import type { MerchantProfile as MerchantMeProfile } from "../api-client.js";
 import { createDashboardApi, DashboardHttpError } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
+import { QuickRepliesSection } from "../components/quick-replies-section.js";
 
 export function MerchantRulesAuthenticatedPage(props: {
   apiBaseUrl: string;
@@ -81,7 +82,17 @@ export function MerchantRulesAuthenticatedPage(props: {
         <p className="panel panel-warn">Sessão invalida ou expirada (401).</p>
       ) : null}
       {gate === "error" ? <p className="panel panel-warn">{hint ?? "Falha de rede"}</p> : null}
-      {rules ? <RulesForm rules={rules} onChange={setRules} /> : gate === "idle" ? <p>Carregando…</p> : null}
+      {rules ? (
+        <>
+          <RulesForm rules={rules} onChange={setRules} />
+          <div style={{ marginTop: 24 }}>
+            <QuickRepliesSection
+              value={rules.quickReplies}
+              onChange={(qr) => setRules({ ...rules, quickReplies: qr })}
+            />
+          </div>
+        </>
+      ) : gate === "idle" ? <p>Carregando…</p> : null}
     </>
   );
 }
