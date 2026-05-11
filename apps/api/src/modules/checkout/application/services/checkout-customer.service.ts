@@ -93,6 +93,9 @@ export class CheckoutCustomerService {
     const patch: Partial<CustomerHints> = {};
     const addr = existing?.address ?? {};
 
+    const resendEmail = /reenviar.*(c[oó]digo|email|e-mail)/i.test(userMessage);
+    const resendSms = /reenviar.*(c[oó]digo|sms|celular)/i.test(userMessage);
+
     // --- E-mail & OTP flow ---
     let currentEmail = existing?.email;
     const otpPending = Boolean(existing?.otp_code);
@@ -105,11 +108,16 @@ export class CheckoutCustomerService {
     }
 
     if (currentEmail && !existing?.email_verified) {
-      if (!existing?.otp_code && !patch.otp_code && patch.email) {
+      if (resendEmail && existing?.otp_code) {
+        // Reset and regenerate email OTP
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        patch.otp_code = code;
+        console.log(`\n=========================================\n🔄 OTP REENVIADO PARA ${currentEmail}: ${code}\n=========================================\n`);
+      } else if (!existing?.otp_code && !patch.otp_code && patch.email) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.otp_code = code;
         console.log(`\n=========================================\n🔐 OTP GERADO PARA ${currentEmail}: ${code}\n=========================================\n`);
-      } else if (existing?.otp_code) {
+      } else if (existing?.otp_code && !resendEmail) {
         const extracted = extractOtp(userMessage);
         if (extracted === existing.otp_code) {
           patch.email_verified = true;
@@ -139,12 +147,18 @@ export class CheckoutCustomerService {
     }
 
     if (currentPhone && !existing?.phone_verified) {
-      if (!existing?.phone_otp_code && !patch.phone_otp_code && patch.phone) {
+      if (resendSms && existing?.phone_otp_code) {
+        // Reset and regenerate SMS OTP
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        patch.phone_otp_code = code;
+        console.log(`\n=========================================\n🔄 SMS OTP REENVIADO PARA ${currentPhone}: ${code}\n=========================================\n`);
+      } else if (!existing?.phone_otp_code && !patch.phone_otp_code && patch.phone) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.phone_otp_code = code;
         console.log(`\n=========================================\n🔐 SMS OTP GERADO PARA ${currentPhone}: ${code}\n=========================================\n`);
-      } else if (existing?.phone_otp_code) {
+      } else if (existing?.phone_otp_code && !resendSms) {
         const extracted = extractOtp(userMessage);
+        console.log(`\n🔍 OTP COMPARAÇÃO: extraído="${extracted}" esperado="${existing.phone_otp_code}" match=${extracted === existing.phone_otp_code}\n`);
         if (extracted === existing.phone_otp_code) {
           patch.phone_verified = true;
           patch.phone_otp_code = "";
