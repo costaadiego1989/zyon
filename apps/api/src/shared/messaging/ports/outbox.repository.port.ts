@@ -7,4 +7,7 @@ export type MaybePromise<T> = T | Promise<T>;
 export interface OutboxRepository {
   appendOutbox(event: DomainEventEnvelope): MaybePromise<DomainEventEnvelope>;
   listOutbox(merchantId: string): MaybePromise<DomainEventEnvelope[]>;
+  listPending(batchSize?: number): MaybePromise<DomainEventEnvelope[]>;
+  markDelivered(eventId: string): MaybePromise<void>;
+  markFailed(eventId: string): MaybePromise<void>;
 }
