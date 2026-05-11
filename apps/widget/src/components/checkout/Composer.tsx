@@ -1,4 +1,4 @@
-import { Send, Sparkles, Mail, Phone, CreditCard, Hash, User, MapPin } from "lucide-react";
+import { Send, Sparkles, Mail, Phone, CreditCard, Hash, User, MapPin, KeyRound } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { agentGivenAndRest } from "../../hooks/checkout-view-model.js";
 
@@ -12,6 +12,26 @@ function getInputMeta(vm: CheckoutAgentViewModel): {
 } {
   const expected = vm.activeExperience.copy.expected_input_type;
   const missing = vm.lastChat?.missing_fields?.[0];
+
+  // OTP checks FIRST — must not be overridden by expected_input_type
+  if (missing === "código de verificação do celular") {
+    return {
+      placeholder: "Código de 6 dígitos",
+      inputType: "text",
+      icon: <KeyRound size={14} />,
+      inputMode: "numeric",
+      maxLength: 6
+    };
+  }
+  if (missing === "código de verificação") {
+    return {
+      placeholder: "Código de verificação do e-mail",
+      inputType: "text",
+      icon: <KeyRound size={14} />,
+      inputMode: "numeric",
+      maxLength: 6
+    };
+  }
 
   if (expected === "email" || missing === "email") {
     return {
@@ -116,6 +136,7 @@ export function Composer({ vm }: { vm: CheckoutAgentViewModel }) {
     if (missing === "CPF" || missing === "cpf") val = formatCPF(val);
     else if (missing === "telefone" || missing === "phone") val = formatPhone(val);
     else if (missing === "CEP" || missing === "cep" || missing === "zip") val = formatCEP(val);
+    else if (missing === "código de verificação do celular" || missing === "código de verificação") val = val.replace(/\D/g, "").slice(0, 6);
     vm.setMessage(val);
   };
 
@@ -128,7 +149,7 @@ export function Composer({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
 
         <form
-          className="aacp-composer"
+          className="aacp-composer aacp-composer-form"
           onSubmit={(e) => {
             e.preventDefault();
             void vm.sendMessage();
