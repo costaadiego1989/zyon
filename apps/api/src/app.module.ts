@@ -21,6 +21,7 @@ import { ShippingModule } from "./modules/shipping/shipping.module.js";
 import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module.js";
 import { SupportModule } from "./modules/support/support.module.js";
 import { SelfCheckoutModule } from "./modules/self-checkout/self-checkout.module.js";
+import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module.js";
 
 @Module({
   imports: [
@@ -56,7 +57,8 @@ import { SelfCheckoutModule } from "./modules/self-checkout/self-checkout.module
     ShippingModule,
     FulfillmentModule,
     SupportModule,
-    SelfCheckoutModule
+    SelfCheckoutModule,
+    BuyerAccountModule
   ]
 })
 export class AppModule {}
