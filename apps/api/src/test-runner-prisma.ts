@@ -1,0 +1,10 @@
+import "./modules/auth/presentation/auth-merchant.prisma-e2e-spec.js";
+import "./modules/agent-rules/presentation/http/agent-rules.prisma-e2e-spec.js";
+import "./modules/checkout-settings/infrastructure/prisma-checkout-settings.repository.int-spec.js";
+import "./modules/checkout/infrastructure/prisma/prisma-checkout.repository.int-spec.js";
+import "./modules/checkout/infrastructure/prisma-intervention-ledger.repository.int-spec.js";
+import "./modules/checkout/presentation/http/checkout.controller.prisma-e2e-spec.js";
+import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.js";
+import "./modules/payment/infrastructure/prisma-payment.repository.int-spec.js";
+import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.int-spec.js";
+import "./modules/buyer-account/presentation/http/buyer-account.e2e-spec.js";
