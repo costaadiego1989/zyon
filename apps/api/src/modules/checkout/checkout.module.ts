@@ -3,6 +3,7 @@ import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
+import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
@@ -43,9 +44,10 @@ import { InMemoryCheckoutRepository } from "./infrastructure/repositories/in-mem
 import { InMemoryInterventionLedger } from "./infrastructure/in-memory-intervention-ledger.js";
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
+import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
 
 @Module({
-  imports: [AgentRulesModule, CheckoutSettingsModule, BuyerPurchaseHistoryModule, MerchantModule],
+  imports: [AgentRulesModule, CheckoutSettingsModule, BuyerPurchaseHistoryModule, MerchantModule, CrossSellModule],
   controllers: [CheckoutController],
   providers: [
     StartCheckoutUseCase,
@@ -99,7 +101,8 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
     { provide: CONVERSATION_PORT, useExisting: OpenAiConversationAdapter },
-    { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter }
+    { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
+    PaymentApprovedHandler
   ],
   exports: [
     CHECKOUT_REPOSITORY,
