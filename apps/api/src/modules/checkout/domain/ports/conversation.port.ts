@@ -1,4 +1,4 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@aacp/shared-types";
 import type { Objection } from "@aacp/conversation-engine";
 
 export const CONVERSATION_PORT = Symbol("CONVERSATION_PORT");
@@ -14,6 +14,7 @@ export interface ConversationReplyInput {
   stage?: ChatStage;
   missingFields?: string[];
   deliverySummary?: string;
+  shippingOptions?: ShippingQuote[];
 }
 
 export interface ConversationPort {
