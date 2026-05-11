@@ -13,8 +13,7 @@ export const PRISMA_CLIENT = Symbol("PRISMA_CLIENT");
       provide: PRISMA_CLIENT,
       useFactory: (tenantCtx: TenantContextService): PrismaClient => {
         const client = createPrismaClient();
-        registerTenantMiddleware(client, tenantCtx);
-        return client;
+        return registerTenantMiddleware(client, tenantCtx) as unknown as PrismaClient;
       },
       inject: [TenantContextService],
     },
