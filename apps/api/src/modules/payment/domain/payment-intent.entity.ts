@@ -40,7 +40,13 @@ export type PaymentIntentSnapshot = {
   providerPaymentId?: string;
   approvedAmountCents?: number;
   acceptedOfferId?: string;
-  buyerFacing?: { qrCodeCopyPaste?: string; invoiceUrl?: string; encodedQrImage?: string };
+  buyerFacing?: {
+    qrCodeCopyPaste?: string;
+    invoiceUrl?: string;
+    encodedQrImage?: string;
+    clientSecret?: string;
+    stripePublishableKey?: string;
+  };
   statusHistory: PaymentIntentStatusHistoryEntry[];
 };
 
