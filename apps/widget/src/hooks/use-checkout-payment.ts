@@ -1,14 +1,14 @@
+import { useState } from "react";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { checkoutJson, CHECKOUT_EMBED_PATHS, CHECKOUT_LEGACY_PATHS } from "../lib/embed-client.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { CheckoutChatState } from "./use-checkout-chat.js";
 
-export interface CardDetails {
-  holderName: string;
-  number: string;
-  expiryMonth: string;
-  expiryYear: string;
-  ccv: string;
+export interface StripeIntent {
+  clientSecret: string;
+  publishableKey: string;
+  amountCents: number;
+  currency: string;
 }
 
 export function useCheckoutPayment(
@@ -18,14 +18,21 @@ export function useCheckoutPayment(
 ) {
   const { session, apiOrigin, embedOpts } = sessionState;
   const { appendAgentTurn, lastChat } = chatState;
+  const [stripeIntent, setStripeIntent] = useState<StripeIntent | null>(null);
 
-  async function createPaymentIntent(method: "pix" | "card", card?: CardDetails): Promise<void> {
-    if (!session) return;
-    type PaySnapshot = {
-      amountCents?: number;
-      currency?: string;
-      buyerFacing?: { invoiceUrl?: string; qrCodeCopyPaste?: string };
+  type PaySnapshot = {
+    amountCents?: number;
+    currency?: string;
+    buyerFacing?: {
+      invoiceUrl?: string;
+      qrCodeCopyPaste?: string;
+      clientSecret?: string;
+      stripePublishableKey?: string;
     };
+  };
+
+  async function createPaymentIntent(method: "pix" | "card"): Promise<void> {
+    if (!session) return;
     const offerNow = lastChat?.authorized_offer;
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
     const body: Record<string, unknown> = {
@@ -33,15 +40,26 @@ export function useCheckoutPayment(
       idempotency_key: crypto.randomUUID(),
       method,
       ...(config.mode !== "embed" && { merchant_id: config.merchantId }),
-      ...(offerNow?.approved && offerNow.id ? { accepted_offer_id: offerNow.id } : {}),
-      ...(card ? { card } : {})
+      ...(offerNow?.approved && offerNow.id ? { accepted_offer_id: offerNow.id } : {})
     };
     try {
       const snap = await checkoutJson<PaySnapshot>(apiOrigin, paths.paymentIntents, { ...embedOpts, body });
+      const bf = snap.buyerFacing;
+
+      // Stripe card path — store intent for PaymentElement confirmation
+      if (method === "card" && bf?.clientSecret && bf?.stripePublishableKey) {
+        setStripeIntent({
+          clientSecret: bf.clientSecret,
+          publishableKey: bf.stripePublishableKey,
+          amountCents: snap.amountCents ?? 0,
+          currency: snap.currency ?? "BRL"
+        });
+        return;
+      }
+
       const total = typeof snap.amountCents === "number"
         ? `${(snap.amountCents / 100).toFixed(2)} ${snap.currency ?? ""}`.trim()
         : "";
-      const bf = snap.buyerFacing;
       const pixLine = bf?.invoiceUrl
         ? ` Fatura/link: ${bf.invoiceUrl}.`
         : bf?.qrCodeCopyPaste
@@ -54,6 +72,16 @@ export function useCheckoutPayment(
         { stream: true }
       );
     }
+  }
+
+  function onStripePaymentConfirmed(amountCents: number, currency: string): void {
+    setStripeIntent(null);
+    const total = `${(amountCents / 100).toFixed(2)} ${currency}`.trim();
+    appendAgentTurn(`Pagamento confirmado (${total}). Seu pedido está sendo processado!`, { stream: true });
+  }
+
+  function onStripePaymentError(message: string): void {
+    appendAgentTurn(message || "Pagamento recusado. Verifique os dados do cartão.", { stream: true });
   }
 
   async function createEmbedPaymentIntentDemo(): Promise<void> {
@@ -98,7 +126,13 @@ export function useCheckoutPayment(
     }
   }
 
-  return { createPaymentIntent, createEmbedPaymentIntentDemo };
+  return {
+    createPaymentIntent,
+    createEmbedPaymentIntentDemo,
+    stripeIntent,
+    onStripePaymentConfirmed,
+    onStripePaymentError
+  };
 }
 
 export type CheckoutPaymentState = ReturnType<typeof useCheckoutPayment>;
