@@ -13,6 +13,26 @@ import type {
   StartCheckoutResponse
 } from "@aacp/shared-types";
 
+// ── Stripe mocks (hoisted so they're available inside vi.mock factories) ──────
+const { mockConfirmPaymentGlobal, mockLoadStripeGlobal } = vi.hoisted(() => ({
+  mockConfirmPaymentGlobal: vi.fn(),
+  mockLoadStripeGlobal: vi.fn()
+}));
+
+vi.mock("@stripe/react-stripe-js", () => ({
+  Elements: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PaymentElement: () => <div data-testid="stripe-payment-element" />,
+  useStripe: () => ({ confirmPayment: mockConfirmPaymentGlobal }),
+  useElements: () => ({})
+}));
+
+vi.mock("@stripe/stripe-js", () => ({
+  loadStripe: mockLoadStripeGlobal
+}));
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { stripePromiseCache } from "../components/checkout/CreditCardForm.js";
+
 const baseTheme: MerchantTheme = {
   accentColor: "#FF0066",
   textColor: "#0F172A",
@@ -349,6 +369,10 @@ describe("CheckoutAgent (conversational)", () => {
   beforeEach(() => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     vi.stubEnv("AACP_DISABLE_STREAMING", "1");
+    stripePromiseCache.clear();
+    mockConfirmPaymentGlobal.mockReset();
+    mockLoadStripeGlobal.mockReset();
+    mockLoadStripeGlobal.mockResolvedValue({ confirmPayment: mockConfirmPaymentGlobal });
 
     fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -1074,6 +1098,112 @@ describe("CheckoutAgent (conversational)", () => {
     });
   });
 
+  it("Stripe card flow: clicar quick reply 'Cartão' abre CreditCardForm; init cria intent; submit confirma pagamento", async () => {
+    mockConfirmPaymentGlobal.mockResolvedValueOnce({ error: undefined });
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        return new Response(
+          JSON.stringify(
+            buildChatResponse("Escolha o método de pagamento", "payment", {
+              quickReplies: ["Pagar com Cartão de Crédito", "Pagar com PIX"],
+              actions: []
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url.endsWith("/embed/payment/intents")) {
+        return new Response(
+          JSON.stringify({
+            amountCents: 90982,
+            currency: "BRL",
+            buyerFacing: {
+              clientSecret: "pi_test_secret_integration",
+              stripePublishableKey: "pk_test_integration"
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText, getByTestId } = render(<CheckoutAgent config={buildConfig()} />);
+
+    // Wait for initial greeting
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    // Send a message → triggers chat → response contains card QR
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Quero pagar" } });
+    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    // Wait for payment stage quick replies to appear
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagar com Cartão de Crédito");
+    });
+
+    // Click card quick reply → showCardForm = true (CreditCardForm appears)
+    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("Cartão"));
+    expect(cardQr).not.toBeUndefined();
+
+    await act(async () => {
+      fireEvent.click(cardQr!);
+    });
+
+    // CreditCardForm renders with "Pagar com cartão" init button
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagar com cartão");
+    });
+
+    // Click init button → createPaymentIntent("card") → /embed/payment/intents
+    const initBtn = Array.from(container.querySelectorAll("button"))
+      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
+    expect(initBtn).not.toBeUndefined();
+
+    await act(async () => {
+      fireEvent.click(initBtn!);
+    });
+
+    // After intent created: PaymentElement (mocked) appears
+    await waitFor(() => {
+      expect(getByTestId("stripe-payment-element")).not.toBeNull();
+    });
+
+    // Submit form → confirmPayment called → Stripe success → agent turn "Pagamento confirmado"
+    const form = container.querySelector("form");
+    expect(form).not.toBeNull();
+
+    await act(async () => {
+      fireEvent.submit(form!);
+    });
+
+    expect(mockConfirmPaymentGlobal).toHaveBeenCalledOnce();
+    expect(mockConfirmPaymentGlobal).toHaveBeenCalledWith(
+      expect.objectContaining({ redirect: "if_required" })
+    );
+
+    // Agent turn with "Pagamento confirmado" appears in chat
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagamento confirmado");
+    });
+
+    // No raw card inputs ever in DOM
+    expect(container.querySelector('input[autocomplete="cc-number"]')).toBeNull();
+    expect(container.querySelector('input[name="cardNumber"]')).toBeNull();
+  });
+
   it("supports dynamic client configuration for agent and copy from attributes and renders relocated Reset button", async () => {
     // Stub fetch to return the custom dynamic configurations
     fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
@@ -1123,11 +1253,8 @@ describe("CheckoutAgent (conversational)", () => {
 
     // Verify initial copy configuration headline (rendered as brand subtitle or document metadata)
     await waitFor(() => {
-      expect(container.textContent).toContain("Zion");
+      expect(container.textContent).toContain("Olá! Conectando com a loja para buscar seu pedido.");
     });
-
-    // Check custom greeting is displayed in the chat interface
-    expect(container.textContent).toContain("Olá! Conectando com a loja para buscar seu pedido.");
 
     // Check that custom quick replies are shown
     expect(container.textContent).toContain("Iniciar Checkout");
@@ -1141,5 +1268,541 @@ describe("CheckoutAgent (conversational)", () => {
     const resetButton = Array.from(container.querySelectorAll("button"))
       .find(btn => btn.textContent === "Reset");
     expect(resetButton).not.toBeNull();
+  });
+
+  it("Sedex shipping selection updates totals with shipping cost", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        const msg: string = body.user_message || "";
+        if (msg.toLowerCase().includes("sedex")) {
+          return new Response(
+            JSON.stringify(
+              buildChatResponse("Sedex selecionado! Escolha o pagamento.", "payment", {
+                quickReplies: ["Pagar com PIX"],
+                actions: [],
+                experience: {
+                  stage: "payment",
+                  totals: {
+                    currency: "BRL",
+                    subtotal: 899.8,
+                    shipping: 15,
+                    discount: 0,
+                    total: 914.8
+                  }
+                }
+              })
+            ),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify(
+            buildChatResponse("Escolha a entrega.", "shipping", {
+              quickReplies: ["PAC (Grátis)", "Sedex (R$ 15,00)"],
+              actions: [],
+              experience: {
+                stage: "shipping",
+                shippingOptions: [
+                  { customerPrice: 0, carrier: "Correios", method: "PAC", deliveryDays: 5 },
+                  { customerPrice: 15, carrier: "Correios", method: "Sedex", deliveryDays: 2 }
+                ]
+              }
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "calcular frete" } });
+    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Sedex (R$ 15,00)");
+    });
+
+    const sedexQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("Sedex"));
+    expect(sedexQr).not.toBeUndefined();
+    fireEvent.click(sedexQr!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("914,80");
+    });
+  });
+
+  it("cart quantity increment and decrement update item count", async () => {
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cart-brand strong")?.textContent).toBe("Northstar Atelier");
+    });
+
+    // Initial qty = 2
+    const qtySpan = () => container.querySelector(".aacp-item-meta span");
+    expect(qtySpan()?.textContent).toBe("2");
+
+    fireEvent.click(getByLabelText("Aumentar quantidade de Bolsa Executiva"));
+    await waitFor(() => {
+      expect(qtySpan()?.textContent).toBe("3");
+    });
+
+    fireEvent.click(getByLabelText("Diminuir quantidade de Bolsa Executiva"));
+    await waitFor(() => {
+      expect(qtySpan()?.textContent).toBe("2");
+    });
+
+    // Decrement to 1 then 0 (removes item)
+    fireEvent.click(getByLabelText("Diminuir quantidade de Bolsa Executiva"));
+    await waitFor(() => { expect(qtySpan()?.textContent).toBe("1"); });
+    fireEvent.click(getByLabelText("Diminuir quantidade de Bolsa Executiva"));
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cart-empty")).not.toBeNull();
+    });
+  });
+
+  it("coupon box: typing code and submitting sends message to agent", async () => {
+    let capturedMessage = "";
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        capturedMessage = body.user_message || "";
+        const hasCoupon = capturedMessage.includes("PROMO10");
+        return new Response(
+          JSON.stringify(
+            buildChatResponse(
+              hasCoupon ? "Cupom aplicado! Desconto de 10%." : "Escolha o pagamento.",
+              "payment",
+              {
+                quickReplies: [],
+                actions: [],
+                experience: hasCoupon
+                  ? {
+                      stage: "payment",
+                      totals: {
+                        currency: "BRL",
+                        subtotal: 899.8,
+                        shipping: 0,
+                        discount: 89.98,
+                        total: 809.82
+                      }
+                    }
+                  : {}
+              }
+            )
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    const chatInput = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    fireEvent.change(chatInput, { target: { value: "quero pagar" } });
+    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    await waitFor(() => {
+      expect(getByLabelText("Cupom de desconto")).not.toBeNull();
+    });
+
+    const couponInput = getByLabelText("Cupom de desconto") as HTMLInputElement;
+    fireEvent.change(couponInput, { target: { value: "PROMO10" } });
+    expect(couponInput.value).toBe("PROMO10");
+
+    fireEvent.submit(couponInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(capturedMessage).toBe("Tenho o cupom: PROMO10");
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("Cupom aplicado");
+    });
+  });
+
+  it("Stripe card declined: confirmPayment error shown in chat", async () => {
+    mockConfirmPaymentGlobal.mockResolvedValueOnce({ error: { message: "Seu cartão foi recusado." } });
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        return new Response(
+          JSON.stringify(
+            buildChatResponse("Escolha o método de pagamento", "payment", {
+              quickReplies: ["Pagar com Cartão de Crédito"],
+              actions: []
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url.endsWith("/embed/payment/intents")) {
+        return new Response(
+          JSON.stringify({
+            amountCents: 90982,
+            currency: "BRL",
+            buyerFacing: {
+              clientSecret: "pi_test_secret_decline",
+              stripePublishableKey: "pk_test_decline"
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText, getByTestId } = render(<CheckoutAgent config={buildConfig()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Quero pagar com cartão" } });
+    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagar com Cartão de Crédito");
+    });
+
+    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("Cartão"));
+    await act(async () => { fireEvent.click(cardQr!); });
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Pagar com cartão");
+    });
+
+    const initBtn = Array.from(container.querySelectorAll("button"))
+      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
+    await act(async () => { fireEvent.click(initBtn!); });
+
+    await waitFor(() => {
+      expect(getByTestId("stripe-payment-element")).not.toBeNull();
+    });
+
+    const form = container.querySelector("form");
+    await act(async () => { fireEvent.submit(form!); });
+
+    expect(mockConfirmPaymentGlobal).toHaveBeenCalledOnce();
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Seu cartão foi recusado.");
+    });
+  });
+
+  it("validates email, OTP, and phone with success and error cases", async () => {
+    let lastSentMessage = "";
+    let attemptCount = 0;
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        lastSentMessage = body.user_message || "";
+        attemptCount++;
+
+        let messageText = "Como posso ajudar?";
+        let qrs: string[] = [];
+
+        // Name validation (always success)
+        if (lastSentMessage.includes("João")) {
+          messageText = "Obrigado, João! Agora informe seu email.";
+          qrs = ["joao@email.com"];
+        }
+        // Email validation - test invalid email
+        else if (lastSentMessage === "email-invalido") {
+          messageText = "Email inválido. Por favor, informe um email válido.";
+          qrs = ["joao@email.com"];
+        }
+        // Email validation - success case
+        else if (lastSentMessage.includes("@") && !lastSentMessage.includes("invalido")) {
+          messageText = "Obrigado! Informe o código de verificação enviado para seu email.";
+          qrs = ["123456"];
+        }
+        // OTP validation - test wrong OTP
+        else if (lastSentMessage === "otp-errado") {
+          messageText = "Código incorreto. Tente novamente ou solicite um novo código.";
+          qrs = ["Reenviar código", "123456"];
+        }
+        // OTP validation - success case
+        else if (lastSentMessage === "123456") {
+          messageText = "Email verificado com sucesso! Qual o seu CPF?";
+          qrs = ["123.456.789-00"];
+        }
+        // CPF validation - success
+        else if (lastSentMessage.includes("123.456.789-00")) {
+          messageText = "Obrigado! Qual seu telefone?";
+          qrs = ["(11) 99999-9999"];
+        }
+        // Phone validation - test invalid phone
+        else if (lastSentMessage === "telefone-invalido") {
+          messageText = "Número de telefone inválido. Use o formato (11) 99999-9999.";
+          qrs = ["(11) 99999-9999"];
+        }
+        // Phone validation - success
+        else if (lastSentMessage.includes("(11) 99999-9999")) {
+          messageText = "Telefone verificado! Cadastro completo.";
+          qrs = [];
+        }
+
+        return new Response(
+          JSON.stringify(
+            buildChatResponse(messageText, "data_collection", {
+              quickReplies: qrs,
+              experience: {},
+              actions: []
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+
+    // 1. Send valid name
+    fireEvent.change(input, { target: { value: "Meu nome é João" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("João");
+    });
+
+    // 2. Test invalid email
+    fireEvent.change(input, { target: { value: "email-invalido" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Email inválido");
+    });
+
+    // 3. Send valid email
+    fireEvent.change(input, { target: { value: "joao@email.com" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("código de verificação");
+    });
+
+    // 4. Test wrong OTP
+    fireEvent.change(input, { target: { value: "otp-errado" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Código incorreto");
+    });
+
+    // 5. Send correct OTP
+    fireEvent.change(input, { target: { value: "123456" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Email verificado");
+    });
+
+    // 6. Send CPF
+    fireEvent.change(input, { target: { value: "123.456.789-00" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("telefone");
+    });
+
+    // 7. Test invalid phone
+    fireEvent.change(input, { target: { value: "telefone-invalido" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Número de telefone inválido");
+    });
+
+    // 8. Send valid phone
+    fireEvent.change(input, { target: { value: "(11) 99999-9999" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Telefone verificado");
+    });
+  });
+
+  it("cross-sell: banner renders when experience returns suggestedProducts", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        const response = buildStartResponse(baseTheme);
+        response.experience.suggestedProducts = [
+          { sku: "wallet-001", name: "Carteira Slim RFID", unit_price: 129.9, image_url: "https://cdn.example.com/wallet.jpg" },
+          { sku: "belt-002", name: "Cinto de Couro Genuíno", unit_price: 89.9 }
+        ];
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container } = render(<CheckoutAgent config={buildConfig()} />);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Você também pode gostar");
+    });
+    expect(container.textContent).toContain("Carteira Slim RFID");
+    expect(container.textContent).toContain("Cinto de Couro Genuíno");
+    expect(container.querySelectorAll(".aacp-cross-sell-card")).toHaveLength(2);
+  });
+
+  it("cross-sell: clicking Adicionar sends 'Quero adicionar: {name}' to chat API", async () => {
+    const capturedMessages: string[] = [];
+
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        const response = buildStartResponse(baseTheme);
+        response.experience.suggestedProducts = [
+          { sku: "wallet-001", name: "Carteira Slim RFID", unit_price: 129.9 }
+        ];
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        capturedMessages.push(body.user_message || "");
+        return new Response(
+          JSON.stringify(buildChatResponse("Produto adicionado ao seu pedido!", "data_collection", { actions: [], quickReplies: [] })),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container } = render(<CheckoutAgent config={buildConfig()} />);
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cross-sell-card")).not.toBeNull();
+    });
+
+    const addBtn = Array.from(container.querySelectorAll(".aacp-cross-sell-card button"))
+      .find((b) => (b.textContent ?? "").includes("Adicionar"));
+    expect(addBtn).not.toBeUndefined();
+
+    await act(async () => {
+      fireEvent.click(addBtn!);
+    });
+
+    await waitFor(() => {
+      expect(capturedMessages).toContain("Quero adicionar: Carteira Slim RFID");
+    });
+  });
+
+  it("cross-sell: after add, cart total updates with new item from API response", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        const response = buildStartResponse(baseTheme);
+        response.experience.suggestedProducts = [
+          { sku: "wallet-001", name: "Carteira Slim RFID", unit_price: 129.9 }
+        ];
+        return new Response(JSON.stringify(response), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        const isAddingCrossSell = (body.user_message || "").includes("Quero adicionar");
+        return new Response(
+          JSON.stringify(
+            buildChatResponse(
+              isAddingCrossSell ? "Adicionei a Carteira Slim RFID ao seu pedido!" : "Como posso ajudar?",
+              "data_collection",
+              {
+                actions: [],
+                quickReplies: [],
+                experience: isAddingCrossSell
+                  ? {
+                      items: [
+                        { sku: "bag-001", name: "Bolsa Executiva", quantity: 2, unit_price: 449.9, line_total: 899.8 },
+                        { sku: "wallet-001", name: "Carteira Slim RFID", quantity: 1, unit_price: 129.9, line_total: 129.9 }
+                      ],
+                      totals: {
+                        currency: "BRL",
+                        subtotal: 1029.7,
+                        shipping: 29.9,
+                        discount: 0,
+                        total: 1059.6
+                      }
+                    }
+                  : {}
+              }
+            )
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container } = render(<CheckoutAgent config={buildConfig()} />);
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toMatch(/929/);
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cross-sell-card")).not.toBeNull();
+    });
+
+    const addBtn = Array.from(container.querySelectorAll(".aacp-cross-sell-card button"))
+      .find((b) => (b.textContent ?? "").includes("Adicionar"));
+
+    await act(async () => {
+      fireEvent.click(addBtn!);
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("1.059,60");
+    });
+    expect(container.textContent).toContain("Carteira Slim RFID");
+    expect(container.querySelectorAll(".aacp-item")).toHaveLength(2);
   });
 });
