@@ -54,6 +54,8 @@ export interface GlobalAuthController {
   setPassword: (value: string) => void;
   setMerchantName: (value: string) => void;
   submit: () => Promise<void>;
+  sendPhoneCode: (phone: string) => Promise<boolean>;
+  verifyPhoneCode: (phone: string, code: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -233,6 +235,70 @@ export function useGlobalAuth(options: {
     }
   }
 
+  async function sendPhoneCode(phone: string): Promise<boolean> {
+    setLoading(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const res = await fetch(`${apiOrigin}/buyer/phone/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      if (!res.ok) {
+        const payload = (await res.json()) as unknown;
+        const reason =
+          typeof payload === "object" && payload != null && "message" in payload
+            ? String((payload as { message?: unknown }).message ?? "Falha ao enviar código.")
+            : "Falha ao enviar código.";
+        setError(reason);
+        return false;
+      }
+      return true;
+    } catch {
+      setError("Erro de rede ao enviar código.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function verifyPhoneCode(phone: string, code: string): Promise<boolean> {
+    setLoading(true);
+    setError(null);
+    setStatus(null);
+    try {
+      const res = await fetch(`${apiOrigin}/buyer/phone/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code }),
+      });
+      const payload = (await res.json()) as unknown;
+      if (!res.ok) {
+        const reason =
+          typeof payload === "object" && payload != null && "message" in payload
+            ? String((payload as { message?: unknown }).message ?? "Código inválido.")
+            : "Código inválido.";
+        setError(reason);
+        return false;
+      }
+      const parsed = authResponseSchema.safeParse(payload);
+      if (!parsed.success) {
+        setError("Resposta inválida do servidor.");
+        return false;
+      }
+      persist({ ...parsed.data, provider: "phone" });
+      setStatus("Login realizado com sucesso.");
+      setOpen(false);
+      return true;
+    } catch {
+      setError("Erro de rede ao verificar código.");
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return {
     open,
     panel,
@@ -253,6 +319,8 @@ export function useGlobalAuth(options: {
     setPassword,
     setMerchantName,
     submit,
+    sendPhoneCode,
+    verifyPhoneCode,
     logout
   };
 }
