@@ -223,6 +223,39 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }));
   }
 
+  async listPending(batchSize = 50): Promise<DomainEventEnvelope[]> {
+    const rows = await this.prisma.outboxMessage.findMany({
+      where: { status: "pending" },
+      orderBy: { createdAt: "asc" },
+      take: batchSize
+    });
+    return rows.map((row) => ({
+      event_id: row.eventId,
+      event_type: row.eventType as DomainEventEnvelope["event_type"],
+      schema_version: 1,
+      merchant_id: row.merchantId,
+      occurred_at: row.occurredAt.toISOString(),
+      correlation_id: row.correlationId,
+      causation_id: row.causationId,
+      producer: "checkout",
+      payload: row.payload as Record<string, unknown>
+    }));
+  }
+
+  async markDelivered(eventId: string): Promise<void> {
+    await this.prisma.outboxMessage.update({
+      where: { eventId },
+      data: { status: "delivered" }
+    });
+  }
+
+  async markFailed(eventId: string): Promise<void> {
+    await this.prisma.outboxMessage.update({
+      where: { eventId },
+      data: { status: "failed" }
+    });
+  }
+
   async overview(merchantId: string): Promise<DashboardOverview> {
     const [sessions, offers, events] = await Promise.all([
       this.prisma.checkoutSession.findMany({ where: { merchantId }, orderBy: { createdAt: "desc" }, take: 10 }),
