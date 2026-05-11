@@ -24,20 +24,31 @@ const TENANT_SCOPED_ACTIONS = new Set([
   "deleteMany",
 ]);
 
-export function registerTenantMiddleware(prisma: PrismaClient, tenantCtx: TenantContextService): void {
-  // @ts-expect-error Prisma middleware API
-  prisma.$use(async (params: Record<string, unknown>, next: (p: Record<string, unknown>) => Promise<unknown>) => {
-    const ctx = tenantCtx.get();
-    if (
-      ctx &&
-      TENANT_SCOPED_ACTIONS.has(params.action as string) &&
-      TENANT_SCOPED_MODELS.has(params.model as string)
-    ) {
-      const args = (params.args ?? {}) as Record<string, unknown>;
-      const where = (args.where ?? {}) as Record<string, unknown>;
-      args.where = { ...where, merchantId: ctx.merchantId };
-      params = { ...params, args };
-    }
-    return next(params);
+export function shouldInjectTenant(model: string, operation: string): boolean {
+  return TENANT_SCOPED_MODELS.has(model) && TENANT_SCOPED_ACTIONS.has(operation);
+}
+
+export function injectMerchantId(
+  args: Record<string, unknown>,
+  merchantId: string
+): Record<string, unknown> {
+  const where = (args.where ?? {}) as Record<string, unknown>;
+  return { ...args, where: { ...where, merchantId } };
+}
+
+export function registerTenantMiddleware(prisma: PrismaClient, tenantCtx: TenantContextService) {
+  return prisma.$extends({
+    query: {
+      $allModels: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async $allOperations({ model, operation, args, query }: any) {
+          const ctx = tenantCtx.get();
+          if (ctx && shouldInjectTenant(model as string, operation as string)) {
+            args = injectMerchantId(args as Record<string, unknown>, ctx.merchantId);
+          }
+          return query(args);
+        },
+      },
+    },
   });
 }
