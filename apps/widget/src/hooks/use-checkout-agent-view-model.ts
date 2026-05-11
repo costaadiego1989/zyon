@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Cart, CustomerHints, MerchantTheme, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, CustomerHints, MerchantTheme, ShippingQuote, SuggestedProduct } from "@aacp/shared-types";
 import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { useGlobalAuth } from "./use-global-auth.js";
 import { useAccountHub } from "./use-account-hub.js";
-import { injectGoogleFont, stageNarrative } from "./checkout-view-model.js";
+import { injectGoogleFont, stageNarrative, type QuickReplyChoice } from "./checkout-view-model.js";
 import { useCheckoutPanels } from "./use-checkout-panels.js";
 import { useCheckoutSession } from "./use-checkout-session.js";
 import { useCheckoutCart } from "./use-checkout-cart.js";
@@ -14,6 +14,7 @@ import { useCheckoutPayment } from "./use-checkout-payment.js";
 export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const isConversational = config.uiPresentation === "conversational";
   const [open, setOpen] = useState(isConversational);
+  const [crossSellDismissed, setCrossSellDismissed] = useState(false);
   const sessionState = useCheckoutSession(config);
   const cartState = useCheckoutCart(sessionState.experience, config);
   const panels = useCheckoutPanels();
@@ -29,7 +30,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const showCouponBox =
     checkoutStage === "payment" &&
     activeExperience.rules?.couponBoxEnabled !== false &&
-    visibleTotals.discount === 0;
+    visibleTotals.discount === 0 &&
+    !panels.showCardForm;
   const showOfferBanner = visibleTotals.discount > 0;
   const chatTrustBadges = activeExperience.copy.trust_badges.slice(0, 3);
 
@@ -66,10 +68,31 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     [activeExperience.shippingOptions]
   );
 
+  const suggestedProducts: SuggestedProduct[] = useMemo(
+    () => activeExperience.suggestedProducts ?? [],
+    [activeExperience.suggestedProducts]
+  );
+
+  async function addSuggestedProduct(product: SuggestedProduct): Promise<void> {
+    if (!session || networkError || chatState.busy) return;
+    await chatState.sendMessageWithOverride(`Quero adicionar: ${product.name}`);
+  }
+
+  function dismissCrossSell(): void {
+    setCrossSellDismissed(true);
+  }
+
   async function tapShippingOption(option: ShippingQuote): Promise<void> {
     if (!session || networkError || chatState.busy) return;
     applyShipping(option.method ?? "Frete", option.customerPrice);
     await chatState.sendMessageWithOverride(option.method || "Selecionar frete");
+  }
+
+  async function tapQuick(reply: QuickReplyChoice): Promise<void> {
+    if (/cart[aã]o/i.test(reply.label)) {
+      panels.setShowCardForm(true);
+    }
+    return chatState.tapQuick(reply);
   }
 
   function retryStartCheckout(): void {
@@ -113,7 +136,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     quickReplies: chatState.quickReplies,
     auth,
     hub,
-    tapQuick: chatState.tapQuick,
+    tapQuick,
     sendMessage: chatState.sendMessage,
     applyOffer: chatState.applyOffer,
     continueToPayment: chatState.continueToPayment,
@@ -124,6 +147,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     selectedShippingMethod,
     createEmbedPaymentIntentDemo: payment.createEmbedPaymentIntentDemo,
     createPaymentIntent: payment.createPaymentIntent,
+    stripeIntent: payment.stripeIntent,
+    onStripePaymentConfirmed: payment.onStripePaymentConfirmed,
+    onStripePaymentError: payment.onStripePaymentError,
     colorMode: panels.colorMode,
     toggleColorMode: panels.toggleColorMode,
     supportOpen: panels.supportOpen,
@@ -137,6 +163,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     cardError: panels.cardError,
     setCardError: panels.setCardError,
     shippingOptions,
+    suggestedProducts,
+    crossSellDismissed,
+    addSuggestedProduct,
+    dismissCrossSell,
     tapShippingOption,
     apiOrigin
   };
