@@ -2,7 +2,9 @@ import type {
   CheckoutSettings,
   CheckoutSettingsPatch,
   DashboardOverview,
-  MerchantRules
+  MerchantRules,
+  SupportSettings,
+  SupportSettingsPatch,
 } from "@aacp/shared-types";
 
 /** Base da API (sem barra final), ex.: `http://localhost:3001`. */
@@ -152,6 +154,14 @@ export function createDashboardApi(options: {
       payload: Record<string, unknown>
     ): Promise<NegotiationEvaluateBridgeResponse> {
       return dashboardJson(base, "/negotiations/evaluate", { method: "POST", jsonBody: payload }, f);
-    }
+    },
+
+    getSupportSettings(): Promise<SupportSettings> {
+      return dashboardJson(base, "/support/settings", { method: "GET" }, f);
+    },
+
+    putSupportSettings(patch: SupportSettingsPatch): Promise<SupportSettings> {
+      return dashboardJson(base, "/support/settings", { method: "PUT", jsonBody: patch }, f);
+    },
   };
 }
