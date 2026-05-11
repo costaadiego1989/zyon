@@ -1,9 +1,11 @@
 import React, { useRef, useEffect, useState } from "react";
-import { X, Send, Sparkles, ShieldCheck, Truck, CreditCard, Package, Headphones, ArrowRight, ArrowLeft } from "lucide-react";
+import { X, Send, Sparkles, ShieldCheck, Truck, CreditCard, Package, Headphones, ArrowRight, ArrowLeft, MessageCircle } from "lucide-react";
+import type { SupportFaqItem } from "@aacp/shared-types";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { useSupportChat } from "../../hooks/use-support-chat.js";
+import { useSupportFaq } from "../../hooks/use-support-faq.js";
 
-const SUGGESTIONS = [
+const DEFAULT_SUGGESTIONS = [
   { icon: <Truck size={14} />, label: "Qual o prazo de entrega?" },
   { icon: <CreditCard size={14} />, label: "Quais formas de pagamento?" },
   { icon: <ShieldCheck size={14} />, label: "É seguro comprar aqui?" },
@@ -13,13 +15,18 @@ const SUGGESTIONS = [
 
 export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   const [input, setInput] = useState("");
+  const [inputReady, setInputReady] = useState(true);
+  const [selectedFaq, setSelectedFaq] = useState<SupportFaqItem | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   const chat = useSupportChat({
     apiBaseUrl: vm.apiOrigin,
     merchantId: vm.config.merchantId,
     sessionId: vm.session?.session_id,
   });
+
+  const faq = useSupportFaq(vm.apiOrigin, vm.config.merchantId);
 
   useEffect(() => {
     if (threadRef.current) {
@@ -28,8 +35,21 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   }, [chat.messages]);
 
   useEffect(() => {
+    if (chat.loading) {
+      setInputReady(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      setInputReady(true);
+      inputRef.current?.focus();
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [chat.loading]);
+
+  useEffect(() => {
     if (!vm.supportOpen) {
       setInput("");
+      setSelectedFaq(null);
       chat.reset();
     }
   }, [vm.supportOpen]);
@@ -37,6 +57,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   const handleSend = (text: string) => {
     if (!text.trim() || chat.loading) return;
     setInput("");
+    setSelectedFaq(null);
     void chat.send(text);
   };
 
@@ -45,8 +66,27 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
     handleSend(input);
   };
 
+  const handleFaqClick = (item: SupportFaqItem) => {
+    setSelectedFaq(item);
+  };
+
+  const handleEscalateToAI = () => {
+    if (selectedFaq) {
+      handleSend(selectedFaq.question);
+    }
+  };
+
   const brandName = vm.activeExperience?.brand?.name || "a loja";
   const hasMessages = chat.messages.length > 0;
+  const hasMerchantFaq = faq.items.length > 0;
+
+  const faqCards = hasMerchantFaq
+    ? faq.items.map((item) => ({
+        icon: <MessageCircle size={14} />,
+        label: item.question,
+        item,
+      }))
+    : DEFAULT_SUGGESTIONS.map((s) => ({ ...s, item: null }));
 
   return (
     <>
@@ -57,10 +97,10 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       <aside className={`aacp-ai-panel ${vm.supportOpen ? "open" : ""}`}>
         {/* Header */}
         <div className="aacp-ai-head">
-          {hasMessages && (
+          {(hasMessages || selectedFaq) && (
             <button
               className="aacp-ai-close"
-              onClick={() => { chat.reset(); setInput(""); }}
+              onClick={() => { setSelectedFaq(null); chat.reset(); setInput(""); }}
               aria-label="Voltar"
               style={{ marginRight: 4 }}
             >
@@ -85,7 +125,35 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
 
         {/* Thread / Body */}
         <div className="aacp-ai-thread" ref={threadRef}>
-          {!hasMessages ? (
+          {selectedFaq ? (
+            /* FAQ answer view */
+            <div className="aacp-ai-welcome-section">
+              <div className="aacp-ai-welcome-avatar">
+                <ShieldCheck size={24} />
+              </div>
+              <h3 className="aacp-ai-welcome-title" style={{ fontSize: "0.95rem" }}>
+                {selectedFaq.question}
+              </h3>
+              <p className="aacp-ai-welcome-desc" style={{ textAlign: "left", fontSize: "0.9rem" }}>
+                {selectedFaq.answer}
+              </p>
+              <button
+                className="aacp-ai-faq-card"
+                style={{ marginTop: 12, width: "100%" }}
+                onClick={handleEscalateToAI}
+                disabled={chat.loading}
+              >
+                <span className="aacp-ai-faq-icon"><MessageCircle size={14} /></span>
+                <span className="aacp-ai-faq-label">Isso não respondeu minha dúvida</span>
+                <ArrowRight size={12} className="aacp-ai-faq-arrow" />
+              </button>
+              <div className="aacp-ai-trust-footer" style={{ marginTop: 12 }}>
+                <ShieldCheck size={12} />
+                <span>Respostas verificadas · Atendimento humano disponível</span>
+              </div>
+            </div>
+          ) : !hasMessages ? (
+            /* Welcome / FAQ list view */
             <div className="aacp-ai-welcome-section">
               <div className="aacp-ai-welcome-avatar">
                 <Sparkles size={24} />
@@ -96,12 +164,12 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
               </p>
 
               <div className="aacp-ai-faq-grid">
-                {SUGGESTIONS.map((s) => (
+                {faqCards.map((s) => (
                   <button
                     key={s.label}
                     className="aacp-ai-faq-card"
-                    disabled={chat.loading}
-                    onClick={() => handleSend(s.label)}
+                    disabled={chat.loading || faq.loading}
+                    onClick={() => s.item ? handleFaqClick(s.item) : handleSend(s.label)}
                   >
                     <span className="aacp-ai-faq-icon">{s.icon}</span>
                     <span className="aacp-ai-faq-label">{s.label}</span>
@@ -116,6 +184,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
               </div>
             </div>
           ) : (
+            /* Chat thread view */
             <>
               {chat.messages.map((msg, i) => (
                 <div
@@ -138,11 +207,17 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         <div className="aacp-ai-footer">
           <form className="aacp-ai-composer" onSubmit={handleSubmit}>
             <input
+              ref={inputRef}
               className="aacp-input"
               placeholder="Digite sua dúvida aqui..."
               value={input}
-              disabled={chat.loading}
               onChange={(e) => setInput(e.target.value)}
+              style={{
+                opacity: inputReady ? 1 : 0,
+                pointerEvents: inputReady ? "auto" : "none",
+                transform: inputReady ? "translateY(0)" : "translateY(4px)",
+                transition: "opacity 0.2s ease, transform 0.2s ease",
+              }}
             />
             <button type="submit" className="aacp-send" disabled={!input.trim() || chat.loading}>
               <Send size={16} />
