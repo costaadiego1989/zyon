@@ -185,6 +185,16 @@ export interface CheckoutItemSnapshot {
   variant?: string;
 }
 
+export interface SuggestedProduct {
+  sku: string;
+  name: string;
+  unit_price: number;
+  image_url?: string;
+  product_url?: string;
+  category?: string;
+  variant?: string;
+}
+
 export interface CheckoutTotalsSnapshot {
   currency: CurrencyCode;
   subtotal: number;
@@ -203,6 +213,7 @@ export interface CheckoutExperienceSnapshot {
   totals: CheckoutTotalsSnapshot;
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
+  suggestedProducts?: SuggestedProduct[];
   customer?: CustomerHints;
   agent: {
     name: string;
@@ -324,15 +335,66 @@ export type CheckoutDomainEventType =
   | "whatsapp.message.requested"
   | "payment.status.changed";
 
+export type CrossSellDomainEventType =
+  | "cross-sell.offer.suggested"
+  | "cross-sell.offer.accepted"
+  | "cross-sell.offer.declined";
+
+export type CouponsDomainEventType =
+  | "coupon.applied"
+  | "coupon.redeemed"
+  | "coupon.expired";
+
+export type SelfCheckoutDomainEventType =
+  | "buyer.registered"
+  | "buyer.wallet.payment-method-added"
+  | "buyer.template.created"
+  | "buyer.template.executed"
+  | "buyer.consent.updated";
+
+export type ScrapingAgentDomainEventType =
+  | "scraping.job.requested"
+  | "scraping.job.completed"
+  | "scraping.job.failed"
+  | "scraping.source.circuit-open";
+
+export type ShippingDomainEventType =
+  | "shipping.quote.created"
+  | "shipping.method.selected";
+
+export type FulfillmentDomainEventType =
+  | "shipment.created"
+  | "shipment.label-generated"
+  | "shipment.status-updated"
+  | "shipment.delivered";
+
+export type DomainEventType =
+  | CheckoutDomainEventType
+  | CrossSellDomainEventType
+  | CouponsDomainEventType
+  | SelfCheckoutDomainEventType
+  | ScrapingAgentDomainEventType
+  | ShippingDomainEventType
+  | FulfillmentDomainEventType;
+
+export type DomainEventProducer =
+  | "checkout"
+  | "cross-sell"
+  | "coupons"
+  | "self-checkout"
+  | "scraping-agent"
+  | "shipping"
+  | "fulfillment";
+
 export interface DomainEventEnvelope<TPayload = Record<string, unknown>> {
   event_id: string;
-  event_type: CheckoutDomainEventType;
+  event_type: DomainEventType;
   schema_version: 1;
   merchant_id: string;
   occurred_at: string;
   correlation_id: string;
   causation_id: string;
-  producer: "checkout";
+  producer: DomainEventProducer;
   payload: TPayload;
 }
 
@@ -545,6 +607,22 @@ export interface ApplyOfferResponse {
   experience?: CheckoutExperienceSnapshot;
   /** Turno do agente acrescentado quando a oferta foi aplicada com sucesso. */
   agent_turn?: ChatTurn;
+}
+
+export interface SupportFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface SupportSettings {
+  merchantId: string;
+  faqItems: SupportFaqItem[];
+  updatedAt: string;
+}
+
+export interface SupportSettingsPatch {
+  faqItems: SupportFaqItem[];
 }
 
 export interface DashboardOverview {
