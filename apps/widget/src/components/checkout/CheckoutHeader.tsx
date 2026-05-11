@@ -52,9 +52,9 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
               {(vm.activeExperience?.customer?.fullName || "C")[0]}
             </span>
             <span className="aacp-user-chip-name">
-              Olá, {vm.activeExperience?.customer?.fullName?.split(" ")[0] || "Cliente"}
+              Olá, {vm.activeExperience?.customer?.fullName?.split(" ")[0]}
+              <span className="aacp-user-chip-sub"> · Cliente</span>
             </span>
-            <span className="aacp-user-role">Cliente</span>
           </button>
         ) : (
           <button className="aacp-login-btn aacp-google-login" onClick={vm.auth.openLogin} aria-label="Entrar">
