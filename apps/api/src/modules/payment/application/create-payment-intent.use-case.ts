@@ -10,6 +10,7 @@ import type { PaymentProviderPort } from "../domain/ports/payment-provider.port.
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession } from "@aacp/shared-types";
 import { isAsaasConfigured } from "../infrastructure/asaas-env.js";
+import { isStripeConfigured } from "../infrastructure/stripe-env.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 
 export type CreatePaymentIntentRequest = {
@@ -68,7 +69,9 @@ export class CreatePaymentIntentUseCase {
     const method: PaymentMethod = body.method ?? "pix";
     const asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
-    if (isAsaasConfigured() && !asaasCustomer) {
+    // Asaas requires a pre-registered customer; Stripe does not
+    const needsAsaas = isAsaasConfigured() && !(method === "card" && isStripeConfigured());
+    if (needsAsaas && !asaasCustomer) {
       throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
     }
 
@@ -82,8 +85,10 @@ export class CreatePaymentIntentUseCase {
       acceptedOfferId: typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined
     });
 
+    const isStripeCard = method === "card" && isStripeConfigured();
+
     let creditCardHolderInfo: any = undefined;
-    if (method === "card" && session.customer) {
+    if (method === "card" && !isStripeCard && session.customer) {
       creditCardHolderInfo = {
         name: session.customer.fullName || "Comprador",
         email: session.customer.email || "",
@@ -101,11 +106,16 @@ export class CreatePaymentIntentUseCase {
       amountCents,
       currency: intent.snapshot().currency,
       method,
-      asaasCustomerId: asaasCustomer ?? "cust_fake_test_placeholder",
       description: `${merchantId}:${sessionId}`,
-      creditCard: method === "card" ? body.credit_card : undefined,
-      creditCardHolderInfo,
-      remoteIp: body.remote_ip
+      // Asaas-only fields — omitted on Stripe path
+      ...(isStripeCard
+        ? {}
+        : {
+            asaasCustomerId: asaasCustomer ?? "cust_fake_test_placeholder",
+            creditCard: body.credit_card,
+            creditCardHolderInfo,
+            remoteIp: body.remote_ip
+          })
     });
 
     intent.markRequiresAction({ providerPaymentId: created.providerPaymentId });
