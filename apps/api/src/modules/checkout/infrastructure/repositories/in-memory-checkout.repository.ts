@@ -95,11 +95,12 @@ export class InMemoryCheckoutRepository
   }
 
   saveSession(session: CheckoutSession): void {
-    this.sessions.set(this.key(session.merchantId, session.sessionId), session);
+    this.sessions.set(this.key(session.merchantId, session.sessionId), structuredClone(session));
   }
 
   getSession(merchantId: string, sessionId: string): CheckoutSession | undefined {
-    return this.sessions.get(this.key(merchantId, sessionId));
+    const stored = this.sessions.get(this.key(merchantId, sessionId));
+    return stored ? structuredClone(stored) : undefined;
   }
 
   findSessionsByEmail(merchantId: string, email: string): CheckoutSession[] {
@@ -170,6 +171,14 @@ export class InMemoryCheckoutRepository
   listOutbox(merchantId: string): DomainEventEnvelope[] {
     return this.outbox.filter((event) => event.merchant_id === merchantId);
   }
+
+  listPending(batchSize = 50): DomainEventEnvelope[] {
+    return this.outbox.slice(0, batchSize);
+  }
+
+  markDelivered(_eventId: string): void {}
+
+  markFailed(_eventId: string): void {}
 
   overview(merchantId: string): DashboardOverview {
     const sessions = [...this.sessions.values()].filter((session) => session.merchantId === merchantId);
