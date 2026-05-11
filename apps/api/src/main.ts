@@ -11,7 +11,7 @@ loadDotenv({ path: resolve(__dirname, "../.env") });
 loadDotenv({ path: resolve(__dirname, "../../../.env"), override: false });
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors({
     origin: true,
     credentials: true
