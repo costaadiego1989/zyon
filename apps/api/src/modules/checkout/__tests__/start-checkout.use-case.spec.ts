@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
-import type { CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
-import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { startCheckoutRequest } from "../../__tests__/checkout-test-fixtures.js";
-import { StartCheckoutUseCase } from "./start-checkout.use-case.js";
+import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
+import type { CheckoutSettingsPort } from "../domain/ports/checkout-settings.port.js";
+import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import { startCheckoutRequest } from "./checkout-test-fixtures.js";
+import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
 
 class ManualOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
   async getContext(merchantId: string) {

@@ -39,6 +39,9 @@ export class CheckoutShippingService {
         });
         await this.repository.saveSession(working);
         return working;
+      } else {
+        // neither yes nor no — stay in confirmation state, do not process as address data
+        return working;
       }
     }
 
@@ -77,6 +80,10 @@ export class CheckoutShippingService {
     if (!addr.street || !addr.zip) return null;
 
     if (!addr.number) {
+      const noNumberPhrase = /n[aã]o\s+tem\s+n[uú]mero|n[aã]o\s+h[aá]\s+n[uú]mero|casa\s+n[aã]o\s+tem\s+n[uú]mero|endere[cç]o\s+sem\s+n[uú]mero/i;
+      if (noNumberPhrase.test(text)) {
+        return { address: { ...addr, number: "S/N" } };
+      }
       const ln = extractAddressDetailLine(text);
       if (!ln?.number) return null;
       return { address: { ...addr, number: ln.number, complement: ln.complement } };
@@ -99,7 +106,6 @@ export class CheckoutShippingService {
       !addr.city ||
       !addr.state ||
       !addr.number ||
-      addr.complement === undefined ||
       session.shipping ||
       (session.shippingOptions?.length ?? 0) > 0
     ) {

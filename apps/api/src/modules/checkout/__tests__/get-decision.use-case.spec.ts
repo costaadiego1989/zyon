@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
+import type { CheckoutSettingsPort } from "../domain/ports/checkout-settings.port.js";
 import type { CheckoutTriggerName } from "@aacp/shared-types";
-import { checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { InMemoryInterventionLedger } from "../../infrastructure/in-memory-intervention-ledger.js";
-import { GetDecisionUseCase } from "./get-decision.use-case.js";
+import { checkoutSession } from "./checkout-test-fixtures.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import { InMemoryInterventionLedger } from "../infrastructure/in-memory-intervention-ledger.js";
+import { GetDecisionUseCase } from "../application/use-cases/get-decision.use-case.js";
 
 class StrictCheckoutSettingsPort implements CheckoutSettingsPort {
   async getContext(merchantId: string) {

@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkoutSession, authorizedOffer } from "../../__tests__/checkout-test-fixtures.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
+import { checkoutSession, authorizedOffer } from "./checkout-test-fixtures.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import { AcceptCheckoutOfferUseCase } from "../application/use-cases/accept-checkout-offer.use-case.js";
 
 test("AcceptCheckoutOfferUseCase records accepted offers once", async () => {
   const repository = new InMemoryCheckoutRepository();

@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AuthorizedOffer } from "@aacp/shared-types";
-import { authorizedOffer, checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
-import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
-import { ApplyOfferUseCase } from "./apply-offer.use-case.js";
+import { authorizedOffer, checkoutSession } from "./checkout-test-fixtures.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import type { CommerceOfferPort } from "../domain/ports/commerce-offer.port.js";
+import { AcceptCheckoutOfferUseCase } from "../application/use-cases/accept-checkout-offer.use-case.js";
+import { ApplyOfferUseCase } from "../application/use-cases/apply-offer.use-case.js";
 
 class FakeCommerceOfferPort implements CommerceOfferPort {
   async apply(offer: AuthorizedOffer) {

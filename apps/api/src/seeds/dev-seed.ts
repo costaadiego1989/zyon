@@ -177,6 +177,25 @@ async function main() {
     );
   }
 
+  // 5. Support FAQ (via API — requires server running and merchant token)
+  console.log("\n--- Support FAQ seed (use API after server starts) ---");
+  const supportFaq = {
+    faqItems: [
+      { id: "faq-01", question: "Qual o prazo de entrega?", answer: "O prazo de entrega varia de 3 a 7 dias úteis dependendo da sua região. Pedidos para capitais costumam chegar em até 3 dias." },
+      { id: "faq-02", question: "Como faço para rastrear meu pedido?", answer: "Após a confirmação do pagamento, você receberá um e-mail com o código de rastreamento. Use-o no site dos Correios ou da transportadora." },
+      { id: "faq-03", question: "Posso trocar ou devolver o produto?", answer: "Sim! Aceitamos trocas e devoluções em até 7 dias corridos após o recebimento, conforme o Código de Defesa do Consumidor. Entre em contato pelo e-mail de suporte." },
+      { id: "faq-04", question: "Quais são as formas de pagamento aceitas?", answer: "Aceitamos cartão de crédito (Visa, Mastercard, Elo, Amex), PIX e boleto bancário. Parcelamento em até 12x no cartão." },
+      { id: "faq-05", question: "Meu pagamento foi recusado, o que fazer?", answer: "Verifique os dados do cartão, o limite disponível e se o banco não bloqueou a transação. Tente novamente ou use outro método de pagamento." },
+      { id: "faq-06", question: "O produto chegou com defeito ou diferente do pedido?", answer: "Pedimos desculpas! Entre em contato com nosso suporte em até 7 dias com foto do produto. Providenciaremos a troca sem custo adicional." }
+    ]
+  };
+  console.log(
+    `curl -X PUT "${BASE_URL}/support/settings" \\
+  -H "Content-Type: application/json" \\
+  -H "Authorization: Bearer <MERCHANT_TOKEN>" \\
+  -d '${JSON.stringify(supportFaq)}'\n`
+  );
+
   console.log("Seed complete.\n");
 }
 

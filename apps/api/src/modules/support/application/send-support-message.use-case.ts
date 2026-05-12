@@ -19,8 +19,40 @@ export interface SupportMessageOutput {
   safe: boolean;
 }
 
-const FALLBACK_REPLY =
-  "Entendo sua dúvida. Para uma resposta mais detalhada, entre em contato com nosso suporte humano.";
+function smartFallback(text: string): string {
+  const t = text.toLowerCase();
+  if (/(frete|entrega|prazo|rastreio|rastreamento)/.test(t))
+    return "Para dúvidas sobre frete e prazo, consulte o rastreamento no e-mail de confirmação do pedido.";
+  if (/(troca|devolu|reembolso|cancelamento|cancelar)/.test(t))
+    return "Trocas e devoluções podem ser solicitadas em até 7 dias pelo e-mail de atendimento da loja.";
+  if (/(pagamento|cartão|cartao|pix|boleto|recusado|cobrado)/.test(t))
+    return "Para problemas com pagamento, verifique seu extrato ou entre em contato com o banco emissor.";
+  if (/(produto|item|estoque|disponível|disponivel|esgotado)/.test(t))
+    return "Para informações sobre disponibilidade de produto, acesse o site da loja.";
+  if (/(cupom|desconto|promoção|promocao|oferta)/.test(t))
+    return "Cupons são aplicados durante o checkout. Verifique se o código está correto e dentro do prazo de validade.";
+  if (/(conta|senha|login|acesso|cadastro)/.test(t))
+    return "Para problemas de acesso à conta, use a opção 'Esqueci minha senha' na página de login.";
+  return "Entendo sua dúvida. Nossa equipe responde em até 24h — envie um e-mail para o suporte da loja.";
+}
+
+function normalize(text: string): string {
+  return text.toLowerCase().normalize("NFD").replace(/\p{Diacritic}/gu, "");
+}
+
+function faqLookup(message: string, items: SupportFaqItem[]): string | null {
+  if (!items.length) return null;
+  const q = normalize(message);
+  let bestMatch: { answer: string; score: number } | null = null;
+  for (const item of items) {
+    const keywords = normalize(item.question).split(/\W+/).filter((k) => k.length > 3);
+    const score = keywords.filter((k) => q.includes(k)).length;
+    if (score >= 2 && (!bestMatch || score > bestMatch.score)) {
+      bestMatch = { answer: item.answer, score };
+    }
+  }
+  return bestMatch?.answer ?? null;
+}
 
 const BASE_SYSTEM_PROMPT = `Você é um assistente de suporte ao cliente. Responda dúvidas sobre entrega, pagamento, devoluções e pedidos de forma objetiva e empática.
 
@@ -67,7 +99,8 @@ export class SendSupportMessageUseCase {
     const baseUrl = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
 
     if (!apiKey) {
-      return { reply: FALLBACK_REPLY, safe: true };
+      const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
+      return { reply: faqReply ?? smartFallback(input.message), safe: true };
     }
 
     try {
@@ -90,7 +123,7 @@ export class SendSupportMessageUseCase {
       });
 
       if (!response.ok) {
-        return { reply: FALLBACK_REPLY, safe: true };
+        return { reply: smartFallback(input.message), safe: true };
       }
 
       const data = (await response.json()) as {
@@ -99,12 +132,12 @@ export class SendSupportMessageUseCase {
       const text = data.choices?.[0]?.message?.content?.trim() ?? "";
 
       if (!text || !isSafeGeneratedMessage(text)) {
-        return { reply: FALLBACK_REPLY, safe: false };
+        return { reply: smartFallback(input.message), safe: false };
       }
 
       return { reply: text, safe: true };
     } catch {
-      return { reply: FALLBACK_REPLY, safe: true };
+      return { reply: smartFallback(input.message), safe: true };
     }
   }
 }

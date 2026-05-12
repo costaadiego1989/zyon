@@ -1,24 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AgentContext } from "@aacp/shared-types";
-import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
-import type { ConversationPort } from "../../domain/ports/conversation.port.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
-import type { MerchantTheme } from "../../../merchant/domain/merchant.types.js";
-import type { BuyerEmailCapturePayload } from "../../infrastructure/brevo-buyer-email.notifier.js";
+import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
+import type { ConversationPort } from "../domain/ports/conversation.port.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
+import type { MerchantTheme } from "../../merchant/domain/merchant.types.js";
+import type { BuyerEmailCapturePayload } from "../infrastructure/brevo-buyer-email.notifier.js";
 import {
   merchantRules,
   startCheckoutRequest,
   completeOrderRequest
-} from "../../__tests__/checkout-test-fixtures.js";
-import { StartCheckoutUseCase } from "./start-checkout.use-case.js";
-import { SendChatMessageUseCase } from "./send-chat-message.use-case.js";
-import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
-import { CompleteOrderUseCase } from "./complete-order.use-case.js";
-import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
-import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
-import { CheckoutOfferService } from "../services/checkout-offer.service.js";
+} from "./checkout-test-fixtures.js";
+import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
+import { SendChatMessageUseCase } from "../application/use-cases/send-chat-message.use-case.js";
+import { BrevoBuyerEmailNotifier } from "../infrastructure/brevo-buyer-email.notifier.js";
+import { CompleteOrderUseCase } from "../application/use-cases/complete-order.use-case.js";
+import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../application/services/checkout-offer.service.js";
 
 function createTestUseCase(
   repository: InMemoryCheckoutRepository,

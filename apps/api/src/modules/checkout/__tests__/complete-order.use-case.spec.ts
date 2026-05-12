@@ -1,15 +1,15 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { checkoutSession, completeOrderRequest } from "../../__tests__/checkout-test-fixtures.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { BuyerPurchaseHistoryAdapter } from "../../infrastructure/adapters/buyer-purchase-history.adapter.js";
-import { CompleteOrderUseCase } from "./complete-order.use-case.js";
-import type { PurchaseHistoryPort, RecordCheckoutPurchaseInput } from "../../domain/ports/purchase-history.port.js";
-import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
+import { checkoutSession, completeOrderRequest } from "./checkout-test-fixtures.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import { BuyerPurchaseHistoryAdapter } from "../infrastructure/adapters/buyer-purchase-history.adapter.js";
+import { CompleteOrderUseCase } from "../application/use-cases/complete-order.use-case.js";
+import type { PurchaseHistoryPort, RecordCheckoutPurchaseInput } from "../domain/ports/purchase-history.port.js";
+import { InMemoryBuyerPurchaseHistoryRepository } from "../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import {
   GetBuyerPurchaseContextUseCase,
   RecordCompletedPurchaseUseCase
-} from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
+} from "../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 
 class RecordingPurchaseHistoryPort implements PurchaseHistoryPort {
   public records: RecordCheckoutPurchaseInput[] = [];

@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { NotFoundException } from "@nestjs/common";
-import type { CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
+import type { CheckoutSettingsPort } from "../domain/ports/checkout-settings.port.js";
 import type { CheckoutTriggerName } from "@aacp/shared-types";
-import { checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
-import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { InMemoryInterventionLedger } from "../../infrastructure/in-memory-intervention-ledger.js";
-import { TrackCheckoutEventUseCase } from "./track-checkout-event.use-case.js";
+import { checkoutSession } from "./checkout-test-fixtures.js";
+import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
+import { InMemoryInterventionLedger } from "../infrastructure/in-memory-intervention-ledger.js";
+import { TrackCheckoutEventUseCase } from "../application/use-cases/track-checkout-event.use-case.js";
 
 class PaymentOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
   async getContext(merchantId: string) {
