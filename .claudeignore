@@ -1,0 +1,22 @@
+# Dependências instaladas
+node_modules/
+.pnpm-store/
+
+# Outputs de build (leia sempre o source, nunca o compilado)
+dist/
+
+# Cache de ferramentas
+**/.vite/
+**/coverage/
+
+# Clone externo — projeto Lovable separado, não faz parte da codebase
+apps/widget_clone/
+
+# Skills dos editores — configuração de IDE, não código do projeto
+.claude/skills/
+.cursor/skills/
+.windsurf/skills/
+.agents/
+
+# Logs
+*.log
