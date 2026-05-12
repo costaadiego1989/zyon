@@ -1098,9 +1098,7 @@ describe("CheckoutAgent (conversational)", () => {
     });
   });
 
-  it("Stripe card flow: clicar quick reply 'Cartão' abre CreditCardForm; init cria intent; submit confirma pagamento", async () => {
-    mockConfirmPaymentGlobal.mockResolvedValueOnce({ error: undefined });
-
+  it("Card flow: clicar quick reply 'Cartão' abre CardForm; preencher dados; submit confirma pagamento", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
@@ -1120,93 +1118,66 @@ describe("CheckoutAgent (conversational)", () => {
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
-      if (url.endsWith("/embed/payment/intents")) {
+      if (url.endsWith("/payment/card-intent")) {
         return new Response(
-          JSON.stringify({
-            amountCents: 90982,
-            currency: "BRL",
-            buyerFacing: {
-              clientSecret: "pi_test_secret_integration",
-              stripePublishableKey: "pk_test_integration"
-            }
-          }),
+          JSON.stringify({ amount_cents: 92970, currency: "BRL" }),
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
       return new Response(JSON.stringify({}), { status: 200 });
     });
 
-    const { container, getByLabelText, getByTestId } = render(<CheckoutAgent config={buildConfig()} />);
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
-    // Wait for initial greeting
     await waitFor(() => {
       expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
     });
 
-    // Send a message → triggers chat → response contains card QR
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Quero pagar" } });
     fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
 
-    // Wait for payment stage quick replies to appear
     await waitFor(() => {
       expect(container.textContent).toContain("Pagar com Cartão de Crédito");
     });
 
-    // Click card quick reply → showCardForm = true (CreditCardForm appears)
+    // Click card quick reply → showCardForm = true → CardForm renders
     const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("Cartão"));
     expect(cardQr).not.toBeUndefined();
 
-    await act(async () => {
-      fireEvent.click(cardQr!);
-    });
+    await act(async () => { fireEvent.click(cardQr!); });
 
-    // CreditCardForm renders with "Pagar com cartão" init button
+    // CardForm renders with cc inputs
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com cartão");
+      expect(container.querySelector('input[autocomplete="cc-number"]')).not.toBeNull();
     });
 
-    // Click init button → createPaymentIntent("card") → /embed/payment/intents
-    const initBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
-    expect(initBtn).not.toBeUndefined();
+    // Fill valid card data
+    const ccNumber = container.querySelector('input[autocomplete="cc-number"]') as HTMLInputElement;
+    const ccName = container.querySelector('input[autocomplete="cc-name"]') as HTMLInputElement;
+    const ccExp = container.querySelector('input[autocomplete="cc-exp"]') as HTMLInputElement;
+    const ccCvv = container.querySelector('input[autocomplete="cc-csc"]') as HTMLInputElement;
 
-    await act(async () => {
-      fireEvent.click(initBtn!);
-    });
+    fireEvent.change(ccNumber, { target: { value: "4111111111111111" } });
+    fireEvent.change(ccName, { target: { value: "DIEGO COSTA" } });
+    fireEvent.change(ccExp, { target: { value: "12/28" } });
+    fireEvent.change(ccCvv, { target: { value: "123" } });
 
-    // After intent created: PaymentElement (mocked) appears
-    await waitFor(() => {
-      expect(getByTestId("stripe-payment-element")).not.toBeNull();
-    });
+    const cardForm = container.querySelector("form");
+    expect(cardForm).not.toBeNull();
 
-    // Submit form → confirmPayment called → Stripe success → agent turn "Pagamento confirmado"
-    const form = container.querySelector("form");
-    expect(form).not.toBeNull();
+    await act(async () => { fireEvent.submit(cardForm!); });
 
-    await act(async () => {
-      fireEvent.submit(form!);
-    });
-
-    expect(mockConfirmPaymentGlobal).toHaveBeenCalledOnce();
-    expect(mockConfirmPaymentGlobal).toHaveBeenCalledWith(
-      expect.objectContaining({ redirect: "if_required" })
-    );
-
-    // Agent turn with "Pagamento confirmado" appears in chat
+    // onStripePaymentConfirmed appends agent turn with "Pagamento confirmado"
     await waitFor(() => {
       expect(container.textContent).toContain("Pagamento confirmado");
     });
-
-    // No raw card inputs ever in DOM
-    expect(container.querySelector('input[autocomplete="cc-number"]')).toBeNull();
-    expect(container.querySelector('input[name="cardNumber"]')).toBeNull();
   });
 
   it("supports dynamic client configuration for agent and copy from attributes and renders relocated Reset button", async () => {
     // Stub fetch to return the custom dynamic configurations
-    fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
         const payload = buildStartResponse(baseTheme);
@@ -1445,9 +1416,7 @@ describe("CheckoutAgent (conversational)", () => {
     });
   });
 
-  it("Stripe card declined: confirmPayment error shown in chat", async () => {
-    mockConfirmPaymentGlobal.mockResolvedValueOnce({ error: { message: "Seu cartão foi recusado." } });
-
+  it("Card declined: CardForm exibe erro quando /payment/card-intent retorna 4xx", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
@@ -1467,23 +1436,16 @@ describe("CheckoutAgent (conversational)", () => {
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
-      if (url.endsWith("/embed/payment/intents")) {
+      if (url.endsWith("/payment/card-intent")) {
         return new Response(
-          JSON.stringify({
-            amountCents: 90982,
-            currency: "BRL",
-            buyerFacing: {
-              clientSecret: "pi_test_secret_decline",
-              stripePublishableKey: "pk_test_decline"
-            }
-          }),
-          { status: 200, headers: { "content-type": "application/json" } }
+          JSON.stringify({ message: "Seu cartão foi recusado." }),
+          { status: 402, headers: { "content-type": "application/json" } }
         );
       }
       return new Response(JSON.stringify({}), { status: 200 });
     });
 
-    const { container, getByLabelText, getByTestId } = render(<CheckoutAgent config={buildConfig()} />);
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
       expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
     });
@@ -1501,21 +1463,21 @@ describe("CheckoutAgent (conversational)", () => {
     await act(async () => { fireEvent.click(cardQr!); });
 
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com cartão");
+      expect(container.querySelector('input[autocomplete="cc-number"]')).not.toBeNull();
     });
 
-    const initBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
-    await act(async () => { fireEvent.click(initBtn!); });
+    const ccNumber = container.querySelector('input[autocomplete="cc-number"]') as HTMLInputElement;
+    const ccName = container.querySelector('input[autocomplete="cc-name"]') as HTMLInputElement;
+    const ccExp = container.querySelector('input[autocomplete="cc-exp"]') as HTMLInputElement;
+    const ccCvv = container.querySelector('input[autocomplete="cc-csc"]') as HTMLInputElement;
 
-    await waitFor(() => {
-      expect(getByTestId("stripe-payment-element")).not.toBeNull();
-    });
+    fireEvent.change(ccNumber, { target: { value: "4111111111111111" } });
+    fireEvent.change(ccName, { target: { value: "DIEGO COSTA" } });
+    fireEvent.change(ccExp, { target: { value: "12/28" } });
+    fireEvent.change(ccCvv, { target: { value: "123" } });
 
-    const form = container.querySelector("form");
-    await act(async () => { fireEvent.submit(form!); });
-
-    expect(mockConfirmPaymentGlobal).toHaveBeenCalledOnce();
+    const cardForm = container.querySelector("form");
+    await act(async () => { fireEvent.submit(cardForm!); });
 
     await waitFor(() => {
       expect(container.textContent).toContain("Seu cartão foi recusado.");

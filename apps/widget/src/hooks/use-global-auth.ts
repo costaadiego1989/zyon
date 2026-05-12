@@ -4,6 +4,7 @@ import {
   authCredentialsSchema,
   authRegisterSchema,
   authResponseSchema,
+  buyerAuthResponseSchema,
   globalAuthSessionSchema,
   type GlobalAuthSession
 } from "../lib/widget-schemas.js";
@@ -282,12 +283,27 @@ export function useGlobalAuth(options: {
         setError(reason);
         return false;
       }
-      const parsed = authResponseSchema.safeParse(payload);
-      if (!parsed.success) {
+      // Try buyer response shape first (camelCase), then merchant shape (snake_case)
+      const parsedBuyer = buyerAuthResponseSchema.safeParse(payload);
+      if (parsedBuyer.success) {
+        persist({
+          global_user_id: parsedBuyer.data.globalUserId,
+          email: parsedBuyer.data.email,
+          access_token: parsedBuyer.data.accessToken,
+          token_type: parsedBuyer.data.tokenType,
+          expires_in: parsedBuyer.data.expiresIn,
+          provider: "phone"
+        });
+        setStatus("Login realizado com sucesso.");
+        setOpen(false);
+        return true;
+      }
+      const parsedMerchant = authResponseSchema.safeParse(payload);
+      if (!parsedMerchant.success) {
         setError("Resposta inválida do servidor.");
         return false;
       }
-      persist({ ...parsed.data, provider: "phone" });
+      persist({ ...parsedMerchant.data, provider: "phone" });
       setStatus("Login realizado com sucesso.");
       setOpen(false);
       return true;

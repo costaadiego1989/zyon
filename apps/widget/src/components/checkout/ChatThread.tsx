@@ -1,6 +1,6 @@
 import { CheckCircle2, Gift, Copy, Check, Truck, Tag } from "lucide-react";
 import { CrossSellBanner } from "./CrossSellBanner.js";
-import { CreditCardForm } from "./CreditCardForm.js";
+import { CardForm } from "./CardForm.js";
 import { ShippingSelector } from "./ShippingSelector.js";
 import { Composer } from "./Composer.js";
 import { useEffect, useRef, useState } from "react";
@@ -47,7 +47,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
 
-      {!vm.activeExperience.shipping && vm.shippingOptions.length > 0 && vm.checkoutStage === "shipping" ? (
+      {!vm.selectedShippingMethod && vm.shippingOptions.length > 0 && vm.checkoutStage === "shipping" ? (
         <ShippingSelector
           options={vm.shippingOptions}
           selectedMethod={vm.selectedShippingMethod}
@@ -67,9 +67,9 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {vm.showCouponBox ? <CouponBox vm={vm} /> : null}
 
-      {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
+      {vm.showCardForm && vm.checkoutStage !== "completed" ? <CardForm vm={vm} /> : null}
 
-      {vm.showComposer && !vm.composerLocked && vm.quickReplies.length > 0 ? (
+      {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm)) && !vm.composerLocked && vm.quickReplies.length > 0 ? (
         <div className="aacp-quick-replies aacp-quick-replies--in-thread" role="group" aria-label="Respostas sugeridas">
           {vm.quickReplies.map((reply) => (
             <button
@@ -84,7 +84,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : null}
 
-      {vm.showComposer && (
+      {vm.showComposer && !vm.awaitingAgentPlayback && (
         <div className="aacp-thread-composer-wrap">
           <Composer vm={vm} />
         </div>
@@ -205,7 +205,8 @@ export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
       <button
         type="submit"
         disabled={!vm.coupon.trim() || vm.busy}
-        className="rounded-xl px-4 py-2.5 text-sm font-bold bg-[var(--aacp-grad-primary)] text-white disabled:opacity-40 transition-opacity"
+        className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40 transition-opacity"
+        style={{ background: "var(--aacp-grad-primary)" }}
       >
         Aplicar
       </button>

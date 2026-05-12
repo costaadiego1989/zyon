@@ -35,7 +35,7 @@ export interface AccountHubState {
 function headersFromSession(session: GlobalAuthSession): HeadersInit {
   return {
     Authorization: `Bearer ${session.access_token}`,
-    "x-device-id": session.user_id
+    "x-device-id": session.user_id ?? session.global_user_id ?? ""
   };
 }
 

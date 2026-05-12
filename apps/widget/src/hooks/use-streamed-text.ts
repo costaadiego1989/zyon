@@ -14,6 +14,7 @@ export function disableStreamingByEnv(): boolean {
     const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } })
       .process?.env;
     if (env?.AACP_DISABLE_STREAMING === "1") return true;
+    if (env?.VITEST || env?.NODE_ENV === "test") return true;
   } catch {
     // ignore
   }

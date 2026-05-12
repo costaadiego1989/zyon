@@ -113,7 +113,26 @@ export const authResponseSchema = z.object({
   expires_in: z.number().int().positive()
 });
 
-export const globalAuthSessionSchema = authResponseSchema.extend({
+// Buyer auth returns camelCase { globalUserId, accessToken, tokenType, expiresIn }
+export const buyerAuthResponseSchema = z.object({
+  globalUserId: z.string().min(1),
+  email: z.string().email(),
+  accessToken: z.string().min(1),
+  tokenType: z.literal("Bearer"),
+  expiresIn: z.number().int().positive()
+});
+
+export type BuyerAuthApiResponse = z.infer<typeof buyerAuthResponseSchema>;
+
+// Supports both merchant sessions (merchant_id + user_id) and buyer sessions (global_user_id)
+export const globalAuthSessionSchema = z.object({
+  merchant_id: z.string().min(1).optional(),
+  user_id: z.string().min(1).optional(),
+  global_user_id: z.string().min(1).optional(),
+  email: z.string().email(),
+  access_token: z.string().min(1),
+  token_type: z.literal("Bearer"),
+  expires_in: z.number().int().positive(),
   merchant_name: z.string().min(1).optional(),
   provider: z.enum(["password", "phone"]).default("password")
 });

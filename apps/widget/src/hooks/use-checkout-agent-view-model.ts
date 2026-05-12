@@ -4,6 +4,7 @@ import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { useGlobalAuth } from "./use-global-auth.js";
 import { useAccountHub } from "./use-account-hub.js";
+import { useBuyerHub } from "./use-buyer-hub.js";
 import { injectGoogleFont, stageNarrative, type QuickReplyChoice } from "./checkout-view-model.js";
 import { useCheckoutPanels } from "./use-checkout-panels.js";
 import { useCheckoutSession } from "./use-checkout-session.js";
@@ -15,6 +16,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const isConversational = config.uiPresentation === "conversational";
   const [open, setOpen] = useState(isConversational);
   const [crossSellDismissed, setCrossSellDismissed] = useState(false);
+  const [couponInputVisible, setCouponInputVisible] = useState(false);
   const sessionState = useCheckoutSession(config);
   const cartState = useCheckoutCart(sessionState.experience, config);
   const panels = useCheckoutPanels();
@@ -26,12 +28,14 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const theme: MerchantTheme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
   const offer = chatState.lastChat?.authorized_offer;
   const stageNote = stageNarrative(checkoutStage, chatState.lastChat?.missing_fields?.[0]);
-  const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed";
+  const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed" && checkoutStage !== "payment";
+  const hasOfferCouponCode = Boolean(offer?.approved && offer?.discountCode);
   const showCouponBox =
     checkoutStage === "payment" &&
     activeExperience.rules?.couponBoxEnabled !== false &&
     visibleTotals.discount === 0 &&
-    !panels.showCardForm;
+    !panels.showCardForm &&
+    (couponInputVisible || hasOfferCouponCode);
   const showOfferBanner = visibleTotals.discount > 0;
   const chatTrustBadges = activeExperience.copy.trust_badges.slice(0, 3);
 
@@ -44,6 +48,12 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     apiBaseUrl: sessionState.apiOrigin,
     session: auth.session,
     enabled: auth.open && auth.panel === "hub" && Boolean(auth.session)
+  });
+
+  const buyerHub = useBuyerHub({
+    apiBaseUrl: sessionState.apiOrigin,
+    session: auth.session,
+    enabled: Boolean(auth.session) && panels.userPanelOpen
   });
 
   useEffect(() => {
@@ -64,8 +74,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   }, [track]);
 
   const shippingOptions: ShippingQuote[] = useMemo(
-    () => activeExperience.shippingOptions ?? [],
-    [activeExperience.shippingOptions]
+    () => chatState.lastChat?.experience?.shippingOptions ?? activeExperience.shippingOptions ?? [],
+    [chatState.lastChat?.experience?.shippingOptions, activeExperience.shippingOptions]
   );
 
   const suggestedProducts: SuggestedProduct[] = useMemo(
@@ -91,6 +101,15 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   async function tapQuick(reply: QuickReplyChoice): Promise<void> {
     if (/cart[aã]o/i.test(reply.label)) {
       panels.setShowCardForm(true);
+      chatState.appendAgentTurn(
+        "Preencha os dados do seu cartão abaixo. Seus dados são criptografados e transmitidos com segurança via checkout transparente.",
+        { stream: true }
+      );
+      return;
+    }
+    if (/^(tenho|adicionar|usar|inserir|informar)\b.*\bcupom\b/i.test(reply.label)) {
+      setCouponInputVisible(true);
+      return;
     }
     return chatState.tapQuick(reply);
   }
@@ -130,6 +149,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     stageNote,
     showComposer,
     composerLocked,
+    awaitingAgentPlayback: chatState.awaitingAgentPlayback,
     showCouponBox,
     showOfferBanner,
     chatTrustBadges,
@@ -168,6 +188,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     addSuggestedProduct,
     dismissCrossSell,
     tapShippingOption,
+    couponInputVisible,
+    setCouponInputVisible,
+    buyerHub,
     apiOrigin
   };
 }

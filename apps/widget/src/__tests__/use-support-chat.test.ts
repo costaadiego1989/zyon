@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useSupportChat } from "../hooks/use-support-chat.js";
 
-const FALLBACK = "Entendo sua dúvida. Para mais detalhes, entre em contato com nosso suporte humano.";
+const FALLBACK = "Entendo sua dúvida. Nossa equipe responde em até 24h — envie um e-mail para o suporte da loja.";
 
 const DEFAULT_OPTS = {
   apiBaseUrl: "https://api.example.com",

@@ -19,7 +19,22 @@ export interface SupportChatState {
   reset: () => void;
 }
 
-const FALLBACK = "Entendo sua dúvida. Para mais detalhes, entre em contato com nosso suporte humano.";
+function smartFallback(text: string): string {
+  const t = text.toLowerCase();
+  if (/(frete|entrega|prazo|rastreio|rastreamento)/.test(t))
+    return "Para dúvidas sobre frete e prazo, consulte o rastreamento no e-mail de confirmação do pedido.";
+  if (/(troca|devolu|reembolso|cancelamento|cancelar)/.test(t))
+    return "Trocas e devoluções podem ser solicitadas em até 7 dias pelo e-mail de atendimento da loja.";
+  if (/(pagamento|cartão|cartao|pix|boleto|recusado|cobrado)/.test(t))
+    return "Para problemas com pagamento, verifique seu extrato ou entre em contato com o banco emissor.";
+  if (/(produto|item|estoque|disponível|disponivel|esgotado)/.test(t))
+    return "Para informações sobre disponibilidade de produto, acesse o site da loja.";
+  if (/(cupom|desconto|promoção|promocao|oferta)/.test(t))
+    return "Cupons são aplicados durante o checkout. Verifique se o código está correto e dentro do prazo de validade.";
+  if (/(conta|senha|login|acesso|cadastro)/.test(t))
+    return "Para problemas de acesso à conta, use a opção 'Esqueci minha senha' na página de login.";
+  return "Entendo sua dúvida. Nossa equipe responde em até 24h — envie um e-mail para o suporte da loja.";
+}
 
 export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupportChatOptions): SupportChatState {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
@@ -42,9 +57,9 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
           body: JSON.stringify({ message: text.trim(), merchant_id: merchantId, session_id: sessionId }),
         });
         const data = (await res.json()) as { reply?: string };
-        setMessages((prev) => [...prev, { role: "agent", text: data.reply ?? FALLBACK }]);
+        setMessages((prev) => [...prev, { role: "agent", text: data.reply ?? smartFallback(text) }]);
       } catch {
-        setMessages((prev) => [...prev, { role: "agent", text: FALLBACK }]);
+        setMessages((prev) => [...prev, { role: "agent", text: smartFallback(text) }]);
         setError("Falha ao contatar o suporte.");
       } finally {
         setLoading(false);

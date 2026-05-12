@@ -78,10 +78,16 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   }, [turns.length, busy, streamingTurnKey, streamingDoneKey]);
 
   useEffect(() => {
-    const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed";
+    const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed" && checkoutStage !== "payment";
     if (!showComposer) return;
     composerInputRef.current?.focus();
   }, [isConversational, session, networkError, checkoutStage]);
+
+  useEffect(() => {
+    if (awaitingAgentPlayback) return;
+    if (!isConversational || !session || networkError || checkoutStage === "completed" || checkoutStage === "payment") return;
+    composerInputRef.current?.focus();
+  }, [awaitingAgentPlayback, isConversational, session, networkError, checkoutStage]);
 
   // Initialize turns from /start response
   useEffect(() => {
@@ -138,7 +144,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
 
   // Auto-trigger registration for conversational mode
   useEffect(() => {
-    if (isConversational && session && turns.length === 1 && !config.customer?.fullName && !busy && !networkError) {
+    if (isConversational && session && turns.length === 1 && !config.customer?.fullName && !busy && !networkError && !disableStreamingByEnv()) {
       const timer = setTimeout(() => { void autoTriggerRegistration(); }, 1500);
       return () => clearTimeout(timer);
     }

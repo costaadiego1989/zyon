@@ -168,7 +168,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                   <button
                     key={s.label}
                     className="aacp-ai-faq-card"
-                    disabled={chat.loading || faq.loading}
+                    disabled={chat.loading || (hasMerchantFaq && faq.loading)}
                     onClick={() => s.item ? handleFaqClick(s.item) : handleSend(s.label)}
                   >
                     <span className="aacp-ai-faq-icon">{s.icon}</span>
@@ -212,6 +212,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
               placeholder="Digite sua dúvida aqui..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              disabled={!inputReady}
               style={{
                 opacity: inputReady ? 1 : 0,
                 pointerEvents: inputReady ? "auto" : "none",
