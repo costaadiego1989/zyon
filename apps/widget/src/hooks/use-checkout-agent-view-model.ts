@@ -50,10 +50,11 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     enabled: auth.open && auth.panel === "hub" && Boolean(auth.session)
   });
 
+  const isBuyerSession = Boolean(auth.session?.global_user_id);
   const buyerHub = useBuyerHub({
     apiBaseUrl: sessionState.apiOrigin,
-    session: auth.session,
-    enabled: Boolean(auth.session) && panels.userPanelOpen
+    session: isBuyerSession ? auth.session : null,
+    enabled: isBuyerSession && panels.userPanelOpen
   });
 
   useEffect(() => {
@@ -109,6 +110,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     }
     if (/^(tenho|adicionar|usar|inserir|informar)\b.*\bcupom\b/i.test(reply.label)) {
       setCouponInputVisible(true);
+      return;
+    }
+    if (/aplicar.*desconto|aceitar.*desconto/i.test(reply.label)) {
+      void chatState.applyOffer();
       return;
     }
     return chatState.tapQuick(reply);

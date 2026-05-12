@@ -56,6 +56,15 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     if (activeExperience.copy.quick_replies.length > 0) {
       list.push(...activeExperience.copy.quick_replies.map((label) => ({ label })));
     }
+    // Inject approved-offer chip if not already present
+    if (lastChat?.authorized_offer?.approved && !list.some((r) => /desconto/i.test(r.label ?? ""))) {
+      const offer = lastChat.authorized_offer;
+      const pct = offer.type === "discount_percent" ? offer.value : 0;
+      if (pct > 0 && offer.id) {
+        list.push({ label: `Aplicar desconto de ${pct}%`, offerId: offer.id });
+      }
+    }
+
     const seen = new Set<string>();
     return list.filter((r) => {
       const key = (r.label ?? "").trim();

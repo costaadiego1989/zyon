@@ -2299,6 +2299,23 @@ textarea {
   background: linear-gradient(180deg, #ffffff, #faf8ff);
 }
 
+.aacp-page[data-theme="light"] .aacp-side-input {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.aacp-page[data-theme="light"] .aacp-side-input input,
+.aacp-page[data-theme="light"] .aacp-side-input textarea,
+.aacp-page[data-theme="light"] .aacp-side-input select {
+  color: #1a1730;
+}
+
+.aacp-page[data-theme="light"] .aacp-side-section-title,
+.aacp-page[data-theme="light"] .aacp-side-field > span,
+.aacp-page[data-theme="light"] .aacp-toggle-row strong {
+  color: #1a1730;
+}
+
 .aacp-page[data-theme="light"] .aacp-status-dot {
   border-color: #ffffff;
 }
@@ -2570,6 +2587,7 @@ textarea {
 }
 
 .aacp-side-input input,
+.aacp-side-input textarea,
 .aacp-side-input select {
   flex: 1;
   background: transparent;

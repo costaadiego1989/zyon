@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   X, User, Bot, ShoppingBag, Settings, Package,
-  LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Plus
+  LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Plus, Smartphone
 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import type { BuyerAgentPersonality } from "../../hooks/use-buyer-hub.js";
@@ -134,7 +134,7 @@ function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
       <div className="aacp-side-field">
         <span>E-mail</span>
         <div className="aacp-side-input">
-          <input value={hub.profile?.email ?? ""} readOnly aria-label="E-mail" style={{ opacity: 0.6 }} />
+          <input value={hub.profile?.email ?? vm.auth.session?.email ?? ""} readOnly aria-label="E-mail" style={{ opacity: 0.6 }} />
         </div>
         <span style={{ fontSize: 11, color: "var(--aacp-muted)", marginTop: 2 }}>E-mail não pode ser alterado por aqui.</span>
       </div>
@@ -223,9 +223,9 @@ function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
       <div className="aacp-side-section-title">Seu agente de negociação</div>
 
       {!hasAgent ? (
-        <div style={{ textAlign: "center", padding: "24px 0 16px", color: "var(--aacp-muted)", fontSize: 13 }}>
-          <Bot size={28} style={{ margin: "0 auto 8px", opacity: 0.3 }} />
-          <div>Configure seu agente para negociar automaticamente.</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0 8px", color: "var(--aacp-muted)", fontSize: 13 }}>
+          <Bot size={18} style={{ flexShrink: 0, opacity: 0.6 }} />
+          <span>Configure seu agente para negociar automaticamente.</span>
         </div>
       ) : null}
 
@@ -311,8 +311,8 @@ function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
         {saving
           ? <><Loader2 size={13} className="animate-spin" /> Salvando...</>
           : hasAgent
-          ? <><Save size={13} /> Salvar agente</>
-          : <><Plus size={13} /> Criar agente</>
+          ? <><Save size={13} /> Salvar alterações</>
+          : <><Bot size={13} /> Criar agente</>
         }
       </button>
     </div>
@@ -378,38 +378,6 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
 }
 
 function SettingsTab({ vm }: { vm: CheckoutAgentViewModel }) {
-  const hub = vm.buyerHub;
-  const [currentPwd, setCurrentPwd] = useState("");
-  const [newPwd, setNewPwd] = useState("");
-  const [pwdSaving, setPwdSaving] = useState(false);
-  const [pwdSaved, setPwdSaved] = useState(false);
-  const [pwdError, setPwdError] = useState<string | null>(null);
-
-  async function handleChangePassword() {
-    if (!currentPwd || !newPwd) {
-      setPwdError("Preencha a senha atual e a nova senha.");
-      return;
-    }
-    if (newPwd.length < 8) {
-      setPwdError("Nova senha deve ter pelo menos 8 caracteres.");
-      return;
-    }
-    setPwdSaving(true);
-    setPwdSaved(false);
-    setPwdError(null);
-    try {
-      await hub.changePassword(currentPwd, newPwd);
-      setPwdSaved(true);
-      setCurrentPwd("");
-      setNewPwd("");
-      setTimeout(() => setPwdSaved(false), 4000);
-    } catch (err) {
-      setPwdError(err instanceof Error ? err.message : "Falha ao alterar senha.");
-    } finally {
-      setPwdSaving(false);
-    }
-  }
-
   return (
     <div className="aacp-side-section">
       <div className="aacp-side-section-title">Preferências</div>
@@ -424,58 +392,11 @@ function SettingsTab({ vm }: { vm: CheckoutAgentViewModel }) {
         </button>
       </div>
 
-      <div className="aacp-side-section-title" style={{ marginTop: 20 }}>Alterar senha</div>
-
-      <div className="aacp-side-field">
-        <span>Senha atual</span>
-        <div className="aacp-side-input">
-          <input
-            type="password"
-            value={currentPwd}
-            onChange={(e) => setCurrentPwd(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="current-password"
-            aria-label="Senha atual"
-          />
-        </div>
+      <div className="aacp-side-section-title" style={{ marginTop: 20 }}>Autenticação</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--aacp-muted)", fontSize: 13 }}>
+        <Smartphone size={16} style={{ flexShrink: 0, opacity: 0.7 }} />
+        <span>Você está autenticado via telefone. Para alterar o número, entre em contato com o suporte.</span>
       </div>
-
-      <div className="aacp-side-field">
-        <span>Nova senha</span>
-        <div className="aacp-side-input">
-          <input
-            type="password"
-            value={newPwd}
-            onChange={(e) => setNewPwd(e.target.value)}
-            placeholder="Mínimo 8 caracteres"
-            autoComplete="new-password"
-            aria-label="Nova senha"
-          />
-        </div>
-      </div>
-
-      {pwdError ? (
-        <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "#ef4444", marginTop: 4 }}>
-          <AlertCircle size={13} />
-          {pwdError}
-        </div>
-      ) : null}
-
-      {pwdSaved ? (
-        <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--aacp-success)", marginTop: 4 }}>
-          <CheckCircle2 size={13} />
-          Senha alterada com sucesso!
-        </div>
-      ) : null}
-
-      <button
-        className="aacp-cta"
-        style={{ marginTop: 12 }}
-        onClick={() => void handleChangePassword()}
-        disabled={pwdSaving}
-      >
-        {pwdSaving ? <><Loader2 size={13} className="animate-spin" /> Alterando...</> : "Alterar senha"}
-      </button>
 
       <button
         className="aacp-side-logout"
