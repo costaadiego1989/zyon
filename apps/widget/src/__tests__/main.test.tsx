@@ -102,6 +102,7 @@ function buildStartResponse(theme: MerchantTheme): StartCheckoutResponse {
         discount: 0,
         total: 929.7
       },
+      shipping: { customerPrice: 29.9, realCost: 22, carrier: "Correios", method: "PAC", deliveryDays: 7, region: "SP", destinationZip: "01310100" },
       agent: {
         name: "Aurora",
         greeting: "Olá! Sou a Aurora — posso te ajudar a fechar este pedido?",
@@ -190,6 +191,7 @@ function buildChatResponse(
         discount: 0,
         total: 929.7
       },
+      shipping: { customerPrice: 29.9, realCost: 22, carrier: "Correios", method: "PAC", deliveryDays: 7, region: "SP", destinationZip: "01310100" },
       agent: {
         name: "Aurora",
         greeting: "Olá! Sou a Aurora — posso te ajudar a fechar este pedido?",
@@ -1436,7 +1438,7 @@ describe("CheckoutAgent (conversational)", () => {
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
-      if (url.endsWith("/payment/card-intent")) {
+      if (url.endsWith("/embed/payment/intents")) {
         return new Response(
           JSON.stringify({ message: "Seu cartão foi recusado." }),
           { status: 402, headers: { "content-type": "application/json" } }

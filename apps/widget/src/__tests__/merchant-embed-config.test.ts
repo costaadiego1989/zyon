@@ -67,11 +67,11 @@ describe("readMerchantEmbedOptions", () => {
 
     const options = readMerchantEmbedOptions(host);
 
-    expect(options.merchantId).toBe("mrc_demo");
+    expect(options.merchantId).toBe("mrc_athom_tech");
     expect(options.apiBaseUrl).toBe("http://localhost:3009");
     expect(options.embedSessionToken).toBeUndefined();
     expect(options.cart.total).toBeGreaterThan(0);
-    expect(options.cart.items[0]?.sku).toBe("bag-001");
+    expect(options.cart.items[0]?.sku).toBe("athom-kit-001");
     expect(options.shipping?.customerPrice).toBeGreaterThan(0);
   });
 });
