@@ -8,3 +8,5 @@ import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.
 import "./modules/payment/infrastructure/prisma-payment.repository.int-spec.js";
 import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.int-spec.js";
 import "./modules/buyer-account/presentation/http/buyer-account.e2e-spec.js";
+import "./modules/checkout/presentation/http/checkout.intervention-ledger.prisma-e2e-spec.js";
+import "./modules/checkout/presentation/http/checkout.cross-tenant-fuzz.prisma-e2e-spec.js";

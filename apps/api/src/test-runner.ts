@@ -95,3 +95,8 @@ import "./modules/self-checkout/application/use-cases/self-checkout.use-cases.sp
 import "./modules/shipping/application/use-cases/shipping.use-cases.spec.js";
 import "./modules/fulfillment/application/use-cases/fulfillment.use-cases.spec.js";
 import "./modules/scraping-agent/application/use-cases/request-price-quote.use-case.spec.js";
+import "./modules/checkout/presentation/http/checkout.shipping-evaluate.e2e-spec.js";
+import "./modules/checkout/infrastructure/adapters/deterministic-chat.e2e-spec.js";
+if (process.env.E2E_SEED_ENABLED === "true") {
+  await import("./modules/__test__/test-seed.controller.spec.js");
+}
