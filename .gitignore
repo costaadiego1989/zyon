@@ -17,8 +17,12 @@ coverage
 playwright-report/
 test-results/
 
-# Local scripts
+# Local scripts and tools
 scripts/
+.kilo/
+
+# Feature spec directories (auto-generated or WIP)
+.specs/features/
 
 # Exclude docs but not project markdown files
 /docs/*
