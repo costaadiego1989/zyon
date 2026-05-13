@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import { ShippingQuoteEntity } from "../../domain/entities/shipping-quote.entity.js";
+import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
@@ -36,11 +36,23 @@ export class QuoteShippingUseCase {
       this.carriers.map((c) => c.fetchQuotes(ctx))
     );
 
-    for (const res of allResults) {
-      if (res.status === "fulfilled") {
-        quote = quote.addResults(res.value);
+    const liveResults: ShippingQuoteResult[] = [];
+    const fallbackResults: ShippingQuoteResult[] = [];
+
+    for (let i = 0; i < allResults.length; i++) {
+      const res = allResults[i];
+      const carrier = this.carriers[i];
+      if (res.status === "fulfilled" && res.value.length > 0) {
+        if (carrier.carrierKey === "flat-rate") {
+          fallbackResults.push(...res.value);
+        } else {
+          liveResults.push(...res.value);
+        }
       }
     }
+
+    const resultsToAdd = liveResults.length > 0 ? liveResults : fallbackResults;
+    quote = quote.addResults(resultsToAdd);
 
     const freeThreshold = input.free_shipping_threshold ?? Infinity;
     const withFreeShipping = quote.addResults(
