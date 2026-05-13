@@ -54,6 +54,7 @@ export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {
 
 /**
  * Fetch com sessão merchant: credenciais **sempre** `include` (cookies HttpOnly).
+ * Ao receber 401, tenta refresh silencioso e retenta a request original.
  */
 export async function dashboardFetch(
   apiBaseUrl: string,
@@ -70,12 +71,59 @@ export async function dashboardFetch(
     finalBody = JSON.stringify(jsonBody);
   }
 
-  return fetchImpl(mergeUrl(apiBaseUrl, path), {
-    ...rest,
-    headers,
-    body: finalBody,
-    credentials: "include"
-  });
+  const doFetch = () =>
+    fetchImpl(mergeUrl(apiBaseUrl, path), {
+      ...rest,
+      headers,
+      body: finalBody,
+      credentials: "include"
+    });
+
+  const res = await doFetch();
+
+  // Se 401 e não é o próprio refresh/login, tenta renovar token
+  if (res.status === 401 && !path.includes("/auth/")) {
+    const refreshed = await silentRefresh(apiBaseUrl, fetchImpl);
+    if (refreshed) {
+      // Retenta a request original com o novo cookie
+      return doFetch();
+    }
+  }
+
+  return res;
+}
+
+/** Tenta renovar o token via POST /auth/refresh. Retorna true se sucesso. */
+let refreshInFlight: Promise<boolean> | null = null;
+
+async function silentRefresh(apiBaseUrl: string, fetchImpl: typeof fetch): Promise<boolean> {
+  // Evita múltiplos refreshes simultâneos
+  if (refreshInFlight) return refreshInFlight;
+
+  refreshInFlight = (async () => {
+    try {
+      const res = await fetchImpl(mergeUrl(apiBaseUrl, "/auth/refresh"), {
+        method: "POST",
+        credentials: "include"
+      });
+      return res.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
+}
+
+/** Evento disparado quando sessão expirou definitivamente (refresh falhou). */
+export const SESSION_EXPIRED_EVENT = "aacp:session_expired";
+
+function emitSessionExpired() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(SESSION_EXPIRED_EVENT));
+  }
 }
 
 export async function dashboardJson<T>(
@@ -87,6 +135,9 @@ export async function dashboardJson<T>(
   const res = await dashboardFetch(apiBaseUrl, path, init, fetchImpl);
   const text = await res.text();
   if (!res.ok) {
+    if (res.status === 401) {
+      emitSessionExpired();
+    }
     throw new DashboardHttpError(res.status, text);
   }
   return text === "" ? ({} as T) : (JSON.parse(text) as T);

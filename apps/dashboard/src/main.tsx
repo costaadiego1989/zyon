@@ -3,7 +3,8 @@ import { createRoot } from "react-dom/client";
 import {
   createDashboardApi,
   type MerchantProfile as MerchantDashboardProfile,
-  DashboardHttpError
+  DashboardHttpError,
+  SESSION_EXPIRED_EVENT
 } from "./api-client.js";
 import { OverviewDemoPage } from "./pages/overview-demo-page.js";
 import { MerchantRulesAuthenticatedPage } from "./pages/merchant-rules-page.js";
@@ -40,6 +41,16 @@ function App() {
     void refreshSessionHint();
     // apenas ao montar
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Escuta evento de sessão expirada (refresh falhou) → força re-login
+  useEffect(() => {
+    function handleSessionExpired() {
+      setMe(null);
+      setLoginHint("Sessão expirada. Faça login novamente.");
+    }
+    window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
   }, []);
 
   async function submitLogin(event: React.FormEvent) {
