@@ -30,6 +30,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const stageNote = stageNarrative(checkoutStage, chatState.lastChat?.missing_fields?.[0]);
   const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed" && checkoutStage !== "payment";
   const hasOfferCouponCode = Boolean(offer?.approved && offer?.discountCode);
+  // Agent-proposed offer auto-opens CouponBox. Buyer-initiated coupon requires the quick reply.
   const showCouponBox =
     checkoutStage === "payment" &&
     activeExperience.rules?.couponBoxEnabled !== false &&
@@ -74,9 +75,11 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     return () => { window.removeEventListener("aacp:checkout-event", listener); };
   }, [track]);
 
+  // Only show carrier options returned by an explicit quote call (via lastChat).
+  // activeExperience.shippingOptions are static/default and must not show before address is given.
   const shippingOptions: ShippingQuote[] = useMemo(
-    () => chatState.lastChat?.experience?.shippingOptions ?? activeExperience.shippingOptions ?? [],
-    [chatState.lastChat?.experience?.shippingOptions, activeExperience.shippingOptions]
+    () => chatState.lastChat?.experience?.shippingOptions ?? [],
+    [chatState.lastChat?.experience?.shippingOptions]
   );
 
   const suggestedProducts: SuggestedProduct[] = useMemo(
@@ -136,6 +139,22 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     return chatState.tapQuick(reply);
   }
 
+  // Inject coupon quick reply in payment stage if coupon entry is not yet open and no discount applied
+  const quickReplies = useMemo(() => {
+    const base = chatState.quickReplies;
+    if (
+      checkoutStage === "payment" &&
+      !couponInputVisible &&
+      !hasOfferCouponCode &&
+      visibleTotals.discount === 0 &&
+      activeExperience.rules?.couponBoxEnabled !== false &&
+      !base.some((r) => /cupom/i.test(r.label ?? ""))
+    ) {
+      return [...base, { label: "Tenho um cupom" }];
+    }
+    return base;
+  }, [chatState.quickReplies, checkoutStage, couponInputVisible, hasOfferCouponCode, visibleTotals.discount, activeExperience.rules?.couponBoxEnabled]);
+
   function retryStartCheckout(): void {
     chatState.retryChat();
   }
@@ -175,7 +194,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     showCouponBox,
     showOfferBanner,
     chatTrustBadges,
-    quickReplies: chatState.quickReplies,
+    quickReplies,
     auth,
     hub,
     tapQuick,
