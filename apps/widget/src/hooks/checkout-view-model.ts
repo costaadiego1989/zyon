@@ -174,7 +174,8 @@ export function injectGoogleFont(fontFamily: string): void {
 }
 
 export function fallbackExperience(config: WidgetConfig & { cart: Cart }): CheckoutExperienceSnapshot {
-  const shipping = config.shipping?.customerPrice ?? 0;
+  // Shipping cost is always 0 until user explicitly selects a method via ShippingSelector
+  const shipping = 0;
   const discount = config.cart.currentDiscount ?? 0;
   return {
     brand: {
@@ -202,7 +203,7 @@ export function fallbackExperience(config: WidgetConfig & { cart: Cart }): Check
       discount,
       total: Math.max(0, config.cart.total + shipping - discount)
     },
-    shipping: config.shipping,
+    shipping: undefined,
     customer: config.customer,
     agent: {
       name: config.agent?.name ?? "Assistente AACP",

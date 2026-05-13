@@ -100,6 +100,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   }
 
   async function tapQuick(reply: QuickReplyChoice): Promise<void> {
+    if (!session || networkError || chatState.busy) return;
     if (/cart[aã]o/i.test(reply.label)) {
       panels.setShowCardForm(true);
       chatState.appendAgentTurn(
@@ -110,12 +111,28 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     }
     if (/^(tenho|adicionar|usar|inserir|informar)\b.*\bcupom\b/i.test(reply.label)) {
       setCouponInputVisible(true);
+      chatState.appendAgentTurn(
+        "Insira o código do seu cupom abaixo para aplicar o desconto.",
+        { stream: true }
+      );
       return;
     }
     if (/aplicar.*desconto|aceitar.*desconto/i.test(reply.label)) {
       void chatState.applyOffer();
       return;
     }
+    if (/^pix$/i.test(reply.label)) {
+      await payment.createPaymentIntent("pix");
+      return;
+    }
+    if (/^boleto$/i.test(reply.label)) {
+      chatState.appendAgentTurn(
+        "No momento, o pagamento via boleto não está disponível para esta compra. Por favor, escolha Cartão de crédito ou PIX.",
+        { stream: true }
+      );
+      return;
+    }
+    // Send to API for contextual response
     return chatState.tapQuick(reply);
   }
 
