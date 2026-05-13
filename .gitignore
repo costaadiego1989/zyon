@@ -24,5 +24,13 @@ scripts/
 # Feature spec directories (auto-generated or WIP)
 .specs/features/
 
+# Test specs (auto-generated or WIP)
+**/__test__/
+**/*.e2e-spec.ts
+
+# E2E test directories
+apps/widget/e2e/realapi/
+apps/widget/e2e/regressions/
+
 # Exclude docs but not project markdown files
 /docs/*
