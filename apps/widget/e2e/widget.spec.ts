@@ -3,6 +3,13 @@ import { setupApiMocks, SHIPPING_OPTIONS, type FlowStep } from "./fixtures/api-m
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
+// Disable streaming animation in e2e tests for deterministic behavior
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    (globalThis as any).process = { env: { AACP_DISABLE_STREAMING: "1" } };
+  });
+});
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function waitForGreeting(page: import("@playwright/test").Page) {

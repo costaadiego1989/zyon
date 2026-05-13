@@ -18,6 +18,13 @@ import {
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
+// Disable streaming animation in e2e tests for deterministic behavior
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    (globalThis as any).process = { env: { AACP_DISABLE_STREAMING: "1" } };
+  });
+});
+
 const MOCK_BUYER_SESSION = {
   global_user_id: "guser_e2e_001",
   email: "buyer@e2e.test",
@@ -223,7 +230,7 @@ test.describe("2. Buyer phone OTP session (regression: camelCase mapping)", () =
     const userBtnVisible = await userBtn.isVisible().catch(() => false);
     if (userBtnVisible) {
       await userBtn.click();
-      const panel = page.locator(".aacp-user-panel, aside[class*='user']").first();
+      const panel = page.locator(".aacp-user-panel, .aacp-hub-panel, aside[class*='user']").first();
       await expect(panel).toBeVisible({ timeout: 5_000 });
       const content = await panel.textContent();
       expect(content).toMatch(/buyer@e2e\.test/i);

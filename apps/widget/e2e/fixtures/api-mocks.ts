@@ -229,7 +229,7 @@ export function pixPaymentResponse() {
     method: "pix",
     status: "pending",
     buyerFacing: {
-      qrCodeCopyPaste: "00020126580014br.gov.bcb.pix0136a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      qrCodeCopyPaste: "00020126580014br.gov.bcb.pix0136a1b2c3d4e5f67890abcdef123456789052040000530398",
       encodedQrImage: null,
     },
     statusHistory: [{ status: "pending", at: new Date().toISOString() }],
@@ -442,6 +442,14 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(pixPaymentResponse()),
+    });
+  });
+
+  await page.route("**/support/faq**", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ faqItems: [] }),
     });
   });
 
