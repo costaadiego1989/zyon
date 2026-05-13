@@ -23,7 +23,7 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
     <>
       <div className="aacp-side-backdrop" onClick={() => vm.setUserPanelOpen(false)} />
-      <aside className="aacp-side-panel">
+      <aside className="aacp-side-panel aacp-user-panel">
         <div className="aacp-side-head">
           <div className="aacp-side-user">
             <div className="aacp-side-avatar">{avatarLetter}</div>

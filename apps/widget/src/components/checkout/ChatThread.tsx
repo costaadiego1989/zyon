@@ -91,16 +91,86 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       )}
 
       {vm.checkoutStage === "completed" ? (
-        <div className="aacp-offer" style={{ borderColor: "var(--aacp-success)", background: "rgba(16, 185, 129, 0.05)" }}>
-          <div className="aacp-offer-icon" style={{ background: "rgba(16, 185, 129, 0.1)", color: "var(--aacp-success)" }}>
-            <CheckCircle2 size={18} />
-          </div>
-          <div className="aacp-offer-text">
-            <strong>Pedido confirmado</strong>
-            <span>{vm.lastChat?.message || "Seu pedido foi processado com sucesso!"}</span>
+        <OrderConfirmation vm={vm} />
+      ) : null}
+    </div>
+  );
+}
+
+function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
+  const orderRef = vm.session?.session_id?.slice(-6)?.toUpperCase() ?? "------";
+  const storeUrl = vm.config.emptyCartRedirectUrl || vm.config.storeUrl;
+
+  return (
+    <div className="aacp-order-confirmation" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "20px 16px" }}>
+      <div className="aacp-offer" style={{ borderColor: "var(--aacp-success)", background: "rgba(16, 185, 129, 0.05)" }}>
+        <div className="aacp-offer-icon" style={{ background: "rgba(16, 185, 129, 0.1)", color: "var(--aacp-success)" }}>
+          <CheckCircle2 size={24} />
+        </div>
+        <div className="aacp-offer-text">
+          <strong style={{ fontSize: "16px" }}>Pedido confirmado!</strong>
+          <span>{vm.lastChat?.message || "Seu pedido foi processado com sucesso!"}</span>
+          <span style={{ fontSize: "12px", opacity: 0.7, marginTop: "4px" }}>
+            Referência: #{orderRef}
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 4px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+          Resumo do pedido
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {vm.visibleItems.map((item) => (
+            <div key={item.sku} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+              <span>{item.quantity}x {item.name}</span>
+              <span style={{ fontWeight: 600 }}>{formatCurrency(item.line_total, vm.visibleTotals.currency)}</span>
+            </div>
+          ))}
+          {vm.visibleTotals.shipping > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", opacity: 0.7 }}>
+              <span>Frete</span>
+              <span>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</span>
+            </div>
+          )}
+          {vm.visibleTotals.discount > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--aacp-success)" }}>
+              <span>Desconto</span>
+              <span>-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: 700, borderTop: "1px solid var(--aacp-line)", paddingTop: "8px", marginTop: "4px" }}>
+            <span>Total</span>
+            <span>{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</span>
           </div>
         </div>
-      ) : null}
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+        {storeUrl && (
+          <a
+            href={storeUrl}
+            className="aacp-cta"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              width: "100%",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              fontWeight: 700,
+              fontSize: "14px",
+              textDecoration: "none",
+              color: "white",
+              background: "var(--aacp-grad-primary)"
+            }}
+            data-testid="return-to-store"
+          >
+            Voltar para a loja
+          </a>
+        )}
+      </div>
     </div>
   );
 }

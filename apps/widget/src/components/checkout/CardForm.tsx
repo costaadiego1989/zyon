@@ -2,6 +2,7 @@ import { type FormEvent, useCallback, useState } from "react";
 import { CreditCard, Lock, AlertCircle, Loader2 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { formatCurrency } from "../../hooks/checkout-view-model.js";
+import { CHECKOUT_EMBED_PATHS, CHECKOUT_LEGACY_PATHS } from "../../lib/embed-client.js";
 
 export type CardBrand = "visa" | "mastercard" | "elo" | "amex" | "unknown";
 
@@ -150,19 +151,25 @@ export function CardForm({ vm }: { vm: CheckoutAgentViewModel }) {
     try {
       const [expiryMonth, expiryYear] = expiry.split("/");
       const base = vm.apiOrigin.replace(/\/$/, "");
-      const res = await fetch(`${base}/payment/card-intent`, {
+      const paths = vm.config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+      const bodyPayload: Record<string, unknown> = {
+        session_id: vm.session?.session_id,
+        idempotency_key: crypto.randomUUID(),
+        method: "card",
+        credit_card: {
+          holderName: name.trim(),
+          number: number.replace(/\D/g, ""),
+          expiryMonth: expiryMonth ?? "",
+          expiryYear: expiryYear ? `20${expiryYear}` : "",
+          ccv: cvv,
+        },
+        ...(vm.config.mode !== "embed" && { merchant_id: vm.activeExperience.brand.merchant_id }),
+      };
+      const res = await fetch(`${base}${paths.paymentIntents}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          card_number_raw: number.replace(/\D/g, ""),
-          cardholder_name: name.trim(),
-          expiry_month: expiryMonth,
-          expiry_year: `20${expiryYear}`,
-          cvv: cvv,
-          session_id: vm.session?.session_id,
-          merchant_id: vm.activeExperience.brand.merchant_id
-        })
+        body: JSON.stringify(bodyPayload),
       });
 
       if (!res.ok) {

@@ -17,6 +17,7 @@ export interface WidgetConfig {
   shipping?: ShippingQuote;
   uiPresentation: "floating" | "conversational";
   emptyCartRedirectUrl?: string;
+  storeUrl?: string;
   agent?: {
     name?: string;
     greeting?: string;

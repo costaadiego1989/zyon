@@ -61,7 +61,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
     return (
       <div className="fixed inset-0 z-50 grid place-items-center p-4 sm:p-6" role="presentation">
         <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={auth.close} />
-        <section className="relative flex h-[85vh] max-h-[800px] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-2xl aacp-hub-sheet" role="dialog" aria-modal="true">
+        <section className="relative flex h-[85vh] max-h-[800px] w-full max-w-4xl flex-col overflow-hidden rounded-[32px] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-2xl aacp-hub-sheet aacp-hub-panel" role="dialog" aria-modal="true">
           <header className="px-8 h-20 border-b border-[var(--aacp-line)] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
