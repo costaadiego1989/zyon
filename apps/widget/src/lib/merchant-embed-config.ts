@@ -5,28 +5,28 @@ import { DEFAULT_WIDGET_API_BASE_URL } from "./widget-schemas.js";
 const DEFAULT_CART: Cart = {
   currency: "BRL",
   source: "storefront",
-  total: 899.8,
+  total: 299.9,
   items: [
     {
-      sku: "bag-001",
-      name: "Bolsa Executiva Couro Safiano",
-      price: 449.9,
-      cost: 210,
-      quantity: 2,
-      imageUrl: "https://images.unsplash.com/photo-1594223274512-ad4803739b7c?w=640",
-      productUrl: "https://loja.example.com/bolsa-executiva-couro-safiano",
-      category: "Bolsas",
-      variant: "Preta"
+      sku: "athom-kit-001",
+      name: "Kit Smart Home Athom Tech",
+      price: 299.9,
+      cost: 140,
+      quantity: 1,
+      imageUrl: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640",
+      productUrl: "https://athomtech.com.br/kit-smart-home",
+      category: "Smart Home",
+      variant: "Padrão"
     }
   ]
 };
 
 const DEFAULT_SHIPPING: ShippingQuote = {
-  customerPrice: 29.9,
-  realCost: 31,
-  carrier: "Loggi",
-  method: "Express",
-  deliveryDays: 2,
+  customerPrice: 19.9,
+  realCost: 22,
+  carrier: "Correios",
+  method: "PAC",
+  deliveryDays: 5,
   region: "SP"
 };
 
@@ -49,9 +49,9 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
   };
 
   return {
-    brandTitle: ds.brandTitle?.trim() || "Northstar Atelier",
-    brandSubtitle: ds.brandSubtitle?.trim() || "Atendimento de compra premium com IA conectada ao checkout",
-    merchantId: ds.merchantId?.trim() || "mrc_demo",
+    brandTitle: ds.brandTitle?.trim() || "Athom Tech",
+    brandSubtitle: ds.brandSubtitle?.trim() || "Checkout inteligente com IA para sua loja",
+    merchantId: ds.merchantId?.trim() || "mrc_athom_tech",
     apiBaseUrl: ds.apiBaseUrl?.trim() || DEFAULT_WIDGET_API_BASE_URL,
     cart: parseJsonAttr<Cart>(ds.cartJson, DEFAULT_CART),
     customer: parseJsonAttr<CustomerHints>(ds.customerJson, fallbackCustomer),
