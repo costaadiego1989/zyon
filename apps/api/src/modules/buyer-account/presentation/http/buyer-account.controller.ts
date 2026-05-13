@@ -49,27 +49,47 @@ export class BuyerAccountController {
   @UseGuards(BuyerJwtAuthGuard)
   async getMe(@Req() req: { user?: unknown }) {
     const buyer = currentBuyer(req);
-    return this.getProfile.execute(buyer.globalUserId);
+    const account = await this.getProfile.execute(buyer.globalUserId);
+    return {
+      global_user_id: account.globalUserId,
+      display_name: account.displayName,
+      email: account.email,
+      phone: account.phone
+    };
   }
 
   @Patch("me/profile")
   @UseGuards(BuyerJwtAuthGuard)
   async patchProfile(
     @Req() req: { user?: unknown },
-    @Body() body: { displayName?: string; phone?: string }
+    @Body() body: { display_name?: string; phone?: string }
   ) {
     const buyer = currentBuyer(req);
-    return this.updateProfile.execute({ globalUserId: buyer.globalUserId, ...body });
+    const updated = await this.updateProfile.execute({
+      globalUserId: buyer.globalUserId,
+      displayName: body.display_name,
+      phone: body.phone
+    });
+    return {
+      global_user_id: updated.globalUserId,
+      display_name: updated.displayName,
+      email: updated.email,
+      phone: updated.phone
+    };
   }
 
   @Patch("me/password")
   @UseGuards(BuyerJwtAuthGuard)
   async patchPassword(
     @Req() req: { user?: unknown },
-    @Body() body: { currentPassword: string; newPassword: string }
+    @Body() body: { current_password: string; new_password: string }
   ) {
     const buyer = currentBuyer(req);
-    await this.changePassword.execute({ globalUserId: buyer.globalUserId, ...body });
+    await this.changePassword.execute({
+      globalUserId: buyer.globalUserId,
+      currentPassword: body.current_password,
+      newPassword: body.new_password
+    });
     return { success: true };
   }
 
@@ -84,7 +104,7 @@ export class BuyerAccountController {
     @Query("cursor") cursor?: string
   ) {
     const buyer = currentBuyer(req);
-    return this.getPurchases.execute({
+    const page = await this.getPurchases.execute({
       globalUserId: buyer.globalUserId,
       merchantId,
       dateFrom: dateFrom ? new Date(dateFrom) : undefined,
@@ -92,13 +112,30 @@ export class BuyerAccountController {
       limit: limit ? Number(limit) : undefined,
       cursor,
     });
+    return {
+      items: page.records.map((r) => ({
+        id: r.id,
+        merchant_name: r.merchantName,
+        total: r.totalAmount,
+        discount_amount: r.discountAmount,
+        items_count: Array.isArray(r.items) ? (r.items as unknown[]).length : 0,
+        currency: r.currency,
+        created_at: r.completedAt instanceof Date ? r.completedAt.toISOString() : String(r.completedAt)
+      })),
+      next_cursor: page.nextCursor
+    };
   }
 
   @Get("me/summary")
   @UseGuards(BuyerJwtAuthGuard)
   async summary(@Req() req: { user?: unknown }) {
     const buyer = currentBuyer(req);
-    return this.getSummary.execute(buyer.globalUserId);
+    const data = await this.getSummary.execute(buyer.globalUserId);
+    return {
+      orders_count: data.stats.totalOrders,
+      total_spent: data.stats.totalSpent,
+      currency: "BRL"
+    };
   }
 
   @Post("phone/send")

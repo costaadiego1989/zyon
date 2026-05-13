@@ -23,7 +23,12 @@ export class BuyerAgentController {
     const buyer = currentBuyer(req);
     const agent = await this.repo.findAgentByGlobalUserId(buyer.globalUserId);
     if (!agent) throw new NotFoundException("buyer_agent_not_found");
-    return agent;
+    return {
+      agent_name: agent.name,
+      personality: agent.personality,
+      target_discount_percent: agent.targetDiscountPercent,
+      auto_accept_threshold: agent.autoAcceptThreshold ?? 0
+    };
   }
 
   @Put()
@@ -31,16 +36,31 @@ export class BuyerAgentController {
     @Req() req: { user?: unknown },
     @Body()
     body: {
-      name: string;
+      agent_name?: string;
+      name?: string;
       personality: AgentPersonality;
-      maxRounds: number;
-      targetDiscountPercent: number;
-      minimumAcceptableDiscountPercent: number;
+      target_discount_percent?: number;
+      targetDiscountPercent?: number;
+      auto_accept_threshold?: number;
       autoAcceptThreshold?: number;
     }
   ) {
     const buyer = currentBuyer(req);
-    return this.upsertAgent.execute({ globalUserId: buyer.globalUserId, ...body });
+    const result = await this.upsertAgent.execute({
+      globalUserId: buyer.globalUserId,
+      name: body.agent_name ?? body.name ?? "Agente",
+      personality: body.personality,
+      maxRounds: 5,
+      targetDiscountPercent: body.target_discount_percent ?? body.targetDiscountPercent ?? 5,
+      minimumAcceptableDiscountPercent: 0,
+      autoAcceptThreshold: body.auto_accept_threshold ?? body.autoAcceptThreshold ?? 0
+    });
+    return {
+      agent_name: result.name,
+      personality: result.personality,
+      target_discount_percent: result.targetDiscountPercent,
+      auto_accept_threshold: result.autoAcceptThreshold ?? 0
+    };
   }
 
   @Post("m2m/enable")
