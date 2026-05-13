@@ -8,5 +8,17 @@ coverage
 .env.local
 *.log
 .pnpm-store
-*.md
-docs/*
+
+# Local editor configs
+.vscode/
+.claude/settings.local.json
+
+# Test reports and results
+playwright-report/
+test-results/
+
+# Local scripts
+scripts/
+
+# Exclude docs but not project markdown files
+/docs/*
