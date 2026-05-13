@@ -115,7 +115,8 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const theme = deps.theme ?? DEFAULT_MERCHANT_THEME;
   const chatStage = deps.chatStage ?? "data_collection";
   const items = input.cart.items.map(toItemSnapshot);
-  const shipping = input.shipping?.customerPrice ?? 0;
+  // Only include shipping cost when a method has been explicitly selected (session.shipping exists)
+  const shipping = input.shipping ? input.shipping.customerPrice : 0;
   const discount = input.cart.currentDiscount ?? 0;
   const subtotal = input.cart.total;
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));

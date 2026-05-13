@@ -35,7 +35,7 @@ import { PURCHASE_HISTORY_PORT } from "./domain/ports/purchase-history.port.js";
 import { AgentRulesContextAdapter } from "./infrastructure/adapters/agent-rules-context.adapter.js";
 import { BuyerPurchaseHistoryAdapter } from "./infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-settings.adapter.js";
-import { OpenAiConversationAdapter } from "./infrastructure/adapters/openai-conversation.adapter.js";
+import { DeterministicConversationAdapter } from "./infrastructure/adapters/deterministic-conversation.adapter.js";
 import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
@@ -80,7 +80,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     AgentRulesContextAdapter,
     BuyerPurchaseHistoryAdapter,
     CheckoutSettingsAdapter,
-    OpenAiConversationAdapter,
+    DeterministicConversationAdapter,
     BrevoBuyerEmailNotifier,
     ShopifyCommerceOfferAdapter,
     {
@@ -100,7 +100,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
-    { provide: CONVERSATION_PORT, useExisting: OpenAiConversationAdapter },
+    { provide: CONVERSATION_PORT, useExisting: DeterministicConversationAdapter },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
     PaymentApprovedHandler
   ],
