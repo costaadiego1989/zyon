@@ -16,11 +16,11 @@ import { CreateCheckoutTemplateUseCase } from "./application/use-cases/create-ch
 import { ExecuteCheckoutTemplateUseCase } from "./application/use-cases/execute-checkout-template.use-case.js";
 import { ListTemplatesForBuyerUseCase } from "./application/use-cases/list-templates-for-buyer.use-case.js";
 import { UpdateConsentUseCase } from "./application/use-cases/update-consent.use-case.js";
-import { BuyerAuthController } from "./presentation/http/buyer-auth.controller.js";
 import { BuyerMeController } from "./presentation/http/buyer-me.controller.js";
 
+// BuyerAuthController removed — BuyerAccountModule owns /buyer/register and /buyer/login
 @Module({
-  controllers: [BuyerAuthController, BuyerMeController],
+  controllers: [BuyerMeController],
   providers: [
     InMemoryBuyerUserRepository,
     InMemoryBuyerWalletRepository,
