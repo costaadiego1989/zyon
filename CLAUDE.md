@@ -90,7 +90,14 @@ cd apps/widget && pnpm build
 cd apps/api && pnpm test
 cd apps/api && pnpm test:prisma
 cd apps/widget && pnpm test
+cd apps/widget && pnpm test:coverage        # vitest --coverage (thresholds: 70%)
 cd packages/<pkg> && pnpm test
+
+# Playwright e2e
+cd apps/widget && pnpm e2e                  # widget-mocked project (no real API)
+cd apps/widget && pnpm e2e:realapi          # widget-realapi project (real NestJS API)
+cd apps/widget && pnpm e2e -- --grep @regression   # regression suite only
+cd apps/widget && pnpm e2e:realapi -- --grep @live  # nightly live specs only
 
 cd apps/api && pnpm prisma:generate
 cd apps/api && pnpm prisma:migrate:dev

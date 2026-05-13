@@ -33,6 +33,19 @@
 - Chat with the buyer and show offer actions.
 - Move to a token-only secure embed that does not receive sensitive cart, margin, cost, or customer data.
 
+**Widget Conversation Flow Fixes** - NEXT
+
+- Fix 8 confirmed UI/UX bugs: composer visibility during streaming, coupon quick-reply gate, ShippingSelector render, freight totals, CouponBox layout, transparent card form, support fallback.
+- Install Playwright and add E2E coverage for conversation happy path, card form, and support panel.
+- Spec: `.specs/features/widget-conversation-fixes/`.
+
+**User Hub Buyer Panel** - NEXT
+
+- Wire `UserPanel` to real buyer API (`/buyer/me/*` endpoints).
+- Implement `useBuyerHub` hook replacing merchant-scoped `useAccountHub`.
+- Complete Profile, Orders, Agent, and Settings tabs with real data and saves.
+- Spec: `.specs/features/user-hub-buyer-panel/`.
+
 **Payment Asaas** - PLANNED
 
 - Create payment intents for checkout sessions.
