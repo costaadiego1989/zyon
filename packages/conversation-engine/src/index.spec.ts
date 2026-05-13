@@ -1,6 +1,92 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateSalesReply, isSafeGeneratedMessage } from "./index.js";
+import { generateDeterministicReply, generateSalesReply, isSafeGeneratedMessage } from "./index.js";
+
+// ─── generateDeterministicReply (no LLM) ─────────────────────────────────────
+
+test("generateDeterministicReply returns template without any network call", () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = (async () => { called = true; return new Response("", { status: 200 }); }) as typeof fetch;
+  try {
+    const result = generateDeterministicReply({ userMessage: "esta caro", brandVoice: "consultative" });
+    assert.equal(called, false, "must not call fetch");
+    assert.equal(result.objection, "price");
+    assert.ok(result.message.length > 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("generateDeterministicReply returns synchronously (no Promise returned)", () => {
+  const result = generateDeterministicReply({ userMessage: "frete caro", brandVoice: "consultative" });
+  assert.ok(!(result instanceof Promise), "must be synchronous");
+  assert.equal(result.objection, "shipping_cost");
+});
+
+test("generateDeterministicReply uses stage templates for data_collection", () => {
+  const result = generateDeterministicReply({
+    userMessage: "ok",
+    brandVoice: "consultative",
+    stage: "data_collection",
+    missingFields: ["email"]
+  });
+  assert.ok(result.message.length > 0);
+  assert.equal(result.objection, "unknown");
+});
+
+test("generateDeterministicReply uses stage templates for shipping", () => {
+  const result = generateDeterministicReply({
+    userMessage: "ok",
+    brandVoice: "consultative",
+    stage: "shipping",
+    missingFields: ["CEP"]
+  });
+  assert.match(result.message, /CEP/i);
+});
+
+test("generateDeterministicReply shows address confirmation (not CEP error) when address found", () => {
+  const result = generateDeterministicReply({
+    userMessage: "01310100",
+    brandVoice: "consultative",
+    stage: "shipping",
+    missingFields: ["confirmar endereço"],
+    deliverySummary: "Referência para entrega: Avenida Paulista · Bela Vista · São Paulo/SP"
+  });
+  assert.doesNotMatch(result.message, /não consegui|Não consegui/i);
+  assert.match(result.message, /Localizei|localizei/i);
+  assert.match(result.message, /Avenida Paulista/);
+  assert.match(result.message, /Sim\/Não/i);
+});
+
+test("generateDeterministicReply shows CEP error when missingFields is confirmar CEP", () => {
+  const result = generateDeterministicReply({
+    userMessage: "99999999",
+    brandVoice: "consultative",
+    stage: "shipping",
+    missingFields: ["confirmar CEP"]
+  });
+  assert.match(result.message, /não consegui localizar|Não consegui localizar/i);
+});
+
+test("generateDeterministicReply mentions approved offer in reply", () => {
+  const result = generateDeterministicReply({
+    userMessage: "quero desconto",
+    brandVoice: "consultative",
+    authorizedOffer: {
+      id: "off_1",
+      merchantId: "mrc_1",
+      sessionId: "chk_1",
+      type: "discount_percent",
+      value: 10,
+      approved: true,
+      reason: "discount_allowed",
+      marginAfterOffer: 0.5,
+      expiresAt: "2999-01-01T00:00:00.000Z"
+    }
+  });
+  assert.match(result.message, /10%/);
+});
 
 test("generateSalesReply sends OpenAI-compatible chat completion payloads", async () => {
   const originalFetch = globalThis.fetch;

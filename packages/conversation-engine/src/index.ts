@@ -28,6 +28,20 @@ export interface ConversationOutput {
   objection: Objection;
 }
 
+export function generateDeterministicReply(input: ConversationInput): ConversationOutput {
+  const objection = classifyObjection(input.userMessage);
+  return fallbackReply(
+    objection,
+    input.authorizedOffer,
+    input.agentContext,
+    input.stage,
+    input.missingFields,
+    input.merchantName,
+    input.deliverySummary,
+    input.userMessage
+  );
+}
+
 export async function generateSalesReply(input: ConversationInput): Promise<ConversationOutput> {
   const objection = classifyObjection(input.userMessage);
   const apiKey = input.apiKey ?? input.openAiApiKey;
@@ -38,7 +52,9 @@ export async function generateSalesReply(input: ConversationInput): Promise<Conv
       input.agentContext,
       input.stage,
       input.missingFields,
-      input.merchantName
+      input.merchantName,
+      input.deliverySummary,
+      input.userMessage
     );
   if (!apiKey) return fb();
 
@@ -298,10 +314,18 @@ function fallbackReply(
   agentContext?: ConversationInput["agentContext"],
   stage?: ChatStage,
   missingFields?: string[],
-  merchantName?: string
+  merchantName?: string,
+  deliverySummary?: string,
+  userMessage?: string
 ): ConversationOutput {
   const agentName = agentContext?.agent.agentName;
   const prefix = agentName ? `${agentName}: ` : "";
+
+  // Check if the message matches a known quick reply and provide contextual answer
+  const quickReplyAnswer = matchQuickReplyResponse(userMessage ?? "", stage, missingFields, merchantName, deliverySummary);
+  if (quickReplyAnswer) {
+    return { objection, message: `${prefix}${quickReplyAnswer}` };
+  }
 
   if (stage === "data_collection") {
     const next = missingFields?.[0];
@@ -310,6 +334,17 @@ function fallbackReply(
   }
   if (stage === "shipping") {
     const next = missingFields?.[0] ?? "CEP";
+    if (next === "confirmar endereço") {
+      const addrSnippet = deliverySummary
+        ?.replace(/^Referência para entrega:\s*/i, "")
+        .replace(/\s*·\s*CEP\b.*$/, "")
+        .trim();
+      const addrLine = addrSnippet ? ` ${addrSnippet}.` : "";
+      return {
+        objection,
+        message: `${prefix}Localizei o endereço pelo CEP:${addrLine} Está correto? (Sim/Não)`
+      };
+    }
     if (next.includes("número") || next.includes("complemento")) {
       return {
         objection,
@@ -360,6 +395,137 @@ function fallbackReply(
     message:
       `${prefix}Vou verificar a melhor condição permitida para este pedido. Se nenhuma oferta for liberada, te mostro a alternativa mais segura para continuar.`
   };
+}
+
+/**
+ * Matches known quick reply messages and returns a contextual response.
+ * Returns null if no match found (falls through to default stage logic).
+ */
+function matchQuickReplyResponse(
+  message: string,
+  stage?: ChatStage,
+  missingFields?: string[],
+  merchantName?: string,
+  _deliverySummary?: string
+): string | null {
+  const normalized = message.toLowerCase().trim();
+  const storeName = merchantName ?? "nossa loja";
+
+  // --- Data Collection stage quick replies ---
+  if (stage === "data_collection") {
+    if (/por que precisa do meu nome/i.test(message)) {
+      return `Precisamos do seu nome para emitir a nota fiscal e personalizar a entrega. Seus dados são usados apenas para esta compra em ${storeName}. Qual é o seu nome completo?`;
+    }
+    if (/posso usar nome de empresa/i.test(message)) {
+      return `Sim, pode usar o nome da empresa se preferir. Nesse caso, informe a razão social completa para a nota fiscal.`;
+    }
+    if (/seguro informar dados/i.test(message)) {
+      return `Sim, totalmente seguro. Seus dados são criptografados e usados exclusivamente para processar este pedido. Não compartilhamos com terceiros. Pode informar seu nome completo?`;
+    }
+    if (/v[aã]o me mandar spam/i.test(message)) {
+      return `Não enviamos spam. O email é usado apenas para confirmação do pedido e rastreio da entrega. Qual o seu melhor email?`;
+    }
+    if (/posso usar outro e-?mail/i.test(message)) {
+      return `Claro! Pode informar qualquer email que tenha acesso. Usaremos apenas para enviar a confirmação do pedido.`;
+    }
+    if (/enviam a nota por e-?mail/i.test(message)) {
+      return `Sim, a nota fiscal é enviada automaticamente para o email informado após a confirmação do pagamento. Qual o seu email?`;
+    }
+    if (/reenviar c[oó]digo de e-?mail/i.test(message)) {
+      return `Reenviando o código de verificação para o seu email. Aguarde alguns segundos e verifique também a pasta de spam.`;
+    }
+    if (/n[aã]o recebi o c[oó]digo/i.test(message)) {
+      return `O código pode levar até 1 minuto para chegar. Verifique a pasta de spam ou lixo eletrônico. Se não chegar, posso reenviar.`;
+    }
+    if (/qual e-?mail foi usado/i.test(message)) {
+      return `O código foi enviado para o email que você informou anteriormente. Se precisar usar outro email, é só me dizer.`;
+    }
+    if (/por que o cpf [eé] obrigat[oó]rio/i.test(message)) {
+      return `O CPF é necessário para emissão da nota fiscal eletrônica, exigida por lei. Seus dados ficam protegidos e não são compartilhados.`;
+    }
+    if (/posso informar cnpj/i.test(message)) {
+      return `Sim! Se a compra é para pessoa jurídica, pode informar o CNPJ que emitiremos a nota para a empresa.`;
+    }
+    if (/seguro enviar meu cpf/i.test(message)) {
+      return `Sim, totalmente seguro. O CPF é transmitido com criptografia e usado apenas para a nota fiscal deste pedido.`;
+    }
+    if (/v[aã]o me ligar/i.test(message)) {
+      return `Não ligamos. O telefone é usado apenas para enviar atualizações sobre a entrega via WhatsApp ou SMS. Qual o seu número com DDD?`;
+    }
+    if (/rastreio por whatsapp/i.test(message)) {
+      return `Sim! Enviamos o código de rastreio e atualizações de entrega pelo WhatsApp. Qual o seu número com DDD?`;
+    }
+    if (/pode ser telefone fixo/i.test(message)) {
+      return `Recomendamos um celular para receber o rastreio por WhatsApp, mas pode informar fixo se preferir. Qual o número com DDD?`;
+    }
+    if (/reenviar c[oó]digo sms/i.test(message)) {
+      return `Reenviando o código SMS para o seu celular. Aguarde alguns segundos.`;
+    }
+    if (/n[aã]o recebi o sms/i.test(message)) {
+      return `O SMS pode levar até 2 minutos. Verifique se o número está correto e se o celular tem sinal. Posso reenviar se precisar.`;
+    }
+    if (/posso usar outro n[uú]mero/i.test(message)) {
+      return `Claro! Informe o novo número com DDD que enviarei o código para ele.`;
+    }
+  }
+
+  // --- Shipping stage quick replies ---
+  if (stage === "shipping") {
+    if (/como calculo o frete/i.test(message)) {
+      return `O frete é calculado automaticamente pelo CEP de entrega. Basta informar os 8 dígitos do seu CEP que mostro as opções disponíveis com preço e prazo.`;
+    }
+    if (/entregam em todo o brasil/i.test(message)) {
+      return `Sim, entregamos para todo o Brasil via Correios (PAC e Sedex). O prazo varia conforme a região. Informe seu CEP para ver as opções.`;
+    }
+    if (/n[aã]o sei meu cep/i.test(message)) {
+      return `Você pode consultar seu CEP no site dos Correios (buscacep.correios.com.br) usando o nome da rua e cidade. Quando encontrar, me envie aqui.`;
+    }
+    if (/cep est[aá] correto/i.test(message)) {
+      return `Perfeito, endereço confirmado! Agora preciso do número do imóvel para finalizar o cálculo do frete.`;
+    }
+    if (/n[aã]o encontram meu endere[cç]o/i.test(message)) {
+      return `Pode ser que o CEP esteja incorreto ou seja muito novo. Tente conferir no site dos Correios ou informe outro CEP próximo.`;
+    }
+    if (/qual o problema com o cep/i.test(message)) {
+      return `Alguns CEPs novos ainda não estão na base dos Correios. Confira se digitou corretamente os 8 dígitos ou tente um CEP alternativo da mesma região.`;
+    }
+    if (/n[aã]o tem|minha casa n[aã]o tem n[uú]mero/i.test(message)) {
+      return `Sem problema! Registrei como "S/N" (sem número). Há algum complemento como bloco, casa ou referência?`;
+    }
+    if (/como informo o bloco/i.test(message)) {
+      return `Pode informar no formato: "Bloco B, Apto 302" ou "Casa 5". Se não houver complemento, diga "não tem".`;
+    }
+    if (/moro em zona rural/i.test(message)) {
+      return `Para zona rural, informe o CEP da cidade mais próxima e adicione uma referência no complemento (ex: "Sítio São João, Estrada Municipal km 5").`;
+    }
+    if (/tem frete gr[aá]tis/i.test(message)) {
+      return `O frete é calculado com base no CEP e peso do pedido. Não posso garantir frete grátis, mas vou mostrar as melhores opções disponíveis. Selecione uma das opções de frete acima.`;
+    }
+    if (/prazo est[aá] muito longo/i.test(message)) {
+      return `Entendo! O Sedex é a opção mais rápida disponível. Os prazos são estimativas dos Correios e geralmente chegam antes. Selecione a opção que preferir.`;
+    }
+    if (/tem transportadora mais r[aá]pida/i.test(message)) {
+      return `No momento trabalhamos com Correios (PAC e Sedex). O Sedex é a opção expressa com menor prazo. Selecione a opção que preferir acima.`;
+    }
+    if (/qual o prazo m[eé]dio/i.test(message)) {
+      return `O prazo varia por região: PAC de 5 a 12 dias úteis, Sedex de 2 a 5 dias úteis. Selecione a opção que preferir.`;
+    }
+    if (/tem op[cç][aã]o de retirada/i.test(message)) {
+      return `No momento não temos opção de retirada em loja. A entrega é feita pelos Correios no endereço informado.`;
+    }
+    if (/como acompanho o pedido/i.test(message)) {
+      return `Após o envio, você receberá o código de rastreio por email e WhatsApp para acompanhar em tempo real no site dos Correios.`;
+    }
+  }
+
+  // --- Payment stage quick replies ---
+  if (stage === "payment") {
+    if (/obrigad[oa]/i.test(message)) {
+      return `Por nada! Foi um prazer ajudar. Seu pedido está confirmado e você receberá os detalhes por email. Boas compras!`;
+    }
+  }
+
+  return null;
 }
 
 function stageMessageForField(field: string | undefined, merchantName?: string, agentName?: string): string {

@@ -23,10 +23,30 @@ export interface CartItem {
   cost?: number;
   quantity: number;
   weightGrams?: number;
+  weight_kg?: number;
+  height_cm?: number;
+  width_cm?: number;
+  length_cm?: number;
   imageUrl?: string;
   productUrl?: string;
   category?: string;
   variant?: string;
+}
+
+export interface PackageDimensions {
+  weightKg: number;
+  heightCm: number;
+  widthCm: number;
+  lengthCm: number;
+  quantity: number;
+}
+
+export interface ShippingContext {
+  originZip: string;
+  destinationZip: string;
+  cartTotalCents: number;
+  merchantId: string;
+  packages: PackageDimensions[];
 }
 
 export interface Cart {
