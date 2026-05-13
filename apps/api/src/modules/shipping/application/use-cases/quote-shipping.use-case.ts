@@ -25,8 +25,15 @@ export class QuoteShippingUseCase {
     });
 
     const cartTotalCents = Math.round(input.cart_total * 100);
+    const ctx = {
+      originZip: "",
+      destinationZip: input.destination_zip,
+      cartTotalCents,
+      merchantId: input.merchant_id,
+      packages: [],
+    };
     const allResults = await Promise.allSettled(
-      this.carriers.map((c) => c.fetchQuotes(input.destination_zip, cartTotalCents, input.merchant_id))
+      this.carriers.map((c) => c.fetchQuotes(ctx))
     );
 
     for (const res of allResults) {
