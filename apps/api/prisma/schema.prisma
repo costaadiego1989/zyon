@@ -357,6 +357,7 @@ model BuyerAccount {
   @@map("buyer_accounts")
 }
 
+
 model BuyerAgentProfile {
   id                               String    @id @default(cuid())
   globalUserId                     String    @unique @map("global_user_id")

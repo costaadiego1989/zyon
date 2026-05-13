@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { LoggerModule } from "nestjs-pino";
+import { TestSeedModule } from "./modules/__test__/test-seed.module.js";
 import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { ObservabilityModule } from "./shared/observability/observability.module.js";
 import { HttpModule } from "./shared/http/http.module.js";
@@ -58,7 +59,8 @@ import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module
     FulfillmentModule,
     SupportModule,
     SelfCheckoutModule,
-    BuyerAccountModule
+    BuyerAccountModule,
+    ...(process.env.E2E_SEED_ENABLED === "true" ? [TestSeedModule] : [])
   ]
 })
 export class AppModule {}
