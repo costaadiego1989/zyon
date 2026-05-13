@@ -1,0 +1,97 @@
+name: E2E
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  # ── Widget mocked e2e (no real API needed) ──────────────────────────────────
+  widget-e2e-mocked:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @aacp/widget exec playwright install --with-deps chromium
+
+      - name: Run widget mocked e2e
+        run: pnpm --filter @aacp/widget e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-mocked
+          path: apps/widget/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results (JUnit)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-mocked
+          path: apps/widget/test-results/junit.xml
+          retention-days: 14
+
+  # ── Widget realapi e2e (real NestJS API in-memory) ──────────────────────────
+  widget-e2e-realapi:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      E2E_SEED_ENABLED: "true"
+      AACP_REPOSITORY: memory
+      # No OpenAI/Asaas keys — deterministic fallback must cover all realapi specs
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: |
+          pnpm --filter @aacp/shared-types build
+          pnpm --filter @aacp/api build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @aacp/widget exec playwright install --with-deps chromium
+
+      - name: Run widget realapi e2e
+        run: pnpm --filter @aacp/widget e2e:realapi
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-realapi
+          path: apps/widget/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results (JUnit)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-realapi
+          path: apps/widget/test-results/junit.xml
+          retention-days: 14

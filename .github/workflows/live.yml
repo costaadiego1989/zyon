@@ -1,0 +1,58 @@
+name: Nightly Live E2E
+
+on:
+  schedule:
+    # 03:00 UTC daily
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  live-e2e:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      E2E_SEED_ENABLED: "true"
+      AACP_REPOSITORY: memory
+      RUN_REAL_AI_E2E: "true"
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      ASAAS_SANDBOX_KEY: ${{ secrets.ASAAS_SANDBOX_KEY }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: |
+          pnpm --filter @aacp/shared-types build
+          pnpm --filter @aacp/api build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @aacp/widget exec playwright install --with-deps chromium
+
+      - name: Run @live tagged specs
+        run: pnpm --filter @aacp/widget e2e:realapi -- --grep "@live"
+
+      - name: Run live API e2e (API suite)
+        run: pnpm --filter @aacp/api test
+        env:
+          RUN_REAL_AI_E2E: "true"
+
+      - name: Upload nightly report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: nightly-playwright-report
+          path: apps/widget/playwright-report/
+          retention-days: 30
