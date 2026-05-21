@@ -17,11 +17,22 @@ export interface PurchaseRecordDto {
   merchantId: string;
   merchantName: string;
   trackingCode?: string | null;
+  trackingStatus?: string | null;
+  trackingUrl?: string | null;
+  carrier?: string | null;
+  trackingEvents: PurchaseTrackingEventDto[];
   totalAmount: number;
   discountAmount: number;
   currency: string;
   completedAt: Date;
   items: unknown;
+}
+
+export interface PurchaseTrackingEventDto {
+  status: string;
+  description: string;
+  location?: string | null;
+  occurredAt: Date;
 }
 
 export interface PurchasePage {
@@ -94,19 +105,43 @@ export class GetBuyerPurchasesUseCase {
         order.trackingCode,
       ])
     );
-
-    const records: PurchaseRecordDto[] = page.map((r) => ({
-      id: r.id,
-      orderId: r.orderId,
+    const shipments = await listShipmentsForPurchases(this.prisma, page.map((r) => ({
       merchantId: r.merchantId,
-      merchantName: merchantMap.get(r.merchantId) ?? r.merchantId,
-      trackingCode: trackingByOrder.get(`${r.merchantId}:${r.orderId}`) ?? null,
-      totalAmount: r.totalAmount,
-      discountAmount: r.discountAmount,
-      currency: r.currency,
-      completedAt: r.completedAt,
-      items: r.items,
-    }));
+      orderId: r.orderId
+    })));
+    const shipmentByOrder = new Map(
+      shipments.map((shipment) => [
+        `${shipment.merchantId}:${shipment.externalOrderId}`,
+        shipment
+      ])
+    );
+
+    const records: PurchaseRecordDto[] = page.map((r) => {
+      const key = `${r.merchantId}:${r.orderId}`;
+      const shipment = shipmentByOrder.get(key);
+      const trackingCode = shipment?.trackingCode ?? trackingByOrder.get(key) ?? null;
+      return {
+        id: r.id,
+        orderId: r.orderId,
+        merchantId: r.merchantId,
+        merchantName: merchantMap.get(r.merchantId) ?? r.merchantId,
+        trackingCode,
+        trackingStatus: shipment?.status ?? (trackingCode ? "label_generated" : null),
+        trackingUrl: shipment?.trackingUrl ?? null,
+        carrier: shipment?.carrier ?? null,
+        trackingEvents: (shipment?.trackingEvents ?? []).map((event) => ({
+          status: event.status,
+          description: event.description,
+          location: event.location ?? null,
+          occurredAt: event.occurredAt
+        })),
+        totalAmount: r.totalAmount,
+        discountAmount: r.discountAmount,
+        currency: r.currency,
+        completedAt: r.completedAt,
+        items: r.items,
+      };
+    });
 
     const last = records[records.length - 1];
     const nextCursor = hasMore && last ? encodeCursor(last.completedAt, last.id) : null;
@@ -126,4 +161,53 @@ function decodeCursor(cursor: string): { completedAt: Date; id: string } {
     completedAt: new Date(decoded.slice(0, colonIdx)),
     id: decoded.slice(colonIdx + 1),
   };
+}
+
+type PurchaseShipmentRecord = {
+  merchantId: string;
+  externalOrderId: string;
+  trackingCode: string;
+  trackingUrl?: string | null;
+  carrier?: string | null;
+  status: string;
+  trackingEvents?: PurchaseTrackingEventDto[];
+};
+
+async function listShipmentsForPurchases(
+  prisma: PrismaClient,
+  purchases: Array<{ merchantId: string; orderId: string }>
+): Promise<PurchaseShipmentRecord[]> {
+  if (!purchases.length) return [];
+  const shipmentDelegate = (prisma as unknown as {
+    shipment?: {
+      findMany(args: unknown): Promise<PurchaseShipmentRecord[]>;
+    };
+  }).shipment;
+  if (!shipmentDelegate) return [];
+  return shipmentDelegate.findMany({
+    where: {
+      OR: purchases.map((purchase) => ({
+        merchantId: purchase.merchantId,
+        externalOrderId: purchase.orderId
+      }))
+    },
+    select: {
+      merchantId: true,
+      externalOrderId: true,
+      trackingCode: true,
+      trackingUrl: true,
+      carrier: true,
+      status: true,
+      trackingEvents: {
+        select: {
+          status: true,
+          description: true,
+          location: true,
+          occurredAt: true
+        },
+        orderBy: { occurredAt: "asc" },
+        take: 10
+      }
+    }
+  });
 }

@@ -12,6 +12,22 @@ const fmtBRL = (v: number) =>
 const fmtDate = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
 
+const TRACKING_STATUS_LABEL: Record<string, string> = {
+  pending: "Aguardando rastreio",
+  label_generated: "Etiqueta gerada",
+  dispatched: "Despachado",
+  in_transit: "Em transporte",
+  out_for_delivery: "Saiu para entrega",
+  delivered: "Entregue",
+  returned: "Devolvido",
+  cancelled: "Cancelado"
+};
+
+function trackingStatusLabel(status?: string | null): string | null {
+  if (!status) return null;
+  return TRACKING_STATUS_LABEL[status] ?? status.replace(/_/g, " ");
+}
+
 export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   if (!vm.userPanelOpen) return null;
 
@@ -325,7 +341,7 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPurchases = normalizedQuery
     ? hub.purchases.filter((purchase) =>
-        [purchase.merchant_name, purchase.order_id, purchase.tracking_code]
+        [purchase.merchant_name, purchase.order_id, purchase.tracking_code, purchase.tracking_status, purchase.carrier]
           .filter(Boolean)
           .some((value) => String(value).toLowerCase().includes(normalizedQuery))
       )
@@ -368,6 +384,11 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
                 padding: "12px 14px"
               }}
             >
+              {(() => {
+                const statusLabel = trackingStatusLabel(p.tracking_status);
+                const timeline = (p.tracking_events ?? []).slice(-3);
+                return (
+                  <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                 <div style={{ fontWeight: 600, fontSize: 13, color: "var(--aacp-fg)" }}>{p.merchant_name}</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--aacp-fg)" }}>
@@ -386,20 +407,43 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
                 <Truck size={13} style={{ flexShrink: 0 }} />
                 {p.tracking_code ? (
                   <>
-                    <span>Rastreio</span>
+                    <span>{p.carrier ? p.carrier : "Rastreio"}</span>
                     <strong style={{ color: "var(--aacp-fg)", fontFamily: "monospace", letterSpacing: 0 }}>
                       {p.tracking_code}
                     </strong>
+                    {statusLabel ? (
+                      <span style={{ color: "var(--aacp-success)", fontWeight: 700 }}>
+                        {statusLabel}
+                      </span>
+                    ) : null}
                   </>
                 ) : (
                   <span>Aguardando codigo de rastreio</span>
                 )}
               </div>
+              {timeline.length > 0 ? (
+                <div style={{ display: "grid", gap: 6, marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--aacp-line)" }}>
+                  {timeline.map((event) => (
+                    <div key={`${event.status}-${event.occurred_at}-${event.description}`} style={{ display: "grid", gap: 2, fontSize: 11 }}>
+                      <strong style={{ color: "var(--aacp-fg)" }}>
+                        {trackingStatusLabel(event.status) ?? event.status} - {event.description}
+                      </strong>
+                      <span style={{ color: "var(--aacp-muted)" }}>
+                        {fmtDate(event.occurred_at)}
+                        {event.location ? ` - ${event.location}` : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
               {p.order_id ? (
                 <div style={{ marginTop: 4, fontSize: 10, color: "var(--aacp-muted)" }}>
                   Pedido {p.order_id}
                 </div>
               ) : null}
+                  </>
+                );
+              })()}
             </div>
           ))}
 

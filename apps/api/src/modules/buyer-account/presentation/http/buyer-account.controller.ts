@@ -134,6 +134,15 @@ export class BuyerAccountController {
         order_id: r.orderId,
         merchant_name: r.merchantName,
         tracking_code: r.trackingCode ?? null,
+        tracking_status: r.trackingStatus ?? null,
+        tracking_url: r.trackingUrl ?? null,
+        carrier: r.carrier ?? null,
+        tracking_events: r.trackingEvents.map((event) => ({
+          status: event.status,
+          description: event.description,
+          location: event.location ?? null,
+          occurred_at: event.occurredAt instanceof Date ? event.occurredAt.toISOString() : String(event.occurredAt)
+        })),
         total: r.totalAmount,
         discount_amount: r.discountAmount,
         items_count: Array.isArray(r.items) ? (r.items as unknown[]).length : 0,

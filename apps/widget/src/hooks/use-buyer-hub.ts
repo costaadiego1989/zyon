@@ -19,11 +19,22 @@ export interface BuyerPurchase {
   order_id?: string;
   merchant_name: string;
   tracking_code?: string | null;
+  tracking_status?: string | null;
+  tracking_url?: string | null;
+  carrier?: string | null;
+  tracking_events?: BuyerTrackingEvent[];
   total: number;
   discount_amount: number;
   items_count: number;
   currency: string;
   created_at: string;
+}
+
+export interface BuyerTrackingEvent {
+  status: string;
+  description: string;
+  location?: string | null;
+  occurred_at: string;
 }
 
 export type BuyerAgentPersonality = "aggressive" | "balanced" | "conservative";

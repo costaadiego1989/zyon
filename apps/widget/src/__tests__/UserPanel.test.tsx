@@ -133,6 +133,16 @@ describe("UserPanel", () => {
             order_id: "order_1",
             merchant_name: "Loja Teste",
             tracking_code: "BR123456789AA",
+            tracking_status: "in_transit",
+            carrier: "correios",
+            tracking_events: [
+              {
+                status: "in_transit",
+                description: "Objeto em transferencia",
+                location: "Sao Paulo, SP",
+                occurred_at: "2026-05-21T09:30:00.000Z"
+              }
+            ],
             total: 199.9,
             discount_amount: 0,
             items_count: 1,
@@ -144,6 +154,10 @@ describe("UserPanel", () => {
     });
     const { getByText } = render(<UserPanel vm={vm} />);
     expect(getByText("BR123456789AA")).not.toBeNull();
+    expect(getByText("Em transporte")).not.toBeNull();
+    expect(getByText("correios")).not.toBeNull();
+    expect(getByText("Em transporte - Objeto em transferencia")).not.toBeNull();
+    expect(getByText("21/05/2026 - Sao Paulo, SP")).not.toBeNull();
     expect(getByText("Pedido order_1")).not.toBeNull();
   });
 
