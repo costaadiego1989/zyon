@@ -24,9 +24,11 @@ import { BuyerAccountController } from "./presentation/http/buyer-account.contro
 import { BuyerAgentController } from "./presentation/http/buyer-agent.controller.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
 
 @Module({
-  imports: [forwardRef(() => CheckoutModule)],
+  imports: [BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
   controllers: [BuyerAccountController, BuyerAgentController],
   providers: [
     RegisterBuyerUseCase,

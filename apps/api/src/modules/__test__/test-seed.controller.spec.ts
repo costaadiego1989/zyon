@@ -28,3 +28,23 @@ test("TestSeedController.seed: throws when NODE_ENV=production", () => {
     process.env.NODE_ENV = prev;
   }
 });
+
+test("TestSeedController webhook receiver stores E2E deliveries by bucket", () => {
+  const controller = new TestSeedController();
+  const bucket = `bucket_${crypto.randomUUID().slice(0, 8)}`;
+
+  controller.receiveWebhook(
+    bucket,
+    { event_type: "order.approved" },
+    {
+      "x-aacp-event-id": "evt_1",
+      "x-aacp-event-type": "order.approved",
+      "x-aacp-signature": "v1=test"
+    }
+  );
+
+  const received = controller.readWebhooks(bucket);
+  assert.equal(received.deliveries.length, 1);
+  assert.equal(received.deliveries[0]?.headers["x-aacp-event-type"], "order.approved");
+  assert.deepEqual(received.deliveries[0]?.body, { event_type: "order.approved" });
+});

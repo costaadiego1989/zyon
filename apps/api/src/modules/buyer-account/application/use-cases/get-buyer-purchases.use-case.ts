@@ -1,6 +1,13 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
+import {
+  BUYER_PURCHASE_HISTORY_REPOSITORY,
+  type BuyerPurchaseHistoryRepository
+} from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
+import type { PurchaseRecord as PurchaseHistoryRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
+import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
+import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
 
 export interface GetBuyerPurchasesRequest {
   globalUserId: string;
@@ -43,10 +50,22 @@ export interface PurchasePage {
 @Injectable()
 export class GetBuyerPurchasesUseCase {
   constructor(
-    @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient
+    @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Optional()
+    @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY)
+    private readonly purchaseHistory?: BuyerPurchaseHistoryRepository,
+    @Optional() @Inject(ORDER_REPOSITORY) private readonly orders?: OrderRepository,
+    @Optional() @Inject(INTEGRATIONS_REPOSITORY) private readonly integrations?: IntegrationsRepository
   ) {}
 
   async execute(input: GetBuyerPurchasesRequest): Promise<PurchasePage> {
+    if (!usesPrismaPurchaseHistory()) {
+      return this.executeRepository(input);
+    }
+    return this.executePrisma(input);
+  }
+
+  private async executePrisma(input: GetBuyerPurchasesRequest): Promise<PurchasePage> {
     const limit = Math.min(input.limit ?? 20, 100);
     const cursor = input.cursor ? decodeCursor(input.cursor) : null;
 
@@ -148,6 +167,85 @@ export class GetBuyerPurchasesUseCase {
 
     return { records, nextCursor };
   }
+
+  private async executeRepository(input: GetBuyerPurchasesRequest): Promise<PurchasePage> {
+    const merchantId = input.merchantId?.trim();
+    if (!merchantId || !this.purchaseHistory) return { records: [], nextCursor: null };
+
+    const limit = Math.min(input.limit ?? 20, 100);
+    const cursor = input.cursor ? decodeCursor(input.cursor) : null;
+    const history = await this.purchaseHistory.getByBuyer({
+      merchantId,
+      globalUserId: input.globalUserId
+    });
+    const rows = (history?.snapshot().purchases ?? [])
+      .filter((purchase) => isWithinRange(purchase, input))
+      .filter((purchase) => isAfterCursor(purchase, cursor))
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt) || b.orderId.localeCompare(a.orderId));
+
+    const page = rows.slice(0, limit);
+    const hasMore = rows.length > limit;
+    const records = await Promise.all(page.map((purchase) => this.toRepositoryRecord(purchase)));
+    const last = records[records.length - 1];
+    const nextCursor = hasMore && last ? encodeCursor(last.completedAt, last.id) : null;
+
+    return { records, nextCursor };
+  }
+
+  private async toRepositoryRecord(purchase: PurchaseHistoryRecord): Promise<PurchaseRecordDto> {
+    const shipment = await this.integrations?.getShipmentByExternalOrderId(purchase.merchantId, purchase.orderId);
+    const order = await this.orders?.findCompletedOrderByExternalOrderId(purchase.merchantId, purchase.orderId);
+    const trackingCode = shipment?.trackingCode ?? order?.trackingCode ?? null;
+    const events = shipment?.trackingCode
+      ? await this.integrations?.listTrackingEvents(purchase.merchantId, shipment.trackingCode)
+      : [];
+
+    return {
+      id: `${purchase.merchantId}:${purchase.orderId}`,
+      orderId: purchase.orderId,
+      merchantId: purchase.merchantId,
+      merchantName: purchase.merchantId,
+      trackingCode,
+      trackingStatus: shipment?.status ?? (trackingCode ? "label_generated" : null),
+      trackingUrl: shipment?.trackingUrl ?? null,
+      carrier: shipment?.carrier ?? null,
+      trackingEvents: (events ?? []).map((event) => ({
+        status: event.status,
+        description: event.description,
+        location: event.location ?? null,
+        occurredAt: new Date(event.occurredAt)
+      })),
+      totalAmount: purchase.totalAmount,
+      discountAmount: purchase.discountAmount,
+      currency: purchase.currency,
+      completedAt: new Date(purchase.completedAt),
+      items: purchase.items
+    };
+  }
+}
+
+function usesPrismaPurchaseHistory(): boolean {
+  if (process.env.CHECKOUT_REPOSITORY === "in-memory" || process.env.BUYER_PURCHASE_HISTORY_REPOSITORY === "in-memory") {
+    return false;
+  }
+  return true;
+}
+
+function isWithinRange(purchase: PurchaseHistoryRecord, input: GetBuyerPurchasesRequest): boolean {
+  const completedAt = new Date(purchase.completedAt);
+  if (input.dateFrom && completedAt < input.dateFrom) return false;
+  if (input.dateTo && completedAt > input.dateTo) return false;
+  return true;
+}
+
+function isAfterCursor(
+  purchase: PurchaseHistoryRecord,
+  cursor: { completedAt: Date; id: string } | null
+): boolean {
+  if (!cursor) return true;
+  const completedAt = new Date(purchase.completedAt);
+  const id = `${purchase.merchantId}:${purchase.orderId}`;
+  return completedAt < cursor.completedAt || (completedAt.getTime() === cursor.completedAt.getTime() && id < cursor.id);
 }
 
 function encodeCursor(completedAt: Date, id: string): string {

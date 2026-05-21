@@ -38,6 +38,11 @@ import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purcha
       inject: [InMemoryBuyerPurchaseHistoryRepository]
     }
   ],
-  exports: [RecordCompletedPurchaseUseCase, GetBuyerPurchaseContextUseCase, BUYER_IDENTITY_REPOSITORY]
+  exports: [
+    RecordCompletedPurchaseUseCase,
+    GetBuyerPurchaseContextUseCase,
+    BUYER_IDENTITY_REPOSITORY,
+    BUYER_PURCHASE_HISTORY_REPOSITORY
+  ]
 })
 export class BuyerPurchaseHistoryModule {}

@@ -3,7 +3,7 @@
  *
  * Verifies the checkout surface against the real local NestJS API.
  */
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
 
 const API = "http://localhost:3000";
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
@@ -47,6 +47,24 @@ async function sendChat(page: Page, text: string): Promise<void> {
   await sendButton.click();
   await response;
   await waitForChatIdle(page);
+}
+
+async function waitForTestWebhook(
+  request: APIRequestContext,
+  bucket: string,
+  eventType: string
+): Promise<{ headers: Record<string, unknown>; body: Record<string, any> }> {
+  for (let attempt = 0; attempt < 60; attempt++) {
+    const received = await request.get(`${API}/__test__/webhook-receiver/${bucket}`);
+    expect(received.ok()).toBe(true);
+    const body = await received.json();
+    const delivery = (body.deliveries as Array<{ headers: Record<string, unknown>; body: Record<string, any> }>).find(
+      (candidate) => candidate.body?.event_type === eventType
+    );
+    if (delivery) return delivery;
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(`Timed out waiting for webhook ${eventType} in bucket ${bucket}`);
 }
 
 test.describe("full checkout real @realapi", () => {
@@ -205,6 +223,208 @@ test.describe("full checkout real @realapi", () => {
 });
 
 test.describe("full checkout real API @realapi", () => {
+  test("checkout emits tenant webhooks and buyer hub shows inbound tracking timeline", async ({ request }) => {
+    const bucket = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const merchantId = `mrc_${bucket}`;
+    const merchantEmail = `${bucket}@tenant.test`;
+
+    const registered = await request.post(`${API}/auth/register`, {
+      data: {
+        merchant_id: merchantId,
+        merchant_name: "Tenant E2E",
+        email: merchantEmail,
+        password: "TenantPass123!"
+      }
+    });
+    expect(registered.ok()).toBe(true, `Merchant register failed: ${await registered.text()}`);
+    const auth = await registered.json();
+    const tenantAuth = { Authorization: `Bearer ${auth.access_token}` };
+
+    const webhook = await request.post(`${API}/integrations/webhooks`, {
+      headers: tenantAuth,
+      data: {
+        url: `${API}/__test__/webhook-receiver/${bucket}`,
+        events: ["order.approved", "order.tracking.updated"],
+        enabled: true,
+        description: "Playwright receiver"
+      }
+    });
+    expect(webhook.ok()).toBe(true, `Webhook register failed: ${await webhook.text()}`);
+
+    const apiKeyResponse = await request.post(`${API}/integrations/api-keys`, {
+      headers: tenantAuth,
+      data: {
+        name: "Playwright backend",
+        scopes: ["embed:sessions:create", "orders:tracking:write"]
+      }
+    });
+    expect(apiKeyResponse.ok()).toBe(true, `API key create failed: ${await apiKeyResponse.text()}`);
+    const apiKeyBody = await apiKeyResponse.json();
+    const apiKey = apiKeyBody.secret_key as string;
+    expect(apiKey).toBeTruthy();
+
+    const embedSession = await request.post(`${API}/embed-sessions`, {
+      headers: tenantAuth,
+      data: {
+        ttl_seconds: 900,
+        allowed_origin: BASE,
+        scopes: ["checkout:start", "checkout:chat", "payment:intents:create"],
+        cart_ref: `cart_${bucket}`
+      }
+    });
+    expect(embedSession.ok()).toBe(true, `Embed session failed: ${await embedSession.text()}`);
+    const embedBody = await embedSession.json();
+    const embedToken = embedBody.embed_session_token as string;
+    expect(embedToken).toBeTruthy();
+
+    const customerEmail = `${bucket}@buyer.test`;
+    const start = await request.post(`${API}/embed/start`, {
+      headers: { "x-aacp-embed-token": embedToken },
+      data: {
+        customer: {
+          fullName: "Buyer Tracking E2E",
+          email: customerEmail,
+          email_verified: true,
+          cpf: "12345678901",
+          phone: "11999999999",
+          phone_verified: true,
+          address_verified: true,
+          address: {
+            zip: "01310100",
+            street: "Avenida Paulista",
+            number: "1000",
+            neighborhood: "Bela Vista",
+            city: "Sao Paulo",
+            state: "SP"
+          }
+        },
+        cart: {
+          currency: "BRL",
+          source: "storefront",
+          total: 219.9,
+          items: [
+            {
+              sku: "sku_tracking_001",
+              name: "Tracking Product",
+              price: 219.9,
+              quantity: 1
+            }
+          ]
+        }
+      }
+    });
+    expect(start.ok()).toBe(true, `Checkout start failed: ${await start.text()}`);
+    const checkout = await start.json();
+    const sessionId = checkout.session_id as string;
+    expect(sessionId).toBeTruthy();
+
+    const quote = await request.post(`${API}/embed/shipping/quote`, {
+      data: {
+        session_id: sessionId,
+        merchant_id: merchantId,
+        destination_zip: "01310100",
+        cart_total: 219.9
+      }
+    });
+    expect(quote.ok()).toBe(true, `Quote failed: ${await quote.text()}`);
+    const quoteBody = await quote.json();
+    expect(quoteBody.results.length).toBeGreaterThan(0);
+    const carrierKey = quoteBody.results[0].carrier_key as string;
+
+    const selected = await request.post(`${API}/embed/shipping/select`, {
+      data: {
+        session_id: sessionId,
+        merchant_id: merchantId,
+        carrier_key: carrierKey
+      }
+    });
+    expect(selected.ok()).toBe(true, `Select shipping failed: ${await selected.text()}`);
+
+    const payment = await request.post(`${API}/embed/payment/intents`, {
+      headers: { "x-aacp-embed-token": embedToken },
+      data: {
+        session_id: sessionId,
+        idempotency_key: `pay_${bucket}`,
+        method: "pix"
+      }
+    });
+    expect(payment.ok()).toBe(true, `Payment failed: ${await payment.text()}`);
+    const paid = await payment.json();
+    expect(paid.status).toBe("approved");
+    const externalOrderId = paid.providerPaymentId as string;
+    expect(externalOrderId).toBeTruthy();
+
+    const approvedWebhook = await waitForTestWebhook(request, bucket, "order.approved");
+    expect(approvedWebhook.headers["x-aacp-signature"]).toBeTruthy();
+    expect(approvedWebhook.body.data.order.external_order_id).toBe(externalOrderId);
+    expect(approvedWebhook.body.data.customer.email).toBe(customerEmail);
+    expect(approvedWebhook.body.data.tracking.status).toBe("pending");
+
+    const trackingCode = `BR${Date.now().toString().slice(-9)}AA`;
+    const tracked = await request.put(`${API}/integrations/orders/${externalOrderId}/tracking`, {
+      headers: { "x-aacp-api-key": apiKey },
+      data: {
+        tracking_code: trackingCode,
+        carrier: "Correios",
+        tracking_url: `https://rastreamento.example/${trackingCode}`,
+        status: "in_transit",
+        events: [
+          {
+            status: "label_generated",
+            description: "Etiqueta criada",
+            location: "Sao Paulo, SP",
+            occurred_at: new Date(Date.now() - 60_000).toISOString()
+          },
+          {
+            status: "in_transit",
+            description: "Objeto em transferencia",
+            location: "Sao Paulo, SP",
+            occurred_at: new Date().toISOString()
+          }
+        ]
+      }
+    });
+    expect(tracked.ok()).toBe(true, `Tracking update failed: ${await tracked.text()}`);
+    const trackingBody = await tracked.json();
+    expect(trackingBody.updated).toBe(true);
+    expect(trackingBody.shipment.trackingCode).toBe(trackingCode);
+    expect(trackingBody.events_recorded).toBe(2);
+
+    const trackingWebhook = await waitForTestWebhook(request, bucket, "order.tracking.updated");
+    expect(trackingWebhook.body.data.tracking.tracking_code).toBe(trackingCode);
+    expect(trackingWebhook.body.data.tracking.status).toBe("in_transit");
+
+    const timeline = await request.get(`${API}/integrations/tracking/${trackingCode}`, {
+      headers: { "x-aacp-api-key": apiKey }
+    });
+    expect(timeline.ok()).toBe(true, `Tracking timeline failed: ${await timeline.text()}`);
+    const timelineBody = await timeline.json();
+    expect(timelineBody.shipment.trackingCode).toBe(trackingCode);
+    expect(timelineBody.events).toHaveLength(2);
+
+    const buyerLogin = await request.post(`${API}/buyer/login-from-session`, {
+      data: {
+        merchant_id: merchantId,
+        session_id: sessionId
+      }
+    });
+    expect(buyerLogin.ok()).toBe(true, `Buyer login from session failed: ${await buyerLogin.text()}`);
+    const buyerAuth = await buyerLogin.json();
+    const buyerToken = buyerAuth.access_token as string;
+
+    const purchases = await request.get(`${API}/buyer/me/purchases?merchant_id=${merchantId}&limit=5`, {
+      headers: { Authorization: `Bearer ${buyerToken}` }
+    });
+    expect(purchases.ok()).toBe(true, `Buyer purchases failed: ${await purchases.text()}`);
+    const purchasePage = await purchases.json();
+    const order = purchasePage.items.find((item: { order_id: string }) => item.order_id === externalOrderId);
+    expect(order).toBeTruthy();
+    expect(order.tracking_code).toBe(trackingCode);
+    expect(order.tracking_status).toBe("in_transit");
+    expect(order.carrier).toBe("Correios");
+    expect(order.tracking_events).toHaveLength(2);
+  });
+
   test("buyer registration and hub profile in snake_case [REQ-CHK-005]", async ({ request }) => {
     const email = `e2e_full_${Date.now()}@test.aacp`;
     const reg = await request.post(`${API}/buyer/register`, {

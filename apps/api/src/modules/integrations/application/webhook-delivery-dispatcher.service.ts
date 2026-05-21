@@ -3,7 +3,7 @@ import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../domain/
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
 
-const DISPATCH_INTERVAL_MS = 10_000;
+const DEFAULT_DISPATCH_INTERVAL_MS = 10_000;
 const MAX_ATTEMPTS = 5;
 
 @Injectable()
@@ -17,7 +17,7 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
   ) {}
 
   onModuleInit(): void {
-    this.timer = setInterval(() => void this.dispatchOnce(), DISPATCH_INTERVAL_MS);
+    this.timer = setInterval(() => void this.dispatchOnce(), dispatchIntervalMs());
   }
 
   onModuleDestroy(): void {
@@ -88,4 +88,10 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
       updatedAt: now.toISOString()
     });
   }
+}
+
+function dispatchIntervalMs(): number {
+  const configured = Number(process.env.WEBHOOK_DISPATCH_INTERVAL_MS);
+  if (Number.isFinite(configured) && configured >= 100) return configured;
+  return DEFAULT_DISPATCH_INTERVAL_MS;
 }

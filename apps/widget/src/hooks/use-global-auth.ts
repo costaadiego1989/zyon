@@ -332,6 +332,7 @@ export function useGlobalAuth(options: {
         const snakePayload = payload as { global_user_id?: string; email?: string; access_token?: string; token_type?: string; expires_in?: number };
         if (snakePayload.access_token && snakePayload.email) {
           persist({
+            merchant_id: merchantId,
             global_user_id: snakePayload.global_user_id,
             email: snakePayload.email,
             access_token: snakePayload.access_token,
@@ -344,6 +345,7 @@ export function useGlobalAuth(options: {
         return false;
       }
       persist({
+        merchant_id: merchantId,
         global_user_id: parsed.data.globalUserId,
         email: parsed.data.email,
         access_token: parsed.data.accessToken,

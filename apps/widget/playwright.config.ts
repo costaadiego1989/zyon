@@ -52,7 +52,9 @@ export default defineConfig({
               CHECKOUT_REPOSITORY: "in-memory",
               MERCHANT_REPOSITORY: "in-memory",
               BUYER_ACCOUNT_REPOSITORY: "in-memory",
+              BUYER_PURCHASE_HISTORY_REPOSITORY: "in-memory",
               SUPPORT_SETTINGS_REPOSITORY: "in-memory",
+              WEBHOOK_DISPATCH_INTERVAL_MS: "250",
               NODE_ENV: "test"
             }
           }

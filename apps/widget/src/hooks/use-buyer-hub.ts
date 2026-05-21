@@ -81,6 +81,13 @@ function buyerHeaders(session: GlobalAuthSession): HeadersInit {
   };
 }
 
+function purchasesUrl(base: string, session: GlobalAuthSession, cursor?: string | null): string {
+  const params = new URLSearchParams({ limit: "10" });
+  if (session.merchant_id) params.set("merchant_id", session.merchant_id);
+  if (cursor) params.set("cursor", cursor);
+  return `${base}/buyer/me/purchases?${params.toString()}`;
+}
+
 export function useBuyerHub(options: {
   apiBaseUrl: string;
   session: GlobalAuthSession | null;
@@ -107,7 +114,7 @@ export function useBuyerHub(options: {
         fetchJson<BuyerProfile>(`${base}/buyer/me`, { headers, credentials: "include" }),
         fetchJson<BuyerSummary>(`${base}/buyer/me/summary`, { headers, credentials: "include" }).catch(() => null),
         fetchJson<{ items: BuyerPurchase[]; next_cursor?: string }>(
-          `${base}/buyer/me/purchases?limit=10`,
+          purchasesUrl(base, options.session),
           { headers, credentials: "include" }
         ).catch(() => ({ items: [], next_cursor: undefined })),
         fetchJson<BuyerAgentProfile>(`${base}/buyer/me/agent`, { headers, credentials: "include" }).catch(() => null)
@@ -130,7 +137,7 @@ export function useBuyerHub(options: {
     const headers = buyerHeaders(options.session);
     try {
       const data = await fetchJson<{ items: BuyerPurchase[]; next_cursor?: string }>(
-        `${base}/buyer/me/purchases?limit=10&cursor=${cursor}`,
+        purchasesUrl(base, options.session, cursor),
         { headers, credentials: "include" }
       );
       setPurchases((prev) => [...prev, ...(data.items ?? [])]);
