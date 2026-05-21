@@ -18,7 +18,8 @@ playwright-report/
 test-results/
 
 # Local scripts and tools
-scripts/
+scripts/*
+!scripts/docker-engine-ok.mjs
 .kilo/
 
 # Feature spec directories (auto-generated or WIP)

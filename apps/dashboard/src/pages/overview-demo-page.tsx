@@ -1,8 +1,68 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Save } from "lucide-react";
-import type { DashboardOverview, MerchantRules } from "@aacp/shared-types";
-import { createDashboardApi } from "../api-client.js";
+import type { DashboardOverview, MerchantRules, SupportTicket } from "@aacp/shared-types";
+import { createDashboardApi, type MerchantProfile } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
+
+export interface PilotDashboardMetrics {
+  completedOrders: number;
+  conversionRate: number;
+  offersAccepted: number;
+  offersViewed: number;
+  offerAcceptanceRate: number;
+  selectedShippingSessions: number;
+  pendingShippingSessions: number;
+  averageSelectedShipping: number;
+  openSupportTickets: number | null;
+  resolvedSupportTickets: number | null;
+  incrementalRevenue: number;
+}
+
+function average(values: number[]): number {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+export function buildPilotMetrics(
+  overview: DashboardOverview | null,
+  supportTickets: SupportTicket[] | null
+): PilotDashboardMetrics {
+  const recentSessions = overview?.recent_sessions ?? [];
+  const selectedShippingSessions = recentSessions.filter((session) => Boolean(session.shipping)).length;
+  const pendingShippingSessions = recentSessions.filter((session) => !session.shipping).length;
+  const shippingPrices = recentSessions
+    .map((session) => session.shipping?.customerPrice)
+    .filter((value): value is number => typeof value === "number");
+  const openSupportTickets = supportTickets
+    ? supportTickets.filter((ticket) => ticket.status === "open" || ticket.status === "in_progress").length
+    : null;
+  const resolvedSupportTickets = supportTickets
+    ? supportTickets.filter((ticket) => ticket.status === "resolved" || ticket.status === "closed").length
+    : null;
+  const offersViewed = overview?.offers_viewed ?? 0;
+  const offersAccepted = overview?.offers_accepted ?? 0;
+
+  return {
+    completedOrders: overview?.orders_completed ?? 0,
+    conversionRate: overview?.conversion_rate_with_agent ?? 0,
+    offersAccepted,
+    offersViewed,
+    offerAcceptanceRate: offersViewed ? offersAccepted / offersViewed : 0,
+    selectedShippingSessions,
+    pendingShippingSessions,
+    averageSelectedShipping: average(shippingPrices),
+    openSupportTickets,
+    resolvedSupportTickets,
+    incrementalRevenue: overview?.incremental_revenue ?? 0
+  };
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatCurrency(value: number): string {
+  return `R$ ${value.toFixed(2)}`;
+}
 
 function Metric({ label, value }: { label: string; value: string | number }) {
   return (
@@ -16,13 +76,16 @@ function Metric({ label, value }: { label: string; value: string | number }) {
 export function OverviewDemoPage(props: {
   apiBaseUrl: string;
   defaultMerchantId: string;
+  me?: MerchantProfile | null;
 }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
 
   const [merchantId, setMerchantId] = useState(props.defaultMerchantId);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [rules, setRules] = useState<MerchantRules | null>(null);
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[] | null>(null);
   const [saving, setSaving] = useState(false);
+  const pilotMetrics = useMemo(() => buildPilotMetrics(overview, supportTickets), [overview, supportTickets]);
 
   const load = useCallback(async () => {
     try {
@@ -32,11 +95,21 @@ export function OverviewDemoPage(props: {
       ]);
       setOverview(ov);
       setRules(rl);
+      if (props.me) {
+        try {
+          setSupportTickets(await api.getSupportTickets());
+        } catch {
+          setSupportTickets(null);
+        }
+      } else {
+        setSupportTickets(null);
+      }
     } catch {
       setOverview(null);
       setRules(null);
+      setSupportTickets(null);
     }
-  }, [api, merchantId]);
+  }, [api, merchantId, props.me]);
 
   useEffect(() => {
     void load();
@@ -58,7 +131,7 @@ export function OverviewDemoPage(props: {
       <header className="topbar">
         <div>
           <h1>Painel (demo por merchant)</h1>
-          <p>Métricas e regras via rotas públicas `/dashboard/*` por ID — sem sessão obrigatória.</p>
+          <p>Metricas e regras via rotas publicas `/dashboard/*` por ID, com suporte autenticado quando houver login.</p>
         </div>
         <label>
           Merchant ID (URL)
@@ -67,17 +140,17 @@ export function OverviewDemoPage(props: {
       </header>
 
       <section className="metrics">
-        <Metric label="Conversas" value={overview?.conversations_started ?? "—"} />
-        <Metric label="Ofertas aceitas" value={overview?.offers_accepted ?? "—"} />
-        <Metric label="Pedidos" value={overview?.orders_completed ?? "—"} />
-        <Metric
-          label="Conversao agente"
-          value={overview?.conversion_rate_with_agent !== undefined ? `${Math.round((overview.conversion_rate_with_agent ?? 0) * 100)}%` : "—"}
-        />
-        <Metric
-          label="Receita atribuida"
-          value={overview?.incremental_revenue !== undefined ? `R$ ${(overview.incremental_revenue ?? 0).toFixed(2)}` : "—"}
-        />
+        <Metric label="Conversas" value={overview?.conversations_started ?? "-"} />
+        <Metric label="Pedidos concluidos" value={overview ? pilotMetrics.completedOrders : "-"} />
+        <Metric label="Conversao agente" value={overview ? formatPercent(pilotMetrics.conversionRate) : "-"} />
+        <Metric label="Ofertas" value={overview ? `${pilotMetrics.offersAccepted}/${pilotMetrics.offersViewed}` : "-"} />
+        <Metric label="Aceite ofertas" value={overview ? formatPercent(pilotMetrics.offerAcceptanceRate) : "-"} />
+        <Metric label="Frete selecionado" value={overview ? pilotMetrics.selectedShippingSessions : "-"} />
+        <Metric label="Frete pendente" value={overview ? pilotMetrics.pendingShippingSessions : "-"} />
+        <Metric label="Frete medio" value={overview ? formatCurrency(pilotMetrics.averageSelectedShipping) : "-"} />
+        <Metric label="Suporte aberto" value={pilotMetrics.openSupportTickets ?? "login"} />
+        <Metric label="Suporte resolvido" value={pilotMetrics.resolvedSupportTickets ?? "login"} />
+        <Metric label="Receita atribuida" value={overview ? formatCurrency(pilotMetrics.incrementalRevenue) : "-"} />
       </section>
 
       <section className="layout">
@@ -107,7 +180,7 @@ export function OverviewDemoPage(props: {
                 <article key={offer.id}>
                   <strong>{offer.type}</strong>
                   <span>
-                    {offer.approved ? "Aprovada" : "Bloqueada"} · {offer.reason}
+                    {offer.approved ? "Aprovada" : "Bloqueada"} - {offer.reason}
                   </span>
                   <span>Margem: {Math.round(offer.marginAfterOffer * 100)}%</span>
                 </article>

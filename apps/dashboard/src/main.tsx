@@ -123,7 +123,7 @@ function App() {
       </nav>
 
       {tab === "overview" ? (
-        <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={DEFAULT_MERCHANT_ID} />
+        <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={DEFAULT_MERCHANT_ID} me={me} />
       ) : null}
       {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
       {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}

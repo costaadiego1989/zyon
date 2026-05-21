@@ -174,9 +174,9 @@ The checkout flow now has a tested local happy path, but the application is not 
 | MVP-CLOSE-03 | P1: Commerce Order Sync | Execute | Verified |
 | MVP-CLOSE-04 | P1: Shipping Quote, Selection, and Tracking | Execute | Verified |
 | MVP-CLOSE-05 | P1: Buyer Hub and Support | Execute | Verified |
-| MVP-CLOSE-06 | P2: Merchant Dashboard Operational MVP | Execute | Partially Verified |
+| MVP-CLOSE-06 | P2: Merchant Dashboard Operational MVP | Execute | Verified |
 | MVP-CLOSE-07 | P2: Secure Embed Production Readiness | Execute | Verified |
-| MVP-CLOSE-08 | P3: Post-MVP Hardening | Tasks | Pending |
+| MVP-CLOSE-08 | P3: Post-MVP Hardening | Execute | Verified |
 
 **Coverage:** 8 total, 8 mapped to tasks, 0 unmapped.
 
@@ -184,10 +184,10 @@ The checkout flow now has a tested local happy path, but the application is not 
 
 ## Success Criteria
 
-- [ ] A buyer can complete a real-api Playwright checkout only after selecting shipping.
-- [ ] API rejects invalid payment attempts that bypass the widget sequence.
-- [ ] Payment approval completes checkout idempotently.
-- [ ] Buyer hub shows completed purchases and tracking state.
+- [x] A buyer can complete a real-api Playwright checkout only after selecting shipping.
+- [x] API rejects invalid payment attempts that bypass the widget sequence.
+- [x] Payment approval completes checkout idempotently.
+- [x] Buyer hub shows completed purchases and tracking state.
 - [x] Support answers FAQ and exposes a handoff path.
-- [ ] Merchant dashboard can operate pilot settings without direct database changes.
-- [ ] Full gates pass: API typecheck/test, widget typecheck/test, Playwright real-api.
+- [x] Merchant dashboard can operate pilot settings without direct database changes.
+- [x] Full gates pass: API typecheck/test, widget typecheck/test, Playwright real-api.

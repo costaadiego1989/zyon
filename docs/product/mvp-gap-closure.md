@@ -10,6 +10,8 @@ This document lists the remaining gaps to move AACP from local checkout demo to 
 - Completed orders now stay pending for tracking until a real carrier/operator code is attached via the order tracking update path.
 - Support panel answers configured FAQ immediately and creates a support ticket/handoff with a visible protocol when FAQ cannot resolve the question.
 - Merchant dashboard support can list handoff tickets and update their status.
+- Merchant dashboard overview shows pilot cards for orders, conversion, offers, selected/pending freight, support tickets, and revenue.
+- Local gates for API, widget, dashboard, Prisma/Postgres, and Playwright are documented and passed in the current local stack.
 - Public coupon application is embed-token scoped and checks checkout-session ownership before applying discounts.
 - Widget public checkout responses are runtime-validated before render for start, tracking, chat, offer, coupon, payment, and product-cart flows.
 - Merchant embed bootstrap no longer injects selected freight by default; freight stays pending until the buyer quotes/selects it.
@@ -29,17 +31,33 @@ This document lists the remaining gaps to move AACP from local checkout demo to 
 | Shipping | Quote/selection persistence is covered; tracking can be attached after completion; real carrier configuration remains. | Freight can still diverge from fulfillment if no carrier sync exists. | Add real carrier sync/smoke for quote and label flows. |
 | Tracking | API path and buyer hub pending/search behavior are wired. | Pilot still needs a real carrier/provider sync source to populate codes automatically. | Connect fulfillment/carrier tracking sync to the update path. |
 | Support | FAQ and ticket handoff now work from widget through dashboard status operation. | Pilot still needs SLA/notification routing beyond the persisted ticket. | Add operator notifications and SLA filters. |
-| Merchant dashboard | Dashboard can operate support FAQ/tickets, but does not yet cover all pilot surfaces: orders, tracking, shipping, metrics. | Pilot still requires database edits/manual inspection for non-support operations. | Add order/support/shipping operational panels incrementally. |
+| Merchant dashboard | Dashboard can operate support FAQ/tickets and now shows pilot metrics for orders, conversion, offers, freight, support, and revenue. | Pilot still requires database edits/manual inspection for order tracking and shipping operations. | Add order/tracking/shipping operational panels incrementally. |
 | Secure embed | Core public checkout flows now use embed-token scoped endpoints and runtime response schemas. | Pilot still needs production headers/CSP, token rotation policy, and real-store credential review. | Add production embed hardening checklist to pilot gates. |
-| CI/observability | Focused local real-api checkout gate is passing; full clean-stack CI and pilot metrics are still open. | Regressions and production issues are harder to catch outside the focused local run. | Document and automate API/widget/Prisma/Playwright gates. |
+| CI/observability | Local API/widget/dashboard/Prisma/Playwright gates are documented and passed against the local stack. | Production CI still needs to run the same gates automatically on every change. | Wire the documented local gates into CI. |
 
 ## Immediate Priority
 
-1. Add dashboard pilot metrics and repeatable gates.
-2. Connect real carrier/provider tracking sync to the completed-order update path.
-3. Add support SLA/notification routing on top of persisted tickets.
-4. Add real-provider/commerce smoke with configured credentials.
-5. Add production embed hardening checklist: CSP, token rotation, allowed origins, and real-store credential review.
+1. Connect real carrier/provider tracking sync to the completed-order update path.
+2. Add support SLA/notification routing on top of persisted tickets.
+3. Add real-provider/commerce smoke with configured credentials.
+4. Add production embed hardening checklist: CSP, token rotation, allowed origins, and real-store credential review.
+5. Add order/tracking/shipping operational panels beyond the current pilot metric cards.
+
+## Local Pilot Gates
+
+Run from Windows PowerShell at the repo root. Use `cmd /c` for `pnpm` commands so Windows does not block on `pnpm.ps1`.
+
+1. `cmd /c pnpm db:up`
+2. `cmd /c pnpm db:migrate`
+3. `cmd /c pnpm --filter @aacp/api test`
+4. `$env:AACP_RUN_PRISMA_TESTS='1'; $env:DATABASE_URL='postgresql://postgres:postgres@localhost:55432/aacp_test'; cmd /c pnpm --filter @aacp/api test:prisma`
+5. `cmd /c pnpm --filter @aacp/widget typecheck`
+6. `cmd /c pnpm --filter @aacp/widget test`
+7. `cmd /c pnpm --filter @aacp/dashboard typecheck`
+8. `cmd /c pnpm --filter @aacp/dashboard test`
+9. `cmd /c pnpm --filter @aacp/widget exec playwright test e2e/realapi/full-checkout-real.spec.ts --project=widget-realapi`
+
+The focused real-api Playwright gate is currently green against the local memory stack. The Prisma gate requires Postgres from `pnpm db:up`, a migrated database, and the explicit envs above so the full Prisma suite does not skip integration specs.
 
 ## Definition of Done for MVP Pilot
 

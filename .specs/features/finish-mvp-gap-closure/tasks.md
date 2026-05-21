@@ -1,7 +1,7 @@
 # Finish MVP Gap Closure Tasks
 
 **Design**: `.specs/features/finish-mvp-gap-closure/design.md`
-**Status**: In Progress
+**Status**: Done
 
 **Progress**:
 
@@ -13,6 +13,7 @@
 - T6 completed: completed orders no longer invent fake tracking codes; real codes can be attached after completion and buyer hub shows pending/searchable tracking states.
 - T7 completed: unresolved support messages create support ticket/handoff records, the widget shows the protocol, and dashboard support can list/update ticket status.
 - T8 completed: public coupon apply now requires embed auth and merchant/session ownership; widget public API responses are parsed with runtime schemas before render; merchant embed bootstrap no longer injects default freight; `full-checkout-real` Playwright gate is stable.
+- T9 completed: dashboard overview shows pilot metrics and the documented API/widget/dashboard/Prisma/Playwright gates passed locally.
 
 ---
 
@@ -320,16 +321,33 @@ T6 -> T7 -> T8 -> T9
 **Progress**:
 
 - Focused `full-checkout-real` Playwright gate passes against local API/widget stack.
-- Dashboard pilot metrics and clean-stack gate docs remain open.
+- Dashboard overview now shows pilot metrics for completed orders, conversion, offer acceptance, selected/pending freight, support tickets, and attributed revenue.
+- Local gate docs now list API, widget, dashboard, Prisma, and Playwright commands.
+- Clean local database Prisma gate passed with explicit `AACP_RUN_PRISMA_TESTS=1` and `DATABASE_URL`.
 
 **Done when**:
 
-- [ ] Dashboard shows completed orders, conversion, offers, support, and shipping metrics.
-- [ ] CI/local gate docs list API, widget, Prisma, and Playwright commands.
-- [ ] Full gate is repeatable from a clean local database.
+- [x] Dashboard shows completed orders, conversion, offers, support, and shipping metrics.
+- [x] CI/local gate docs list API, widget, Prisma, and Playwright commands.
+- [x] Full gate is repeatable from a clean local database.
 
 **Tests**: API/dashboard/widget tests and Playwright real-api
 **Gate**: build
+
+**Verified**:
+
+- `cmd /c pnpm --filter @aacp/dashboard typecheck`
+- Result: passed.
+- `cmd /c pnpm --filter @aacp/dashboard test`
+- Result: 2 files, 9 tests passed.
+- `cmd /c pnpm --filter @aacp/widget exec playwright test e2e/realapi/full-checkout-real.spec.ts --project=widget-realapi`
+- Result: 7 tests passed.
+- `cmd /c pnpm db:up`
+- Result: Postgres container running.
+- `cmd /c pnpm db:migrate`
+- Result: all Prisma migrations applied successfully.
+- `$env:AACP_RUN_PRISMA_TESTS='1'; $env:DATABASE_URL='postgresql://postgres:postgres@localhost:55432/aacp_test'; cmd /c pnpm --filter @aacp/api test:prisma`
+- Result: 22 tests passed, 0 skipped.
 
 ---
 
