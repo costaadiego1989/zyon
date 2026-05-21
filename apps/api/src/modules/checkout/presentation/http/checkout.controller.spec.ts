@@ -18,6 +18,7 @@ import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
+import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { CheckoutController } from "./checkout.controller.js";
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
@@ -59,7 +60,8 @@ test("CheckoutController supports the checkout closure flow without crossing ten
     new CompleteOrderUseCase(repository, repository, repository),
     new GetDashboardOverviewUseCase(repository),
     new GetMerchantRulesUseCase(repository),
-    new UpdateMerchantRulesUseCase(repository)
+    new UpdateMerchantRulesUseCase(repository),
+    new UpdateOrderTrackingUseCase(repository, repository, repository)
   );
 
   const started = await controller.start({
@@ -101,5 +103,13 @@ test("CheckoutController supports the checkout closure flow without crossing ten
   assert.equal(shipping.approved, true);
   assert.equal(applied.success, true);
   assert.equal(completed.recorded, true);
+  const tracking = await controller.tracking({
+    merchant_id: "mrc_1",
+    session_id: started.session_id,
+    external_order_id: "ord_1",
+    tracking_code: "BR123456789AA"
+  });
+  assert.equal(tracking.order.trackingCode, "BR123456789AA");
   assert.equal(repository.listOutbox("mrc_1").some((event) => event.event_type === "order.completed"), true);
+  assert.equal(repository.listOutbox("mrc_1").some((event) => event.event_type === "order.tracking.updated"), true);
 });

@@ -42,13 +42,13 @@ export class CompleteOrderUseCase {
             order_total: input.order_total,
             currency: input.currency,
             accepted_offer_id: input.accepted_offer_id,
-            tracking_code: order.trackingCode,
+            tracking_code: order.trackingCode ?? null,
             confirmation_touchpoints
           },
           causationId: input.external_order_id
         })
       );
-      if (session.customer?.phone) {
+      if (session.customer?.phone && order.trackingCode) {
         const messageText = `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`;
 
         await this.outbox.appendOutbox(

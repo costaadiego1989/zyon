@@ -16,7 +16,9 @@ export interface BuyerSummary {
 
 export interface BuyerPurchase {
   id: string;
+  order_id?: string;
   merchant_name: string;
+  tracking_code?: string | null;
   total: number;
   discount_amount: number;
   items_count: number;

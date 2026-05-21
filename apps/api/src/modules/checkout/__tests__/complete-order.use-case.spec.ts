@@ -31,10 +31,12 @@ test("CompleteOrderUseCase records order completion idempotently and emits once"
   assert.equal(second.idempotent, true);
   assert.equal(repository.listOutbox("mrc_1").filter((event) => event.event_type === "order.completed").length, 1);
   const order = repository.getCompletedOrder("mrc_1", "chk_1", "ord_1");
-  assert.match(order?.trackingCode ?? "", /^TRK-/);
+  assert.equal(order?.trackingCode, undefined);
+  const completed = repository.listOutbox("mrc_1").find((event) => event.event_type === "order.completed");
+  assert.equal(completed?.payload.tracking_code, null);
 });
 
-test("CompleteOrderUseCase emits fake WhatsApp tracking request when phone exists", async () => {
+test("CompleteOrderUseCase emits WhatsApp tracking request when real tracking exists", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(
     checkoutSession({

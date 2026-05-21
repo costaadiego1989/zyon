@@ -52,6 +52,15 @@ test("InMemoryCheckoutRepository records events, offers, accepted offers, comple
   };
   assert.equal(repository.saveCompletedOrder(order).idempotent, false);
   assert.equal(repository.saveCompletedOrder(order).idempotent, true);
+  assert.equal(
+    repository.updateCompletedOrderTracking({
+      merchantId: "mrc_1",
+      sessionId: "chk_1",
+      externalOrderId: "ord_1",
+      trackingCode: "BR123456789AA"
+    })?.trackingCode,
+    "BR123456789AA"
+  );
 
   repository.appendOutbox(
     createCheckoutEventEnvelope({

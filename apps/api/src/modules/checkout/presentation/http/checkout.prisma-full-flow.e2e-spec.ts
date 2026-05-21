@@ -11,6 +11,7 @@ import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-me
 import { AcceptCheckoutOfferUseCase } from "../../application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
+import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { GetDashboardOverviewUseCase, GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../../application/use-cases/dashboard.use-cases.js";
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
@@ -198,7 +199,14 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
   });
   assert.equal(processed.outcome, "processed");
   const order = repo.getCompletedOrder(MERCHANT, sid, intent.providerPaymentId!);
-  assert.ok(order?.trackingCode, "Tracking code generated");
+  assert.equal(order?.trackingCode, undefined);
+  const tracking = await new UpdateOrderTrackingUseCase(repo, repo, repo).execute({
+    merchant_id: MERCHANT,
+    session_id: sid,
+    external_order_id: intent.providerPaymentId!,
+    tracking_code: "BRPRISMA123AA"
+  });
+  assert.equal(tracking.order.trackingCode, "BRPRISMA123AA");
 });
 
 // ---- TEST 2: Discount rules - max cap ----

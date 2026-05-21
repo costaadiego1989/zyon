@@ -4,12 +4,7 @@ export class CompletedOrderEntity {
   private constructor(private readonly props: CompletedOrder) {}
 
   static complete(input: CompleteOrderRequest, now = new Date()): CompletedOrderEntity {
-    const trackingCode =
-      input.tracking_code?.trim() ||
-      `TRK-${input.merchant_id.replace(/[^A-Za-z0-9]/g, "").slice(0, 6).toUpperCase()}-${input.external_order_id
-        .replace(/[^A-Za-z0-9]/g, "")
-        .slice(-8)
-        .toUpperCase()}`;
+    const trackingCode = input.tracking_code?.trim() || undefined;
 
     return new CompletedOrderEntity({
       merchantId: input.merchant_id,

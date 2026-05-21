@@ -348,12 +348,27 @@ export interface CompleteOrderResponse {
   event_type: "order.completed";
 }
 
+export interface UpdateOrderTrackingRequest {
+  merchant_id: string;
+  session_id: string;
+  external_order_id: string;
+  tracking_code: string;
+}
+
+export interface UpdateOrderTrackingResponse {
+  updated: true;
+  changed: boolean;
+  event_type: "order.tracking.updated";
+  order: CompletedOrder;
+}
+
 export type CheckoutDomainEventType =
   | "checkout.session.started"
   | "checkout.event.tracked"
   | "checkout.abandonment.scored"
   | "checkout.abandoned"
   | "order.completed"
+  | "order.tracking.updated"
   | "whatsapp.message.requested"
   | "payment.status.changed";
 

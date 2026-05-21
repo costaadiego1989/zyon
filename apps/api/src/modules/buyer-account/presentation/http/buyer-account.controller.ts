@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import { RegisterBuyerUseCase } from "../../application/use-cases/register-buyer.use-case.js";
 import { LoginBuyerUseCase } from "../../application/use-cases/login-buyer.use-case.js";
+import { LoginBuyerFromSessionUseCase } from "../../application/use-cases/login-buyer-from-session.use-case.js";
 import { GetBuyerProfileUseCase } from "../../application/use-cases/get-buyer-profile.use-case.js";
 import { UpdateBuyerProfileUseCase } from "../../application/use-cases/update-buyer-profile.use-case.js";
 import { ChangeBuyerPasswordUseCase } from "../../application/use-cases/change-buyer-password.use-case.js";
@@ -24,6 +25,7 @@ export class BuyerAccountController {
   constructor(
     private readonly registerBuyer: RegisterBuyerUseCase,
     private readonly loginBuyer: LoginBuyerUseCase,
+    private readonly loginFromSession: LoginBuyerFromSessionUseCase,
     private readonly getProfile: GetBuyerProfileUseCase,
     private readonly updateProfile: UpdateBuyerProfileUseCase,
     private readonly changePassword: ChangeBuyerPasswordUseCase,
@@ -43,6 +45,20 @@ export class BuyerAccountController {
   @Post("login")
   async login(@Body() body: { email: string; password: string }) {
     return this.loginBuyer.execute(body);
+  }
+
+  @Post("login-from-session")
+  async loginFromCheckoutSession(
+    @Body() body: { session_id: string; merchant_id: string }
+  ) {
+    const result = await this.loginFromSession.execute(body);
+    return {
+      global_user_id: result.globalUserId,
+      email: result.email,
+      access_token: result.accessToken,
+      token_type: result.tokenType,
+      expires_in: result.expiresIn
+    };
   }
 
   @Get("me")
@@ -115,7 +131,9 @@ export class BuyerAccountController {
     return {
       items: page.records.map((r) => ({
         id: r.id,
+        order_id: r.orderId,
         merchant_name: r.merchantName,
+        tracking_code: r.trackingCode ?? null,
         total: r.totalAmount,
         discount_amount: r.discountAmount,
         items_count: Array.isArray(r.items) ? (r.items as unknown[]).length : 0,

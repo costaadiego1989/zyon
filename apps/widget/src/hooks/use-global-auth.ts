@@ -57,6 +57,7 @@ export interface GlobalAuthController {
   submit: () => Promise<void>;
   sendPhoneCode: (phone: string) => Promise<boolean>;
   verifyPhoneCode: (phone: string, code: string) => Promise<boolean>;
+  loginFromCheckoutSession: (sessionId: string, merchantId: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -315,6 +316,47 @@ export function useGlobalAuth(options: {
     }
   }
 
+  async function loginFromCheckoutSession(sessionId: string, merchantId: string): Promise<boolean> {
+    if (session) return true; // already authenticated
+    try {
+      const res = await fetch(`${apiOrigin}/buyer/login-from-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, merchant_id: merchantId })
+      });
+      if (!res.ok) return false;
+      const payload = (await res.json()) as unknown;
+      const parsed = buyerAuthResponseSchema.safeParse(payload);
+      if (!parsed.success) {
+        // Try snake_case shape from controller response
+        const snakePayload = payload as { global_user_id?: string; email?: string; access_token?: string; token_type?: string; expires_in?: number };
+        if (snakePayload.access_token && snakePayload.email) {
+          persist({
+            global_user_id: snakePayload.global_user_id,
+            email: snakePayload.email,
+            access_token: snakePayload.access_token,
+            token_type: "Bearer",
+            expires_in: snakePayload.expires_in ?? 3600,
+            provider: "password"
+          });
+          return true;
+        }
+        return false;
+      }
+      persist({
+        global_user_id: parsed.data.globalUserId,
+        email: parsed.data.email,
+        access_token: parsed.data.accessToken,
+        token_type: parsed.data.tokenType,
+        expires_in: parsed.data.expiresIn,
+        provider: "password"
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   return {
     open,
     panel,
@@ -337,6 +379,7 @@ export function useGlobalAuth(options: {
     submit,
     sendPhoneCode,
     verifyPhoneCode,
+    loginFromCheckoutSession,
     logout
   };
 }

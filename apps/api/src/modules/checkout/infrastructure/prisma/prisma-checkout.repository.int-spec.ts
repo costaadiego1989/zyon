@@ -84,6 +84,17 @@ test(
       };
       assert.equal((await repository.saveCompletedOrder(order)).idempotent, false);
       assert.equal((await repository.saveCompletedOrder(order)).idempotent, true);
+      const trackedOrder = await repository.updateCompletedOrderTracking({
+        merchantId,
+        sessionId,
+        externalOrderId: order.externalOrderId,
+        trackingCode: "BR123456789AA"
+      });
+      assert.equal(trackedOrder?.trackingCode, "BR123456789AA");
+      assert.equal(
+        (await repository.getCompletedOrder(merchantId, sessionId, order.externalOrderId))?.trackingCode,
+        "BR123456789AA"
+      );
 
       await repository.appendOutbox(
         createCheckoutEventEnvelope({

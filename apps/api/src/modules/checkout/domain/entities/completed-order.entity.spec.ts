@@ -11,7 +11,7 @@ test("CompletedOrderEntity records order completion and stable idempotency key",
 
   assert.equal(order.externalOrderId, "ord_1");
   assert.equal(order.acceptedOfferId, "off_1");
-  assert.match(order.trackingCode ?? "", /^TRK-MRC1-ORD1$/);
+  assert.equal(order.trackingCode, undefined);
   assert.equal(order.completedAt, "2026-05-01T12:00:00.000Z");
   assert.equal(
     CompletedOrderEntity.idempotencyKey({

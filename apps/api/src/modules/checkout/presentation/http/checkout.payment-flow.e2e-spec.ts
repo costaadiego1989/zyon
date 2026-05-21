@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
+import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
@@ -64,7 +65,15 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   const order = checkout.getCompletedOrder(merchantId, sessionId, providerPaymentId);
   assert.ok(order);
   assert.equal(order!.orderTotal, 300);
-  assert.ok(order!.trackingCode);
+  assert.equal(order!.trackingCode, undefined);
+
+  const tracking = await new UpdateOrderTrackingUseCase(checkout, checkout, checkout).execute({
+    merchant_id: merchantId,
+    session_id: sessionId,
+    external_order_id: providerPaymentId,
+    tracking_code: "BR123456789AA"
+  });
+  assert.equal(tracking.order.trackingCode, "BR123456789AA");
 
   const approved = await payments.getIntentById(intentSnap.id);
   assert.deepEqual(approved?.snapshot().statusHistory.map((entry) => entry.status), [
@@ -74,7 +83,8 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   ]);
   const outbox = checkout.listOutbox(merchantId);
   assert.ok(outbox.some((event) => event.event_type === "payment.status.changed" && (event.payload as any).status === "approved"));
-  assert.ok(outbox.some((event) => event.event_type === "whatsapp.message.requested" && (event.payload as any).tracking_code === order!.trackingCode));
+  assert.ok(outbox.some((event) => event.event_type === "order.tracking.updated" && (event.payload as any).tracking_code === "BR123456789AA"));
+  assert.ok(outbox.some((event) => event.event_type === "whatsapp.message.requested" && (event.payload as any).tracking_code === "BR123456789AA"));
   assert.ok(
     checkout
       .getSession(merchantId, sessionId)

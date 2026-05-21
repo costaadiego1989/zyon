@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
   X, User, Bot, ShoppingBag, Settings, Package,
-  LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Plus, Smartphone
+  LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Smartphone, Search, Truck
 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import type { BuyerAgentPersonality } from "../../hooks/use-buyer-hub.js";
@@ -321,6 +321,15 @@ function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
 
 function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
   const hub = vm.buyerHub;
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredPurchases = normalizedQuery
+    ? hub.purchases.filter((purchase) =>
+        [purchase.merchant_name, purchase.order_id, purchase.tracking_code]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(normalizedQuery))
+      )
+    : hub.purchases;
 
   return (
     <div className="aacp-side-section">
@@ -333,7 +342,23 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {hub.purchases.map((p) => (
+          <div className="aacp-side-input" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Search size={14} style={{ color: "var(--aacp-muted)", flexShrink: 0 }} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar por loja, pedido ou rastreio"
+              aria-label="Buscar pedido ou rastreio"
+            />
+          </div>
+
+          {filteredPurchases.length === 0 ? (
+            <div style={{ textAlign: "center", padding: "20px 0", color: "var(--aacp-muted)", fontSize: 13 }}>
+              Nenhum pedido encontrado.
+            </div>
+          ) : null}
+
+          {filteredPurchases.map((p) => (
             <div
               key={p.id}
               style={{
@@ -357,6 +382,24 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
                   </span>
                 )}
               </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--aacp-muted)" }}>
+                <Truck size={13} style={{ flexShrink: 0 }} />
+                {p.tracking_code ? (
+                  <>
+                    <span>Rastreio</span>
+                    <strong style={{ color: "var(--aacp-fg)", fontFamily: "monospace", letterSpacing: 0 }}>
+                      {p.tracking_code}
+                    </strong>
+                  </>
+                ) : (
+                  <span>Aguardando codigo de rastreio</span>
+                )}
+              </div>
+              {p.order_id ? (
+                <div style={{ marginTop: 4, fontSize: 10, color: "var(--aacp-muted)" }}>
+                  Pedido {p.order_id}
+                </div>
+              ) : null}
             </div>
           ))}
 

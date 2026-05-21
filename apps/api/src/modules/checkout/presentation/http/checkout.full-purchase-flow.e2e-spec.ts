@@ -12,6 +12,7 @@ import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-me
 import { AcceptCheckoutOfferUseCase } from "../../application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
+import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import {
   GetDashboardOverviewUseCase,
   GetMerchantRulesUseCase,
@@ -453,24 +454,40 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     ]);
 
     const order = repo.getCompletedOrder(MERCHANT, sessionId, intent.providerPaymentId!);
-    assert.ok(order?.trackingCode);
+    assert.equal(order?.trackingCode, undefined);
     assert.equal(order?.orderTotal, intent.amountCents / 100);
 
-    const outbox = repo.listOutbox(MERCHANT);
-    const orderCompletedEvt = outbox.find((event) => event.event_type === "order.completed");
+    const beforeTrackingOutbox = repo.listOutbox(MERCHANT);
+    const orderCompletedEvt = beforeTrackingOutbox.find((event) => event.event_type === "order.completed");
     assert.ok(orderCompletedEvt, "Evento de pedido completo gerado no outbox");
     const payload = orderCompletedEvt.payload as any;
     assert.ok(payload.confirmation_touchpoints.channels.includes("whatsapp"));
     assert.equal(payload.confirmation_touchpoints.whatsapp_ack_recommended, true);
-    assert.equal(payload.tracking_code, order?.trackingCode);
+    assert.equal(payload.tracking_code, null);
 
+    const tracking = await new UpdateOrderTrackingUseCase(repo, repo, repo).execute({
+      merchant_id: MERCHANT,
+      session_id: sessionId,
+      external_order_id: intent.providerPaymentId!,
+      tracking_code: "BR987654321AA"
+    });
+    assert.equal(tracking.order.trackingCode, "BR987654321AA");
+
+    const outbox = repo.listOutbox(MERCHANT);
+    assert.ok(
+      outbox.some(
+        (event) =>
+          event.event_type === "order.tracking.updated" &&
+          (event.payload as any).tracking_code === "BR987654321AA"
+      )
+    );
     const whatsapp = outbox.find(
       (event) =>
         event.event_type === "whatsapp.message.requested" &&
         (event.payload as any).template === "order_tracking"
     );
     assert.equal((whatsapp?.payload as any)?.phone, "21993001883");
-    assert.equal((whatsapp?.payload as any)?.tracking_code, order?.trackingCode);
+    assert.equal((whatsapp?.payload as any)?.tracking_code, "BR987654321AA");
     assert.ok(
       outbox.some(
         (event) =>

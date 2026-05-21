@@ -10,6 +10,7 @@
 - T3 completed: public shipping selection now persists the selected quote into checkout session state; Prisma JSON persistence covers selected paid/free shipping.
 - T4 completed: commerce-backed payment now validates the trusted cart, creates/reuses one pending commerce order, and carries the commerce order reference into payment audit data.
 - T5 completed: approved provider webhooks now mark linked commerce orders paid idempotently and keep post-approval commerce failures retryable.
+- T6 completed: completed orders no longer invent fake tracking codes; real codes can be attached after completion and buyer hub shows pending/searchable tracking states.
 
 ---
 
@@ -189,11 +190,27 @@ T6 -> T7 -> T8 -> T9
 **Reuses**: completed order tracking field and buyer purchase query.
 **Requirement**: MVP-CLOSE-04, MVP-CLOSE-05
 
+**Status**: Done
+
+**Implementation notes**:
+
+- Completed orders must not invent synthetic `TRK-*` codes. Missing carrier tracking remains `null`/pending.
+- `PATCH /orders/tracking` records the real tracking code after fulfillment/provider sync and emits `order.tracking.updated`.
+- Buyer hub already searches `tracking_code`; tests must cover pending and searchable states.
+
 **Done when**:
 
-- [ ] Tracking code can be added or synced after order completion.
-- [ ] Buyer hub shows pending tracking until code exists.
-- [ ] Buyer hub search finds order by tracking code.
+- [x] Tracking code can be added or synced after order completion.
+- [x] Buyer hub shows pending tracking until code exists.
+- [x] Buyer hub search finds order by tracking code.
+
+**Verify**:
+
+- `cmd /c pnpm --filter @aacp/api test`
+- Result: 364 tests, 351 passed, 13 skipped, 0 failed.
+- `cmd /c pnpm --filter @aacp/widget test`
+- Result: 18 files, 240 tests passed. First sandbox run hit Windows permission `Acesso negado`; rerun with approved escalation passed.
+- AppModule boot with dummy `DATABASE_URL`: `AppModule boot ok`.
 
 **Tests**: API unit/integration and widget unit/e2e
 **Gate**: full

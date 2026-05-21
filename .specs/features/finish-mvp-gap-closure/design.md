@@ -70,6 +70,19 @@ The first implementation slice focuses on step 4 because it protects the sequenc
 - **Dependencies**: Commerce adapter credentials or fallback adapter.
 - **Reuses**: Existing commerce use cases and idempotency repositories.
 
+### Tracking Lifecycle
+
+- **Purpose**: Keep buyer hub honest by showing pending tracking until a real carrier/fulfillment code exists.
+- **Location**:
+  - `CompletedOrderEntity` records only supplied `tracking_code`; it does not generate fake `TRK-*` codes.
+  - `UpdateOrderTrackingUseCase` updates the completed order after fulfillment/operator sync.
+  - `CheckoutController` exposes `PATCH /orders/tracking` for the operator/API path.
+  - Buyer hub reads `completed_orders.tracking_code` through buyer purchases and searches by that value.
+- **Events**:
+  - Initial `order.completed` includes `tracking_code: null` when the code is not available.
+  - Tracking update emits `order.tracking.updated`.
+  - Buyer notification uses `whatsapp.message.requested` only when a real tracking code exists.
+
 ### Support Handoff
 
 - **Purpose**: Persist unresolved support requests instead of relying only on chat fallback.
@@ -135,3 +148,4 @@ Migration `20260521120000_add_commerce_order_id_to_payment_intents` adds `paymen
 | Test level for first slice | API unit/use-case test | Fast and focused on the backend invariant. |
 | Commerce order link | Persist `commerceOrderId` on `PaymentIntent` | Webhook retries survive process restarts better than an in-memory pending-order index alone. |
 | Commerce paid retry | Do not record provider event when post-approval commerce sync throws | Provider retry can re-enter the approved-intent path and only perform missing commerce sync. |
+| Tracking truth | Do not synthesize `TRK-*`; persist only real tracking codes | Buyer hub should show pending delivery tracking until fulfillment or the operator provides the carrier code. |

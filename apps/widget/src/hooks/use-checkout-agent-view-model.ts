@@ -30,7 +30,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const stageNote = stageNarrative(checkoutStage, chatState.lastChat?.missing_fields?.[0]);
   const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed" && checkoutStage !== "payment";
   const hasOfferCouponCode = Boolean(offer?.approved && offer?.discountCode);
-  // Agent-proposed offer auto-opens CouponBox. Buyer-initiated coupon requires the quick reply.
+  // CouponBox opens when buyer explicitly clicks "Tenho um cupom" quick reply,
+  // or when the agent has offered a coupon code (hasOfferCouponCode).
   const showCouponBox =
     checkoutStage === "payment" &&
     activeExperience.rules?.couponBoxEnabled !== false &&
@@ -48,7 +49,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const hub = useAccountHub({
     apiBaseUrl: sessionState.apiOrigin,
     session: auth.session,
-    enabled: auth.open && auth.panel === "hub" && Boolean(auth.session)
+    enabled: auth.open && auth.panel === "hub" && Boolean(auth.session?.merchant_id)
   });
 
   const isBuyerSession = Boolean(auth.session?.global_user_id);
@@ -74,6 +75,13 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     window.addEventListener("aacp:checkout-event", listener);
     return () => { window.removeEventListener("aacp:checkout-event", listener); };
   }, [track]);
+
+  // Auto-authenticate buyer when checkout completes so the hub is accessible
+  useEffect(() => {
+    if (checkoutStage === "completed" && session && !auth.session) {
+      void auth.loginFromCheckoutSession(session.session_id, config.merchantId);
+    }
+  }, [checkoutStage, session, auth.session]);
 
   // Only show carrier options returned by an explicit quote call (via lastChat).
   // activeExperience.shippingOptions are static/default and must not show before address is given.

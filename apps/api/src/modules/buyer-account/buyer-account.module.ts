@@ -1,8 +1,9 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { PasswordHasher } from "../auth/domain/services/password-hasher.service.js";
 import { RegisterBuyerUseCase } from "./application/use-cases/register-buyer.use-case.js";
 import { LoginBuyerUseCase } from "./application/use-cases/login-buyer.use-case.js";
+import { LoginBuyerFromSessionUseCase } from "./application/use-cases/login-buyer-from-session.use-case.js";
 import { GetBuyerProfileUseCase } from "./application/use-cases/get-buyer-profile.use-case.js";
 import { UpdateBuyerProfileUseCase } from "./application/use-cases/update-buyer-profile.use-case.js";
 import { ChangeBuyerPasswordUseCase } from "./application/use-cases/change-buyer-password.use-case.js";
@@ -22,12 +23,15 @@ import { BuyerJwtAuthGuard } from "./presentation/http/buyer-jwt-auth.guard.js";
 import { BuyerAccountController } from "./presentation/http/buyer-account.controller.js";
 import { BuyerAgentController } from "./presentation/http/buyer-agent.controller.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
+import { CheckoutModule } from "../checkout/checkout.module.js";
 
 @Module({
+  imports: [forwardRef(() => CheckoutModule)],
   controllers: [BuyerAccountController, BuyerAgentController],
   providers: [
     RegisterBuyerUseCase,
     LoginBuyerUseCase,
+    LoginBuyerFromSessionUseCase,
     GetBuyerProfileUseCase,
     UpdateBuyerProfileUseCase,
     ChangeBuyerPasswordUseCase,

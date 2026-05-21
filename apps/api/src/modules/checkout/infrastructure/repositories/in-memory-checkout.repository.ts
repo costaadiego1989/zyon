@@ -160,7 +160,22 @@ export class InMemoryCheckoutRepository
   }
 
   getCompletedOrder(merchantId: string, sessionId: string, externalOrderId: string): CompletedOrder | undefined {
-    return this.completedOrders.get(this.orderKey(merchantId, sessionId, externalOrderId));
+    const stored = this.completedOrders.get(this.orderKey(merchantId, sessionId, externalOrderId));
+    return stored ? structuredClone(stored) : undefined;
+  }
+
+  updateCompletedOrderTracking(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    trackingCode: string;
+  }): CompletedOrder | undefined {
+    const key = this.orderKey(input.merchantId, input.sessionId, input.externalOrderId);
+    const existing = this.completedOrders.get(key);
+    if (!existing) return undefined;
+    const updated = { ...existing, trackingCode: input.trackingCode };
+    this.completedOrders.set(key, updated);
+    return structuredClone(updated);
   }
 
   appendOutbox(event: DomainEventEnvelope): DomainEventEnvelope {

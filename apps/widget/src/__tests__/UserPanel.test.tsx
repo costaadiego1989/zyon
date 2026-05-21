@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { UserPanel } from "../components/checkout/UserPanel.js";
 import type { CheckoutAgentViewModel } from "../hooks/use-checkout-agent-view-model.js";
 import type { BuyerHubState } from "../hooks/use-buyer-hub.js";
@@ -121,6 +121,91 @@ describe("UserPanel", () => {
   it("renders profile tab by default", () => {
     const { getByText } = render(<UserPanel vm={buildVm({ userTab: "profile" })} />);
     expect(getByText("Dados pessoais")).not.toBeNull();
+  });
+
+  it("shows tracking code in orders tab when available", () => {
+    const vm = buildVm({
+      userTab: "orders",
+      buyerHub: buildBuyerHub({
+        purchases: [
+          {
+            id: "purchase_1",
+            order_id: "order_1",
+            merchant_name: "Loja Teste",
+            tracking_code: "BR123456789AA",
+            total: 199.9,
+            discount_amount: 0,
+            items_count: 1,
+            currency: "BRL",
+            created_at: "2026-05-20T12:00:00.000Z"
+          }
+        ]
+      })
+    });
+    const { getByText } = render(<UserPanel vm={vm} />);
+    expect(getByText("BR123456789AA")).not.toBeNull();
+    expect(getByText("Pedido order_1")).not.toBeNull();
+  });
+
+  it("shows pending tracking state when order has no tracking code yet", () => {
+    const vm = buildVm({
+      userTab: "orders",
+      buyerHub: buildBuyerHub({
+        purchases: [
+          {
+            id: "purchase_1",
+            order_id: "order_1",
+            merchant_name: "Loja Teste",
+            tracking_code: null,
+            total: 199.9,
+            discount_amount: 0,
+            items_count: 1,
+            currency: "BRL",
+            created_at: "2026-05-20T12:00:00.000Z"
+          }
+        ]
+      })
+    });
+    const { getByText } = render(<UserPanel vm={vm} />);
+    expect(getByText("Aguardando codigo de rastreio")).not.toBeNull();
+  });
+
+  it("filters orders by tracking code", () => {
+    const vm = buildVm({
+      userTab: "orders",
+      buyerHub: buildBuyerHub({
+        purchases: [
+          {
+            id: "purchase_1",
+            order_id: "order_1",
+            merchant_name: "Loja A",
+            tracking_code: "BR123456789AA",
+            total: 199.9,
+            discount_amount: 0,
+            items_count: 1,
+            currency: "BRL",
+            created_at: "2026-05-20T12:00:00.000Z"
+          },
+          {
+            id: "purchase_2",
+            order_id: "order_2",
+            merchant_name: "Loja B",
+            tracking_code: "ZX987654321BR",
+            total: 99.9,
+            discount_amount: 0,
+            items_count: 1,
+            currency: "BRL",
+            created_at: "2026-05-20T12:00:00.000Z"
+          }
+        ]
+      })
+    });
+    const { getByLabelText, queryByText } = render(<UserPanel vm={vm} />);
+    fireEvent.change(getByLabelText("Buscar pedido ou rastreio"), {
+      target: { value: "ZX987" }
+    });
+    expect(queryByText("Loja A")).toBeNull();
+    expect(queryByText("Loja B")).not.toBeNull();
   });
 
   it("shows loading spinner when hub is loading and no profile", () => {

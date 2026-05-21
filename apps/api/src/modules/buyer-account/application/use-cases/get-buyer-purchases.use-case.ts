@@ -16,6 +16,7 @@ export interface PurchaseRecordDto {
   orderId: string;
   merchantId: string;
   merchantName: string;
+  trackingCode?: string | null;
   totalAmount: number;
   discountAmount: number;
   currency: string;
@@ -72,12 +73,34 @@ export class GetBuyerPurchasesUseCase {
       select: { id: true, name: true },
     });
     const merchantMap = new Map(merchants.map((m) => [m.id, m.name]));
+    const completedOrders = page.length
+      ? await this.prisma.completedOrder.findMany({
+          where: {
+            OR: page.map((r) => ({
+              merchantId: r.merchantId,
+              externalOrderId: r.orderId,
+            })),
+          },
+          select: {
+            merchantId: true,
+            externalOrderId: true,
+            trackingCode: true,
+          },
+        })
+      : [];
+    const trackingByOrder = new Map(
+      completedOrders.map((order) => [
+        `${order.merchantId}:${order.externalOrderId}`,
+        order.trackingCode,
+      ])
+    );
 
     const records: PurchaseRecordDto[] = page.map((r) => ({
       id: r.id,
       orderId: r.orderId,
       merchantId: r.merchantId,
       merchantName: merchantMap.get(r.merchantId) ?? r.merchantId,
+      trackingCode: trackingByOrder.get(`${r.merchantId}:${r.orderId}`) ?? null,
       totalAmount: r.totalAmount,
       discountAmount: r.discountAmount,
       currency: r.currency,

@@ -186,6 +186,30 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row ? toCompletedOrder(row) : undefined;
   }
 
+  async updateCompletedOrderTracking(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    trackingCode: string;
+  }): Promise<CompletedOrder | undefined> {
+    try {
+      const row = await this.prisma.completedOrder.update({
+        where: {
+          merchantId_sessionId_externalOrderId: {
+            merchantId: input.merchantId,
+            sessionId: input.sessionId,
+            externalOrderId: input.externalOrderId
+          }
+        },
+        data: { trackingCode: input.trackingCode }
+      });
+      return toCompletedOrder(row);
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return undefined;
+      throw error;
+    }
+  }
+
   async appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> {
     await this.prisma.outboxMessage.upsert({
       where: { eventId: event.event_id },
@@ -526,4 +550,13 @@ function toMerchantRules(row: {
 
 function average(values: number[]): number {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : 0;
+}
+
+function isPrismaRecordNotFound(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2025"
+  );
 }

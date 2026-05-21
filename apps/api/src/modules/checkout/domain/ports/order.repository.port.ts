@@ -7,4 +7,10 @@ export type MaybePromise<T> = T | Promise<T>;
 export interface OrderRepository {
   saveCompletedOrder(order: CompletedOrder): MaybePromise<{ order: CompletedOrder; idempotent: boolean }>;
   getCompletedOrder(merchantId: string, sessionId: string, externalOrderId: string): MaybePromise<CompletedOrder | undefined>;
+  updateCompletedOrderTracking(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    trackingCode: string;
+  }): MaybePromise<CompletedOrder | undefined>;
 }

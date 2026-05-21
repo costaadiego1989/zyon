@@ -172,8 +172,8 @@ The checkout flow now has a tested local happy path, but the application is not 
 | MVP-CLOSE-01 | P1: Enforced Checkout Sequence | Execute | Verified |
 | MVP-CLOSE-02 | P1: Real Provider Payment Lifecycle | Execute | Partially Verified |
 | MVP-CLOSE-03 | P1: Commerce Order Sync | Execute | Verified |
-| MVP-CLOSE-04 | P1: Shipping Quote, Selection, and Tracking | Execute | Partially Verified |
-| MVP-CLOSE-05 | P1: Buyer Hub and Support | Tasks | Pending |
+| MVP-CLOSE-04 | P1: Shipping Quote, Selection, and Tracking | Execute | Verified |
+| MVP-CLOSE-05 | P1: Buyer Hub and Support | Execute | Partially Verified |
 | MVP-CLOSE-06 | P2: Merchant Dashboard Operational MVP | Tasks | Pending |
 | MVP-CLOSE-07 | P2: Secure Embed Production Readiness | Tasks | Pending |
 | MVP-CLOSE-08 | P3: Post-MVP Hardening | Tasks | Pending |

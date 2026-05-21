@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put } from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ChatMessageRequest,
@@ -7,7 +7,8 @@ import type {
   MerchantRules,
   ShippingEvaluateRequest,
   StartCheckoutRequest,
-  TrackEventRequest
+  TrackEventRequest,
+  UpdateOrderTrackingRequest
 } from "@aacp/shared-types";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
@@ -22,6 +23,7 @@ import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-check
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
+import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 
 @Controller()
 export class CheckoutController {
@@ -36,7 +38,8 @@ export class CheckoutController {
     private readonly completeOrder: CompleteOrderUseCase,
     private readonly getDashboardOverview: GetDashboardOverviewUseCase,
     private readonly getRules: GetMerchantRulesUseCase,
-    private readonly updateRules: UpdateMerchantRulesUseCase
+    private readonly updateRules: UpdateMerchantRulesUseCase,
+    private readonly updateOrderTracking?: UpdateOrderTrackingUseCase
   ) {}
 
   @Post("start-checkout")
@@ -77,6 +80,12 @@ export class CheckoutController {
   @Post("orders/complete")
   complete(@Body() body: CompleteOrderRequest) {
     return this.completeOrder.execute(body);
+  }
+
+  @Patch("orders/tracking")
+  tracking(@Body() body: UpdateOrderTrackingRequest) {
+    if (!this.updateOrderTracking) throw new Error("update_order_tracking_not_configured");
+    return this.updateOrderTracking.execute(body);
   }
 
   @Get("dashboard/overview/:merchantId")
