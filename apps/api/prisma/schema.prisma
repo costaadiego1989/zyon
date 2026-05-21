@@ -13,7 +13,11 @@ model Merchant {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users     MerchantUser[]
+  users               MerchantUser[]
+  apiKeys             MerchantApiKey[]
+  webhookEndpoints    MerchantWebhookEndpoint[]
+  webhookDeliveries   MerchantWebhookDelivery[]
+  shipments           Shipment[]
 
   @@map("merchants")
 }
@@ -226,6 +230,112 @@ model CompletedOrder {
   @@unique([merchantId, sessionId, externalOrderId])
   @@index([merchantId, completedAt])
   @@map("completed_orders")
+}
+
+model MerchantApiKey {
+  id          String    @id
+  merchantId  String    @map("merchant_id")
+  name        String
+  keyHash     String    @unique @map("key_hash")
+  keyPrefix   String    @map("key_prefix")
+  scopes      String[]  @default([])
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  revokedAt   DateTime? @map("revoked_at")
+
+  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, revokedAt])
+  @@map("merchant_api_keys")
+}
+
+model MerchantWebhookEndpoint {
+  id             String   @id
+  merchantId     String   @map("merchant_id")
+  url            String
+  enabled        Boolean  @default(true)
+  events         String[] @default([])
+  signingSecret  String   @map("signing_secret")
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  merchant       Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deliveries     MerchantWebhookDelivery[]
+
+  @@index([merchantId, enabled])
+  @@map("merchant_webhook_endpoints")
+}
+
+model MerchantWebhookDelivery {
+  id             String    @id
+  merchantId     String    @map("merchant_id")
+  endpointId     String    @map("endpoint_id")
+  endpointUrl    String    @map("endpoint_url")
+  eventId        String    @map("event_id")
+  eventType      String    @map("event_type")
+  status         String
+  attempts       Int       @default(0)
+  envelope       Json
+  signingSecret  String    @map("signing_secret")
+  nextAttemptAt  DateTime? @map("next_attempt_at")
+  responseStatus Int?      @map("response_status")
+  responseBody   String?   @map("response_body")
+  error          String?
+  deliveredAt    DateTime? @map("delivered_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  merchant       Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  endpoint       MerchantWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, eventId])
+  @@index([merchantId, status, nextAttemptAt])
+  @@index([merchantId, createdAt])
+  @@map("merchant_webhook_deliveries")
+}
+
+model Shipment {
+  id              String    @id
+  merchantId      String    @map("merchant_id")
+  sessionId       String    @map("session_id")
+  externalOrderId String    @map("external_order_id")
+  carrier         String
+  trackingCode    String    @map("tracking_code")
+  trackingUrl     String?   @map("tracking_url")
+  status          String
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  estimatedEta    DateTime? @map("estimated_eta")
+  deliveredAt     DateTime? @map("delivered_at")
+
+  merchant        Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  trackingEvents  TrackingEvent[]
+
+  @@unique([merchantId, externalOrderId])
+  @@unique([merchantId, trackingCode])
+  @@index([merchantId, status, updatedAt])
+  @@map("shipments")
+}
+
+model TrackingEvent {
+  id           String   @id
+  merchantId   String   @map("merchant_id")
+  shipmentId   String   @map("shipment_id")
+  trackingCode String   @map("tracking_code")
+  status       String
+  description  String
+  location     String?
+  carrierRaw   Json     @default("{}") @map("carrier_raw")
+  occurredAt   DateTime @map("occurred_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  shipment     Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, trackingCode, occurredAt])
+  @@index([shipmentId, occurredAt])
+  @@map("tracking_events")
 }
 
 model BuyerPurchaseRecord {

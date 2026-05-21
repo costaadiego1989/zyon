@@ -164,6 +164,13 @@ export class InMemoryCheckoutRepository
     return stored ? structuredClone(stored) : undefined;
   }
 
+  findCompletedOrderByExternalOrderId(merchantId: string, externalOrderId: string): CompletedOrder | undefined {
+    const stored = Array.from(this.completedOrders.values())
+      .filter((order) => order.merchantId === merchantId && order.externalOrderId === externalOrderId)
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt))[0];
+    return stored ? structuredClone(stored) : undefined;
+  }
+
   updateCompletedOrderTracking(input: {
     merchantId: string;
     sessionId: string;

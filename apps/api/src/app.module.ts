@@ -20,6 +20,7 @@ import { CouponsModule } from "./modules/coupons/coupons.module.js";
 import { ScrapingAgentModule } from "./modules/scraping-agent/scraping-agent.module.js";
 import { ShippingModule } from "./modules/shipping/shipping.module.js";
 import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module.js";
+import { IntegrationsModule } from "./modules/integrations/integrations.module.js";
 import { SupportModule } from "./modules/support/support.module.js";
 import { SelfCheckoutModule } from "./modules/self-checkout/self-checkout.module.js";
 import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module.js";
@@ -57,6 +58,7 @@ import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module
     ScrapingAgentModule,
     ShippingModule,
     FulfillmentModule,
+    IntegrationsModule,
     SupportModule,
     SelfCheckoutModule,
     BuyerAccountModule,

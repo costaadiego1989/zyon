@@ -27,6 +27,8 @@ import "./modules/payment/presentation/http/asaas-webhook.controller.spec.js";
 import "./modules/support/application/send-support-message.use-case.spec.js";
 import "./modules/support/application/support-tickets.use-cases.spec.js";
 import "./modules/support/presentation/http/support.controller.spec.js";
+import "./modules/integrations/domain/api-key-and-signature.service.spec.js";
+import "./modules/integrations/application/integrations.use-cases.spec.js";
 import "./modules/checkout/presentation/http/checkout.payment-flow.e2e-spec.js";
 import "./modules/checkout/domain/entities/checkout-session.entity.spec.js";
 import "./modules/checkout/domain/entities/accepted-offer.entity.spec.js";

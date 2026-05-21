@@ -1,6 +1,6 @@
 # AACP MVP Gap Closure
 
-This document lists the remaining gaps to move AACP from local checkout demo to pilot-ready MVP. The executable SDD feature lives in `.specs/features/finish-mvp-gap-closure/`.
+This document lists the remaining gaps to move AACP from local checkout demo to pilot-ready MVP. The executable SDD closure for tenant integrations and checkout enterprise polish lives in `.specs/features/tenant-integrations-mvp/`.
 
 ## Current Baseline
 
@@ -12,6 +12,8 @@ This document lists the remaining gaps to move AACP from local checkout demo to 
 - Merchant dashboard support can list handoff tickets and update their status.
 - Merchant dashboard overview shows pilot cards for orders, conversion, offers, selected/pending freight, support tickets, and revenue.
 - Local gates for API, widget, dashboard, Prisma/Postgres, and Playwright are documented and passed in the current local stack.
+- Pilot integration closure is now tracked in `.specs/features/tenant-integrations-mvp/` as the source of truth for API keys, tenant webhooks, tracking inbound, operational dashboard menus, professional embed issuance, and configurable enterprise checkout UX.
+- Tenant integration first slice is implemented in API: scoped server-to-server API keys, HMAC webhook configuration/delivery logs, async webhook dispatcher, order/customer outbound events, tracking inbound API, and persisted shipment/tracking tables.
 - Public coupon application is embed-token scoped and checks checkout-session ownership before applying discounts.
 - Widget public checkout responses are runtime-validated before render for start, tracking, chat, offer, coupon, payment, and product-cart flows.
 - Merchant embed bootstrap no longer injects selected freight by default; freight stays pending until the buyer quotes/selects it.
@@ -29,19 +31,23 @@ This document lists the remaining gaps to move AACP from local checkout demo to 
 | Payment | Asaas/Stripe webhook approval is idempotent and drives checkout completion; local E2E still uses fake provider for determinism. | Pilot still needs a real-credential smoke against Asaas/commerce in a controlled environment. | Prisma-backed payment lifecycle test with Asaas webhook and configured credentials. |
 | Commerce sync | Pending and paid lifecycle is wired through payment intent `commerceOrderId`. | External adapter credentials and durable operator retry still need pilot hardening. | Add real-provider/commerce smoke and operational retry visibility. |
 | Shipping | Quote/selection persistence is covered; tracking can be attached after completion; real carrier configuration remains. | Freight can still diverge from fulfillment if no carrier sync exists. | Add real carrier sync/smoke for quote and label flows. |
-| Tracking | API path and buyer hub pending/search behavior are wired. | Pilot still needs a real carrier/provider sync source to populate codes automatically. | Connect fulfillment/carrier tracking sync to the update path. |
+| Tracking | Tenant tracking API can attach tracking by external order id and persist shipment/timeline data. | Buyer hub still needs to read the new durable shipment timeline, and pilot still needs real carrier/provider sync. | Feed hub from shipment/timeline read model and add Playwright coverage. |
 | Support | FAQ and ticket handoff now work from widget through dashboard status operation. | Pilot still needs SLA/notification routing beyond the persisted ticket. | Add operator notifications and SLA filters. |
-| Merchant dashboard | Dashboard can operate support FAQ/tickets and now shows pilot metrics for orders, conversion, offers, freight, support, and revenue. | Pilot still requires database edits/manual inspection for order tracking and shipping operations. | Add order/tracking/shipping operational panels incrementally. |
+| Merchant dashboard | Dashboard can operate support FAQ/tickets and now shows pilot metrics; API routes for integrations, webhooks, deliveries, and shipments exist. | UI menus for Integracoes, Pedidos/Envios, Clientes, and Embed are still missing. | Build dashboard integration and order/shipment pages on top of the new API routes. |
 | Secure embed | Core public checkout flows now use embed-token scoped endpoints and runtime response schemas. | Pilot still needs production headers/CSP, token rotation policy, and real-store credential review. | Add production embed hardening checklist to pilot gates. |
 | CI/observability | Local API/widget/dashboard/Prisma/Playwright gates are documented and passed against the local stack. | Production CI still needs to run the same gates automatically on every change. | Wire the documented local gates into CI. |
+| Tenant integrations | API key, outbound tenant webhook, inbound tracking, and durable shipment/tracking first slice are implemented in API. | Missing dashboard UI, embed API-key issuance, Prisma live spec, and full receiver/hub E2E. | Continue `.specs/features/tenant-integrations-mvp/` TIM-T006 through TIM-T009. |
+| Enterprise checkout UX | Theme currently covers core colors, font, logo, and avatar, but not a full premium tenant-configurable design system. | Pilots may look generic or visually inconsistent with high-value brands. | Extend `MerchantTheme`, dashboard editor, and widget CSS variables with enterprise tokens. |
 
 ## Immediate Priority
 
-1. Connect real carrier/provider tracking sync to the completed-order update path.
-2. Add support SLA/notification routing on top of persisted tickets.
-3. Add real-provider/commerce smoke with configured credentials.
-4. Add production embed hardening checklist: CSP, token rotation, allowed origins, and real-store credential review.
-5. Add order/tracking/shipping operational panels beyond the current pilot metric cards.
+1. Build dashboard menus: `Integracoes`, `Pedidos/Envios`, `Clientes`, and `Embed` on the new tenant integration API.
+2. Add professional `/embed-sessions` server-to-server issuance via API key with allowed origin, scopes, and cart reference claims.
+3. Feed buyer hub from durable shipments/tracking events and add Playwright receiver/tracking coverage.
+4. Extend merchant theme and widget styles for enterprise/premium configurable checkout UX.
+5. Add Prisma live specs for API keys, webhook deliveries, shipments, and tracking events.
+6. Add real-provider/commerce smoke with configured credentials.
+7. Add production embed hardening checklist: CSP, token rotation, allowed origins, and real-store credential review.
 
 ## Local Pilot Gates
 
@@ -69,4 +75,6 @@ The focused real-api Playwright gate is currently green against the local memory
 - Support can answer FAQ or create a visible handoff/ticket.
 - Public widget flows are token-scoped and reject malformed public API payloads before render.
 - Merchant can operate rules, support, shipping, tracking, and metrics from dashboard.
+- Merchant can integrate backend-to-backend through API keys, webhooks, and tracking update API.
+- Tenant can configure checkout appearance beyond basic colors: fonts, surfaces, background, avatar, copy, trust badges, and premium visual density.
 - Full local gates pass from a clean setup.

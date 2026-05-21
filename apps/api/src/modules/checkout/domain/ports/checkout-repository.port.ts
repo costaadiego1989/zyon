@@ -48,6 +48,8 @@ export interface CheckoutRepository {
   saveCompletedOrder(order: CompletedOrder): MaybePromise<{ order: CompletedOrder; idempotent: boolean }>;
   /** @deprecated Use OrderRepository.getCompletedOrder */
   getCompletedOrder(merchantId: string, sessionId: string, externalOrderId: string): MaybePromise<CompletedOrder | undefined>;
+  /** @deprecated Use OrderRepository.findCompletedOrderByExternalOrderId */
+  findCompletedOrderByExternalOrderId(merchantId: string, externalOrderId: string): MaybePromise<CompletedOrder | undefined>;
   /** @deprecated Use OrderRepository.updateCompletedOrderTracking */
   updateCompletedOrderTracking(input: {
     merchantId: string;

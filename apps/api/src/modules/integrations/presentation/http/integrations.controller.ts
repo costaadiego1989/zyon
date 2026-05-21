@@ -1,0 +1,107 @@
+import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import {
+  CreateMerchantApiKeyUseCase,
+  ListMerchantApiKeysUseCase,
+  ListTenantShipmentsUseCase,
+  ListWebhookDeliveriesUseCase,
+  ListWebhookEndpointsUseCase,
+  ReplayWebhookDeliveryUseCase,
+  RevokeMerchantApiKeyUseCase,
+  TestWebhookEndpointUseCase,
+  UpsertWebhookEndpointUseCase
+} from "../../application/integrations.use-cases.js";
+import type { MerchantApiKeyScope, TenantWebhookEventType } from "../../domain/integrations.types.js";
+
+@UseGuards(AuthGuard)
+@Controller("integrations")
+export class IntegrationsController {
+  constructor(
+    private readonly createApiKey: CreateMerchantApiKeyUseCase,
+    private readonly listApiKeys: ListMerchantApiKeysUseCase,
+    private readonly revokeApiKey: RevokeMerchantApiKeyUseCase,
+    private readonly listWebhookEndpoints: ListWebhookEndpointsUseCase,
+    private readonly upsertWebhookEndpoint: UpsertWebhookEndpointUseCase,
+    private readonly listWebhookDeliveries: ListWebhookDeliveriesUseCase,
+    private readonly replayWebhookDelivery: ReplayWebhookDeliveryUseCase,
+    private readonly testWebhookEndpoint: TestWebhookEndpointUseCase,
+    private readonly listShipments: ListTenantShipmentsUseCase
+  ) {}
+
+  @Get("api-keys")
+  apiKeys(@Req() request: unknown) {
+    return this.listApiKeys.execute(currentUser(request as { user?: unknown }).merchantId);
+  }
+
+  @Post("api-keys")
+  createKey(@Req() request: unknown, @Body() body: { name?: string; scopes?: MerchantApiKeyScope[] }) {
+    return this.createApiKey.execute({
+      merchantId: currentUser(request as { user?: unknown }).merchantId,
+      name: body.name,
+      scopes: body.scopes
+    });
+  }
+
+  @Delete("api-keys/:apiKeyId")
+  revokeKey(@Req() request: unknown, @Param("apiKeyId") apiKeyId: string) {
+    return this.revokeApiKey.execute(currentUser(request as { user?: unknown }).merchantId, apiKeyId);
+  }
+
+  @Get("webhooks")
+  webhooks(@Req() request: unknown) {
+    return this.listWebhookEndpoints.execute(currentUser(request as { user?: unknown }).merchantId);
+  }
+
+  @Post("webhooks")
+  createWebhook(@Req() request: unknown, @Body() body: { url: string; events?: TenantWebhookEventType[]; enabled?: boolean; description?: string }) {
+    return this.upsertWebhookEndpoint.execute({
+      merchantId: currentUser(request as { user?: unknown }).merchantId,
+      url: body.url,
+      events: body.events,
+      enabled: body.enabled,
+      description: body.description
+    });
+  }
+
+  @Put("webhooks/:endpointId")
+  updateWebhook(
+    @Req() request: unknown,
+    @Param("endpointId") endpointId: string,
+    @Body() body: { url: string; events?: TenantWebhookEventType[]; enabled?: boolean; description?: string }
+  ) {
+    return this.upsertWebhookEndpoint.execute({
+      merchantId: currentUser(request as { user?: unknown }).merchantId,
+      endpointId,
+      url: body.url,
+      events: body.events,
+      enabled: body.enabled,
+      description: body.description
+    });
+  }
+
+  @Post("webhooks/:endpointId/test")
+  testWebhook(@Req() request: unknown, @Param("endpointId") endpointId: string) {
+    return this.testWebhookEndpoint.execute(currentUser(request as { user?: unknown }).merchantId, endpointId);
+  }
+
+  @Get("webhook-deliveries")
+  deliveries(@Req() request: unknown, @Query("limit") limit?: string) {
+    return this.listWebhookDeliveries.execute(currentUser(request as { user?: unknown }).merchantId, numberOrUndefined(limit));
+  }
+
+  @Post("webhook-deliveries/:deliveryId/replay")
+  replayDelivery(@Req() request: unknown, @Param("deliveryId") deliveryId: string) {
+    return this.replayWebhookDelivery.execute(currentUser(request as { user?: unknown }).merchantId, deliveryId);
+  }
+
+  @Get("shipments")
+  shipments(@Req() request: unknown, @Query("limit") limit?: string) {
+    return this.listShipments.execute(currentUser(request as { user?: unknown }).merchantId, numberOrUndefined(limit));
+  }
+}
+
+function numberOrUndefined(value?: string): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 100) : undefined;
+}
