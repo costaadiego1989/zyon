@@ -8,6 +8,9 @@ export type EmbedTokenClaims = {
   issuedAtUnix: number;
   expiresAtUnix: number;
   nonce: string;
+  allowedOrigin?: string;
+  scopes?: string[];
+  cartRef?: string;
 };
 
 function embedSecret(): Buffer {

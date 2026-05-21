@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -28,7 +29,7 @@ import { MerchantApiKeyGuard } from "./presentation/http/merchant-api-key.guard.
 import { TenantTrackingController } from "./presentation/http/tenant-tracking.controller.js";
 
 @Module({
-  imports: [CheckoutModule],
+  imports: [AuthModule, CheckoutModule],
   controllers: [IntegrationsController, TenantTrackingController],
   providers: [
     ApiKeyService,
@@ -60,6 +61,6 @@ import { TenantTrackingController } from "./presentation/http/tenant-tracking.co
     TenantWebhooksOnCheckoutHandler,
     MerchantApiKeyGuard
   ],
-  exports: [INTEGRATIONS_REPOSITORY, TenantWebhookPublisher]
+  exports: [INTEGRATIONS_REPOSITORY, ApiKeyService, TenantWebhookPublisher]
 })
 export class IntegrationsModule {}

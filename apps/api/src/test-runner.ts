@@ -3,6 +3,7 @@ import "./modules/auth/domain/services/jwt.service.spec.js";
 import "./modules/auth/domain/services/auth-cookie.service.spec.js";
 import "./modules/auth/domain/services/login-rate-limiter.service.spec.js";
 import "./modules/auth/application/auth.use-cases.spec.js";
+import "./modules/auth/presentation/auth.controller.spec.js";
 import "./modules/merchant/presentation/merchant.controller.spec.js";
 import "./modules/merchant/application/merchant-theme.use-cases.spec.js";
 import "./modules/auth/presentation/auth-merchant.prisma-e2e-spec.js";

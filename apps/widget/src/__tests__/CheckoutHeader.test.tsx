@@ -65,6 +65,19 @@ describe("CheckoutHeader", () => {
     const { container } = render(<CheckoutHeader vm={buildVm()} />);
     expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("Northstar Atelier");
     expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("online");
+    expect(container.querySelector(".aacp-agent-sub")?.textContent).not.toContain("Pagamento seguro");
+  });
+
+  it("renders enterprise theme header copy and trust badges", () => {
+    const vm = buildVm();
+    vm.theme.headerTitle = "Concierge Northstar";
+    vm.theme.headerSubtitle = "Pagamento seguro com acompanhamento premium";
+    vm.theme.agentName = "Aurora VIP";
+    vm.theme.trustBadges = ["Pagamento seguro", "Frete rastreavel", "Suporte humano"];
+    const { container, getByText } = render(<CheckoutHeader vm={vm} />);
+    expect(getByText("Concierge Northstar")).not.toBeNull();
+    expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("Pagamento seguro");
+    expect(container.querySelectorAll(".aacp-header-badge")).toHaveLength(3);
   });
 
   it("renders avatar image when agentAvatarUrl is set", () => {

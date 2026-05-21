@@ -134,6 +134,58 @@ describe("createDashboardApi", () => {
     );
   });
 
+  it("register and logout call merchant auth routes with cookies", async () => {
+    const spy = vi.fn(
+      async (url: RequestInfo | URL): Promise<Response> =>
+        ({
+          ok: true,
+          status: String(url).endsWith("/auth/logout") ? 204 : 200,
+          text: async () =>
+            String(url).endsWith("/auth/logout")
+              ? ""
+              : JSON.stringify({
+                  merchant_id: "mrc_1",
+                  user_id: "usr_1",
+                  email: "owner@example.com",
+                  access_token: "jwt",
+                  token_type: "Bearer",
+                  expires_in: 3600
+                })
+        }) as Response
+    );
+    const api = createDashboardApi({
+      baseUrl: "http://localhost:9999/",
+      fetchImpl: spy as typeof fetch
+    });
+
+    await api.register({
+      merchant_name: "Northstar",
+      email: "owner@example.com",
+      password: "secret"
+    });
+    await api.logout();
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/auth/register",
+      expect.objectContaining({
+        credentials: "include",
+        method: "POST",
+        body: JSON.stringify({
+          merchant_name: "Northstar",
+          email: "owner@example.com",
+          password: "secret"
+        })
+      })
+    );
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/auth/logout",
+      expect.objectContaining({
+        credentials: "include",
+        method: "POST"
+      })
+    );
+  });
+
   it("patchSupportTicketStatus envia PATCH para atualizar status", async () => {
     const spy = vi.fn(
       async (): Promise<Response> =>
@@ -168,5 +220,128 @@ describe("createDashboardApi", () => {
       })
     );
     expect(out.status).toBe("resolved");
+  });
+
+  it("integration API helpers call authenticated tenant routes", async () => {
+    const spy = vi.fn(
+      async (): Promise<Response> =>
+        ({
+          ok: true,
+          status: 200,
+          text: async () => "[]"
+        }) as Response
+    );
+    const api = createDashboardApi({
+      baseUrl: "http://localhost:9999/",
+      fetchImpl: spy as typeof fetch
+    });
+
+    await api.getIntegrationApiKeys();
+    await api.getWebhookDeliveries(20);
+    await api.getTenantShipments(50);
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/integrations/api-keys",
+      expect.objectContaining({ credentials: "include", method: "GET" })
+    );
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/integrations/webhook-deliveries?limit=20",
+      expect.objectContaining({ credentials: "include", method: "GET" })
+    );
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/integrations/shipments?limit=50",
+      expect.objectContaining({ credentials: "include", method: "GET" })
+    );
+  });
+
+  it("createEmbedSession posts scoped token options", async () => {
+    const spy = vi.fn(
+      async (): Promise<Response> =>
+        ({
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ embed_session_token: "tok", expires_at_unix: 1779365700 })
+        }) as Response
+    );
+    const api = createDashboardApi({
+      baseUrl: "http://localhost:9999/",
+      fetchImpl: spy as typeof fetch
+    });
+
+    const out = await api.createEmbedSession({
+      ttl_seconds: 900,
+      allowed_origin: "https://store.example",
+      cart_ref: "cart_1",
+      scopes: ["checkout:start"]
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/embed-sessions",
+      expect.objectContaining({
+        credentials: "include",
+        method: "POST",
+        body: JSON.stringify({
+          ttl_seconds: 900,
+          allowed_origin: "https://store.example",
+          cart_ref: "cart_1",
+          scopes: ["checkout:start"]
+        })
+      })
+    );
+    expect(out.embed_session_token).toBe("tok");
+  });
+
+  it("merchant theme helpers read and save enterprise theme", async () => {
+    const spy = vi.fn(
+      async (): Promise<Response> =>
+        ({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              accentColor: "#0F766E",
+              textColor: "#111827",
+              backgroundColor: "#F7F8FA",
+              fontFamily: "Inter, sans-serif",
+              surfaceColor: "#FFFFFF",
+              density: "comfortable"
+            })
+        }) as Response
+    );
+    const api = createDashboardApi({
+      baseUrl: "http://localhost:9999/",
+      fetchImpl: spy as typeof fetch
+    });
+
+    await api.getMerchantTheme();
+    const saved = await api.putMerchantTheme({
+      accentColor: "#0F766E",
+      textColor: "#111827",
+      backgroundColor: "#F7F8FA",
+      fontFamily: "Inter, sans-serif",
+      surfaceColor: "#FFFFFF",
+      density: "comfortable"
+    });
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/merchants/me/theme",
+      expect.objectContaining({ credentials: "include", method: "GET" })
+    );
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/merchants/me/theme",
+      expect.objectContaining({
+        credentials: "include",
+        method: "PUT",
+        body: JSON.stringify({
+          accentColor: "#0F766E",
+          textColor: "#111827",
+          backgroundColor: "#F7F8FA",
+          fontFamily: "Inter, sans-serif",
+          surfaceColor: "#FFFFFF",
+          density: "comfortable"
+        })
+      })
+    );
+    expect(saved.density).toBe("comfortable");
   });
 });

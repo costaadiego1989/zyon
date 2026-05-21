@@ -3,7 +3,12 @@ import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view
 import { agentGivenAndRest, formatCurrency } from "../../hooks/checkout-view-model.js";
 
 export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
-  const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
+  const agentName = agentGivenAndRest(vm.theme.agentName || vm.activeExperience.agent.name);
+  const headerTitle = vm.theme.headerTitle?.trim() || agentName.given;
+  const headerSubtitle =
+    vm.theme.headerSubtitle?.trim() ||
+    `${vm.activeExperience.brand.name} - online - responde em segundos`;
+  const trustBadges = (vm.theme.trustBadges ?? []).filter(Boolean).slice(0, 3);
   const isDark = vm.colorMode === "dark";
   const openAccount = () => {
     if (vm.auth.session?.global_user_id) {
@@ -24,15 +29,22 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           )}
           <span className="aacp-status-dot" />
         </div>
-        <div>
+        <div className="aacp-header-copy">
           <div className="aacp-agent-name">
-            {agentName.given} <span className="sep">·</span>{" "}
+            {headerTitle} <span className="sep">·</span>{" "}
             <span className="role">{agentName.rest || "Assistente de Vendas"}</span>
           </div>
           <div className="aacp-agent-sub">
             <span className="live-dot" />
-            {vm.activeExperience.brand.name} · online · responde em segundos
+            {headerSubtitle}
           </div>
+          {trustBadges.length ? (
+            <div className="aacp-header-badges" aria-label="Selos do checkout">
+              {trustBadges.map((badge) => (
+                <span key={badge} className="aacp-header-badge">{badge}</span>
+              ))}
+            </div>
+          ) : null}
         </div>
       </div>
 

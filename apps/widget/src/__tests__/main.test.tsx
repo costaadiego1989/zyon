@@ -38,7 +38,19 @@ const baseTheme: MerchantTheme = {
   textColor: "#0F172A",
   backgroundColor: "#F9FAFB",
   fontFamily: "Manrope, system-ui, sans-serif",
-  logoUrl: "https://cdn.example.com/logo.png"
+  logoUrl: "https://cdn.example.com/logo.png",
+  surfaceColor: "#FFFFFF",
+  surfaceElevatedColor: "#F8FAFC",
+  borderColor: "#D9E2EC",
+  mutedTextColor: "#64748B",
+  fontDisplay: "Sora, Manrope, sans-serif",
+  backgroundImageUrl: "https://cdn.example.com/bg.jpg",
+  borderRadius: 10,
+  density: "spacious",
+  headerTitle: "Concierge Northstar",
+  headerSubtitle: "Compra premium em andamento",
+  agentName: "Aurora Concierge",
+  trustBadges: ["Pagamento seguro", "Frete rastreavel"]
 };
 
 function buildConfig(overrides: Partial<WidgetConfig> = {}): WidgetConfig {
@@ -362,6 +374,11 @@ describe("themeStyle", () => {
     expect(style["--aacp-fg"]).toBe("#0F172A");
     expect(style["--aacp-bg"]).toBe("#F9FAFB");
     expect(style["--aacp-font"]).toBe("Manrope, system-ui, sans-serif");
+    expect(style["--aacp-surface"]).toBe("#FFFFFF");
+    expect(style["--aacp-font-display"]).toBe("Sora, Manrope, sans-serif");
+    expect(style["--aacp-radius"]).toBe("10px");
+    expect(style["--aacp-density-scale"]).toBe("1.08");
+    expect(style["--aacp-bg-image"]).toContain("bg.jpg");
   });
 });
 

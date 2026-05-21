@@ -176,13 +176,36 @@ export interface MerchantTheme {
   fontFamily: string;
   logoUrl?: string;
   agentAvatarUrl?: string;
+  surfaceColor?: string;
+  surfaceElevatedColor?: string;
+  borderColor?: string;
+  successColor?: string;
+  warningColor?: string;
+  mutedTextColor?: string;
+  fontDisplay?: string;
+  backgroundImageUrl?: string;
+  borderRadius?: number;
+  density?: "compact" | "comfortable" | "spacious";
+  headerTitle?: string;
+  headerSubtitle?: string;
+  agentName?: string;
+  trustBadges?: string[];
 }
 
 export const DEFAULT_MERCHANT_THEME: MerchantTheme = {
   accentColor: "#0F766E",
-  textColor: "#0F172A",
-  backgroundColor: "#FFFFFF",
-  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+  textColor: "#111827",
+  backgroundColor: "#F7F8FA",
+  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  surfaceColor: "#FFFFFF",
+  surfaceElevatedColor: "#F8FAFC",
+  borderColor: "#D9E2EC",
+  successColor: "#047857",
+  warningColor: "#B45309",
+  mutedTextColor: "#64748B",
+  fontDisplay: "Manrope, Inter, ui-sans-serif, system-ui, sans-serif",
+  borderRadius: 8,
+  density: "comfortable"
 };
 
 export interface CheckoutBrandSnapshot {

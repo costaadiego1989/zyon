@@ -5,7 +5,7 @@ import { EmbedTokenService, type EmbedTokenClaims } from "../domain/embed-token.
 export class IssueEmbedSessionUseCase {
   constructor(private readonly tokens: EmbedTokenService) {}
 
-  execute(input: { merchantId: string; ttlSeconds: number }): {
+  execute(input: { merchantId: string; ttlSeconds: number; allowedOrigin?: string; scopes?: string[]; cartRef?: string }): {
     embed_session_token: string;
     expires_at_unix: number;
   } {
@@ -17,7 +17,10 @@ export class IssueEmbedSessionUseCase {
       merchantId: input.merchantId,
       issuedAtUnix: now,
       expiresAtUnix,
-      nonce: crypto.randomUUID()
+      nonce: crypto.randomUUID(),
+      allowedOrigin: validateAllowedOrigin(input.allowedOrigin),
+      scopes: sanitizeScopes(input.scopes),
+      cartRef: sanitizeCartRef(input.cartRef)
     };
 
     return {
@@ -25,4 +28,34 @@ export class IssueEmbedSessionUseCase {
       expires_at_unix: expiresAtUnix
     };
   }
+}
+
+function validateAllowedOrigin(origin: string | undefined): string | undefined {
+  const trimmed = origin?.trim();
+  if (!trimmed) return undefined;
+  const url = new URL(trimmed);
+  if (!["https:", "http:"].includes(url.protocol)) throw new Error("embed_allowed_origin_invalid");
+  if (url.protocol === "http:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
+    throw new Error("embed_allowed_origin_must_be_https");
+  }
+  return url.origin;
+}
+
+function sanitizeScopes(scopes: string[] | undefined): string[] | undefined {
+  if (!scopes?.length) return undefined;
+  const allowed = new Set([
+    "checkout:start",
+    "checkout:track",
+    "checkout:chat",
+    "offers:apply",
+    "coupons:apply",
+    "payment:intents:create"
+  ]);
+  const clean = Array.from(new Set(scopes.filter((scope) => allowed.has(scope))));
+  return clean.length ? clean : undefined;
+}
+
+function sanitizeCartRef(cartRef: string | undefined): string | undefined {
+  const trimmed = cartRef?.trim();
+  return trimmed ? trimmed.slice(0, 120) : undefined;
 }

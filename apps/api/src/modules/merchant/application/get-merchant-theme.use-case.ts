@@ -11,6 +11,9 @@ export class GetMerchantThemeUseCase {
 
   async execute(merchantId: string): Promise<MerchantTheme> {
     const profile = await this.repo.getProfile(merchantId);
-    return profile?.theme ?? DEFAULT_MERCHANT_THEME;
+    return {
+      ...DEFAULT_MERCHANT_THEME,
+      ...(profile?.theme ?? {})
+    };
   }
 }

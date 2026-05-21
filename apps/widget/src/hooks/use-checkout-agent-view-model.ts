@@ -61,7 +61,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
   useEffect(() => {
     injectGoogleFont(theme.fontFamily);
-  }, [theme.fontFamily]);
+    if (theme.fontDisplay) injectGoogleFont(theme.fontDisplay);
+  }, [theme.fontDisplay, theme.fontFamily]);
 
   useEffect(() => {
     if (sessionState.startedEvent?.response.initial_mode === "open") setOpen(true);

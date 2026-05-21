@@ -36,23 +36,53 @@ export function formatCurrency(value: number, currency: string): string {
 }
 
 export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CSSProperties {
-  const accent = theme.accentColor || "#a855f7";
+  const merged: MerchantTheme = {
+    ...DEFAULT_MERCHANT_THEME,
+    ...(theme ?? {})
+  };
+  const accent = merged.accentColor || "#0F766E";
+  const surface = merged.surfaceColor ?? "#FFFFFF";
+  const elevated = merged.surfaceElevatedColor ?? "#F8FAFC";
+  const border = merged.borderColor ?? "#D9E2EC";
+  const text = merged.textColor ?? "#111827";
+  const muted = merged.mutedTextColor ?? "#64748B";
+  const background = merged.backgroundColor ?? "#F7F8FA";
+  const radius = `${merged.borderRadius ?? 8}px`;
+  const density = merged.density ?? "comfortable";
+  const hasBackgroundImage = typeof merged.backgroundImageUrl === "string" && merged.backgroundImageUrl.startsWith("https://");
 
   const styles: Record<string, string> = {
     "--aacp-accent": accent,
-    "--aacp-font": theme.fontFamily,
+    "--aacp-accent-strong": accent,
+    "--aacp-fg": text,
+    "--aacp-bg": background,
+    "--aacp-surface": surface,
+    "--aacp-surface-2": elevated,
+    "--aacp-surface-3": elevated,
+    "--aacp-muted": muted,
+    "--aacp-faint": `${muted}B3`,
+    "--aacp-line": `${border}99`,
+    "--aacp-line-strong": border,
+    "--aacp-success": merged.successColor ?? "#047857",
+    "--aacp-warning": merged.warningColor ?? "#B45309",
+    "--aacp-font": merged.fontFamily,
+    "--aacp-font-display": merged.fontDisplay ?? merged.fontFamily,
+    "--aacp-radius": radius,
+    "--aacp-density-scale": density === "compact" ? "0.88" : density === "spacious" ? "1.08" : "1",
     "--aacp-grad-primary": `linear-gradient(135deg, ${accent} 0%, ${accent}cc 50%, ${accent}99 100%)`,
     "--aacp-grad-soft": `linear-gradient(135deg, ${accent}26, ${accent}1a)`,
     "--aacp-grad-bubble-buyer": `linear-gradient(135deg, ${accent}dd 0%, ${accent} 60%, ${accent}99 100%)`,
-    "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${accent}59, transparent 70%)`,
+    "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${accent}2e, transparent 70%)`,
     "--aacp-glow": `0 0 40px ${accent}59`,
   };
 
-  if (!isForcedMode) {
-    if (theme.textColor) styles["--aacp-fg"] = theme.textColor;
-    if (theme.backgroundColor) styles["--aacp-bg"] = theme.backgroundColor;
+  if (hasBackgroundImage && merged.backgroundImageUrl) {
+    styles["--aacp-bg-image"] = `url("${merged.backgroundImageUrl.replace(/"/g, "%22")}")`;
   }
 
+  if (isForcedMode) {
+    styles["--aacp-shell-bg"] = `linear-gradient(180deg, ${surface}f2, ${elevated}f2)`;
+  }
   return styles as unknown as React.CSSProperties;
 }
 

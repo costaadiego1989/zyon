@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
 import { LoginUseCase } from "../application/login.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
@@ -76,5 +76,11 @@ export class AuthController {
     } catch {
       throw new UnauthorizedException("refresh_failed");
     }
+  }
+
+  @Post("logout")
+  @HttpCode(204)
+  logout(@Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }) {
+    response.setHeader("Set-Cookie", this.cookies.clear());
   }
 }

@@ -3,12 +3,15 @@ import type {
   CheckoutSettingsPatch,
   DashboardOverview,
   MerchantRules,
+  MerchantTheme,
   SupportSettings,
   SupportSettingsPatch,
   SupportTicket,
   SupportTicketStatus,
   SupportTicketStatusPatch,
 } from "@aacp/shared-types";
+
+export type { DashboardOverview } from "@aacp/shared-types";
 
 /** Base da API (sem barra final), ex.: `http://localhost:3001`. */
 export function normalizeApiBase(url: string): string {
@@ -46,6 +49,13 @@ export type DashboardLoginAuth = {
   expires_in: number;
 };
 
+export type DashboardRegisterPayload = {
+  merchant_name: string;
+  email: string;
+  password: string;
+  merchant_id?: string;
+};
+
 export type MerchantProfile = {
   id: string;
   name: string;
@@ -53,6 +63,70 @@ export type MerchantProfile = {
 
 export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {
   negotiation_session_id?: string;
+};
+
+export type MerchantApiKey = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  scopes: string[];
+  createdAt: string;
+  lastUsedAt?: string;
+  revokedAt?: string;
+};
+
+export type CreatedMerchantApiKey = {
+  api_key: MerchantApiKey;
+  secret_key: string;
+};
+
+export type WebhookEndpoint = {
+  id: string;
+  url: string;
+  enabled: boolean;
+  events: string[];
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+  signingSecret?: string;
+  signingSecretHint?: string;
+};
+
+export type WebhookDelivery = {
+  id: string;
+  endpointId: string;
+  endpointUrl: string;
+  eventId: string;
+  eventType: string;
+  status: "pending" | "delivered" | "failed";
+  attempts: number;
+  nextAttemptAt?: string;
+  responseStatus?: number;
+  responseBody?: string;
+  error?: string;
+  createdAt: string;
+  updatedAt: string;
+  deliveredAt?: string;
+};
+
+export type TenantShipment = {
+  id: string;
+  merchantId: string;
+  sessionId: string;
+  externalOrderId: string;
+  carrier: string;
+  trackingCode: string;
+  trackingUrl?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  estimatedEta?: string;
+  deliveredAt?: string;
+};
+
+export type EmbedSessionResponse = {
+  embed_session_token: string;
+  expires_at_unix: number;
 };
 
 /**
@@ -166,6 +240,22 @@ export function createDashboardApi(options: {
       );
     },
 
+    register(payload: DashboardRegisterPayload): Promise<DashboardLoginAuth> {
+      return dashboardJson<DashboardLoginAuth>(
+        base,
+        "/auth/register",
+        {
+          method: "POST",
+          jsonBody: payload
+        },
+        f
+      );
+    },
+
+    logout(): Promise<Record<string, never>> {
+      return dashboardJson<Record<string, never>>(base, "/auth/logout", { method: "POST" }, f);
+    },
+
     merchantProfile(): Promise<MerchantProfile> {
       return dashboardJson<MerchantProfile>(base, "/merchants/me", { method: "GET" }, f);
     },
@@ -176,6 +266,14 @@ export function createDashboardApi(options: {
 
     putMerchantRules(patch: Partial<MerchantRules>): Promise<MerchantRules> {
       return dashboardJson(base, "/merchants/me/rules", { method: "PUT", jsonBody: patch }, f);
+    },
+
+    getMerchantTheme(): Promise<MerchantTheme> {
+      return dashboardJson(base, "/merchants/me/theme", { method: "GET" }, f);
+    },
+
+    putMerchantTheme(theme: MerchantTheme): Promise<MerchantTheme> {
+      return dashboardJson(base, "/merchants/me/theme", { method: "PUT", jsonBody: theme }, f);
     },
 
     /** Rotas públicas MVP (merchant no path) — continuam disponíveis sem login */
@@ -234,6 +332,57 @@ export function createDashboardApi(options: {
         { method: "PATCH", jsonBody: patch },
         f
       );
+    },
+
+    getIntegrationApiKeys(): Promise<MerchantApiKey[]> {
+      return dashboardJson(base, "/integrations/api-keys", { method: "GET" }, f);
+    },
+
+    createIntegrationApiKey(payload: { name?: string; scopes?: string[] }): Promise<CreatedMerchantApiKey> {
+      return dashboardJson(base, "/integrations/api-keys", { method: "POST", jsonBody: payload }, f);
+    },
+
+    revokeIntegrationApiKey(apiKeyId: string): Promise<MerchantApiKey> {
+      return dashboardJson(base, `/integrations/api-keys/${encodeURIComponent(apiKeyId)}`, { method: "DELETE" }, f);
+    },
+
+    getWebhookEndpoints(): Promise<WebhookEndpoint[]> {
+      return dashboardJson(base, "/integrations/webhooks", { method: "GET" }, f);
+    },
+
+    createWebhookEndpoint(payload: { url: string; events?: string[]; enabled?: boolean; description?: string }): Promise<WebhookEndpoint> {
+      return dashboardJson(base, "/integrations/webhooks", { method: "POST", jsonBody: payload }, f);
+    },
+
+    updateWebhookEndpoint(endpointId: string, payload: { url: string; events?: string[]; enabled?: boolean; description?: string }): Promise<WebhookEndpoint> {
+      return dashboardJson(base, `/integrations/webhooks/${encodeURIComponent(endpointId)}`, { method: "PUT", jsonBody: payload }, f);
+    },
+
+    testWebhookEndpoint(endpointId: string): Promise<WebhookDelivery> {
+      return dashboardJson(base, `/integrations/webhooks/${encodeURIComponent(endpointId)}/test`, { method: "POST" }, f);
+    },
+
+    getWebhookDeliveries(limit?: number): Promise<WebhookDelivery[]> {
+      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
+      return dashboardJson(base, `/integrations/webhook-deliveries${query}`, { method: "GET" }, f);
+    },
+
+    replayWebhookDelivery(deliveryId: string): Promise<WebhookDelivery> {
+      return dashboardJson(base, `/integrations/webhook-deliveries/${encodeURIComponent(deliveryId)}/replay`, { method: "POST" }, f);
+    },
+
+    getTenantShipments(limit?: number): Promise<TenantShipment[]> {
+      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
+      return dashboardJson(base, `/integrations/shipments${query}`, { method: "GET" }, f);
+    },
+
+    createEmbedSession(payload: {
+      ttl_seconds?: number;
+      allowed_origin?: string;
+      scopes?: string[];
+      cart_ref?: string;
+    }): Promise<EmbedSessionResponse> {
+      return dashboardJson(base, "/embed-sessions", { method: "POST", jsonBody: payload }, f);
     },
   };
 }
