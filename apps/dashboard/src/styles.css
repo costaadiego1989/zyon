@@ -297,3 +297,19 @@ button.dash-tab.active {
   overflow: auto;
   max-height: min(420px, 60vh);
 }
+
+.support-ticket-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 14px;
+  align-items: start;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+@media (max-width: 760px) {
+  .support-ticket-row {
+    grid-template-columns: 1fr;
+  }
+}

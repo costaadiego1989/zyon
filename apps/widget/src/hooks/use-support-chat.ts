@@ -15,6 +15,8 @@ export interface SupportChatState {
   messages: SupportMessage[];
   loading: boolean;
   error: string | null;
+  latestTicketId: string | null;
+  handoffPending: boolean;
   send: (text: string) => Promise<void>;
   reset: () => void;
 }
@@ -40,6 +42,8 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [latestTicketId, setLatestTicketId] = useState<string | null>(null);
+  const [handoffPending, setHandoffPending] = useState(false);
 
   const send = useCallback(
     async (text: string) => {
@@ -56,8 +60,22 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
           credentials: "include",
           body: JSON.stringify({ message: text.trim(), merchant_id: merchantId, session_id: sessionId }),
         });
-        const data = (await res.json()) as { reply?: string };
-        setMessages((prev) => [...prev, { role: "agent", text: data.reply ?? smartFallback(text) }]);
+        const fallback = smartFallback(text);
+        if (!res.ok) {
+          setMessages((prev) => [...prev, { role: "agent", text: fallback }]);
+          setError("Falha ao contatar o suporte.");
+          return;
+        }
+        const data = (await res.json()) as {
+          reply?: string;
+          handoff?: { ticketId?: string; status?: string };
+        };
+        const reply = data.reply?.trim() ? data.reply : fallback;
+        if (data.handoff?.ticketId) {
+          setLatestTicketId(data.handoff.ticketId);
+          setHandoffPending(true);
+        }
+        setMessages((prev) => [...prev, { role: "agent", text: reply }]);
       } catch {
         setMessages((prev) => [...prev, { role: "agent", text: smartFallback(text) }]);
         setError("Falha ao contatar o suporte.");
@@ -71,7 +89,9 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
   const reset = useCallback(() => {
     setMessages([]);
     setError(null);
+    setLatestTicketId(null);
+    setHandoffPending(false);
   }, []);
 
-  return { messages, loading, error, send, reset };
+  return { messages, loading, error, latestTicketId, handoffPending, send, reset };
 }

@@ -9,7 +9,12 @@ vi.mock("../hooks/use-support-chat.js", () => ({
   useSupportChat: vi.fn(),
 }));
 
+vi.mock("../hooks/use-support-faq.js", () => ({
+  useSupportFaq: vi.fn(),
+}));
+
 import { useSupportChat } from "../hooks/use-support-chat.js";
+import { useSupportFaq } from "../hooks/use-support-faq.js";
 
 // ── Builders ──────────────────────────────────────────────────────────────────
 
@@ -18,6 +23,8 @@ function buildChat(overrides: Partial<SupportChatState> = {}): SupportChatState 
     messages: [],
     loading: false,
     error: null,
+    latestTicketId: null,
+    handoffPending: false,
     send: vi.fn().mockResolvedValue(undefined),
     reset: vi.fn(),
     ...overrides,
@@ -59,6 +66,7 @@ function getComposerForm(container: HTMLElement) {
 describe("SupportPanel", () => {
   beforeEach(() => {
     vi.mocked(useSupportChat).mockReturnValue(buildChat());
+    vi.mocked(useSupportFaq).mockReturnValue({ items: [], loading: false });
   });
 
   afterEach(() => {
@@ -148,6 +156,27 @@ describe("SupportPanel", () => {
     expect(send).toHaveBeenCalledWith("Qual o prazo de entrega?");
   });
 
+  it("B10b — FAQ configurado abre resposta local sem chamar suporte AI", () => {
+    const send = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(useSupportChat).mockReturnValue(buildChat({ send }));
+    vi.mocked(useSupportFaq).mockReturnValue({
+      loading: false,
+      items: [
+        {
+          id: "faq-1",
+          question: "Como rastrear meu pedido?",
+          answer: "Use o codigo enviado por e-mail assim que a transportadora liberar o rastreio.",
+        },
+      ],
+    });
+
+    const { getByText } = render(<SupportPanel vm={buildVm()} />);
+    fireEvent.click(getByText("Como rastrear meu pedido?"));
+
+    expect(getByText(/codigo enviado por e-mail/i)).not.toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("B11 — todos os cards desabilitados quando chat.loading=true", () => {
     vi.mocked(useSupportChat).mockReturnValue(buildChat({ loading: true }));
     const { container } = render(<SupportPanel vm={buildVm()} />);
@@ -217,6 +246,18 @@ describe("SupportPanel", () => {
     expect(bubbles[0]!.textContent).toBe("Msg 1");
     expect(bubbles[1]!.textContent).toBe("Resp 1");
     expect(bubbles[2]!.textContent).toBe("Msg 2");
+  });
+
+  it("B18b — mostra protocolo quando handoff abriu chamado", () => {
+    vi.mocked(useSupportChat).mockReturnValue(
+      buildChat({
+        messages: [{ role: "agent", text: "Chamado aberto." }],
+        latestTicketId: "sup_123",
+        handoffPending: true,
+      })
+    );
+    const { getByText } = render(<SupportPanel vm={buildVm()} />);
+    expect(getByText("Chamado aberto: sup_123")).not.toBeNull();
   });
 
   it("B19 — 'Digitando...' visível quando loading=true e há mensagens", () => {
@@ -378,6 +419,15 @@ describe("SupportPanel", () => {
     render(<SupportPanel vm={buildVm({ apiOrigin: "https://custom-api.example.com" })} />);
     expect(vi.mocked(useSupportChat)).toHaveBeenCalledWith(
       expect.objectContaining({ apiBaseUrl: "https://custom-api.example.com" })
+    );
+  });
+
+  it("E05 — useSupportFaq busca apenas quando painel esta aberto", () => {
+    render(<SupportPanel vm={buildVm({ supportOpen: false })} />);
+    expect(vi.mocked(useSupportFaq)).toHaveBeenCalledWith(
+      "https://api.example.com",
+      "mrc_001",
+      false
     );
   });
 });

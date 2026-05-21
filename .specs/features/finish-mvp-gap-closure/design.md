@@ -86,10 +86,14 @@ The first implementation slice focuses on step 4 because it protects the sequenc
 ### Support Handoff
 
 - **Purpose**: Persist unresolved support requests instead of relying only on chat fallback.
-- **Location**: later slices under `apps/api/src/modules/support`.
+- **Location**:
+  - `SendSupportMessageUseCase` checks configured FAQ first. Matched FAQ returns an answer without creating a ticket.
+  - `SupportTicketEntity` records unresolved buyer requests with merchant/session scope, status, source, and timestamps.
+  - `SupportController` exposes public chat plus authenticated ticket list/status update routes.
+  - Dashboard support page combines FAQ editing with ticket operations.
 - **Interfaces**:
-  - `CreateSupportTicketUseCase.execute`
   - `ListSupportTicketsUseCase.execute`
+  - `UpdateSupportTicketStatusUseCase.execute`
 - **Dependencies**: Support settings, buyer/session context.
 - **Reuses**: Existing support FAQ/chat controller and dashboard support page.
 
@@ -109,6 +113,26 @@ interface CheckoutSession {
 ```
 
 A session with cart items and no `shipping` is not ready for payment.
+
+### Support Ticket
+
+Unresolved support now persists a durable operational handoff:
+
+```typescript
+interface SupportTicket {
+  id: string;
+  merchantId: string;
+  sessionId?: string;
+  buyerMessage: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  source: "widget" | "dashboard" | "system";
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+}
+```
+
+Migration `20260521143000_add_support_tickets` adds `support_tickets`.
 
 ### Future Commerce Order Link
 

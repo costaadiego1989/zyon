@@ -108,4 +108,65 @@ describe("createDashboardApi", () => {
     );
     expect(out.agreement).toBe(false);
   });
+
+  it("getSupportTickets chama rota autenticada com filtro opcional", async () => {
+    const spy = vi.fn(
+      async (): Promise<Response> =>
+        ({
+          ok: true,
+          status: 200,
+          text: async () => "[]"
+        }) as Response
+    );
+    const api = createDashboardApi({
+      baseUrl: "http://localhost:9999/",
+      fetchImpl: spy as typeof fetch
+    });
+
+    await api.getSupportTickets("open");
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/support/tickets?status=open",
+      expect.objectContaining({
+        credentials: "include",
+        method: "GET"
+      })
+    );
+  });
+
+  it("patchSupportTicketStatus envia PATCH para atualizar status", async () => {
+    const spy = vi.fn(
+      async (): Promise<Response> =>
+        ({
+          ok: true,
+          status: 200,
+          text: async () =>
+            JSON.stringify({
+              id: "sup_1",
+              merchantId: "mrc_1",
+              buyerMessage: "Ajuda",
+              status: "resolved",
+              source: "widget",
+              createdAt: "2026-05-21T00:00:00.000Z",
+              updatedAt: "2026-05-21T00:00:00.000Z"
+            })
+        }) as Response
+    );
+    const api = createDashboardApi({
+      baseUrl: "http://localhost:9999/",
+      fetchImpl: spy as typeof fetch
+    });
+
+    const out = await api.patchSupportTicketStatus("sup_1", "resolved");
+
+    expect(spy).toHaveBeenCalledWith(
+      "http://localhost:9999/support/tickets/sup_1",
+      expect.objectContaining({
+        credentials: "include",
+        method: "PATCH",
+        body: JSON.stringify({ status: "resolved" })
+      })
+    );
+    expect(out.status).toBe("resolved");
+  });
 });

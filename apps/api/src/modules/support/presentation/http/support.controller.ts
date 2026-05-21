@@ -1,12 +1,14 @@
-import { Body, Controller, Get, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
-import type { SupportSettingsPatch } from "@aacp/shared-types";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import type { SupportSettingsPatch, SupportTicketStatusPatch } from "@aacp/shared-types";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import {
   SendSupportMessageUseCase,
   type SupportMessageInput,
 } from "../../application/send-support-message.use-case.js";
 import { GetSupportSettingsUseCase } from "../../application/get-support-settings.use-case.js";
+import { ListSupportTicketsUseCase } from "../../application/list-support-tickets.use-case.js";
 import { UpdateSupportSettingsUseCase } from "../../application/update-support-settings.use-case.js";
+import { UpdateSupportTicketStatusUseCase } from "../../application/update-support-ticket-status.use-case.js";
 
 @Controller("support")
 export class SupportController {
@@ -14,6 +16,8 @@ export class SupportController {
     private readonly sendSupportMessage: SendSupportMessageUseCase,
     private readonly getSettings: GetSupportSettingsUseCase,
     private readonly updateSettings: UpdateSupportSettingsUseCase,
+    private readonly listTickets: ListSupportTicketsUseCase,
+    private readonly updateTicketStatus: UpdateSupportTicketStatusUseCase,
   ) {}
 
   @Post("chat")
@@ -42,6 +46,26 @@ export class SupportController {
     return this.updateSettings.execute(
       currentUser(request as { user?: unknown }).merchantId,
       body,
+    );
+  }
+
+  @UseGuards(AuthGuard)
+  @Get("tickets")
+  getTickets(@Req() request: unknown, @Query("status") status?: string) {
+    return this.listTickets.execute(currentUser(request as { user?: unknown }).merchantId, status);
+  }
+
+  @UseGuards(AuthGuard)
+  @Patch("tickets/:ticketId")
+  updateTicket(
+    @Req() request: unknown,
+    @Param("ticketId") ticketId: string,
+    @Body() body: SupportTicketStatusPatch,
+  ) {
+    return this.updateTicketStatus.execute(
+      currentUser(request as { user?: unknown }).merchantId,
+      ticketId,
+      body.status,
     );
   }
 }

@@ -38,6 +38,8 @@ describe("useSupportChat", () => {
     expect(result.current.messages).toEqual([]);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+    expect(result.current.latestTicketId).toBeNull();
+    expect(result.current.handoffPending).toBe(false);
   });
 
   // ── Happy path ────────────────────────────────────────────────────────────
@@ -78,6 +80,19 @@ describe("useSupportChat", () => {
 
     expect(result.current.messages).toHaveLength(2);
     expect(result.current.messages[1]).toEqual({ role: "agent", text: "Prazo é 5 dias" });
+  });
+
+  it("C06b - send: armazena protocolo quando API retorna handoff", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      reply: "Chamado aberto. Protocolo: sup_1.",
+      handoff: { ticketId: "sup_1", status: "open" },
+    }));
+    const { result } = renderHook(() => useSupportChat(DEFAULT_OPTS));
+
+    await act(async () => { await result.current.send("Preciso de humano"); });
+
+    expect(result.current.latestTicketId).toBe("sup_1");
+    expect(result.current.handoffPending).toBe(true);
   });
 
   it("C07 — send: POST para {apiBaseUrl}/support/chat", async () => {
@@ -197,7 +212,7 @@ describe("useSupportChat", () => {
     expect(result.current.error).toBeNull();
   });
 
-  it("C19 — send: API retorna 4xx/5xx sem throw → reply undefined → FALLBACK", async () => {
+  it("C19 — send: API retorna 4xx/5xx sem throw → FALLBACK + error state", async () => {
     fetchMock.mockResolvedValueOnce(
       new Response(JSON.stringify({}), {
         status: 500,
@@ -208,8 +223,8 @@ describe("useSupportChat", () => {
 
     await act(async () => { await result.current.send("Teste"); });
 
-    // fetch não rejeita em 5xx; reply ausente → FALLBACK
     expect(result.current.messages[1]!.text).toBe(FALLBACK);
+    expect(result.current.error).toBe("Falha ao contatar o suporte.");
   });
 
   // ── Guards ────────────────────────────────────────────────────────────────
@@ -267,6 +282,8 @@ describe("useSupportChat", () => {
 
     expect(result.current.messages).toEqual([]);
     expect(result.current.error).toBeNull();
+    expect(result.current.latestTicketId).toBeNull();
+    expect(result.current.handoffPending).toBe(false);
   });
 
   it("C02 — reset: estado pós-reset igual ao inicial", () => {
@@ -280,13 +297,13 @@ describe("useSupportChat", () => {
 
   // ── Edge cases ────────────────────────────────────────────────────────────
 
-  it("H04 — reply string vazia exibida (não usa FALLBACK, pois ?? só pega null/undefined)", async () => {
+  it("H04 — reply string vazia usa FALLBACK", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ reply: "" }));
     const { result } = renderHook(() => useSupportChat(DEFAULT_OPTS));
 
     await act(async () => { await result.current.send("Teste"); });
 
-    expect(result.current.messages[1]!.text).toBe("");
+    expect(result.current.messages[1]!.text).toBe(FALLBACK);
   });
 
   it("H02 — mensagem muito longa enviada corretamente", async () => {

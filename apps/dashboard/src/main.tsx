@@ -118,7 +118,7 @@ function App() {
           Negociação técnica
         </button>
         <button type="button" className={tab === "support" ? "dash-tab active" : "dash-tab"} onClick={() => setTab("support")}>
-          Suporte FAQ
+          Suporte
         </button>
       </nav>
 

@@ -156,6 +156,22 @@ model SupportSetting {
   @@map("support_settings")
 }
 
+model SupportTicket {
+  id           String    @id
+  merchantId   String    @map("merchant_id")
+  sessionId    String?   @map("session_id")
+  buyerMessage String    @map("buyer_message")
+  status       String
+  source       String
+  createdAt    DateTime  @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  resolvedAt   DateTime? @map("resolved_at")
+
+  @@index([merchantId, status, createdAt])
+  @@index([merchantId, sessionId])
+  @@map("support_tickets")
+}
+
 model AuthorizedOffer {
   id                 String   @id
   merchantId          String   @map("merchant_id")

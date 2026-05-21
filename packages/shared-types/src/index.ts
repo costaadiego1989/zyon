@@ -662,6 +662,24 @@ export interface SupportSettingsPatch {
   faqItems: SupportFaqItem[];
 }
 
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+
+export interface SupportTicket {
+  id: string;
+  merchantId: string;
+  sessionId?: string;
+  buyerMessage: string;
+  status: SupportTicketStatus;
+  source: "widget" | "dashboard" | "system";
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+}
+
+export interface SupportTicketStatusPatch {
+  status: SupportTicketStatus;
+}
+
 export interface DashboardOverview {
   merchant_id: string;
   conversations_started: number;

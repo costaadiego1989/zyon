@@ -5,6 +5,9 @@ import type {
   MerchantRules,
   SupportSettings,
   SupportSettingsPatch,
+  SupportTicket,
+  SupportTicketStatus,
+  SupportTicketStatusPatch,
 } from "@aacp/shared-types";
 
 /** Base da API (sem barra final), ex.: `http://localhost:3001`. */
@@ -213,6 +216,24 @@ export function createDashboardApi(options: {
 
     putSupportSettings(patch: SupportSettingsPatch): Promise<SupportSettings> {
       return dashboardJson(base, "/support/settings", { method: "PUT", jsonBody: patch }, f);
+    },
+
+    getSupportTickets(status?: SupportTicketStatus): Promise<SupportTicket[]> {
+      const query = status ? `?status=${encodeURIComponent(status)}` : "";
+      return dashboardJson(base, `/support/tickets${query}`, { method: "GET" }, f);
+    },
+
+    patchSupportTicketStatus(
+      ticketId: string,
+      status: SupportTicketStatus
+    ): Promise<SupportTicket> {
+      const patch: SupportTicketStatusPatch = { status };
+      return dashboardJson(
+        base,
+        `/support/tickets/${encodeURIComponent(ticketId)}`,
+        { method: "PATCH", jsonBody: patch },
+        f
+      );
     },
   };
 }

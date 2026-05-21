@@ -26,7 +26,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
     sessionId: vm.session?.session_id,
   });
 
-  const faq = useSupportFaq(vm.apiOrigin, vm.config.merchantId);
+  const faq = useSupportFaq(vm.apiOrigin, vm.config.merchantId, vm.supportOpen);
 
   useEffect(() => {
     if (threadRef.current) {
@@ -94,7 +94,10 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         className={vm.supportOpen ? "aacp-support-backdrop open" : "aacp-support-backdrop"}
         onClick={() => vm.setSupportOpen(false)}
       />
-      <aside className={`aacp-ai-panel ${vm.supportOpen ? "open" : ""}`}>
+      <aside
+        className={`aacp-ai-panel ${vm.supportOpen ? "open" : ""}`}
+        aria-hidden={!vm.supportOpen}
+      >
         {/* Header */}
         <div className="aacp-ai-head">
           {(hasMessages || selectedFaq) && (
@@ -118,7 +121,11 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
               </div>
             </div>
           </div>
-          <button className="aacp-ai-close" onClick={() => vm.setSupportOpen(false)}>
+          <button
+            className="aacp-ai-close"
+            onClick={() => vm.setSupportOpen(false)}
+            aria-label="Fechar suporte"
+          >
             <X size={18} />
           </button>
         </div>
@@ -199,6 +206,11 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                   Digitando...
                 </div>
               )}
+              {chat.handoffPending && chat.latestTicketId && (
+                <div className="aacp-support-ticket-note" role="status">
+                  Chamado aberto: {chat.latestTicketId}
+                </div>
+              )}
             </>
           )}
         </div>
@@ -209,6 +221,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             <input
               ref={inputRef}
               className="aacp-input"
+              aria-label="Mensagem para o suporte"
               placeholder="Digite sua dúvida aqui..."
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -220,7 +233,12 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                 transition: "opacity 0.2s ease, transform 0.2s ease",
               }}
             />
-            <button type="submit" className="aacp-send" disabled={!input.trim() || chat.loading}>
+            <button
+              type="submit"
+              className="aacp-send"
+              disabled={!input.trim() || chat.loading}
+              aria-label="Enviar mensagem ao suporte"
+            >
               <Send size={16} />
             </button>
           </form>

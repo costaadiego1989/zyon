@@ -1,7 +1,12 @@
-import { Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional } from "@nestjs/common";
 import { isSafeGeneratedMessage } from "@aacp/conversation-engine";
-import type { SupportFaqItem } from "@aacp/shared-types";
+import type { SupportFaqItem, SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
 import { HttpClientService } from "../../../shared/http/http-client.service.js";
+import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
+import {
+  SUPPORT_TICKET_REPOSITORY,
+  type SupportTicketRepository
+} from "../domain/ports/support-ticket-repository.port.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -17,6 +22,10 @@ export interface SupportMessageContext {
 export interface SupportMessageOutput {
   reply: string;
   safe: boolean;
+  handoff?: {
+    ticketId: string;
+    status: SupportTicketStatus;
+  };
 }
 
 function smartFallback(text: string): string {
@@ -54,6 +63,17 @@ function faqLookup(message: string, items: SupportFaqItem[]): string | null {
   return bestMatch?.answer ?? null;
 }
 
+function needsHumanHandoff(text: string): boolean {
+  return /n[aã]o sei|nao tenho certeza|suporte humano|equipe|entrar em contato|contatar o suporte/i.test(
+    normalize(text),
+  );
+}
+
+function formatHandoffReply(ticket: SupportTicket, contextReply?: string): string {
+  const prefix = contextReply?.trim() ? `${contextReply.trim()}\n\n` : "";
+  return `${prefix}Tambem abri um chamado para a equipe da loja acompanhar de perto. Protocolo: ${ticket.id}.`;
+}
+
 const BASE_SYSTEM_PROMPT = `Você é um assistente de suporte ao cliente. Responda dúvidas sobre entrega, pagamento, devoluções e pedidos de forma objetiva e empática.
 
 PROIBIDO:
@@ -88,19 +108,25 @@ function buildSystemPrompt(ctx?: SupportMessageContext): string {
 
 @Injectable()
 export class SendSupportMessageUseCase {
-  constructor(@Optional() private readonly http?: HttpClientService) {}
+  constructor(
+    @Inject(SUPPORT_TICKET_REPOSITORY)
+    private readonly tickets: SupportTicketRepository,
+    @Optional() private readonly http?: HttpClientService,
+  ) {}
 
   async execute(
     input: SupportMessageInput,
     ctx?: SupportMessageContext,
   ): Promise<SupportMessageOutput> {
+    const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
+    if (faqReply) return { reply: faqReply, safe: true };
+
     const apiKey = process.env.OPENAI_API_KEY;
     const model = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
     const baseUrl = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
 
     if (!apiKey) {
-      const faqReply = faqLookup(input.message, ctx?.faqItems ?? []);
-      return { reply: faqReply ?? smartFallback(input.message), safe: true };
+      return this.createHandoff(input, true, smartFallback(input.message));
     }
 
     try {
@@ -123,7 +149,7 @@ export class SendSupportMessageUseCase {
       });
 
       if (!response.ok) {
-        return { reply: smartFallback(input.message), safe: true };
+        return this.createHandoff(input, true, smartFallback(input.message));
       }
 
       const data = (await response.json()) as {
@@ -132,12 +158,39 @@ export class SendSupportMessageUseCase {
       const text = data.choices?.[0]?.message?.content?.trim() ?? "";
 
       if (!text || !isSafeGeneratedMessage(text)) {
-        return { reply: smartFallback(input.message), safe: false };
+        return this.createHandoff(input, false, smartFallback(input.message));
+      }
+
+      if (needsHumanHandoff(text)) {
+        return this.createHandoff(input, true, text);
       }
 
       return { reply: text, safe: true };
     } catch {
-      return { reply: smartFallback(input.message), safe: true };
+      return this.createHandoff(input, true, smartFallback(input.message));
     }
+  }
+
+  private async createHandoff(
+    input: SupportMessageInput,
+    safe: boolean,
+    contextReply?: string,
+  ): Promise<SupportMessageOutput> {
+    const ticket = await this.tickets.save(
+      SupportTicketEntity.create({
+        merchantId: input.merchant_id,
+        sessionId: input.session_id,
+        buyerMessage: input.message,
+        source: "widget",
+      }).snapshot(),
+    );
+    return {
+      reply: formatHandoffReply(ticket, contextReply),
+      safe,
+      handoff: {
+        ticketId: ticket.id,
+        status: ticket.status,
+      },
+    };
   }
 }

@@ -11,6 +11,7 @@
 - T4 completed: commerce-backed payment now validates the trusted cart, creates/reuses one pending commerce order, and carries the commerce order reference into payment audit data.
 - T5 completed: approved provider webhooks now mark linked commerce orders paid idempotently and keep post-approval commerce failures retryable.
 - T6 completed: completed orders no longer invent fake tracking codes; real codes can be attached after completion and buyer hub shows pending/searchable tracking states.
+- T7 completed: unresolved support messages create support ticket/handoff records, the widget shows the protocol, and dashboard support can list/update ticket status.
 
 ---
 
@@ -225,11 +226,32 @@ T6 -> T7 -> T8 -> T9
 **Reuses**: support FAQ/chat settings.
 **Requirement**: MVP-CLOSE-05, MVP-CLOSE-06
 
+**Status**: Done
+
+**Implementation notes**:
+
+- FAQ matches stay immediate and do not create operational tickets.
+- Unanswered support creates `support_tickets` with merchant/session scope, open status, and buyer-visible protocol.
+- Dashboard support surface reads `/support/tickets` and updates status through `/support/tickets/:ticketId`.
+
 **Done when**:
 
-- [ ] FAQ matches still answer immediately.
-- [ ] Unresolved support creates a ticket/handoff record.
-- [ ] Dashboard can list and update ticket status.
+- [x] FAQ matches still answer immediately.
+- [x] Unresolved support creates a ticket/handoff record.
+- [x] Dashboard can list and update ticket status.
+- [x] Gate checks pass and T7 is committed.
+
+**Verify**:
+
+- `cmd /c pnpm --filter @aacp/api test`
+- Result: 369 tests, 356 passed, 13 skipped, 0 failed.
+- `cmd /c pnpm --filter @aacp/dashboard typecheck`
+- Result: passed.
+- `cmd /c pnpm --filter @aacp/dashboard test`
+- Result: 1 file, 7 tests passed. First sandbox run hit Windows permission `Acesso negado`; rerun with approved escalation passed.
+- `cmd /c pnpm --filter @aacp/widget test`
+- Result: 18 files, 242 tests passed. First sandbox run hit Windows permission `Acesso negado`; rerun with approved escalation passed.
+- AppModule boot with dummy `DATABASE_URL`: `AppModule boot ok`.
 
 **Tests**: API unit/integration, dashboard component, widget e2e
 **Gate**: full

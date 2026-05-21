@@ -173,8 +173,8 @@ The checkout flow now has a tested local happy path, but the application is not 
 | MVP-CLOSE-02 | P1: Real Provider Payment Lifecycle | Execute | Partially Verified |
 | MVP-CLOSE-03 | P1: Commerce Order Sync | Execute | Verified |
 | MVP-CLOSE-04 | P1: Shipping Quote, Selection, and Tracking | Execute | Verified |
-| MVP-CLOSE-05 | P1: Buyer Hub and Support | Execute | Partially Verified |
-| MVP-CLOSE-06 | P2: Merchant Dashboard Operational MVP | Tasks | Pending |
+| MVP-CLOSE-05 | P1: Buyer Hub and Support | Execute | Verified |
+| MVP-CLOSE-06 | P2: Merchant Dashboard Operational MVP | Execute | Partially Verified |
 | MVP-CLOSE-07 | P2: Secure Embed Production Readiness | Tasks | Pending |
 | MVP-CLOSE-08 | P3: Post-MVP Hardening | Tasks | Pending |
 
@@ -188,6 +188,6 @@ The checkout flow now has a tested local happy path, but the application is not 
 - [ ] API rejects invalid payment attempts that bypass the widget sequence.
 - [ ] Payment approval completes checkout idempotently.
 - [ ] Buyer hub shows completed purchases and tracking state.
-- [ ] Support answers FAQ and exposes a handoff path.
+- [x] Support answers FAQ and exposes a handoff path.
 - [ ] Merchant dashboard can operate pilot settings without direct database changes.
 - [ ] Full gates pass: API typecheck/test, widget typecheck/test, Playwright real-api.
