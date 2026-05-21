@@ -8,7 +8,9 @@ export const CHECKOUT_EMBED_PATHS = {
   track: "/embed/track",
   chatMessage: "/embed/chat",
   applyOffer: "/embed/offers/apply",
-  paymentIntents: "/embed/payment/intents"
+  applyCoupon: "/embed/coupons/apply",
+  paymentIntents: "/embed/payment/intents",
+  buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
 
 export const CHECKOUT_LEGACY_PATHS = {
@@ -16,13 +18,15 @@ export const CHECKOUT_LEGACY_PATHS = {
   track: "/track-event",
   chatMessage: "/chat/message",
   applyOffer: "/offers/apply",
-  paymentIntents: "/payment/intents"
+  applyCoupon: "/coupons/apply",
+  paymentIntents: "/payment/intents",
+  buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
 
 export async function checkoutJson<T>(
   origin: string,
   path: string,
-  options: { embedToken?: string; body: Record<string, unknown> }
+  options: { embedToken?: string; body: Record<string, unknown>; schema?: { parse(input: unknown): T } }
 ): Promise<T> {
   const url = `${origin}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {
@@ -42,5 +46,6 @@ export async function checkoutJson<T>(
     throw new Error(`Request failed: ${response.status}`);
   }
 
-  return (await response.json()) as T;
+  const payload = await response.json();
+  return options.schema ? options.schema.parse(payload) : (payload as T);
 }

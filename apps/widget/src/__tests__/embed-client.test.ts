@@ -134,4 +134,24 @@ describe("checkoutJson", () => {
       })
     );
   });
+
+  it("valida resposta com schema antes de retornar payload", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: "not_boolean" })
+    } as Response);
+
+    await expect(
+      checkoutJson(origin, CHECKOUT_EMBED_PATHS.start, {
+        body: {},
+        schema: {
+          parse(input: unknown) {
+            if ((input as { ok?: unknown }).ok !== true) throw new Error("invalid_payload");
+            return input;
+          }
+        }
+      })
+    ).rejects.toThrow("invalid_payload");
+  });
 });

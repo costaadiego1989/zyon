@@ -14,6 +14,8 @@ function attachWidget(opts: HybridCheckoutOptions): void {
   el.setAttribute("merchant-id", opts.merchantId);
   el.setAttribute("api-base-url", opts.apiBaseUrl);
   el.setAttribute("cart-json", JSON.stringify(opts.cart));
+  if (opts.productApiBaseUrl) el.setAttribute("product-api-base-url", opts.productApiBaseUrl);
+  if (opts.productSelection?.length) el.setAttribute("product-selection-json", JSON.stringify(opts.productSelection));
   if (opts.customer) el.setAttribute("customer-json", JSON.stringify(opts.customer));
   if (opts.shipping) el.setAttribute("shipping-json", JSON.stringify(opts.shipping));
 

@@ -1,7 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { readMerchantEmbedOptions } from "../lib/merchant-embed-config.js";
 
 describe("readMerchantEmbedOptions", () => {
+  afterEach(() => {
+    window.history.pushState({}, "", "/");
+  });
+
   it("reads enterprise embed credentials and storefront payload from host dataset", () => {
     const host = {
       dataset: {
@@ -72,6 +76,33 @@ describe("readMerchantEmbedOptions", () => {
     expect(options.embedSessionToken).toBeUndefined();
     expect(options.cart.total).toBeGreaterThan(0);
     expect(options.cart.items[0]?.sku).toBe("athom-kit-001");
-    expect(options.shipping?.customerPrice).toBeGreaterThan(0);
+    expect(options.shipping).toBeUndefined();
+  });
+
+  it("lets real-api e2e override merchant credentials from query params", () => {
+    const customer = {
+      fullName: "Cliente E2E",
+      email: "buyer@example.com",
+      email_verified: true
+    };
+    window.history.pushState(
+      {},
+      "",
+      `/?merchantId=e2e_mrc&embedToken=tok.embed&apiBaseUrl=http%3A%2F%2Flocalhost%3A3000&productId=e2e_product_001&qty=2&customerJson=${encodeURIComponent(JSON.stringify(customer))}`
+    );
+    const host = {
+      dataset: {
+        merchantId: "mrc_static",
+        apiBaseUrl: "http://localhost:3009"
+      }
+    } as unknown as HTMLElement;
+
+    const options = readMerchantEmbedOptions(host);
+
+    expect(options.merchantId).toBe("e2e_mrc");
+    expect(options.embedSessionToken).toBe("tok.embed");
+    expect(options.apiBaseUrl).toBe("http://localhost:3000");
+    expect(options.productSelection).toEqual([{ sku: "e2e_product_001", quantity: 2 }]);
+    expect(options.customer).toMatchObject(customer);
   });
 });

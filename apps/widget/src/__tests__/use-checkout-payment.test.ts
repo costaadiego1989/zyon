@@ -26,6 +26,15 @@ function buildConfig(mode: "embed" | "legacy" = "embed"): WidgetConfig {
 }
 
 function buildSessionState(overrides: Partial<CheckoutSessionState> = {}): CheckoutSessionState {
+  const experience = {
+    stage: "payment" as const,
+    brand: { merchant_id: "mrc_test", name: "Test", subtitle: "", logo_url: "", accent_color: "#000", support_label: "", theme: {} as any },
+    rules: {},
+    items: [],
+    totals: { currency: "BRL" as const, subtotal: 300, shipping: 0, discount: 0, total: 300 },
+    agent: { name: "Bot", greeting: "Ola", tone: "consultative" as const, language: "pt-BR" },
+    copy: { headline: "", subheadline: "", trust_badges: [], quick_replies: [], focus_input: true }
+  };
   return {
     session: {
       session_id: "sess_test",
@@ -34,19 +43,12 @@ function buildSessionState(overrides: Partial<CheckoutSessionState> = {}): Check
       agent_enabled: true,
       initial_mode: "open",
       tracking_token: "trk_test",
-      experience: {
-        stage: "payment",
-        brand: { merchant_id: "mrc_test", name: "Test", subtitle: "", logo_url: "", accent_color: "#000", support_label: "", theme: {} as any },
-        rules: {},
-        items: [],
-        totals: { currency: "BRL", subtotal: 300, shipping: 0, discount: 0, total: 300 },
-        agent: { name: "Bot", greeting: "Ola", tone: "consultative", language: "pt-BR" },
-        copy: { headline: "", subheadline: "", trust_badges: [], quick_replies: [] }
-      }
+      experience
     },
     apiOrigin: "http://localhost:3001",
     embedOpts: { embedToken: "tok.test" },
-    activeExperience: {} as any,
+    activeExperience: experience,
+    syncExperience: vi.fn(),
     networkError: null,
     startedEvent: null,
     track: vi.fn(),
@@ -137,6 +139,39 @@ describe("useCheckoutPayment", () => {
     expect(msg).toContain("00020126580014br.gov.bcb.pix");
   });
 
+  it("createPaymentIntent('pix') approved by fake E2E syncs completed", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        amountCents: 15000,
+        approvedAmountCents: 15000,
+        currency: "BRL",
+        status: "approved",
+        buyerFacing: { qrCodeCopyPaste: "00020126580014br.gov.bcb.pix" }
+      })
+    );
+
+    const session = buildSessionState();
+    const chat = buildChatState();
+    const { result } = renderHook(() =>
+      useCheckoutPayment(buildConfig(), session, chat)
+    );
+
+    await act(async () => {
+      await result.current.createPaymentIntent("pix");
+    });
+
+    expect(chat.appendAgentTurn).toHaveBeenCalledWith(
+      expect.stringContaining("Pagamento confirmado"),
+      { stream: true }
+    );
+    expect(session.syncExperience).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: "completed",
+        copy: expect.objectContaining({ quick_replies: [], focus_input: false })
+      })
+    );
+  });
+
   it("createPaymentIntent('pix') com invoiceUrl → agent turn com link", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
@@ -173,7 +208,7 @@ describe("useCheckoutPayment", () => {
 
     expect(result.current.stripeIntent).toBeNull();
     const [msg] = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(msg).toContain("Não foi possível gerar");
+    expect(msg).toContain("Nao foi possivel gerar");
   });
 
   it("createPaymentIntent sem sessão ativa → noop", async () => {

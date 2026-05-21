@@ -150,11 +150,23 @@ describe("CheckoutHeader", () => {
   it("calls auth.openHub when Minha conta chip is clicked", () => {
     const openHub = vi.fn();
     const vm = buildVm();
-    vm.auth.session = { email: "global@example.com" } as any;
+    vm.auth.session = { merchant_id: "mrc_001", user_id: "usr_001", email: "merchant@example.com" } as any;
     vm.auth.openHub = openHub;
     const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
     fireEvent.click(getByLabelText("Minha conta"));
     expect(openHub).toHaveBeenCalledOnce();
+  });
+
+  it("opens buyer UserPanel when Minha conta is a buyer session", () => {
+    const openHub = vi.fn();
+    const setUserPanelOpen = vi.fn();
+    const vm = buildVm({ setUserPanelOpen });
+    vm.auth.session = { global_user_id: "guser_001", email: "buyer@example.com" } as any;
+    vm.auth.openHub = openHub;
+    const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
+    fireEvent.click(getByLabelText("Minha conta"));
+    expect(setUserPanelOpen).toHaveBeenCalledWith(true);
+    expect(openHub).not.toHaveBeenCalled();
   });
 
   it("auth session takes priority over email_verified customer chip", () => {

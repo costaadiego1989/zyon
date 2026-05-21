@@ -9,6 +9,11 @@ import {
   CHECKOUT_EMBED_PATHS,
   CHECKOUT_LEGACY_PATHS
 } from "../lib/embed-client.js";
+import {
+  applyCouponResponseSchema,
+  applyOfferResponseSchema,
+  chatMessageResponseSchema
+} from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { bubbleKey, type QuickReplyChoice } from "./checkout-view-model.js";
 import { disableStreamingByEnv } from "./use-streamed-text.js";
@@ -36,8 +41,10 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   const composerInputRef = useRef<HTMLInputElement | null>(null);
   const prevStreamingTurnKey = useRef<string | null>(null);
   const prevStartTs = useRef(0);
+  const registrationPromptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const checkoutStage = useMemo(() => {
+    if (activeExperience.stage === "completed") return "completed";
     const apiStage = lastChat?.stage ?? activeExperience.stage;
     return apiStage ?? "data_collection";
   }, [activeExperience.stage, lastChat?.stage]);
@@ -92,6 +99,15 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   }, [streamingTurnKey]);
 
   useEffect(() => {
+    return () => {
+      if (registrationPromptTimer.current) {
+        clearTimeout(registrationPromptTimer.current);
+        registrationPromptTimer.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!threadRef.current) return;
     threadRef.current.scrollTop = threadRef.current.scrollHeight;
   }, [turns.length, busy, streamingTurnKey, streamingDoneKey]);
@@ -115,6 +131,10 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     prevStartTs.current = ev.ts;
 
     const response = ev.response;
+    if (registrationPromptTimer.current) {
+      clearTimeout(registrationPromptTimer.current);
+      registrationPromptTimer.current = null;
+    }
     if (Array.isArray(response.turns) && response.turns.length > 0) {
       setTurns(response.turns);
       const lastAgentIdx = response.turns.map((t) => t.role).lastIndexOf("agent");
@@ -129,7 +149,8 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       };
       setTurns([greeting]);
       setStreamingTurnKey(bubbleKey(greeting, 0));
-      setTimeout(() => {
+      registrationPromptTimer.current = setTimeout(() => {
+        registrationPromptTimer.current = null;
         const regTurn: ChatTurn = {
           role: "agent",
           text: "Antes de começar, preciso fazer o seu cadastro. Qual é o seu nome completo?",
@@ -183,6 +204,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   }
 
   function applyTurnResponse(response: ChatMessageResponse): void {
+    sessionState.setNetworkError?.(null);
     setLastChat(response);
     if (response.experience) syncExperience(response.experience);
     if (Array.isArray(response.turns) && response.turns.length > 0) {
@@ -207,7 +229,11 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       const body = config.mode === "embed"
         ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: userText.trim() }
         : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: userText.trim() };
-      const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, { ...embedOpts, body });
+      const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
+        ...embedOpts,
+        body,
+        schema: chatMessageResponseSchema
+      });
       applyTurnResponse(response);
       setMessage("");
     } catch {
@@ -232,7 +258,11 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       const body = config.mode === "embed"
         ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Iniciar cadastro" }
         : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Iniciar cadastro" };
-      const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, { ...embedOpts, body });
+      const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
+        ...embedOpts,
+        body,
+        schema: chatMessageResponseSchema
+      });
       applyTurnResponse(response);
     } catch {
       sessionState.setNetworkError?.("Falha ao falar com a IA. Tente novamente em instantes.");
@@ -254,7 +284,11 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       const body = config.mode === "embed"
         ? { session_id: session.session_id, offer_id: targetOffer.id }
         : { merchant_id: config.merchantId, session_id: session.session_id, offer_id: targetOffer.id };
-      const response = await checkoutJson<ApplyOfferResponse>(apiOrigin, paths.applyOffer, { ...embedOpts, body });
+      const response = await checkoutJson<ApplyOfferResponse>(apiOrigin, paths.applyOffer, {
+        ...embedOpts,
+        body,
+        schema: applyOfferResponseSchema
+      });
       if (response.experience) syncExperience(response.experience);
       if (response.agent_turn) {
         setTurns((current) => {
@@ -291,9 +325,41 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
 
   async function submitCoupon(): Promise<void> {
     const code = coupon.trim();
-    if (!code) return;
+    if (!code || !session) return;
     setCoupon("");
-    await sendMessageWithOverride(`Tenho o cupom: ${code}`);
+    setBusy(true);
+    setTurns((current) => [...current, { role: "buyer", text: `Cupom: ${code}`, occurredAt: new Date().toISOString() }]);
+    try {
+      const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+      const body: Record<string, unknown> = {
+        session_id: session.session_id,
+        merchant_id: config.merchantId,
+        code,
+        cart: sessionState.resolvedCart
+      };
+      const response = await checkoutJson<{ redemption_id: string; discount_applied: number; coupon: unknown }>(
+        apiOrigin,
+        paths.applyCoupon,
+        { ...embedOpts, body, schema: applyCouponResponseSchema }
+      );
+      appendAgentTurn(
+        `Cupom ${code.toUpperCase()} aplicado! Desconto de R$${response.discount_applied.toFixed(2)}.`,
+        { stream: true }
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "";
+      let userMsg = "Cupom inválido. Verifique o código e tente novamente.";
+      if (msg.includes("404") || msg.includes("COUPON_NOT_FOUND")) {
+        userMsg = "Cupom não encontrado. Verifique o código e tente novamente.";
+      } else if (msg.includes("409") || msg.includes("COUPON_ALREADY_APPLIED")) {
+        userMsg = "Este cupom já foi aplicado nesta sessão.";
+      } else if (msg.includes("400")) {
+        userMsg = "Cupom inválido ou expirado. Verifique e tente novamente.";
+      }
+      appendAgentTurn(userMsg, { stream: true });
+    } finally {
+      setBusy(false);
+    }
   }
 
   function retryChat(): void {

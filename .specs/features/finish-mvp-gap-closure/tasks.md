@@ -12,6 +12,7 @@
 - T5 completed: approved provider webhooks now mark linked commerce orders paid idempotently and keep post-approval commerce failures retryable.
 - T6 completed: completed orders no longer invent fake tracking codes; real codes can be attached after completion and buyer hub shows pending/searchable tracking states.
 - T7 completed: unresolved support messages create support ticket/handoff records, the widget shows the protocol, and dashboard support can list/update ticket status.
+- T8 completed: public coupon apply now requires embed auth and merchant/session ownership; widget public API responses are parsed with runtime schemas before render; merchant embed bootstrap no longer injects default freight; `full-checkout-real` Playwright gate is stable.
 
 ---
 
@@ -266,14 +267,43 @@ T6 -> T7 -> T8 -> T9
 **Reuses**: existing secure embed token and widget schemas.
 **Requirement**: MVP-CLOSE-07
 
+**Status**: Done
+
+**Implementation Notes**:
+
+- `/embed/coupons/apply` now uses `EmbedAuthGuard` and verifies the checkout session belongs to the merchant in the embed token.
+- Coupon application ignores browser-supplied `merchant_id`; merchant scope comes from the signed embed token.
+- `checkoutJson` can parse responses through runtime schemas before returning payloads to UI hooks.
+- Widget start, tracking, chat, offer, coupon, payment, and product-cart responses now use zod response schemas.
+- Runtime customer schema accepts the backend's empty address complement for "sem complemento" answers.
+- Merchant embed defaults no longer include selected shipping; freight remains pending until quote/selection happens in checkout.
+- Real-api Playwright harness uses `cmd /c`, API `PORT=3000`, memory repositories, product query params, explicit support/coupon/full-checkout coverage, and serial UI execution for stable local gates.
+
 **Done when**:
 
-- [ ] Public endpoints reject invalid/expired merchant-mismatched token.
-- [ ] Widget renders only validated response shapes.
-- [ ] Sensitive fields stay server-side.
+- [x] Public endpoints reject invalid/expired merchant-mismatched token.
+- [x] Widget renders only validated response shapes.
+- [x] Sensitive fields stay server-side.
 
 **Tests**: API unit/e2e and widget schema tests
 **Gate**: full
+
+**Verified**:
+
+- `cmd /c pnpm --filter @aacp/api test`
+- Result: 371 tests, 358 passed, 13 skipped.
+- `cmd /c pnpm --filter @aacp/widget typecheck`
+- Result: passed.
+- `cmd /c pnpm --filter @aacp/widget test`
+- Result: 18 files, 244 tests passed. Run required approved Windows escalation after sandbox `Acesso negado`.
+- `cmd /c pnpm --filter @aacp/widget test -- src/__tests__/widget-schemas.test.ts src/__tests__/use-checkout-chat.test.ts`
+- Result: 2 files, 14 tests passed.
+- `cmd /c pnpm --filter @aacp/widget exec playwright test e2e/realapi/full-checkout-real.spec.ts --project=widget-realapi`
+- Result: 7 tests passed after fixing runtime schema and serializing the UI block.
+- AppModule boot with dummy `DATABASE_URL`: `AppModule boot ok`.
+- `git diff --check`
+- Result: passed with line-ending warnings only.
+- Remaining T9 work: dashboard pilot metrics and clean-stack gate documentation beyond the focused full-checkout real-api run.
 
 ---
 
@@ -284,6 +314,13 @@ T6 -> T7 -> T8 -> T9
 **Depends on**: T5
 **Reuses**: dashboard overview read model and observability service.
 **Requirement**: MVP-CLOSE-06, MVP-CLOSE-08
+
+**Status**: In Progress
+
+**Progress**:
+
+- Focused `full-checkout-real` Playwright gate passes against local API/widget stack.
+- Dashboard pilot metrics and clean-stack gate docs remain open.
 
 **Done when**:
 

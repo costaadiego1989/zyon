@@ -97,6 +97,24 @@ The first implementation slice focuses on step 4 because it protects the sequenc
 - **Dependencies**: Support settings, buyer/session context.
 - **Reuses**: Existing support FAQ/chat controller and dashboard support page.
 
+### Secure Embed Runtime Validation
+
+- **Purpose**: Keep the public checkout boundary token-scoped and prevent malformed public API payloads from rendering.
+- **Location**:
+  - `WidgetCouponsController` protects `/embed/coupons/apply` with `EmbedAuthGuard`.
+  - `EmbedCheckoutGuardHelper` verifies checkout-session ownership before coupon application.
+  - `checkoutJson` accepts an optional schema and parses responses before hooks update UI state.
+  - `widget-schemas` defines runtime response contracts for start, tracking, chat, offer, coupon, payment, and product-cart payloads.
+  - Merchant embed config/bootstrap no longer supplies default selected freight unless the host explicitly passes shipping.
+- **Interfaces**:
+  - `checkoutJson<T>(origin, path, { embedToken, body, schema })`
+  - `startCheckoutResponseSchema`
+  - `chatMessageResponseSchema`
+  - `paymentIntentSnapshotSchema`
+  - `applyCouponResponseSchema`
+- **Dependencies**: Signed embed token, checkout session repository, zod response schemas.
+- **Reuses**: Existing embed token service, checkout guard helper, and widget config schemas.
+
 ---
 
 ## Data Models
@@ -159,6 +177,8 @@ Migration `20260521120000_add_commerce_order_id_to_payment_intents` adds `paymen
 | Provider approval duplicate | Return duplicate/no-op from repository dedup | Buyer/order not duplicated. |
 | Commerce mark-paid fails | Do not mark dedup processed; keep retryable failure | Merchant can recover sync. |
 | Support cannot answer | Create handoff/ticket state | Buyer sees support is pending, not broken. |
+| Malformed public checkout response | Runtime schema parse throws before UI state is updated | Widget shows existing error/retry behavior instead of rendering unsafe shape. |
+| Browser sends mismatched merchant for coupon | Ignore browser merchant and use embed-token merchant after session ownership check | Coupon cannot cross tenant boundary. |
 
 ---
 
@@ -173,3 +193,5 @@ Migration `20260521120000_add_commerce_order_id_to_payment_intents` adds `paymen
 | Commerce order link | Persist `commerceOrderId` on `PaymentIntent` | Webhook retries survive process restarts better than an in-memory pending-order index alone. |
 | Commerce paid retry | Do not record provider event when post-approval commerce sync throws | Provider retry can re-enter the approved-intent path and only perform missing commerce sync. |
 | Tracking truth | Do not synthesize `TRK-*`; persist only real tracking codes | Buyer hub should show pending delivery tracking until fulfillment or the operator provides the carrier code. |
+| Public coupon scope | Authorize with embed token and session ownership, not browser `merchant_id` | Public coupon application stays tenant-scoped. |
+| Runtime response validation | Parse public checkout responses with zod before render | The widget fails closed on broken API shapes. |

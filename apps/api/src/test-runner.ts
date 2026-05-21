@@ -96,6 +96,7 @@ import "./modules/cross-sell/domain/policies/cross-sell-policies.spec.js";
 import "./modules/coupons/domain/policies/coupon-policies.spec.js";
 import "./modules/self-checkout/domain/policies/self-checkout-policies.spec.js";
 import "./modules/fulfillment/domain/entities/shipment.entity.spec.js";
+import "./modules/coupons/presentation/http/widget-coupons.controller.spec.js";
 import "./modules/coupons/application/use-cases/apply-coupon.use-case.spec.js";
 import "./modules/self-checkout/application/use-cases/self-checkout.use-cases.spec.js";
 import "./modules/shipping/application/use-cases/shipping.use-cases.spec.js";

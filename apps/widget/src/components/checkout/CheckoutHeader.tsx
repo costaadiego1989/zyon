@@ -5,6 +5,13 @@ import { agentGivenAndRest, formatCurrency } from "../../hooks/checkout-view-mod
 export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
   const isDark = vm.colorMode === "dark";
+  const openAccount = () => {
+    if (vm.auth.session?.global_user_id) {
+      vm.setUserPanelOpen(true);
+      return;
+    }
+    vm.auth.openHub();
+  };
 
   return (
     <header className="aacp-header aacp-shell-header">
@@ -40,7 +47,7 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
         </button>
 
         {vm.auth.session ? (
-          <button className="aacp-user-chip" onClick={vm.auth.openHub} aria-label="Minha conta">
+          <button className="aacp-user-chip" onClick={openAccount} aria-label="Minha conta">
             <span className="aacp-user-avatar">
               {(vm.auth.session.email?.[0] ?? "C").toUpperCase()}
             </span>

@@ -598,7 +598,11 @@ describe("CheckoutAgent (conversational)", () => {
       expect.arrayContaining(["Aplicar cupom AURORA5", "Prefiro PIX", "Prefiro cartão", "Finalizar pedido"])
     );
     expect(container.querySelector(".aacp-flow-rail")?.textContent).toContain("Pagamento");
-    expect(getByLabelText("Cupom de desconto")).not.toBeNull();
+
+    // Coupon box auto-shows because buildChatResponse includes authorized_offer with discountCode
+    await waitFor(() => {
+      expect(getByLabelText("Cupom de desconto")).not.toBeNull();
+    });
   });
 
   it("renders payment confirmation and failure messages returned by the API", async () => {
@@ -1348,8 +1352,9 @@ describe("CheckoutAgent (conversational)", () => {
     });
   });
 
-  it("coupon box: typing code and submitting sends message to agent", async () => {
-    let capturedMessage = "";
+  it("coupon box: typing code and submitting calls coupon API endpoint", async () => {
+    let couponApiCalled = false;
+    let couponRequestBody: Record<string, unknown> = {};
     fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
@@ -1359,32 +1364,21 @@ describe("CheckoutAgent (conversational)", () => {
         });
       }
       if (url.endsWith("/embed/chat")) {
-        const body = JSON.parse(String(init?.body || "{}"));
-        capturedMessage = body.user_message || "";
-        const hasCoupon = capturedMessage.includes("PROMO10");
         return new Response(
           JSON.stringify(
-            buildChatResponse(
-              hasCoupon ? "Cupom aplicado! Desconto de 10%." : "Escolha o pagamento.",
-              "payment",
-              {
-                quickReplies: [],
-                actions: [],
-                experience: hasCoupon
-                  ? {
-                      stage: "payment",
-                      totals: {
-                        currency: "BRL",
-                        subtotal: 899.8,
-                        shipping: 0,
-                        discount: 89.98,
-                        total: 809.82
-                      }
-                    }
-                  : {}
-              }
-            )
+            buildChatResponse("Escolha o pagamento.", "payment", {
+              quickReplies: [],
+              actions: []
+            })
           ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      if (url.endsWith("/embed/coupons/apply")) {
+        couponApiCalled = true;
+        couponRequestBody = JSON.parse(String(init?.body || "{}"));
+        return new Response(
+          JSON.stringify({ redemption_id: "r_123", discount_applied: 89.98, coupon: { code: "PROMO10" } }),
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
@@ -1400,6 +1394,7 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.change(chatInput, { target: { value: "quero pagar" } });
     fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
 
+    // Coupon box auto-shows because buildChatResponse includes an authorized_offer with discountCode
     await waitFor(() => {
       expect(getByLabelText("Cupom de desconto")).not.toBeNull();
     });
@@ -1411,10 +1406,11 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.submit(couponInput.closest("form")!);
 
     await waitFor(() => {
-      expect(capturedMessage).toBe("Tenho o cupom: PROMO10");
+      expect(couponApiCalled).toBe(true);
     });
+    expect(couponRequestBody.code).toBe("PROMO10");
     await waitFor(() => {
-      expect(container.textContent).toContain("Cupom aplicado");
+      expect(container.textContent).toContain("Cupom PROMO10 aplicado");
     });
   });
 

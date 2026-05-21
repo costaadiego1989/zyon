@@ -35,19 +35,24 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "npx vite --port 5173",
+      command: "cmd /c npx vite --port 5173",
       port: 5173,
       reuseExistingServer: !CI
     },
     ...(wantsRealapi
       ? [
           {
-            command: "pnpm --filter @aacp/api start",
+            command: "cmd /c pnpm --filter @aacp/api start",
             port: 3000,
             reuseExistingServer: !CI,
             env: {
+              PORT: "3000",
               E2E_SEED_ENABLED: "true",
               AACP_REPOSITORY: "memory",
+              CHECKOUT_REPOSITORY: "in-memory",
+              MERCHANT_REPOSITORY: "in-memory",
+              BUYER_ACCOUNT_REPOSITORY: "in-memory",
+              SUPPORT_SETTINGS_REPOSITORY: "in-memory",
               NODE_ENV: "test"
             }
           }

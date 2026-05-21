@@ -1,8 +1,11 @@
 import type { Cart, CheckoutEventName, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { ProductSelectionLine } from "./widget-types.js";
 
 export interface HybridCheckoutOptions {
   merchantId: string;
   apiBaseUrl: string;
+  productApiBaseUrl?: string;
+  productSelection?: ProductSelectionLine[];
   cart: Cart;
   customer?: CustomerHints;
   shipping?: ShippingQuote;

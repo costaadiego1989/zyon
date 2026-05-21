@@ -453,6 +453,17 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
     });
   });
 
+  await page.route("**/support/chat", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        reply: "Para dúvidas sobre frete e prazo, consulte o rastreamento no e-mail de confirmação do pedido.",
+        safe: true,
+      }),
+    });
+  });
+
   await page.route("**/offers/apply", async (route: Route) => {
     await route.fulfill({
       status: 200,

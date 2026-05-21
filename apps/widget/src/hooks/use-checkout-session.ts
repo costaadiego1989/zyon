@@ -12,6 +12,7 @@ import {
   CHECKOUT_LEGACY_PATHS,
   normalizeApiBase
 } from "../lib/embed-client.js";
+import { productCartResponseSchema, startCheckoutResponseSchema, trackEventResponseSchema } from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { fallbackExperience } from "./checkout-view-model.js";
 
@@ -48,8 +49,7 @@ export function useCheckoutSession(config: WidgetConfig) {
       body: JSON.stringify({ items: config.productSelection })
     });
     if (!response.ok) throw new Error(`Product cart request failed: ${response.status}`);
-    const payload = (await response.json()) as { cart?: Cart };
-    if (!payload.cart) throw new Error("Product cart response missing cart");
+    const payload = productCartResponseSchema.parse(await response.json());
     setResolvedCart(payload.cart);
     return payload.cart;
   }
@@ -71,7 +71,8 @@ export function useCheckoutSession(config: WidgetConfig) {
             };
       const response = await checkoutJson<StartCheckoutResponse>(apiOrigin, paths.start, {
         ...embedOpts,
-        body
+        body,
+        schema: startCheckoutResponseSchema
       });
       setSession(response);
       syncExperience(response.experience);
@@ -95,7 +96,11 @@ export function useCheckoutSession(config: WidgetConfig) {
       config.mode === "embed"
         ? { session_id: session.session_id, event }
         : { merchant_id: config.merchantId, session_id: session.session_id, event };
-    await checkoutJson<TrackEventResponse>(apiOrigin, paths.track, { ...embedOpts, body });
+    await checkoutJson<TrackEventResponse>(apiOrigin, paths.track, {
+      ...embedOpts,
+      body,
+      schema: trackEventResponseSchema
+    });
   }
 
   function retryStartCheckout(): void {

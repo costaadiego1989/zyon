@@ -178,9 +178,10 @@ describe("useCheckoutChat", () => {
 
   it("sendMessageWithOverride: busy=false after successful response", async () => {
     mockCheckoutJson.mockResolvedValue(buildChatResponse());
+    const setNetworkError = vi.fn();
 
     const { result } = renderHook(() =>
-      useCheckoutChat(buildConfig(), buildSessionState())
+      useCheckoutChat(buildConfig(), buildSessionState({ setNetworkError }))
     );
 
     await act(async () => {
@@ -188,6 +189,7 @@ describe("useCheckoutChat", () => {
     });
 
     expect(result.current.busy).toBe(false);
+    expect(setNetworkError).toHaveBeenCalledWith(null);
   });
 
   it("appendAgentTurn: adds an agent turn to the turns list", () => {

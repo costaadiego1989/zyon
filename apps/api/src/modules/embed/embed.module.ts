@@ -11,6 +11,7 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./presentatio
 @Module({
   imports: [AuthModule, CheckoutModule, PaymentModule],
   controllers: [EmbedSessionsController, EmbedCheckoutController],
-  providers: [EmbedTokenService, IssueEmbedSessionUseCase, EmbedAuthGuard, EmbedCheckoutGuardHelper]
+  providers: [EmbedTokenService, IssueEmbedSessionUseCase, EmbedAuthGuard, EmbedCheckoutGuardHelper],
+  exports: [EmbedTokenService, EmbedAuthGuard, EmbedCheckoutGuardHelper]
 })
 export class EmbedModule {}

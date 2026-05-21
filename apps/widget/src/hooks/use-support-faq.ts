@@ -6,12 +6,15 @@ interface UseSupportFaqResult {
   loading: boolean;
 }
 
-export function useSupportFaq(apiBaseUrl: string, merchantId: string): UseSupportFaqResult {
+export function useSupportFaq(apiBaseUrl: string, merchantId: string, enabled = true): UseSupportFaqResult {
   const [items, setItems] = useState<SupportFaqItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (!merchantId) return;
+    if (!enabled || !merchantId) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     fetch(`${apiBaseUrl}/support/faq?merchant_id=${encodeURIComponent(merchantId)}`)
@@ -26,7 +29,7 @@ export function useSupportFaq(apiBaseUrl: string, merchantId: string): UseSuppor
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [apiBaseUrl, merchantId]);
+  }, [apiBaseUrl, merchantId, enabled]);
 
   return { items, loading };
 }
