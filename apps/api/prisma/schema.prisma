@@ -138,6 +138,7 @@ model MerchantRule {
   offerExpirationMinutes              Int      @map("offer_expiration_minutes")
   blockedRegions                      String[] @map("blocked_regions")
   brandVoice                          String   @map("brand_voice")
+  originZip                           String?  @map("origin_zip")
   quickReplies                        Json?    @map("quick_replies")
   updatedAt                           DateTime @updatedAt @map("updated_at")
 
@@ -325,6 +326,7 @@ model PaymentIntent {
   providerPaymentId    String?   @map("provider_payment_id")
   approvedAmountCents  Int?      @map("approved_amount_cents")
   acceptedOfferId      String?   @map("accepted_offer_id")
+  commerceOrderId      String?   @map("commerce_order_id")
   buyerFacing          Json?     @map("buyer_facing")
   statusHistory        Json      @default("[]") @map("status_history")
   createdAt            DateTime  @default(now()) @map("created_at")
@@ -333,6 +335,7 @@ model PaymentIntent {
   @@unique([merchantId, sessionId, idempotencyKey])
   @@unique([merchantId, providerPaymentId])
   @@index([merchantId, sessionId])
+  @@index([merchantId, commerceOrderId])
   @@map("payment_intents")
 }
 

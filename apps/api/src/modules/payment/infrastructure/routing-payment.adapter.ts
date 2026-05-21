@@ -25,4 +25,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     }
     return this.fake.createPayment(input);
   }
+
+  async createCustomer(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string> {
+    if (this.asaas) {
+      return this.asaas.createCustomer(input);
+    }
+    // Fake fallback for dev/test — return a placeholder ID
+    return `cust_fake_${Date.now()}`;
+  }
 }

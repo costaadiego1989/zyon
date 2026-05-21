@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { CommerceModule } from "../commerce/commerce.module.js";
 import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
@@ -21,8 +22,12 @@ import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-e
 import { isStripeConfigured, readStripeConnection } from "./infrastructure/stripe-env.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
 
+function shouldForceFakePaymentProvider(): boolean {
+  return process.env.PAYMENT_PROVIDER === "fake" || process.env.E2E_SEED_ENABLED === "true";
+}
+
 @Module({
-  imports: [CheckoutModule],
+  imports: [CheckoutModule, CommerceModule],
   controllers: [PaymentHttpController, AsaasWebhookController, StripeWebhookController],
   providers: [
     CreatePaymentIntentUseCase,
@@ -50,6 +55,7 @@ import { HttpClientService } from "../../shared/http/http-client.service.js";
     {
       provide: PAYMENT_PROVIDER_PORT,
       useFactory: (fake: FakePaymentProvider, asaas: AsaasPaymentAdapter, stripe: StripePaymentAdapter) => {
+        if (shouldForceFakePaymentProvider()) return fake;
         return new RoutingPaymentAdapter(
           isStripeConfigured() ? stripe : null,
           isAsaasConfigured() ? asaas : null,

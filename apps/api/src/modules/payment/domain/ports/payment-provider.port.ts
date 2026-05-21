@@ -42,4 +42,5 @@ export type CreateProviderPaymentOutput = {
 
 export interface PaymentProviderPort {
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
+  createCustomer?(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string>;
 }

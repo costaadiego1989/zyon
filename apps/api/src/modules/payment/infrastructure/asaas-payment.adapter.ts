@@ -38,6 +38,35 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     private readonly fetchImpl: typeof fetch
   ) { }
 
+  async createCustomer(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string> {
+    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const body: Record<string, unknown> = {
+      name: input.name,
+      email: input.email,
+      cpfCnpj: input.cpfCnpj.replace(/\D/g, "")
+    };
+    if (input.phone) body.phone = input.phone.replace(/\D/g, "");
+
+    const res = await this.fetchImpl(`${base}/v3/customers`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        access_token: this.apiKey
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      throw new Error(`asaas_customer_create_failed:${res.status}:${errorText}`);
+    }
+
+    const result = (await res.json()) as { id?: string };
+    if (!result.id) throw new Error("asaas_customer_missing_id");
+    return result.id;
+  }
+
   private async tokenizeCreditCard(input: CreateProviderPaymentInput): Promise<string> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");
     const tokenizeBody: Record<string, unknown> = {

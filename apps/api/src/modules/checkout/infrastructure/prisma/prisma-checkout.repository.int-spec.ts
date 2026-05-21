@@ -30,6 +30,31 @@ test(
       assert.equal((await repository.getSession(merchantId, sessionId))?.sessionId, sessionId);
       assert.equal(await repository.getSession(`${merchantId}_other`, sessionId), undefined);
 
+      const shippingSessionId = `chk_ship_${crypto.randomUUID()}`;
+      await repository.saveSession(checkoutSession({
+        merchantId,
+        sessionId: shippingSessionId,
+        globalUserId: firstUser,
+        shipping: undefined,
+        shippingOptions: [
+          { customerPrice: 18.5, realCost: 18.5, carrier: "correios-pac", method: "PAC", deliveryDays: 5 },
+          { customerPrice: 0, realCost: 0, carrier: "free-pac", method: "Frete gratis", deliveryDays: 7 }
+        ]
+      }));
+      const persistedBeforeSelection = await repository.getSession(merchantId, shippingSessionId);
+      assert.equal(persistedBeforeSelection?.shipping, undefined);
+      assert.equal(persistedBeforeSelection?.shippingOptions?.length, 2);
+
+      await repository.saveSession({
+        ...persistedBeforeSelection!,
+        shipping: persistedBeforeSelection!.shippingOptions![1],
+        updatedAt: new Date().toISOString()
+      });
+      const persistedAfterSelection = await repository.getSession(merchantId, shippingSessionId);
+      assert.equal(persistedAfterSelection?.shipping?.customerPrice, 0);
+      assert.equal(persistedAfterSelection?.shipping?.method, "Frete gratis");
+      assert.equal(persistedAfterSelection?.shippingOptions?.[0]?.customerPrice, 18.5);
+
       await repository.recordEvent(merchantId, sessionId, "coupon_field_clicked");
       assert.equal((await repository.getSession(merchantId, sessionId))?.abandonmentScore, 0.22);
 

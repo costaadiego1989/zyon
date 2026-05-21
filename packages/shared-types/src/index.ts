@@ -55,6 +55,7 @@ export interface Cart {
   items: CartItem[];
   currentDiscount?: number;
   source?: "storefront" | "checkout" | "platform_api" | "manual";
+  commerceCartRef?: string;
 }
 
 export interface CustomerAddress {
@@ -126,6 +127,7 @@ export interface MerchantRules {
   blockedRegions: string[];
   brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
   couponBoxEnabled: boolean;
+  originZip?: string;
   quickReplies?: StageQuickReplies;
 }
 

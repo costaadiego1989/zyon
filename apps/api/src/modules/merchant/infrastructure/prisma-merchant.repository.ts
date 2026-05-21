@@ -81,6 +81,7 @@ function toUpdate(rules: MerchantRules) {
     offerExpirationMinutes: rules.offerExpirationMinutes,
     blockedRegions: rules.blockedRegions,
     brandVoice: rules.brandVoice,
+    originZip: rules.originZip ?? null,
     quickReplies: rules.quickReplies != null
       ? (rules.quickReplies as unknown as Prisma.InputJsonValue)
       : Prisma.JsonNull,
@@ -101,6 +102,7 @@ function toRules(row: {
   blockedRegions: string[];
   brandVoice: string;
   couponBoxEnabled?: boolean | null;
+  originZip?: string | null;
   quickReplies?: unknown;
 }): MerchantRules {
   return {
@@ -117,6 +119,7 @@ function toRules(row: {
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],
     couponBoxEnabled: row.couponBoxEnabled ?? true,
+    originZip: row.originZip ?? undefined,
     quickReplies: row.quickReplies != null
       ? (row.quickReplies as unknown as StageQuickReplies)
       : undefined,

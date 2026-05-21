@@ -32,7 +32,8 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
       total: 300,
       items: [{ sku: "sku1", name: "Item", price: 300, quantity: 1 }]
     },
-    customer: { email: "buyer@test.com", phone: "11999998888", asaasCustomerId: "cus_fixture_e2e" }
+    customer: { email: "buyer@test.com", phone: "11999998888", asaasCustomerId: "cus_fixture_e2e" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider(), checkout).execute({
@@ -95,7 +96,8 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
       total: 450,
       items: [{ sku: "boleto-item", name: "Produto Boleto", price: 450, quantity: 1 }]
     },
-    customer: { email: "buyer@test.com", asaasCustomerId: "cus_boleto_fixture" }
+    customer: { email: "buyer@test.com", asaasCustomerId: "cus_boleto_fixture" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(
@@ -149,7 +151,8 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
       total: 200,
       items: [{ sku: "item-r", name: "Item", price: 200, quantity: 1 }]
     },
-    customer: { email: "buyer@test.com", asaasCustomerId: "cus_refund_fixture" }
+    customer: { email: "buyer@test.com", asaasCustomerId: "cus_refund_fixture" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(
@@ -206,7 +209,8 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
       total: 150,
       items: [{ sku: "x", name: "X", price: 150, quantity: 1 }]
     },
-    customer: { email: "buyer@test.com", asaasCustomerId: "cus_fixture_e2e" }
+    customer: { email: "buyer@test.com", asaasCustomerId: "cus_fixture_e2e" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(checkout, payments, new FakePaymentProvider(), checkout).execute({

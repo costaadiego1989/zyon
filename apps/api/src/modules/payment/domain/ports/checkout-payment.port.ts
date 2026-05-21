@@ -27,5 +27,6 @@ export interface CheckoutPaymentPort {
     paymentIntentId: string;
     status: PaymentIntentStatus;
     reason?: string;
+    commerceOrderId?: string;
   }): Promise<void>;
 }

@@ -1,9 +1,10 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
+import { ShippingModule } from "../shipping/shipping.module.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
@@ -47,7 +48,14 @@ import { CheckoutController } from "./presentation/http/checkout.controller.js";
 import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
 
 @Module({
-  imports: [AgentRulesModule, CheckoutSettingsModule, BuyerPurchaseHistoryModule, MerchantModule, CrossSellModule],
+  imports: [
+    AgentRulesModule,
+    CheckoutSettingsModule,
+    BuyerPurchaseHistoryModule,
+    MerchantModule,
+    CrossSellModule,
+    forwardRef(() => ShippingModule)
+  ],
   controllers: [CheckoutController],
   providers: [
     StartCheckoutUseCase,

@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
 import { SHIPPING_METHOD_REPOSITORY } from "./domain/ports/shipping-method-repository.port.js";
 import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
@@ -9,8 +9,11 @@ import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envi
 import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
 import { SelectShippingMethodUseCase } from "./application/use-cases/select-shipping-method.use-case.js";
 import { WidgetShippingController } from "./presentation/http/widget-shipping.controller.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
+import { CheckoutModule } from "../checkout/checkout.module.js";
 
 @Module({
+  imports: [MerchantModule, forwardRef(() => CheckoutModule)],
   controllers: [WidgetShippingController],
   providers: [
     InMemoryShippingQuoteRepository,

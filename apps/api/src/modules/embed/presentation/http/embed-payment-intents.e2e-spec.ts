@@ -42,7 +42,8 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
       total: 250,
       items: [{ sku: "sku", name: "N", price: 250, quantity: 1 }]
     },
-    customer: { asaasCustomerId: "cus_embed_pay_fixture_ok" }
+    customer: { asaasCustomerId: "cus_embed_pay_fixture_ok" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
   const snap = await c.intentFromEmbed(

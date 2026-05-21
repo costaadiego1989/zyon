@@ -26,6 +26,7 @@ export type PaymentIntentCreateInput = {
   currency: string;
   method: PaymentMethod;
   acceptedOfferId?: string;
+  commerceOrderId?: string;
 };
 
 export type PaymentIntentSnapshot = {
@@ -40,6 +41,7 @@ export type PaymentIntentSnapshot = {
   providerPaymentId?: string;
   approvedAmountCents?: number;
   acceptedOfferId?: string;
+  commerceOrderId?: string;
   buyerFacing?: {
     qrCodeCopyPaste?: string;
     invoiceUrl?: string;
@@ -71,6 +73,8 @@ export class PaymentIntentEntity {
 
     const acceptedOfferId =
       typeof input.acceptedOfferId === "string" ? input.acceptedOfferId.trim() || undefined : undefined;
+    const commerceOrderId =
+      typeof input.commerceOrderId === "string" ? input.commerceOrderId.trim() || undefined : undefined;
 
     return new PaymentIntentEntity({
       id: `pay_int_${randomUUID()}`,
@@ -82,6 +86,7 @@ export class PaymentIntentEntity {
       method: input.method,
       status: "pending",
       acceptedOfferId,
+      commerceOrderId,
       statusHistory: [{ status: "pending", occurredAt: new Date().toISOString() }]
     });
   }

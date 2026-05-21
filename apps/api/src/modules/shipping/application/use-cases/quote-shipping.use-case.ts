@@ -3,6 +3,7 @@ import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/enti
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
+import type { PackageDimensions } from "@aacp/shared-types";
 
 @Injectable()
 export class QuoteShippingUseCase {
@@ -17,6 +18,8 @@ export class QuoteShippingUseCase {
     destination_zip: string;
     cart_total: number;
     free_shipping_threshold?: number;
+    origin_zip?: string;
+    packages?: PackageDimensions[];
   }) {
     let quote = ShippingQuoteEntity.create({
       session_id: input.session_id,
@@ -26,11 +29,11 @@ export class QuoteShippingUseCase {
 
     const cartTotalCents = Math.round(input.cart_total * 100);
     const ctx = {
-      originZip: "",
+      originZip: input.origin_zip ?? "",
       destinationZip: input.destination_zip,
       cartTotalCents,
       merchantId: input.merchant_id,
-      packages: [],
+      packages: input.packages ?? [],
     };
     const allResults = await Promise.allSettled(
       this.carriers.map((c) => c.fetchQuotes(ctx))

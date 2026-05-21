@@ -5,10 +5,12 @@ import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
 } from "../domain/ports/payment-repository.port.js";
+import type { PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { readStripeConnection } from "../infrastructure/stripe-env.js";
+import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -29,7 +31,8 @@ export class HandleStripeWebhookUseCase {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
-    @Optional() private readonly metrics?: MetricsService
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase
   ) {
     const { secretKey } = readStripeConnection();
     this.stripe = new Stripe(secretKey ?? "__missing__", { apiVersion: "2026-04-22.dahlia" });
@@ -88,7 +91,10 @@ export class HandleStripeWebhookUseCase {
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();
-    if (snap.status === "approved") return "already_approved";
+    if (snap.status === "approved") {
+      await this.markLinkedCommerceOrderPaid(snap, pi.id);
+      return "already_approved";
+    }
 
     intentEntity.markApproved({
       providerPaymentId: pi.id,
@@ -100,7 +106,8 @@ export class HandleStripeWebhookUseCase {
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,
       paymentIntentId: snap.id,
-      status: "approved"
+      status: "approved",
+      commerceOrderId: snap.commerceOrderId
     });
 
     this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
@@ -114,7 +121,24 @@ export class HandleStripeWebhookUseCase {
       acceptedOfferId: snap.acceptedOfferId
     });
 
-    return "checkout_completed_after_payment";
+    const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, pi.id);
+
+    return commerceSynced ? "checkout_completed_after_payment_and_commerce_paid" : "checkout_completed_after_payment";
+  }
+
+  private async markLinkedCommerceOrderPaid(
+    snap: PaymentIntentSnapshot,
+    paymentReference: string
+  ): Promise<boolean> {
+    const commerceOrderId = snap.commerceOrderId?.trim();
+    if (!commerceOrderId || !this.markCommerceOrderPaid) return false;
+
+    const result = await this.markCommerceOrderPaid.execute({
+      merchantId: snap.merchantId,
+      commerceOrderId,
+      paymentReference
+    });
+    return result.invokedCommerceSync;
   }
 
   private async handleFailed(pi: Stripe.PaymentIntent): Promise<string> {
@@ -136,7 +160,8 @@ export class HandleStripeWebhookUseCase {
       sessionId: snap.sessionId,
       paymentIntentId: snap.id,
       status: "failed",
-      reason
+      reason,
+      commerceOrderId: snap.commerceOrderId
     });
 
     await this.checkoutPayment.recordPaymentFailure({

@@ -1,9 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import type { CommerceOrderPort } from "@aacp/commerce-adapters";
 import { PaymentIntentEntity, type PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import { HandleAsaasWebhookUseCase, UnauthorizedWebhookError, assertWebhookToken } from "./handle-asaas-webhook.use-case.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
+import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { InMemoryCommercePaidWebhookDedup } from "../../commerce/infrastructure/in-memory-commerce-paid-webhook-dedup.js";
 
 class RecordingCheckoutPayment implements CheckoutPaymentPort {
   public approved: CheckoutPaymentApprovedInput[] = [];
@@ -96,6 +99,112 @@ test("PAYMENT_RECEIVED approves intent and completes checkout once", async () =>
   assert.equal(checkoutPort.approved[0]?.orderTotalMajorUnits, 300);
   assert.equal(checkoutPort.approved[0]?.acceptedOfferId, "off_a");
   assert.ok(checkoutPort.statuses.some((entry) => entry.status === "approved"));
+});
+
+test("PAYMENT_RECEIVED marks linked commerce order paid idempotently", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkoutPort = new RecordingCheckoutPayment();
+  let markPaidCalls = 0;
+  const commerceOrders: CommerceOrderPort = {
+    async createPendingOrder() {
+      return { commerceOrderId: "unexpected" };
+    },
+    async markOrderPaid(input) {
+      markPaidCalls += 1;
+      assert.equal(input.merchantId, "mrc_1");
+      assert.equal(input.commerceOrderId, "draft_123");
+      assert.equal(input.paymentReference, "pay_asaas_1");
+    }
+  };
+  const commercePaid = new MarkCommerceOrderPaidUseCase(
+    commerceOrders,
+    new InMemoryCommercePaidWebhookDedup()
+  );
+  const uc = new HandleAsaasWebhookUseCase(payments, checkoutPort, undefined, commercePaid);
+
+  const intent = PaymentIntentEntity.create({
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    idempotencyKey: "idem_1",
+    amountCents: 30000,
+    currency: "BRL",
+    method: "pix",
+    commerceOrderId: "draft_123"
+  });
+  intent.markRequiresAction({ providerPaymentId: "pay_asaas_1" });
+  await payments.saveIntent({ intent });
+  const ext = intent.snapshot().id;
+
+  const first = await uc.execute(undefined, {
+    id: "evt_1",
+    event: "PAYMENT_RECEIVED",
+    payment: { id: "pay_asaas_1", value: 300, externalReference: ext }
+  });
+  const second = await uc.execute(undefined, {
+    id: "evt_2",
+    event: "PAYMENT_RECEIVED",
+    payment: { id: "pay_asaas_1", value: 300, externalReference: ext }
+  });
+
+  assert.equal(first.outcome, "processed");
+  if (first.outcome === "processed") {
+    assert.equal(first.effect, "checkout_completed_after_payment_and_commerce_paid");
+  }
+  assert.equal(second.outcome, "processed");
+  if (second.outcome === "processed") assert.equal(second.effect, "already_approved");
+  assert.equal(checkoutPort.approved.length, 1);
+  assert.equal(markPaidCalls, 1);
+});
+
+test("PAYMENT_RECEIVED retries commerce paid sync after post-approval failure", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkoutPort = new RecordingCheckoutPayment();
+  let commercePaidCalls = 0;
+  const commercePaid = {
+    async execute() {
+      commercePaidCalls += 1;
+      if (commercePaidCalls === 1) throw new Error("commerce_paid_sync_failed");
+      return { invokedCommerceSync: true };
+    }
+  };
+  const uc = new HandleAsaasWebhookUseCase(
+    payments,
+    checkoutPort,
+    undefined,
+    commercePaid as unknown as MarkCommerceOrderPaidUseCase
+  );
+
+  const intent = PaymentIntentEntity.create({
+    merchantId: "mrc_1",
+    sessionId: "chk_retry",
+    idempotencyKey: "idem_retry",
+    amountCents: 50000,
+    currency: "BRL",
+    method: "pix",
+    commerceOrderId: "draft_retry"
+  });
+  intent.markRequiresAction({ providerPaymentId: "pay_retry" });
+  await payments.saveIntent({ intent });
+  const ext = intent.snapshot().id;
+
+  const webhookBody = {
+    id: "evt_retry",
+    event: "PAYMENT_RECEIVED",
+    payment: { id: "pay_retry", value: 500, externalReference: ext }
+  };
+
+  await assert.rejects(() => uc.execute(undefined, webhookBody), /commerce_paid_sync_failed/);
+
+  assert.equal(await payments.hasProcessedProviderEvent("evt_retry"), false);
+  assert.equal(checkoutPort.approved.length, 1);
+
+  const retried = await uc.execute(undefined, webhookBody);
+
+  assert.equal(retried.outcome, "processed");
+  if (retried.outcome === "processed") assert.equal(retried.effect, "already_approved");
+  assert.equal(commercePaidCalls, 2);
+  assert.equal(checkoutPort.approved.length, 1);
+  assert.equal(await payments.hasProcessedProviderEvent("evt_retry"), true);
 });
 
 test("PAYMENT_DELETED marks failed and records payment_failed event", async () => {

@@ -6,6 +6,27 @@ import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/reposi
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../infrastructure/fake-payment-provider.js";
+import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
+import type { CreateProviderPaymentInput, CreateProviderPaymentOutput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
+import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
+import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
+import { InMemoryPendingCommerceOrderIndex } from "../../commerce/infrastructure/in-memory-pending-commerce-order-index.js";
+
+class CapturingPaymentProvider implements PaymentProviderPort {
+  readonly inputs: CreateProviderPaymentInput[] = [];
+
+  async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
+    this.inputs.push(input);
+    return {
+      providerPaymentId: "fake_pay_1",
+      status: "requires_action",
+      buyerFacingPayload: {
+        qrCodeCopyPaste: "fake_br_code",
+        invoiceUrl: "https://example.test/invoice/fake_pay_1"
+      }
+    };
+  }
+}
 
 test("CreatePaymentIntentUseCase throws NotFound when checkout session is missing", async () => {
   const checkout = new InMemoryCheckoutRepository();
@@ -76,6 +97,221 @@ test("CreatePaymentIntentUseCase charges cart total with selected shipping and d
   });
 
   assert.equal(intent.amountCents, 21000);
+});
+
+test("CreatePaymentIntentUseCase rejects payment before selected shipping exists", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      shipping: undefined,
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+
+  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+
+  await assert.rejects(
+    () =>
+      uc.execute({
+        merchant_id: "mrc_1",
+        session_id: "chk_1",
+        idempotency_key: "idem_missing_shipping"
+      }),
+    /shipping_method_required_before_payment/
+  );
+});
+
+test("CreatePaymentIntentUseCase allows zero-price selected shipping", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+
+  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+
+  const intent = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "idem_free_shipping"
+  });
+
+  assert.equal(intent.amountCents, 30000);
+});
+
+test("CreatePaymentIntentUseCase validates commerce cart and creates pending order before provider payment", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      cart: {
+        currency: "BRL",
+        source: "platform_api",
+        commerceCartRef: "cart_123",
+        total: 300,
+        items: [{ sku: "sku", name: "Item", price: 300, quantity: 1 }]
+      },
+      shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" },
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+
+  let validateCalls = 0;
+  let createCalls = 0;
+  const validateCart = new ValidateCartForPaymentUseCase({
+    async validateCart(input) {
+      validateCalls += 1;
+      assert.equal(input.merchantId, "mrc_1");
+      assert.equal(input.commerceCartRef, "cart_123");
+      return {
+        currency: "BRL",
+        totalCents: 30000,
+        commerceCartRef: "cart_123",
+        lines: [{ sku: "sku", quantity: 1, unitPriceCents: 30000, title: "Item" }]
+      };
+    }
+  });
+  const syncPendingOrder = new SyncPendingOrderUseCase(
+    {
+      async createPendingOrder(input) {
+        createCalls += 1;
+        assert.equal(input.merchantId, "mrc_1");
+        assert.equal(input.sessionId, "chk_1");
+        assert.equal(input.cart.commerceCartRef, "cart_123");
+        return { commerceOrderId: "draft_123" };
+      },
+      async markOrderPaid() {
+        throw new Error("not_expected");
+      }
+    },
+    new InMemoryPendingCommerceOrderIndex()
+  );
+  const provider = new CapturingPaymentProvider();
+  const uc = new CreatePaymentIntentUseCase(
+    checkout,
+    new InMemoryPaymentRepository(),
+    provider,
+    checkout,
+    undefined,
+    validateCart,
+    syncPendingOrder
+  );
+
+  const first = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "idem_commerce"
+  });
+  const second = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "idem_commerce"
+  });
+
+  assert.deepEqual(second, first);
+  assert.equal(validateCalls, 1);
+  assert.equal(createCalls, 1);
+  assert.equal(provider.inputs.length, 1);
+  assert.equal(first.commerceOrderId, "draft_123");
+  assert.match(provider.inputs[0]?.description ?? "", /commerce_order:draft_123/);
+  assert.equal(checkout.listOutbox("mrc_1").at(-1)?.payload.commerce_order_id, "draft_123");
+});
+
+test("CreatePaymentIntentUseCase rejects commerce-backed payment when trusted cart total differs", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      cart: {
+        currency: "BRL",
+        source: "platform_api",
+        commerceCartRef: "cart_changed",
+        total: 300,
+        items: [{ sku: "sku", name: "Item", price: 300, quantity: 1 }]
+      },
+      shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" },
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+
+  const validateCart = new ValidateCartForPaymentUseCase({
+    async validateCart() {
+      return {
+        currency: "BRL",
+        totalCents: 99900,
+        commerceCartRef: "cart_changed",
+        lines: [{ sku: "sku", quantity: 1, unitPriceCents: 99900, title: "Item" }]
+      };
+    }
+  });
+  const provider = new CapturingPaymentProvider();
+  const uc = new CreatePaymentIntentUseCase(
+    checkout,
+    new InMemoryPaymentRepository(),
+    provider,
+    checkout,
+    undefined,
+    validateCart,
+    new SyncPendingOrderUseCase(
+      {
+        async createPendingOrder() {
+          throw new Error("not_expected");
+        },
+        async markOrderPaid() {
+          throw new Error("not_expected");
+        }
+      },
+      new InMemoryPendingCommerceOrderIndex()
+    )
+  );
+
+  await assert.rejects(
+    () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "idem_bad_cart" }),
+    /client_total_mismatch/
+  );
+  assert.equal(provider.inputs.length, 0);
+});
+
+test("CreatePaymentIntentUseCase auto-approves fake provider when E2E seed is enabled", async () => {
+  const previous = process.env.E2E_SEED_ENABLED;
+  process.env.E2E_SEED_ENABLED = "true";
+  try {
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(
+      checkoutSession({
+        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+      })
+    );
+
+    const completed: unknown[] = [];
+    const checkoutPayment: CheckoutPaymentPort = {
+      completeAfterApproval: async (input) => { completed.push(input); },
+      recordPaymentFailure: async () => undefined,
+      recordPaymentStatusChanged: async () => undefined
+    };
+    const uc = new CreatePaymentIntentUseCase(
+      checkout,
+      new InMemoryPaymentRepository(),
+      new FakePaymentProvider(),
+      checkout,
+      checkoutPayment
+    );
+
+    const intent = await uc.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      idempotency_key: "idem_auto_approve",
+      method: "pix"
+    });
+
+    assert.equal(intent.status, "approved");
+    assert.deepEqual(intent.statusHistory.map((entry) => entry.status), ["pending", "requires_action", "approved"]);
+    assert.equal(completed.length, 1);
+    assert.equal((completed[0] as any).externalOrderId, "fake_pay_1");
+  } finally {
+    if (previous === undefined) delete process.env.E2E_SEED_ENABLED;
+    else process.env.E2E_SEED_ENABLED = previous;
+  }
 });
 
 test("CreatePaymentIntentUseCase rejects when Asaas is configured but session buyer has no asaasCustomerId", async () => {

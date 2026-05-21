@@ -36,6 +36,7 @@ function snapshotFromRecord(row: {
   providerPaymentId: string | null;
   approvedAmountCents: number | null;
   acceptedOfferId: string | null;
+  commerceOrderId?: string | null;
   buyerFacing: unknown;
   statusHistory?: unknown;
 }): PaymentIntentSnapshot {
@@ -51,6 +52,7 @@ function snapshotFromRecord(row: {
     providerPaymentId: row.providerPaymentId ?? undefined,
     approvedAmountCents: row.approvedAmountCents ?? undefined,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
+    commerceOrderId: row.commerceOrderId ?? undefined,
     buyerFacing: normalizeBuyerFacing(row.buyerFacing),
     statusHistory: Array.isArray(row.statusHistory)
       ? (row.statusHistory as PaymentIntentSnapshot["statusHistory"])
@@ -77,6 +79,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
       providerPaymentId: d.providerPaymentId ?? null,
       approvedAmountCents: d.approvedAmountCents ?? null,
       acceptedOfferId: d.acceptedOfferId ?? null,
+      commerceOrderId: d.commerceOrderId ?? null,
       buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
       statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue
     };
@@ -85,6 +88,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
       providerPaymentId: d.providerPaymentId ?? null,
       approvedAmountCents: d.approvedAmountCents ?? null,
       acceptedOfferId: d.acceptedOfferId ?? null,
+      commerceOrderId: d.commerceOrderId ?? null,
       buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
       statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue,
       currency: d.currency,

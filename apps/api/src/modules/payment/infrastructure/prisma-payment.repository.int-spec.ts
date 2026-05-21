@@ -22,7 +22,8 @@ test(
       amountCents: 500,
       currency: "BRL",
       method: "pix",
-      acceptedOfferId: "off_1"
+      acceptedOfferId: "off_1",
+      commerceOrderId: "draft_prisma_1"
     });
     intent.markRequiresAction({ providerPaymentId: "pay_prisma_x" });
 
@@ -41,6 +42,7 @@ test(
       assert.ok(reloadedSame);
       assert.equal(reloadedSame.snapshot().status, "approved");
       assert.equal(reloadedSame.snapshot().buyerFacing?.invoiceUrl, "https://invoice.test/a");
+      assert.equal(reloadedSame.snapshot().commerceOrderId, "draft_prisma_1");
 
       assert.equal(await repository.hasProcessedProviderEvent(evtId), false);
       assert.equal(await repository.recordProcessedProviderEvent(evtId), true);

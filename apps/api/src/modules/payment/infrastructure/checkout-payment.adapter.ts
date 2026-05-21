@@ -57,13 +57,15 @@ export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
     sessionId,
     paymentIntentId,
     status,
-    reason
+    reason,
+    commerceOrderId
   }: {
     merchantId: string;
     sessionId: string;
     paymentIntentId: string;
     status: PaymentIntentStatus;
     reason?: string;
+    commerceOrderId?: string;
   }): Promise<void> {
     await this.outbox.appendOutbox(
       createCheckoutEventEnvelope({
@@ -73,7 +75,8 @@ export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
           session_id: sessionId,
           payment_intent_id: paymentIntentId,
           status,
-          reason
+          reason,
+          commerce_order_id: commerceOrderId
         },
         causationId: paymentIntentId
       })

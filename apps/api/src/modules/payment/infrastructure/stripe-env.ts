@@ -30,6 +30,6 @@ export function readStripeConnection(): {
   return {
     secretKey: testSecret || (liveSecret?.startsWith("sk_test_") ? liveSecret : undefined),
     publishableKey: testPublishable || (livePublishable?.startsWith("pk_test_") ? livePublishable : undefined),
-    webhookSecret: testWebhook || (liveWebhook?.startsWith("whsec_test_") ? liveWebhook : undefined),
+    webhookSecret: testWebhook || (liveWebhook?.startsWith("whsec_") ? liveWebhook : undefined),
   };
 }

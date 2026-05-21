@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import type { CurrencyCode } from "@aacp/shared-types";
-import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
@@ -8,6 +8,7 @@ import {
 import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
+import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -78,7 +79,8 @@ export class HandleAsaasWebhookUseCase {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
-    @Optional() private readonly metrics?: MetricsService
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown): Promise<HandleAsaasWebhookResult> {
@@ -147,7 +149,8 @@ export class HandleAsaasWebhookUseCase {
             sessionId: snap.sessionId,
             paymentIntentId: snap.id,
             status: "refunded",
-            reason: eventName
+            reason: eventName,
+            commerceOrderId: snap.commerceOrderId
           });
         }
         return "payment_refunded";
@@ -173,6 +176,12 @@ export class HandleAsaasWebhookUseCase {
     const centsFromWebhook = paymentValueAsCents(paymentSlice);
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
     if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
+
+    if (snap.status === "approved") {
+      await this.markLinkedCommerceOrderPaid(snap, payId);
+      return "already_approved";
+    }
+
     if (centsFromWebhook !== snap.amountCents) {
       intentEntity.markFailed("payment_value_mismatch");
       await this.payments.saveIntent({ intent: intentEntity });
@@ -181,7 +190,8 @@ export class HandleAsaasWebhookUseCase {
         sessionId: snap.sessionId,
         paymentIntentId: snap.id,
         status: "failed",
-        reason: "payment_value_mismatch"
+        reason: "payment_value_mismatch",
+        commerceOrderId: snap.commerceOrderId
       });
       await this.checkoutPayment.recordPaymentFailure({
         merchantId: snap.merchantId,
@@ -191,17 +201,14 @@ export class HandleAsaasWebhookUseCase {
       return "payment_value_mismatch";
     }
 
-    if (snap.status === "approved") {
-      return "already_approved";
-    }
-
     intentEntity.markApproved({ providerPaymentId: payId, approvedAmountCents: snap.amountCents });
     await this.payments.saveIntent({ intent: intentEntity });
     await this.checkoutPayment.recordPaymentStatusChanged({
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,
       paymentIntentId: snap.id,
-      status: "approved"
+      status: "approved",
+      commerceOrderId: snap.commerceOrderId
     });
 
     this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
@@ -214,7 +221,24 @@ export class HandleAsaasWebhookUseCase {
       acceptedOfferId: snap.acceptedOfferId
     });
 
-    return "checkout_completed_after_payment";
+    const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, payId);
+
+    return commerceSynced ? "checkout_completed_after_payment_and_commerce_paid" : "checkout_completed_after_payment";
+  }
+
+  private async markLinkedCommerceOrderPaid(
+    snap: PaymentIntentSnapshot,
+    paymentReference: string
+  ): Promise<boolean> {
+    const commerceOrderId = snap.commerceOrderId?.trim();
+    if (!commerceOrderId || !this.markCommerceOrderPaid) return false;
+
+    const result = await this.markCommerceOrderPaid.execute({
+      merchantId: snap.merchantId,
+      commerceOrderId,
+      paymentReference
+    });
+    return result.invokedCommerceSync;
   }
 
   private async failOpenIntent(intentEntity: PaymentIntentEntity, reason: string): Promise<void> {
@@ -229,7 +253,8 @@ export class HandleAsaasWebhookUseCase {
         sessionId: snap.sessionId,
         paymentIntentId: snap.id,
         status: "failed",
-        reason
+        reason,
+        commerceOrderId: snap.commerceOrderId
       });
       await this.checkoutPayment.recordPaymentFailure({
         merchantId: snap.merchantId,

@@ -1,9 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { QuoteShippingUseCase } from "./quote-shipping.use-case.js";
+import { SelectShippingMethodUseCase } from "./select-shipping-method.use-case.js";
 import { InMemoryShippingQuoteRepository } from "../../infrastructure/repositories/in-memory-shipping-quote.repository.js";
 import type { CarrierPort } from "../../domain/ports/carrier.port.js";
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
+import { ShippingQuoteEntity } from "../../domain/entities/shipping-quote.entity.js";
+import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
+import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
+import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
+import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 
 function makeStubCarrier(key: string, results: ShippingQuoteResult[]): CarrierPort {
   return {
@@ -100,5 +107,91 @@ describe("QuoteShippingUseCase", () => {
     const { useCase } = makeSetup([]);
     const snap = await useCase.execute(BASE_INPUT);
     assert.equal(snap.results.length, 0);
+  });
+});
+
+describe("SelectShippingMethodUseCase", () => {
+  it("persists selected paid shipping to checkout session", async () => {
+    const quotesRepo = new InMemoryShippingQuoteRepository();
+    const checkoutRepo = new InMemoryCheckoutRepository();
+    await checkoutRepo.saveSession(checkoutSession({
+      merchantId: "mrc_1",
+      sessionId: "sess_1",
+      shipping: undefined
+    }));
+    await quotesRepo.save(
+      ShippingQuoteEntity.create({
+        merchant_id: "mrc_1",
+        session_id: "sess_1",
+        destination_zip: "01310-100"
+      }).addResults([
+        { carrier_key: "correios-pac", label: "Correios PAC", price: 1290, eta_days: 5, is_free: false },
+        { carrier_key: "correios-sedex", label: "Correios Sedex", price: 2590, eta_days: 2, is_free: false }
+      ])
+    );
+
+    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo);
+    const selected = await useCase.execute({
+      merchant_id: "mrc_1",
+      session_id: "sess_1",
+      carrier_key: "correios-pac"
+    });
+
+    assert.equal(selected.selected_carrier_key, "correios-pac");
+    const session = await checkoutRepo.getSession("mrc_1", "sess_1");
+    assert.equal(session?.shipping?.customerPrice, 12.9);
+    assert.equal(session?.shipping?.realCost, 12.9);
+    assert.equal(session?.shipping?.carrier, "correios-pac");
+    assert.equal(session?.shipping?.method, "Correios PAC");
+    assert.equal(session?.shipping?.deliveryDays, 5);
+    assert.equal(session?.shipping?.destinationZip, "01310-100");
+  });
+
+  it("persists selected free shipping and lets payment guard pass", async () => {
+    const quotesRepo = new InMemoryShippingQuoteRepository();
+    const checkoutRepo = new InMemoryCheckoutRepository();
+    await checkoutRepo.saveSession(checkoutSession({
+      merchantId: "mrc_1",
+      sessionId: "sess_free",
+      cart: {
+        currency: "BRL",
+        total: 150,
+        items: [{ sku: "sku_free", name: "Produto", price: 150, quantity: 1 }]
+      },
+      shipping: undefined
+    }));
+    await quotesRepo.save(
+      ShippingQuoteEntity.create({
+        merchant_id: "mrc_1",
+        session_id: "sess_free",
+        destination_zip: "01310100"
+      }).addResults([
+        { carrier_key: "free-pac", label: "Frete gratis PAC", price: 0, eta_days: 7, is_free: true }
+      ])
+    );
+
+    await new SelectShippingMethodUseCase(quotesRepo, checkoutRepo).execute({
+      merchant_id: "mrc_1",
+      session_id: "sess_free",
+      carrier_key: "free-pac"
+    });
+
+    const session = await checkoutRepo.getSession("mrc_1", "sess_free");
+    assert.equal(session?.shipping?.customerPrice, 0);
+    assert.equal(session?.shipping?.realCost, 0);
+
+    const payment = await new CreatePaymentIntentUseCase(
+      checkoutRepo,
+      new InMemoryPaymentRepository(),
+      new FakePaymentProvider(),
+      checkoutRepo
+    ).execute({
+      merchant_id: "mrc_1",
+      session_id: "sess_free",
+      idempotency_key: "idem_free",
+      method: "pix"
+    });
+
+    assert.equal(payment.amountCents, 15000);
   });
 });

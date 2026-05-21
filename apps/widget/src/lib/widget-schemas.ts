@@ -18,6 +18,7 @@ const cartItemSchema = z.object({
 const cartSchema = z.object({
   currency: z.enum(["BRL", "USD", "EUR"]),
   source: z.enum(["storefront", "checkout", "platform_api", "manual"]).optional(),
+  commerceCartRef: z.string().min(1).optional(),
   total: z.number().finite().nonnegative(),
   currentDiscount: z.number().finite().nonnegative().optional(),
   items: z.array(cartItemSchema).default([])
