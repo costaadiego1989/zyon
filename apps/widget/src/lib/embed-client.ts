@@ -9,6 +9,7 @@ export const CHECKOUT_EMBED_PATHS = {
   chatMessage: "/embed/chat",
   applyOffer: "/embed/offers/apply",
   applyCoupon: "/embed/coupons/apply",
+  acceptCrossSell: "/embed/cross-sell/accept",
   paymentIntents: "/embed/payment/intents",
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
@@ -19,6 +20,7 @@ export const CHECKOUT_LEGACY_PATHS = {
   chatMessage: "/chat/message",
   applyOffer: "/offers/apply",
   applyCoupon: "/coupons/apply",
+  acceptCrossSell: "/cross-sell/accept",
   paymentIntents: "/payment/intents",
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;

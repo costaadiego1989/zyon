@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { EmbedModule } from "../embed/embed.module.js";
+import { CheckoutModule } from "../checkout/checkout.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 import { COUPON_REPOSITORY } from "./domain/ports/coupon-repository.port.js";
 import { COUPON_REDEMPTION_REPOSITORY } from "./domain/ports/coupon-redemption-repository.port.js";
 import { InMemoryCouponRepository } from "./infrastructure/repositories/in-memory-coupon.repository.js";
@@ -13,7 +15,7 @@ import { MerchantCouponsController } from "./presentation/http/merchant-coupons.
 import { WidgetCouponsController } from "./presentation/http/widget-coupons.controller.js";
 
 @Module({
-  imports: [EmbedModule],
+  imports: [EmbedModule, CheckoutModule, MerchantModule],
   controllers: [MerchantCouponsController, WidgetCouponsController],
   providers: [
     InMemoryCouponRepository,

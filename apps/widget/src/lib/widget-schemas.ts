@@ -150,6 +150,7 @@ export const checkoutExperienceSnapshotSchema = z.object({
   shipping: shippingSchema.optional(),
   shippingOptions: z.array(shippingSchema).optional(),
   suggestedProducts: z.array(z.object({
+    suggestion_id: z.string().min(1).optional(),
     sku: z.string().min(1),
     name: z.string().min(1),
     unit_price: z.number().finite().nonnegative()
@@ -244,7 +245,14 @@ export const paymentIntentSnapshotSchema = z.object({
 export const applyCouponResponseSchema = z.object({
   redemption_id: z.string().min(1),
   discount_applied: z.number().finite().nonnegative(),
-  coupon: z.unknown()
+  coupon: z.unknown(),
+  experience: checkoutExperienceSnapshotSchema.optional()
+}).passthrough();
+
+export const crossSellAcceptResponseSchema = z.object({
+  suggestion: z.unknown(),
+  experience: checkoutExperienceSnapshotSchema.optional(),
+  agent_turn: chatTurnSchema.optional()
 }).passthrough();
 
 export const productCartResponseSchema = z.object({

@@ -1,7 +1,8 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type {
   ChatMessageRequest,
-  ChatMessageResponse
+  ChatMessageResponse,
+  SuggestedProduct
 } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
@@ -19,6 +20,7 @@ import { CheckoutCustomerService } from "../services/checkout-customer.service.j
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -183,6 +185,7 @@ export class SendChatMessageUseCase {
     const wantsPix = /\b(pix|qr code)\b/i.test(input.user_message) && stage === "payment";
     const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.user_message) && stage === "payment";
     const chatActions: any[] = [];
+    let suggestedProducts: SuggestedProduct[] = [];
 
     if (stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
       try {
@@ -191,13 +194,20 @@ export class SendChatMessageUseCase {
           merchant_id: input.merchant_id,
           cart: working.cart
         });
-        if (suggestions.length > 0) {
-          chatActions.push({ type: "cross_sell", suggestions });
-        }
+        suggestedProducts = suggestions.flatMap((suggestion) =>
+          suggestion.ranked_items.map((sku) => resolveCrossSellProduct(sku, suggestion.id))
+        );
       } catch {
         // cross-sell is non-critical; swallow errors
       }
     }
+
+    const responseExperience = suggestedProducts.length > 0
+      ? {
+        ...experience,
+        suggestedProducts
+      }
+      : experience;
 
     if (wantsPix) {
       chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
@@ -217,7 +227,7 @@ export class SendChatMessageUseCase {
       authorized_offer: offer,
       actions: chatActions,
       turns: updated.chatHistory,
-      experience,
+      experience: responseExperience,
       stage,
       missing_fields: missingFields
     };

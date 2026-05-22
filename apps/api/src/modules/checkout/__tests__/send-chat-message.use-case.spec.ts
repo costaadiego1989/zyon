@@ -8,6 +8,7 @@ import type { MerchantRepository } from "../../merchant/domain/ports/merchant-re
 import type { MerchantTheme } from "../../merchant/domain/merchant.types.js";
 import type { BuyerEmailCapturePayload } from "../infrastructure/brevo-buyer-email.notifier.js";
 import {
+  checkoutSession,
   merchantRules,
   startCheckoutRequest,
   completeOrderRequest
@@ -25,7 +26,8 @@ function createTestUseCase(
   conversation: ConversationPort,
   agentContext?: AgentContextPort,
   merchantRepo?: MerchantRepository,
-  brevoNotifier?: BrevoBuyerEmailNotifier
+  brevoNotifier?: BrevoBuyerEmailNotifier,
+  crossSellUseCase?: { execute(input: unknown): Promise<unknown[]> }
 ) {
   const custService = new CheckoutCustomerService(repository, brevoNotifier);
   const shipService = new CheckoutShippingService(repository, custService);
@@ -37,7 +39,8 @@ function createTestUseCase(
     shipService,
     offerService,
     agentContext,
-    merchantRepo
+    merchantRepo,
+    crossSellUseCase as never
   );
 }
 
@@ -331,6 +334,76 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("SendChatMessageUseCase exposes cross-sell through experience instead of invalid chat action", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  await repository.saveSession(checkoutSession({
+    merchantId: "mrc_1",
+    sessionId: "chk_cross_sell",
+    conversationId: "conv_cross_sell",
+    shipping: undefined,
+    customer: {
+      fullName: "Diego Costa",
+      email: "diego@example.com",
+      email_verified: true,
+      cpf: "12345678901",
+      phone: "21999999999",
+      phone_verified: true,
+      address_verified: true,
+      address: {
+        zip: "01310100",
+        street: "Avenida Paulista",
+        number: "1000",
+        complement: "",
+        neighborhood: "Bela Vista",
+        city: "Sao Paulo",
+        state: "SP"
+      }
+    },
+    shippingOptions: [
+      { carrier: "Correios", method: "PAC", customerPrice: 19.9, deliveryDays: 7, destinationZip: "01310100" },
+      { carrier: "Correios", method: "Sedex", customerPrice: 29.9, deliveryDays: 3, destinationZip: "01310100" }
+    ]
+  }));
+
+  const crossSellUseCase = {
+    async execute() {
+      return [{
+        id: "sug_1",
+        session_id: "chk_cross_sell",
+        merchant_id: "mrc_1",
+        promo_id: "promo_1",
+        ranked_items: ["CART-COE-01"],
+        agent_copy: "",
+        computed_discount: 0,
+        status: "pending",
+        suggested_at: new Date().toISOString(),
+        resolved_at: null
+      }];
+    }
+  };
+  const useCase = createTestUseCase(
+    repository,
+    new RecordingConversationPort(),
+    undefined,
+    undefined,
+    undefined,
+    crossSellUseCase
+  );
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_cross_sell",
+    conversation_id: "conv_cross_sell",
+    user_message: "Quero PAC"
+  });
+
+  assert.equal(response.stage, "payment");
+  assert.ok(response.actions.every((action) => action.type !== ("cross_sell" as never)));
+  assert.equal(response.experience?.suggestedProducts?.[0]?.suggestion_id, "sug_1");
+  assert.equal(response.experience?.suggestedProducts?.[0]?.sku, "CART-COE-01");
+  assert.equal(response.experience?.suggestedProducts?.[0]?.name, "Carteira Slim RFID");
 });
 
 test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acordo com guardrails (CRUD lojista)", async () => {

@@ -1,16 +1,21 @@
-import { BadRequestException, Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Inject, NotFoundException, Post, Req, UseGuards } from "@nestjs/common";
 import type { Cart } from "@aacp/shared-types";
 import { ApplyCouponUseCase } from "../../application/use-cases/apply-coupon.use-case.js";
 import type { EmbedHttpRequest } from "../../../embed/presentation/http/embed-checkout.controller.js";
 import { EmbedCheckoutGuardHelper } from "../../../embed/presentation/http/embed-checkout.controller.js";
 import { EmbedAuthGuard } from "../../../embed/presentation/http/embed-auth.guard.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 
 @UseGuards(EmbedAuthGuard)
 @Controller("embed/coupons")
 export class WidgetCouponsController {
   constructor(
     private readonly applyCoupon: ApplyCouponUseCase,
-    private readonly embedGuards: EmbedCheckoutGuardHelper
+    private readonly embedGuards: EmbedCheckoutGuardHelper,
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository
   ) {}
 
   @Post("apply")
@@ -27,7 +32,7 @@ export class WidgetCouponsController {
       throw new BadRequestException("session_id_and_coupon_code_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
-    return this.applyCoupon.execute({
+    const result = await this.applyCoupon.execute({
       session_id: body.session_id.trim(),
       merchant_id: embed.merchantId,
       code: body.code.trim(),
@@ -37,5 +42,30 @@ export class WidgetCouponsController {
       buyer_region: typeof body.buyer_region === "string" ? body.buyer_region.trim() : undefined,
       source: "manual"
     });
+
+    const session = await this.sessions.getSession(embed.merchantId, body.session_id.trim());
+    if (!session) throw new NotFoundException("checkout_session_not_found");
+
+    const next = {
+      ...session,
+      cart: {
+        ...session.cart,
+        currentDiscount: Math.max(session.cart.currentDiscount ?? 0, result.discount_applied)
+      },
+      updatedAt: new Date().toISOString()
+    };
+    await this.sessions.saveSession(next);
+
+    const merchant = await this.merchants.getProfile(embed.merchantId);
+    const rules = await this.merchants.getRules(embed.merchantId);
+    return {
+      ...result,
+      experience: buildExperienceFromSession(next, {
+        merchantName: merchant?.name,
+        theme: merchant?.theme,
+        couponBoxEnabled: rules.couponBoxEnabled,
+        rules
+      })
+    };
   }
 }

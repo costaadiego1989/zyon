@@ -231,6 +231,7 @@ export interface CheckoutItemSnapshot {
 }
 
 export interface SuggestedProduct {
+  suggestion_id?: string;
   sku: string;
   name: string;
   unit_price: number;

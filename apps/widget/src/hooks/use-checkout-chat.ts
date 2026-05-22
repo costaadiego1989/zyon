@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ApplyOfferResponse,
   ChatMessageResponse,
-  ChatTurn
+  ChatTurn,
+  SuggestedProduct
 } from "@aacp/shared-types";
 import {
   checkoutJson,
@@ -12,7 +13,8 @@ import {
 import {
   applyCouponResponseSchema,
   applyOfferResponseSchema,
-  chatMessageResponseSchema
+  chatMessageResponseSchema,
+  crossSellAcceptResponseSchema
 } from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { bubbleKey, type QuickReplyChoice } from "./checkout-view-model.js";
@@ -327,9 +329,51 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     await sendMessageWithOverride("Quero seguir para o pagamento.");
   }
 
-  async function submitCoupon(): Promise<void> {
+  async function acceptCrossSell(product: SuggestedProduct): Promise<boolean> {
+    if (!session || networkError || composerLocked || !product.suggestion_id) return false;
+    setBusy(true);
+    setTurns((current) => [...current, { role: "buyer", text: `Adicionar ${product.name}`, occurredAt: new Date().toISOString() }]);
+    try {
+      const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+      const response = await checkoutJson<{
+        suggestion: unknown;
+        experience?: typeof activeExperience;
+        agent_turn?: ChatTurn;
+      }>(
+        apiOrigin,
+        paths.acceptCrossSell,
+        {
+          ...embedOpts,
+          body: {
+            session_id: session.session_id,
+            suggestion_id: product.suggestion_id,
+            accepted_skus: [product.sku]
+          },
+          schema: crossSellAcceptResponseSchema
+        }
+      );
+      if (response.experience) syncExperience(response.experience);
+      if (response.agent_turn) {
+        setTurns((current) => {
+          const next = [...current, response.agent_turn as ChatTurn];
+          setStreamingTurnKey(bubbleKey(next[next.length - 1]!, next.length - 1));
+          return next;
+        });
+      } else {
+        appendAgentTurn(`${product.name} adicionado ao seu pedido.`, { stream: true });
+      }
+      return true;
+    } catch {
+      sessionState.setNetworkError?.("Falha ao adicionar o complemento. Tente novamente em instantes.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitCoupon(): Promise<boolean> {
     const code = coupon.trim();
-    if (!code || !session) return;
+    if (!code || !session) return false;
     setCoupon("");
     setBusy(true);
     setTurns((current) => [...current, { role: "buyer", text: `Cupom: ${code}`, occurredAt: new Date().toISOString() }]);
@@ -339,17 +383,33 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
         session_id: session.session_id,
         merchant_id: config.merchantId,
         code,
-        cart: sessionState.resolvedCart
+        cart: {
+          currency: activeExperience.totals.currency,
+          total: activeExperience.totals.subtotal,
+          currentDiscount: activeExperience.totals.discount,
+          items: activeExperience.items.map((item) => ({
+            sku: item.sku,
+            name: item.name,
+            price: item.unit_price,
+            quantity: item.quantity,
+            category: item.category,
+            variant: item.variant,
+            imageUrl: item.image_url,
+            productUrl: item.product_url
+          }))
+        }
       };
-      const response = await checkoutJson<{ redemption_id: string; discount_applied: number; coupon: unknown }>(
+      const response = await checkoutJson<{ redemption_id: string; discount_applied: number; coupon: unknown; experience?: typeof activeExperience }>(
         apiOrigin,
         paths.applyCoupon,
         { ...embedOpts, body, schema: applyCouponResponseSchema }
       );
+      if (response.experience) syncExperience(response.experience);
       appendAgentTurn(
         `Cupom ${code.toUpperCase()} aplicado! Desconto de R$${response.discount_applied.toFixed(2)}.`,
         { stream: true }
       );
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       let userMsg = "Cupom inválido. Verifique o código e tente novamente.";
@@ -361,6 +421,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
         userMsg = "Cupom inválido ou expirado. Verifique e tente novamente.";
       }
       appendAgentTurn(userMsg, { stream: true });
+      return false;
     } finally {
       setBusy(false);
     }
@@ -394,6 +455,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     tapQuick,
     applyOffer: () => applyOfferById(lastChat?.authorized_offer?.id),
     continueToPayment,
+    acceptCrossSell,
     submitCoupon,
     retryChat,
   };

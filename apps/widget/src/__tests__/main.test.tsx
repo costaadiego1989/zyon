@@ -141,13 +141,14 @@ function buildChatResponse(
   overrides: {
     quickReplies?: string[];
     actions?: ChatAction[];
+    authorizedOffer?: ChatMessageResponse["authorized_offer"] | null;
     experience?: Partial<StartCheckoutResponse["experience"]>;
   } = {}
 ): ChatMessageResponse {
   return {
     message,
     objection: "price",
-    authorized_offer: {
+    authorized_offer: overrides.authorizedOffer === null ? undefined : (overrides.authorizedOffer ?? {
       id: "off_1",
       merchantId: "mrc_demo",
       sessionId: "sess_1",
@@ -158,7 +159,7 @@ function buildChatResponse(
       marginAfterOffer: 0.42,
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
       discountCode: "AURORA5"
-    },
+    }),
     actions: overrides.actions ?? [{ label: "Aplicar cupom AURORA5", type: "apply_offer", offer_id: "off_1" }],
     turns: [
       {
@@ -225,6 +226,24 @@ function buildChatResponse(
       ...overrides.experience
     }
   };
+}
+
+async function skipCouponGate(container: HTMLElement) {
+  await waitFor(() => {
+    expect(
+      Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).some(
+        (button) => button.textContent === "Nao tenho cupom"
+      )
+    ).toBe(true);
+  });
+
+  const skipCoupon = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).find(
+    (button) => button.textContent === "Nao tenho cupom"
+  );
+  expect(skipCoupon).not.toBeUndefined();
+  await act(async () => {
+    fireEvent.click(skipCoupon!);
+  });
 }
 
 function buildDashboardOverview(): DashboardOverview {
@@ -612,14 +631,12 @@ describe("CheckoutAgent (conversational)", () => {
       container.querySelectorAll(".aacp-quick-replies--in-thread button")
     ).map((b) => b.textContent ?? "");
     expect(quickReplyLabels).toEqual(
-      expect.arrayContaining(["Aplicar cupom AURORA5", "Prefiro PIX", "Prefiro cartão", "Finalizar pedido"])
+      expect.arrayContaining(["Sim, tenho cupom", "Nao tenho cupom"])
     );
+    expect(quickReplyLabels).not.toContain("Prefiro PIX");
     expect(container.querySelector(".aacp-flow-rail")?.textContent).toContain("Pagamento");
 
-    // Coupon box auto-shows because buildChatResponse includes authorized_offer with discountCode
-    await waitFor(() => {
-      expect(getByLabelText("Cupom de desconto")).not.toBeNull();
-    });
+    expect(() => getByLabelText("Cupom de desconto")).toThrow();
   });
 
   it("renders payment confirmation and failure messages returned by the API", async () => {
@@ -736,6 +753,8 @@ describe("CheckoutAgent (conversational)", () => {
         )
       );
     });
+
+    await skipCouponGate(container);
 
     await waitFor(() => {
       expect(
@@ -1160,6 +1179,8 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.change(input, { target: { value: "Quero pagar" } });
     fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
 
+    await skipCouponGate(container);
+
     await waitFor(() => {
       expect(container.textContent).toContain("Pagar com Cartão de Crédito");
     });
@@ -1411,7 +1432,14 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.change(chatInput, { target: { value: "quero pagar" } });
     fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
 
-    // Coupon box auto-shows because buildChatResponse includes an authorized_offer with discountCode
+    const couponGate = await waitFor(() => {
+      const button = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+        .find((candidate) => candidate.textContent === "Sim, tenho cupom");
+      expect(button).not.toBeUndefined();
+      return button as HTMLButtonElement;
+    });
+    fireEvent.click(couponGate);
+
     await waitFor(() => {
       expect(getByLabelText("Cupom de desconto")).not.toBeNull();
     });
@@ -1428,6 +1456,56 @@ describe("CheckoutAgent (conversational)", () => {
     expect(couponRequestBody.code).toBe("PROMO10");
     await waitFor(() => {
       expect(container.textContent).toContain("Cupom PROMO10 aplicado");
+    });
+  });
+
+  it("coupon gate: asks before showing coupon input and releases payment methods when skipped", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        return new Response(
+          JSON.stringify(
+            buildChatResponse("Vamos finalizar. Voce tem cupom?", "payment", {
+              authorizedOffer: null,
+              quickReplies: ["PIX", "Cartao de credito"],
+              actions: []
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    const chatInput = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    fireEvent.change(chatInput, { target: { value: "quero pagar" } });
+    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    await waitFor(() => {
+      const labels = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
+      expect(labels).toEqual(expect.arrayContaining(["Sim, tenho cupom", "Nao tenho cupom"]));
+      expect(labels).not.toContain("PIX");
+    });
+    expect(container.querySelector("input[aria-label='Cupom de desconto']")).toBeNull();
+
+    const skipCoupon = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+      .find((button) => button.textContent === "Nao tenho cupom");
+    fireEvent.click(skipCoupon!);
+
+    await waitFor(() => {
+      const labels = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
+      expect(labels).toEqual(expect.arrayContaining(["PIX", "Cartao de credito"]));
     });
   });
 
@@ -1468,6 +1546,8 @@ describe("CheckoutAgent (conversational)", () => {
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Quero pagar com cartão" } });
     fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    await skipCouponGate(container);
 
     await waitFor(() => {
       expect(container.textContent).toContain("Pagar com Cartão de Crédito");
@@ -1717,41 +1797,42 @@ describe("CheckoutAgent (conversational)", () => {
       if (url.endsWith("/embed/start")) {
         const response = buildStartResponse(baseTheme);
         response.experience.suggestedProducts = [
-          { sku: "wallet-001", name: "Carteira Slim RFID", unit_price: 129.9 }
+          { suggestion_id: "sug_1", sku: "wallet-001", name: "Carteira Slim RFID", unit_price: 129.9 }
         ];
         return new Response(JSON.stringify(response), {
           status: 200,
           headers: { "content-type": "application/json" }
         });
       }
-      if (url.endsWith("/embed/chat")) {
+      if (url.endsWith("/embed/cross-sell/accept")) {
         const body = JSON.parse(String(init?.body || "{}"));
-        const isAddingCrossSell = (body.user_message || "").includes("Quero adicionar");
+        expect(body.accepted_skus).toEqual(["wallet-001"]);
+        const experience = buildStartResponse(baseTheme).experience;
         return new Response(
           JSON.stringify(
-            buildChatResponse(
-              isAddingCrossSell ? "Adicionei a Carteira Slim RFID ao seu pedido!" : "Como posso ajudar?",
-              "data_collection",
-              {
-                actions: [],
-                quickReplies: [],
-                experience: isAddingCrossSell
-                  ? {
-                      items: [
-                        { sku: "bag-001", name: "Bolsa Executiva", quantity: 2, unit_price: 449.9, line_total: 899.8 },
-                        { sku: "wallet-001", name: "Carteira Slim RFID", quantity: 1, unit_price: 129.9, line_total: 129.9 }
-                      ],
-                      totals: {
-                        currency: "BRL",
-                        subtotal: 1029.7,
-                        shipping: 29.9,
-                        discount: 0,
-                        total: 1059.6
-                      }
-                    }
-                  : {}
+            {
+              suggestion: { id: "sug_1", status: "accepted" },
+              agent_turn: {
+                role: "agent",
+                text: "Adicionei a Carteira Slim RFID ao seu pedido!",
+                occurredAt: new Date().toISOString()
+              },
+              experience: {
+                ...experience,
+                suggestedProducts: [],
+                items: [
+                  { sku: "bag-001", name: "Bolsa Executiva", quantity: 2, unit_price: 449.9, line_total: 899.8 },
+                  { sku: "wallet-001", name: "Carteira Slim RFID", quantity: 1, unit_price: 129.9, line_total: 129.9 }
+                ],
+                totals: {
+                  currency: "BRL",
+                  subtotal: 1029.7,
+                  shipping: 29.9,
+                  discount: 0,
+                  total: 1059.6
+                }
               }
-            )
+            }
           ),
           { status: 200, headers: { "content-type": "application/json" } }
         );

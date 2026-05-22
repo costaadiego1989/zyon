@@ -167,7 +167,7 @@ test.describe("full checkout real @realapi", () => {
     expect(afterOtpHealth.ok()).toBe(true, `API did not stay healthy after OTP: ${await afterOtpHealth.text()}`);
   });
 
-  test("real chat quotes shipping and cart updates only after selection", async ({ page }) => {
+  test("real chat quotes shipping, cross-sell, coupon gate, and cart updates only after selection", async ({ page, request }) => {
     await page.addInitScript(() => {
       window.localStorage.clear();
       (globalThis as any).process = { env: { AACP_DISABLE_STREAMING: "1" } };
@@ -189,6 +189,19 @@ test.describe("full checkout real @realapi", () => {
         state: "SP"
       }
     };
+
+    const promotion = await request.post(`${API}/merchant/cross-sell/promotions`, {
+      data: {
+        merchant_id: merchantId,
+        name: "Complemento E2E",
+        trigger: { cart_total_above: 1 },
+        recommended_skus: ["CART-COE-01"],
+        discount_percent: 0,
+        max_discount_percent: 0,
+        starts_at: new Date(Date.now() - 60_000).toISOString()
+      }
+    });
+    expect(promotion.ok()).toBe(true, `Cross-sell seed failed: ${await promotion.text()}`);
 
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
@@ -224,6 +237,19 @@ test.describe("full checkout real @realapi", () => {
     const cartText = await cart.textContent();
     expect(cartText ?? "").toMatch(/Frete[\s\S]*R\$/);
     expect(selectedMethod).toMatch(/R\$/);
+
+    const crossSellCard = page.locator(".aacp-cross-sell-card", { hasText: "Carteira Slim RFID" });
+    await expect(crossSellCard).toBeVisible({ timeout: 10_000 });
+    const crossSellResponse = page.waitForResponse((res) =>
+      res.url() === `${API}/embed/cross-sell/accept` && res.request().method() === "POST"
+    );
+    await crossSellCard.getByRole("button", { name: /Adicionar/i }).click();
+    const acceptedCrossSell = await crossSellResponse;
+    expect(acceptedCrossSell.ok()).toBe(true, `Cross-sell accept failed: ${await acceptedCrossSell.text()}`);
+    await expect(cart).toContainText("Carteira Slim RFID", { timeout: 10_000 });
+
+    await expect(page.getByRole("button", { name: "Nao tenho cupom" })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Nao tenho cupom" }).click();
 
     await page.locator(".aacp-cart-btn").click();
     const paymentResponse = page.waitForResponse((res) =>

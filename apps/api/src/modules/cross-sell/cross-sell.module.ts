@@ -10,10 +10,9 @@ import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-elig
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
-import { WidgetCrossSellController } from "./presentation/http/widget-cross-sell.controller.js";
 
 @Module({
-  controllers: [MerchantCrossSellController, WidgetCrossSellController],
+  controllers: [MerchantCrossSellController],
   providers: [
     InMemoryCrossSellPromotionRepository,
     InMemoryCrossSellSuggestionRepository,
@@ -26,6 +25,6 @@ import { WidgetCrossSellController } from "./presentation/http/widget-cross-sell
     AcceptCrossSellSuggestionUseCase,
     DeclineCrossSellSuggestionUseCase
   ],
-  exports: [ListEligibleCrossSellsUseCase]
+  exports: [ListEligibleCrossSellsUseCase, AcceptCrossSellSuggestionUseCase, DeclineCrossSellSuggestionUseCase]
 })
 export class CrossSellModule {}

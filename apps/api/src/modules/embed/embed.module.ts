@@ -1,7 +1,9 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { EmbedTokenService } from "./domain/embed-token.service.js";
 import { IssueEmbedSessionUseCase } from "./application/issue-embed-session.use-case.js";
@@ -9,10 +11,11 @@ import { EmbedSessionsController } from "./presentation/http/embed-sessions.cont
 import { EmbedSessionIssuerGuard } from "./presentation/http/embed-session-issuer.guard.js";
 import { EmbedAuthGuard } from "./presentation/http/embed-auth.guard.js";
 import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./presentation/http/embed-checkout.controller.js";
+import { WidgetCrossSellController } from "../cross-sell/presentation/http/widget-cross-sell.controller.js";
 
 @Module({
-  imports: [AuthModule, CheckoutModule, PaymentModule, IntegrationsModule],
-  controllers: [EmbedSessionsController, EmbedCheckoutController],
+  imports: [AuthModule, CheckoutModule, CrossSellModule, MerchantModule, PaymentModule, IntegrationsModule],
+  controllers: [EmbedSessionsController, EmbedCheckoutController, WidgetCrossSellController],
   providers: [EmbedTokenService, IssueEmbedSessionUseCase, EmbedAuthGuard, EmbedSessionIssuerGuard, EmbedCheckoutGuardHelper],
   exports: [EmbedTokenService, EmbedAuthGuard, EmbedCheckoutGuardHelper]
 })
