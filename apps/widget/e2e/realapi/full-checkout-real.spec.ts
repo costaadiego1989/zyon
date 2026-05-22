@@ -223,7 +223,7 @@ test.describe("full checkout real @realapi", () => {
 });
 
 test.describe("full checkout real API @realapi", () => {
-  test("checkout emits tenant webhooks and buyer hub shows inbound tracking timeline", async ({ request }) => {
+  test("checkout emits tenant webhooks and buyer hub shows inbound tracking timeline", async ({ request, page }) => {
     const bucket = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const merchantId = `mrc_${bucket}`;
     const merchantEmail = `${bucket}@tenant.test`;
@@ -244,7 +244,7 @@ test.describe("full checkout real API @realapi", () => {
       headers: tenantAuth,
       data: {
         url: `${API}/__test__/webhook-receiver/${bucket}`,
-        events: ["order.approved", "order.tracking.updated"],
+        events: ["order.approved", "customer.upserted", "order.tracking.updated"],
         enabled: true,
         description: "Playwright receiver"
       }
@@ -360,6 +360,12 @@ test.describe("full checkout real API @realapi", () => {
     expect(approvedWebhook.body.data.customer.email).toBe(customerEmail);
     expect(approvedWebhook.body.data.tracking.status).toBe("pending");
 
+    const customerWebhook = await waitForTestWebhook(request, bucket, "customer.upserted");
+    expect(customerWebhook.headers["x-aacp-signature"]).toBeTruthy();
+    expect(customerWebhook.body.data.customer.email).toBe(customerEmail);
+    expect(customerWebhook.body.data.session_id).toBe(sessionId);
+    expect(customerWebhook.body.data.external_order_id).toBe(externalOrderId);
+
     const trackingCode = `BR${Date.now().toString().slice(-9)}AA`;
     const tracked = await request.put(`${API}/integrations/orders/${externalOrderId}/tracking`, {
       headers: { "x-aacp-api-key": apiKey },
@@ -423,6 +429,71 @@ test.describe("full checkout real API @realapi", () => {
     expect(order.tracking_status).toBe("in_transit");
     expect(order.carrier).toBe("Correios");
     expect(order.tracking_events).toHaveLength(2);
+
+    const hubUrl = new URL(BASE);
+    hubUrl.searchParams.set("merchantId", merchantId);
+    hubUrl.searchParams.set("embedToken", embedToken);
+    hubUrl.searchParams.set("apiBaseUrl", API);
+    hubUrl.searchParams.set(
+      "cartJson",
+      JSON.stringify({
+        currency: "BRL",
+        source: "storefront",
+        total: 219.9,
+        items: [
+          {
+            sku: "sku_tracking_001",
+            name: "Tracking Product",
+            price: 219.9,
+            quantity: 1
+          }
+        ]
+      })
+    );
+    hubUrl.searchParams.set(
+      "customerJson",
+      JSON.stringify({
+        fullName: "Buyer Tracking E2E",
+        email: customerEmail,
+        email_verified: true
+      })
+    );
+
+    await page.addInitScript(
+      ({ token, email, merchant, globalUserId }) => {
+        window.localStorage.setItem(
+          "aacp_global_auth_session",
+          JSON.stringify({
+            merchant_id: merchant,
+            global_user_id: globalUserId,
+            email,
+            access_token: token,
+            token_type: "Bearer",
+            expires_in: 3600,
+            provider: "password"
+          })
+        );
+      },
+      {
+        token: buyerToken,
+        email: customerEmail,
+        merchant: merchantId,
+        globalUserId: buyerAuth.global_user_id
+      }
+    );
+
+    await page.goto(hubUrl.toString());
+    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.getByRole("button", { name: "Minha conta" }).click();
+    const userPanel = page.locator(".aacp-user-panel");
+    await expect(userPanel).toBeVisible({ timeout: 10_000 });
+    await userPanel.getByRole("button", { name: "Pedidos" }).click();
+    await expect(userPanel).toContainText(trackingCode, { timeout: 15_000 });
+    await userPanel.getByLabel("Buscar pedido ou rastreio").fill(trackingCode);
+    await expect(userPanel).toContainText("Correios");
+    await expect(userPanel).toContainText("Em transporte");
+    await expect(userPanel).toContainText("Etiqueta criada");
+    await expect(userPanel).toContainText("Objeto em transferencia");
   });
 
   test("buyer registration and hub profile in snake_case [REQ-CHK-005]", async ({ request }) => {
