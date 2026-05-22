@@ -1,8 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const CI = !!process.env.CI;
 const WIDGET_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 const wantsRealapi = process.argv.some((a) => a.includes("widget-realapi"));
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
@@ -35,14 +38,16 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: "cmd /c npx vite --port 5173",
+      command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5173",
+      cwd: __dirname,
       port: 5173,
       reuseExistingServer: !CI
     },
     ...(wantsRealapi
       ? [
           {
-            command: "cmd /c pnpm --filter @aacp/api start",
+            command: "node dist/main.js",
+            cwd: resolve(__dirname, "../api"),
             port: 3000,
             reuseExistingServer: !CI,
             env: {
