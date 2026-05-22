@@ -7,11 +7,15 @@ import { InMemoryIntegrationsRepository } from "../infrastructure/in-memory-inte
 import {
   CreateMerchantApiKeyUseCase,
   ListWebhookDeliveriesUseCase,
+  ReplayWebhookDeliveryUseCase,
   TenantWebhookPublisher,
   UpdateTenantOrderTrackingUseCase,
   UpsertWebhookEndpointUseCase
 } from "./integrations.use-cases.js";
 import { ApiKeyService } from "../domain/api-key.service.js";
+import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
+import { WebhookDeliveryDispatcher } from "./webhook-delivery-dispatcher.service.js";
+import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
 
 test("CreateMerchantApiKeyUseCase returns the raw secret once and stores only hashed metadata", async () => {
   const repo = new InMemoryIntegrationsRepository();
@@ -105,3 +109,135 @@ test("UpdateTenantOrderTrackingUseCase updates completed order, persists shipmen
   assert.equal(deliveries[0]?.eventType, "order.tracking.updated");
   assert.equal(deliveries[0]?.status, "pending");
 });
+
+test("ReplayWebhookDeliveryUseCase resets failed delivery for immediate retry", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const failed = await repo.saveWebhookDelivery({
+    ...webhookDeliveryFixture(),
+    status: "failed",
+    attempts: 5,
+    responseStatus: 500,
+    responseBody: "downstream down",
+    error: "http_500",
+    deliveredAt: "2026-05-21T12:04:00.000Z"
+  });
+
+  const replayed = await new ReplayWebhookDeliveryUseCase(repo).execute(failed.merchantId, failed.id);
+  const stored = await repo.getWebhookDelivery(failed.merchantId, failed.id);
+
+  assert.equal(replayed.status, "pending");
+  assert.equal(replayed.attempts, 0);
+  assert.equal(replayed.responseStatus, undefined);
+  assert.equal(replayed.error, undefined);
+  assert.equal(stored?.status, "pending");
+  assert.equal(stored?.attempts, 0);
+  assert.ok(stored?.nextAttemptAt);
+  assert.equal(stored?.deliveredAt, undefined);
+});
+
+test("WebhookDeliveryDispatcher signs and marks successful deliveries", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const signatures = new WebhookSignatureService();
+  const delivery = await repo.saveWebhookDelivery(webhookDeliveryFixture());
+  const originalFetch = globalThis.fetch;
+  let capturedBody = "";
+  let capturedHeaders: Headers | undefined;
+
+  globalThis.fetch = (async (_url, init) => {
+    capturedBody = String(init?.body ?? "");
+    capturedHeaders = new Headers(init?.headers);
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
+
+  try {
+    await new WebhookDeliveryDispatcher(repo, signatures).dispatchOnce();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const stored = await repo.getWebhookDelivery(delivery.merchantId, delivery.id);
+  assert.equal(stored?.status, "delivered");
+  assert.equal(stored?.attempts, 1);
+  assert.equal(stored?.responseStatus, 204);
+  assert.equal(stored?.nextAttemptAt, undefined);
+  assert.equal(capturedHeaders?.get("X-AACP-Event-Id"), delivery.eventId);
+  assert.equal(capturedHeaders?.get("X-AACP-Event-Type"), "order.approved");
+  assert.equal(
+    signatures.verify({
+      secret: delivery.signingSecret,
+      timestamp: capturedHeaders?.get("X-AACP-Timestamp") ?? "",
+      body: capturedBody,
+      signature: capturedHeaders?.get("X-AACP-Signature") ?? ""
+    }),
+    true
+  );
+});
+
+test("WebhookDeliveryDispatcher schedules retry on HTTP failure and fails after max attempts", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const retryDelivery = await repo.saveWebhookDelivery(webhookDeliveryFixture({ id: "whd_retry", eventId: "evt_retry" }));
+  const finalDelivery = await repo.saveWebhookDelivery(
+    webhookDeliveryFixture({ id: "whd_final", eventId: "evt_final", attempts: 4 })
+  );
+  const originalFetch = globalThis.fetch;
+  const statuses = new Map([
+    [retryDelivery.eventId, 500],
+    [finalDelivery.eventId, 503]
+  ]);
+
+  globalThis.fetch = (async (_url, init) => {
+    const eventId = new Headers(init?.headers).get("X-AACP-Event-Id") ?? "";
+    return new Response("downstream unavailable", { status: statuses.get(eventId) ?? 500 });
+  }) as typeof fetch;
+
+  try {
+    await new WebhookDeliveryDispatcher(repo, new WebhookSignatureService()).dispatchOnce();
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  const retryStored = await repo.getWebhookDelivery(retryDelivery.merchantId, retryDelivery.id);
+  assert.equal(retryStored?.status, "pending");
+  assert.equal(retryStored?.attempts, 1);
+  assert.equal(retryStored?.responseStatus, 500);
+  assert.equal(retryStored?.error, "http_500");
+  assert.ok(retryStored?.nextAttemptAt);
+
+  const finalStored = await repo.getWebhookDelivery(finalDelivery.merchantId, finalDelivery.id);
+  assert.equal(finalStored?.status, "failed");
+  assert.equal(finalStored?.attempts, 5);
+  assert.equal(finalStored?.responseStatus, 503);
+  assert.equal(finalStored?.error, "http_503");
+  assert.equal(finalStored?.nextAttemptAt, undefined);
+});
+
+function webhookDeliveryFixture(overrides: Partial<MerchantWebhookDelivery> = {}): MerchantWebhookDelivery {
+  const now = "2026-05-21T12:00:00.000Z";
+  const eventId = overrides.eventId ?? "evt_delivery";
+  return {
+    id: "whd_delivery",
+    merchantId: "mrc_1",
+    endpointId: "wh_1",
+    endpointUrl: "https://tenant.example/aacp/webhooks",
+    eventId,
+    eventType: "order.approved",
+    status: "pending",
+    attempts: 0,
+    envelope: {
+      event_id: eventId,
+      event_type: "order.approved",
+      merchant_id: "mrc_1",
+      occurred_at: now,
+      api_version: "2026-05-21",
+      data: {
+        order: { external_order_id: "ord_1", status: "approved" },
+        customer: { email: "ana@example.com" }
+      }
+    },
+    signingSecret: "whsec_test_secret",
+    nextAttemptAt: "2000-01-01T00:00:00.000Z",
+    createdAt: now,
+    updatedAt: now,
+    ...overrides
+  };
+}
