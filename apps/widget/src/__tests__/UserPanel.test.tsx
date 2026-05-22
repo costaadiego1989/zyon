@@ -99,6 +99,28 @@ describe("UserPanel", () => {
     expect(emailInput?.value).toBe("session@test.com");
   });
 
+  it("hydrates profile inputs from verified checkout customer when hub profile is empty", () => {
+    const vm = buildVm({
+      activeExperience: {
+        ...buildVm().activeExperience,
+        customer: {
+          fullName: "Diego Costa",
+          email: "diego@test.com",
+          phone: "21993001883",
+          email_verified: true,
+          phone_verified: true
+        }
+      }
+    });
+    const { container } = render(<UserPanel vm={vm} />);
+    const nameInput = container.querySelector('input[aria-label="Nome completo"]') as HTMLInputElement;
+    const emailInput = container.querySelector('input[aria-label="E-mail"]') as HTMLInputElement;
+    const phoneInput = container.querySelector('input[aria-label="Telefone"]') as HTMLInputElement;
+    expect(nameInput?.value).toBe("Diego Costa");
+    expect(emailInput?.value).toBe("diego@test.com");
+    expect(phoneInput?.value).toBe("21993001883");
+  });
+
   it("shows display_name initial as avatar letter", () => {
     const vm = buildVm({
       buyerHub: buildBuyerHub({

@@ -33,7 +33,7 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
 
   const hub = vm.buyerHub;
   const displayName = hub.profile?.display_name || vm.activeExperience?.customer?.fullName || "Cliente";
-  const email = hub.profile?.email || vm.activeExperience?.customer?.email || "";
+  const email = hub.profile?.email || vm.auth.session?.email || vm.activeExperience?.customer?.email || "";
   const avatarLetter = displayName[0]?.toUpperCase() ?? "C";
 
   return (
@@ -105,16 +105,19 @@ function HubError({ error, onRetry }: { error: string; onRetry: () => void }) {
 
 function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
   const hub = vm.buyerHub;
-  const [name, setName] = useState(hub.profile?.display_name ?? "");
-  const [phone, setPhone] = useState(hub.profile?.phone ?? "");
+  const fallbackName = hub.profile?.display_name ?? vm.activeExperience?.customer?.fullName ?? "";
+  const fallbackPhone = hub.profile?.phone ?? vm.activeExperience?.customer?.phone ?? "";
+  const fallbackEmail = hub.profile?.email ?? vm.auth.session?.email ?? vm.activeExperience?.customer?.email ?? "";
+  const [name, setName] = useState(fallbackName);
+  const [phone, setPhone] = useState(fallbackPhone);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    setName(hub.profile?.display_name ?? "");
-    setPhone(hub.profile?.phone ?? "");
-  }, [hub.profile]);
+    setName(fallbackName);
+    setPhone(fallbackPhone);
+  }, [fallbackName, fallbackPhone]);
 
   async function handleSave() {
     setSaving(true);
@@ -150,7 +153,7 @@ function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
       <div className="aacp-side-field">
         <span>E-mail</span>
         <div className="aacp-side-input">
-          <input value={hub.profile?.email ?? vm.auth.session?.email ?? ""} readOnly aria-label="E-mail" style={{ opacity: 0.6 }} />
+          <input value={fallbackEmail} readOnly aria-label="E-mail" style={{ opacity: 0.6 }} />
         </div>
         <span style={{ fontSize: 11, color: "var(--aacp-muted)", marginTop: 2 }}>E-mail não pode ser alterado por aqui.</span>
       </div>

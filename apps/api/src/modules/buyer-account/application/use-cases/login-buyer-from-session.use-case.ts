@@ -32,7 +32,12 @@ export class LoginBuyerFromSessionUseCase {
     const email = customer.email.trim().toLowerCase();
     const existing = await this.buyers.findByEmail(email);
     if (existing) {
-      return toBuyerAuthResponse(existing, this.jwt);
+      const hydrated = hydrateMissingCheckoutProfile(existing, {
+        displayName: customer.fullName,
+        phone: customer.phone
+      });
+      if (hydrated !== existing) await this.buyers.save(hydrated);
+      return toBuyerAuthResponse(hydrated, this.jwt);
     }
 
     // Auto-create buyer account reusing the checkout session's globalUserId
@@ -52,4 +57,22 @@ export class LoginBuyerFromSessionUseCase {
     await this.buyers.save(account);
     return toBuyerAuthResponse(account, this.jwt);
   }
+}
+
+function hydrateMissingCheckoutProfile(
+  account: BuyerAccount,
+  input: { displayName?: string; phone?: string }
+): BuyerAccount {
+  const nextName = shouldUseCheckoutName(account, input.displayName) ? input.displayName?.trim() : undefined;
+  const nextPhone = !account.phone && input.phone ? input.phone.trim() : undefined;
+  if (!nextName && !nextPhone) return account;
+  return account.withUpdatedProfile(nextName, nextPhone);
+}
+
+function shouldUseCheckoutName(account: BuyerAccount, checkoutName?: string): boolean {
+  const candidate = checkoutName?.trim();
+  if (!candidate) return false;
+  const current = account.displayName.trim();
+  const emailPrefix = account.email.split("@")[0] ?? "";
+  return current.length === 0 || current.toLowerCase() === emailPrefix.toLowerCase();
 }
