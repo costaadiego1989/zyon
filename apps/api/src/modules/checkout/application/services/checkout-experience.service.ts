@@ -166,7 +166,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     },
     shipping: input.shipping,
     shippingOptions: undefined,
-    customer: input.customer,
+    customer: publicCustomerHints(input.customer),
     agent: {
       name: agentName,
       greeting,
@@ -217,6 +217,12 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
       ? { ...experience.copy, quick_replies: shippingOptionReplies }
       : experience.copy
   };
+}
+
+function publicCustomerHints(customer: CustomerHints | undefined): CustomerHints | undefined {
+  if (!customer) return undefined;
+  const { otp_code: _otpCode, phone_otp_code: _phoneOtpCode, ...safe } = customer;
+  return safe;
 }
 
 function shippingOptionLabel(option: ShippingQuote): string {

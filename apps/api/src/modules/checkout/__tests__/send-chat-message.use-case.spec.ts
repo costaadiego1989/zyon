@@ -169,6 +169,7 @@ test("SendChatMessageUseCase returns refreshed experience snapshot with stage an
   assert.ok(response.experience, "experience snapshot returned");
   assert.equal(response.experience?.totals.currency, "BRL");
   assert.equal(response.experience?.customer?.email, "joao@ex.com");
+  assert.equal(response.experience?.customer?.otp_code, undefined, "experience does not expose email OTP");
   assert.equal(response.stage, "data_collection");
   assert.ok(response.missing_fields && response.missing_fields.length > 0);
 });
@@ -256,7 +257,8 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   const afterEmail = await repository.getSession("mrc_1", "chk_full_journey");
   const otpCode = afterEmail?.customer?.otp_code;
   assert.ok(otpCode, "gerou codigo de verificacao por e-mail");
-  await useCase.execute({ ...baseReq, user_message: otpCode! });
+  const afterEmailOtp = await useCase.execute({ ...baseReq, user_message: otpCode! });
+  assert.equal(afterEmailOtp.experience?.customer?.otp_code, undefined, "experience nao expoe OTP apos validar email");
 
   await useCase.execute({ ...baseReq, user_message: "529.982.247-25" });
   await useCase.execute({ ...baseReq, user_message: "(21) 99300-1883" });
@@ -264,7 +266,8 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   const afterPhone = await repository.getSession("mrc_1", "chk_full_journey");
   const phoneOtpCode = afterPhone?.customer?.phone_otp_code;
   assert.ok(phoneOtpCode, "gerou codigo de verificacao por sms");
-  await useCase.execute({ ...baseReq, user_message: phoneOtpCode! });
+  const afterPhoneOtp = await useCase.execute({ ...baseReq, user_message: phoneOtpCode! });
+  assert.equal(afterPhoneOtp.experience?.customer?.phone_otp_code, undefined, "experience nao expoe OTP apos validar celular");
 
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {

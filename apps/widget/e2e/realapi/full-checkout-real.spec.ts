@@ -45,7 +45,8 @@ async function sendChat(page: Page, text: string): Promise<void> {
     res.url().startsWith(`${API}/embed/chat`) && res.request().method() === "POST"
   );
   await sendButton.click();
-  await response;
+  const answered = await response;
+  expect(answered.ok()).toBe(true, `Chat failed: ${await answered.text()}`);
   await waitForChatIdle(page);
 }
 
@@ -127,6 +128,43 @@ test.describe("full checkout real @realapi", () => {
     await expect(page.locator(".error-overlay, [data-testid='error']")).not.toBeVisible();
     await expect(page.locator(".aacp-coupon-box")).not.toBeVisible();
     await expect(page.locator(".aacp-shipping-selector")).not.toBeVisible();
+  });
+
+  test("email OTP typed in chat keeps API alive and advances checkout", async ({ page, request }) => {
+    await page.addInitScript(() => {
+      window.localStorage.clear();
+      (globalThis as any).process = { env: { AACP_DISABLE_STREAMING: "1" } };
+    });
+
+    const startResponse = page.waitForResponse((res) =>
+      res.url() === `${API}/embed/start` && res.request().method() === "POST"
+    );
+    await page.goto(checkoutUrl(merchantId, embedToken, productId));
+    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    const started = await startResponse;
+    expect(started.ok()).toBe(true, `Start failed: ${await started.text()}`);
+    const startedBody = await started.json();
+    const sessionId = startedBody.session_id as string;
+    expect(sessionId).toBeTruthy();
+
+    await sendChat(page, "Diego Costa");
+    const buyerEmail = `diego_${Date.now()}@test.aacp`;
+    await sendChat(page, buyerEmail);
+
+    const afterEmail = await request.get(`${API}/checkout/${merchantId}/${sessionId}`);
+    expect(afterEmail.ok()).toBe(true, `Checkout session lookup failed: ${await afterEmail.text()}`);
+    const session = await afterEmail.json();
+    const otpCode = session.customer?.otp_code as string | undefined;
+    expect(otpCode).toMatch(/^\d{6}$/);
+
+    await sendChat(page, otpCode!);
+
+    await expect(page.getByText("Falha ao falar com a IA")).toHaveCount(0);
+    await expect(page.locator(".aacp-composer-form").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".aacp-thread")).toContainText(/CPF|telefone|celular/i, { timeout: 10_000 });
+
+    const afterOtpHealth = await request.post(`${API}/__test__/seed`);
+    expect(afterOtpHealth.ok()).toBe(true, `API did not stay healthy after OTP: ${await afterOtpHealth.text()}`);
   });
 
   test("real chat quotes shipping and cart updates only after selection", async ({ page }) => {
