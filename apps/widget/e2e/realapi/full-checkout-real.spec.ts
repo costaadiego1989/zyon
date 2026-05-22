@@ -200,6 +200,10 @@ test.describe("full checkout real @realapi", () => {
     const selector = page.locator(".aacp-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
     await expect(selector.locator("button").first()).toContainText(/R\$/);
+    await expect(selector).toContainText("Correios");
+    await expect(selector).toContainText("PAC");
+    await expect(selector).toContainText("Sedex");
+    await expect(selector).toContainText("Transportadora");
 
     await page.locator(".aacp-cart-btn").click();
     const cart = page.locator("#aacp-cart-panel");

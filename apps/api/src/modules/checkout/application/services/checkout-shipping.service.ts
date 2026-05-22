@@ -149,14 +149,16 @@ export class CheckoutShippingService {
         });
 
         if (quoteSnapshot.results.length > 0) {
-          const shippingOptions: ShippingQuote[] = quoteSnapshot.results.map((r) => ({
-            customerPrice: r.price / 100, // cents → reais
-            realCost: r.is_free ? r.price / 100 : undefined,
-            carrier: r.carrier_key,
-            method: r.label,
-            deliveryDays: r.eta_days,
-            destinationZip: addr.zip
-          }));
+          const shippingOptions: ShippingQuote[] = quoteSnapshot.results.map((r) =>
+            toCheckoutShippingQuote({
+              label: r.label,
+              carrierKey: r.carrier_key,
+              priceInCents: r.price,
+              isFree: r.is_free,
+              etaDays: r.eta_days,
+              destinationZip: addr.zip ?? ""
+            })
+          );
 
           const next: CheckoutSession = {
             ...session,
@@ -175,13 +177,15 @@ export class CheckoutShippingService {
     const q = estimatePacQuote({ zip: addr.zip, state: addr.state });
     const sedexPrice = Math.round((q.customerPrice + 10) * 100) / 100;
     const sedexRealCost = Math.round((q.realCost + 8) * 100) / 100;
+    const partnerPrice = Math.round((q.customerPrice + 5) * 100) / 100;
+    const partnerRealCost = Math.round((q.realCost + 4) * 100) / 100;
     const next: CheckoutSession = {
       ...session,
       shippingOptions: [
         {
           customerPrice: q.customerPrice,
           realCost: q.realCost,
-          carrier: q.carrier,
+          carrier: "Correios",
           method: "PAC",
           deliveryDays: q.deliveryDays,
           region: q.region,
@@ -190,9 +194,18 @@ export class CheckoutShippingService {
         {
           customerPrice: sedexPrice,
           realCost: sedexRealCost,
-          carrier: "Correios (estimativa)",
+          carrier: "Correios",
           method: "Sedex",
           deliveryDays: Math.max(1, q.deliveryDays - 2),
+          region: q.region,
+          destinationZip: q.destinationZip
+        },
+        {
+          customerPrice: partnerPrice,
+          realCost: partnerRealCost,
+          carrier: "Transportadora Parceira",
+          method: "Entrega padrao",
+          deliveryDays: Math.max(1, q.deliveryDays - 1),
           region: q.region,
           destinationZip: q.destinationZip
         }
@@ -285,4 +298,48 @@ export class CheckoutShippingService {
     if (parts.length === 0) return undefined;
     return `Referência para entrega: ${parts.join(" · ")}`;
   }
+}
+
+function toCheckoutShippingQuote(input: {
+  label: string;
+  carrierKey: string;
+  priceInCents: number;
+  isFree: boolean;
+  etaDays: number;
+  destinationZip: string;
+}): ShippingQuote {
+  const label = input.label.trim();
+  const inferred = inferCarrierAndMethod(label, input.carrierKey);
+  const price = input.priceInCents / 100;
+  return {
+    customerPrice: price,
+    realCost: input.isFree ? 0 : price,
+    carrier: inferred.carrier,
+    method: inferred.method,
+    deliveryDays: input.etaDays,
+    destinationZip: input.destinationZip
+  };
+}
+
+function inferCarrierAndMethod(label: string, carrierKey: string): { carrier: string; method: string } {
+  if (/^correios\s+pac$/i.test(label)) return { carrier: "Correios", method: "PAC" };
+  if (/^correios\s+sedex$/i.test(label)) return { carrier: "Correios", method: "Sedex" };
+  if (/^transportadora/i.test(label)) return { carrier: "Transportadora Parceira", method: "Entrega padrao" };
+
+  const parts = label.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return { carrier: parts[0]!, method: parts.slice(1).join(" ") };
+
+  return {
+    carrier: humanizeCarrierKey(carrierKey),
+    method: label || "Frete"
+  };
+}
+
+function humanizeCarrierKey(value: string): string {
+  const label = value
+    .replace(/[-_]+/g, " ")
+    .replace(/\bestimate\b/gi, "")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return label || "Transportadora";
 }

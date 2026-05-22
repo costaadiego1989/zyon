@@ -8,7 +8,9 @@ export class FlatRateCarrierAdapter implements CarrierPort {
 
   async fetchQuotes(_ctx: ShippingContext): Promise<ShippingQuoteResult[]> {
     return [
-      { carrier_key: this.carrierKey, label: "Envio Padrão", price: 1990, eta_days: 7, is_free: false }
+      { carrier_key: "correios-pac-estimate", label: "Correios PAC", price: 1990, eta_days: 7, is_free: false },
+      { carrier_key: "correios-sedex-estimate", label: "Correios Sedex", price: 2990, eta_days: 3, is_free: false },
+      { carrier_key: "transportadora-standard-estimate", label: "Transportadora Parceira", price: 2490, eta_days: 5, is_free: false }
     ];
   }
 }

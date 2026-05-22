@@ -11,6 +11,7 @@ import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtu
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
+import { FlatRateCarrierAdapter } from "../../infrastructure/adapters/flat-rate.carrier.js";
 
 function makeStubCarrier(key: string, results: ShippingQuoteResult[]): CarrierPort {
   return {
@@ -107,6 +108,31 @@ describe("QuoteShippingUseCase", () => {
     const { useCase } = makeSetup([]);
     const snap = await useCase.execute(BASE_INPUT);
     assert.equal(snap.results.length, 0);
+  });
+
+  it("exposes professional fallback options from the flat-rate adapter", async () => {
+    const { useCase } = makeSetup([new FlatRateCarrierAdapter()]);
+    const snap = await useCase.execute(BASE_INPUT);
+
+    const labels = snap.results.map((r) => r.label);
+    assert.deepEqual(labels, ["Correios PAC", "Transportadora Parceira", "Correios Sedex"]);
+  });
+
+  it("keeps real carrier quotes and appends fallback options", async () => {
+    const carriers = [
+      makeStubCarrier("melhor-envio", [
+        { carrier_key: "jadlog", label: "Jadlog Package", price: 2200, eta_days: 4, is_free: false }
+      ]),
+      new FlatRateCarrierAdapter()
+    ];
+    const { useCase } = makeSetup(carriers);
+    const snap = await useCase.execute(BASE_INPUT);
+
+    const labels = snap.results.map((r) => r.label);
+    assert.ok(labels.includes("Jadlog Package"));
+    assert.ok(labels.includes("Correios PAC"));
+    assert.ok(labels.includes("Correios Sedex"));
+    assert.ok(labels.includes("Transportadora Parceira"));
   });
 });
 

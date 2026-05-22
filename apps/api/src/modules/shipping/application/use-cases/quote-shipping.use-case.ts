@@ -54,7 +54,7 @@ export class QuoteShippingUseCase {
       }
     }
 
-    const resultsToAdd = liveResults.length > 0 ? liveResults : fallbackResults;
+    const resultsToAdd = dedupeQuoteResults([...liveResults, ...fallbackResults]);
     quote = quote.addResults(resultsToAdd);
 
     const freeThreshold = input.free_shipping_threshold ?? Infinity;
@@ -70,4 +70,28 @@ export class QuoteShippingUseCase {
     await this.quotes.save(finalQuote);
     return finalQuote.snapshot();
   }
+}
+
+function dedupeQuoteResults(results: ShippingQuoteResult[]): ShippingQuoteResult[] {
+  const seen = new Set<string>();
+  const deduped: ShippingQuoteResult[] = [];
+  for (const result of results) {
+    const key = `${normalize(result.carrier_key)}:${normalize(result.label)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(result);
+  }
+  return deduped.sort((a, b) => {
+    if (a.price !== b.price) return a.price - b.price;
+    if (a.eta_days !== b.eta_days) return a.eta_days - b.eta_days;
+    return a.label.localeCompare(b.label, "pt-BR");
+  });
+}
+
+function normalize(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
 }

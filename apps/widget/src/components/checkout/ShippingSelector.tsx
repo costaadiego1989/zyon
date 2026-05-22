@@ -19,28 +19,31 @@ export const ShippingSelector: React.FC<ShippingSelectorProps> = ({
 
   return (
     <div className="aacp-shipping-selector mt-3 flex flex-col gap-2">
-      <p className="text-xs font-medium opacity-60 mb-1 px-1">Selecione o frete:</p>
+      <p className="mb-1 px-1 text-xs font-medium opacity-60">Selecione o frete:</p>
       <div className="grid grid-cols-1 gap-2">
         {options.map((option) => {
+          const displayCarrier = option.carrier?.trim() || "Transportadora";
+          const displayMethod = option.method?.trim() || "Frete";
           const isSelected = selectedMethod === option.method;
           return (
             <button
-              key={`${option.method}-${option.carrier}`}
+              key={`${displayCarrier}-${displayMethod}-${option.customerPrice}`}
               disabled={busy}
               onClick={() => onSelect(option)}
               className={`
-                flex items-center justify-between p-3 rounded-xl border transition-all text-left
-                ${isSelected 
-                  ? "border-[var(--aacp-accent)] bg-[var(--aacp-accent)] bg-opacity-10" 
-                  : "border-[var(--aacp-fg)] border-opacity-10 hover:border-opacity-30 bg-[var(--aacp-bg)]"}
+                flex items-center justify-between gap-3 rounded-xl border p-3 text-left transition-all
+                ${isSelected
+                  ? "border-[var(--aacp-accent)] bg-[var(--aacp-accent)] bg-opacity-10"
+                  : "border-[var(--aacp-fg)] border-opacity-10 bg-[var(--aacp-bg)] hover:border-opacity-30"}
               `}
             >
-              <div className="flex flex-col">
-                <span className="text-sm font-semibold">{option.method}</span>
-                <span className="text-[10px] opacity-60">{option.deliveryDays} dias úteis</span>
+              <div className="min-w-0 flex flex-col">
+                <span className="text-[10px] font-medium uppercase tracking-[0.08em] opacity-55">{displayCarrier}</span>
+                <span className="truncate text-sm font-semibold">{displayMethod}</span>
+                <span className="text-[10px] opacity-60">{option.deliveryDays} dias uteis</span>
               </div>
-              <div className="text-sm font-bold text-[var(--aacp-accent)]">
-                {option.customerPrice === 0 ? "Grátis" : formatCurrency(option.customerPrice, "BRL")}
+              <div className="shrink-0 text-sm font-bold text-[var(--aacp-accent)]">
+                {option.customerPrice === 0 ? "Gratis" : formatCurrency(option.customerPrice, "BRL")}
               </div>
             </button>
           );

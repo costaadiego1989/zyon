@@ -163,7 +163,7 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
     res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "1500, ap 42" });
     assert.equal(res.stage, "shipping");
     assert.equal(res.missing_fields?.[0], "frete");
-    assert.equal(res.experience?.shippingOptions?.length, 2, "Two shipping options generated");
+    assert.equal(res.experience?.shippingOptions?.length, 3, "Three shipping options generated");
 
     // 9. Select shipping → transitions to payment
     res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "Quero PAC" });

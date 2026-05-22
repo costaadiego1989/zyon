@@ -226,10 +226,14 @@ function publicCustomerHints(customer: CustomerHints | undefined): CustomerHints
 }
 
 function shippingOptionLabel(option: ShippingQuote): string {
-  const method = option.method ?? option.carrier ?? "Frete";
+  const carrier = option.carrier?.trim();
+  const method = option.method?.trim();
+  const methodLabel = carrier && method && !method.toLowerCase().includes(carrier.toLowerCase())
+    ? `${carrier} ${method}`
+    : method ?? carrier ?? "Frete";
   const price = formatMoney(option.customerPrice, "BRL");
   const eta = typeof option.deliveryDays === "number" ? ` (${option.deliveryDays} dias)` : "";
-  return `${method}${eta} - ${price}`;
+  return `${methodLabel}${eta} - ${price}`;
 }
 
 function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {

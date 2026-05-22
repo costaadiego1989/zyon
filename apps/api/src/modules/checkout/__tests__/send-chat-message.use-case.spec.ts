@@ -302,8 +302,10 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
 
     assert.equal(afterAddr.stage, "shipping");
     assert.equal(afterAddr.missing_fields?.[0], "frete");
-    assert.equal(afterAddr.experience?.shippingOptions?.length, 2);
+    assert.equal(afterAddr.experience?.shippingOptions?.length, 3);
     assert.ok((afterAddr.experience?.copy.quick_replies ?? []).some((reply) => reply.includes("PAC")));
+    assert.ok((afterAddr.experience?.copy.quick_replies ?? []).some((reply) => reply.includes("Sedex")));
+    assert.ok((afterAddr.experience?.copy.quick_replies ?? []).some((reply) => reply.includes("Transportadora")));
 
     const afterFrete = await useCase.execute({ ...baseReq, user_message: "Quero PAC" });
 
@@ -313,7 +315,7 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
     const session = await repository.getSession("mrc_1", "chk_full_journey");
     assert.ok(session?.shipping?.customerPrice && session.shipping.customerPrice > 0);
     assert.equal(session?.shipping?.method, "PAC");
-    assert.equal(session?.shippingOptions?.length, 2);
+    assert.equal(session?.shippingOptions?.length, 3);
     assert.ok(session.customer?.address?.street?.includes("Paulista"));
 
     const completed = await new CompleteOrderUseCase(repository, repository, repository).execute(

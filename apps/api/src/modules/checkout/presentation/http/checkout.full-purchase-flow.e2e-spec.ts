@@ -378,8 +378,10 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       });
       assert.equal(res.stage, "shipping");
       assert.equal(res.missing_fields?.[0], "frete");
-      assert.equal(res.experience?.shippingOptions?.length, 2);
+      assert.equal(res.experience?.shippingOptions?.length, 3);
       assert.ok((res.experience?.copy.quick_replies ?? []).some((reply) => reply.includes("PAC")));
+      assert.ok((res.experience?.copy.quick_replies ?? []).some((reply) => reply.includes("Sedex")));
+      assert.ok((res.experience?.copy.quick_replies ?? []).some((reply) => reply.includes("Transportadora")));
 
       res = await controller.chat({
         merchant_id: MERCHANT,
@@ -412,7 +414,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     const readySession = repo.getSession(MERCHANT, sessionId);
     assert.ok(readySession?.shipping?.customerPrice);
     assert.equal(readySession?.shipping?.method, "PAC");
-    assert.equal(readySession?.shippingOptions?.length, 2);
+    assert.equal(readySession?.shippingOptions?.length, 3);
     assert.equal(readySession?.customer?.cpf, "12345678901");
     assert.equal(readySession?.customer?.phone, "21993001883");
     assert.equal(readySession?.customer?.address?.street, "Avenida Paulista");
