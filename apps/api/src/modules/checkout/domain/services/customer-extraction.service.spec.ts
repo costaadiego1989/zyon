@@ -7,6 +7,7 @@ import {
   extractCpf,
   extractEmail,
   extractName,
+  extractOtp,
   extractPhone,
   missingFieldsForStage
 } from "./customer-extraction.service.js";
@@ -35,6 +36,18 @@ test("extractPhone returns 10 or 11 digit phone", () => {
   assert.equal(extractPhone("(11) 98888-7777"), "11988887777");
   assert.equal(extractPhone("21 3333-4444"), "2133334444");
   assert.equal(extractPhone("apenas texto"), undefined);
+});
+
+test("extractOtp prefers the code when buyer pastes an API log line", () => {
+  assert.equal(extractOtp("O codigo e 84875-4"), "848754");
+  assert.equal(
+    extractOtp("[Nest] 35024 - 21/05/2026, 16:24:29 LOG OTP GERADO PARA buyer@example.com: 776655"),
+    "776655"
+  );
+  assert.equal(
+    extractOtp("[Nest] 35024 - 21/05/2026, 16:24:29 LOG codigo de verificacao enviado: 112233"),
+    "112233"
+  );
 });
 
 test("extractName uses agent question heuristic when buyer reply is short", () => {

@@ -113,6 +113,7 @@ export class CheckoutCustomerService {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.otp_code = code;
         console.log(`\n=========================================\n🔄 OTP REENVIADO PARA ${currentEmail}: ${code}\n=========================================\n`);
+        return patch;
       } else if (!existing?.otp_code && !patch.otp_code && patch.email) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.otp_code = code;
@@ -122,6 +123,7 @@ export class CheckoutCustomerService {
         if (extracted === existing.otp_code) {
           patch.email_verified = true;
           patch.otp_code = "";
+          return patch;
         } else {
           throw new OtpValidationError("Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente.");
         }
@@ -152,6 +154,7 @@ export class CheckoutCustomerService {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.phone_otp_code = code;
         console.log(`\n=========================================\n🔄 SMS OTP REENVIADO PARA ${currentPhone}: ${code}\n=========================================\n`);
+        return patch;
       } else if (!existing?.phone_otp_code && !patch.phone_otp_code && patch.phone) {
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.phone_otp_code = code;
@@ -162,6 +165,7 @@ export class CheckoutCustomerService {
         if (extracted === existing.phone_otp_code) {
           patch.phone_verified = true;
           patch.phone_otp_code = "";
+          return patch;
         } else {
           throw new OtpValidationError("Código de verificação do celular inválido. Por favor, confira o código enviado por SMS e tente novamente.");
         }

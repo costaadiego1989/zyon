@@ -1,7 +1,7 @@
 import React from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, fireEvent, waitFor } from "@testing-library/react";
-import { ChatBubble } from "../components/checkout/ChatThread.js";
+import { ChatBubble, ChatThread } from "../components/checkout/ChatThread.js";
 
 const PIX_CODE =
   "00020126580014br.gov.bcb.pix0136a1b2c3d4e5f67890abcdef123456789052040000530398";
@@ -14,11 +14,56 @@ function buyerTurn(text: string) {
   return { role: "buyer" as const, text, occurredAt: new Date().toISOString() };
 }
 
+function buildThreadVm(overrides: Record<string, unknown> = {}) {
+  return {
+    networkError: null,
+    retryStartCheckout: vi.fn(),
+    turns: [agentTurn("Informe o codigo de verificacao enviado para seu email.")],
+    threadRef: React.createRef<HTMLDivElement>(),
+    activeExperience: {
+      agent: { name: "Aurora" },
+      copy: { expected_input_type: "text" }
+    },
+    streamingTurnKey: null,
+    handleAgentTypingDone: vi.fn(),
+    busy: false,
+    showOfferBanner: false,
+    selectedShippingMethod: null,
+    shippingOptions: [],
+    checkoutStage: "data_collection",
+    suggestedProducts: [],
+    crossSellDismissed: false,
+    showCouponBox: false,
+    showCardForm: false,
+    showComposer: true,
+    awaitingAgentPlayback: false,
+    composerLocked: false,
+    quickReplies: [],
+    message: "",
+    setMessage: vi.fn(),
+    sendMessage: vi.fn(),
+    composerInputRef: React.createRef<HTMLInputElement>(),
+    lastChat: null,
+    ...overrides
+  } as any;
+}
+
 beforeEach(() => {
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText: vi.fn().mockResolvedValue(undefined) },
     writable: true,
     configurable: true
+  });
+});
+
+describe("ChatThread composer availability", () => {
+  it("keeps the composer visible while the agent playback is finishing", () => {
+    const { getByLabelText } = render(
+      <ChatThread vm={buildThreadVm({ awaitingAgentPlayback: true })} />
+    );
+
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    expect(input.disabled).toBe(false);
   });
 });
 

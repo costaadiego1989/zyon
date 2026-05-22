@@ -122,11 +122,18 @@ export function extractAddressDetailLine(
 }
 
 export function extractOtp(text: string): string | undefined {
-  // Strip hyphens/spaces from digit groups first (handles "84875-4" → "848754")
-  const stripped = text.replace(/(\d)[-\s](\d)/g, "$1$2");
-  const m = stripped.match(/\b(\d{4,6})\b/);
-  if (m) return m[1];
-  return undefined;
+  // Prefer OTP/code-labeled numbers so pasted API log lines do not match PID/date first.
+  const labeled = text.match(
+    /(?:otp|c[o\u00f3]digo(?:\s+de\s+verifica(?:c|\u00e7)[a\u00e3]o)?|code)[^\d]{0,80}(\d(?:[-\s]?\d){3,5})/i
+  );
+  if (labeled?.[1]) return labeled[1].replace(/\D+/g, "");
+
+  const candidates = Array.from(text.matchAll(/\b(\d(?:[-\s]?\d){3,5})\b/g))
+    .map((m) => m[1]?.replace(/\D+/g, ""))
+    .filter((digits): digits is string => Boolean(digits && digits.length >= 4 && digits.length <= 6));
+
+  const sixDigitCandidates = candidates.filter((digits) => digits.length === 6);
+  return sixDigitCandidates.at(-1) ?? candidates.at(-1);
 }
 
 export function deriveChatStage(session: CheckoutSession, completed = false): ChatStage {

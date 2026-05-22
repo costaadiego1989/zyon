@@ -84,7 +84,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : null}
 
-      {vm.showComposer && !vm.awaitingAgentPlayback && (
+      {vm.showComposer && (
         <div className="aacp-thread-composer-wrap">
           <Composer vm={vm} />
         </div>

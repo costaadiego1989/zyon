@@ -50,7 +50,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   }, [activeExperience.stage, lastChat?.stage]);
 
   const awaitingAgentPlayback = !disableStreamingByEnv() && streamingTurnKey !== null && streamingDoneKey !== streamingTurnKey;
-  const composerLocked = busy || Boolean(networkError) || awaitingAgentPlayback;
+  const composerLocked = busy || Boolean(networkError);
 
   const quickReplies = useMemo((): QuickReplyChoice[] => {
     if (!isConversational || turns.length < 1 || busy) return [];
@@ -108,9 +108,14 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   }, []);
 
   useEffect(() => {
-    if (!threadRef.current) return;
-    threadRef.current.scrollTop = threadRef.current.scrollHeight;
-  }, [turns.length, busy, streamingTurnKey, streamingDoneKey]);
+    const el = threadRef.current;
+    if (!el) return;
+    const scrollToBottom = () => {
+      el.scrollTop = el.scrollHeight;
+    };
+    scrollToBottom();
+    window.requestAnimationFrame?.(scrollToBottom);
+  }, [turns.length, busy, streamingTurnKey, streamingDoneKey, quickReplies.length, checkoutStage]);
 
   useEffect(() => {
     const showComposer = isConversational && Boolean(session) && !networkError && checkoutStage !== "completed" && checkoutStage !== "payment";
@@ -119,10 +124,9 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   }, [isConversational, session, networkError, checkoutStage]);
 
   useEffect(() => {
-    if (awaitingAgentPlayback) return;
-    if (!isConversational || !session || networkError || checkoutStage === "completed" || checkoutStage === "payment") return;
+    if (!isConversational || !session || networkError || busy || checkoutStage === "completed" || checkoutStage === "payment") return;
     composerInputRef.current?.focus();
-  }, [awaitingAgentPlayback, isConversational, session, networkError, checkoutStage]);
+  }, [awaitingAgentPlayback, busy, isConversational, session, networkError, checkoutStage]);
 
   // Initialize turns from /start response
   useEffect(() => {

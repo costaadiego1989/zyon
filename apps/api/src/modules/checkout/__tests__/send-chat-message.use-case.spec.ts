@@ -486,6 +486,31 @@ test("SendChatMessageUseCase blocks mismatched email OTP validation and returns 
   assert.equal(sessionAfter?.customer?.email_verified, false, "E-mail permaneceu como não verificado");
 });
 
+test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_log" }));
+  const session = await repository.getSession("mrc_1", "chk_otp_log");
+  if (session) {
+    session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "776655", email_verified: false };
+    await repository.saveSession(session);
+  }
+
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_otp_log",
+    conversation_id: "conv_otp_log",
+    user_message: "[Nest] 35024 - 21/05/2026, 16:24:29 LOG OTP GERADO PARA user@aacp.io: 776655"
+  });
+
+  const sessionAfter = await repository.getSession("mrc_1", "chk_otp_log");
+  assert.equal(sessionAfter?.customer?.email_verified, true, "E-mail foi verificado mesmo com metadados do log");
+  assert.equal(sessionAfter?.customer?.otp_code, "", "Codigo de OTP foi limpo apos validar");
+  assert.equal(res.missing_fields?.[0], "CPF");
+});
+
 test("SendChatMessageUseCase handles phone input, SMS OTP generation, and validation", async () => {
   const repository = new InMemoryCheckoutRepository();
   const conversation = new RecordingConversationPort();
