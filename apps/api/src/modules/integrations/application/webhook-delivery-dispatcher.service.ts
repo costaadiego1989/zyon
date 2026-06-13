@@ -17,6 +17,11 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
   ) {}
 
   onModuleInit(): void {
+    if (!webhookDispatcherEnabled()) {
+      this.logger.log("Webhook dispatcher disabled. Set WEBHOOK_DISPATCHER_ENABLED=true to enable it.");
+      return;
+    }
+
     this.timer = setInterval(() => void this.dispatchOnce(), dispatchIntervalMs());
   }
 
@@ -25,9 +30,20 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
   }
 
   async dispatchOnce(): Promise<void> {
-    const due = await this.repo.listDueWebhookDeliveries(["pending"], new Date().toISOString(), 25);
+    let due: MerchantWebhookDelivery[];
+    try {
+      due = await this.repo.listDueWebhookDeliveries(["pending"], new Date().toISOString(), 25);
+    } catch (error) {
+      this.logger.error(`Webhook dispatcher failed to list due deliveries: ${errorMessage(error)}`, errorStack(error));
+      return;
+    }
+
     for (const delivery of due) {
-      await this.process(delivery);
+      try {
+        await this.process(delivery);
+      } catch (error) {
+        this.logger.error(`Webhook delivery ${delivery.id} dispatch failed: ${errorMessage(error)}`, errorStack(error));
+      }
     }
   }
 
@@ -94,4 +110,19 @@ function dispatchIntervalMs(): number {
   const configured = Number(process.env.WEBHOOK_DISPATCH_INTERVAL_MS);
   if (Number.isFinite(configured) && configured >= 100) return configured;
   return DEFAULT_DISPATCH_INTERVAL_MS;
+}
+
+function webhookDispatcherEnabled(): boolean {
+  const configured = process.env.WEBHOOK_DISPATCHER_ENABLED?.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(configured ?? "")) return true;
+  if (["0", "false", "no", "off"].includes(configured ?? "")) return false;
+  return process.env.NODE_ENV === "production";
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function errorStack(error: unknown): string | undefined {
+  return error instanceof Error ? error.stack : undefined;
 }

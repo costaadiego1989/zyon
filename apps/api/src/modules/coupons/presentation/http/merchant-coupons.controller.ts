@@ -3,7 +3,9 @@ import { CreateCouponUseCase, type CreateCouponInput } from "../../application/u
 import { ArchiveCouponUseCase } from "../../application/use-cases/archive-coupon.use-case.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { Inject } from "@nestjs/common";
+import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
+@NonProductionRoute()
 @Controller("merchant/coupons")
 export class MerchantCouponsController {
   constructor(

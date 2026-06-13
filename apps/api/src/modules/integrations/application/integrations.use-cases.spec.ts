@@ -211,6 +211,40 @@ test("WebhookDeliveryDispatcher schedules retry on HTTP failure and fails after 
   assert.equal(finalStored?.nextAttemptAt, undefined);
 });
 
+test("WebhookDeliveryDispatcher logs repository failures without crashing the API", async () => {
+  const repo = new FailingDueDeliveriesRepository();
+
+  await assert.doesNotReject(() => new WebhookDeliveryDispatcher(repo, new WebhookSignatureService()).dispatchOnce());
+});
+
+test("WebhookDeliveryDispatcher does not start background interval in development by default", (t) => {
+  const previousNodeEnv = process.env.NODE_ENV;
+  const previousEnabled = process.env.WEBHOOK_DISPATCHER_ENABLED;
+  const originalSetInterval = globalThis.setInterval;
+  let scheduled = false;
+
+  t.after(() => {
+    globalThis.setInterval = originalSetInterval;
+    if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previousNodeEnv;
+    if (previousEnabled === undefined) delete process.env.WEBHOOK_DISPATCHER_ENABLED;
+    else process.env.WEBHOOK_DISPATCHER_ENABLED = previousEnabled;
+  });
+
+  process.env.NODE_ENV = "development";
+  delete process.env.WEBHOOK_DISPATCHER_ENABLED;
+  globalThis.setInterval = ((...args: Parameters<typeof setInterval>) => {
+    scheduled = true;
+    return originalSetInterval(...args);
+  }) as typeof setInterval;
+
+  const dispatcher = new WebhookDeliveryDispatcher(new InMemoryIntegrationsRepository(), new WebhookSignatureService());
+  dispatcher.onModuleInit();
+  dispatcher.onModuleDestroy();
+
+  assert.equal(scheduled, false);
+});
+
 function webhookDeliveryFixture(overrides: Partial<MerchantWebhookDelivery> = {}): MerchantWebhookDelivery {
   const now = "2026-05-21T12:00:00.000Z";
   const eventId = overrides.eventId ?? "evt_delivery";
@@ -240,4 +274,10 @@ function webhookDeliveryFixture(overrides: Partial<MerchantWebhookDelivery> = {}
     updatedAt: now,
     ...overrides
   };
+}
+
+class FailingDueDeliveriesRepository extends InMemoryIntegrationsRepository {
+  override async listDueWebhookDeliveries(): Promise<MerchantWebhookDelivery[]> {
+    throw new Error("database unavailable");
+  }
 }

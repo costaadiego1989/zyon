@@ -36,6 +36,7 @@ export class UpdateMerchantThemeUseCase {
 
     const colorFields: Array<keyof MerchantTheme> = [
       "accentColor",
+      "secondaryColor",
       "textColor",
       "backgroundColor",
       "surfaceColor",

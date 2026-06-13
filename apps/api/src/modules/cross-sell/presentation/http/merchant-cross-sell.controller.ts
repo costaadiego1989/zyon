@@ -5,7 +5,9 @@ import { UpdateCrossSellPromotionUseCase } from "../../application/use-cases/upd
 import { ArchiveCrossSellPromotionUseCase } from "../../application/use-cases/archive-cross-sell-promotion.use-case.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { Inject } from "@nestjs/common";
+import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
+@NonProductionRoute()
 @Controller("merchant/cross-sell")
 export class MerchantCrossSellController {
   constructor(

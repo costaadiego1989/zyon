@@ -25,9 +25,10 @@ export class ListEligibleCrossSellsUseCase {
   async execute(input: ListEligibleCrossSellsInput) {
     const active = await this.promotions.findActiveByMerchant(input.merchant_id);
     const ranked = rankEligiblePromotions(active, input.cart);
+    const suggestionsToCreate = ranked.length > 0 ? ranked : demoSuggestions(input.cart);
 
     const created: CrossSellSuggestionEntity[] = [];
-    for (const r of ranked) {
+    for (const r of suggestionsToCreate) {
       const suggestion = CrossSellSuggestionEntity.create({
         session_id: input.session_id,
         merchant_id: input.merchant_id,
@@ -55,4 +56,23 @@ export class ListEligibleCrossSellsUseCase {
 
     return created.map((s) => s.snapshot());
   }
+}
+
+function demoSuggestions(cart: Cart) {
+  if (!shouldUseDemoCrossSellFallback()) return [];
+  const cartSkus = new Set(cart.items.map((item) => item.sku));
+  const rankedItems = ["NECS-001", "CART-COE-01", "NECS-002"].filter((sku) => !cartSkus.has(sku)).slice(0, 2);
+  if (!rankedItems.length) return [];
+  return [{
+    promo_id: "demo-checkout-addons",
+    ranked_items: rankedItems,
+    discount_percent: 0
+  }];
+}
+
+function shouldUseDemoCrossSellFallback(): boolean {
+  if (process.env.CROSS_SELL_DEMO_FALLBACK === "false") return false;
+  if (process.env.CROSS_SELL_DEMO_FALLBACK === "true") return true;
+  if (process.env.E2E_SEED_ENABLED === "true") return true;
+  return process.env.NODE_ENV !== "production";
 }

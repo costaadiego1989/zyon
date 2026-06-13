@@ -2,7 +2,9 @@ import { Controller, Post, Body, Inject, Optional } from "@nestjs/common";
 import { QuoteShippingUseCase } from "../../application/use-cases/quote-shipping.use-case.js";
 import { SelectShippingMethodUseCase } from "../../application/use-cases/select-shipping-method.use-case.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
+import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
+@NonProductionRoute()
 @Controller("embed/shipping")
 export class WidgetShippingController {
   constructor(

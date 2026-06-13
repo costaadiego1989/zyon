@@ -4,7 +4,9 @@ import { CancelQuoteJobUseCase } from "../../application/use-cases/cancel-quote-
 import { FinalizeQuoteJobUseCase } from "../../application/use-cases/finalize-quote-job.use-case.js";
 import { PRICE_QUOTE_JOB_REPOSITORY, type PriceQuoteJobRepository } from "../../domain/ports/price-quote-job-repository.port.js";
 import { Inject } from "@nestjs/common";
+import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
+@NonProductionRoute()
 @Controller("embed/price-quote")
 export class WidgetPriceQuoteController {
   constructor(

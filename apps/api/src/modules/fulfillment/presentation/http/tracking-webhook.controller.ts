@@ -3,7 +3,9 @@ import { RecordTrackingEventUseCase } from "../../application/use-cases/record-t
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { Inject } from "@nestjs/common";
 import type { ShipmentStatus } from "../../domain/entities/shipment.entity.js";
+import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
+@NonProductionRoute()
 @Controller("webhooks/tracking")
 export class TrackingWebhookController {
   constructor(
