@@ -17,10 +17,15 @@ export class NonProductionRouteGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    if (nonProductionOnly && process.env.NODE_ENV === "production") {
+    if (nonProductionOnly && process.env.NODE_ENV === "production" && !legacyRoutesEnabled()) {
       throw new NotFoundException();
     }
 
     return true;
   }
+}
+
+function legacyRoutesEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  const value = env.ENABLE_LEGACY_ROUTES?.trim().toLowerCase();
+  return value === "true" || value === "1" || value === "yes";
 }

@@ -6,12 +6,18 @@ import { NonProductionRoute } from "./non-production-route.js";
 import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 
 const originalNodeEnv = process.env.NODE_ENV;
+const originalEnableLegacy = process.env.ENABLE_LEGACY_ROUTES;
 
 afterEach(() => {
   if (originalNodeEnv === undefined) {
     delete process.env.NODE_ENV;
   } else {
     process.env.NODE_ENV = originalNodeEnv;
+  }
+  if (originalEnableLegacy === undefined) {
+    delete process.env.ENABLE_LEGACY_ROUTES;
+  } else {
+    process.env.ENABLE_LEGACY_ROUTES = originalEnableLegacy;
   }
 });
 
@@ -29,6 +35,14 @@ describe("NonProductionRouteGuard", () => {
 
   it("allows marked controllers outside production", () => {
     process.env.NODE_ENV = "test";
+    const guard = new NonProductionRouteGuard(new Reflector());
+
+    assert.equal(guard.canActivate(makeContext(markedController())), true);
+  });
+
+  it("allows marked controllers in production when ENABLE_LEGACY_ROUTES is set", () => {
+    process.env.NODE_ENV = "production";
+    process.env.ENABLE_LEGACY_ROUTES = "true";
     const guard = new NonProductionRouteGuard(new Reflector());
 
     assert.equal(guard.canActivate(makeContext(markedController())), true);
