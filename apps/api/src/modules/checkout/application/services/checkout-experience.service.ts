@@ -78,7 +78,7 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
       if (next === "CPF")
         return ["Por que o CPF é obrigatório?", "Posso informar CNPJ?", "É seguro enviar meu CPF?"];
       if (next === "telefone")
-        return ["Vocês vão me ligar?", "Mandam rastreio por WhatsApp?", "Pode ser telefone fixo?"];
+        return ["Vocês vão me ligar?", "Mandam rastreio por WhatsApp?", "Por que precisa ser celular?"];
       return ["Precisa de mais algum dado?", "Como funciona a entrega?", "Quais as formas de pagamento?"];
     case "shipping":
       if (next === "CEP")
@@ -122,9 +122,10 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
   const agentIdentity = deps.agent?.agent;
   const agentName = agentIdentity?.agentName ?? "Assistente AACP";
-  const greeting = agentIdentity?.greeting ?? "Ola, tudo bem? Sou o seu assistente virtual e vou guiar seu checkout com seguranca.";
-
-  const trustCadastro = chatStage === "data_collection";
+  const cartEmpty = input.cart.items.length === 0;
+  const greeting = cartEmpty
+    ? "O que você deseja comprar? Digite aqui que encontro para você."
+    : (agentIdentity?.greeting ?? "Ola, tudo bem? Sou o seu assistente virtual e vou guiar seu checkout com seguranca.");
 
   let expected_input_type: "text" | "email" | "tel" | "number" = "text";
   if (chatStage === "data_collection") {
@@ -169,17 +170,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     copy: {
       headline: `${merchantName}: finalize sua compra com ajuda da IA`,
       subheadline: `${items.length} item(ns) no pedido, total ${formatMoney(total, input.cart.currency)} com contexto real do carrinho.`,
-      trust_badges: trustCadastro
-        ? [
-          "Dados apenas para esta compra",
-          "Códigos e benefícios comerciais na etapa final",
-          "Frete confirmado antes do pagamento"
-        ]
-        : [
-          "IA respeita políticas comerciais da loja",
-          "Frete e cupom validados pela API",
-          "Resumo do pedido sincronizado"
-        ],
+      trust_badges: [],
       quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules),
       focus_input: chatStage !== "completed",
       expected_input_type
@@ -203,9 +194,10 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     chatStage === "shipping" && missingFieldsPreview[0] === "frete" && session.shippingOptions?.length
       ? session.shippingOptions.map(shippingOptionLabel)
       : undefined;
+  const readyForFrete = missingFieldsPreview[0] === "frete";
   return {
     ...experience,
-    shippingOptions: session.shippingOptions,
+    shippingOptions: readyForFrete ? session.shippingOptions : undefined,
     copy: shippingOptionReplies
       ? { ...experience.copy, quick_replies: shippingOptionReplies }
       : experience.copy
@@ -239,7 +231,8 @@ function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {
     image_url: item.imageUrl,
     product_url: item.productUrl,
     category: item.category,
-    variant: item.variant
+    variant: item.variant,
+    description: item.description?.slice(0, 100)
   };
 }
 

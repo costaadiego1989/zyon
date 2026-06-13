@@ -3,6 +3,7 @@ import type { CheckoutSession, CustomerHints } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
+import { BuyerAccount } from "../../../buyer-account/domain/entities/buyer-account.entity.js";
 import {
   extractCep,
   extractCpf,
@@ -10,7 +11,8 @@ import {
   extractName,
   extractStandaloneName,
   extractOtp,
-  extractPhone
+  extractPhone,
+  isBrazilianMobilePhone
 } from "../../domain/services/customer-extraction.service.js";
 
 export class OtpValidationError extends Error {
@@ -40,7 +42,7 @@ export class CheckoutCustomerService {
     let nextGlobalUserId = session.globalUserId;
     if (patch.email) {
       const existingSessions = await this.repository.findSessionsByEmail(session.merchantId, patch.email);
-      const previousSession = this.pickPreviousSession(existingSessions, session.sessionId);
+      const previousSession = this.pickBestPriorSession(existingSessions, session.sessionId);
       const existingAccount = await this.buyerAccounts?.findByEmail(patch.email) ?? null;
       const recognizedBuyer = Boolean(existingAccount || previousSession);
       patch.recognized_buyer = recognizedBuyer;
@@ -92,6 +94,10 @@ export class CheckoutCustomerService {
 
     if (patch.email_verified) {
       working = await this.recognizeVerifiedBuyer(working);
+    }
+
+    if (this.isRegistrationComplete(working.customer)) {
+      await this.ensureBuyerAccountPersisted(working);
     }
 
     return working;
@@ -155,6 +161,11 @@ export class CheckoutCustomerService {
       const phone = extractPhone(userMessage);
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
       if (phone && phone !== cpfInThisTurn) {
+        if (!isBrazilianMobilePhone(phone)) {
+          throw new OtpValidationError(
+            "Precisamos de um celular com DDD (ex: 11 98888-7777) para enviar o rastreio pelo WhatsApp."
+          );
+        }
         patch.phone = phone;
         currentPhone = phone;
       }
@@ -234,10 +245,31 @@ export class CheckoutCustomerService {
     return !extractCpf(text) && !extractPhone(text) && !extractCep(text);
   }
 
-  private pickPreviousSession(sessions: CheckoutSession[], currentSessionId: string): CheckoutSession | null {
+  private pickBestPriorSession(sessions: CheckoutSession[], currentSessionId: string): CheckoutSession | null {
     return sessions
       .filter((session) => session.sessionId !== currentSessionId)
-      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ?? null;
+      .sort((a, b) => {
+        const scoreDiff = this.profileCompletenessScore(b.customer) - this.profileCompletenessScore(a.customer);
+        if (scoreDiff !== 0) return scoreDiff;
+        return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
+      })[0] ?? null;
+  }
+
+  private profileCompletenessScore(customer?: CustomerHints): number {
+    if (!customer) return 0;
+    let score = 0;
+    if (customer.fullName) score += 2;
+    if (customer.email_verified) score += 1;
+    if (customer.cpf) score += 2;
+    if (customer.phone) score += 1;
+    if (customer.phone_verified) score += 2;
+    if (customer.address?.zip) score += 1;
+    if (customer.address?.street) score += 1;
+    if (customer.address?.number) score += 1;
+    if (customer.address?.complement !== undefined) score += 1;
+    if (customer.address_verified) score += 1;
+    if (this.isCompleteAddress(customer.address)) score += 3;
+    return score;
   }
 
   private async recognizeVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
@@ -246,7 +278,7 @@ export class CheckoutCustomerService {
 
     const account = await this.buyerAccounts?.findByEmail(email) ?? null;
     const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
-    const previousSession = this.pickPreviousSession(priorSessions, session.sessionId);
+    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId);
     const isRecognized = Boolean(
       account ||
       previousSession ||
@@ -255,25 +287,7 @@ export class CheckoutCustomerService {
     );
     if (!isRecognized) return session;
 
-    const address = this.pickBestAddress(
-      session.customer?.address,
-      account?.address,
-      previousSession?.customer?.address
-    );
-    const patch: Partial<CustomerHints> = {
-      recognized_buyer: true,
-      isReturning: true,
-      fullName: session.customer?.fullName ?? account?.displayName ?? previousSession?.customer?.fullName,
-      phone: session.customer?.phone ?? account?.phone ?? previousSession?.customer?.phone,
-      phone_verified: session.customer?.phone_verified ?? Boolean(account?.phone || previousSession?.customer?.phone_verified),
-      cpf: session.customer?.cpf ?? account?.cpf ?? previousSession?.customer?.cpf,
-      address,
-      address_verified: session.customer?.address_verified ?? Boolean(
-        this.isCompleteAddress(account?.address) ||
-        previousSession?.customer?.address_verified ||
-        this.isCompleteAddress(previousSession?.customer?.address)
-      )
-    };
+    const patch = this.buildRecognizedProfilePatch(session.customer, account, previousSession?.customer);
 
     let next = this.mergeCustomers(session, patch);
     const recognizedGlobalUserId = account?.globalUserId ?? previousSession?.globalUserId;
@@ -284,19 +298,79 @@ export class CheckoutCustomerService {
         updatedAt: new Date().toISOString()
       };
     }
-    if (account) {
-      const nextAccountName = !account.displayName && patch.fullName ? patch.fullName : undefined;
-      const nextAccountPhone = !account.phone && patch.phone ? patch.phone : undefined;
-      const nextAccountAddress = !account.address && patch.address ? patch.address : undefined;
-      const nextAccountCpf = !account.cpf && patch.cpf ? patch.cpf : undefined;
-      if (nextAccountName || nextAccountPhone || nextAccountAddress || nextAccountCpf) {
-        await this.buyerAccounts?.save(
-          account.withUpdatedProfile(nextAccountName, nextAccountPhone, nextAccountAddress, nextAccountCpf)
-        );
-      }
-    }
     await this.repository.saveSession(next);
+    await this.ensureBuyerAccountPersisted(next);
     return next;
+  }
+
+  private buildRecognizedProfilePatch(
+    current: CustomerHints | undefined,
+    account: BuyerAccount | null,
+    priorCustomer?: CustomerHints
+  ): Partial<CustomerHints> {
+    const phone = current?.phone ?? account?.phone ?? priorCustomer?.phone;
+    const address = this.pickBestAddress(current?.address, account?.address, priorCustomer?.address);
+    return {
+      recognized_buyer: true,
+      isReturning: true,
+      fullName: current?.fullName ?? account?.displayName ?? priorCustomer?.fullName,
+      phone,
+      phone_verified: Boolean(
+        current?.phone_verified ||
+        priorCustomer?.phone_verified ||
+        (phone && account?.phone)
+      ),
+      cpf: current?.cpf ?? account?.cpf ?? priorCustomer?.cpf,
+      address,
+      address_verified:
+        current?.address_verified ??
+        priorCustomer?.address_verified ??
+        Boolean(this.isCompleteAddress(account?.address) || this.isCompleteAddress(priorCustomer?.address))
+    };
+  }
+
+  private isRegistrationComplete(customer?: CustomerHints): boolean {
+    return Boolean(
+      customer?.fullName &&
+      customer.email &&
+      customer.email_verified &&
+      customer.cpf &&
+      customer.phone &&
+      customer.phone_verified
+    );
+  }
+
+  private async ensureBuyerAccountPersisted(session: CheckoutSession): Promise<void> {
+    if (!this.buyerAccounts || !this.isRegistrationComplete(session.customer)) return;
+
+    const customer = session.customer!;
+    const email = customer.email!.trim().toLowerCase();
+    const existing = await this.buyerAccounts.findByEmail(email);
+    if (existing) {
+      const hydrated = existing.withUpdatedProfile(
+        customer.fullName,
+        customer.phone,
+        customer.address,
+        customer.cpf
+      );
+      if (hydrated !== existing) await this.buyerAccounts.save(hydrated);
+      return;
+    }
+
+    const now = new Date();
+    await this.buyerAccounts.save(
+      new BuyerAccount({
+        globalUserId: session.globalUserId,
+        email,
+        passwordHash: `checkout-auto:${session.globalUserId}`,
+        displayName: customer.fullName!,
+        phone: customer.phone,
+        cpf: customer.cpf,
+        address: customer.address,
+        createdAt: now,
+        updatedAt: now
+      })
+    );
   }
 
   private pickBestAddress(

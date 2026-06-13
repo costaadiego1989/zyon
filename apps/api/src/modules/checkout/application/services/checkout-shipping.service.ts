@@ -2,7 +2,7 @@ import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints, PackageDimensions, ShippingQuote } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
-import { extractAddressDetailLine } from "../../domain/services/customer-extraction.service.js";
+import { extractAddressDetailLine, isShippingQuickReplyQuestion } from "../../domain/services/customer-extraction.service.js";
 import { CheckoutCustomerService } from "./checkout-customer.service.js";
 import { HttpClientService } from "../../../../shared/http/http-client.service.js";
 import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
@@ -84,6 +84,7 @@ export class CheckoutShippingService {
   private tryParseAddressNumbers(text: string, session: CheckoutSession): Partial<CustomerHints> | null {
     const addr = session.customer?.address ?? {};
     if (!addr.street || !addr.zip) return null;
+    if (isShippingQuickReplyQuestion(text)) return null;
 
     if (!addr.number) {
       const noNumberPhrase = /n[aã]o\s+tem\s+n[uú]mero|n[aã]o\s+h[aá]\s+n[uú]mero|casa\s+n[aã]o\s+tem\s+n[uú]mero|endere[cç]o\s+sem\s+n[uú]mero/i;

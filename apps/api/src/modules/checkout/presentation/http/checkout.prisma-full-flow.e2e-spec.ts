@@ -329,7 +329,7 @@ test("Quick replies differ by stage", async () => {
 
   const started = await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: undefined, cart: CART });
   const dataReplies = started.experience.copy.quick_replies;
-  assert.ok(dataReplies.some(r => /nome/i.test(r)), "Data collection quick replies present");
+  assert.ok(dataReplies.some(r => /email|spam|e-mail/i.test(r)), "Data collection quick replies present");
 
   // Skip to payment stage
   const sid2 = "chk_qr_pay";

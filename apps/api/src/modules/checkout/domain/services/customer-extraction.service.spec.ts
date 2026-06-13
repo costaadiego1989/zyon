@@ -10,6 +10,8 @@ import {
   extractOtp,
   extractPhone,
   extractStandaloneName,
+  isBrazilianMobilePhone,
+  isShippingQuickReplyQuestion,
   missingFieldsForStage
 } from "./customer-extraction.service.js";
 import { checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
@@ -37,6 +39,13 @@ test("extractPhone returns 10 or 11 digit phone", () => {
   assert.equal(extractPhone("(11) 98888-7777"), "11988887777");
   assert.equal(extractPhone("21 3333-4444"), "2133334444");
   assert.equal(extractPhone("apenas texto"), undefined);
+});
+
+test("isBrazilianMobilePhone accepts mobile and rejects landline", () => {
+  assert.equal(isBrazilianMobilePhone("11988887777"), true);
+  assert.equal(isBrazilianMobilePhone("(11) 98888-7777"), true);
+  assert.equal(isBrazilianMobilePhone("2133334444"), false);
+  assert.equal(isBrazilianMobilePhone("1188887777"), false);
 });
 
 test("extractOtp prefers the code when buyer pastes an API log line", () => {
@@ -130,14 +139,26 @@ test("deriveChatStage walks data_collection -> shipping -> payment -> completed"
   assert.equal(deriveChatStage(ready), "completed");
 });
 
+test("isShippingQuickReplyQuestion blocks complement quick replies", () => {
+  assert.equal(isShippingQuickReplyQuestion("Como informo o bloco?"), true);
+  assert.equal(isShippingQuickReplyQuestion("Moro em zona rural"), true);
+  assert.equal(isShippingQuickReplyQuestion("Bloco B, Apto 302"), false);
+  assert.equal(isShippingQuickReplyQuestion("Não tem"), false);
+});
+
 test("missingFieldsForStage lists user-facing labels for each stage in order", () => {
   const empty = checkoutSession({ customer: {} });
-  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["nome", "email", "código de verificação", "CPF", "telefone", "código de verificação do celular"]);
+  assert.deepEqual(missingFieldsForStage(empty, "data_collection"), ["email", "código de verificação", "nome", "CPF", "telefone", "código de verificação do celular"]);
+
+  const withEmail = checkoutSession({
+    customer: { email: "joao@example.com", otp_code: "123456" }
+  });
+  assert.deepEqual(missingFieldsForStage(withEmail, "data_collection"), ["código de verificação", "nome", "CPF", "telefone", "código de verificação do celular"]);
 
   const withName = checkoutSession({
-    customer: { fullName: "Joao" }
+    customer: { fullName: "Joao", email: "joao@example.com", email_verified: true }
   });
-  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["email", "código de verificação", "CPF", "telefone", "código de verificação do celular"]);
+  assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["CPF", "telefone", "código de verificação do celular"]);
 
   const emailOtpPendingBeforeName = checkoutSession({
     customer: { email: "joao@example.com", otp_code: "123456", email_verified: false }

@@ -48,6 +48,12 @@ export function extractPhone(text: string): string | undefined {
   return undefined;
 }
 
+/** Brazilian mobile: 11 digits with 9 as the first digit after DDD. */
+export function isBrazilianMobilePhone(phone: string): boolean {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length === 11 && digits[2] === "9";
+}
+
 const NAME_FILLERS = ["é", "e", "sou", "meu", "nome", "me", "chamo", "o", "a"];
 const NAME_STOPWORDS = new Set([
   "quero",
@@ -167,15 +173,27 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
-  { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
+  { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
   { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
   { label: "telefone", has: (s) => Boolean(s.customer?.phone && (s.customer?.phone_otp_code || s.customer?.phone_verified)) },
   { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) }
 ];
 
-const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[2]!.label;
+export function isShippingQuickReplyQuestion(text: string): boolean {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+  if (!normalized) return false;
+  return /^(como informo o bloco|moro em zona rural|como calculo o frete|entregam em todo o brasil|nao sei meu cep|cep esta correto|nao encontram meu endereco|qual o problema com o cep|tem frete gratis|prazo esta muito longo|tem transportadora mais rapida|qual o prazo medio|tem opcao de retirada|como acompanho o pedido)(\?)?$/.test(
+    normalized
+  );
+}
+
+const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[1]!.label;
 const PHONE_OTP_FIELD = DATA_FIELD_ORDER[5]!.label;
 
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
