@@ -124,7 +124,7 @@ export function selectExperienceHeader(
   return {
     agent: {
       name: vm.theme.headerTitle?.trim() || agentName.given || configuredAgentName,
-      role: agentName.rest || "Assistente de Vendas",
+      role: "Agente de compras",
       avatarUrl: vm.theme.agentAvatarUrl,
       statusLabel:
         vm.theme.headerSubtitle?.trim() ||

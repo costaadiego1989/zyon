@@ -143,6 +143,11 @@ export function useBuyerHub(options: {
       setAgent(agentData);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Falha ao carregar o hub.";
+      if (message === "buyer_account_not_found") {
+        options.onAuthExpired?.();
+        setError("Sua sessão expirou. Entre novamente para acessar sua conta.");
+        return;
+      }
       if (/invalid_bearer_token|missing_bearer_token|jwt expired|unauthorized/i.test(message)) {
         options.onAuthExpired?.();
       }

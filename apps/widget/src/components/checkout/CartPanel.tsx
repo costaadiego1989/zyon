@@ -16,8 +16,10 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
 
       <section className="aacp-cart-items-block">
         <header className="aacp-cart-items-head">
-          <h3 className="aacp-cart-items-title">Itens do pedido</h3>
-          <span className="aacp-cart-items-count">{itemCount}</span>
+          <h3 className="aacp-cart-items-title">Seu pedido</h3>
+          <span className="aacp-cart-items-count">
+            {itemCount} {itemCount === 1 ? "item" : "itens"}
+          </span>
         </header>
 
         <div className="aacp-items">
@@ -118,27 +120,30 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                 <dd className="aacp-totals-discount">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
               </>
             )}
+            {vm.checkoutStage === "payment" && (vm.visibleTotals.service_fee ?? 0) > 0 && (
+              <>
+                <dt>Taxa de serviço</dt>
+                <dd>{formatCurrency(vm.visibleTotals.service_fee ?? 0, vm.visibleTotals.currency)}</dd>
+              </>
+            )}
             <div className="aacp-cart-total">
               <dt className="total-row">Total</dt>
-              <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
+              <dd className="total-row value">
+                {formatCurrency(
+                  vm.visibleTotals.total + (vm.checkoutStage === "payment" ? (vm.visibleTotals.service_fee ?? 0) : 0),
+                  vm.visibleTotals.currency
+                )}
+              </dd>
             </div>
           </dl>
 
           <div className="aacp-ledger-assurance">
             <ShieldCheck size={17} aria-hidden="true" />
             <span>
-              <strong>Seu pedido está protegido</strong>
-              <small>Confira valores e condições antes de pagar.</small>
+              <strong>Nada será cobrado agora</strong>
+              <small>Você revisa o valor final antes de confirmar.</small>
             </span>
           </div>
-
-          <button
-            type="button"
-            className="aacp-ledger-return"
-            onClick={() => vm.setCartOpen(false)}
-          >
-            Continuar no checkout
-          </button>
         </footer>
       ) : null}
     </aside>

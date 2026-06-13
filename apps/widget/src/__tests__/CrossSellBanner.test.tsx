@@ -83,7 +83,7 @@ describe("CrossSellBanner", () => {
   // ── Interactions ─────────────────────────────────────────────────────────────
 
   it("calls onAdd with product when Adicionar is clicked", async () => {
-    const onAdd = vi.fn().mockResolvedValue(undefined);
+    const onAdd = vi.fn().mockResolvedValue(true);
     const { getAllByRole } = render(
       <CrossSellBanner products={[WALLET, BELT]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
@@ -94,7 +94,7 @@ describe("CrossSellBanner", () => {
 
   it("disables Adicionar button while onAdd is pending", async () => {
     let resolve!: () => void;
-    const onAdd = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
+    const onAdd = vi.fn(() => new Promise<boolean>((r) => { resolve = () => r(true); }));
     const { getAllByRole } = render(
       <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
@@ -105,7 +105,7 @@ describe("CrossSellBanner", () => {
   });
 
   it("shows 'Adicionado!' label after successful add", async () => {
-    const onAdd = vi.fn().mockResolvedValue(undefined);
+    const onAdd = vi.fn().mockResolvedValue(true);
     const { getAllByRole, getByText } = render(
       <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );

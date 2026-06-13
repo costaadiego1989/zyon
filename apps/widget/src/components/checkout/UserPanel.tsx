@@ -121,10 +121,14 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
 }
 
 function HubError({ error, onRetry }: { error: string; onRetry: () => void }) {
+  const friendly =
+    error === "buyer_account_not_found"
+      ? "Sua sessão expirou. Entre novamente para acessar sua conta."
+      : error;
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", gap: 12, color: "var(--aacp-muted)", fontSize: 13, textAlign: "center" }}>
       <AlertCircle size={24} style={{ opacity: 0.5, color: "#ef4444" }} />
-      <div>{error}</div>
+      <div>{friendly}</div>
       <button className="aacp-cta" style={{ fontSize: 12, padding: "6px 16px" }} onClick={onRetry}>Tentar novamente</button>
     </div>
   );

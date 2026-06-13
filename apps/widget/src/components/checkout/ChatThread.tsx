@@ -23,24 +23,26 @@ import {
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
   const stageLead = conversationLead(vm.checkoutStage);
+  const latestAgentIndex = vm.turns.reduce(
+    (latest, turn, index) => (turn.role === "agent" ? index : latest),
+    -1
+  );
 
   return (
     <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
       <section className="aacp-conversation-lead" aria-labelledby="aacp-conversation-title">
-        <span className="aacp-conversation-avatar" aria-hidden="true">
-          {vm.theme?.agentAvatarUrl ? (
-            <img src={vm.theme.agentAvatarUrl} alt="" />
-          ) : (
-            <Bot size={20} />
-          )}
-        </span>
-        <div>
-          <span className="aacp-conversation-agent">
-            {agentName.given}, agente de compras
-          </span>
+        <div className="aacp-conversation-lead-copy">
+          <span className="aacp-conversation-agent">Decisao atual</span>
           <h2 id="aacp-conversation-title">{stageLead.title}</h2>
           <p>{stageLead.description}</p>
         </div>
+        <span className="aacp-conversation-orbit" aria-hidden="true">
+          {vm.theme?.agentAvatarUrl ? (
+            <img src={vm.theme.agentAvatarUrl} alt="" />
+          ) : (
+            <Bot size={22} />
+          )}
+        </span>
       </section>
 
       {vm.networkError ? <NetworkError vm={vm} /> : null}
@@ -56,7 +58,8 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
             bubbleKey={key}
             streamingKey={vm.streamingTurnKey}
             onAgentTypingDone={vm.handleAgentTypingDone}
-            isLatest={index === vm.turns.length - 1}
+            isLatest={index === latestAgentIndex}
+            autoScroll={vm.turns.length > 2 && index === latestAgentIndex}
           />
         );
       })}
@@ -140,7 +143,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 }
 
 function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
-  const orderRef = vm.session?.session_id?.slice(-6)?.toUpperCase() ?? "------";
+  const sessionRef = vm.session?.session_id?.slice(-6)?.toUpperCase() ?? "------";
   const summaryItems = vm.completedOrderSnapshot?.items ?? vm.visibleItems;
   const summaryTotals = vm.completedOrderSnapshot?.totals ?? vm.visibleTotals;
   const fallbackReturnUrl = typeof window !== "undefined" ? window.location.origin : undefined;
@@ -157,7 +160,7 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
           <span className="aacp-order-confirmation-kicker">Pagamento aprovado</span>
           <h3 id="aacp-order-confirmation-title">Pedido confirmado</h3>
           <p>Enviaremos as atualizações de entrega e rastreio para sua conta.</p>
-          <span className="aacp-order-confirmation-reference">Pedido #{orderRef}</span>
+          <span className="aacp-order-confirmation-reference">Referência da sessão {sessionRef}</span>
         </div>
       </div>
 
@@ -210,6 +213,7 @@ export function ChatBubble({
   streamingKey,
   onAgentTypingDone,
   isLatest = false,
+  autoScroll = false,
   agentName,
   agentAvatarUrl,
 }: {
@@ -220,6 +224,7 @@ export function ChatBubble({
   streamingKey: string | null;
   onAgentTypingDone?: (key: string) => void;
   isLatest?: boolean;
+  autoScroll?: boolean;
 }) {
   const bubbleRef = useRef<HTMLDivElement | null>(null);
   const isAgent = turn.role === "agent";
@@ -237,9 +242,10 @@ export function ChatBubble({
   const pixCode = pixMatch ? pixMatch[0] : null;
 
   useEffect(() => {
+    if (!autoScroll || !isStreaming) return;
     if (typeof bubbleRef.current?.scrollIntoView !== "function") return;
     bubbleRef.current.scrollIntoView({ block: "end" });
-  }, [displayed]);
+  }, [autoScroll, displayed, isStreaming]);
 
   const bubbleBody = (
     <div
@@ -267,7 +273,11 @@ export function ChatBubble({
   }
 
   return (
-    <div key={key} ref={bubbleRef} className="aacp-bubble-stack aacp-bubble-stack--agent">
+    <div
+      key={key}
+      ref={bubbleRef}
+      className={`aacp-bubble-stack aacp-bubble-stack--agent${isLatest ? " is-active-turn" : ""}`}
+    >
       <div className="aacp-bubble-meta" aria-hidden="true">
         <span className="aacp-bubble-meta-avatar">
           {agentAvatarUrl ? (
@@ -292,19 +302,19 @@ function conversationLead(stage: string): { title: string; description: string }
   }
   if (stage === "payment") {
     return {
-      title: "Escolha como pagar",
+      title: "Escolha como quer pagar.",
       description: "Revise o total antes de confirmar. Nenhuma cobrança acontece sem sua ação.",
     };
   }
   if (stage === "shipping") {
     return {
-      title: "Vamos definir a entrega",
+      title: "Como prefere receber?",
       description: "Escolha o endereço e a opção de frete que funcionam melhor para você.",
     };
   }
   return {
-    title: "Vamos finalizar seu pedido",
-    description: "Responda uma etapa por vez. Você pode revisar o resumo a qualquer momento.",
+    title: "Vamos finalizar sua compra.",
+    description: "Uma pergunta de cada vez. O pedido permanece visível enquanto avançamos.",
   };
 }
 
@@ -373,6 +383,12 @@ export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
 }
 
 export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
+  const hasShipping = vm.visibleTotals.shipping > 0;
+  const orderTotal = Math.max(
+    0,
+    vm.visibleTotals.subtotal + vm.visibleTotals.shipping - vm.visibleTotals.discount
+  );
+
   return (
     <div className="aacp-offer aacp-offer-banner aacp-offer-banner--applied">
       <div className="aacp-offer-icon">
@@ -381,8 +397,21 @@ export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
       <div className="aacp-offer-text">
         <strong>Oferta aplicada</strong>
         <span>
-          -{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)} · novo total{" "}
-          <b>{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</b>
+          -{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}
+          {hasShipping ? (
+            <>
+              {" "}
+              · pedido{" "}
+              <b>{formatCurrency(orderTotal, vm.visibleTotals.currency)}</b>
+              {" "}
+              (inclui frete de {formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)})
+            </>
+          ) : (
+            <>
+              {" "}
+              · novo total <b>{formatCurrency(orderTotal, vm.visibleTotals.currency)}</b>
+            </>
+          )}
         </span>
       </div>
       <button

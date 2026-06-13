@@ -15,23 +15,10 @@ export function useCheckoutCart(
   useEffect(() => {
     if (!experience) return;
     const cart = buildVisibleCart(experience);
-    const apiHasShipping = Boolean(experience.shipping);
-    if (apiHasShipping && experience.shipping?.method) {
+    if (experience.shipping?.method) {
       setSelectedShippingMethod(experience.shipping.method);
     }
-    setVisibleCart(() => {
-      if (selectedShippingMethod || apiHasShipping) {
-        return cart;
-      }
-      return {
-        ...cart,
-        totals: {
-          ...cart.totals,
-          shipping: 0,
-          total: Math.max(0, cart.totals.subtotal - cart.totals.discount)
-        }
-      };
-    });
+    setVisibleCart(cart);
   }, [experience]);
 
   function handleRemoveCartItem(sku: string): void {

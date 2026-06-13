@@ -8,6 +8,7 @@ import type { CheckoutChatState } from "./use-checkout-chat.js";
 import type { CryptoPaymentState } from "./crypto-payment.types.js";
 
 export interface StripeIntent {
+  intentId: string;
   clientSecret: string;
   publishableKey: string;
   amountCents: number;
@@ -99,6 +100,7 @@ export function useCheckoutPayment(
       if (method === "card" && bf?.clientSecret && bf?.stripePublishableKey) {
         setCryptoPayment(null);
         setStripeIntent({
+          intentId: snap.id ?? "",
           clientSecret: bf.clientSecret,
           publishableKey: bf.stripePublishableKey,
           amountCents: snap.amountCents ?? 0,
@@ -159,17 +161,48 @@ export function useCheckoutPayment(
     }
   }
 
-  function onStripePaymentConfirmed(amountCents: number, currency = "BRL"): void {
-    setStripeIntent(null);
-    const total = typeof amountCents === "number"
-      ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
-      : "";
-    appendAgentTurn(
-      total
-        ? `Recebi seu pagamento (${total}) e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.`
-        : "Recebi seu pagamento e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.",
-      { stream: true }
-    );
+  function onStripePaymentConfirmed(amountCents: number, currency = "BRL"): Promise<void> {
+    return confirmStripePayment(amountCents, currency);
+  }
+
+  async function confirmStripePayment(amountCents: number, currency = "BRL"): Promise<void> {
+    if (!session || !stripeIntent?.intentId) {
+      appendAgentTurn(
+        "Recebi seu pagamento e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.",
+        { stream: true }
+      );
+      return;
+    }
+
+    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    const path = paths.stripePaymentConfirm(stripeIntent.intentId);
+    try {
+      const result = await checkoutJson<{ status: string }>(apiOrigin, path, {
+        ...embedOpts,
+        body: {
+          session_id: session.session_id,
+          ...(config.mode !== "embed" ? { merchant_id: config.merchantId } : {})
+        }
+      });
+      if (result.status === "approved") {
+        markPaymentCompleted(amountCents, currency);
+        return;
+      }
+      appendAgentTurn(
+        "Pagamento recebido. Estou aguardando a confirmacao final do provedor.",
+        { stream: true }
+      );
+    } catch {
+      const total = typeof amountCents === "number"
+        ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
+        : "";
+      appendAgentTurn(
+        total
+          ? `Recebi seu pagamento (${total}) e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.`
+          : "Recebi seu pagamento e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.",
+        { stream: true }
+      );
+    }
   }
 
   function onStripePaymentError(message: string): void {

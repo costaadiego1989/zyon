@@ -86,7 +86,7 @@ describe("checkout experience presentation", () => {
     const model = selectExperienceHeader(buildVm());
 
     expect(model.agent.name).toBe("Zion");
-    expect(model.agent.role).toBe("Protocol");
+    expect(model.agent.role).toBe("Agente de compras");
     expect(model.agent.statusLabel).toContain("Athom Tech");
     expect(model.order.total).toContain("299");
     expect(model.assurance.description).toBe(

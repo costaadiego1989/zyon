@@ -14,6 +14,7 @@ export const CHECKOUT_EMBED_PATHS = {
   catalogAdd: "/embed/catalog/add",
   paymentIntents: "/embed/payment/intents",
   cryptoPaymentConfirm: (intentId: string) => `/embed/payment/intents/${intentId}/crypto/confirm`,
+  stripePaymentConfirm: (intentId: string) => `/embed/payment/intents/${intentId}/stripe/confirm`,
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
 
@@ -28,6 +29,7 @@ export const CHECKOUT_LEGACY_PATHS = {
   catalogAdd: "/catalog/add",
   paymentIntents: "/payment/intents",
   cryptoPaymentConfirm: (intentId: string) => `/payment/intents/${intentId}/crypto/confirm`,
+  stripePaymentConfirm: (intentId: string) => `/payment/intents/${intentId}/stripe/confirm`,
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
 

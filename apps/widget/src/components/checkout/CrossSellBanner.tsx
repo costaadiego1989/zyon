@@ -6,7 +6,7 @@ import { formatCurrency } from "../../hooks/checkout-view-model.js";
 interface CrossSellBannerProps {
   products: SuggestedProduct[];
   currency?: string;
-  onAdd: (product: SuggestedProduct) => Promise<void>;
+  onAdd: (product: SuggestedProduct) => Promise<boolean>;
   onDismiss: () => void;
   onProceedToPayment: () => void;
 }
@@ -60,16 +60,16 @@ function CrossSellCard({
 }: {
   product: SuggestedProduct;
   currency: string;
-  onAdd: (p: SuggestedProduct) => Promise<void>;
+  onAdd: (p: SuggestedProduct) => Promise<boolean>;
 }) {
   const [loading, setLoading] = useState(false);
   const [added, setAdded] = useState(false);
 
   async function handleAdd() {
     setLoading(true);
-    await onAdd(product);
+    const success = await onAdd(product);
     setLoading(false);
-    setAdded(true);
+    if (success) setAdded(true);
   }
 
   return (
@@ -110,7 +110,7 @@ function CrossSellCard({
         ) : (
           <>
             <Plus size={12} />
-            Adicionar
+            Adicionar {product.name}
           </>
         )}
       </button>

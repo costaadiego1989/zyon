@@ -5,7 +5,8 @@ import type {
   CheckoutExperienceSnapshot,
   CustomerHints,
   MerchantTheme,
-  ShippingQuote
+  ShippingQuote,
+  SuggestedProduct
 } from "@aacp/shared-types";
 import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
@@ -44,12 +45,13 @@ export function resolveCartJourneyIndex(checkoutStage: string, itemCount: number
   return 0;
 }
 
-/** Fill % on the stepper rail (inclusive of the active step). */
+/** Fill % on the stepper rail to the center of the active step (full at last step). */
 export function resolveStepperProgressPct(activeIndex: number, stepCount: number): number {
   if (stepCount <= 0) return 0;
   if (stepCount === 1) return 100;
   const clamped = Math.max(0, Math.min(activeIndex, stepCount - 1));
-  return ((clamped + 1) / stepCount) * 100;
+  if (clamped === stepCount - 1) return 100;
+  return ((clamped + 0.5) / stepCount) * 100;
 }
 
 export function resolveStoreReturnUrl(
@@ -389,11 +391,14 @@ export function buildEmptyCompletedExperience(
 
 export function filterCheckoutQuickReplies(
   replies: QuickReplyChoice[],
-  context: { stage: string; missingField?: string; prePaymentStep?: string }
+  context: { stage: string; missingField?: string; prePaymentStep?: string; suggestedProducts?: SuggestedProduct[] }
 ): QuickReplyChoice[] {
   if (context.stage === "payment") {
     if (context.prePaymentStep === "cross_sell") {
-      return [{ label: "Não agora" }, { label: "Ir para pagamento" }];
+      const productChips = (context.suggestedProducts ?? []).map((product) => ({
+        label: `Adicionar ${product.name}`
+      }));
+      return [...productChips, { label: "Não agora" }, { label: "Ir para pagamento" }];
     }
     if (context.prePaymentStep === "coupon_gate") return [{ label: "Sim, tenho cupom" }, { label: "Nao tenho cupom" }];
     if (context.prePaymentStep !== "payment_method") return [];
@@ -414,7 +419,7 @@ export function filterCheckoutQuickReplies(
   });
 }
 
-function normalizeQuickReplyLabel(value: string | undefined): string {
+export function normalizeQuickReplyLabel(value: string | undefined): string {
   return (value ?? "")
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")
@@ -437,9 +442,40 @@ function isShippingSelectionLabel(label: string): boolean {
 /** Skip auto "Iniciar cadastro" when checkout already has email progress. */
 export function shouldSkipAutoRegistration(customer?: CustomerHints | null): boolean {
   if (!customer) return false;
+  if (customer.recognized_buyer && isBuyerRegistrationComplete(customer)) return true;
   if (customer.email_verified) return true;
   if (customer.email && (customer.otp_code || customer.fullName)) return true;
   return false;
+}
+
+/** Returning buyer with complete profile should open shipping, not cadastro. */
+export function shouldBootstrapShippingSelection(
+  customer?: CustomerHints | null,
+  stage?: string | null
+): boolean {
+  return Boolean(
+    customer?.recognized_buyer &&
+    isBuyerRegistrationComplete(customer) &&
+    stage === "shipping"
+  );
+}
+
+/** Mirrors API CheckoutCustomerService.isRegistrationComplete */
+export function isBuyerRegistrationComplete(customer?: CustomerHints | null): boolean {
+  if (!customer) return false;
+  return Boolean(
+    customer.fullName &&
+    customer.email &&
+    customer.email_verified &&
+    customer.cpf &&
+    customer.phone &&
+    customer.phone_verified
+  );
+}
+
+/** Buyer hub / login-from-session can run once email is verified. */
+export function isBuyerHubEligible(customer?: CustomerHints | null): boolean {
+  return Boolean(customer?.email?.trim() && customer.email_verified);
 }
 
 export function matchShippingOptionFromLabel(label: string, options: ShippingQuote[]): ShippingQuote | undefined {
