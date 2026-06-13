@@ -25,6 +25,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const [completedOrderSnapshot, setCompletedOrderSnapshot] = useState<VisibleCartState | null>(null);
   const couponGatePromptedKey = useRef<string | null>(null);
   const orderCompletionHandled = useRef(false);
+  const buyerLoginAttemptedSession = useRef<string | null>(null);
   const sessionState = useCheckoutSession(config);
   const cartState = useCheckoutCart(sessionState.experience, config);
   const panels = useCheckoutPanels();
@@ -66,6 +67,27 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     defaultMerchantName: activeExperience.brand.name,
     defaultEmail: activeExperience.customer?.email ?? config.customer?.email
   });
+
+  useEffect(() => {
+    const sessionId = session?.session_id;
+    const buyerIdentityConfirmed = activeExperience.customer?.email_verified === true;
+    if (
+      !sessionId ||
+      !buyerIdentityConfirmed ||
+      auth.session ||
+      buyerLoginAttemptedSession.current === sessionId
+    ) {
+      return;
+    }
+    buyerLoginAttemptedSession.current = sessionId;
+    void auth.loginFromCheckoutSession(sessionId, config.merchantId);
+  }, [
+    activeExperience.customer?.email_verified,
+    auth,
+    auth.session,
+    config.merchantId,
+    session?.session_id
+  ]);
   const hub = useAccountHub({
     apiBaseUrl: sessionState.apiOrigin,
     session: auth.session,
@@ -235,6 +257,12 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     if (isBuyerSession) {
       panels.setBuyerGuestModalOpen(false);
       panels.setUserPanelOpen(true);
+      return;
+    }
+    if (auth.session) {
+      panels.setBuyerGuestModalOpen(false);
+      panels.setUserPanelOpen(false);
+      auth.openHub();
       return;
     }
     panels.setUserPanelOpen(false);

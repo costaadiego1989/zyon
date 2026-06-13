@@ -106,11 +106,15 @@ export function useCheckoutSession(config: WidgetConfig) {
       config.mode === "embed"
         ? { session_id: session.session_id, event }
         : { merchant_id: config.merchantId, session_id: session.session_id, event };
-    await checkoutJson<TrackEventResponse>(apiOrigin, paths.track, {
-      ...embedOpts,
-      body,
-      schema: trackEventResponseSchema
-    });
+    try {
+      await checkoutJson<TrackEventResponse>(apiOrigin, paths.track, {
+        ...embedOpts,
+        body,
+        schema: trackEventResponseSchema
+      });
+    } catch {
+      // Telemetry is best effort and must never interrupt the checkout task.
+    }
   }
 
   function retryStartCheckout(): void {

@@ -268,8 +268,9 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await expect(cardChip).toBeVisible({ timeout: 5_000 });
     await cardChip.click();
     // CardForm should appear — tapQuick opens it directly without network call
-    const cardForm = page.locator("form").filter({ hasText: /Pagar|Número do cartão|Card|Validade/i });
-    await expect(cardForm).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByRole("button", { name: /Pagar com cart[aã]o/i })
+    ).toBeVisible({ timeout: 5_000 });
   });
 
   test("mensagem ao abrir card form menciona criptografados", async ({ page }) => {
@@ -434,7 +435,7 @@ test.describe("5. Fluxo Completo (completed)", () => {
     await sendMessage(page, "Confirmar pagamento");
     await waitForAgentReply(page);
     // Completed banner should appear
-    const completedBanner = page.locator(".aacp-offer", { hasText: /confirmado|sucesso/i });
+    const completedBanner = page.locator(".aacp-order-confirmation");
     await expect(completedBanner).toBeVisible({ timeout: 5_000 });
   });
 
@@ -469,7 +470,7 @@ test.describe("6. Painel de Suporte", () => {
     await setupApiMocks(page, { chatSequence: [] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    const supportBtn = page.locator("button.aacp-fab[aria-label='Abrir suporte']");
+    const supportBtn = page.locator("button.aacp-header-help[aria-label='Abrir ajuda']");
     await expect(supportBtn).toBeVisible({ timeout: 5_000 });
     await supportBtn.click();
     const panel = page.locator("aside.aacp-ai-panel");
@@ -480,7 +481,7 @@ test.describe("6. Painel de Suporte", () => {
     await setupApiMocks(page, { chatSequence: ["greeting"] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    const supportBtn = page.locator("button.aacp-fab[aria-label='Abrir suporte']");
+    const supportBtn = page.locator("button.aacp-header-help[aria-label='Abrir ajuda']");
     await expect(supportBtn).toBeVisible({ timeout: 5_000 });
     await supportBtn.click();
     const panel = page.locator("aside.aacp-ai-panel");

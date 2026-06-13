@@ -85,7 +85,7 @@ test.describe("Shipping Selection Flow", () => {
     await waitForStreamingDone(page);
 
     // Cart should show "Aguardando" for shipping
-    const shippingLabel = page.locator(".aacp-intel").locator("strong", { hasText: "Aguardando" });
+    const shippingLabel = page.locator(".aacp-shipping-total", { hasText: "A calcular" });
     await expect(shippingLabel).toBeVisible({ timeout: 5_000 });
   });
 

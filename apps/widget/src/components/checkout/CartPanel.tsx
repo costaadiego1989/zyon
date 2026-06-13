@@ -106,12 +106,12 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           <dl className="aacp-totals">
             <dt>Subtotal</dt>
             <dd>{formatCurrency(vm.visibleTotals.subtotal, vm.visibleTotals.currency)}</dd>
-            {vm.visibleTotals.shipping > 0 && (
-              <>
-                <dt>Frete</dt>
-                <dd>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</dd>
-              </>
-            )}
+            <dt>Frete</dt>
+            <dd className="aacp-shipping-total">
+              {vm.selectedShippingMethod || vm.activeExperience.shipping
+                ? formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)
+                : "A calcular"}
+            </dd>
             {vm.visibleTotals.discount > 0 && (
               <>
                 <dt className="aacp-totals-discount">Desconto</dt>

@@ -32,7 +32,7 @@ export function useCheckoutCart(
         }
       };
     });
-  }, [experience, selectedShippingMethod]);
+  }, [experience]);
 
   function handleRemoveCartItem(sku: string): void {
     setVisibleCart((current) => removeVisibleCartItem(current, sku));

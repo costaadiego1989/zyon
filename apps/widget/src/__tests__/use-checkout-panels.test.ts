@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
 import { useCheckoutPanels } from "../hooks/use-checkout-panels.js";
 
 describe("useCheckoutPanels", () => {
@@ -7,110 +7,109 @@ describe("useCheckoutPanels", () => {
     window.localStorage.clear();
   });
 
-  // ── Estado inicial ────────────────────────────────────────────────────────
-
-  it("D01 — todos os painéis iniciam fechados", () => {
+  it("starts with every auxiliary surface closed", () => {
     const { result } = renderHook(() => useCheckoutPanels());
+
+    expect(result.current.activeSurface).toEqual({ kind: "none" });
     expect(result.current.cartOpen).toBe(false);
     expect(result.current.supportOpen).toBe(false);
     expect(result.current.userPanelOpen).toBe(false);
-  });
-
-  it("D01 — showCardForm inicia como false", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
     expect(result.current.showCardForm).toBe(false);
-  });
-
-  it("D01 — cardError inicia como null", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
     expect(result.current.cardError).toBeNull();
-  });
-
-  it("D01 — colorMode inicia como light", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
     expect(result.current.colorMode).toBe("light");
   });
 
-  // ── supportOpen ───────────────────────────────────────────────────────────
-
-  it("D02 — setSupportOpen(true) atualiza estado", () => {
+  it("opens and closes support through the compatibility adapter", () => {
     const { result } = renderHook(() => useCheckoutPanels());
+
     act(() => { result.current.setSupportOpen(true); });
     expect(result.current.supportOpen).toBe(true);
-  });
+    expect(result.current.activeSurface).toEqual({ kind: "support" });
 
-  it("D03 — setSupportOpen(false) reverte estado", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.setSupportOpen(true); });
     act(() => { result.current.setSupportOpen(false); });
-    expect(result.current.supportOpen).toBe(false);
+    expect(result.current.activeSurface).toEqual({ kind: "none" });
   });
 
-  // ── Independência entre painéis ───────────────────────────────────────────
-
-  it("D04 — supportOpen não afeta cartOpen nem userPanelOpen", () => {
+  it("keeps only one auxiliary surface open", () => {
     const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.setSupportOpen(true); });
-    expect(result.current.cartOpen).toBe(false);
-    expect(result.current.userPanelOpen).toBe(false);
-  });
 
-  it("D04 — cartOpen não afeta supportOpen", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.setCartOpen(true); });
-    expect(result.current.supportOpen).toBe(false);
-  });
-
-  it("D05 — múltiplos painéis podem estar abertos simultaneamente", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
     act(() => {
       result.current.setSupportOpen(true);
       result.current.setCartOpen(true);
     });
-    expect(result.current.supportOpen).toBe(true);
+
+    expect(result.current.supportOpen).toBe(false);
     expect(result.current.cartOpen).toBe(true);
+    expect(result.current.activeSurface).toEqual({
+      kind: "order",
+      snapPoint: "full",
+    });
   });
 
-  // ── colorMode ─────────────────────────────────────────────────────────────
-
-  it("toggleColorMode alterna light → dark", () => {
+  it("opening the buyer hub closes the order summary", () => {
     const { result } = renderHook(() => useCheckoutPanels());
+
+    act(() => { result.current.setCartOpen(true); });
+    act(() => { result.current.setUserPanelOpen(true); });
+
+    expect(result.current.cartOpen).toBe(false);
+    expect(result.current.userPanelOpen).toBe(true);
+    expect(result.current.activeSurface).toEqual({
+      kind: "account",
+      section: "profile",
+    });
+  });
+
+  it("preserves the selected buyer hub section across reopen", () => {
+    const { result } = renderHook(() => useCheckoutPanels());
+
+    act(() => { result.current.setUserPanelOpen(true); });
+    act(() => { result.current.setUserTab("orders"); });
+    act(() => { result.current.setUserPanelOpen(false); });
+    act(() => { result.current.setUserPanelOpen(true); });
+
+    expect(result.current.userTab).toBe("orders");
+    expect(result.current.activeSurface).toEqual({
+      kind: "account",
+      section: "orders",
+    });
+  });
+
+  it("toggles and persists the color mode", () => {
+    const { result } = renderHook(() => useCheckoutPanels());
+
     act(() => { result.current.toggleColorMode(); });
     expect(result.current.colorMode).toBe("dark");
-  });
+    expect(window.localStorage.getItem("aacp_color_mode")).toBe("dark");
 
-  it("toggleColorMode alterna dark → light", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.toggleColorMode(); });
     act(() => { result.current.toggleColorMode(); });
     expect(result.current.colorMode).toBe("light");
   });
 
-  // ── userTab ───────────────────────────────────────────────────────────────
-
-  it("userTab inicia como profile", () => {
+  it("stores and clears card errors", () => {
     const { result } = renderHook(() => useCheckoutPanels());
-    expect(result.current.userTab).toBe("profile");
-  });
 
-  it("setUserTab atualiza aba ativa", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.setUserTab("orders"); });
-    expect(result.current.userTab).toBe("orders");
-  });
+    act(() => { result.current.setCardError("Cartao recusado"); });
+    expect(result.current.cardError).toBe("Cartao recusado");
 
-  // ── cardError ─────────────────────────────────────────────────────────────
-
-  it("setCardError persiste mensagem de erro", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.setCardError("Cartão recusado"); });
-    expect(result.current.cardError).toBe("Cartão recusado");
-  });
-
-  it("setCardError(null) limpa erro", () => {
-    const { result } = renderHook(() => useCheckoutPanels());
-    act(() => { result.current.setCardError("Erro"); });
     act(() => { result.current.setCardError(null); });
+    expect(result.current.cardError).toBeNull();
+  });
+
+  it("resetPanels closes surfaces and transactional overlays", () => {
+    const { result } = renderHook(() => useCheckoutPanels());
+
+    act(() => {
+      result.current.setSupportOpen(true);
+      result.current.setBuyerGuestModalOpen(true);
+      result.current.setShowCardForm(true);
+      result.current.setCardError("Falha");
+    });
+    act(() => { result.current.resetPanels(); });
+
+    expect(result.current.activeSurface).toEqual({ kind: "none" });
+    expect(result.current.buyerGuestModalOpen).toBe(false);
+    expect(result.current.showCardForm).toBe(false);
     expect(result.current.cardError).toBeNull();
   });
 });

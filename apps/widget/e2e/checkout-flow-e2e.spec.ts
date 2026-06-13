@@ -276,7 +276,7 @@ test.describe("Full Checkout Flow E2E", () => {
     await waitForStreamingDone(page);
 
     // Initially should show "Cadastro"
-    const stageLabel = page.locator(".aacp-intel strong").first();
+    const stageLabel = page.locator(".aacp-stage-progress-title");
     await expect(stageLabel).toContainText("Cadastro");
 
     // Send phone → transition to shipping

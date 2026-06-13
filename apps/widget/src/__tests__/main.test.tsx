@@ -495,7 +495,7 @@ describe("CheckoutAgent (conversational)", () => {
     await waitFor(() => {
       expect(container.querySelector(".aacp-cart-empty")).not.toBeNull();
     });
-    expect(container.querySelector(".aacp-cart-total dd")?.textContent).toMatch(/29/);
+    expect(container.querySelector(".aacp-cart-total")).toBeNull();
   });
 
   it("loads the cart from the configured product API before starting checkout", async () => {
@@ -1157,9 +1157,7 @@ describe("CheckoutAgent (conversational)", () => {
       expect(container.textContent).toContain("WhatsApp");
     });
 
-    // 5. Test empty cart fallback redirect button
-    // Let's remove the item
-    fireEvent.click(getByLabelText("Remover Bolsa Executiva"));
+    // 5. Completion clears the transactional cart and preserves the store fallback.
     await waitFor(() => {
       expect(container.querySelector("#aacp-empty-cart-redirect-btn")).not.toBeNull();
       expect(container.querySelector("#aacp-empty-cart-redirect-btn")?.getAttribute("href")).toBe(

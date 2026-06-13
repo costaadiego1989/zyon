@@ -328,8 +328,9 @@ test.describe("Quick Replies - Payment Stage", () => {
     await continueWithoutCoupon(page);
 
     await clickQuickReply(page, /cart[aã]o/i);
-    const cardForm = page.locator("form").filter({ hasText: /Pagar|Número do cartão|Card|Validade/i });
-    await expect(cardForm).toBeVisible({ timeout: 5_000 });
+    await expect(
+      page.getByRole("button", { name: /Pagar com cart[aã]o/i })
+    ).toBeVisible({ timeout: 5_000 });
   });
 
   test("clicking 'PIX' triggers payment intent", async ({ page }) => {

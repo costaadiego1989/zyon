@@ -95,7 +95,9 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         onClick={() => vm.setSupportOpen(false)}
       />
       <aside
+        id="aacp-support-panel"
         className={`aacp-ai-panel ${vm.supportOpen ? "open" : ""}`}
+        aria-label="Central de ajuda"
         aria-hidden={!vm.supportOpen}
       >
         {/* Header */}
