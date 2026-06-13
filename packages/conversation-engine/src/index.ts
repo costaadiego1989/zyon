@@ -201,7 +201,7 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
         "Não fale mais nada além disso. Apenas peça o código."
       ].join("\n");
     }
-    const nextField = missingFields[0] ?? "nome";
+    const nextField = missingFields[0] ?? "email";
     return [
       `ETAPA: cadastro do comprador.`,
       `CAMPOS FALTANDO (em ordem): ${missingFields.join(", ") || "nenhum"}.`,
@@ -237,7 +237,7 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
     if (next === "frete") {
       return [
         "ETAPA: selecao de frete.",
-        "As opcoes de frete ja foram calculadas. Peca ao comprador para escolher uma opcao disponivel.",
+        "As opçõesde frete ja foram calculadas. Peca ao comprador para escolher uma opcao disponivel.",
         "Nao peca CEP, numero ou complemento novamente.",
         "Nao mencione pagamento, PIX, cartao, cupom ou desconto antes da escolha do frete."
       ].join("\n");
@@ -363,8 +363,8 @@ function fallbackReply(
       return {
         objection,
         message: optionCount > 0
-          ? `${prefix}Calculei ${optionCount} opcoes de frete. Selecione uma delas para seguirmos.`
-          : `${prefix}Ja tenho o endereco completo. Vou carregar as opcoes de frete para voce escolher.`
+          ? `${prefix}Calculei ${optionCount} opçõesde frete. Selecione uma delas para seguirmos.`
+          : `${prefix}Ja tenho o endereco completo. Vou carregar as opçõesde frete para voce escolher.`
       };
     }
     if (next === "confirmar endereço") {
@@ -484,13 +484,13 @@ function matchQuickReplyResponse(
       return `Sim, totalmente seguro. O CPF é transmitido com criptografia e usado apenas para a nota fiscal deste pedido.`;
     }
     if (/v[aã]o me ligar/i.test(message)) {
-      return `Não ligamos. O telefone é usado apenas para enviar atualizações sobre a entrega via WhatsApp ou SMS. Qual o seu número com DDD?`;
+      return `Não ligamos. Precisamos do seu celular com DDD para enviar o rastreio e as atualizações pelo WhatsApp. Qual o número?`;
     }
     if (/rastreio por whatsapp/i.test(message)) {
-      return `Sim! Enviamos o código de rastreio e atualizações de entrega pelo WhatsApp. Qual o seu número com DDD?`;
+      return `Sim! Enviamos o rastreio pelo WhatsApp no celular informado. Qual o número com DDD?`;
     }
-    if (/pode ser telefone fixo/i.test(message)) {
-      return `Recomendamos um celular para receber o rastreio por WhatsApp, mas pode informar fixo se preferir. Qual o número com DDD?`;
+    if (/pode ser telefone fixo|por que precisa ser celular/i.test(message)) {
+      return `Aceitamos apenas celular, de preferência com WhatsApp, para enviar o código de rastreio e avisos da entrega. Qual o número com DDD?`;
     }
     if (/reenviar c[oó]digo sms/i.test(message)) {
       return `Reenviando o código SMS para o seu celular. Aguarde alguns segundos.`;
@@ -499,7 +499,7 @@ function matchQuickReplyResponse(
       return `O SMS pode levar até 2 minutos. Verifique se o número está correto e se o celular tem sinal. Posso reenviar se precisar.`;
     }
     if (/posso usar outro n[uú]mero/i.test(message)) {
-      return `Claro! Informe o novo número com DDD que enviarei o código para ele.`;
+      return `Claro! Informe outro celular com DDD que enviaremos o código pelo WhatsApp.`;
     }
   }
 
@@ -576,7 +576,7 @@ function stageMessageForField(field: string | undefined, merchantName?: string, 
     case "CPF":
       return "Obrigado. Pode me informar o CPF para emitir a nota?";
     case "telefone":
-      return "Anotado. Qual o telefone com DDD para acompanharmos a entrega?";
+      return "Precisamos do seu celular com DDD para enviar o rastreio pelo WhatsApp. Qual o número?";
     case "código de verificação do celular":
       return "Enviei um SMS de confirmação para o seu celular. Pode me informar o código recebido?";
     case "CEP":
@@ -584,6 +584,6 @@ function stageMessageForField(field: string | undefined, merchantName?: string, 
     case "confirmar endereço":
       return "Localizei o seu endereço. Está correto?";
     default:
-      return "Para começar, posso saber seu nome completo?";
+      return "Para começar, qual o seu melhor email para o pedido?";
   }
 }
