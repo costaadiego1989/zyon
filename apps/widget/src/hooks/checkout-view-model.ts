@@ -3,6 +3,7 @@ import type {
   ChatAction,
   CheckoutEventName,
   CheckoutExperienceSnapshot,
+  CustomerHints,
   MerchantTheme,
   ShippingQuote
 } from "@aacp/shared-types";
@@ -246,6 +247,18 @@ export function agentGivenAndRest(fullName: string): { given: string; rest: stri
   };
 }
 
+/** Removes legacy "AgentName: " prefixes from stored agent turns. */
+export function stripAgentMessagePrefix(text: string, agentName: string): string {
+  const trimmed = text.trimStart();
+  const candidates = [agentName, agentGivenAndRest(agentName).given].filter(Boolean);
+  for (const name of candidates) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = trimmed.match(new RegExp(`^${escaped}\\s*:\\s*`, "i"));
+    if (match) return trimmed.slice(match[0].length).trimStart();
+  }
+  return trimmed;
+}
+
 export function agentTypingLine(agentName: string): string {
   const { given } = agentGivenAndRest(agentName);
   return `${given} está digitando...`;
@@ -419,6 +432,14 @@ function isPaymentOrOfferLabel(label: string): boolean {
 
 function isShippingSelectionLabel(label: string): boolean {
   return /\b(pac|sedex|correios|transportadora|entrega padrao|\d+\s*dias|r\$)\b/.test(label);
+}
+
+/** Skip auto "Iniciar cadastro" when checkout already has email progress. */
+export function shouldSkipAutoRegistration(customer?: CustomerHints | null): boolean {
+  if (!customer) return false;
+  if (customer.email_verified) return true;
+  if (customer.email && (customer.otp_code || customer.fullName)) return true;
+  return false;
 }
 
 export function matchShippingOptionFromLabel(label: string, options: ShippingQuote[]): ShippingQuote | undefined {

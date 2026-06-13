@@ -20,7 +20,7 @@ import {
   crossSellAcceptResponseSchema
 } from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
-import { bubbleKey, type QuickReplyChoice } from "./checkout-view-model.js";
+import { bubbleKey, shouldSkipAutoRegistration, type QuickReplyChoice } from "./checkout-view-model.js";
 import { disableStreamingByEnv } from "./use-streamed-text.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 
@@ -163,22 +163,25 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       };
       setTurns([greeting]);
       setStreamingTurnKey(bubbleKey(greeting, 0));
-      registrationPromptTimer.current = setTimeout(() => {
-        registrationPromptTimer.current = null;
-        if (isCartEmpty) return;
-        const regTurn: ChatTurn = {
-          role: "agent",
-          text: "Para começar, qual o seu melhor email para o pedido?",
-          occurredAt: new Date().toISOString()
-        };
-        setTurns((curr) => {
-          if (curr.length === 1 && curr[0]!.text === greeting.text) {
-            setStreamingTurnKey(bubbleKey(regTurn, 1));
-            return [...curr, regTurn];
-          }
-          return curr;
-        });
-      }, 1500);
+      const startCustomer = response.experience?.customer ?? config.customer;
+      if (!shouldSkipAutoRegistration(startCustomer)) {
+        registrationPromptTimer.current = setTimeout(() => {
+          registrationPromptTimer.current = null;
+          if (isCartEmpty) return;
+          const regTurn: ChatTurn = {
+            role: "agent",
+            text: "Para começar, qual o seu melhor email para o pedido?",
+            occurredAt: new Date().toISOString()
+          };
+          setTurns((curr) => {
+            if (curr.length === 1 && curr[0]!.text === greeting.text) {
+              setStreamingTurnKey(bubbleKey(regTurn, 1));
+              return [...curr, regTurn];
+            }
+            return curr;
+          });
+        }, 1500);
+      }
     }
     if (response.initial_mode === "open") {
       // compositor handles setOpen
@@ -200,11 +203,13 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   // Auto-trigger registration for conversational mode
   useEffect(() => {
     if (isCartEmpty) return;
+    const customer = activeExperience.customer ?? config.customer;
+    if (shouldSkipAutoRegistration(customer)) return;
     if (isConversational && session && turns.length === 1 && !config.customer?.fullName && !busy && !networkError && !disableStreamingByEnv()) {
       const timer = setTimeout(() => { void autoTriggerRegistration(); }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [session, turns.length, isConversational, busy, networkError, config.customer?.fullName, isCartEmpty]);
+  }, [session, turns.length, isConversational, busy, networkError, config.customer, activeExperience.customer, isCartEmpty]);
 
   function appendAgentTurn(text: string, opts: { stream?: boolean } = {}): void {
     const turn: ChatTurn = { role: "agent", text, occurredAt: new Date().toISOString() };

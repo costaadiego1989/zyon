@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl } from "../hooks/checkout-view-model.js";
+import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl, shouldSkipAutoRegistration } from "../hooks/checkout-view-model.js";
 
 describe("brandInitials", () => {
   it("returns first letters for multi-word brands", () => {
@@ -41,6 +41,20 @@ describe("resolveStepperProgressPct", () => {
     expect(resolveStepperProgressPct(0, 4)).toBe(25);
     expect(resolveStepperProgressPct(1, 4)).toBe(50);
     expect(resolveStepperProgressPct(3, 4)).toBe(100);
+  });
+});
+
+describe("shouldSkipAutoRegistration", () => {
+  it("skips when email is verified", () => {
+    expect(shouldSkipAutoRegistration({ email: "a@b.com", email_verified: true })).toBe(true);
+  });
+
+  it("skips when email and otp are pending", () => {
+    expect(shouldSkipAutoRegistration({ email: "a@b.com", otp_code: "123456" })).toBe(true);
+  });
+
+  it("does not skip when customer is empty", () => {
+    expect(shouldSkipAutoRegistration(undefined)).toBe(false);
   });
 });
 

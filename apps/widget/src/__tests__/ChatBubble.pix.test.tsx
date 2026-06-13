@@ -68,6 +68,21 @@ describe("ChatThread composer availability", () => {
 });
 
 describe("ChatBubble — PIX rendering", () => {
+  it("shows agent meta header and strips legacy name prefix from message text", () => {
+    const { container, getByText, queryByText } = render(
+      <ChatBubble
+        turn={agentTurn("Zion: Perfeito. Qual o seu melhor email para o pedido?")}
+        agentName="Zion"
+        bubbleKey="k0"
+        streamingKey={null}
+      />
+    );
+    expect(getByText("Zion")).not.toBeNull();
+    expect(getByText("Perfeito. Qual o seu melhor email para o pedido?")).not.toBeNull();
+    expect(queryByText(/Zion:/)).toBeNull();
+    expect(container.querySelector(".aacp-bubble-meta-avatar")).not.toBeNull();
+  });
+
   it("shows PixCopyButton when agent turn contains PIX code", () => {
     const { getByText } = render(
       <ChatBubble

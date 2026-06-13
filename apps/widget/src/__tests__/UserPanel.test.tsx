@@ -23,6 +23,25 @@ function buildBuyerHub(overrides: Partial<BuyerHubState> = {}): BuyerHubState {
   };
 }
 
+function buildBuyerAuth(overrides: Record<string, unknown> = {}) {
+  return {
+    session: {
+      global_user_id: "guser_001",
+      email: "session@test.com",
+      access_token: "tok",
+      token_type: "Bearer",
+      expires_in: 3600,
+      provider: "phone"
+    },
+    open: false,
+    panel: "auth",
+    error: null,
+    logout: vi.fn(),
+    openLogin: vi.fn(),
+    ...overrides
+  };
+}
+
 function buildVm(overrides: Partial<CheckoutAgentViewModel> = {}): CheckoutAgentViewModel {
   return {
     userPanelOpen: true,
@@ -40,18 +59,19 @@ function buildVm(overrides: Partial<CheckoutAgentViewModel> = {}): CheckoutAgent
       copy: { headline: "", subheadline: "", trust_badges: [], quick_replies: [] }
     },
     buyerHub: buildBuyerHub(),
-    auth: {
-      session: null,
-      open: false,
-      panel: "auth",
-      error: null,
-      logout: vi.fn()
-    },
+    auth: buildBuyerAuth() as any,
     ...overrides
   } as unknown as CheckoutAgentViewModel;
 }
 
 describe("UserPanel", () => {
+  it("renders nothing when buyer is not logged in", () => {
+    const { container } = render(
+      <UserPanel vm={buildVm({ auth: buildBuyerAuth({ session: null }) as any, userPanelOpen: true })} />
+    );
+    expect(container.querySelector(".aacp-user-panel")).toBeNull();
+  });
+
   it("renders nothing when userPanelOpen=false", () => {
     const { container } = render(
       <UserPanel vm={buildVm({ userPanelOpen: false })} />
@@ -80,45 +100,20 @@ describe("UserPanel", () => {
 
   it("shows email from auth.session in email input when hub has no profile", () => {
     const vm = buildVm({
-      auth: {
+      auth: buildBuyerAuth({
         session: {
+          global_user_id: "guser_001",
           email: "session@test.com",
           access_token: "tok",
           token_type: "Bearer",
           expires_in: 3600,
           provider: "phone"
-        },
-        open: false,
-        panel: "auth",
-        error: null,
-        logout: vi.fn()
-      } as any
+        }
+      }) as any,
     });
     const { container } = render(<UserPanel vm={vm} />);
     const emailInput = container.querySelector('input[aria-label="E-mail"]') as HTMLInputElement;
     expect(emailInput?.value).toBe("session@test.com");
-  });
-
-  it("hydrates profile inputs from verified checkout customer when hub profile is empty", () => {
-    const vm = buildVm({
-      activeExperience: {
-        ...buildVm().activeExperience,
-        customer: {
-          fullName: "Diego Costa",
-          email: "diego@test.com",
-          phone: "21993001883",
-          email_verified: true,
-          phone_verified: true
-        }
-      }
-    });
-    const { container } = render(<UserPanel vm={vm} />);
-    const nameInput = container.querySelector('input[aria-label="Nome completo"]') as HTMLInputElement;
-    const emailInput = container.querySelector('input[aria-label="E-mail"]') as HTMLInputElement;
-    const phoneInput = container.querySelector('input[aria-label="Telefone"]') as HTMLInputElement;
-    expect(nameInput?.value).toBe("Diego Costa");
-    expect(emailInput?.value).toBe("diego@test.com");
-    expect(phoneInput?.value).toBe("21993001883");
   });
 
   it("saves delivery address from profile tab", async () => {

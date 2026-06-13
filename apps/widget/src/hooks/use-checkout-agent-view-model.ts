@@ -64,7 +64,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const auth = useGlobalAuth({
     apiBaseUrl: sessionState.apiOrigin,
     defaultMerchantName: activeExperience.brand.name,
-    defaultEmail: config.customer?.email
+    defaultEmail: activeExperience.customer?.email ?? config.customer?.email
   });
   const hub = useAccountHub({
     apiBaseUrl: sessionState.apiOrigin,
@@ -145,13 +145,6 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       void auth.loginFromCheckoutSession(session.session_id, config.merchantId);
     }
   }, [checkoutStage, session, auth.session, auth, config.merchantId]);
-
-  useEffect(() => {
-    if (!session || auth.session) return;
-    const emailVerified = activeExperience.customer?.email_verified === true;
-    if (!emailVerified) return;
-    void auth.loginFromCheckoutSession(session.session_id, config.merchantId);
-  }, [activeExperience.customer?.email_verified, auth.session, config.merchantId, session]);
 
   useEffect(() => {
     if (checkoutStage !== "completed" || orderCompletionHandled.current) return;
@@ -238,19 +231,14 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     chatState.appendAgentTurn("Perfeito. Vamos finalizar seu pagamento.", { stream: true });
   }
 
-  async function openBuyerPanel(): Promise<void> {
-    if (auth.session?.global_user_id) {
+  function openBuyerPanel(): void {
+    if (isBuyerSession) {
+      panels.setBuyerGuestModalOpen(false);
       panels.setUserPanelOpen(true);
       return;
     }
-    if (activeExperience.customer?.email_verified && session) {
-      const ok = await auth.loginFromCheckoutSession(session.session_id, config.merchantId);
-      if (ok) {
-        panels.setUserPanelOpen(true);
-        return;
-      }
-    }
-    auth.openHub();
+    panels.setUserPanelOpen(false);
+    panels.setBuyerGuestModalOpen(true);
   }
 
   async function tapShippingOption(option: ShippingQuote): Promise<void> {
@@ -422,6 +410,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     setSupportOpen: panels.setSupportOpen,
     userPanelOpen: panels.userPanelOpen,
     setUserPanelOpen: panels.setUserPanelOpen,
+    buyerGuestModalOpen: panels.buyerGuestModalOpen,
+    setBuyerGuestModalOpen: panels.setBuyerGuestModalOpen,
     userTab: panels.userTab,
     setUserTab: panels.setUserTab,
     showCardForm: panels.showCardForm,

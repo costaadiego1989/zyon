@@ -1,4 +1,5 @@
 import type { CheckoutExperienceSnapshot } from "@aacp/shared-types";
+import { BuyerGuestModal } from "./BuyerGuestModal.js";
 import { GlobalAuthModal } from "./GlobalAuthModal.js";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { cn, themeStyle } from "../../hooks/checkout-view-model.js";
@@ -45,6 +46,7 @@ export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
       <SupportPanel vm={vm} />
       <CartFAB vm={vm} />
       <ThemeStudio studio={vm.themeStudio} theme={vm.theme} />
+      <BuyerGuestModal vm={vm} />
       <GlobalAuthModal auth={vm.auth} hub={vm.hub} />
     </section>
   );

@@ -11,6 +11,7 @@ export function useCheckoutPanels() {
   const [cartOpen, setCartOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [userPanelOpen, setUserPanelOpen] = useState(false);
+  const [buyerGuestModalOpen, setBuyerGuestModalOpen] = useState(false);
   const [userTab, setUserTab] = useState<"profile" | "agent" | "orders" | "settings">("profile");
   const [showCardForm, setShowCardForm] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
@@ -27,6 +28,8 @@ export function useCheckoutPanels() {
     setSupportOpen,
     userPanelOpen,
     setUserPanelOpen,
+    buyerGuestModalOpen,
+    setBuyerGuestModalOpen,
     userTab,
     setUserTab,
     showCardForm,
@@ -38,6 +41,7 @@ export function useCheckoutPanels() {
     resetPanels: () => {
       setCartOpen(false);
       setSupportOpen(false);
+      setBuyerGuestModalOpen(false);
       setShowCardForm(false);
       setCardError(null);
     },

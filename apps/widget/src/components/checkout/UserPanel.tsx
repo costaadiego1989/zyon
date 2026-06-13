@@ -55,7 +55,8 @@ function compactAddress(address: CustomerAddress): CustomerAddress | undefined {
 }
 
 export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
-  if (!vm.userPanelOpen) return null;
+  const isBuyerLoggedIn = Boolean(vm.auth.session?.global_user_id);
+  if (!vm.userPanelOpen || !isBuyerLoggedIn) return null;
 
   const hub = vm.buyerHub;
   const displayName = hub.profile?.display_name || vm.activeExperience?.customer?.fullName || "Cliente";
