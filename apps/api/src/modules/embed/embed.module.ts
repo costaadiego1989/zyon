@@ -12,10 +12,12 @@ import { EmbedSessionIssuerGuard } from "./presentation/http/embed-session-issue
 import { EmbedAuthGuard } from "./presentation/http/embed-auth.guard.js";
 import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./presentation/http/embed-checkout.controller.js";
 import { WidgetCrossSellController } from "../cross-sell/presentation/http/widget-cross-sell.controller.js";
+import { WidgetCatalogController } from "../catalog/presentation/http/widget-catalog.controller.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
 
 @Module({
-  imports: [AuthModule, CheckoutModule, CrossSellModule, MerchantModule, PaymentModule, IntegrationsModule],
-  controllers: [EmbedSessionsController, EmbedCheckoutController, WidgetCrossSellController],
+  imports: [AuthModule, CheckoutModule, CrossSellModule, MerchantModule, PaymentModule, IntegrationsModule, CatalogModule],
+  controllers: [EmbedSessionsController, EmbedCheckoutController, WidgetCrossSellController, WidgetCatalogController],
   providers: [EmbedTokenService, IssueEmbedSessionUseCase, EmbedAuthGuard, EmbedSessionIssuerGuard, EmbedCheckoutGuardHelper],
   exports: [EmbedTokenService, EmbedAuthGuard, EmbedCheckoutGuardHelper]
 })
