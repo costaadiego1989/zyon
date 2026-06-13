@@ -1,6 +1,6 @@
 # ADR 0007 — Maturidade e fechamento progressivo da API e do widget
 
-- **Status:** proposto
+- **Status:** aceito
 - **Data:** 2026-06-13
 - **Decisores:** Engenharia, Produto, Plataforma, Segurança
 - **Relacionado:** [ADR 0001](./0001-modular-monolith-bounded-contexts.md), [ADR 0003](./0003-event-bus-and-transactional-outbox.md), [ADR 0004](./0004-prisma-isolation-per-context.md), [ADR 0005](./0005-multi-tenant-isolation.md)
