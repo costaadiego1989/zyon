@@ -330,18 +330,17 @@ function fallbackReply(
   shippingOptions?: ShippingQuote[]
 ): ConversationOutput {
   const agentName = agentContext?.agent.agentName;
-  const prefix = agentName ? `${agentName}: ` : "";
 
   // Check if the message matches a known quick reply and provide contextual answer
   const quickReplyAnswer = matchQuickReplyResponse(userMessage ?? "", stage, missingFields, merchantName, deliverySummary);
   if (quickReplyAnswer) {
-    return { objection, message: `${prefix}${quickReplyAnswer}` };
+    return { objection, message: quickReplyAnswer };
   }
 
   if (stage === "data_collection") {
     const next = missingFields?.[0];
-    const stageMessage = stageMessageForField(next, merchantName, agentName);
-    return { objection, message: `${prefix}${stageMessage}` };
+    const stageMessage = stageMessageForField(next, merchantName, agentName, missingFields);
+    return { objection, message: stageMessage };
   }
   if (stage === "shipping") {
     const next = missingFields?.[0] ?? "CEP";
@@ -349,13 +348,13 @@ function fallbackReply(
     if (normalizedNext.includes("numero")) {
       return {
         objection,
-        message: `${prefix}Ja achei o endereco pelo CEP. Qual o numero do imovel?`
+        message: `Ja achei o endereco pelo CEP. Qual o numero do imovel?`
       };
     }
     if (normalizedNext.includes("complemento")) {
       return {
         objection,
-        message: `${prefix}Numero anotado. Tem complemento, como apto, bloco ou casa? Se nao tiver, responda "Nao tem".`
+        message: `Numero anotado. Tem complemento, como apto, bloco ou casa? Se nao tiver, responda "Nao tem".`
       };
     }
     if (next === "frete") {
@@ -363,8 +362,8 @@ function fallbackReply(
       return {
         objection,
         message: optionCount > 0
-          ? `${prefix}Calculei ${optionCount} opçõesde frete. Selecione uma delas para seguirmos.`
-          : `${prefix}Ja tenho o endereco completo. Vou carregar as opçõesde frete para voce escolher.`
+          ? `Calculei ${optionCount} opçõesde frete. Selecione uma delas para seguirmos.`
+          : `Ja tenho o endereco completo. Vou carregar as opçõesde frete para voce escolher.`
       };
     }
     if (next === "confirmar endereço") {
@@ -375,30 +374,30 @@ function fallbackReply(
       const addrLine = addrSnippet ? ` ${addrSnippet}.` : "";
       return {
         objection,
-        message: `${prefix}Localizei o endereço pelo CEP:${addrLine} Está correto? (Sim/Não)`
+        message: `Localizei o endereço pelo CEP:${addrLine} Está correto? (Sim/Não)`
       };
     }
     if (next.includes("número") || next.includes("complemento")) {
       return {
         objection,
-        message: `${prefix}Já achei o endereço pelo CEP. Qual o número e complemento (apto/bloco, se houver)?`
+        message: `Já achei o endereço pelo CEP. Qual o número e complemento (apto/bloco, se houver)?`
       };
     }
     if (next.includes("confirmar")) {
       return {
         objection,
-        message: `${prefix}Não consegui localizar esse CEP. Pode conferir os 8 dígitos e enviar de novo?`
+        message: `Não consegui localizar esse CEP. Pode conferir os 8 dígitos e enviar de novo?`
       };
     }
     return {
       objection,
-      message: `${prefix}Para calcular o frete, pode informar o CEP da entrega?`
+      message: `Para calcular o frete, pode informar o CEP da entrega?`
     };
   }
   if (stage === "payment") {
     return {
       objection,
-      message: `${prefix}Vamos finalizar — prefere pagar com PIX ou cartão de crédito?`
+      message: `Vamos finalizar — prefere pagar com PIX ou cartão de crédito?`
     };
   }
 
@@ -411,7 +410,7 @@ function fallbackReply(
           : `${offer.value}% de desconto`;
     return {
       objection,
-      message: `${prefix}Consegui uma condição autorizada para este pedido: ${label}. Quer que eu aplique agora?`
+      message: `Consegui uma condição autorizada para este pedido: ${label}. Quer que eu aplique agora?`
     };
   }
 
@@ -419,14 +418,14 @@ function fallbackReply(
     return {
       objection,
       message:
-        `${prefix}Posso te ajudar a finalizar com segurança. O pagamento continua no checkout oficial da loja e eu só uso informações autorizadas.`
+        `Posso te ajudar a finalizar com segurança. O pagamento continua no checkout oficial da loja e eu só uso informações autorizadas.`
     };
   }
 
   return {
     objection,
     message:
-      `${prefix}Vou verificar a melhor condição permitida para este pedido. Se nenhuma oferta for liberada, te mostro a alternativa mais segura para continuar.`
+      `Vou verificar a melhor condição permitida para este pedido. Se nenhuma oferta for liberada, te mostro a alternativa mais segura para continuar.`
   };
 }
 
@@ -564,10 +563,22 @@ function matchQuickReplyResponse(
   return null;
 }
 
-function stageMessageForField(field: string | undefined, merchantName?: string, agentName?: string): string {
+function stageMessageForField(
+  field: string | undefined,
+  merchantName?: string,
+  agentName?: string,
+  missingFields?: string[]
+): string {
   const greetingTail = merchantName ? ` da ${merchantName}` : "";
   switch (field) {
     case "nome":
+      if (
+        missingFields &&
+        !missingFields.includes("email") &&
+        !missingFields.includes("código de verificação")
+      ) {
+        return "E-mail confirmado! Qual seu nome completo para a nota fiscal?";
+      }
       return `Olá! Sou ${agentName ?? "o assistente"}${greetingTail}. Antes de continuar, posso saber seu nome completo?`;
     case "email":
       return "Perfeito. Qual o seu melhor email para o pedido?";
