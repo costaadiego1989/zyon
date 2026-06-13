@@ -40,6 +40,7 @@ export class CheckoutCustomerService {
     if (!patch) return session;
 
     let nextGlobalUserId = session.globalUserId;
+    let skipEmailCaptureNotify = false;
     if (patch.email) {
       const existingSessions = await this.repository.findSessionsByEmail(session.merchantId, patch.email);
       const previousSession = this.pickBestPriorSession(existingSessions, session.sessionId);
@@ -47,6 +48,16 @@ export class CheckoutCustomerService {
       const recognizedBuyer = Boolean(existingAccount || previousSession);
       patch.recognized_buyer = recognizedBuyer;
       patch.isReturning = recognizedBuyer;
+      const priorEmailVerified = Boolean(
+        existingAccount ||
+        (previousSession?.customer?.email_verified &&
+          previousSession.customer.email?.toLowerCase() === patch.email.toLowerCase())
+      );
+      skipEmailCaptureNotify = priorEmailVerified;
+      if (priorEmailVerified) {
+        patch.email_verified = true;
+        patch.otp_code = "";
+      }
       if (existingAccount?.globalUserId) {
         nextGlobalUserId = existingAccount.globalUserId;
       } else if (previousSession?.globalUserId) {
@@ -65,7 +76,7 @@ export class CheckoutCustomerService {
     }
     await this.repository.saveSession(working);
 
-    if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
+    if (patch.email && !hadEmailAlready && this.buyerEmailNotifier && !skipEmailCaptureNotify) {
       const merged = this.mergeHints(session.customer, patch);
       const buyerFirstHint = merged.fullName?.trim().split(/\s+/).filter(Boolean)[0];
       this.buyerEmailNotifier.notifyCaptured({
@@ -94,7 +105,56 @@ export class CheckoutCustomerService {
 
     if (patch.email_verified) {
       working = await this.recognizeVerifiedBuyer(working);
+      await this.repository.saveSession(working);
+      await this.ensureBuyerAccountPersisted(working, true);
     }
+
+    if (this.isRegistrationComplete(working.customer)) {
+      await this.ensureBuyerAccountPersisted(working);
+    }
+
+    return working;
+  }
+
+  async hydrateReturningBuyerFromEmailHint(session: CheckoutSession): Promise<CheckoutSession> {
+    const email = session.customer?.email?.trim().toLowerCase();
+    if (!email || session.customer?.email_verified) return session;
+
+    const existingAccount = await this.buyerAccounts?.findByEmail(email) ?? null;
+    const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
+    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId);
+    const priorEmailVerified = Boolean(
+      existingAccount ||
+      (previousSession?.customer?.email_verified &&
+        previousSession.customer.email?.toLowerCase() === email)
+    );
+    if (!priorEmailVerified) return session;
+
+    let working = this.mergeCustomers(session, {
+      email,
+      email_verified: true,
+      otp_code: "",
+      recognized_buyer: true,
+      isReturning: true
+    });
+
+    let nextGlobalUserId = working.globalUserId;
+    if (existingAccount?.globalUserId) {
+      nextGlobalUserId = existingAccount.globalUserId;
+    } else if (previousSession?.globalUserId) {
+      nextGlobalUserId = previousSession.globalUserId;
+    }
+    if (nextGlobalUserId !== working.globalUserId) {
+      working = {
+        ...working,
+        globalUserId: nextGlobalUserId,
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    await this.repository.saveSession(working);
+    working = await this.recognizeVerifiedBuyer(working);
+    await this.repository.saveSession(working);
 
     if (this.isRegistrationComplete(working.customer)) {
       await this.ensureBuyerAccountPersisted(working);
@@ -114,7 +174,6 @@ export class CheckoutCustomerService {
     const resendEmail = /reenviar.*(c[oó]digo|email|e-mail)/i.test(userMessage);
     const resendSms = /reenviar.*(c[oó]digo|sms|celular)/i.test(userMessage);
 
-    // --- E-mail & OTP flow ---
     let currentEmail = existing?.email;
     const otpPending = Boolean(existing?.otp_code);
     if (!currentEmail || (!otpPending && !existing?.email_verified)) {
@@ -127,15 +186,18 @@ export class CheckoutCustomerService {
 
     if (currentEmail && !existing?.email_verified) {
       if (resendEmail && existing?.otp_code) {
-        // Reset and regenerate email OTP
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.otp_code = code;
         console.log(`\n=========================================\n🔄 OTP REENVIADO PARA ${currentEmail}: ${code}\n=========================================\n`);
         return patch;
-      } else if (!existing?.otp_code && !patch.otp_code && patch.email) {
-        const code = Math.floor(100000 + Math.random() * 900000).toString();
-        patch.otp_code = code;
-        console.log(`\n=========================================\n🔐 OTP GERADO PARA ${currentEmail}: ${code}\n=========================================\n`);
+      } else if (!existing?.otp_code && !patch.otp_code && currentEmail) {
+        const kickoff = /iniciar\s+cadastro|come[cç]ar\s+cadastro|quero\s+cadastrar/i.test(userMessage.trim());
+        if (patch.email || kickoff) {
+          if (!patch.email) patch.email = currentEmail.toLowerCase();
+          const code = Math.floor(100000 + Math.random() * 900000).toString();
+          patch.otp_code = code;
+          console.log(`\n=========================================\n🔐 OTP GERADO PARA ${currentEmail}: ${code}\n=========================================\n`);
+        }
       } else if (existing?.otp_code && !resendEmail) {
         const extracted = extractOtp(userMessage);
         if (extracted === existing.otp_code) {
@@ -149,13 +211,11 @@ export class CheckoutCustomerService {
       }
     }
 
-    // --- CPF flow ---
     if (!existing?.cpf) {
       const cpf = extractCpf(userMessage);
       if (cpf) patch.cpf = cpf;
     }
 
-    // --- Phone & SMS OTP flow ---
     let currentPhone = existing?.phone;
     const phoneOtpPending = Boolean(existing?.phone_otp_code);
     if (!currentPhone || (!phoneOtpPending && !existing?.phone_verified)) {
@@ -174,7 +234,6 @@ export class CheckoutCustomerService {
 
     if (currentPhone && !existing?.phone_verified) {
       if (resendSms && existing?.phone_otp_code) {
-        // Reset and regenerate SMS OTP
         const code = Math.floor(100000 + Math.random() * 900000).toString();
         patch.phone_otp_code = code;
         console.log(`\n=========================================\n🔄 SMS OTP REENVIADO PARA ${currentPhone}: ${code}\n=========================================\n`);
@@ -196,13 +255,11 @@ export class CheckoutCustomerService {
       }
     }
 
-    // --- Address zip flow ---
     if (!existing?.address?.zip) {
       const zip = extractCep(userMessage);
       if (zip) patch.address = { ...addr, zip };
     }
 
-    // --- Name flow ---
     if (!existing?.fullName) {
       let name = extractName(userMessage, lastAgentTurn);
       if (!name) name = extractStandaloneName(userMessage);
@@ -335,11 +392,16 @@ export class CheckoutCustomerService {
     );
   }
 
-  private async ensureBuyerAccountPersisted(session: CheckoutSession): Promise<void> {
-    if (!this.buyerAccounts || !this.isRegistrationComplete(session.customer)) return;
+  private async ensureBuyerAccountPersisted(session: CheckoutSession, emailVerifiedOnly = false): Promise<void> {
+    if (!this.buyerAccounts) return;
 
-    const customer = session.customer!;
-    const email = customer.email!.trim().toLowerCase();
+    const customer = session.customer;
+    if (!customer?.email) return;
+
+    if (!emailVerifiedOnly && !this.isRegistrationComplete(customer)) return;
+    if (emailVerifiedOnly && !customer.email_verified) return;
+
+    const email = customer.email.trim().toLowerCase();
     const existing = await this.buyerAccounts.findByEmail(email);
     if (existing) {
       const hydrated = existing.withUpdatedProfile(
@@ -358,7 +420,7 @@ export class CheckoutCustomerService {
         globalUserId: session.globalUserId,
         email,
         passwordHash: `checkout-auto:${session.globalUserId}`,
-        displayName: customer.fullName!,
+        displayName: customer.fullName ?? email.split("@")[0]!,
         phone: customer.phone,
         cpf: customer.cpf,
         address: customer.address,

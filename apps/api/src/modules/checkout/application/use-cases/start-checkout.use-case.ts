@@ -14,6 +14,7 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
+import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -24,7 +25,8 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepository?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
-    @Optional() private readonly metrics?: MetricsService
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() private readonly customerService?: CheckoutCustomerService
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
@@ -57,6 +59,11 @@ export class StartCheckoutUseCase {
       await this.sessions.saveSession(session);
       await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
     }
+
+    if (this.customerService && session.customer?.email?.trim()) {
+      session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);
+    }
+
     await this.outbox.appendOutbox(
       createCheckoutEventEnvelope({
         eventType: "checkout.session.started",

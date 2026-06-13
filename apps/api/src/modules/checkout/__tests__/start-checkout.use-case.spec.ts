@@ -6,6 +6,31 @@ import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { startCheckoutRequest } from "./checkout-test-fixtures.js";
 import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
+import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
+import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
+import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
+
+function returningBuyerAccount(): BuyerAccount {
+  return new BuyerAccount({
+    globalUserId: "buyer_start_hydrate",
+    email: "costaadiego1989@gmail.com",
+    passwordHash: "hash",
+    displayName: "Diego Costa",
+    phone: "21993001883",
+    cpf: "05178178700",
+    address: {
+      zip: "25958180",
+      street: "Rua Paulo Lossio",
+      number: "95",
+      complement: "",
+      neighborhood: "Araras",
+      city: "Teresopolis",
+      state: "RJ"
+    },
+    createdAt: new Date(),
+    updatedAt: new Date()
+  });
+}
 
 class ManualOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
   async getContext(merchantId: string) {
@@ -97,7 +122,11 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
     },
     async updateTheme(_, theme) {
       return theme;
-    }
+    },
+    async getStripeConnectAccountId() {
+      return undefined;
+    },
+    async setStripeConnectAccountId() {}
   };
   const agentContext: AgentContextPort = {
     async get() {
@@ -183,4 +212,39 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
   assert.equal(response.experience.brand.theme.accentColor, "#FF0066");
   assert.equal(response.experience.brand.theme.fontFamily, "Manrope, system-ui, sans-serif");
   assert.equal(response.experience.brand.logo_url, "https://cdn.example.com/northstar-logo.png");
+});
+
+test("StartCheckoutUseCase hydrates returning buyer from embed email hint and opens shipping stage", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const buyerAccounts = new InMemoryBuyerAccountRepository();
+  await buyerAccounts.save(returningBuyerAccount());
+  const customerService = new CheckoutCustomerService(repository, undefined, buyerAccounts);
+  const useCase = new StartCheckoutUseCase(
+    repository,
+    repository,
+    repository,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    customerService
+  );
+
+  const response = await useCase.execute(
+    startCheckoutRequest({
+      session_id: "chk_embed_returning",
+      customer: { email: "costaadiego1989@gmail.com", isReturning: false },
+      shipping: undefined
+    })
+  );
+
+  const session = await repository.getSession("mrc_1", "chk_embed_returning");
+  assert.equal(session?.customer?.recognized_buyer, true);
+  assert.equal(session?.customer?.email_verified, true);
+  assert.equal(session?.customer?.fullName, "Diego Costa");
+  assert.equal(session?.customer?.cpf, "05178178700");
+  assert.equal(session?.customer?.phone_verified, true);
+  assert.ok(!session?.customer?.otp_code);
+  assert.equal(response.experience.stage, "shipping");
+  assert.equal(response.global_user_id, "buyer_start_hydrate");
 });
