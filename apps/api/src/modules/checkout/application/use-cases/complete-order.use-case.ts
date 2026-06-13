@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { CompleteOrderRequest, CompleteOrderResponse } from "@aacp/shared-types";
+import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@aacp/shared-types";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { CompletedOrderEntity } from "../../domain/entities/completed-order.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { planOmnichannelConfirmation } from "../../domain/policies/omnichannel-confirmation.policy.js";
@@ -19,6 +20,7 @@ export class CompleteOrderUseCase {
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository,
     @Optional() private readonly metrics?: MetricsService
   ) { }
 
@@ -97,23 +99,26 @@ export class CompleteOrderUseCase {
           }
         }
       }
-      await this.purchaseHistory?.recordCheckoutPurchase({
-        merchantId: input.merchant_id,
-        sessionId: input.session_id,
-        globalUserId: session.globalUserId,
-        orderId: input.external_order_id,
-        currency: input.currency,
-        totalAmount: input.order_total,
-        discountAmount: session.cart.currentDiscount ?? 0,
-        completedAt: order.completedAt,
-        items: session.cart.items.map((item) => ({
-          sku: item.sku,
-          title: item.name,
-          quantity: item.quantity,
-          unitPrice: item.price,
-          discountAmount: 0
-        }))
-      });
+      const globalUserId = await this.resolveBuyerGlobalUserId(session);
+      if (globalUserId) {
+        await this.purchaseHistory?.recordCheckoutPurchase({
+          merchantId: input.merchant_id,
+          sessionId: input.session_id,
+          globalUserId,
+          orderId: input.external_order_id,
+          currency: input.currency,
+          totalAmount: input.order_total,
+          discountAmount: session.cart.currentDiscount ?? 0,
+          completedAt: order.completedAt,
+          items: session.cart.items.map((item) => ({
+            sku: item.sku,
+            title: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            discountAmount: 0
+          }))
+        });
+      }
     }
 
     return {
@@ -121,5 +126,14 @@ export class CompleteOrderUseCase {
       idempotent: saved.idempotent,
       event_type: "order.completed"
     };
+  }
+
+  private async resolveBuyerGlobalUserId(session: CheckoutSession): Promise<string | undefined> {
+    const email = session.customer?.email?.trim().toLowerCase();
+    if (email && this.buyerAccounts) {
+      const account = await this.buyerAccounts.findByEmail(email);
+      if (account?.globalUserId) return account.globalUserId;
+    }
+    return session.globalUserId || undefined;
   }
 }
