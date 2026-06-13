@@ -169,16 +169,19 @@ export class GetBuyerPurchasesUseCase {
   }
 
   private async executeRepository(input: GetBuyerPurchasesRequest): Promise<PurchasePage> {
-    const merchantId = input.merchantId?.trim();
-    if (!merchantId || !this.purchaseHistory) return { records: [], nextCursor: null };
+    if (!this.purchaseHistory) return { records: [], nextCursor: null };
 
     const limit = Math.min(input.limit ?? 20, 100);
     const cursor = input.cursor ? decodeCursor(input.cursor) : null;
-    const history = await this.purchaseHistory.getByBuyer({
-      merchantId,
-      globalUserId: input.globalUserId
-    });
-    const rows = (history?.snapshot().purchases ?? [])
+    const merchantId = input.merchantId?.trim();
+    const rows = (
+      merchantId
+        ? ((await this.purchaseHistory.getByBuyer({
+            merchantId,
+            globalUserId: input.globalUserId
+          }))?.snapshot().purchases ?? [])
+        : await this.listPurchasesAcrossMerchants(input.globalUserId)
+    )
       .filter((purchase) => isWithinRange(purchase, input))
       .filter((purchase) => isAfterCursor(purchase, cursor))
       .sort((a, b) => b.completedAt.localeCompare(a.completedAt) || b.orderId.localeCompare(a.orderId));
@@ -190,6 +193,16 @@ export class GetBuyerPurchasesUseCase {
     const nextCursor = hasMore && last ? encodeCursor(last.completedAt, last.id) : null;
 
     return { records, nextCursor };
+  }
+
+  private async listPurchasesAcrossMerchants(globalUserId: string) {
+    const repo = this.purchaseHistory as BuyerPurchaseHistoryRepository & {
+      listPurchasesForGlobalUser?: (globalUserId: string) => Promise<PurchaseHistoryRecord[]>;
+    };
+    if (typeof repo.listPurchasesForGlobalUser === "function") {
+      return repo.listPurchasesForGlobalUser(globalUserId);
+    }
+    return [];
   }
 
   private async toRepositoryRecord(purchase: PurchaseHistoryRecord): Promise<PurchaseRecordDto> {

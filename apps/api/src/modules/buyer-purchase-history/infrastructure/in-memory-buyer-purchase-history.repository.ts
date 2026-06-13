@@ -38,6 +38,16 @@ export class InMemoryBuyerPurchaseHistoryRepository implements BuyerPurchaseHist
     return { history: next, idempotent };
   }
 
+  async listPurchasesForGlobalUser(globalUserId: string): Promise<PurchaseRecord[]> {
+    const purchases: PurchaseRecord[] = [];
+    for (const history of this.histories.values()) {
+      const snapshot = history.snapshot();
+      if (snapshot.globalUserId !== globalUserId) continue;
+      purchases.push(...snapshot.purchases);
+    }
+    return purchases;
+  }
+
   private identityKey(identity: PurchaseHistoryIdentity): string {
     const buyerKey = identity.globalUserId
       ? `global:${identity.globalUserId}`
