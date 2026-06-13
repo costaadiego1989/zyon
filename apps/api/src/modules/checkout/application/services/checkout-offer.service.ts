@@ -16,10 +16,10 @@ export class CheckoutOfferService {
     sessionObj: CheckoutSession,
     rules: MerchantRules,
     stage: ChatStage,
-    missingFields: string[]
+    _missingFields: string[]
   ): Promise<AuthorizedOffer> {
     const isDataCollection = stage === "data_collection";
-    const isIncompleteShipping = stage === "shipping" && missingFields.some(f => f.includes("CEP") || f.includes("número") || f.includes("confirmar"));
+    const isIncompleteShipping = stage === "shipping";
 
     if (isDataCollection || isIncompleteShipping) {
       return this.repository.saveOffer(

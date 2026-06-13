@@ -6,6 +6,7 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { CrossSellModule } from "../cross-sell/cross-sell.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
@@ -56,7 +57,8 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     BuyerPurchaseHistoryModule,
     MerchantModule,
     CrossSellModule,
-    forwardRef(() => ShippingModule)
+    forwardRef(() => ShippingModule),
+    BuyerAccountRepositoryModule
   ],
   controllers: [CheckoutController],
   providers: [

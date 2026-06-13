@@ -65,6 +65,15 @@ const NAME_STOPWORDS = new Set([
   "comprar",
   "finalizar",
   "preco",
+  "bom",
+  "boa",
+  "dia",
+  "tarde",
+  "noite",
+  "oi",
+  "ola",
+  "sim",
+  "nao",
   "preço"
 ]);
 
@@ -78,10 +87,11 @@ export function extractStandaloneName(text: string): string | undefined {
   if (!normalized) return undefined;
   const tokens = text.trim().split(/\s+/).filter(Boolean);
   const hasExplicitNameIntent = /\b(meu\s+nome|me\s+chamo|sou)\b/i.test(text);
+  const looksLikeFullName = tokens.length >= 2 && tokens.length <= 5;
   const hasCapitalizedToken = tokens.some((token) =>
     /^[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇ][\p{L}'-]+$/u.test(token.replace(/[.,;:]/g, ""))
   );
-  if (!hasExplicitNameIntent && !hasCapitalizedToken) return undefined;
+  if (!hasExplicitNameIntent && !hasCapitalizedToken && !looksLikeFullName) return undefined;
   return normalized;
 }
 
@@ -165,9 +175,20 @@ const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => bool
   { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) }
 ];
 
+const EMAIL_OTP_FIELD = DATA_FIELD_ORDER[2]!.label;
+const PHONE_OTP_FIELD = DATA_FIELD_ORDER[5]!.label;
+
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
   if (stage === "data_collection") {
-    return DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
+    const missing = DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
+    const customer = session.customer ?? {};
+    if (customer.email && customer.otp_code && !customer.email_verified) {
+      return prioritizeMissingField(missing, EMAIL_OTP_FIELD);
+    }
+    if (customer.phone && customer.phone_otp_code && !customer.phone_verified) {
+      return prioritizeMissingField(missing, PHONE_OTP_FIELD);
+    }
+    return missing;
   }
   if (stage === "shipping") {
     const addr = session.customer?.address ?? {};
@@ -181,4 +202,9 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
   }
   if (stage === "payment") return ["forma de pagamento"];
   return [];
+}
+
+function prioritizeMissingField(fields: string[], field: string): string[] {
+  if (!fields.includes(field)) return fields;
+  return [field, ...fields.filter((item) => item !== field)];
 }

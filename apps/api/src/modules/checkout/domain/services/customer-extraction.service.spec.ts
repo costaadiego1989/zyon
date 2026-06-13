@@ -9,6 +9,7 @@ import {
   extractName,
   extractOtp,
   extractPhone,
+  extractStandaloneName,
   missingFieldsForStage
 } from "./customer-extraction.service.js";
 import { checkoutSession } from "../../__tests__/checkout-test-fixtures.js";
@@ -57,6 +58,12 @@ test("extractName uses agent question heuristic when buyer reply is short", () =
   assert.equal(extractName("meu cpf é 12345678909", lastAgent), undefined);
   assert.equal(extractName("Joao Silva", "qual seu cpf?"), undefined);
   assert.equal(extractName("a".repeat(120), lastAgent), undefined);
+});
+
+test("extractStandaloneName accepts lowercase full names without an explicit prompt", () => {
+  assert.equal(extractStandaloneName("diego costa"), "Diego Costa");
+  assert.equal(extractStandaloneName("bom dia"), undefined);
+  assert.equal(extractStandaloneName("tenho cupom"), undefined);
 });
 
 test("deriveChatStage walks data_collection -> shipping -> payment -> completed", () => {
@@ -131,6 +138,11 @@ test("missingFieldsForStage lists user-facing labels for each stage in order", (
     customer: { fullName: "Joao" }
   });
   assert.deepEqual(missingFieldsForStage(withName, "data_collection"), ["email", "código de verificação", "CPF", "telefone", "código de verificação do celular"]);
+
+  const emailOtpPendingBeforeName = checkoutSession({
+    customer: { email: "joao@example.com", otp_code: "123456", email_verified: false }
+  });
+  assert.ok(missingFieldsForStage(emailOtpPendingBeforeName, "data_collection")[0]?.includes("verifica"));
 
   const readyCadastro = checkoutSession({
     customer: {

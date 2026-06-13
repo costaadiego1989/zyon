@@ -72,10 +72,8 @@ export class SendChatMessageUseCase {
         merchant?.name
       );
     } catch (error: any) {
-      if (error.name === "EmailConflictError" || error.name === "OtpValidationError") {
-        const errorMsg = error.name === "EmailConflictError"
-          ? "Não é possível cadastrar com este e-mail. Este e-mail já está associado a outro cadastro em nossa loja. Por favor, informe um e-mail diferente."
-          : error.message;
+      if (error.name === "OtpValidationError") {
+        const errorMsg = error.message;
 
         const now = new Date().toISOString();
         await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
@@ -89,8 +87,6 @@ export class SendChatMessageUseCase {
           occurredAt: new Date().toISOString()
         });
 
-        const currentStage = deriveChatStage(updated);
-        const missingFields = missingFieldsForStage(updated, currentStage);
         const experience = buildExperienceFromSession(updated, {
           merchantName: merchant?.name,
           theme: merchant?.theme,
@@ -98,36 +94,25 @@ export class SendChatMessageUseCase {
           rules
         });
 
-        const alreadyResolved =
-          error.name === "OtpValidationError" && updated.customer?.phone_verified === true;
-
         // Override quick replies and missing_fields for OTP errors so composer shows correct state
-        let responseStage = currentStage;
-        let responseMissingFields = missingFields;
-        let responseExperience = experience;
-
-        if (error.name === "OtpValidationError" && !alreadyResolved) {
-          const isPhoneOtp = Boolean(updated.customer?.phone_otp_code);
-          const otpMissingField = isPhoneOtp ? "código de verificação do celular" : "código de verificação";
-          const otpQuickReplies = isPhoneOtp
-            ? ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"]
-            : ["Reenviar código de e-mail", "Não recebi o código", "Qual e-mail foi usado?"];
-          responseStage = "data_collection";
-          responseMissingFields = [otpMissingField];
-          responseExperience = {
-            ...experience,
-            copy: { ...experience.copy, quick_replies: otpQuickReplies }
-          };
-        }
+        const isPhoneOtp = Boolean(updated.customer?.phone_otp_code && !updated.customer?.phone_verified);
+        const otpMissingField = isPhoneOtp ? "código de verificação do celular" : "código de verificação";
+        const otpQuickReplies = isPhoneOtp
+          ? ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"]
+          : ["Reenviar código de e-mail", "Não recebi o código", "Qual e-mail foi usado?"];
+        const responseExperience = {
+          ...experience,
+          copy: { ...experience.copy, quick_replies: otpQuickReplies }
+        };
 
         return {
-          message: alreadyResolved ? "Verificação concluída. Vamos continuar com o seu pedido." : errorMsg,
+          message: errorMsg,
           objection: "unknown",
           actions: [],
           turns: updated.chatHistory,
           experience: responseExperience,
-          stage: responseStage,
-          missing_fields: responseMissingFields
+          stage: "data_collection",
+          missing_fields: [otpMissingField]
         };
       }
       throw error;

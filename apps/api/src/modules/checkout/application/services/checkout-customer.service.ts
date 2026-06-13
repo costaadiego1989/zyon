@@ -2,6 +2,7 @@ import { Inject, Injectable, Optional } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import {
   extractCep,
   extractCpf,
@@ -11,13 +12,6 @@ import {
   extractOtp,
   extractPhone
 } from "../../domain/services/customer-extraction.service.js";
-
-export class EmailConflictError extends Error {
-  constructor() {
-    super("Email already exists in another session");
-    this.name = "EmailConflictError";
-  }
-}
 
 export class OtpValidationError extends Error {
   constructor(message: string) {
@@ -30,7 +24,8 @@ export class OtpValidationError extends Error {
 export class CheckoutCustomerService {
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly repository: CheckoutSessionRepository,
-    @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier
+    @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository
   ) {}
 
   async processCustomerInput(
@@ -42,17 +37,30 @@ export class CheckoutCustomerService {
     const patch = this.buildCustomerPatch(userMessage, session.customer, lastAgentTurn);
     if (!patch) return session;
 
-    // 1. Email uniqueness check
+    let nextGlobalUserId = session.globalUserId;
     if (patch.email) {
       const existingSessions = await this.repository.findSessionsByEmail(session.merchantId, patch.email);
-      const isDuplicate = existingSessions.some((s) => s.sessionId !== session.sessionId);
-      if (isDuplicate) {
-        throw new EmailConflictError();
+      const previousSession = this.pickPreviousSession(existingSessions, session.sessionId);
+      const existingAccount = await this.buyerAccounts?.findByEmail(patch.email) ?? null;
+      const recognizedBuyer = Boolean(existingAccount || previousSession);
+      patch.recognized_buyer = recognizedBuyer;
+      patch.isReturning = recognizedBuyer;
+      if (existingAccount?.globalUserId) {
+        nextGlobalUserId = existingAccount.globalUserId;
+      } else if (previousSession?.globalUserId) {
+        nextGlobalUserId = previousSession.globalUserId;
       }
     }
 
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
-    const working = this.mergeCustomers(session, patch);
+    let working = this.mergeCustomers(session, patch);
+    if (nextGlobalUserId !== working.globalUserId) {
+      working = {
+        ...working,
+        globalUserId: nextGlobalUserId,
+        updatedAt: new Date().toISOString()
+      };
+    }
     await this.repository.saveSession(working);
 
     if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
@@ -80,6 +88,10 @@ export class CheckoutCustomerService {
           buyerFirstNameHint: buyerFirstHint
         });
       }
+    }
+
+    if (patch.email_verified) {
+      working = await this.recognizeVerifiedBuyer(working);
     }
 
     return working;
@@ -124,7 +136,7 @@ export class CheckoutCustomerService {
           patch.email_verified = true;
           patch.otp_code = "";
           return patch;
-        } else {
+        } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
           throw new OtpValidationError("Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente.");
         }
       }
@@ -166,7 +178,7 @@ export class CheckoutCustomerService {
           patch.phone_verified = true;
           patch.phone_otp_code = "";
           return patch;
-        } else {
+        } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
           throw new OtpValidationError("Código de verificação do celular inválido. Por favor, confira o código enviado por SMS e tente novamente.");
         }
       }
@@ -212,5 +224,105 @@ export class CheckoutCustomerService {
       ...(a ?? {}),
       ...(b ?? {})
     };
+  }
+
+  private looksLikeOtpAttempt(userMessage: string): boolean {
+    const text = userMessage.trim();
+    const digits = text.replace(/\D/g, "");
+    if (/(?:otp|c[o\u00f3]digo|code)/i.test(text)) return true;
+    if (digits.length < 4 || digits.length > 6) return false;
+    return !extractCpf(text) && !extractPhone(text) && !extractCep(text);
+  }
+
+  private pickPreviousSession(sessions: CheckoutSession[], currentSessionId: string): CheckoutSession | null {
+    return sessions
+      .filter((session) => session.sessionId !== currentSessionId)
+      .sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))[0] ?? null;
+  }
+
+  private async recognizeVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
+    const email = session.customer?.email?.trim().toLowerCase();
+    if (!email) return session;
+
+    const account = await this.buyerAccounts?.findByEmail(email) ?? null;
+    const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
+    const previousSession = this.pickPreviousSession(priorSessions, session.sessionId);
+    const isRecognized = Boolean(
+      account ||
+      previousSession ||
+      session.customer?.recognized_buyer ||
+      session.customer?.isReturning
+    );
+    if (!isRecognized) return session;
+
+    const address = this.pickBestAddress(
+      session.customer?.address,
+      account?.address,
+      previousSession?.customer?.address
+    );
+    const patch: Partial<CustomerHints> = {
+      recognized_buyer: true,
+      isReturning: true,
+      fullName: session.customer?.fullName ?? account?.displayName ?? previousSession?.customer?.fullName,
+      phone: session.customer?.phone ?? account?.phone ?? previousSession?.customer?.phone,
+      phone_verified: session.customer?.phone_verified ?? Boolean(account?.phone || previousSession?.customer?.phone_verified),
+      cpf: session.customer?.cpf ?? account?.cpf ?? previousSession?.customer?.cpf,
+      address,
+      address_verified: session.customer?.address_verified ?? Boolean(
+        this.isCompleteAddress(account?.address) ||
+        previousSession?.customer?.address_verified ||
+        this.isCompleteAddress(previousSession?.customer?.address)
+      )
+    };
+
+    let next = this.mergeCustomers(session, patch);
+    const recognizedGlobalUserId = account?.globalUserId ?? previousSession?.globalUserId;
+    if (recognizedGlobalUserId && recognizedGlobalUserId !== next.globalUserId) {
+      next = {
+        ...next,
+        globalUserId: recognizedGlobalUserId,
+        updatedAt: new Date().toISOString()
+      };
+    }
+    if (account) {
+      const nextAccountName = !account.displayName && patch.fullName ? patch.fullName : undefined;
+      const nextAccountPhone = !account.phone && patch.phone ? patch.phone : undefined;
+      const nextAccountAddress = !account.address && patch.address ? patch.address : undefined;
+      const nextAccountCpf = !account.cpf && patch.cpf ? patch.cpf : undefined;
+      if (nextAccountName || nextAccountPhone || nextAccountAddress || nextAccountCpf) {
+        await this.buyerAccounts?.save(
+          account.withUpdatedProfile(nextAccountName, nextAccountPhone, nextAccountAddress, nextAccountCpf)
+        );
+      }
+    }
+    await this.repository.saveSession(next);
+    return next;
+  }
+
+  private pickBestAddress(
+    current?: CustomerHints["address"],
+    account?: CustomerHints["address"],
+    previous?: CustomerHints["address"]
+  ): CustomerHints["address"] | undefined {
+    for (const candidate of [current, account, previous]) {
+      if (this.isCompleteAddress(candidate)) return candidate;
+    }
+    const merged = {
+      ...(previous ?? {}),
+      ...(account ?? {}),
+      ...(current ?? {})
+    };
+    return Object.keys(merged).length > 0 ? merged : undefined;
+  }
+
+  private isCompleteAddress(address?: CustomerHints["address"]): boolean {
+    return Boolean(
+      address?.zip &&
+      address.street &&
+      address.city &&
+      address.state &&
+      address.number &&
+      address.complement !== undefined
+    );
   }
 }

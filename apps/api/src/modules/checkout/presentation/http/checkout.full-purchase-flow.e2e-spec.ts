@@ -279,7 +279,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       customer: undefined,
       cart
     });
-    assert.match(started.experience.agent.greeting, /12% de desconto/);
+    assert.ok(!started.experience.agent.greeting.includes("12%"), "Greeting must not promise unapplied discount");
     await repo.appendChatTurn(MERCHANT, sessionId, {
       role: "agent",
       text: "Qual e o seu nome completo?",

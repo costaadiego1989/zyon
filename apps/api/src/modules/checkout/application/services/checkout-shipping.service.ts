@@ -112,6 +112,7 @@ export class CheckoutShippingService {
       !addr.city ||
       !addr.state ||
       !addr.number ||
+      addr.complement === undefined ||
       session.shipping ||
       (session.shippingOptions?.length ?? 0) > 0
     ) {

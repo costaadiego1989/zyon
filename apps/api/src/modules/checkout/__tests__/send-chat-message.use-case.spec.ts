@@ -20,6 +20,8 @@ import { CompleteOrderUseCase } from "../application/use-cases/complete-order.us
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../application/services/checkout-offer.service.js";
+import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
+import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
 
 function createTestUseCase(
   repository: InMemoryCheckoutRepository,
@@ -27,9 +29,10 @@ function createTestUseCase(
   agentContext?: AgentContextPort,
   merchantRepo?: MerchantRepository,
   brevoNotifier?: BrevoBuyerEmailNotifier,
-  crossSellUseCase?: { execute(input: unknown): Promise<unknown[]> }
+  crossSellUseCase?: { execute(input: unknown): Promise<unknown[]> },
+  buyerAccounts?: InMemoryBuyerAccountRepository
 ) {
-  const custService = new CheckoutCustomerService(repository, brevoNotifier);
+  const custService = new CheckoutCustomerService(repository, brevoNotifier, buyerAccounts);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   return new SendChatMessageUseCase(
@@ -301,7 +304,12 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
     // Confirm address returned by ViaCEP
     await useCase.execute({ ...baseReq, user_message: "Sim" });
 
-    const afterAddr = await useCase.execute({ ...baseReq, user_message: "1500, apartamento 42" });
+    const afterNumber = await useCase.execute({ ...baseReq, user_message: "1500" });
+    assert.equal(afterNumber.stage, "shipping");
+    assert.ok((afterNumber.missing_fields ?? [])[0]?.includes("complemento"));
+    assert.equal(afterNumber.experience?.shippingOptions?.length ?? 0, 0);
+
+    const afterAddr = await useCase.execute({ ...baseReq, user_message: "apartamento 42" });
 
     assert.equal(afterAddr.stage, "shipping");
     assert.equal(afterAddr.missing_fields?.[0], "frete");
@@ -506,7 +514,7 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
   assert.equal(qr.includes("Tenho um cupom"), false, "Filtrou a menção de cupom porque maxDiscount=0 e couponBoxEnabled=false");
 });
 
-test("SendChatMessageUseCase blocks duplicate email registration and returns chat error turn", async () => {
+test.skip("SendChatMessageUseCase blocks duplicate email registration and returns chat error turn", async () => {
   const repository = new InMemoryCheckoutRepository();
   const conversation = new RecordingConversationPort();
   const useCase = createTestUseCase(repository, conversation);
@@ -540,6 +548,207 @@ test("SendChatMessageUseCase blocks duplicate email registration and returns cha
   assert.notEqual(session2After?.customer?.email, "duplicado@aacp.io", "Não salvou o e-mail duplicado");
 });
 
+test("SendChatMessageUseCase recognizes existing buyer email and continues after verification", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const buyerAccounts = new InMemoryBuyerAccountRepository();
+  await buyerAccounts.save(new BuyerAccount({
+    globalUserId: "buyer_existing_1",
+    email: "duplicado@aacp.io",
+    passwordHash: "hash",
+    displayName: "Comprador Existente",
+    phone: "21999998888",
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }));
+  const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, buyerAccounts);
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_prev" }));
+  const previousSession = await repository.getSession("mrc_1", "chk_prev");
+  if (previousSession) {
+    previousSession.globalUserId = "buyer_existing_1";
+    previousSession.customer = {
+      email: "duplicado@aacp.io",
+      email_verified: true,
+      fullName: "Comprador Um",
+      cpf: "12345678900",
+      phone: "21999998888",
+      phone_verified: true,
+      address_verified: true,
+      address: {
+        zip: "01310100",
+        street: "Avenida Paulista",
+        number: "1000",
+        complement: "",
+        city: "Sao Paulo",
+        state: "SP"
+      }
+    };
+    await repository.saveSession(previousSession);
+  }
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
+  const currentSession = await repository.getSession("mrc_1", "chk_2");
+  if (currentSession) {
+    currentSession.customer = { fullName: "Comprador Dois" };
+    await repository.saveSession(currentSession);
+  }
+
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_2",
+    conversation_id: "conv_2",
+    user_message: "Meu email Ã© duplicado@aacp.io"
+  });
+
+  const sessionAfterEmail = await repository.getSession("mrc_1", "chk_2");
+  assert.equal(sessionAfterEmail?.customer?.email, "duplicado@aacp.io");
+  assert.equal(sessionAfterEmail?.customer?.recognized_buyer, true);
+  assert.equal(sessionAfterEmail?.globalUserId, "buyer_existing_1");
+  assert.ok(sessionAfterEmail?.customer?.otp_code);
+  assert.ok((res.missing_fields ?? [])[0]?.includes("verifica"));
+
+  const verified = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_2",
+    conversation_id: "conv_2",
+    user_message: sessionAfterEmail?.customer?.otp_code ?? ""
+  });
+
+  const sessionAfterOtp = await repository.getSession("mrc_1", "chk_2");
+  assert.equal(sessionAfterOtp?.customer?.email_verified, true);
+  assert.equal(sessionAfterOtp?.customer?.phone, "21999998888");
+  assert.equal(sessionAfterOtp?.customer?.cpf, "12345678900");
+  assert.equal(sessionAfterOtp?.customer?.address?.street, "Avenida Paulista");
+  assert.notEqual(verified.missing_fields?.[0], "email");
+});
+
+test("SendChatMessageUseCase logs recognized buyer after email OTP and skips to shipping selection when profile is complete", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const buyerAccounts = new InMemoryBuyerAccountRepository();
+  await buyerAccounts.save(new BuyerAccount({
+    globalUserId: "buyer_account_only",
+    email: "costaadiego1989@gmail.com",
+    passwordHash: "hash",
+    displayName: "Diego Costa",
+    phone: "21993001883",
+    cpf: "05178178700",
+    address: {
+      zip: "25958180",
+      street: "Rua Paulo Lossio",
+      number: "95",
+      complement: "",
+      neighborhood: "Araras",
+      city: "Teresopolis",
+      state: "RJ"
+    },
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }));
+  const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, buyerAccounts);
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
+    startCheckoutRequest({ session_id: "chk_account_only", customer: undefined, shipping: undefined })
+  );
+
+  await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_account_only",
+    conversation_id: "conv_account_only",
+    user_message: "diego costa"
+  });
+
+  const afterLowercaseName = await repository.getSession("mrc_1", "chk_account_only");
+  assert.equal(afterLowercaseName?.customer?.fullName, "Diego Costa");
+
+  const emailResponse = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_account_only",
+    conversation_id: "conv_account_only",
+    user_message: "costaadiego1989@gmail.com"
+  });
+
+  const afterEmail = await repository.getSession("mrc_1", "chk_account_only");
+  assert.equal(afterEmail?.customer?.recognized_buyer, true);
+  assert.equal(afterEmail?.globalUserId, "buyer_account_only");
+  assert.ok((emailResponse.missing_fields ?? [])[0]?.includes("verifica"));
+
+  const verified = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_account_only",
+    conversation_id: "conv_account_only",
+    user_message: afterEmail?.customer?.otp_code ?? ""
+  });
+
+  const afterOtp = await repository.getSession("mrc_1", "chk_account_only");
+  assert.equal(afterOtp?.customer?.fullName, "Diego Costa");
+  assert.equal(afterOtp?.customer?.cpf, "05178178700");
+  assert.equal(afterOtp?.customer?.phone, "21993001883");
+  assert.equal(afterOtp?.customer?.phone_verified, true);
+  assert.equal(afterOtp?.customer?.address?.number, "95");
+  assert.equal(verified.stage, "shipping");
+  assert.equal(verified.missing_fields?.[0], "frete");
+  assert.equal(verified.experience?.shippingOptions?.length, 3);
+});
+
+test("SendChatMessageUseCase rechecks existing buyer after OTP even when email turn was not flagged as recognized", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const buyerAccounts = new InMemoryBuyerAccountRepository();
+  await buyerAccounts.save(new BuyerAccount({
+    globalUserId: "buyer_rechecked_after_otp",
+    email: "costaadiego1989@gmail.com",
+    passwordHash: "hash",
+    displayName: "Diego Costa",
+    phone: "21993001883",
+    cpf: "05178178700",
+    address: {
+      zip: "25958180",
+      street: "Rua Paulo Lossio",
+      number: "95",
+      complement: "",
+      neighborhood: "Araras",
+      city: "Teresopolis",
+      state: "RJ"
+    },
+    createdAt: new Date(),
+    updatedAt: new Date()
+  }));
+  const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, buyerAccounts);
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(
+    startCheckoutRequest({ session_id: "chk_otp_recheck", customer: undefined, shipping: undefined })
+  );
+  const session = await repository.getSession("mrc_1", "chk_otp_recheck");
+  if (session) {
+    session.customer = {
+      fullName: "Diego Costa",
+      email: "costaadiego1989@gmail.com",
+      otp_code: "410597",
+      email_verified: false
+    };
+    await repository.saveSession(session);
+  }
+
+  const verified = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_otp_recheck",
+    conversation_id: "conv_otp_recheck",
+    user_message: "410597"
+  });
+
+  const afterOtp = await repository.getSession("mrc_1", "chk_otp_recheck");
+  assert.equal(afterOtp?.customer?.recognized_buyer, true);
+  assert.equal(afterOtp?.globalUserId, "buyer_rechecked_after_otp");
+  assert.equal(afterOtp?.customer?.cpf, "05178178700");
+  assert.equal(afterOtp?.customer?.phone, "21993001883");
+  assert.equal(afterOtp?.customer?.address?.number, "95");
+  assert.equal(verified.stage, "shipping");
+  assert.equal(verified.missing_fields?.[0], "frete");
+  assert.equal(verified.experience?.shippingOptions?.length, 3);
+});
+
 test("SendChatMessageUseCase blocks mismatched email OTP validation and returns chat error turn", async () => {
   const repository = new InMemoryCheckoutRepository();
   const conversation = new RecordingConversationPort();
@@ -562,6 +771,68 @@ test("SendChatMessageUseCase blocks mismatched email OTP validation and returns 
   assert.equal(res.message.includes("Código de verificação inválido"), true, "Retornou mensagem de erro de OTP");
   const sessionAfter = await repository.getSession("mrc_1", "chk_otp");
   assert.equal(sessionAfter?.customer?.email_verified, false, "E-mail permaneceu como não verificado");
+});
+
+test("SendChatMessageUseCase does not treat a non-code reply as invalid email OTP", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_text" }));
+  const session = await repository.getSession("mrc_1", "chk_otp_text");
+  if (session) {
+    session.customer = { email: "user@aacp.io", otp_code: "123456", email_verified: false };
+    await repository.saveSession(session);
+  }
+  await repository.appendChatTurn("mrc_1", "chk_otp_text", {
+    role: "agent",
+    text: "Antes de continuar, posso saber seu nome completo?",
+    occurredAt: new Date().toISOString()
+  });
+
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_otp_text",
+    conversation_id: "conv_otp_text",
+    user_message: "diego costa"
+  });
+
+  const sessionAfter = await repository.getSession("mrc_1", "chk_otp_text");
+  assert.equal(sessionAfter?.customer?.email_verified, false);
+  assert.equal(sessionAfter?.customer?.fullName, "Diego Costa");
+  assert.ok(res.missing_fields?.[0]?.includes("verifica"));
+  assert.equal(res.message.toLowerCase().includes("inv"), false);
+});
+
+test("SendChatMessageUseCase keeps email OTP error active even when phone was already verified", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const conversation = new RecordingConversationPort();
+  const useCase = createTestUseCase(repository, conversation);
+
+  await new StartCheckoutUseCase(repository, repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_phone_verified" }));
+  const session = await repository.getSession("mrc_1", "chk_otp_phone_verified");
+  if (session) {
+    session.customer = {
+      email: "recognized@aacp.io",
+      fullName: "User Test",
+      otp_code: "123456",
+      email_verified: false,
+      phone: "21999998888",
+      phone_verified: true
+    };
+    await repository.saveSession(session);
+  }
+
+  const res = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_otp_phone_verified",
+    conversation_id: "conv_otp_phone_verified",
+    user_message: "654321"
+  });
+
+  assert.equal(res.message.includes("Código de verificação inválido"), true);
+  assert.equal(res.stage, "data_collection");
+  assert.equal(res.missing_fields?.[0], "código de verificação");
 });
 
 test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", async () => {

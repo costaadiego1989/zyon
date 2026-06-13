@@ -24,7 +24,9 @@ import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-me
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
+import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
+@NonProductionRoute()
 @Controller()
 export class CheckoutController {
   constructor(
