@@ -9,6 +9,7 @@ import {
   type MerchantRepository
 } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../../checkout/application/services/checkout-experience.service.js";
+import { resolveCrossSellCartItem } from "../../cross-sell/application/services/cross-sell-product-resolver.js";
 import { STOREFRONT_CATALOG_PORT, type StorefrontCatalogPort } from "../domain/ports/storefront-catalog.port.js";
 
 @Injectable()
@@ -28,8 +29,12 @@ export class AddStorefrontItemUseCase {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
 
-    const product = await this.catalog.findBySku(input.sku.trim());
-    if (!product) throw new NotFoundException("storefront_product_not_found");
+    const sku = input.sku.trim();
+    const catalogProduct = await this.catalog.findBySku(sku);
+    if (!catalogProduct && !CROSS_SELL_SKUS.has(sku)) {
+      throw new NotFoundException("storefront_product_not_found");
+    }
+    const product = catalogProduct ?? crossSellProductToSuggested(resolveCrossSellCartItem(sku));
 
     const quantity = Math.max(1, Math.min(Number(input.quantity ?? 1), 99));
     const next = addCatalogItem(session, product, quantity);
@@ -93,4 +98,28 @@ function addCatalogItem(
 
 function roundCartTotal(items: CartItem[]): number {
   return Math.round(items.reduce((sum, item) => sum + item.price * item.quantity, 0) * 100) / 100;
+}
+
+const CROSS_SELL_SKUS = new Set(["NECS-001", "NECS-002", "CART-COE-01"]);
+
+function crossSellProductToSuggested(item: CartItem): {
+  sku: string;
+  name: string;
+  unit_price: number;
+  image_url?: string;
+  product_url?: string;
+  category?: string;
+  variant?: string;
+  description?: string;
+} {
+  return {
+    sku: item.sku,
+    name: item.name,
+    unit_price: item.price,
+    image_url: item.imageUrl,
+    product_url: item.productUrl,
+    category: item.category,
+    variant: item.variant,
+    description: item.description
+  };
 }
