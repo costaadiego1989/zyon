@@ -380,10 +380,10 @@
 .aacp-widget--conversational .aacp-stage-progress {
   position: relative;
   z-index: 3;
-  display: grid;
-  grid-template-columns: minmax(130px, 0.34fr) minmax(260px, 1fr);
-  align-items: center;
-  gap: 26px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
   min-height: 78px;
   padding: 12px 24px 14px;
   border: 0;
@@ -398,6 +398,7 @@
   gap: 3px;
   padding: 0;
   margin: 0;
+  align-self: flex-start;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-kicker {
@@ -429,14 +430,15 @@
 .aacp-widget--conversational .aacp-stage-progress-rail-wrap {
   position: relative;
   min-width: 0;
-  padding: 0 4px;
+  width: 100%;
+  padding: 0;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-track {
   position: absolute;
   top: 7px;
-  right: 12.5%;
-  left: 12.5%;
+  right: calc(50% / var(--aacp-stage-progress-steps, 4));
+  left: calc(50% / var(--aacp-stage-progress-steps, 4));
   height: 2px;
   border-radius: 0;
   background: var(--aacp-enterprise-line);
@@ -468,7 +470,8 @@
 }
 
 .aacp-widget--conversational .aacp-stage-progress-dot {
-  display: block;
+  display: inline-grid;
+  place-items: center;
   width: 15px;
   height: 15px;
   border: 2px solid var(--aacp-enterprise-line);
@@ -480,6 +483,7 @@
 .aacp-widget--conversational .aacp-stage-progress-step.done .aacp-stage-progress-dot {
   border-color: var(--aacp-enterprise-success);
   background: var(--aacp-enterprise-success);
+  color: #fff;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-step.active .aacp-stage-progress-dot {
@@ -490,11 +494,13 @@
 }
 
 .aacp-widget--conversational .aacp-stage-progress-label {
+  width: 100%;
   max-width: 100%;
   overflow: hidden;
   color: var(--aacp-enterprise-faint);
   font-size: 9px;
   font-weight: 620;
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -750,8 +756,8 @@
 }
 
 .aacp-widget--conversational .aacp-composer:focus-within {
-  border-color: color-mix(in oklch, var(--aacp-enterprise-success) 58%, var(--aacp-enterprise-line));
-  box-shadow: 0 0 0 3px color-mix(in oklch, var(--aacp-enterprise-success) 12%, transparent);
+  border-color: color-mix(in oklch, var(--aacp-enterprise-ink) 24%, var(--aacp-enterprise-line));
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--aacp-enterprise-ink) 8%, transparent);
   transform: none;
 }
 
@@ -767,9 +773,25 @@
   padding: 0 10px;
   border: 0;
   outline: 0;
+  box-shadow: none;
   background: transparent;
   color: var(--aacp-enterprise-ink);
   font-size: 13px;
+}
+
+.aacp-widget--conversational .aacp-input:focus,
+.aacp-widget--conversational .aacp-input:focus-visible {
+  border: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.aacp-widget--conversational .aacp-input:-webkit-autofill,
+.aacp-widget--conversational .aacp-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--aacp-enterprise-ink);
+  caret-color: var(--aacp-enterprise-ink);
+  -webkit-box-shadow: 0 0 0 1000px var(--aacp-enterprise-surface) inset;
+  transition: background-color 99999s ease-in-out 0s;
 }
 
 .aacp-widget--conversational .aacp-input::placeholder {
@@ -789,6 +811,9 @@
   background-image: none;
   color: var(--aacp-enterprise-surface);
   box-shadow: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 1;
 }
 
 .aacp-widget--conversational .aacp-send:hover:not(:disabled) {
@@ -1086,9 +1111,10 @@
 }
 
 .aacp-widget--conversational .aacp-cart-header-status {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 3px 8px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   margin-top: 16px;
   padding: 12px;
   border: 1px solid var(--aacp-enterprise-line-soft);
@@ -1097,13 +1123,13 @@
 }
 
 .aacp-widget--conversational .aacp-cart-status-kicker {
-  grid-row: 1 / 3;
-  align-self: start;
-  padding-top: 2px;
+  flex: 0 0 auto;
+  padding: 0;
   color: var(--aacp-enterprise-success);
   font-size: 8px;
   font-weight: 800;
   letter-spacing: 0.12em;
+  line-height: 1.2;
   text-transform: uppercase;
 }
 
@@ -1116,12 +1142,15 @@
 }
 
 .aacp-widget--conversational .aacp-cart-status-label {
+  flex: 0 1 auto;
   color: var(--aacp-enterprise-ink);
   font-size: 11px;
   font-weight: 730;
+  line-height: 1.2;
 }
 
 .aacp-widget--conversational .aacp-cart-status-hint {
+  flex: 1 1 100%;
   color: var(--aacp-enterprise-muted);
   font-size: 10px;
   line-height: 1.35;
@@ -2428,7 +2457,7 @@
 }
 
 .aacp-widget--conversational .aacp-ai-composer .aacp-input:focus {
-  border-color: color-mix(in oklch, var(--aacp-accent) 45%, var(--aacp-enterprise-line));
+  border-color: var(--aacp-enterprise-line);
 }
 
 .aacp-widget--conversational .aacp-ai-composer .aacp-send {
@@ -2703,9 +2732,8 @@
   }
 
   .aacp-widget--conversational .aacp-stage-progress {
-    grid-template-columns: 104px minmax(0, 1fr);
     min-height: 66px;
-    gap: 12px;
+    gap: 8px;
     padding: 10px 12px 11px;
   }
 

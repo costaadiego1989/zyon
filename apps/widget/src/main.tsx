@@ -9,6 +9,7 @@ import { themeStyle } from "./hooks/checkout-view-model.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
+import "./features/continuum/continuum.css";
 
 export { themeStyle };
 export type { WidgetConfig };

@@ -56,24 +56,24 @@ function buildVm(overrides: Partial<CheckoutAgentViewModel> = {}): CheckoutAgent
 describe("CheckoutHeader", () => {
   // ── Agent identity ──────────────────────────────────────────────────────────
 
-  it("renders agent first name and role from full name", () => {
+  it("renders agent identity with a stable shopping role", () => {
     const { getByText } = render(<CheckoutHeader vm={buildVm()} />);
     expect(getByText("Aurora")).not.toBeNull();
-    expect(getByText("Assistente")).not.toBeNull();
+    expect(getByText("Agente de compras")).not.toBeNull();
   });
 
-  it("falls back to 'Assistente de Vendas' when agent has single name", () => {
+  it("keeps the shopping role when agent has single name", () => {
     const vm = buildVm();
     vm.activeExperience.agent.name = "Aurora";
     const { getByText } = render(<CheckoutHeader vm={vm} />);
-    expect(getByText("Assistente de Vendas")).not.toBeNull();
+    expect(getByText("Agente de compras")).not.toBeNull();
   });
 
-  it("renders brand name with online status in subtitle", () => {
+  it("renders brand name with online status as presence", () => {
     const { container } = render(<CheckoutHeader vm={buildVm()} />);
-    expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("Northstar Atelier");
-    expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("online");
-    expect(container.querySelector(".aacp-agent-sub")?.textContent).not.toContain("Pagamento seguro");
+    expect(container.querySelector(".aacp-header-presence")?.textContent).toContain("Northstar Atelier");
+    expect(container.querySelector(".aacp-header-presence")?.textContent).toContain("online");
+    expect(container.querySelector(".aacp-agent-sub")?.textContent).toBe("Agente de compras");
   });
 
   it("renders enterprise theme header copy without trust strip", () => {
@@ -84,7 +84,7 @@ describe("CheckoutHeader", () => {
     vm.theme.trustBadges = ["Pagamento seguro", "Frete rastreavel", "Suporte humano"];
     const { container, getByText } = render(<CheckoutHeader vm={vm} />);
     expect(getByText("Concierge Northstar")).not.toBeNull();
-    expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("Pagamento seguro");
+    expect(container.querySelector(".aacp-header-presence")?.textContent).toContain("Pagamento seguro");
     expect(container.querySelectorAll(".aacp-trust-seal")).toHaveLength(0);
   });
 

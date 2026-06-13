@@ -24,7 +24,7 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           </div>
           <div className="aacp-cart-brand-copy">
             <strong className="aacp-cart-store">{experience.brand.name}</strong>
-            <span className="aacp-cart-order-badge">Pedido #{orderRef}</span>
+            <span className="aacp-cart-order-badge">Sessão {orderRef}</span>
           </div>
         </div>
 
@@ -55,7 +55,7 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
       </div>
 
       <div className="aacp-cart-header-status">
-        <span className="aacp-cart-title aacp-cart-status-kicker">Seu pedido agora</span>
+        <span className="aacp-cart-title aacp-cart-status-kicker">Em andamento</span>
         <span className="aacp-cart-status-label">{journeyStep.label}</span>
         <span className="aacp-cart-status-hint">{journeyStep.hint}</span>
       </div>

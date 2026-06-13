@@ -26,6 +26,7 @@ vi.mock("@stripe/stripe-js", () => ({
 import { CreditCardForm, stripePromiseCache } from "../components/checkout/CreditCardForm.js";
 
 const STRIPE_INTENT: StripeIntent = {
+  intentId: "pi_test_1",
   clientSecret: "pi_test_secret_abc",
   publishableKey: "pk_test_xyz",
   amountCents: 30000,

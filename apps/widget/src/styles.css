@@ -608,6 +608,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  align-self: flex-start;
 }
 
 .aacp-stage-progress-kicker {
@@ -634,8 +635,8 @@ textarea {
 
 .aacp-stage-progress-track {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: calc(50% / var(--aacp-stage-progress-steps, 4));
+  right: calc(50% / var(--aacp-stage-progress-steps, 4));
   top: 5px;
   height: 6px;
   border-radius: var(--aacp-radius-pill);
@@ -678,6 +679,8 @@ textarea {
 }
 
 .aacp-stage-progress-dot {
+  display: inline-grid;
+  place-items: center;
   width: 12px;
   height: 12px;
   border-radius: 999px;
@@ -1527,9 +1530,9 @@ textarea {
 }
 
 .aacp-composer:focus-within {
-  border-color: var(--aacp-accent-hover-border);
-  background: var(--aacp-accent-hover-bg);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
+  border-color: var(--aacp-line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aacp-fg) 8%, transparent);
 }
 
 .aacp-input {
@@ -1539,8 +1542,24 @@ textarea {
   padding: 10px 14px;
   font-size: 14px;
   outline: none;
+  box-shadow: none;
   min-width: 0;
   color: var(--aacp-fg);
+}
+
+.aacp-input:focus,
+.aacp-input:focus-visible {
+  border: none;
+  outline: none;
+  box-shadow: none;
+}
+
+.aacp-input:-webkit-autofill,
+.aacp-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--aacp-fg);
+  caret-color: var(--aacp-fg);
+  -webkit-box-shadow: 0 0 0 1000px var(--aacp-surface) inset;
+  transition: background-color 99999s ease-in-out 0s;
 }
 
 .aacp-input::placeholder {
@@ -1675,11 +1694,10 @@ textarea {
 }
 
 .aacp-cart-header-status {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  grid-template-rows: auto auto;
-  column-gap: var(--aacp-space-2);
-  row-gap: 2px;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
   padding: var(--aacp-space-3);
   border-radius: var(--aacp-radius-sm);
   background: var(--aacp-inset-bg);
@@ -1687,8 +1705,7 @@ textarea {
 }
 
 .aacp-cart-status-kicker {
-  grid-row: 1 / span 2;
-  align-self: center;
+  flex: 0 0 auto;
   padding: 4px 8px;
   border-radius: var(--aacp-radius-sm);
   background: color-mix(in srgb, var(--aacp-accent) 10%, var(--aacp-surface));
@@ -1698,14 +1715,17 @@ textarea {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--aacp-accent);
+  line-height: 1.2;
 }
 
 .aacp-cart-status-label {
+  flex: 0 1 auto;
   font-family: var(--aacp-font-display);
   font-size: 13px;
   font-weight: 700;
   color: var(--aacp-fg);
   letter-spacing: -0.01em;
+  line-height: 1.2;
 }
 
 .aacp-cart-status-hint {
@@ -3062,9 +3082,9 @@ textarea {
 }
 
 .aacp-composer-inline .aacp-composer:focus-within {
-  border-color: var(--aacp-accent-hover-border);
+  border-color: var(--aacp-line-strong);
   background: transparent;
-  box-shadow: 0 0 0 3px var(--aacp-accent-ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--aacp-fg) 8%, transparent);
 }
 
 .aacp-composer-hint-inline {

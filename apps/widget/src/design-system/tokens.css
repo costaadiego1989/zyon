@@ -89,6 +89,15 @@
   place-items: center;
 }
 
+.aacp-journey-protocol .aacp-stage-progress-check {
+  display: block;
+  width: 7px;
+  height: 4px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+
 .aacp-journey-protocol .aacp-stage-progress-dot > svg {
   color: var(--aacp-enterprise-surface, var(--aacp-surface));
 }

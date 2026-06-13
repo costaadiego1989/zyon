@@ -42,7 +42,7 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
       return;
     }
 
-    vm.onStripePaymentConfirmed(intent.amountCents, intent.currency);
+    await vm.onStripePaymentConfirmed(intent.amountCents, intent.currency);
     vm.setShowCardForm(false);
   }
 
@@ -58,7 +58,7 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : null}
 
-      <div className="rounded-xl overflow-hidden border border-[var(--aacp-line-strong)] bg-white p-3">
+      <div className="rounded-xl overflow-hidden border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] p-3 aacp-stripe-element-wrap">
         <PaymentElement
           options={{
             layout: "tabs",
@@ -71,7 +71,7 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
         <button
           type="submit"
           disabled={!stripe || submitting}
-          className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--aacp-grad-primary)] text-white shadow-[var(--aacp-shadow-md)]"
+          className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--aacp-enterprise-ink,var(--continuum-primary,#14532d))] text-[var(--aacp-enterprise-surface,var(--continuum-on-primary,#fff))] shadow-[var(--aacp-shadow-md)]"
         >
           {submitting ? (
             <>
@@ -108,6 +108,29 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
   const [loading, setLoading] = useState(false);
   const intent = vm.stripeIntent;
   const total = formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency);
+  const isDark = vm.colorMode === "dark";
+  const stripeAppearance = isDark
+    ? {
+        theme: "night" as const,
+        variables: {
+          colorPrimary: "#6ee7b7",
+          colorBackground: "#111827",
+          colorText: "#f8fafc",
+          colorDanger: "#f87171",
+          borderRadius: "12px"
+        }
+      }
+    : {
+        theme: "stripe" as const,
+        variables: {
+          colorPrimary: "#14532d",
+          colorBackground: "#ffffff",
+          colorText: "#0f172a",
+          colorTextSecondary: "#475569",
+          colorDanger: "#dc2626",
+          borderRadius: "12px"
+        }
+      };
 
   async function handleInitiate() {
     setLoading(true);
@@ -137,15 +160,7 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
           stripe={getStripePromise(intent.publishableKey)}
           options={{
             clientSecret: intent.clientSecret,
-            appearance: {
-              theme: "night",
-              variables: {
-                colorPrimary: "#a855f7",
-                colorBackground: "#1a1a2e",
-                colorText: "#e2e8f0",
-                borderRadius: "12px"
-              }
-            },
+            appearance: stripeAppearance,
             locale: "pt-BR"
           }}
         >
@@ -155,7 +170,7 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
         <button
           onClick={handleInitiate}
           disabled={loading || vm.busy}
-          className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--aacp-grad-primary)] text-white shadow-[var(--aacp-shadow-md)]"
+          className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--aacp-enterprise-ink,var(--continuum-primary,#14532d))] text-[var(--aacp-enterprise-surface,var(--continuum-on-primary,#fff))] shadow-[var(--aacp-shadow-md)]"
         >
           {loading ? (
             <>

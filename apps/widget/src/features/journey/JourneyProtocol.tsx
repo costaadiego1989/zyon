@@ -1,4 +1,3 @@
-import { Check } from "lucide-react";
 import type { JourneyProtocolModel } from "../../presentation/checkout-experience-model.js";
 import { cn } from "../../hooks/checkout-view-model.js";
 
@@ -13,15 +12,14 @@ export function JourneyProtocol({ model }: { model: JourneyProtocolModel }) {
       aria-valuenow={Number(model.currentNumber)}
       aria-valuetext={model.valueText}
     >
-      <div className="aacp-stage-progress-head aacp-stage-progress-head--indented">
-        <span className="aacp-stage-progress-kicker">
-          <span aria-hidden="true">Etapa {model.currentNumber}</span>
-          <span className="aacp-sr-only">{model.valueText}</span>
-        </span>
+      <div className="aacp-stage-progress-head">
         <span className="aacp-stage-progress-current">
+          <span className="aacp-stage-progress-kicker">
+            Etapa {model.currentNumber} · Agora
+          </span>
           <strong className="aacp-stage-progress-title">{model.currentLabel}</strong>
-          <span>Jornada de compra</span>
         </span>
+        <span className="aacp-sr-only">{model.valueText}</span>
       </div>
 
       <div className="aacp-stage-progress-rail-wrap">
@@ -41,9 +39,16 @@ export function JourneyProtocol({ model }: { model: JourneyProtocolModel }) {
                 className="aacp-stage-progress-dot"
                 aria-current={step.status === "active" ? "step" : undefined}
               >
-                {step.status === "done" ? <Check size={10} strokeWidth={2.4} /> : null}
+                {step.status === "done" ? (
+                  <span className="aacp-stage-progress-check" aria-hidden="true" />
+                ) : null}
               </span>
-              <span className="aacp-stage-progress-label">{step.label}</span>
+              <span className="aacp-stage-progress-label">
+                <span className="aacp-stage-progress-step-number">
+                  {String(model.steps.indexOf(step) + 1).padStart(2, "0")}
+                </span>
+                {step.label}
+              </span>
             </li>
           ))}
         </ol>

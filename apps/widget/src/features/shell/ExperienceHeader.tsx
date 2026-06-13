@@ -1,8 +1,8 @@
 import {
-  Headphones,
+  CircleHelp,
   LogIn,
   Moon,
-  ShieldCheck,
+  Sparkles,
   ShoppingBag,
   Sun,
 } from "lucide-react";
@@ -19,27 +19,20 @@ export function ExperienceHeader({ model }: { model: ExperienceHeaderModel }) {
           {model.agent.avatarUrl ? (
             <img src={model.agent.avatarUrl} alt="" className="aacp-header-agent-img" />
           ) : (
-            <IconFrame icon={ShieldCheck} status="online" />
+            <IconFrame icon={Sparkles} status="online" />
           )}
         </div>
 
         <div className="aacp-header-copy">
-          <div className="aacp-agent-name">
-            {model.agent.name}
-            <span className="aacp-agent-role">{model.agent.role}</span>
-          </div>
-          <div className="aacp-agent-sub">{model.agent.statusLabel}</div>
+          <span className="aacp-agent-context">Checkout assistido</span>
+          <div className="aacp-agent-name">{model.agent.name}</div>
+          <div className="aacp-agent-sub">{model.agent.role}</div>
         </div>
       </div>
 
-      <div className="aacp-header-security" aria-label={model.assurance.title}>
-        <span className="aacp-header-security-icon" aria-hidden="true">
-          <ShieldCheck size={15} />
-        </span>
-        <span>
-          <strong>{model.assurance.title}</strong>
-          <small>{model.assurance.description}</small>
-        </span>
+      <div className="aacp-header-presence" aria-label={model.agent.statusLabel}>
+        <span className="aacp-header-presence-dot" aria-hidden="true" />
+        <span>{model.agent.statusLabel}</span>
       </div>
 
       <div className="aacp-header-actions">
@@ -51,7 +44,8 @@ export function ExperienceHeader({ model }: { model: ExperienceHeaderModel }) {
           aria-controls="aacp-support-panel"
           type="button"
         >
-          <Headphones size={16} />
+          <CircleHelp size={17} />
+          <span className="aacp-header-action-label">Ajuda</span>
         </button>
 
         <button
@@ -102,7 +96,7 @@ export function ExperienceHeader({ model }: { model: ExperienceHeaderModel }) {
         >
           <ShoppingBag size={16} />
           <span className="aacp-cart-btn-copy">
-            <small>Total</small>
+            <small>Pedido</small>
             <strong>{model.order.total}</strong>
           </span>
         </button>

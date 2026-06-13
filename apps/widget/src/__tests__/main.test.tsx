@@ -463,7 +463,7 @@ describe("CheckoutAgent (conversational)", () => {
       );
     });
 
-    expect(container.querySelector(".aacp-cart-title")?.textContent).toContain("Seu pedido agora");
+    expect(container.querySelector(".aacp-cart-title")?.textContent).toContain("Em andamento");
     expect(container.querySelector(".aacp-flow-rail")?.textContent).toContain("Cadastro");
     expect(container.querySelector(".aacp-hero")).toBeNull();
     expect(container.querySelector(".aacp-cart-intel")).toBeNull();

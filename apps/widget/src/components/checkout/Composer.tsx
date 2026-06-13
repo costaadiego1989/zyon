@@ -179,10 +179,14 @@ export function Composer({ vm }: { vm: CheckoutAgentViewModel }) {
             maxLength={meta.maxLength}
           />
           <button
-            type="submit"
+            type="button"
             className="aacp-send"
             disabled={!vm.message.trim() || vm.composerLocked}
             aria-label="Enviar mensagem"
+            onClick={() => {
+              if (!vm.message.trim() || vm.composerLocked) return;
+              void vm.sendMessage();
+            }}
           >
             <Send size={18} />
           </button>

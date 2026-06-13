@@ -4,10 +4,10 @@ import { cn } from "../hooks/checkout-view-model.js";
 import { selectCheckoutExperiencePresentation } from "../presentation/checkout-experience-model.js";
 import { ExperienceHeader } from "../features/shell/ExperienceHeader.js";
 import { JourneyProtocol } from "../features/journey/JourneyProtocol.js";
+import { DecisionStage } from "../features/conversation/DecisionStage.js";
 import { BuyerGuestModal } from "../components/checkout/BuyerGuestModal.js";
 import { CartFAB } from "../components/checkout/CartFAB.js";
 import { CartPanel } from "../components/checkout/CartPanel.js";
-import { ChatThread } from "../components/checkout/ChatThread.js";
 import { FloatingCheckout } from "../components/checkout/FloatingCheckout.js";
 import { GlobalAuthModal } from "../components/checkout/GlobalAuthModal.js";
 import { SupportPanel } from "../components/checkout/SupportPanel.js";
@@ -32,7 +32,7 @@ export function CheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
         <main className="aacp-main">
           <ExperienceHeader model={presentation.header} />
           <JourneyProtocol model={presentation.journey} />
-          <ChatThread vm={vm} />
+          <DecisionStage vm={vm} />
         </main>
 
         <CartPanel vm={vm} />
