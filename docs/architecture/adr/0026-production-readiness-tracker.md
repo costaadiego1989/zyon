@@ -48,14 +48,14 @@ média dos ADRs concluídos na fase. A % geral é a média ponderada por fase
 ## Progresso geral
 
 ```txt
-Geral      [#---------]   6%   (1/18 ADRs concluídos)
+Geral      [#---------]  11%   (2/18 ADRs concluídos)
 Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 ```
 
 | Fase | Escopo | Progresso | ADRs |
 |---|---|---|---|
 | **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
-| **P1** | Caminho transacional do piloto | `[----------]` 0% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
+| **P1** | Caminho transacional do piloto | `[#---------]` 14% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
 | **P2** | Identidade e operação do merchant | `[----------]` 0% | 0015, 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
 | **P4** | Expansão pós-piloto | `[----------]` 0% | 0021 |
@@ -88,7 +88,7 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | [0009](./0009-platform-p0-hardening.md) | Plataforma P0 | P0 | L3-gate | ✅ | `[##########]` 100% |
 | [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0011](./0011-payment-hardening.md) | Payment | P1 | L3 | ⬜ | `[----------]` 0% |
-| [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ⬜ | `[----------]` 0% |
+| [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ✅ | `[##########]` 100% |
 | [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | ⬜ | `[----------]` 0% |
@@ -124,8 +124,8 @@ de cada bloco move o ADR para `✅`.
 - [ ] Confirmação só por estado autoritativo/webhook; reconciliação + refund + smoke sandbox.
 
 **0012 Embed**
-- [ ] `allowedOrigin`/`scopes`/`cartRef` aplicados; nonce/replay; CORS/CSP.
-- [ ] Modo sem token removido do piloto.
+- [x] `allowedOrigin`/`scopes`/`cartRef` aplicados; nonce/replay; CORS/CSP.
+- [x] Modo sem token removido do piloto.
 
 **0013 Commerce**
 - [ ] Índice de pedido pendente + deduplicação persistidos; credenciais por tenant.
