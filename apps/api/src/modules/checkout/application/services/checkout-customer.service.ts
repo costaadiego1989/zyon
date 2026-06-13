@@ -141,6 +141,7 @@ export class CheckoutCustomerService {
         if (extracted === existing.otp_code) {
           patch.email_verified = true;
           patch.otp_code = "";
+          patch.email = currentEmail.toLowerCase();
           return patch;
         } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
           throw new OtpValidationError("Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente.");
@@ -279,13 +280,7 @@ export class CheckoutCustomerService {
     const account = await this.buyerAccounts?.findByEmail(email) ?? null;
     const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
     const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId);
-    const isRecognized = Boolean(
-      account ||
-      previousSession ||
-      session.customer?.recognized_buyer ||
-      session.customer?.isReturning
-    );
-    if (!isRecognized) return session;
+    if (!account && !previousSession) return session;
 
     const patch = this.buildRecognizedProfilePatch(session.customer, account, previousSession?.customer);
 
