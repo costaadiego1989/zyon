@@ -31,6 +31,7 @@ export interface CartItem {
   productUrl?: string;
   category?: string;
   variant?: string;
+  description?: string;
 }
 
 export interface PackageDimensions {
@@ -231,6 +232,7 @@ export interface CheckoutItemSnapshot {
   product_url?: string;
   category?: string;
   variant?: string;
+  description?: string;
 }
 
 export interface SuggestedProduct {
@@ -242,6 +244,7 @@ export interface SuggestedProduct {
   product_url?: string;
   category?: string;
   variant?: string;
+  description?: string;
 }
 
 export interface CheckoutTotalsSnapshot {
