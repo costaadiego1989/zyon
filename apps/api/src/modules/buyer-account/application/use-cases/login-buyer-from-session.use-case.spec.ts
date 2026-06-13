@@ -18,7 +18,16 @@ test("LoginBuyerFromSessionUseCase creates buyer account linked to checkout glob
         email: "Buyer@Example.com",
         email_verified: true,
         fullName: "Buyer Test",
-        phone: "11999998888"
+        cpf: "051.781.787-00",
+        phone: "11999998888",
+        address: {
+          zip: "25958080",
+          street: "Rua Paulo Lossio",
+          number: "95",
+          city: "Teresopolis",
+          state: "RJ",
+          complement: "Nao tem"
+        }
       }
     })
   );
@@ -35,7 +44,10 @@ test("LoginBuyerFromSessionUseCase creates buyer account linked to checkout glob
 
   assert.equal(result.globalUserId, "guser_checkout_1");
   assert.equal(result.email, "buyer@example.com");
-  assert.equal((await buyers.findByEmail("buyer@example.com"))?.displayName, "Buyer Test");
+  const account = await buyers.findByEmail("buyer@example.com");
+  assert.equal(account?.displayName, "Buyer Test");
+  assert.equal(account?.cpf, "05178178700");
+  assert.equal(account?.address?.zip, "25958080");
 });
 
 test("LoginBuyerFromSessionUseCase rejects sessions without verified email", async () => {
@@ -80,7 +92,15 @@ test("LoginBuyerFromSessionUseCase hydrates missing existing buyer profile from 
         email: "buyer@example.com",
         email_verified: true,
         fullName: "Diego Costa",
-        phone: "21993001883"
+        cpf: "05178178700",
+        phone: "21993001883",
+        address: {
+          zip: "25958080",
+          street: "Rua Paulo Lossio",
+          number: "95",
+          city: "Teresopolis",
+          state: "RJ"
+        }
       }
     })
   );
@@ -98,5 +118,7 @@ test("LoginBuyerFromSessionUseCase hydrates missing existing buyer profile from 
   const account = await buyers.findByEmail("buyer@example.com");
   assert.equal(result.globalUserId, "existing_guser");
   assert.equal(account?.displayName, "Diego Costa");
+  assert.equal(account?.cpf, "05178178700");
   assert.equal(account?.phone, "21993001883");
+  assert.equal(account?.address?.street, "Rua Paulo Lossio");
 });

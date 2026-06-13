@@ -478,6 +478,8 @@ model BuyerAccount {
   passwordHash  String   @map("password_hash")
   displayName   String   @map("display_name")
   phone         String?
+  cpf           String?
+  address       Json?
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 

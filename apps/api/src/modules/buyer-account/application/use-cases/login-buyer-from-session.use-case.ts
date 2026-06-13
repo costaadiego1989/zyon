@@ -34,7 +34,9 @@ export class LoginBuyerFromSessionUseCase {
     if (existing) {
       const hydrated = hydrateMissingCheckoutProfile(existing, {
         displayName: customer.fullName,
-        phone: customer.phone
+        phone: customer.phone,
+        address: customer.address,
+        cpf: customer.cpf
       });
       if (hydrated !== existing) await this.buyers.save(hydrated);
       return toBuyerAuthResponse(hydrated, this.jwt);
@@ -51,6 +53,8 @@ export class LoginBuyerFromSessionUseCase {
       passwordHash,
       displayName: customer.fullName ?? email.split("@")[0]!,
       phone: customer.phone,
+      cpf: customer.cpf,
+      address: customer.address,
       createdAt: now,
       updatedAt: now,
     });
@@ -61,12 +65,14 @@ export class LoginBuyerFromSessionUseCase {
 
 function hydrateMissingCheckoutProfile(
   account: BuyerAccount,
-  input: { displayName?: string; phone?: string }
+  input: { displayName?: string; phone?: string; address?: BuyerAccount["address"]; cpf?: string }
 ): BuyerAccount {
   const nextName = shouldUseCheckoutName(account, input.displayName) ? input.displayName?.trim() : undefined;
   const nextPhone = !account.phone && input.phone ? input.phone.trim() : undefined;
-  if (!nextName && !nextPhone) return account;
-  return account.withUpdatedProfile(nextName, nextPhone);
+  const nextAddress = !account.address && input.address ? input.address : undefined;
+  const nextCpf = !account.cpf && input.cpf ? input.cpf.replace(/\D/g, "") : undefined;
+  if (!nextName && !nextPhone && !nextAddress && !nextCpf) return account;
+  return account.withUpdatedProfile(nextName, nextPhone, nextAddress, nextCpf);
 }
 
 function shouldUseCheckoutName(account: BuyerAccount, checkoutName?: string): boolean {

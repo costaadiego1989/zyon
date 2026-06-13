@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import type { CustomerAddress } from "@aacp/shared-types";
 import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
 import { BuyerAgentProfile, type AgentPersonality } from "../domain/entities/buyer-agent-profile.entity.js";
 import type { BuyerAccountRepository } from "../domain/ports/buyer-account-repository.port.js";
@@ -7,7 +8,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async save(account: BuyerAccount): Promise<void> {
-    await this.prisma.buyerAccount.upsert({
+    await (this.prisma as any).buyerAccount.upsert({
       where: { globalUserId: account.globalUserId },
       create: {
         globalUserId: account.globalUserId,
@@ -15,29 +16,33 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
         passwordHash: account.passwordHash,
         displayName: account.displayName,
         phone: account.phone ?? null,
+        cpf: account.cpf ?? null,
+        address: account.address ?? null,
       },
       update: {
         email: account.email,
         passwordHash: account.passwordHash,
         displayName: account.displayName,
         phone: account.phone ?? null,
+        cpf: account.cpf ?? null,
+        address: account.address ?? null,
         updatedAt: account.updatedAt,
       },
     });
   }
 
   async findByEmail(email: string): Promise<BuyerAccount | null> {
-    const row = await this.prisma.buyerAccount.findUnique({ where: { email } });
+    const row = await (this.prisma as any).buyerAccount.findUnique({ where: { email } });
     return row ? toDomainAccount(row) : null;
   }
 
   async findByPhone(phone: string): Promise<BuyerAccount | null> {
-    const row = await this.prisma.buyerAccount.findFirst({ where: { phone: phone.replace(/\D/g, "") } });
+    const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: phone.replace(/\D/g, "") } });
     return row ? toDomainAccount(row) : null;
   }
 
   async findByGlobalUserId(globalUserId: string): Promise<BuyerAccount | null> {
-    const row = await this.prisma.buyerAccount.findUnique({ where: { globalUserId } });
+    const row = await (this.prisma as any).buyerAccount.findUnique({ where: { globalUserId } });
     return row ? toDomainAccount(row) : null;
   }
 
@@ -89,6 +94,8 @@ type AccountRow = {
   passwordHash: string;
   displayName: string;
   phone: string | null;
+  cpf: string | null;
+  address?: unknown;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -116,9 +123,21 @@ function toDomainAccount(row: AccountRow): BuyerAccount {
     passwordHash: row.passwordHash,
     displayName: row.displayName,
     phone: row.phone ?? undefined,
+    cpf: row.cpf ?? undefined,
+    address: toCustomerAddress(row.address),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
+}
+
+function toCustomerAddress(value: unknown): CustomerAddress | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const source = value as Record<string, unknown>;
+  const address: CustomerAddress = {};
+  for (const key of ["zip", "street", "number", "complement", "neighborhood", "city", "state"] as const) {
+    if (typeof source[key] === "string") address[key] = source[key] as string;
+  }
+  return Object.keys(address).length > 0 ? address : undefined;
 }
 
 function toDomainAgent(row: AgentRow): BuyerAgentProfile {
