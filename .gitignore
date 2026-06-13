@@ -25,5 +25,9 @@ scripts/*
 # Feature spec directories (auto-generated or WIP)
 .specs/features/
 
-# Exclude docs but not project markdown files
+# Exclude generated/WIP docs, but keep architecture decisions versioned.
 /docs/*
+!/docs/architecture/
+/docs/architecture/*
+!/docs/architecture/adr/
+!/docs/architecture/adr/*.md
