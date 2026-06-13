@@ -41,6 +41,19 @@ export const FAKE_PRODUCTS: FakeProduct[] = [
   }
 ];
 
+export function searchFakeProducts(query: string, limit = 8): FakeProduct[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return FAKE_PRODUCTS.filter((item) => item.available).slice(0, limit);
+  return FAKE_PRODUCTS.filter((item) => {
+    if (!item.available) return false;
+    const haystack = [item.name, item.description, item.category, item.variant, item.sku]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(normalized);
+  }).slice(0, limit);
+}
+
 export function buildCheckoutCart(selection: ProductSelectionLine[]): Cart {
   if (!Array.isArray(selection) || selection.length === 0) {
     throw new HttpError(400, "selection_required");
@@ -64,7 +77,8 @@ export function buildCheckoutCart(selection: ProductSelectionLine[]): Cart {
       imageUrl: product.imageUrl,
       productUrl: product.productUrl,
       category: product.category,
-      variant: product.variant
+      variant: product.variant,
+      description: product.description?.slice(0, 100)
     } satisfies CartItem;
   });
 
@@ -93,6 +107,12 @@ export function createFakeCommerceApiServer(): Server {
       }
       if (req.method === "GET" && url.pathname === "/products") {
         writeJson(res, 200, { products: FAKE_PRODUCTS });
+        return;
+      }
+      if (req.method === "GET" && url.pathname === "/products/search") {
+        const query = url.searchParams.get("q") ?? "";
+        const limit = Number(url.searchParams.get("limit") ?? "8");
+        writeJson(res, 200, { products: searchFakeProducts(query, Number.isFinite(limit) ? limit : 8) });
         return;
       }
       if (req.method === "POST" && url.pathname === "/checkout-cart") {
