@@ -21,6 +21,7 @@ test-results/
 scripts/*
 !scripts/docker-engine-ok.mjs
 .kilo/
+.impeccable/
 
 # Feature spec directories (auto-generated or WIP)
 .specs/features/
