@@ -1,5 +1,14 @@
 import { Injectable } from "@nestjs/common";
-import { EmbedTokenService, type EmbedTokenClaims } from "../domain/embed-token.service.js";
+import { EmbedTokenService, type EmbedScope, type EmbedTokenClaims } from "../domain/embed-token.service.js";
+
+const EMBED_SCOPES: readonly EmbedScope[] = [
+  "checkout:start",
+  "checkout:track",
+  "checkout:chat",
+  "offers:apply",
+  "coupons:apply",
+  "payment:intents:create"
+];
 
 @Injectable()
 export class IssueEmbedSessionUseCase {
@@ -41,17 +50,10 @@ function validateAllowedOrigin(origin: string | undefined): string | undefined {
   return url.origin;
 }
 
-function sanitizeScopes(scopes: string[] | undefined): string[] | undefined {
+function sanitizeScopes(scopes: string[] | undefined): EmbedScope[] | undefined {
   if (!scopes?.length) return undefined;
-  const allowed = new Set([
-    "checkout:start",
-    "checkout:track",
-    "checkout:chat",
-    "offers:apply",
-    "coupons:apply",
-    "payment:intents:create"
-  ]);
-  const clean = Array.from(new Set(scopes.filter((scope) => allowed.has(scope))));
+  const allowed = new Set<string>(EMBED_SCOPES);
+  const clean = Array.from(new Set(scopes.filter((scope): scope is EmbedScope => allowed.has(scope))));
   return clean.length ? clean : undefined;
 }
 
