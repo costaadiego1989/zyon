@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      - name: Lint (architecture boundaries gate)
         run: pnpm --filter @aacp/api lint
 
       - name: Typecheck
