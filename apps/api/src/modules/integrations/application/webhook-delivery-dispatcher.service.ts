@@ -29,6 +29,10 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
     if (this.timer) clearInterval(this.timer);
   }
 
+  async dispatchDelivery(delivery: MerchantWebhookDelivery): Promise<void> {
+    await this.process(delivery);
+  }
+
   async dispatchOnce(): Promise<void> {
     let due: MerchantWebhookDelivery[];
     try {

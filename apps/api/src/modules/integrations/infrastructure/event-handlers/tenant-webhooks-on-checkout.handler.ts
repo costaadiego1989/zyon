@@ -3,6 +3,7 @@ import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../
 import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
 import { DOMAIN_EVENT_BUS, type DomainEvent, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 import { TenantWebhookPublisher } from "../../application/integrations.use-cases.js";
+import { WebhookDeliveryDispatcher } from "../../application/webhook-delivery-dispatcher.service.js";
 
 @Injectable()
 export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
@@ -10,7 +11,8 @@ export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
     @Inject(DOMAIN_EVENT_BUS) private readonly eventBus: DomainEventBus,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
-    private readonly publisher: TenantWebhookPublisher
+    private readonly publisher: TenantWebhookPublisher,
+    private readonly dispatcher: WebhookDeliveryDispatcher
   ) {}
 
   onModuleInit(): void {
@@ -29,11 +31,12 @@ export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
     ]);
     if (!order) return;
 
-    await this.publisher.publish({
+    const orderDeliveries = await this.publisher.publish({
       merchantId: event.merchantId,
       eventType: "order.approved",
       occurredAt: order.completedAt,
       data: {
+        success: true,
         order: {
           external_order_id: order.externalOrderId,
           session_id: order.sessionId,
@@ -71,9 +74,10 @@ export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
         }
       }
     });
+    await this.dispatchDeliveries(orderDeliveries);
 
     if (session?.customer) {
-      await this.publisher.publish({
+      const customerDeliveries = await this.publisher.publish({
         merchantId: event.merchantId,
         eventType: "customer.upserted",
         occurredAt: order.completedAt,
@@ -84,6 +88,19 @@ export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
           global_user_id: session.globalUserId
         }
       });
+      await this.dispatchDeliveries(customerDeliveries);
+    }
+  }
+
+  private async dispatchDeliveries(
+    deliveries: Awaited<ReturnType<TenantWebhookPublisher["publish"]>>
+  ): Promise<void> {
+    for (const delivery of deliveries) {
+      try {
+        await this.dispatcher.dispatchDelivery(delivery);
+      } catch {
+        // queued delivery remains pending for background retry
+      }
     }
   }
 }
