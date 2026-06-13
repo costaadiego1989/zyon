@@ -274,18 +274,71 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }));
   }
 
+  async claimBatch(batchSize = 50): Promise<{ envelope: DomainEventEnvelope; attempts: number }[]> {
+    const rows = await this.prisma.outboxMessage.findMany({
+      where: { status: "pending" },
+      orderBy: { createdAt: "asc" },
+      take: batchSize
+    });
+    return rows.map((row) => ({
+      envelope: {
+        event_id: row.eventId,
+        event_type: row.eventType as DomainEventEnvelope["event_type"],
+        schema_version: 1,
+        merchant_id: row.merchantId,
+        occurred_at: row.occurredAt.toISOString(),
+        correlation_id: row.correlationId,
+        causation_id: row.causationId,
+        producer: "checkout",
+        payload: row.payload as Record<string, unknown>
+      },
+      attempts: row.attempts
+    }));
+  }
+
   async markDelivered(eventId: string): Promise<void> {
     await this.prisma.outboxMessage.update({
       where: { eventId },
-      data: { status: "delivered" }
+      data: { status: "delivered", deliveredAt: new Date(), publishedAt: new Date() }
     });
   }
 
-  async markFailed(eventId: string): Promise<void> {
+  async markFailed(eventId: string, error?: string): Promise<void> {
     await this.prisma.outboxMessage.update({
       where: { eventId },
-      data: { status: "failed" }
+      data: { status: "failed", lastError: error ?? null }
     });
+  }
+
+  async recordFailure(
+    eventId: string,
+    error: string,
+    backoff: { maxAttempts: number; nextAttemptAt: Date }
+  ): Promise<{ attempts: number; dead: boolean }> {
+    const current = await this.prisma.outboxMessage.findUnique({
+      where: { eventId },
+      select: { attempts: true }
+    });
+    const attempts = (current?.attempts ?? 0) + 1;
+    const dead = attempts >= backoff.maxAttempts;
+    await this.prisma.outboxMessage.update({
+      where: { eventId },
+      data: {
+        attempts,
+        lastError: error,
+        status: dead ? "dead" : "pending",
+        nextAttemptAt: dead ? null : backoff.nextAttemptAt
+      }
+    });
+    return { attempts, dead };
+  }
+
+  async isProcessed(eventId: string): Promise<boolean> {
+    const row = await this.prisma.outboxMessage.findUnique({
+      where: { eventId },
+      select: { status: true }
+    });
+    return row?.status === "delivered";
   }
 
   async overview(merchantId: string): Promise<DashboardOverview> {

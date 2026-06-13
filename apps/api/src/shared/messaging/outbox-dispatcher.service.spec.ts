@@ -7,6 +7,7 @@ import { createCheckoutEventEnvelope } from "../../modules/checkout/domain/event
 import type { DomainEvent } from "../events/domain-event-bus.port.js";
 
 const TEST_EVENT_TYPE = "payment.status.changed" as const;
+const MAX_ATTEMPTS = 5;
 
 function makeEnvelope(merchantId = "m1") {
   return createCheckoutEventEnvelope({
@@ -48,15 +49,35 @@ describe("OutboxDispatcher", () => {
     assert.equal(received.length, 1);
   });
 
-  it("marks event failed after 3 consecutive errors", async () => {
+  it("reschedules with backoff after a failure (not delivered, not dead)", async () => {
+    const envelope = makeEnvelope();
     eventBus.subscribe(TEST_EVENT_TYPE, async () => { throw new Error("downstream down"); });
-    outbox.appendOutbox(makeEnvelope());
+    outbox.appendOutbox(envelope);
 
     await dispatcher.dispatch();
-    await dispatcher.dispatch();
-    await dispatcher.dispatch();
 
+    assert.equal(outbox.isProcessed(envelope.event_id), false);
+    // Backoff pushes nextAttemptAt into the future, so it is not immediately claimable.
+    assert.equal(outbox.claimBatch().length, 0);
+  });
+
+  it("moves event to DLQ after MAX_ATTEMPTS failures", async () => {
+    const envelope = makeEnvelope();
+    eventBus.subscribe(TEST_EVENT_TYPE, async () => { throw new Error("downstream down"); });
+    outbox.appendOutbox(envelope);
+
+    let outcome = { attempts: 0, dead: false };
+    for (let i = 0; i < MAX_ATTEMPTS; i++) {
+      outcome = outbox.recordFailure(envelope.event_id, "downstream down", {
+        maxAttempts: MAX_ATTEMPTS,
+        nextAttemptAt: new Date(0)
+      });
+    }
+
+    assert.equal(outcome.dead, true);
+    assert.equal(outcome.attempts, MAX_ATTEMPTS);
     assert.equal(outbox.listPending().length, 0);
+    assert.equal(outbox.claimBatch().length, 0);
   });
 
   it("dispatches multiple pending events in one cycle", async () => {
@@ -66,5 +87,21 @@ describe("OutboxDispatcher", () => {
     await dispatcher.dispatch();
 
     assert.equal(received.length, 2);
+  });
+
+  it("skips overlapping dispatch ticks via in-process lock", async () => {
+    outbox.appendOutbox(makeEnvelope());
+    let inFlight = 0;
+    let maxConcurrent = 0;
+    eventBus.subscribe(TEST_EVENT_TYPE, async () => {
+      inFlight += 1;
+      maxConcurrent = Math.max(maxConcurrent, inFlight);
+      await Promise.resolve();
+      inFlight -= 1;
+    });
+
+    await Promise.all([dispatcher.dispatch(), dispatcher.dispatch()]);
+
+    assert.equal(maxConcurrent, 1);
   });
 });

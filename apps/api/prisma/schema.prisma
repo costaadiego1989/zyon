@@ -421,11 +421,16 @@ model OutboxMessage {
   producer       String
   payload        Json
   status         String    @default("pending")
+  attempts       Int       @default(0)
+  lastError      String?   @map("last_error")
+  nextAttemptAt  DateTime? @map("next_attempt_at")
+  deliveredAt    DateTime? @map("delivered_at")
   publishedAt    DateTime? @map("published_at")
   createdAt      DateTime  @default(now()) @map("created_at")
 
   @@index([merchantId, createdAt])
   @@index([status, createdAt])
+  @@index([status, nextAttemptAt])
   @@map("outbox_messages")
 }
 

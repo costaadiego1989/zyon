@@ -198,9 +198,25 @@ export class InMemoryCheckoutRepository
     return this.outbox.slice(0, batchSize);
   }
 
+  claimBatch(batchSize = 50): { envelope: DomainEventEnvelope; attempts: number }[] {
+    return this.outbox.slice(0, batchSize).map((envelope) => ({ envelope, attempts: 0 }));
+  }
+
   markDelivered(_eventId: string): void {}
 
-  markFailed(_eventId: string): void {}
+  markFailed(_eventId: string, _error?: string): void {}
+
+  recordFailure(
+    _eventId: string,
+    _error: string,
+    _backoff: { maxAttempts: number; nextAttemptAt: Date }
+  ): { attempts: number; dead: boolean } {
+    return { attempts: 0, dead: false };
+  }
+
+  isProcessed(_eventId: string): boolean {
+    return false;
+  }
 
   overview(merchantId: string): DashboardOverview {
     const sessions = [...this.sessions.values()].filter((session) => session.merchantId === merchantId);
