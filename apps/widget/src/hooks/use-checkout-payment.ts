@@ -107,8 +107,17 @@ export function useCheckoutPayment(
     }
   }
 
-  function onStripePaymentConfirmed(amountCents: number, currency: string): void {
-    markPaymentCompleted(amountCents, currency);
+  function onStripePaymentConfirmed(amountCents: number, currency = "BRL"): void {
+    setStripeIntent(null);
+    const total = typeof amountCents === "number"
+      ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
+      : "";
+    appendAgentTurn(
+      total
+        ? `Recebi seu pagamento (${total}) e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.`
+        : "Recebi seu pagamento e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.",
+      { stream: true }
+    );
   }
 
   function onStripePaymentError(message: string): void {

@@ -226,7 +226,7 @@ describe("useCheckoutPayment", () => {
     expect(chat.appendAgentTurn).not.toHaveBeenCalled();
   });
 
-  it("onStripePaymentConfirmed → limpa stripeIntent, adiciona agent turn com total", async () => {
+  it("onStripePaymentConfirmed → limpa stripeIntent e fica PENDENTE aguardando webhook (sem confirmação otimista)", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         amountCents: 50000,
@@ -235,9 +235,10 @@ describe("useCheckoutPayment", () => {
       })
     );
 
+    const session = buildSessionState();
     const chat = buildChatState();
     const { result } = renderHook(() =>
-      useCheckoutPayment(buildConfig(), buildSessionState(), chat)
+      useCheckoutPayment(buildConfig(), session, chat)
     );
 
     await act(async () => {
@@ -254,7 +255,10 @@ describe("useCheckoutPayment", () => {
     const calls = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls;
     const lastMsg = calls[calls.length - 1][0];
     expect(lastMsg).toContain("500.00 BRL");
-    expect(lastMsg).toContain("Pagamento confirmado");
+    expect(lastMsg).toContain("aguardando a confirmacao");
+    expect(lastMsg).not.toContain("Pagamento confirmado");
+    // Client-side Stripe confirm must NOT drive the order to completed.
+    expect(session.syncExperience).not.toHaveBeenCalled();
   });
 
   it("onStripePaymentError → adiciona agent turn com mensagem de erro do Stripe", async () => {
