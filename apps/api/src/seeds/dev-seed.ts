@@ -58,7 +58,19 @@ async function main() {
       maxPartialShippingDiscount: 15,
       offerExpirationMinutes: 20,
       blockedRegions: [],
-      brandVoice: "consultative"
+      brandVoice: "consultative",
+      quickReplies: {
+        payment: ["Cartão de crédito", "PIX", "Pagar com crypto"]
+      },
+      cryptoPayments: {
+        enabled: true,
+        chain: "polygon",
+        network: "testnet",
+        treasuryAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        token: "USDC",
+        quoteTtlSeconds: 900,
+        brlPerUsdc: 5.5
+      }
     },
     update: {
       maxDiscountPercent: 12,
@@ -73,10 +85,22 @@ async function main() {
       maxPartialShippingDiscount: 15,
       offerExpirationMinutes: 20,
       blockedRegions: [],
-      brandVoice: "consultative"
+      brandVoice: "consultative",
+      quickReplies: {
+        payment: ["Cartão de crédito", "PIX", "Pagar com crypto"]
+      },
+      cryptoPayments: {
+        enabled: true,
+        chain: "polygon",
+        network: "testnet",
+        treasuryAddress: "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0",
+        token: "USDC",
+        quoteTtlSeconds: 900,
+        brlPerUsdc: 5.5
+      }
     }
   });
-  console.log("✓ MerchantRule upserted (12% discount, free shipping ≥R$200, 20min expiry)");
+  console.log("✓ MerchantRule upserted (12% discount, crypto enabled on Polygon Amoy)");
 
   // 3. Checkout settings
   await prisma.checkoutSetting.upsert({
