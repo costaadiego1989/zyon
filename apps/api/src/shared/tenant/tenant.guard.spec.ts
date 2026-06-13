@@ -4,6 +4,7 @@ import { Reflector } from "@nestjs/core";
 import { describe, it } from "node:test";
 import {
   IS_PUBLIC_KEY,
+  PublicRoute,
   TenantGuard,
   tenantContextFromPrincipal,
   type TenantRequest,
@@ -116,5 +117,14 @@ describe("TenantGuard", () => {
       ),
       true,
     );
+  });
+
+  it("PublicRoute decorator sets the public metadata flag", () => {
+    const handler = function decoratedHandler() {};
+    PublicRoute()(handler, "decoratedHandler", {
+      value: handler,
+    } as PropertyDescriptor);
+
+    assert.equal(Reflect.getMetadata(IS_PUBLIC_KEY, handler), true);
   });
 });

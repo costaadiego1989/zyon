@@ -5,6 +5,9 @@ export interface TenantContext {
   merchantId: string;
   userId: string;
   role: string;
+  correlationId?: string;
+  buyerGlobalUserId?: string;
+  embedSessionToken?: string;
 }
 
 @Injectable()

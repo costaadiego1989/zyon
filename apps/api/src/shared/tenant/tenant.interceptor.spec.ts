@@ -46,8 +46,37 @@ describe("TenantInterceptor", () => {
     );
 
     assert.equal(result, "ok");
-    assert.deepEqual(observed, merchantPrincipal);
+    assert.equal(observed?.merchantId, merchantPrincipal.merchantId);
+    assert.equal(observed?.userId, merchantPrincipal.userId);
+    assert.equal(observed?.role, merchantPrincipal.role);
+    assert.equal(typeof observed?.correlationId, "string");
+    assert.ok((observed?.correlationId ?? "").length > 0);
     assert.equal(tenantCtx.get(), null);
+  });
+
+  it("propagates x-correlation-id header into the tenant context", async () => {
+    const tenantCtx = new TenantContextService();
+    const interceptor = new TenantInterceptor(tenantCtx);
+    let observed = tenantCtx.get();
+    const next: CallHandler = {
+      handle: () =>
+        defer(() => {
+          observed = tenantCtx.get();
+          return of("ok");
+        }),
+    };
+
+    await firstValueFrom(
+      interceptor.intercept(
+        makeContext({
+          user: merchantPrincipal,
+          headers: { "x-correlation-id": "corr-fixed-123" },
+        }),
+        next,
+      ),
+    );
+
+    assert.equal(observed?.correlationId, "corr-fixed-123");
   });
 
   it("rejects a tenant mismatch after controller guards populate user", () => {

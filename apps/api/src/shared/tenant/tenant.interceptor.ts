@@ -1,4 +1,5 @@
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { Observable } from "rxjs";
 import { TenantContextService } from "./tenant-context.service.js";
 import {
@@ -15,8 +16,18 @@ export class TenantInterceptor implements NestInterceptor {
     const tenant = validateTenantRequest(request);
     if (!tenant) return next.handle();
 
+    const scoped = { ...tenant, correlationId: correlationIdFrom(request) };
+
     return new Observable((subscriber) =>
-      this.tenantCtx.run(tenant, () => next.handle().subscribe(subscriber)),
+      this.tenantCtx.run(scoped, () => next.handle().subscribe(subscriber)),
     );
   }
+}
+
+function correlationIdFrom(request: TenantRequest): string {
+  const header = request.headers?.["x-correlation-id"];
+  const value = Array.isArray(header) ? header[0] : header;
+  return typeof value === "string" && value.trim().length > 0
+    ? value
+    : randomUUID();
 }

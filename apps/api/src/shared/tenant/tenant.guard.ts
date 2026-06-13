@@ -3,17 +3,22 @@ import {
   ExecutionContext,
   ForbiddenException,
   Injectable,
+  SetMetadata,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import type { TenantContext } from "./tenant-context.service.js";
 
 export const IS_PUBLIC_KEY = "isPublic";
 
+export const PublicRoute = (): MethodDecorator & ClassDecorator =>
+  SetMetadata(IS_PUBLIC_KEY, true);
+
 export type TenantRequest = {
   user?: unknown;
   params?: unknown;
   query?: unknown;
   body?: unknown;
+  headers?: Record<string, string | string[] | undefined>;
 };
 
 @Injectable()
