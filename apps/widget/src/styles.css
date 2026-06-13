@@ -1071,6 +1071,61 @@ textarea {
   }
 }
 
+.aacp-bubble-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: min(82%, 520px);
+  animation: bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.aacp-bubble-stack--agent {
+  align-self: flex-start;
+}
+
+.aacp-bubble-stack--buyer {
+  align-self: flex-end;
+}
+
+.aacp-bubble-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.aacp-bubble-meta-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--aacp-surface-2);
+  border: 1px solid var(--aacp-line-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--aacp-accent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.aacp-bubble-meta-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.aacp-bubble-meta-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--aacp-fg);
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.aacp-bubble-stack .aacp-bubble {
+  max-width: 100%;
+  animation: none;
+}
+
 .aacp-bubble {
   max-width: min(82%, 520px);
   padding: 14px 18px;

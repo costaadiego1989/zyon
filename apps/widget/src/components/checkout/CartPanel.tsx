@@ -1,8 +1,7 @@
-import { Minus, Package, Plus, Search, Trash2 } from "lucide-react";
+import { Minus, Package, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { cn, formatCurrency } from "../../hooks/checkout-view-model.js";
 import { CartHeader } from "./CartHeader.js";
-import { CartJourneyStepper } from "./CartJourneyStepper.js";
 
 export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   const itemCount = vm.visibleItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -14,8 +13,6 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       aria-label="Resumo do pedido"
     >
       <CartHeader vm={vm} />
-
-      <CartJourneyStepper checkoutStage={vm.checkoutStage} itemCount={itemCount} />
 
       <section className="aacp-cart-items-block">
         <header className="aacp-cart-items-head">
@@ -45,7 +42,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                   {item.variant ? <p className="aacp-item-variant">{item.variant}</p> : null}
 
                   <div className="aacp-item-controls">
-                    <div className="aacp-qty-control" aria-label={`Quantidade de ${item.name}`}>
+                    <div className="aacp-item-meta aacp-qty-control" aria-label={`Quantidade de ${item.name}`}>
                       <button
                         type="button"
                         className="aacp-qty-btn"
@@ -105,26 +102,44 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       </section>
 
       {vm.visibleItems.length > 0 ? (
-      <dl className="aacp-totals">
-        <dt>Subtotal</dt>
-        <dd>{formatCurrency(vm.visibleTotals.subtotal, vm.visibleTotals.currency)}</dd>
-        {vm.visibleTotals.shipping > 0 && (
-          <>
-            <dt>Frete</dt>
-            <dd>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</dd>
-          </>
-        )}
-        {vm.visibleTotals.discount > 0 && (
-          <>
-            <dt className="aacp-totals-discount">Desconto</dt>
-            <dd className="aacp-totals-discount">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
-          </>
-        )}
-        <div className="aacp-cart-total">
-          <dt className="total-row">Total</dt>
-          <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
-        </div>
-      </dl>
+        <footer className="aacp-ledger-footer">
+          <dl className="aacp-totals">
+            <dt>Subtotal</dt>
+            <dd>{formatCurrency(vm.visibleTotals.subtotal, vm.visibleTotals.currency)}</dd>
+            {vm.visibleTotals.shipping > 0 && (
+              <>
+                <dt>Frete</dt>
+                <dd>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</dd>
+              </>
+            )}
+            {vm.visibleTotals.discount > 0 && (
+              <>
+                <dt className="aacp-totals-discount">Desconto</dt>
+                <dd className="aacp-totals-discount">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
+              </>
+            )}
+            <div className="aacp-cart-total">
+              <dt className="total-row">Total</dt>
+              <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
+            </div>
+          </dl>
+
+          <div className="aacp-ledger-assurance">
+            <ShieldCheck size={17} aria-hidden="true" />
+            <span>
+              <strong>Seu pedido está protegido</strong>
+              <small>Confira valores e condições antes de pagar.</small>
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="aacp-ledger-return"
+            onClick={() => vm.setCartOpen(false)}
+          >
+            Continuar no checkout
+          </button>
+        </footer>
       ) : null}
     </aside>
   );

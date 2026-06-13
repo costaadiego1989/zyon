@@ -1,4 +1,4 @@
-import { Bot, LogIn, Moon, ShoppingBag, Sun } from "lucide-react";
+import { Bot, LogIn, Moon, ShieldCheck, ShoppingBag, Sun } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { agentGivenAndRest, formatCurrency } from "../../hooks/checkout-view-model.js";
 
@@ -34,6 +34,16 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           </div>
           <div className="aacp-agent-sub">{headerSubtitle}</div>
         </div>
+      </div>
+
+      <div className="aacp-header-security" aria-label="Checkout seguro">
+        <span className="aacp-header-security-icon" aria-hidden="true">
+          <ShieldCheck size={15} />
+        </span>
+        <span>
+          <strong>Checkout seguro</strong>
+          <small>Dados protegidos</small>
+        </span>
       </div>
 
       <div className="aacp-header-actions">
@@ -80,7 +90,10 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           type="button"
         >
           <ShoppingBag size={16} />
-          {formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}
+          <span className="aacp-cart-btn-copy">
+            <small>Total</small>
+            <strong>{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</strong>
+          </span>
         </button>
       </div>
     </header>

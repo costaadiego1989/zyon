@@ -14,10 +14,10 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
     <header className="aacp-cart-header">
       <div className="aacp-cart-header-bar">
-        <div className="aacp-cart-brand-lockup">
+        <div className="aacp-cart-brand aacp-cart-brand-lockup">
           <div className="aacp-cart-brand-mark" aria-hidden>
             {vm.theme.logoUrl ? (
-              <img src={vm.theme.logoUrl} alt="" className="aacp-cart-brand-img" />
+              <img src={vm.theme.logoUrl} alt="" className="aacp-cart-logo aacp-cart-brand-img" />
             ) : (
               merchantInitials
             )}
@@ -55,7 +55,7 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
       </div>
 
       <div className="aacp-cart-header-status">
-        <span className="aacp-cart-status-kicker">Agora</span>
+        <span className="aacp-cart-title aacp-cart-status-kicker">Seu pedido agora</span>
         <span className="aacp-cart-status-label">{journeyStep.label}</span>
         <span className="aacp-cart-status-hint">{journeyStep.hint}</span>
       </div>

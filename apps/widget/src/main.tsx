@@ -7,6 +7,7 @@ import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model
 import type { ProductSelectionLine, WidgetConfig } from "./lib/widget-types.js";
 import { themeStyle } from "./hooks/checkout-view-model.js";
 import "./styles.css";
+import "./enterprise.css";
 
 export { themeStyle };
 export type { WidgetConfig };
