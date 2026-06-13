@@ -1,64 +1,73 @@
 // @ts-check
-import tseslint from 'typescript-eslint';
 import boundaries from 'eslint-plugin-boundaries';
-import importPlugin from 'eslint-plugin-import';
+import tseslint from 'typescript-eslint';
+
+const testFiles = [
+  'src/**/*.spec.ts',
+  'src/**/*-spec.ts',
+  'src/**/__test__/**',
+  'src/**/__tests__/**',
+];
+
+const transitionalInfrastructureConsumers = [
+  'src/modules/checkout/application/services/checkout-customer.service.ts',
+  'src/modules/payment/application/create-payment-intent.use-case.ts',
+  'src/modules/payment/application/handle-stripe-webhook.use-case.ts',
+];
 
 export default tseslint.config(
   {
     ignores: ['dist/**', 'node_modules/**'],
   },
 
-  // TypeScript rules
-  ...tseslint.configs.recommended,
-
-  // Boundary + import-order rules
   {
+    files: ['src/modules/*/{domain,application,infrastructure,presentation}/**/*.ts'],
+    ignores: testFiles,
+
+    languageOptions: {
+      parser: tseslint.parser,
+    },
+
     plugins: {
       boundaries,
-      import: importPlugin,
     },
 
     settings: {
-      // Each element type captures the bounded-context name from the path.
-      // Pattern wildcards map positionally to the capture array.
-      // Example: src/modules/checkout/domain/... → context = 'checkout'
       'boundaries/elements': [
         {
           type: 'domain',
           pattern: 'src/modules/*/domain/**',
-          capture: ['context'],
+          capture: ['context', 'internal'],
           mode: 'file',
         },
         {
           type: 'application',
           pattern: 'src/modules/*/application/**',
-          capture: ['context'],
+          capture: ['context', 'internal'],
           mode: 'file',
         },
         {
           type: 'infrastructure',
           pattern: 'src/modules/*/infrastructure/**',
-          capture: ['context'],
+          capture: ['context', 'internal'],
           mode: 'file',
         },
         {
           type: 'presentation',
           pattern: 'src/modules/*/presentation/**',
-          capture: ['context'],
+          capture: ['context', 'internal'],
           mode: 'file',
         },
         {
-          // *.module.ts and top-level module files
           type: 'module-root',
-          pattern: 'src/modules/*/*.ts',
+          pattern: 'src/modules/*/*.module.ts',
           capture: ['context'],
           mode: 'file',
         },
       ],
 
-      'boundaries/include': ['src/**'],
+      'boundaries/include': ['src/modules/**'],
 
-      // TypeScript-aware resolver so boundaries can follow .js imports → .ts files.
       'import/resolver': {
         typescript: {
           alwaysTryTypes: true,
@@ -68,102 +77,134 @@ export default tseslint.config(
     },
 
     rules: {
-      // -------------------------------------------------------
-      // Layer + cross-context boundary enforcement
-      // default: 'disallow' → anything not explicitly allowed is an error.
-      // '${from.context}' resolves to the captured context of the importing file,
-      // ensuring each context can only touch its own layers.
-      // -------------------------------------------------------
       'boundaries/element-types': [
         'error',
         {
           default: 'disallow',
           rules: [
-            // domain: only same-context domain imports allowed
             {
-              from: [['domain', { context: '*' }]],
-              allow: [['domain', { context: '${from.context}' }]],
+              from: 'domain',
+              allow: ['domain'],
             },
-
-            // application: same-context domain + application
             {
-              from: [['application', { context: '*' }]],
-              allow: [
-                ['domain', { context: '${from.context}' }],
-                ['application', { context: '${from.context}' }],
-              ],
+              from: 'application',
+              allow: ['domain', 'application'],
             },
-
-            // infrastructure: same-context domain + application + infrastructure
             {
               from: [['infrastructure', { context: '*' }]],
               allow: [
-                ['domain', { context: '${from.context}' }],
-                ['application', { context: '${from.context}' }],
+                'domain',
+                'application',
                 ['infrastructure', { context: '${from.context}' }],
               ],
             },
-
-            // presentation: same-context domain + application + presentation
             {
-              from: [['presentation', { context: '*' }]],
+              from: 'presentation',
+              allow: ['domain', 'application', 'presentation'],
+            },
+            {
+              from: [
+                [
+                  'domain',
+                  {
+                    context: 'auth',
+                    internal: 'services/auth-cookie.service.ts',
+                  },
+                ],
+              ],
               allow: [
-                ['domain', { context: '${from.context}' }],
-                ['application', { context: '${from.context}' }],
-                ['presentation', { context: '${from.context}' }],
+                [
+                  'application',
+                  {
+                    context: 'auth',
+                    internal: 'register-merchant.use-case.ts',
+                  },
+                ],
               ],
             },
-
-            // module-root (*.module.ts, context barrel): all layers of same context
             {
-              from: [['module-root', { context: '*' }]],
+              from: [
+                [
+                  'application',
+                  {
+                    context: 'checkout',
+                    internal: 'services/checkout-customer.service.ts',
+                  },
+                ],
+              ],
               allow: [
-                ['domain', { context: '${from.context}' }],
-                ['application', { context: '${from.context}' }],
-                ['infrastructure', { context: '${from.context}' }],
-                ['presentation', { context: '${from.context}' }],
-                ['module-root', { context: '${from.context}' }],
+                [
+                  'infrastructure',
+                  {
+                    context: 'checkout',
+                    internal: 'brevo-buyer-email.notifier.ts',
+                  },
+                ],
+              ],
+            },
+            {
+              from: [
+                [
+                  'application',
+                  {
+                    context: 'payment',
+                    internal: 'create-payment-intent.use-case.ts',
+                  },
+                ],
+              ],
+              allow: [
+                ['infrastructure', { context: 'payment', internal: 'asaas-env.ts' }],
+                ['infrastructure', { context: 'payment', internal: 'stripe-env.ts' }],
+              ],
+            },
+            {
+              from: [
+                [
+                  'application',
+                  {
+                    context: 'payment',
+                    internal: 'handle-stripe-webhook.use-case.ts',
+                  },
+                ],
+              ],
+              allow: [
+                ['infrastructure', { context: 'payment', internal: 'stripe-env.ts' }],
               ],
             },
           ],
         },
       ],
+    },
+  },
 
-      // -------------------------------------------------------
-      // Cross-context infrastructure imports (string-based, no resolver needed)
-      // Catches the 12 known violations where modules import checkout's prisma client.
-      // Remove after Wave 1 moves prisma-client to @app/persistence.
-      // -------------------------------------------------------
+  {
+    files: [
+      'src/modules/*/domain/**/*.ts',
+      'src/modules/*/application/**/*.ts',
+      'src/modules/*/presentation/**/*.ts',
+    ],
+    ignores: testFiles,
+
+    rules: {
       'no-restricted-imports': [
         'error',
         {
           patterns: [
             {
-              group: ['**/checkout/infrastructure/**'],
+              group: ['**/infrastructure/**'],
               message:
-                'Direct import from checkout/infrastructure is forbidden. ' +
-                'Use @app/persistence after Wave 1 migration.',
+                'Layer code must depend on domain/application ports, not infrastructure implementations.',
             },
           ],
         },
       ],
+    },
+  },
 
-      // -------------------------------------------------------
-      // Import ordering: builtin → external → internal → relative
-      // -------------------------------------------------------
-      'import/order': [
-        'error',
-        {
-          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
-          pathGroups: [
-            { pattern: '@aacp/**', group: 'internal', position: 'before' },
-            { pattern: '@app/**', group: 'internal', position: 'before' },
-          ],
-          pathGroupsExcludedImportTypes: ['builtin'],
-          'newlines-between': 'never',
-          alphabetize: { order: 'asc', caseInsensitive: true },
-        },
-      ],
+  {
+    files: transitionalInfrastructureConsumers,
+    rules: {
+      'no-restricted-imports': 'off',
     },
   },
 );

@@ -44,11 +44,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Lint: continue-on-error until Wave 1–3 clears the 12 existing boundary violations.
-      # Remove continue-on-error after Wave 3 is merged.
       - name: Lint
         run: pnpm --filter @aacp/api lint
-        continue-on-error: true
 
       - name: Typecheck
         run: pnpm -r typecheck
