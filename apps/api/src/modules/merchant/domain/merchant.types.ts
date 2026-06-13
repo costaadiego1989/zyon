@@ -4,6 +4,7 @@ export interface MerchantProfile {
   id: string;
   name: string;
   theme?: MerchantTheme;
+  stripeConnectAccountId?: string;
 }
 
 export { type MerchantRules, type MerchantTheme };

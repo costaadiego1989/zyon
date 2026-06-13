@@ -187,7 +187,7 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
 
   // 12. Payment intent + webhook → order completed
   repo.saveSession({ ...finalSession!, customer: { ...finalSession!.customer, asaasCustomerId: "cus_test" } });
-  const intent = await new CreatePaymentIntentUseCase(repo, payments, new FakePaymentProvider(), repo).execute({
+  const intent = await new CreatePaymentIntentUseCase(repo, repo, payments, new FakePaymentProvider(), repo).execute({
     merchant_id: MERCHANT, session_id: sid, idempotency_key: "idem_pix", method: "pix"
   });
   const eventBus = new InMemoryDomainEventBus();

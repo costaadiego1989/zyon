@@ -29,8 +29,24 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     return {
       id: row.id,
       name: row.name,
-      theme: (row.theme ?? undefined) as MerchantTheme | undefined
+      theme: (row.theme ?? undefined) as MerchantTheme | undefined,
+      stripeConnectAccountId: row.stripeConnectAccountId ?? undefined
     };
+  }
+
+  async getStripeConnectAccountId(merchantId: string): Promise<string | undefined> {
+    const row = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { stripeConnectAccountId: true }
+    });
+    return row?.stripeConnectAccountId?.trim() || undefined;
+  }
+
+  async setStripeConnectAccountId(merchantId: string, accountId: string): Promise<void> {
+    await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { stripeConnectAccountId: accountId }
+    });
   }
 
   async updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {

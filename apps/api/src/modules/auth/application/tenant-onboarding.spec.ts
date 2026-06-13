@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { InMemoryAuthRepository } from "../infrastructure/in-memory-auth.repository.js";
 import { JwtService } from "../domain/services/jwt.service.js";
 import { PasswordHasher } from "../domain/services/password-hasher.service.js";
+import { InMemoryMerchantRepository } from "../../merchant/infrastructure/in-memory-merchant.repository.js";
 import { RegisterMerchantUseCase } from "./register-merchant.use-case.js";
 import { LoginUseCase } from "./login.use-case.js";
 import { IssueEmbedSessionUseCase } from "../../embed/application/issue-embed-session.use-case.js";
@@ -17,7 +18,8 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
   const jwt = new JwtService(JWT_SECRET, 3600);
   const embedTokens = new EmbedTokenService({ value: EMBED_SECRET });
 
-  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+  const merchants = new InMemoryMerchantRepository();
+  const register = new RegisterMerchantUseCase(repository, merchants, hasher, jwt);
   const login = new LoginUseCase(repository, hasher, jwt);
   const issueEmbed = new IssueEmbedSessionUseCase(embedTokens);
 
@@ -65,7 +67,8 @@ test("tenant onboarding: duplicate email rejected", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
   const jwt = new JwtService(JWT_SECRET, 3600);
-  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+  const merchants = new InMemoryMerchantRepository();
+  const register = new RegisterMerchantUseCase(repository, merchants, hasher, jwt);
 
   await register.execute({
     merchant_id: "mrc_athom_tech",

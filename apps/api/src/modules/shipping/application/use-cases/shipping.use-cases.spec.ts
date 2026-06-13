@@ -208,6 +208,7 @@ describe("SelectShippingMethodUseCase", () => {
 
     const payment = await new CreatePaymentIntentUseCase(
       checkoutRepo,
+      checkoutRepo,
       new InMemoryPaymentRepository(),
       new FakePaymentProvider(),
       checkoutRepo

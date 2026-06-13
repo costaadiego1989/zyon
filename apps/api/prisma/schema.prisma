@@ -7,11 +7,12 @@ datasource db {
 }
 
 model Merchant {
-  id        String   @id
-  name      String
-  theme     Json?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                    String   @id
+  name                  String
+  theme                 Json?
+  stripeConnectAccountId String? @map("stripe_connect_account_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
 
   users               MerchantUser[]
   apiKeys             MerchantApiKey[]

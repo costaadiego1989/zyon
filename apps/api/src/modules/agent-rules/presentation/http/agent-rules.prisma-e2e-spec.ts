@@ -4,6 +4,7 @@ import { createPrismaClient } from "../../../../shared/persistence/prisma-client
 import { JwtService } from "../../../auth/domain/services/jwt.service.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
 import { PrismaAuthRepository } from "../../../auth/infrastructure/prisma-auth.repository.js";
+import { PrismaMerchantRepository } from "../../../merchant/infrastructure/prisma-merchant.repository.js";
 import { RegisterMerchantUseCase } from "../../../auth/application/register-merchant.use-case.js";
 import { PrismaAgentRulesRepository } from "../../infrastructure/prisma-agent-rules.repository.js";
 import {
@@ -22,7 +23,8 @@ test(
     const prisma = createPrismaClient();
     const authRepository = new PrismaAuthRepository(prisma);
     const jwt = new JwtService("test-secret", 3600);
-    const register = new RegisterMerchantUseCase(authRepository, new PasswordHasher(), jwt);
+    const merchantRepository = new PrismaMerchantRepository(prisma);
+    const register = new RegisterMerchantUseCase(authRepository, merchantRepository, new PasswordHasher(), jwt);
     const repository = new PrismaAgentRulesRepository(prisma);
     const controller = new AgentRulesController(
       new GetAgentRulesUseCase(repository),

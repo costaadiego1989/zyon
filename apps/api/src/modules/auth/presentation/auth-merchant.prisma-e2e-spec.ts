@@ -23,7 +23,7 @@ test(
     const merchantRepository = new PrismaMerchantRepository(prisma);
     const jwt = new JwtService("test-secret", 3600);
     const hasher = new PasswordHasher();
-    const register = new RegisterMerchantUseCase(authRepository, hasher, jwt);
+    const register = new RegisterMerchantUseCase(authRepository, merchantRepository, hasher, jwt);
     const login = new LoginUseCase(authRepository, hasher, jwt);
     const merchantController = new MerchantController(
       new GetMerchantProfileUseCase(merchantRepository),

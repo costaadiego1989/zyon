@@ -21,18 +21,25 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       throw new Error("stripe_raw_card_forbidden");
     }
 
-    const paymentIntent = await this.stripe.paymentIntents.create(
-      {
-        amount: input.amountCents,
-        currency: input.currency.toLowerCase(),
-        automatic_payment_methods: { enabled: true },
-        metadata: {
-          merchant_id: input.merchantId,
-          session_id: input.sessionId,
-          intent_id: input.intentId
-        },
-        description: input.description ?? `${input.merchantId}:${input.sessionId}`
+    const paymentIntentParams: Stripe.PaymentIntentCreateParams = {
+      amount: input.amountCents,
+      currency: input.currency.toLowerCase(),
+      automatic_payment_methods: { enabled: true },
+      metadata: {
+        merchant_id: input.merchantId,
+        session_id: input.sessionId,
+        intent_id: input.intentId
       },
+      description: input.description ?? `${input.merchantId}:${input.sessionId}`
+    };
+
+    if (input.stripeConnectAccountId && input.platformFeeCents && input.platformFeeCents > 0) {
+      paymentIntentParams.application_fee_amount = input.platformFeeCents;
+      paymentIntentParams.transfer_data = { destination: input.stripeConnectAccountId };
+    }
+
+    const paymentIntent = await this.stripe.paymentIntents.create(
+      paymentIntentParams,
       { idempotencyKey: input.intentId }
     );
 

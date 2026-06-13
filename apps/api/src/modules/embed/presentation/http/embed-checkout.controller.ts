@@ -23,6 +23,7 @@ import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cas
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
+import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
@@ -58,7 +59,8 @@ export class EmbedCheckoutController {
     private readonly embedGuards: EmbedCheckoutGuardHelper,
     private readonly applyOfferUseCase: ApplyOfferUseCase,
     private readonly createPaymentIntent: CreatePaymentIntentUseCase,
-    private readonly confirmCryptoPayment: ConfirmCryptoPaymentUseCase
+    private readonly confirmCryptoPayment: ConfirmCryptoPaymentUseCase,
+    private readonly confirmStripePayment: ConfirmStripePaymentUseCase
   ) {}
 
   @Post("start")
@@ -179,6 +181,24 @@ export class EmbedCheckoutController {
       intent_id: intentId.trim(),
       tx_hash: body.tx_hash.trim(),
       wallet_address: body.wallet_address.trim()
+    });
+  }
+
+  @Post("payment/intents/:intentId/stripe/confirm")
+  async confirmStripeFromEmbed(
+    @Req() request: EmbedHttpRequest,
+    @Param("intentId") intentId: string,
+    @Body() body: { session_id: string }
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") {
+      throw new BadRequestException("stripe_confirm_fields_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    return this.confirmStripePayment.execute({
+      merchant_id: embed.merchantId,
+      session_id: body.session_id.trim(),
+      intent_id: intentId.trim()
     });
   }
 }

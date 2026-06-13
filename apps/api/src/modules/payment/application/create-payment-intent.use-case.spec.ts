@@ -30,7 +30,7 @@ class CapturingPaymentProvider implements PaymentProviderPort {
 
 test("CreatePaymentIntentUseCase throws NotFound when checkout session is missing", async () => {
   const checkout = new InMemoryCheckoutRepository();
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+  const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
   await assert.rejects(
     () =>
       uc.execute({
@@ -50,7 +50,7 @@ test("CreatePaymentIntentUseCase is idempotent on (merchant, session, idempotenc
     })
   );
 
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+  const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
 
   const a = await uc.execute({
     merchant_id: "mrc_1",
@@ -89,7 +89,7 @@ test("CreatePaymentIntentUseCase charges cart total with selected shipping and d
     })
   );
 
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+  const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
   const intent = await uc.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
@@ -108,7 +108,7 @@ test("CreatePaymentIntentUseCase rejects payment before selected shipping exists
     })
   );
 
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+  const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
 
   await assert.rejects(
     () =>
@@ -130,7 +130,7 @@ test("CreatePaymentIntentUseCase allows zero-price selected shipping", async () 
     })
   );
 
-  const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+  const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
 
   const intent = await uc.execute({
     merchant_id: "mrc_1",
@@ -190,6 +190,7 @@ test("CreatePaymentIntentUseCase validates commerce cart and creates pending ord
   const provider = new CapturingPaymentProvider();
   const uc = new CreatePaymentIntentUseCase(
     checkout,
+    checkout,
     new InMemoryPaymentRepository(),
     provider,
     checkout,
@@ -247,6 +248,7 @@ test("CreatePaymentIntentUseCase rejects commerce-backed payment when trusted ca
   const provider = new CapturingPaymentProvider();
   const uc = new CreatePaymentIntentUseCase(
     checkout,
+    checkout,
     new InMemoryPaymentRepository(),
     provider,
     checkout,
@@ -291,6 +293,7 @@ test("CreatePaymentIntentUseCase auto-approves fake provider when E2E seed is en
     };
     const uc = new CreatePaymentIntentUseCase(
       checkout,
+      checkout,
       new InMemoryPaymentRepository(),
       new FakePaymentProvider(),
       checkout,
@@ -332,7 +335,7 @@ test("CreatePaymentIntentUseCase rejects when Asaas is configured but session bu
     const checkout = new InMemoryCheckoutRepository();
     await checkout.saveSession(checkoutSession({ customer: { email: "a@b.com" } }));
 
-    const uc = new CreatePaymentIntentUseCase(checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
+    const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), new FakePaymentProvider(), checkout);
 
     await assert.rejects(() => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "z1" }), (err: unknown) => err instanceof BadRequestException);
   } finally {

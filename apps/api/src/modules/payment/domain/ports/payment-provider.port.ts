@@ -26,6 +26,8 @@ export type CreateProviderPaymentInput = {
     phone: string;
   };
   remoteIp?: string;
+  stripeConnectAccountId?: string;
+  platformFeeCents?: number;
 };
 
 export type CryptoBuyerFacingPayload = {

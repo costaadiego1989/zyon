@@ -426,7 +426,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       customer: { ...readySession!.customer, asaasCustomerId: "cus_fixture_full_flow" }
     });
 
-    const intent = await new CreatePaymentIntentUseCase(repo, payments, new FakePaymentProvider(), repo).execute({
+    const intent = await new CreatePaymentIntentUseCase(repo, repo, payments, new FakePaymentProvider(), repo).execute({
       merchant_id: MERCHANT,
       session_id: sessionId,
       idempotency_key: "idem_full_flow_pix",

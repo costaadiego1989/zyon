@@ -1,7 +1,20 @@
 const isProd = process.env.NODE_ENV === "production";
 
+const DEFAULT_PLATFORM_FEE_BRL = 1.99;
+
 export function isStripeConfigured(): boolean {
   return Boolean(readStripeConnection().secretKey);
+}
+
+export function readPlatformFeeCents(): number {
+  const raw = process.env.PLATFORM_FEE_BRL?.trim() || String(DEFAULT_PLATFORM_FEE_BRL);
+  const major = Number(raw.replace(",", "."));
+  if (!Number.isFinite(major) || major < 0) return Math.round(DEFAULT_PLATFORM_FEE_BRL * 100);
+  return Math.round(major * 100);
+}
+
+export function readPlatformFeeMajorUnits(): number {
+  return readPlatformFeeCents() / 100;
 }
 
 export function readStripeConnection(): {

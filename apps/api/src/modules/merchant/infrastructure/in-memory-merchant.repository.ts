@@ -23,13 +23,30 @@ const DEFAULT_RULES: MerchantRules = {
 export class InMemoryMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   private profiles = new Map<string, MerchantProfile>();
   private rules = new Map<string, MerchantRules>();
+  private stripeAccounts = new Map<string, string>();
 
   seedProfile(profile: MerchantProfile): void {
     this.profiles.set(profile.id, profile);
+    if (profile.stripeConnectAccountId) {
+      this.stripeAccounts.set(profile.id, profile.stripeConnectAccountId);
+    }
   }
 
   async getProfile(merchantId: string): Promise<MerchantProfile | undefined> {
-    return this.profiles.get(merchantId);
+    const profile = this.profiles.get(merchantId);
+    if (!profile) return undefined;
+    const stripeConnectAccountId = this.stripeAccounts.get(merchantId);
+    return stripeConnectAccountId ? { ...profile, stripeConnectAccountId } : profile;
+  }
+
+  async getStripeConnectAccountId(merchantId: string): Promise<string | undefined> {
+    return this.stripeAccounts.get(merchantId) ?? this.profiles.get(merchantId)?.stripeConnectAccountId;
+  }
+
+  async setStripeConnectAccountId(merchantId: string, accountId: string): Promise<void> {
+    this.stripeAccounts.set(merchantId, accountId);
+    const existing = this.profiles.get(merchantId) ?? { id: merchantId, name: merchantId };
+    this.profiles.set(merchantId, { ...existing, stripeConnectAccountId: accountId });
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {

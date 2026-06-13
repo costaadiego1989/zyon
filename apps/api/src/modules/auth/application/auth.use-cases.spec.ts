@@ -6,12 +6,14 @@ import { JwtService } from "../domain/services/jwt.service.js";
 import { PasswordHasher } from "../domain/services/password-hasher.service.js";
 import { LoginUseCase } from "./login.use-case.js";
 import { RegisterMerchantUseCase } from "./register-merchant.use-case.js";
+import { InMemoryMerchantRepository } from "../../merchant/infrastructure/in-memory-merchant.repository.js";
 
 test("register and login return JWTs for the merchant owner", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
   const jwt = new JwtService("test-secret", 3600);
-  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+  const merchants = new InMemoryMerchantRepository();
+  const register = new RegisterMerchantUseCase(repository, merchants, hasher, jwt);
   const login = new LoginUseCase(repository, hasher, jwt);
 
   const registered = await register.execute({
@@ -32,7 +34,8 @@ test("auth rejects duplicate email and invalid credentials", async () => {
   const repository = new InMemoryAuthRepository();
   const hasher = new PasswordHasher();
   const jwt = new JwtService("test-secret", 3600);
-  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+  const merchants = new InMemoryMerchantRepository();
+  const register = new RegisterMerchantUseCase(repository, merchants, hasher, jwt);
   const login = new LoginUseCase(repository, hasher, jwt);
 
   await register.execute({

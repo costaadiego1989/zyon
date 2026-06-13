@@ -113,6 +113,12 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
   }
 }
 
+function readPlatformServiceFee(): number {
+  const raw = process.env.PLATFORM_FEE_BRL?.trim() || "1.99";
+  const major = Number(raw.replace(",", "."));
+  return Number.isFinite(major) && major >= 0 ? major : 1.99;
+}
+
 export function buildCheckoutExperience(input: ExperienceInputs, deps: ExperienceDeps): CheckoutExperienceSnapshot {
   const merchantName = deps.merchantName ?? input.merchant_id;
   const theme = deps.theme ?? DEFAULT_MERCHANT_THEME;
@@ -123,6 +129,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const discount = input.cart.currentDiscount ?? 0;
   const subtotal = input.cart.total;
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
+  const serviceFee = readPlatformServiceFee();
   const agentIdentity = deps.agent?.agent;
   const agentName = agentIdentity?.agentName ?? "Assistente AACP";
   const cartEmpty = input.cart.items.length === 0;
@@ -162,6 +169,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       subtotal: roundMoney(subtotal),
       shipping: roundMoney(shipping),
       discount: roundMoney(discount),
+      service_fee: serviceFee,
       total
     },
     shipping: input.shipping,

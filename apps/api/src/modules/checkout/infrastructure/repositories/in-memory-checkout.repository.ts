@@ -80,6 +80,12 @@ export class InMemoryCheckoutRepository
     return { id: merchantId, name: merchantId };
   }
 
+  async getStripeConnectAccountId(_merchantId: string): Promise<string | undefined> {
+    return "acct_test_connect";
+  }
+
+  async setStripeConnectAccountId(_merchantId: string, _accountId: string): Promise<void> {}
+
   async updateTheme(_merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
     return theme;
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import {
   PAYMENT_REPOSITORY,
@@ -10,7 +11,7 @@ import type { PaymentProviderPort } from "../domain/ports/payment-provider.port.
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession, CurrencyCode } from "@aacp/shared-types";
 import { isAsaasConfigured } from "../infrastructure/asaas-env.js";
-import { isStripeConfigured } from "../infrastructure/stripe-env.js";
+import { isStripeConfigured, readPlatformFeeCents } from "../infrastructure/stripe-env.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
@@ -69,6 +70,7 @@ function paymentDescription(merchantId: string, sessionId: string, commerceOrder
 export class CreatePaymentIntentUseCase {
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout: CheckoutSessionRepository,
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
@@ -92,14 +94,26 @@ export class CreatePaymentIntentUseCase {
 
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
 
-    const amountMajorUnits = Math.max(
+    const orderAmountMajorUnits = Math.max(
       0,
       session.cart.total + (session.shipping?.customerPrice ?? 0) - (session.cart.currentDiscount ?? 0)
     );
-    const amountCents = Math.round(amountMajorUnits * 100);
-    if (amountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
+    const orderAmountCents = Math.round(orderAmountMajorUnits * 100);
+    if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
     const method: PaymentMethod = body.method ?? "pix";
+    const isStripeCard = !shouldForceFakePaymentProvider() && method === "card" && isStripeConfigured();
+    let stripeConnectAccountId: string | undefined;
+    let platformFeeCents = 0;
+
+    if (isStripeCard) {
+      stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
+      if (stripeConnectAccountId) {
+        platformFeeCents = readPlatformFeeCents();
+      }
+    }
+
+    const amountCents = orderAmountCents + platformFeeCents;
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
     const useFakeProvider = shouldForceFakePaymentProvider();
@@ -141,10 +155,10 @@ export class CreatePaymentIntentUseCase {
       commerceOrderId
     });
 
-    const isStripeCard = !useFakeProvider && method === "card" && isStripeConfigured();
+    const isStripeCardPayment = !useFakeProvider && method === "card" && isStripeConfigured();
 
     let creditCardHolderInfo: any = undefined;
-    if (method === "card" && !isStripeCard && session.customer) {
+    if (method === "card" && !isStripeCardPayment && session.customer) {
       creditCardHolderInfo = {
         name: session.customer.fullName || "Comprador",
         email: session.customer.email || "",
@@ -163,8 +177,8 @@ export class CreatePaymentIntentUseCase {
       currency: intent.snapshot().currency,
       method,
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
-      ...(isStripeCard
-        ? {}
+      ...(isStripeCardPayment
+        ? { stripeConnectAccountId, platformFeeCents }
         : {
             asaasCustomerId: asaasCustomer ?? "cust_fake_test_placeholder",
             creditCard: body.credit_card,
