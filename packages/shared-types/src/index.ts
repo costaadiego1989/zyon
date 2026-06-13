@@ -263,6 +263,7 @@ export interface CheckoutTotalsSnapshot {
   subtotal: number;
   shipping: number;
   discount: number;
+  service_fee?: number;
   total: number;
 }
 
