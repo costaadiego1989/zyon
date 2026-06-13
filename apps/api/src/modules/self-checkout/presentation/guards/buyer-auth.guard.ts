@@ -1,5 +1,6 @@
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, ForbiddenException } from "@nestjs/common";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { requireSecret } from "../../../../shared/config/secret-config.js";
 
 export interface BuyerJwtPayload {
   sub: string;
@@ -30,7 +31,7 @@ export class BuyerAuthGuard implements CanActivate {
     const auth = req.headers["authorization"];
     if (!auth?.startsWith("Bearer ")) throw new UnauthorizedException("BUYER_TOKEN_REQUIRED");
 
-    const secret = process.env.BUYER_JWT_SECRET ?? "buyer-dev-secret";
+    const secret = requireSecret("BUYER_JWT_SECRET", "buyer-dev-secret");
     let payload: BuyerJwtPayload;
     try {
       payload = verifyBuyerToken(auth.slice(7), secret);

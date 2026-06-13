@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { RegisterBuyerUserUseCase, type RegisterBuyerUserInput } from "../../application/use-cases/register-buyer-user.use-case.js";
 import { BUYER_USER_REPOSITORY, type BuyerUserRepository } from "../../domain/ports/buyer-user-repository.port.js";
 import { Inject } from "@nestjs/common";
+import { requireSecret } from "../../../../shared/config/secret-config.js";
 
 const scryptAsync = promisify(scrypt);
 const KEY_LEN = 64;
@@ -23,7 +24,7 @@ async function verifyPassword(password: string, hash: string): Promise<boolean> 
 }
 
 function issueToken(sub: string, email: string): string {
-  const secret = process.env.BUYER_JWT_SECRET ?? "buyer-dev-secret";
+  const secret = requireSecret("BUYER_JWT_SECRET", "buyer-dev-secret");
   const ttl = 7 * 24 * 3600;
   const now = Math.floor(Date.now() / 1000);
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");

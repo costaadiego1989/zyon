@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { requireSecret } from "../../../../shared/config/secret-config.js";
 
 export interface BuyerJwtPayload {
   sub: string;
@@ -16,7 +17,7 @@ export interface BuyerPrincipal {
 
 export class BuyerJwtService {
   constructor(
-    private readonly secret = process.env.JWT_SECRET ?? "dev-secret-change-me",
+    private readonly secret = requireSecret("JWT_SECRET", "dev-secret-change-me"),
     private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600)
   ) {}
 
