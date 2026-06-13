@@ -6,6 +6,7 @@ import {
   Injectable,
   Post,
   Req,
+  Param,
   UnauthorizedException,
   UseGuards
 } from "@nestjs/common";
@@ -21,6 +22,7 @@ import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/st
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
@@ -55,7 +57,8 @@ export class EmbedCheckoutController {
     private readonly sendChat: SendChatMessageUseCase,
     private readonly embedGuards: EmbedCheckoutGuardHelper,
     private readonly applyOfferUseCase: ApplyOfferUseCase,
-    private readonly createPaymentIntent: CreatePaymentIntentUseCase
+    private readonly createPaymentIntent: CreatePaymentIntentUseCase,
+    private readonly confirmCryptoPayment: ConfirmCryptoPaymentUseCase
   ) {}
 
   @Post("start")
@@ -119,7 +122,7 @@ export class EmbedCheckoutController {
     body: {
       session_id: string;
       idempotency_key: string;
-      method?: "pix" | "card" | "boleto";
+      method?: "pix" | "card" | "boleto" | "crypto";
       accepted_offer_id?: string;
       credit_card?: {
         holderName: string;
@@ -151,6 +154,31 @@ export class EmbedCheckoutController {
         typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
       credit_card: body.credit_card,
       remote_ip: remoteIp
+    });
+  }
+
+  @Post("payment/intents/:intentId/crypto/confirm")
+  async confirmCryptoFromEmbed(
+    @Req() request: EmbedHttpRequest,
+    @Param("intentId") intentId: string,
+    @Body()
+    body: {
+      session_id: string;
+      tx_hash: string;
+      wallet_address: string;
+    }
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string" || typeof body.tx_hash !== "string" || typeof body.wallet_address !== "string") {
+      throw new BadRequestException("crypto_confirm_fields_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    return this.confirmCryptoPayment.execute({
+      merchant_id: embed.merchantId,
+      session_id: body.session_id.trim(),
+      intent_id: intentId.trim(),
+      tx_hash: body.tx_hash.trim(),
+      wallet_address: body.wallet_address.trim()
     });
   }
 }

@@ -21,6 +21,19 @@ function normalizeBuyerFacing(v: unknown): PaymentIntentSnapshot["buyerFacing"] 
   if (typeof rec.qrCodeCopyPaste === "string") out.qrCodeCopyPaste = rec.qrCodeCopyPaste;
   if (typeof rec.invoiceUrl === "string") out.invoiceUrl = rec.invoiceUrl;
   if (typeof rec.encodedQrImage === "string") out.encodedQrImage = rec.encodedQrImage;
+  if (typeof rec.clientSecret === "string") out.clientSecret = rec.clientSecret;
+  if (typeof rec.stripePublishableKey === "string") out.stripePublishableKey = rec.stripePublishableKey;
+  if (typeof rec.chainId === "number") out.chainId = rec.chainId;
+  if (typeof rec.chain === "string") out.chain = rec.chain;
+  if (typeof rec.evmNetwork === "string") out.evmNetwork = rec.evmNetwork;
+  if (typeof rec.chainLabel === "string") out.chainLabel = rec.chainLabel;
+  if (typeof rec.tokenAddress === "string") out.tokenAddress = rec.tokenAddress;
+  if (typeof rec.tokenSymbol === "string") out.tokenSymbol = rec.tokenSymbol;
+  if (typeof rec.amountAtomic === "string") out.amountAtomic = rec.amountAtomic;
+  if (typeof rec.amountDisplay === "string") out.amountDisplay = rec.amountDisplay;
+  if (typeof rec.destinationAddress === "string") out.destinationAddress = rec.destinationAddress;
+  if (typeof rec.quoteExpiresAt === "string") out.quoteExpiresAt = rec.quoteExpiresAt;
+  if (typeof rec.walletConnectProjectId === "string") out.walletConnectProjectId = rec.walletConnectProjectId;
   return Object.keys(out).length ? out : undefined;
 }
 

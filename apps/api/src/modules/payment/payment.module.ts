@@ -2,8 +2,10 @@ import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
+import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
@@ -15,8 +17,10 @@ import { FakePaymentProvider } from "./infrastructure/fake-payment-provider.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
 import { RoutingPaymentAdapter } from "./infrastructure/routing-payment.adapter.js";
+import { EvmCryptoPaymentAdapter } from "./infrastructure/evm-crypto-payment.adapter.js";
 import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapter.js";
 import { PaymentHttpController } from "./presentation/http/payment.controller.js";
+import { CryptoPaymentController } from "./presentation/http/crypto-payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
 import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
 import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-env.js";
@@ -28,14 +32,16 @@ function shouldForceFakePaymentProvider(): boolean {
 }
 
 @Module({
-  imports: [CheckoutModule, CommerceModule],
-  controllers: [PaymentHttpController, AsaasWebhookController, StripeWebhookController],
+  imports: [CheckoutModule, CommerceModule, MerchantModule],
+  controllers: [PaymentHttpController, CryptoPaymentController, AsaasWebhookController, StripeWebhookController],
   providers: [
     CreatePaymentIntentUseCase,
+    ConfirmCryptoPaymentUseCase,
     HandleAsaasWebhookUseCase,
     HandleStripeWebhookUseCase,
     InMemoryPaymentRepository,
     FakePaymentProvider,
+    EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
     { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
     {
@@ -55,15 +61,16 @@ function shouldForceFakePaymentProvider(): boolean {
     },
     {
       provide: PAYMENT_PROVIDER_PORT,
-      useFactory: (fake: FakePaymentProvider, asaas: AsaasPaymentAdapter, stripe: StripePaymentAdapter) => {
+      useFactory: (fake: FakePaymentProvider, asaas: AsaasPaymentAdapter, stripe: StripePaymentAdapter, evmCrypto: EvmCryptoPaymentAdapter) => {
         if (shouldForceFakePaymentProvider()) return fake;
         return new RoutingPaymentAdapter(
           isStripeConfigured() ? stripe : null,
           isAsaasConfigured() ? asaas : null,
+          evmCrypto,
           fake
         );
       },
-      inject: [FakePaymentProvider, AsaasPaymentAdapter, StripePaymentAdapter]
+      inject: [FakePaymentProvider, AsaasPaymentAdapter, StripePaymentAdapter, EvmCryptoPaymentAdapter]
     },
     {
       provide: PAYMENT_REPOSITORY,
@@ -76,6 +83,6 @@ function shouldForceFakePaymentProvider(): boolean {
       inject: [InMemoryPaymentRepository, PRISMA_CLIENT]
     }
   ],
-  exports: [CreatePaymentIntentUseCase]
+  exports: [CreatePaymentIntentUseCase, ConfirmCryptoPaymentUseCase]
 })
 export class PaymentModule {}

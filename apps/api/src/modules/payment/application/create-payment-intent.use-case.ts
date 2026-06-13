@@ -103,7 +103,11 @@ export class CreatePaymentIntentUseCase {
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
     const useFakeProvider = shouldForceFakePaymentProvider();
-    const needsAsaas = !useFakeProvider && isAsaasConfigured() && !(method === "card" && isStripeConfigured());
+    const needsAsaas =
+      method !== "crypto" &&
+      !useFakeProvider &&
+      isAsaasConfigured() &&
+      !(method === "card" && isStripeConfigured());
     if (needsAsaas && !asaasCustomer) {
       const customer = session.customer;
       if (!customer?.fullName || !customer?.email || !customer?.cpf) {
@@ -175,6 +179,16 @@ export class CreatePaymentIntentUseCase {
     });
 
     if (shouldAutoApproveFakePayment(created.providerPaymentId) && this.checkoutPayment) {
+      intent.markApproved({
+        providerPaymentId: created.providerPaymentId,
+        approvedAmountCents: amountCents
+      });
+    } else if (
+      method === "crypto" &&
+      useFakeProvider &&
+      created.providerPaymentId.startsWith("fake_crypto_") &&
+      this.checkoutPayment
+    ) {
       intent.markApproved({
         providerPaymentId: created.providerPaymentId,
         approvedAmountCents: amountCents

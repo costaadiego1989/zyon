@@ -28,6 +28,20 @@ export type CreateProviderPaymentInput = {
   remoteIp?: string;
 };
 
+export type CryptoBuyerFacingPayload = {
+  chainId: number;
+  chain: "polygon" | "base";
+  evmNetwork: "mainnet" | "testnet";
+  chainLabel: string;
+  tokenAddress: string;
+  tokenSymbol: "USDC";
+  amountAtomic: string;
+  amountDisplay: string;
+  destinationAddress: string;
+  quoteExpiresAt: string;
+  walletConnectProjectId?: string;
+};
+
 export type CreateProviderPaymentOutput = {
   providerPaymentId: string;
   status: "pending" | "requires_action";
@@ -37,7 +51,7 @@ export type CreateProviderPaymentOutput = {
     encodedQrImage?: string;
     clientSecret?: string;
     stripePublishableKey?: string;
-  };
+  } & Partial<CryptoBuyerFacingPayload>;
 };
 
 export interface PaymentProviderPort {

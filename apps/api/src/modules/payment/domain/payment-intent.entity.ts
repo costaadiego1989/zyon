@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 const FORBIDDEN_PAYMENT_INPUT_KEYS = ["unsafeRawCardPan", "cvv", "cardNumber", "rawPan", "pan"] as const;
 
-export type PaymentMethod = "pix" | "card" | "boleto";
+export type PaymentMethod = "pix" | "card" | "boleto" | "crypto";
 
 export type PaymentIntentStatus =
   | "pending"
@@ -48,6 +48,17 @@ export type PaymentIntentSnapshot = {
     encodedQrImage?: string;
     clientSecret?: string;
     stripePublishableKey?: string;
+    chainId?: number;
+    chain?: string;
+    evmNetwork?: string;
+    chainLabel?: string;
+    tokenAddress?: string;
+    tokenSymbol?: string;
+    amountAtomic?: string;
+    amountDisplay?: string;
+    destinationAddress?: string;
+    quoteExpiresAt?: string;
+    walletConnectProjectId?: string;
   };
   statusHistory: PaymentIntentStatusHistoryEntry[];
 };

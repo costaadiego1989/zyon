@@ -60,6 +60,7 @@ describe("EmbedCheckoutController", () => {
       {} as never,
       helper,
       {} as never,
+      {} as never,
       {} as never
     );
 
