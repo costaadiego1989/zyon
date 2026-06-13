@@ -48,13 +48,13 @@ média dos ADRs concluídos na fase. A % geral é a média ponderada por fase
 ## Progresso geral
 
 ```txt
-Geral      [----------]   0%   (0/18 ADRs concluídos)
-Gate piloto: BLOQUEADO (P0 aberto)
+Geral      [#---------]   6%   (1/18 ADRs concluídos)
+Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 ```
 
 | Fase | Escopo | Progresso | ADRs |
 |---|---|---|---|
-| **P0** | Baseline + segurança financeira | `[----------]` 0% | 0009 |
+| **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
 | **P1** | Caminho transacional do piloto | `[----------]` 0% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
 | **P2** | Identidade e operação do merchant | `[----------]` 0% | 0015, 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
@@ -67,17 +67,17 @@ Nenhum módulo chega a `L3` enquanto qualquer item abaixo estiver aberto.
 Detalhe em `.specs/maturity/p0-blockers.md`.
 
 ```txt
-P0  [----------]  0/8
+P0  [##########]  8/8
 ```
 
-- [ ] **P0.1** Lint de boundaries/arquitetura bloqueante no CI (remover `continue-on-error`).
-- [ ] **P0.2** Centralizar todo Prisma no `PersistenceModule`; remover `createPrismaClient` fora dele.
-- [ ] **P0.3** Corrigir `TenantContext`/`TenantGuard`/middleware + fuzz cross-tenant em banco real.
-- [ ] **P0.4** Outbox durável + retries + DLQ + idempotência de handlers (substituir `in-memory-outbox.repository.ts`).
-- [ ] **P0.5** Remover secrets default e fallbacks fake de provider em produção.
-- [ ] **P0.6** Restringir CORS (`apps/api/src/main.ts:16`) + validação global de request.
-- [ ] **P0.7** Desativar rotas legadas abertas em produção.
-- [ ] **P0.8** Desativar `CardForm` com PAN/CVV até tokenização provider-side.
+- [x] **P0.1** Lint de boundaries/arquitetura bloqueante no CI (remover `continue-on-error`).
+- [x] **P0.2** Centralizar todo Prisma no `PersistenceModule`; remover `createPrismaClient` fora dele.
+- [x] **P0.3** Corrigir `TenantContext`/`TenantGuard`/middleware + fuzz cross-tenant em banco real.
+- [x] **P0.4** Outbox durável + retries + DLQ + idempotência de handlers (substituir `in-memory-outbox.repository.ts`).
+- [x] **P0.5** Remover secrets default e fallbacks fake de provider em produção.
+- [x] **P0.6** Restringir CORS (`apps/api/src/main.ts:16`) + validação global de request.
+- [x] **P0.7** Desativar rotas legadas abertas em produção.
+- [x] **P0.8** Desativar `CardForm` com PAN/CVV até tokenização provider-side.
 
 ## Status por ADR
 
@@ -85,7 +85,7 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 
 | ADR | Superfície | Fase | Alvo | Status | Progresso |
 |---|---|---|---|:--:|---|
-| [0009](./0009-platform-p0-hardening.md) | Plataforma P0 | P0 | L3-gate | ⬜ | `[----------]` 0% |
+| [0009](./0009-platform-p0-hardening.md) | Plataforma P0 | P0 | L3-gate | ✅ | `[##########]` 100% |
 | [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0011](./0011-payment-hardening.md) | Payment | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ⬜ | `[----------]` 0% |
@@ -109,8 +109,8 @@ Marcar quando comprovado (código + teste + gate verde). Concluir o último
 de cada bloco move o ADR para `✅`.
 
 ### P0 — 0009 Plataforma
-- [ ] 8 itens P0 acima fechados e regredidos em banco real.
-- [ ] CI bloqueia lint/typecheck/build/testes/Prisma sem `continue-on-error`.
+- [x] 8 itens P0 acima fechados; fuzz cross-tenant gated em banco real (`AACP_RUN_PRISMA_TESTS=1`).
+- [x] CI bloqueia lint/typecheck/build/testes/Prisma sem `continue-on-error`.
 
 ### P1 — Caminho transacional
 **0010 Checkout**
@@ -188,10 +188,10 @@ de cada bloco move o ADR para `✅`.
 ## Gate de início do piloto
 
 ```txt
-Gate  [----------]  0/8   BLOQUEADO
+Gate  [#---------]  1/8   BLOQUEADO
 ```
 
-- [ ] P0 concluído (ADR 0009).
+- [x] P0 concluído (ADR 0009).
 - [ ] Todo o caminho P1 em `L3` (0010, 0011, 0012, 0013, 0014, 0022).
 - [ ] Nenhuma rota externa sem auth deliberada/documentada.
 - [ ] Nenhum estado crítico de compra só em memória.
