@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
 import { HttpModule } from "../../shared/http/http.module.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { SendSupportMessageUseCase } from "./application/send-support-message.use-case.js";
 import { GetSupportSettingsUseCase } from "./application/get-support-settings.use-case.js";
 import { ListSupportTicketsUseCase } from "./application/list-support-tickets.use-case.js";
@@ -28,29 +29,29 @@ import { SupportController } from "./presentation/http/support.controller.js";
     InMemorySupportTicketRepository,
     {
       provide: SUPPORT_SETTINGS_REPOSITORY,
-      useFactory: (inMemory: InMemorySupportSettingsRepository) => {
+      useFactory: (inMemory: InMemorySupportSettingsRepository, prisma: PrismaClient) => {
         if (
           process.env.SUPPORT_SETTINGS_REPOSITORY === "prisma" ||
           process.env.CHECKOUT_REPOSITORY === "prisma"
         ) {
-          return new PrismaSupportSettingsRepository(createPrismaClient());
+          return new PrismaSupportSettingsRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemorySupportSettingsRepository],
+      inject: [InMemorySupportSettingsRepository, PRISMA_CLIENT],
     },
     {
       provide: SUPPORT_TICKET_REPOSITORY,
-      useFactory: (inMemory: InMemorySupportTicketRepository) => {
+      useFactory: (inMemory: InMemorySupportTicketRepository, prisma: PrismaClient) => {
         if (
           process.env.SUPPORT_TICKET_REPOSITORY === "prisma" ||
           process.env.CHECKOUT_REPOSITORY === "prisma"
         ) {
-          return new PrismaSupportTicketRepository(createPrismaClient());
+          return new PrismaSupportTicketRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemorySupportTicketRepository],
+      inject: [InMemorySupportTicketRepository, PRISMA_CLIENT],
     },
   ],
   exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase],

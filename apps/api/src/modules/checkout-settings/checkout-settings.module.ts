@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
   GetCheckoutSettingsContextUseCase,
   GetCheckoutSettingsUseCase,
@@ -23,13 +24,13 @@ import { CheckoutSettingsController } from "./presentation/http/checkout-setting
     InMemoryCheckoutSettingsRepository,
     {
       provide: CHECKOUT_SETTINGS_REPOSITORY,
-      useFactory: (inMemory: InMemoryCheckoutSettingsRepository) => {
+      useFactory: (inMemory: InMemoryCheckoutSettingsRepository, prisma: PrismaClient) => {
         if (process.env.CHECKOUT_SETTINGS_REPOSITORY === "prisma" || process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaCheckoutSettingsRepository(createPrismaClient());
+          return new PrismaCheckoutSettingsRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemoryCheckoutSettingsRepository]
+      inject: [InMemoryCheckoutSettingsRepository, PRISMA_CLIENT]
     }
   ],
   exports: [GetCheckoutSettingsContextUseCase]

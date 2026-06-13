@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { LoginUseCase } from "./application/login.use-case.js";
 import { RegisterMerchantUseCase } from "./application/register-merchant.use-case.js";
 import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";
@@ -25,13 +26,13 @@ import { AuthGuard } from "./presentation/auth.guard.js";
     InMemoryAuthRepository,
     {
       provide: AUTH_REPOSITORY,
-      useFactory: (inMemory: InMemoryAuthRepository) => {
+      useFactory: (inMemory: InMemoryAuthRepository, prisma: PrismaClient) => {
         if (process.env.AUTH_REPOSITORY === "prisma" || process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaAuthRepository(createPrismaClient());
+          return new PrismaAuthRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemoryAuthRepository]
+      inject: [InMemoryAuthRepository, PRISMA_CLIENT]
     }
   ],
   exports: [AuthGuard, JwtService, AuthCookieService, AUTH_REPOSITORY]

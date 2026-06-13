@@ -1,8 +1,9 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { EvaluateNegotiationUseCase } from "./application/evaluate-negotiation.use-case.js";
 import {
   GetMerchantNegotiationPolicyUseCase,
@@ -39,13 +40,13 @@ import { BuyerAgentNegotiationPreferencesController } from "./presentation/http/
     InMemoryNegotiationStore,
     {
       provide: NEGOTIATION_STORE,
-      useFactory: (mem: InMemoryNegotiationStore) => {
+      useFactory: (mem: InMemoryNegotiationStore, prisma: PrismaClient) => {
         if (process.env.NEGOTIATION_REPOSITORY === "prisma" && process.env.DATABASE_URL) {
-          return new PrismaNegotiationStore(createPrismaClient());
+          return new PrismaNegotiationStore(prisma);
         }
         return mem;
       },
-      inject: [InMemoryNegotiationStore]
+      inject: [InMemoryNegotiationStore, PRISMA_CLIENT]
     }
   ]
 })

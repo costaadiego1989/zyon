@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
@@ -66,13 +67,13 @@ function shouldForceFakePaymentProvider(): boolean {
     },
     {
       provide: PAYMENT_REPOSITORY,
-      useFactory: (memory: InMemoryPaymentRepository) => {
+      useFactory: (memory: InMemoryPaymentRepository, prisma: PrismaClient) => {
         if (process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaPaymentRepository(createPrismaClient());
+          return new PrismaPaymentRepository(prisma);
         }
         return memory;
       },
-      inject: [InMemoryPaymentRepository]
+      inject: [InMemoryPaymentRepository, PRISMA_CLIENT]
     }
   ],
   exports: [CreatePaymentIntentUseCase]

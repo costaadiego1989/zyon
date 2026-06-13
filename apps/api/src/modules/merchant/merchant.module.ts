@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
   GetMerchantProfileUseCase,
   GetMerchantRulesUseCase,
@@ -26,13 +27,13 @@ import { MerchantController } from "./presentation/merchant.controller.js";
     InMemoryMerchantRepository,
     {
       provide: MERCHANT_REPOSITORY,
-      useFactory: (inMemory: InMemoryMerchantRepository) => {
+      useFactory: (inMemory: InMemoryMerchantRepository, prisma: PrismaClient) => {
         if (process.env.MERCHANT_REPOSITORY === "prisma" || process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaMerchantRepository(createPrismaClient());
+          return new PrismaMerchantRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemoryMerchantRepository]
+      inject: [InMemoryMerchantRepository, PRISMA_CLIENT]
     },
     { provide: MERCHANT_RULES_REPOSITORY, useExisting: MERCHANT_REPOSITORY }
   ],

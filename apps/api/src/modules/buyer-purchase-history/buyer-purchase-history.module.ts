@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
   GetBuyerPurchaseContextUseCase,
   RecordCompletedPurchaseUseCase
@@ -9,7 +11,6 @@ import { BUYER_IDENTITY_REPOSITORY } from "./domain/ports/buyer-identity.reposit
 import { InMemoryBuyerPurchaseHistoryRepository } from "./infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { InMemoryBuyerIdentityRepository } from "./infrastructure/in-memory-buyer-identity.repository.js";
 import { PrismaBuyerPurchaseHistoryRepository } from "./infrastructure/prisma-buyer-purchase-history.repository.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
 import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purchase-history.controller.js";
 
 @Module({
@@ -26,16 +27,16 @@ import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purcha
     },
     {
       provide: BUYER_PURCHASE_HISTORY_REPOSITORY,
-      useFactory: (inMemory: InMemoryBuyerPurchaseHistoryRepository) => {
+      useFactory: (inMemory: InMemoryBuyerPurchaseHistoryRepository, prisma: PrismaClient) => {
         if (
           process.env.BUYER_PURCHASE_HISTORY_REPOSITORY === "prisma" ||
           process.env.CHECKOUT_REPOSITORY === "prisma"
         ) {
-          return new PrismaBuyerPurchaseHistoryRepository(createPrismaClient());
+          return new PrismaBuyerPurchaseHistoryRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemoryBuyerPurchaseHistoryRepository]
+      inject: [InMemoryBuyerPurchaseHistoryRepository, PRISMA_CLIENT]
     }
   ],
   exports: [

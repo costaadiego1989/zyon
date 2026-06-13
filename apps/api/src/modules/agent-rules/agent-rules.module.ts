@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
-import { createPrismaClient } from "../../shared/persistence/prisma-client.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
   GetAgentContextUseCase,
   GetAgentRulesUseCase,
@@ -25,13 +26,13 @@ import { AgentRulesController } from "./presentation/http/agent-rules.controller
     InMemoryAgentRulesRepository,
     {
       provide: AGENT_RULES_REPOSITORY,
-      useFactory: (inMemory: InMemoryAgentRulesRepository) => {
+      useFactory: (inMemory: InMemoryAgentRulesRepository, prisma: PrismaClient) => {
         if (process.env.AGENT_RULES_REPOSITORY === "prisma" || process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaAgentRulesRepository(createPrismaClient());
+          return new PrismaAgentRulesRepository(prisma);
         }
         return inMemory;
       },
-      inject: [InMemoryAgentRulesRepository]
+      inject: [InMemoryAgentRulesRepository, PRISMA_CLIENT]
     },
     { provide: CHECKOUT_SETTINGS_CONTEXT_PORT, useExisting: CheckoutSettingsContextAdapter }
   ],

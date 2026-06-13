@@ -92,6 +92,7 @@ import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.
 import "./shared/tenant/tenant-context.service.spec.js";
 import "./shared/tenant/tenant.guard.spec.js";
 import "./shared/persistence/tenant.middleware.spec.js";
+import "./shared/persistence/module-prisma-architecture.spec.js";
 import "./modules/checkout/presentation/http/cross-tenant-fuzz.e2e-spec.js";
 import "./shared/http/http-client.service.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
