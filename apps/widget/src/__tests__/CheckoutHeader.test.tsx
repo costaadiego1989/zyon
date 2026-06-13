@@ -39,6 +39,7 @@ function buildVm(overrides: Partial<CheckoutAgentViewModel> = {}): CheckoutAgent
       logout: vi.fn()
     },
     setUserPanelOpen: vi.fn(),
+    openBuyerPanel: vi.fn(),
     config: {
       mode: "legacy",
       merchantId: "mrc_demo",
@@ -112,18 +113,35 @@ describe("CheckoutHeader", () => {
     expect(container.querySelector(".aacp-header-agent-avatar")).not.toBeNull();
   });
 
-  // ── Store return ────────────────────────────────────────────────────────────
+  // ── Color mode toggle ───────────────────────────────────────────────────────
 
-  it("renders back to store link when storeUrl is configured", () => {
+  it("shows Moon button in light mode with correct aria-label", () => {
+    const { getByLabelText } = render(<CheckoutHeader vm={buildVm({ colorMode: "light" })} />);
+    expect(getByLabelText("Modo escuro")).not.toBeNull();
+  });
+
+  it("shows Sun button in dark mode with correct aria-label", () => {
+    const { getByLabelText } = render(<CheckoutHeader vm={buildVm({ colorMode: "dark" })} />);
+    expect(getByLabelText("Modo claro")).not.toBeNull();
+  });
+
+  it("calls toggleColorMode when theme button is clicked", () => {
+    const toggleColorMode = vi.fn();
+    const { getByLabelText } = render(<CheckoutHeader vm={buildVm({ toggleColorMode })} />);
+    fireEvent.click(getByLabelText("Modo escuro"));
+    expect(toggleColorMode).toHaveBeenCalledOnce();
+  });
+
+  it("does not render voltar ao site link in chat header", () => {
     const vm = buildVm();
-    vm.config = {
-      ...vm.config,
-      storeUrl: "https://minhaloja.com.br",
-      cart: { currency: "BRL", source: "storefront", total: 0, items: [] }
-    };
-    const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
-    const link = getByLabelText("Voltar ao site") as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toContain("https://minhaloja.com.br");
+    vm.config = { ...vm.config, storeUrl: "https://minhaloja.com.br" };
+    const { queryByLabelText } = render(<CheckoutHeader vm={vm} />);
+    expect(queryByLabelText("Voltar ao site")).toBeNull();
+  });
+
+  it("does not render live dot in subtitle", () => {
+    const { container } = render(<CheckoutHeader vm={buildVm()} />);
+    expect(container.querySelector(".aacp-agent-sub .live-dot")).toBeNull();
   });
 
   // ── Login states ────────────────────────────────────────────────────────────
@@ -152,13 +170,13 @@ describe("CheckoutHeader", () => {
     expect(container.querySelector("#aacp-login-btn")).not.toBeNull();
   });
 
-  it("calls setUserPanelOpen(true) when verified customer chip is clicked", () => {
-    const setUserPanelOpen = vi.fn();
-    const vm = buildVm({ setUserPanelOpen });
+  it("calls openBuyerPanel when verified customer chip is clicked", () => {
+    const openBuyerPanel = vi.fn();
+    const vm = buildVm({ openBuyerPanel });
     (vm.activeExperience as any).customer = { fullName: "Diego Costa", email_verified: true };
     const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
     fireEvent.click(getByLabelText("Abrir conta"));
-    expect(setUserPanelOpen).toHaveBeenCalledWith(true);
+    expect(openBuyerPanel).toHaveBeenCalledOnce();
   });
 
   it("shows Minha conta chip with email initial when auth session exists", () => {
@@ -170,25 +188,27 @@ describe("CheckoutHeader", () => {
     expect(btn.textContent).toContain("Minha conta");
   });
 
-  it("calls auth.openHub when Minha conta chip is clicked", () => {
+  it("calls auth.openHub when Minha conta chip is clicked without buyer session", () => {
     const openHub = vi.fn();
-    const vm = buildVm();
+    const openBuyerPanel = vi.fn();
+    const vm = buildVm({ openBuyerPanel });
     vm.auth.session = { merchant_id: "mrc_001", user_id: "usr_001", email: "merchant@example.com" } as any;
     vm.auth.openHub = openHub;
+    openBuyerPanel.mockImplementation(() => { openHub(); });
     const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
     fireEvent.click(getByLabelText("Minha conta"));
-    expect(openHub).toHaveBeenCalledOnce();
+    expect(openBuyerPanel).toHaveBeenCalledOnce();
   });
 
   it("opens buyer UserPanel when Minha conta is a buyer session", () => {
     const openHub = vi.fn();
-    const setUserPanelOpen = vi.fn();
-    const vm = buildVm({ setUserPanelOpen });
+    const openBuyerPanel = vi.fn();
+    const vm = buildVm({ openBuyerPanel });
     vm.auth.session = { global_user_id: "guser_001", email: "buyer@example.com" } as any;
     vm.auth.openHub = openHub;
     const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
     fireEvent.click(getByLabelText("Minha conta"));
-    expect(setUserPanelOpen).toHaveBeenCalledWith(true);
+    expect(openBuyerPanel).toHaveBeenCalledOnce();
     expect(openHub).not.toHaveBeenCalled();
   });
 

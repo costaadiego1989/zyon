@@ -26,6 +26,49 @@ function safeReadSession(): GlobalAuthSession | null {
   }
 }
 
+function parseBuyerAuthPayload(payload: unknown, merchantId?: string): GlobalAuthSession | null {
+  const parsedBuyer = buyerAuthResponseSchema.safeParse(payload);
+  if (parsedBuyer.success) {
+    return {
+      merchant_id: merchantId,
+      global_user_id: parsedBuyer.data.globalUserId,
+      email: parsedBuyer.data.email,
+      access_token: parsedBuyer.data.accessToken,
+      token_type: parsedBuyer.data.tokenType,
+      expires_in: parsedBuyer.data.expiresIn,
+      provider: "phone"
+    };
+  }
+
+  if (!payload || typeof payload !== "object") return null;
+  const snake = payload as {
+    global_user_id?: string;
+    globalUserId?: string;
+    email?: string;
+    access_token?: string;
+    accessToken?: string;
+    token_type?: "Bearer";
+    tokenType?: "Bearer";
+    expires_in?: number;
+    expiresIn?: number;
+  };
+
+  const globalUserId = snake.global_user_id ?? snake.globalUserId;
+  const accessToken = snake.access_token ?? snake.accessToken;
+  const email = snake.email;
+  if (!globalUserId || !accessToken || !email) return null;
+
+  return {
+    merchant_id: merchantId,
+    global_user_id: globalUserId,
+    email,
+    access_token: accessToken,
+    token_type: snake.token_type ?? snake.tokenType ?? "Bearer",
+    expires_in: snake.expires_in ?? snake.expiresIn ?? 3600,
+    provider: "phone"
+  };
+}
+
 function stableDeviceId(): string {
   if (typeof window === "undefined") return "server-render";
   const existing = window.localStorage.getItem(DEVICE_STORAGE_KEY);
@@ -58,6 +101,7 @@ export interface GlobalAuthController {
   sendPhoneCode: (phone: string) => Promise<boolean>;
   verifyPhoneCode: (phone: string, code: string) => Promise<boolean>;
   loginFromCheckoutSession: (sessionId: string, merchantId: string) => Promise<boolean>;
+  refreshBuyerFromCheckoutSession: (sessionId: string, merchantId: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -284,30 +328,15 @@ export function useGlobalAuth(options: {
         setError(reason);
         return false;
       }
-      // Try buyer response shape first (camelCase), then merchant shape (snake_case)
-      const parsedBuyer = buyerAuthResponseSchema.safeParse(payload);
-      if (parsedBuyer.success) {
-        persist({
-          global_user_id: parsedBuyer.data.globalUserId,
-          email: parsedBuyer.data.email,
-          access_token: parsedBuyer.data.accessToken,
-          token_type: parsedBuyer.data.tokenType,
-          expires_in: parsedBuyer.data.expiresIn,
-          provider: "phone"
-        });
+      const buyerSession = parseBuyerAuthPayload(payload);
+      if (buyerSession) {
+        persist(buyerSession);
         setStatus("Login realizado com sucesso.");
         setOpen(false);
         return true;
       }
-      const parsedMerchant = authResponseSchema.safeParse(payload);
-      if (!parsedMerchant.success) {
-        setError("Resposta inválida do servidor.");
-        return false;
-      }
-      persist({ ...parsedMerchant.data, provider: "phone" });
-      setStatus("Login realizado com sucesso.");
-      setOpen(false);
-      return true;
+      setError("Resposta inválida do servidor.");
+      return false;
     } catch {
       setError("Erro de rede ao verificar código.");
       return false;
@@ -316,8 +345,7 @@ export function useGlobalAuth(options: {
     }
   }
 
-  async function loginFromCheckoutSession(sessionId: string, merchantId: string): Promise<boolean> {
-    if (session) return true; // already authenticated
+  async function refreshBuyerFromCheckoutSession(sessionId: string, merchantId: string): Promise<boolean> {
     try {
       const res = await fetch(`${apiOrigin}/buyer/login-from-session`, {
         method: "POST",
@@ -326,37 +354,18 @@ export function useGlobalAuth(options: {
       });
       if (!res.ok) return false;
       const payload = (await res.json()) as unknown;
-      const parsed = buyerAuthResponseSchema.safeParse(payload);
-      if (!parsed.success) {
-        // Try snake_case shape from controller response
-        const snakePayload = payload as { global_user_id?: string; email?: string; access_token?: string; token_type?: string; expires_in?: number };
-        if (snakePayload.access_token && snakePayload.email) {
-          persist({
-            merchant_id: merchantId,
-            global_user_id: snakePayload.global_user_id,
-            email: snakePayload.email,
-            access_token: snakePayload.access_token,
-            token_type: "Bearer",
-            expires_in: snakePayload.expires_in ?? 3600,
-            provider: "password"
-          });
-          return true;
-        }
-        return false;
-      }
-      persist({
-        merchant_id: merchantId,
-        global_user_id: parsed.data.globalUserId,
-        email: parsed.data.email,
-        access_token: parsed.data.accessToken,
-        token_type: parsed.data.tokenType,
-        expires_in: parsed.data.expiresIn,
-        provider: "password"
-      });
+      const buyerSession = parseBuyerAuthPayload(payload, merchantId);
+      if (!buyerSession) return false;
+      persist({ ...buyerSession, provider: "password" });
       return true;
     } catch {
       return false;
     }
+  }
+
+  async function loginFromCheckoutSession(sessionId: string, merchantId: string): Promise<boolean> {
+    if (session?.global_user_id && session.access_token) return true;
+    return refreshBuyerFromCheckoutSession(sessionId, merchantId);
   }
 
   return {
@@ -382,6 +391,7 @@ export function useGlobalAuth(options: {
     sendPhoneCode,
     verifyPhoneCode,
     loginFromCheckoutSession,
+    refreshBuyerFromCheckoutSession,
     logout
   };
 }

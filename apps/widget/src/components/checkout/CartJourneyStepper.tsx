@@ -1,6 +1,6 @@
 import { Check, CreditCard, ShoppingBag, Truck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { CART_JOURNEY, cn, resolveCartJourneyIndex } from "../../hooks/checkout-view-model.js";
+import { CART_JOURNEY, cn, resolveCartJourneyIndex, resolveStepperProgressPct } from "../../hooks/checkout-view-model.js";
 
 const JOURNEY_ICONS: Record<(typeof CART_JOURNEY)[number]["key"], LucideIcon> = {
   items: ShoppingBag,
@@ -18,7 +18,7 @@ export function CartJourneyStepper({
 }) {
   const activeIndex = resolveCartJourneyIndex(checkoutStage, itemCount);
   const allDone = checkoutStage === "completed";
-  const progressPct = (activeIndex / Math.max(CART_JOURNEY.length - 1, 1)) * 100;
+  const progressPct = allDone ? 100 : resolveStepperProgressPct(activeIndex, CART_JOURNEY.length);
 
   return (
     <nav className="aacp-cart-journey aacp-cart-journey--horizontal" aria-label="Jornada do carrinho">

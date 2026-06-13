@@ -1,4 +1,4 @@
-import { Minus, Package, Plus, ShoppingBag, Trash2 } from "lucide-react";
+import { Minus, Package, Plus, Search, Trash2 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { cn, formatCurrency } from "../../hooks/checkout-view-model.js";
 import { CartHeader } from "./CartHeader.js";
@@ -41,6 +41,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                     <div className="aacp-item-price">{formatCurrency(item.line_total, vm.visibleTotals.currency)}</div>
                   </div>
 
+                  {item.description ? <p className="aacp-item-desc">{item.description}</p> : null}
                   {item.variant ? <p className="aacp-item-variant">{item.variant}</p> : null}
 
                   <div className="aacp-item-controls">
@@ -82,22 +83,28 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             ))
           ) : (
             <div className="aacp-cart-empty">
-              <ShoppingBag size={32} className="aacp-cart-empty-icon" />
-              <div className="aacp-cart-empty-title">Seu carrinho está vazio</div>
-              {vm.config.emptyCartRedirectUrl && (
+              <div className="aacp-cart-empty-icon-wrap" aria-hidden>
+                <Search size={22} />
+              </div>
+              <h4 className="aacp-cart-empty-title">Carrinho vazio</h4>
+              <p className="aacp-cart-empty-copy">
+                No chat, diga o que você procura. Eu busco na loja parceira e adiciono aqui para você.
+              </p>
+              {vm.config.emptyCartRedirectUrl ? (
                 <a
                   id="aacp-empty-cart-redirect-btn"
                   href={vm.config.emptyCartRedirectUrl}
                   className="aacp-cart-empty-link"
                 >
-                  Voltar para Loja
+                  Voltar para a loja
                 </a>
-              )}
+              ) : null}
             </div>
           )}
         </div>
       </section>
 
+      {vm.visibleItems.length > 0 ? (
       <dl className="aacp-totals">
         <dt>Subtotal</dt>
         <dd>{formatCurrency(vm.visibleTotals.subtotal, vm.visibleTotals.currency)}</dd>
@@ -118,6 +125,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
         </div>
       </dl>
+      ) : null}
     </aside>
   );
 }

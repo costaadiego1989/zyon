@@ -5,7 +5,8 @@ import type { WidgetConfig } from "../lib/widget-types.js";
 import { useGlobalAuth } from "./use-global-auth.js";
 import { useAccountHub } from "./use-account-hub.js";
 import { useBuyerHub } from "./use-buyer-hub.js";
-import { filterCheckoutQuickReplies, injectGoogleFont, stageNarrative, type QuickReplyChoice } from "./checkout-view-model.js";
+import { filterCheckoutQuickReplies, buildEmptyCompletedExperience, injectGoogleFont, matchShippingOptionFromLabel, stageNarrative, type QuickReplyChoice, type VisibleCartState } from "./checkout-view-model.js";
+import { emitCheckoutEvent } from "../lib/merchant-checkout-shell.js";
 import { useCheckoutPanels } from "./use-checkout-panels.js";
 import { useCheckoutSession } from "./use-checkout-session.js";
 import { useCheckoutCart } from "./use-checkout-cart.js";
@@ -21,7 +22,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const [crossSellDismissed, setCrossSellDismissed] = useState(false);
   const [couponInputVisible, setCouponInputVisible] = useState(false);
   const [prePaymentStep, setPrePaymentStep] = useState<PrePaymentStep>("cross_sell");
+  const [completedOrderSnapshot, setCompletedOrderSnapshot] = useState<VisibleCartState | null>(null);
   const couponGatePromptedKey = useRef<string | null>(null);
+  const orderCompletionHandled = useRef(false);
   const sessionState = useCheckoutSession(config);
   const cartState = useCheckoutCart(sessionState.experience, config);
   const panels = useCheckoutPanels();
@@ -50,6 +53,12 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     !panels.showCardForm &&
     (prePaymentStep === "coupon_entry" || couponInputVisible);
   const showOfferBanner = visibleTotals.discount > 0;
+  const showPendingOffer =
+    Boolean(offer?.approved) &&
+    visibleTotals.discount === 0 &&
+    checkoutStage === "payment" &&
+    prePaymentStep !== "cross_sell" &&
+    !panels.showCardForm;
   const chatTrustBadges = activeExperience.copy.trust_badges.slice(0, 3);
 
   const auth = useGlobalAuth({
@@ -67,7 +76,14 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const buyerHub = useBuyerHub({
     apiBaseUrl: sessionState.apiOrigin,
     session: isBuyerSession ? auth.session : null,
-    enabled: isBuyerSession && panels.userPanelOpen
+    merchantId: config.merchantId,
+    enabled: isBuyerSession && panels.userPanelOpen,
+    onAuthExpired: () => {
+      auth.logout();
+      if (session) {
+        void auth.refreshBuyerFromCheckoutSession(session.session_id, config.merchantId);
+      }
+    }
   });
 
   const baseTheme: MerchantTheme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
@@ -128,15 +144,67 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     if (checkoutStage === "completed" && session && !auth.session) {
       void auth.loginFromCheckoutSession(session.session_id, config.merchantId);
     }
-  }, [checkoutStage, session, auth.session]);
+  }, [checkoutStage, session, auth.session, auth, config.merchantId]);
 
   useEffect(() => {
     if (!session || auth.session) return;
-    const recognizedBuyer = activeExperience.customer?.recognized_buyer === true;
     const emailVerified = activeExperience.customer?.email_verified === true;
-    if (!recognizedBuyer || !emailVerified) return;
+    if (!emailVerified) return;
     void auth.loginFromCheckoutSession(session.session_id, config.merchantId);
-  }, [activeExperience.customer?.email_verified, activeExperience.customer?.recognized_buyer, auth.session, config.merchantId, session]);
+  }, [activeExperience.customer?.email_verified, auth.session, config.merchantId, session]);
+
+  useEffect(() => {
+    if (checkoutStage !== "completed" || orderCompletionHandled.current) return;
+    orderCompletionHandled.current = true;
+
+    setCompletedOrderSnapshot({
+      items: [...cartState.visibleItems],
+      totals: { ...cartState.visibleTotals }
+    });
+
+    const currency = activeExperience.totals.currency ?? config.cart.currency ?? "BRL";
+    sessionState.syncExperience(buildEmptyCompletedExperience(activeExperience, currency));
+    cartState.resetCart(currency);
+    chatState.resetAfterCompletion();
+    panels.resetPanels();
+    setCrossSellDismissed(true);
+    setCouponInputVisible(false);
+    setPrePaymentStep("cross_sell");
+    sessionState.clearPersistedSession();
+
+    emitCheckoutEvent("order_completed");
+    if (typeof window !== "undefined") {
+      window.parent?.postMessage(
+        {
+          type: "aacp:order-completed",
+          merchant_id: config.merchantId,
+          session_id: session?.session_id ?? null
+        },
+        "*"
+      );
+    }
+
+    window.setTimeout(() => {
+      void auth.loginFromCheckoutSession(session?.session_id ?? "", config.merchantId).finally(() => {
+        if (isBuyerSession || auth.session?.global_user_id) {
+          void buyerHub.refresh();
+        }
+      });
+    }, 600);
+  }, [
+    activeExperience,
+    auth,
+    buyerHub,
+    cartState,
+    chatState,
+    checkoutStage,
+    config.cart.currency,
+    config.merchantId,
+    isBuyerSession,
+    panels,
+    session?.session_id,
+    sessionState
+  ]);
 
   const shippingOptions: ShippingQuote[] = useMemo(
     () => chatState.lastChat?.experience?.shippingOptions ?? [],
@@ -145,6 +213,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
   async function addSuggestedProduct(product: SuggestedProduct): Promise<void> {
     if (!session || networkError || chatState.busy) return;
+    if (chatState.isCartEmpty) {
+      await chatState.addCatalogProduct(product);
+      return;
+    }
     const accepted = product.suggestion_id
       ? await chatState.acceptCrossSell(product)
       : false;
@@ -161,6 +233,26 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     setCrossSellDismissed(true);
   }
 
+  function proceedFromCrossSell(): void {
+    dismissCrossSell();
+    chatState.appendAgentTurn("Perfeito. Vamos finalizar seu pagamento.", { stream: true });
+  }
+
+  async function openBuyerPanel(): Promise<void> {
+    if (auth.session?.global_user_id) {
+      panels.setUserPanelOpen(true);
+      return;
+    }
+    if (activeExperience.customer?.email_verified && session) {
+      const ok = await auth.loginFromCheckoutSession(session.session_id, config.merchantId);
+      if (ok) {
+        panels.setUserPanelOpen(true);
+        return;
+      }
+    }
+    auth.openHub();
+  }
+
   async function tapShippingOption(option: ShippingQuote): Promise<void> {
     if (!session || networkError || chatState.busy) return;
     applyShipping(option.method ?? "Frete", option.customerPrice);
@@ -170,6 +262,16 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   async function tapQuick(reply: QuickReplyChoice): Promise<void> {
     if (!session || networkError || chatState.busy) return;
     if (!quickReplies.some((allowed) => allowed.label === reply.label && allowed.type === reply.type && allowed.offerId === reply.offerId)) return;
+    if (checkoutStage === "payment" && prePaymentStep === "cross_sell") {
+      if (/^nao agora$/i.test(reply.label)) {
+        proceedFromCrossSell();
+        return;
+      }
+      if (/pagamento|finalizar|pagar/i.test(reply.label)) {
+        proceedFromCrossSell();
+        return;
+      }
+    }
     if (checkoutStage === "payment" && /^(sim|tenho|usar|informar).*\bcupom\b/i.test(reply.label)) {
       setCouponInputVisible(true);
       setPrePaymentStep("coupon_entry");
@@ -214,16 +316,35 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       );
       return;
     }
+    if (checkoutStage === "shipping" && currentMissingField === "frete") {
+      const shippingOption = matchShippingOptionFromLabel(reply.label, shippingOptions);
+      if (shippingOption) {
+        await tapShippingOption(shippingOption);
+        return;
+      }
+    }
     return chatState.tapQuick(reply);
   }
 
   const quickReplies = useMemo(() => {
-    return filterCheckoutQuickReplies(chatState.quickReplies, {
+    const filtered = filterCheckoutQuickReplies(chatState.quickReplies, {
       stage: checkoutStage,
       missingField: currentMissingField,
       prePaymentStep
     });
-  }, [chatState.quickReplies, checkoutStage, currentMissingField, prePaymentStep]);
+    if (
+      checkoutStage === "payment" &&
+      (prePaymentStep === "coupon_gate" || prePaymentStep === "payment_method") &&
+      offer?.approved &&
+      visibleTotals.discount === 0
+    ) {
+      const pct = offer.type === "discount_percent" ? offer.value : 0;
+      if (pct > 0 && offer.id && !filtered.some((r) => /desconto/i.test(r.label ?? ""))) {
+        return [...filtered, { label: `Aplicar desconto de ${pct}%`, offerId: offer.id }];
+      }
+    }
+    return filtered;
+  }, [chatState.quickReplies, checkoutStage, currentMissingField, offer, prePaymentStep, visibleTotals.discount]);
 
   async function submitCoupon(): Promise<void> {
     const applied = await chatState.submitCoupon();
@@ -255,6 +376,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     setCartOpen: panels.setCartOpen,
     visibleItems,
     visibleTotals,
+    completedOrderSnapshot,
     cartItemCount,
     streamingTurnKey,
     handleAgentTypingDone: chatState.handleAgentTypingDone,
@@ -272,8 +394,12 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     awaitingAgentPlayback: chatState.awaitingAgentPlayback,
     showCouponBox,
     showOfferBanner,
+    showPendingOffer,
     chatTrustBadges,
     quickReplies,
+    isCartEmpty: chatState.isCartEmpty,
+    catalogResults: chatState.catalogResults,
+    addCatalogProduct: chatState.addCatalogProduct,
     auth,
     hub,
     tapQuick,
@@ -307,6 +433,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     crossSellDismissed,
     addSuggestedProduct,
     dismissCrossSell,
+    proceedFromCrossSell,
+    openBuyerPanel,
     tapShippingOption,
     couponInputVisible,
     setCouponInputVisible,

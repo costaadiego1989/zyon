@@ -6,6 +6,7 @@ import type {
   SuggestedProduct
 } from "@aacp/shared-types";
 import {
+  checkoutGet,
   checkoutJson,
   CHECKOUT_EMBED_PATHS,
   CHECKOUT_LEGACY_PATHS
@@ -13,6 +14,8 @@ import {
 import {
   applyCouponResponseSchema,
   applyOfferResponseSchema,
+  catalogAddResponseSchema,
+  catalogSearchResponseSchema,
   chatMessageResponseSchema,
   crossSellAcceptResponseSchema
 } from "../lib/widget-schemas.js";
@@ -44,6 +47,9 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   const prevStreamingTurnKey = useRef<string | null>(null);
   const prevStartTs = useRef(0);
   const registrationPromptTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [catalogResults, setCatalogResults] = useState<SuggestedProduct[]>([]);
+
+  const isCartEmpty = activeExperience.items.length === 0;
 
   const checkoutStage = useMemo(() => {
     if (activeExperience.stage === "completed") return "completed";
@@ -56,6 +62,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
 
   const quickReplies = useMemo((): QuickReplyChoice[] => {
     if (!isConversational || turns.length < 1 || busy) return [];
+    if (isCartEmpty) return [];
     const list: QuickReplyChoice[] = [];
 
     if (!lastChat) {
@@ -92,7 +99,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       seen.add(key);
       return true;
     });
-  }, [activeExperience.copy.quick_replies, checkoutStage, isConversational, lastChat, busy, turns.length]);
+  }, [activeExperience.copy.quick_replies, checkoutStage, isCartEmpty, isConversational, lastChat, busy, turns.length]);
 
   useEffect(() => {
     if (streamingTurnKey == null) return;
@@ -158,9 +165,10 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       setStreamingTurnKey(bubbleKey(greeting, 0));
       registrationPromptTimer.current = setTimeout(() => {
         registrationPromptTimer.current = null;
+        if (isCartEmpty) return;
         const regTurn: ChatTurn = {
           role: "agent",
-          text: "Antes de começar, preciso fazer o seu cadastro. Qual é o seu nome completo?",
+          text: "Para começar, qual o seu melhor email para o pedido?",
           occurredAt: new Date().toISOString()
         };
         setTurns((curr) => {
@@ -175,7 +183,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     if (response.initial_mode === "open") {
       // compositor handles setOpen
     }
-  }, [sessionState.startedEvent]);
+  }, [sessionState.startedEvent, isCartEmpty]);
 
   // Network error → reset turns to fallback greeting
   useEffect(() => {
@@ -191,11 +199,12 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
 
   // Auto-trigger registration for conversational mode
   useEffect(() => {
+    if (isCartEmpty) return;
     if (isConversational && session && turns.length === 1 && !config.customer?.fullName && !busy && !networkError && !disableStreamingByEnv()) {
       const timer = setTimeout(() => { void autoTriggerRegistration(); }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [session, turns.length, isConversational, busy, networkError, config.customer?.fullName]);
+  }, [session, turns.length, isConversational, busy, networkError, config.customer?.fullName, isCartEmpty]);
 
   function appendAgentTurn(text: string, opts: { stream?: boolean } = {}): void {
     const turn: ChatTurn = { role: "agent", text, occurredAt: new Date().toISOString() };
@@ -227,6 +236,71 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     }
   }
 
+  useEffect(() => {
+    if (!isCartEmpty) setCatalogResults([]);
+  }, [isCartEmpty]);
+
+  async function searchCatalog(query: string): Promise<void> {
+    if (!session || networkError || composerLocked) return;
+    setBusy(true);
+    setTurns((current) => [...current, { role: "buyer", text: query, occurredAt: new Date().toISOString() }]);
+    try {
+      const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+      const response = await checkoutGet<{ products: SuggestedProduct[] }>(
+        apiOrigin,
+        `${paths.catalogSearch}?q=${encodeURIComponent(query)}&limit=8`,
+        { ...embedOpts, schema: catalogSearchResponseSchema }
+      );
+      setCatalogResults(response.products ?? []);
+      const count = response.products?.length ?? 0;
+      appendAgentTurn(
+        count > 0
+          ? `Encontrei ${count} opção(ões) na loja para "${query}". Escolha uma para adicionar ao carrinho.`
+          : `Não encontrei produtos para "${query}". Tente outro termo, como bolsa ou carteira.`,
+        { stream: true }
+      );
+    } catch {
+      sessionState.setNetworkError?.("Falha ao buscar produtos na loja. Tente novamente em instantes.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function addCatalogProduct(product: SuggestedProduct): Promise<boolean> {
+    if (!session || networkError || composerLocked) return false;
+    setBusy(true);
+    setTurns((current) => [...current, { role: "buyer", text: `Adicionar ${product.name}`, occurredAt: new Date().toISOString() }]);
+    try {
+      const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+      const response = await checkoutJson<{ experience?: typeof activeExperience; agent_turn?: ChatTurn }>(
+        apiOrigin,
+        paths.catalogAdd,
+        {
+          ...embedOpts,
+          body: { session_id: session.session_id, sku: product.sku, quantity: 1 },
+          schema: catalogAddResponseSchema
+        }
+      );
+      if (response.experience) syncExperience(response.experience);
+      setCatalogResults([]);
+      if (response.agent_turn) {
+        setTurns((current) => {
+          const next = [...current, response.agent_turn as ChatTurn];
+          setStreamingTurnKey(bubbleKey(next[next.length - 1]!, next.length - 1));
+          return next;
+        });
+      } else {
+        appendAgentTurn(`${product.name} adicionado ao seu pedido.`, { stream: true });
+      }
+      return true;
+    } catch {
+      sessionState.setNetworkError?.("Falha ao adicionar o produto. Tente novamente em instantes.");
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function sendMessageWithOverride(userText: string): Promise<void> {
     if (!session || networkError || !userText.trim() || composerLocked) return;
     setBusy(true);
@@ -254,6 +328,10 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     const userText = message.trim();
     if (!session || !userText) return;
     setMessage("");
+    if (isCartEmpty) {
+      await searchCatalog(userText);
+      return;
+    }
     await sendMessageWithOverride(userText);
   }
 
@@ -428,6 +506,13 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     }
   }
 
+  function resetAfterCompletion(): void {
+    setCatalogResults([]);
+    setCoupon("");
+    setMessage("");
+    setLastChat(null);
+  }
+
   function retryChat(): void {
     sessionState.retryStartCheckout();
     setTurns([]);
@@ -449,16 +534,21 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     composerLocked,
     awaitingAgentPlayback,
     quickReplies,
+    catalogResults,
+    isCartEmpty,
     appendAgentTurn,
     handleAgentTypingDone,
     sendMessage,
     sendMessageWithOverride,
+    searchCatalog,
+    addCatalogProduct,
     tapQuick,
     applyOffer: () => applyOfferById(lastChat?.authorized_offer?.id),
     continueToPayment,
     acceptCrossSell,
     submitCoupon,
     retryChat,
+    resetAfterCompletion,
   };
 }
 

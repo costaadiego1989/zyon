@@ -1,8 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useCheckoutPanels } from "../hooks/use-checkout-panels.js";
 
 describe("useCheckoutPanels", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
   // ── Estado inicial ────────────────────────────────────────────────────────
 
   it("D01 — todos os painéis iniciam fechados", () => {

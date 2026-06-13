@@ -5,7 +5,7 @@ import { ThemeStudio } from "./ThemeStudio.js";
 
 export function FloatingCheckout({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
-    <section className="aacp-widget fixed bottom-5 right-5 z-50 font-merchant" style={themeStyle(vm.theme)}>
+    <section className="aacp-widget fixed bottom-5 right-5 z-50 font-merchant" style={themeStyle(vm.theme, false, vm.colorMode)} data-theme={vm.colorMode}>
       {vm.open ? (
         <div className="aacp-panel flex h-[560px] w-[min(380px,calc(100vw-32px))] flex-col overflow-hidden rounded-[var(--aacp-radius-lg)] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-[var(--aacp-shadow-lg)]">
           <header className="flex items-center justify-between gap-3 border-b border-[var(--aacp-line-strong)] px-4 py-4 bg-[var(--aacp-panel-bg)]">

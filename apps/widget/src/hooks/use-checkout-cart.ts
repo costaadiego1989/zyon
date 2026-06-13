@@ -15,17 +15,14 @@ export function useCheckoutCart(
   useEffect(() => {
     if (!experience) return;
     const cart = buildVisibleCart(experience);
-    // Only zero out shipping if:
-    // 1. User hasn't selected a method locally AND
-    // 2. The API experience doesn't have a selected shipping method (experience.shipping is undefined)
-    // If the API returns experience.shipping (a selected quote), trust the totals from the API
     const apiHasShipping = Boolean(experience.shipping);
+    if (apiHasShipping && experience.shipping?.method) {
+      setSelectedShippingMethod(experience.shipping.method);
+    }
     setVisibleCart(() => {
       if (selectedShippingMethod || apiHasShipping) {
-        // User selected locally OR API has a selected method — trust totals
         return cart;
       }
-      // No shipping selected anywhere — override to 0
       return {
         ...cart,
         totals: {
@@ -65,6 +62,14 @@ export function useCheckoutCart(
   const visibleTotals = visibleCart.totals;
   const cartItemCount = countVisibleItems(visibleItems);
 
+  function resetCart(currency = config.cart.currency ?? "BRL"): void {
+    setSelectedShippingMethod(undefined);
+    setVisibleCart({
+      items: [],
+      totals: { currency, subtotal: 0, shipping: 0, discount: 0, total: 0 }
+    });
+  }
+
   return {
     visibleCart,
     visibleItems,
@@ -76,6 +81,7 @@ export function useCheckoutCart(
     applyShipping,
     selectedShippingMethod,
     setVisibleCart,
+    resetCart,
   };
 }
 

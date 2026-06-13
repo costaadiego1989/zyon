@@ -3,7 +3,8 @@ import type {
   ChatAction,
   CheckoutEventName,
   CheckoutExperienceSnapshot,
-  MerchantTheme
+  MerchantTheme,
+  ShippingQuote
 } from "@aacp/shared-types";
 import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
@@ -42,6 +43,14 @@ export function resolveCartJourneyIndex(checkoutStage: string, itemCount: number
   return 0;
 }
 
+/** Fill % on the stepper rail (inclusive of the active step). */
+export function resolveStepperProgressPct(activeIndex: number, stepCount: number): number {
+  if (stepCount <= 0) return 0;
+  if (stepCount === 1) return 100;
+  const clamped = Math.max(0, Math.min(activeIndex, stepCount - 1));
+  return ((clamped + 1) / stepCount) * 100;
+}
+
 export function resolveStoreReturnUrl(
   config?: Pick<WidgetConfig, "storeUrl" | "emptyCartRedirectUrl" | "cart">
 ): string | undefined {
@@ -75,19 +84,24 @@ export function brandInitials(name: string, max = 2): string {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 }
 
-export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CSSProperties {
+export function themeStyle(
+  theme: MerchantTheme,
+  isForcedMode = false,
+  colorMode: "light" | "dark" = "light"
+): React.CSSProperties {
   const merged: MerchantTheme = {
     ...DEFAULT_MERCHANT_THEME,
     ...(theme ?? {})
   };
+  const isDark = colorMode === "dark";
   const accent = merged.accentColor || "#0F766E";
   const secondary = merged.secondaryColor ?? "#1E40AF";
-  const surface = merged.surfaceColor ?? "#FFFFFF";
-  const elevated = merged.surfaceElevatedColor ?? "#F8FAFC";
-  const border = merged.borderColor ?? "#D9E2EC";
-  const text = merged.textColor ?? "#111827";
-  const muted = merged.mutedTextColor ?? "#64748B";
-  const background = merged.backgroundColor ?? "#F7F8FA";
+  const surface = isDark ? "#111827" : (merged.surfaceColor ?? "#FFFFFF");
+  const elevated = isDark ? "#0F172A" : (merged.surfaceElevatedColor ?? "#F8FAFC");
+  const border = isDark ? "rgba(241, 245, 249, 0.14)" : (merged.borderColor ?? "#D9E2EC");
+  const text = isDark ? "#F1F5F9" : (merged.textColor ?? "#111827");
+  const muted = isDark ? "#94A3B8" : (merged.mutedTextColor ?? "#64748B");
+  const background = isDark ? "#0B1220" : (merged.backgroundColor ?? "#F7F8FA");
   const radius = `${merged.borderRadius ?? 12}px`;
   const density = merged.density ?? "comfortable";
   const hasBackgroundImage = typeof merged.backgroundImageUrl === "string" && merged.backgroundImageUrl.startsWith("https://");
@@ -116,9 +130,9 @@ export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CS
     "--aacp-grad-bubble-buyer": `linear-gradient(135deg, ${accent} 0%, ${secondary} 100%)`,
     "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${accent}18, transparent 70%)`,
     "--aacp-glow": `0 0 40px ${accent}33`,
-    "--aacp-shadow-sm": "0 1px 2px rgba(15, 23, 42, 0.06)",
-    "--aacp-shadow-md": "0 8px 24px rgba(15, 23, 42, 0.08)",
-    "--aacp-shadow-lg": "0 24px 64px rgba(15, 23, 42, 0.12)",
+    "--aacp-shadow-sm": isDark ? "0 1px 2px rgba(0, 0, 0, 0.35)" : "0 1px 2px rgba(15, 23, 42, 0.06)",
+    "--aacp-shadow-md": isDark ? "0 8px 24px rgba(0, 0, 0, 0.4)" : "0 8px 24px rgba(15, 23, 42, 0.08)",
+    "--aacp-shadow-lg": isDark ? "0 24px 64px rgba(0, 0, 0, 0.45)" : "0 24px 64px rgba(15, 23, 42, 0.12)",
     "--aacp-shell-bg": surface,
     "--aacp-shell-border": border,
     "--aacp-radius-sm": `calc(${radius} - 4px)`,
@@ -140,7 +154,9 @@ export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CS
   }
 
   if (isForcedMode) {
-    styles["--aacp-shell-bg"] = `linear-gradient(180deg, ${surface}f2, ${elevated}f2)`;
+    styles["--aacp-shell-bg"] = isDark
+      ? `linear-gradient(180deg, ${surface}f2, ${elevated}f2)`
+      : `linear-gradient(180deg, ${surface}f2, ${elevated}f2)`;
   }
   return styles as unknown as React.CSSProperties;
 }
@@ -333,11 +349,39 @@ export function filterSuggestedQuickReplies(
   });
 }
 
+export function buildEmptyCompletedExperience(
+  experience: CheckoutExperienceSnapshot,
+  currency: CheckoutExperienceSnapshot["totals"]["currency"]
+): CheckoutExperienceSnapshot {
+  return {
+    ...experience,
+    stage: "completed",
+    items: [],
+    suggestedProducts: [],
+    shipping: undefined,
+    totals: {
+      currency,
+      subtotal: 0,
+      shipping: 0,
+      discount: 0,
+      total: 0
+    },
+    copy: {
+      ...experience.copy,
+      quick_replies: [],
+      focus_input: false
+    }
+  };
+}
+
 export function filterCheckoutQuickReplies(
   replies: QuickReplyChoice[],
   context: { stage: string; missingField?: string; prePaymentStep?: string }
 ): QuickReplyChoice[] {
   if (context.stage === "payment") {
+    if (context.prePaymentStep === "cross_sell") {
+      return [{ label: "Não agora" }, { label: "Ir para pagamento" }];
+    }
     if (context.prePaymentStep === "coupon_gate") return [{ label: "Sim, tenho cupom" }, { label: "Nao tenho cupom" }];
     if (context.prePaymentStep !== "payment_method") return [];
     return replies.filter((reply) => {
@@ -375,4 +419,19 @@ function isPaymentOrOfferLabel(label: string): boolean {
 
 function isShippingSelectionLabel(label: string): boolean {
   return /\b(pac|sedex|correios|transportadora|entrega padrao|\d+\s*dias|r\$)\b/.test(label);
+}
+
+export function matchShippingOptionFromLabel(label: string, options: ShippingQuote[]): ShippingQuote | undefined {
+  const normalized = normalizeQuickReplyLabel(label);
+  if (!normalized) return undefined;
+  return options.find((option) => {
+    const method = normalizeQuickReplyLabel(option.method);
+    const carrier = normalizeQuickReplyLabel(option.carrier);
+    const combined = normalizeQuickReplyLabel(`${option.carrier ?? ""} ${option.method ?? ""}`);
+    return (
+      (method && normalized.includes(method)) ||
+      (carrier && normalized.includes(carrier)) ||
+      (combined && normalized.includes(combined))
+    );
+  });
 }

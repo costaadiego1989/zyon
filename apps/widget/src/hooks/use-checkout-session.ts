@@ -54,6 +54,16 @@ export function useCheckoutSession(config: WidgetConfig) {
     return payload.cart;
   }
 
+  function clearPersistedSession(): void {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem("aacp_session_id");
+  }
+
+  function resetSessionAfterOrder(): void {
+    clearPersistedSession();
+    setSession(null);
+  }
+
   async function startCheckout(): Promise<void> {
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
     try {
@@ -131,6 +141,8 @@ export function useCheckoutSession(config: WidgetConfig) {
     syncExperience,
     track,
     retryStartCheckout,
+    clearPersistedSession,
+    resetSessionAfterOrder,
     startedEvent,
     startErrorTs,
   };

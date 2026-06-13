@@ -1,6 +1,6 @@
-import { ArrowLeft, Bot, LogIn, ShoppingBag } from "lucide-react";
+import { Bot, LogIn, Moon, ShoppingBag, Sun } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { agentGivenAndRest, formatCurrency, resolveStoreReturnUrl } from "../../hooks/checkout-view-model.js";
+import { agentGivenAndRest, formatCurrency } from "../../hooks/checkout-view-model.js";
 
 export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.theme.agentName || vm.activeExperience.agent.name);
@@ -8,13 +8,9 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const headerSubtitle =
     vm.theme.headerSubtitle?.trim() ||
     `${vm.activeExperience.brand.name} · online · responde em segundos`;
-  const storeUrl = resolveStoreReturnUrl(vm.config);
+  const isDark = vm.colorMode === "dark";
   const openAccount = () => {
-    if (vm.auth.session?.global_user_id) {
-      vm.setUserPanelOpen(true);
-      return;
-    }
-    vm.auth.openHub();
+    void vm.openBuyerPanel();
   };
 
   return (
@@ -36,20 +32,20 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
               {agentName.rest || "Assistente de Vendas"}
             </span>
           </div>
-          <div className="aacp-agent-sub">
-            <span className="live-dot" />
-            {headerSubtitle}
-          </div>
+          <div className="aacp-agent-sub">{headerSubtitle}</div>
         </div>
       </div>
 
       <div className="aacp-header-actions">
-        {storeUrl ? (
-          <a className="aacp-back-to-store" href={storeUrl} aria-label="Voltar ao site">
-            <ArrowLeft size={15} aria-hidden />
-            <span>Voltar ao site</span>
-          </a>
-        ) : null}
+        <button
+          className="aacp-icon-btn"
+          onClick={vm.toggleColorMode}
+          aria-label={isDark ? "Modo claro" : "Modo escuro"}
+          title={isDark ? "Modo claro" : "Modo escuro"}
+          type="button"
+        >
+          {isDark ? <Sun size={16} /> : <Moon size={16} />}
+        </button>
 
         {vm.auth.session ? (
           <button className="aacp-user-chip" onClick={openAccount} aria-label="Minha conta">
@@ -59,7 +55,7 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
             <span className="aacp-user-chip-name">Minha conta</span>
           </button>
         ) : vm.activeExperience?.customer?.email_verified ? (
-          <button id="aacp-login-btn" className="aacp-user-chip" onClick={() => vm.setUserPanelOpen(true)} aria-label="Abrir conta">
+          <button id="aacp-login-btn" className="aacp-user-chip" onClick={() => void vm.openBuyerPanel()} aria-label="Abrir conta">
             <span className="aacp-user-avatar">
               {(vm.activeExperience?.customer?.fullName || "C")[0]}
             </span>
@@ -81,6 +77,7 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           aria-expanded={vm.cartOpen}
           aria-controls="aacp-cart-panel"
           aria-label="Abrir resumo do pedido"
+          type="button"
         >
           <ShoppingBag size={16} />
           {formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}

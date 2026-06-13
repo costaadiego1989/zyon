@@ -128,7 +128,16 @@ export function Composer({ vm }: { vm: CheckoutAgentViewModel }) {
   if (!vm.showComposer) return null;
 
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
-  const meta = getInputMeta(vm);
+  const meta = vm.isCartEmpty
+    ? {
+        placeholder: "O que você deseja comprar? Digite aqui que encontro para você",
+        inputType: "text",
+        icon: <Sparkles size={14} />,
+        inputMode: undefined,
+        maxLength: undefined,
+        autoComplete: undefined
+      }
+    : getInputMeta(vm);
   const missing = vm.lastChat?.missing_fields?.[0];
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -94,9 +94,9 @@ function buyerHeaders(session: GlobalAuthSession): HeadersInit {
   };
 }
 
-function purchasesUrl(base: string, session: GlobalAuthSession, cursor?: string | null): string {
+function purchasesUrl(base: string, merchantId: string | undefined, cursor?: string | null): string {
   const params = new URLSearchParams({ limit: "10" });
-  if (session.merchant_id) params.set("merchant_id", session.merchant_id);
+  if (merchantId) params.set("merchant_id", merchantId);
   if (cursor) params.set("cursor", cursor);
   return `${base}/buyer/me/purchases?${params.toString()}`;
 }
@@ -104,7 +104,9 @@ function purchasesUrl(base: string, session: GlobalAuthSession, cursor?: string 
 export function useBuyerHub(options: {
   apiBaseUrl: string;
   session: GlobalAuthSession | null;
+  merchantId?: string;
   enabled: boolean;
+  onAuthExpired?: () => void;
 }): BuyerHubState {
   const [profile, setProfile] = useState<BuyerProfile | null>(null);
   const [summary, setSummary] = useState<BuyerSummary | null>(null);
@@ -116,6 +118,7 @@ export function useBuyerHub(options: {
   const [hasMorePurchases, setHasMorePurchases] = useState(false);
 
   const base = options.apiBaseUrl.replace(/\/$/, "");
+  const merchantScope = options.session?.merchant_id ?? options.merchantId;
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!options.session || !options.enabled) return;
@@ -127,7 +130,7 @@ export function useBuyerHub(options: {
         fetchJson<BuyerProfile>(`${base}/buyer/me`, { headers, credentials: "include" }),
         fetchJson<BuyerSummary>(`${base}/buyer/me/summary`, { headers, credentials: "include" }).catch(() => null),
         fetchJson<{ items: BuyerPurchase[]; next_cursor?: string }>(
-          purchasesUrl(base, options.session),
+          purchasesUrl(base, merchantScope),
           { headers, credentials: "include" }
         ).catch(() => ({ items: [], next_cursor: undefined })),
         fetchJson<BuyerAgentProfile>(`${base}/buyer/me/agent`, { headers, credentials: "include" }).catch(() => null)
@@ -139,18 +142,22 @@ export function useBuyerHub(options: {
       setHasMorePurchases(Boolean(purchasesData.next_cursor));
       setAgent(agentData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar o hub.");
+      const message = err instanceof Error ? err.message : "Falha ao carregar o hub.";
+      if (/invalid_bearer_token|missing_bearer_token|jwt expired|unauthorized/i.test(message)) {
+        options.onAuthExpired?.();
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
-  }, [base, options.enabled, options.session]);
+  }, [base, merchantScope, options.enabled, options.onAuthExpired, options.session]);
 
   const loadMorePurchases = useCallback(async (): Promise<void> => {
     if (!options.session || !cursor) return;
     const headers = buyerHeaders(options.session);
     try {
       const data = await fetchJson<{ items: BuyerPurchase[]; next_cursor?: string }>(
-        purchasesUrl(base, options.session, cursor),
+        purchasesUrl(base, merchantScope, cursor),
         { headers, credentials: "include" }
       );
       setPurchases((prev) => [...prev, ...(data.items ?? [])]);
@@ -159,7 +166,7 @@ export function useBuyerHub(options: {
     } catch {
       // non-critical — keep existing purchases
     }
-  }, [base, cursor, options.session]);
+  }, [base, cursor, merchantScope, options.session]);
 
   const saveProfile = useCallback(
     async (data: Partial<Pick<BuyerProfile, "display_name" | "phone" | "address">>): Promise<void> => {

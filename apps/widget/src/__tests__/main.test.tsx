@@ -405,6 +405,13 @@ describe("themeStyle", () => {
     expect(style["--aacp-density-scale"]).toBe("1.08");
     expect(style["--aacp-bg-image"]).toContain("bg.jpg");
   });
+
+  it("applies dark palette when colorMode is dark", () => {
+    const style = themeStyle(baseTheme, false, "dark") as Record<string, string>;
+    expect(style["--aacp-surface"]).toBe("#111827");
+    expect(style["--aacp-fg"]).toBe("#F1F5F9");
+    expect(style["--aacp-bg"]).toBe("#0B1220");
+  });
 });
 
 describe("CheckoutAgent (conversational)", () => {

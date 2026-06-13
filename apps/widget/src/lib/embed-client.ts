@@ -10,6 +10,8 @@ export const CHECKOUT_EMBED_PATHS = {
   applyOffer: "/embed/offers/apply",
   applyCoupon: "/embed/coupons/apply",
   acceptCrossSell: "/embed/cross-sell/accept",
+  catalogSearch: "/embed/catalog/search",
+  catalogAdd: "/embed/catalog/add",
   paymentIntents: "/embed/payment/intents",
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
@@ -21,6 +23,8 @@ export const CHECKOUT_LEGACY_PATHS = {
   applyOffer: "/offers/apply",
   applyCoupon: "/coupons/apply",
   acceptCrossSell: "/cross-sell/accept",
+  catalogSearch: "/catalog/search",
+  catalogAdd: "/catalog/add",
   paymentIntents: "/payment/intents",
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
@@ -44,6 +48,26 @@ export async function checkoutJson<T>(
     body: JSON.stringify(options.body)
   });
 
+  if (!response.ok) {
+    throw new Error(`Request failed: ${response.status}`);
+  }
+
+  const payload = await response.json();
+  return options.schema ? options.schema.parse(payload) : (payload as T);
+}
+
+export async function checkoutGet<T>(
+  origin: string,
+  path: string,
+  options: { embedToken?: string; schema?: { parse(input: unknown): T } } = { schema: undefined as never }
+): Promise<T> {
+  const url = `${origin}${path.startsWith("/") ? path : `/${path}`}`;
+  const headers: Record<string, string> = {};
+  if (options.embedToken?.trim()) {
+    headers["x-aacp-embed-token"] = options.embedToken.trim();
+  }
+
+  const response = await fetch(url, { method: "GET", headers });
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }

@@ -1,5 +1,6 @@
 import { CheckCircle2, Gift, Copy, Check, Truck, Tag, ExternalLink } from "lucide-react";
 import { CrossSellBanner } from "./CrossSellBanner.js";
+import { ProductSearchResults } from "./ProductSearchResults.js";
 import { CardForm } from "./CardForm.js";
 import { ShippingSelector } from "./ShippingSelector.js";
 import { Composer } from "./Composer.js";
@@ -48,6 +49,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
 
       {!vm.selectedShippingMethod &&
+      !vm.activeExperience.shipping &&
       vm.shippingOptions.length > 0 &&
       vm.checkoutStage === "shipping" &&
       vm.lastChat?.missing_fields?.[0] === "frete" ? (
@@ -59,14 +61,25 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         />
       ) : null}
 
+      {vm.isCartEmpty && vm.catalogResults.length > 0 ? (
+        <ProductSearchResults
+          products={vm.catalogResults}
+          currency={vm.visibleTotals.currency}
+          onAdd={vm.addCatalogProduct}
+        />
+      ) : null}
+
       {vm.suggestedProducts && vm.suggestedProducts.length > 0 && !vm.crossSellDismissed ? (
         <CrossSellBanner
           products={vm.suggestedProducts}
           currency={vm.visibleTotals.currency}
           onAdd={(p) => vm.addSuggestedProduct(p)}
           onDismiss={vm.dismissCrossSell}
+          onProceedToPayment={vm.proceedFromCrossSell}
         />
       ) : null}
+
+      {vm.showPendingOffer ? <PendingOfferBanner vm={vm} /> : null}
 
       {vm.showCouponBox ? <CouponBox vm={vm} /> : null}
 
@@ -102,6 +115,8 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
 function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
   const orderRef = vm.session?.session_id?.slice(-6)?.toUpperCase() ?? "------";
+  const summaryItems = vm.completedOrderSnapshot?.items ?? vm.visibleItems;
+  const summaryTotals = vm.completedOrderSnapshot?.totals ?? vm.visibleTotals;
   const fallbackReturnUrl = typeof window !== "undefined" ? window.location.origin : undefined;
   const redirectUrl = vm.config.successRedirectUrl || vm.config.storeUrl || vm.config.emptyCartRedirectUrl || fallbackReturnUrl;
   const redirectLabel = vm.config.successRedirectLabel || "Voltar para a loja";
@@ -126,27 +141,27 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
           Resumo do pedido
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          {vm.visibleItems.map((item) => (
+          {summaryItems.map((item) => (
             <div key={item.sku} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
               <span>{item.quantity}x {item.name}</span>
-              <span style={{ fontWeight: 600 }}>{formatCurrency(item.line_total, vm.visibleTotals.currency)}</span>
+              <span style={{ fontWeight: 600 }}>{formatCurrency(item.line_total, summaryTotals.currency)}</span>
             </div>
           ))}
-          {vm.visibleTotals.shipping > 0 && (
+          {summaryTotals.shipping > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", opacity: 0.7 }}>
               <span>Frete</span>
-              <span>{formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)}</span>
+              <span>{formatCurrency(summaryTotals.shipping, summaryTotals.currency)}</span>
             </div>
           )}
-          {vm.visibleTotals.discount > 0 && (
+          {summaryTotals.discount > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--aacp-success)" }}>
               <span>Desconto</span>
-              <span>-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</span>
+              <span>-{formatCurrency(summaryTotals.discount, summaryTotals.currency)}</span>
             </div>
           )}
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: 700, borderTop: "1px solid var(--aacp-line)", paddingTop: "8px", marginTop: "4px" }}>
             <span>Total</span>
-            <span>{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</span>
+            <span>{formatCurrency(summaryTotals.total, summaryTotals.currency)}</span>
           </div>
         </div>
       </div>
@@ -293,7 +308,7 @@ export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
 
 export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
-    <div className="aacp-offer aacp-offer-banner">
+    <div className="aacp-offer aacp-offer-banner aacp-offer-banner--applied">
       <div className="aacp-offer-icon">
         <Gift size={18} />
       </div>
@@ -306,11 +321,45 @@ export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
       </div>
       <button
         type="button"
-        className="aacp-cta"
+        className="aacp-offer-cta"
         onClick={() => void vm.continueToPayment()}
         disabled={vm.busy}
       >
         Continuar
+      </button>
+    </div>
+  );
+}
+
+export function PendingOfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
+  const offer = vm.offer;
+  if (!offer?.approved) return null;
+  const pct = offer.type === "discount_percent" ? offer.value : 0;
+  const savingsLabel =
+    pct > 0
+      ? `${pct}% de desconto`
+      : offer.type === "shipping_free"
+        ? "frete grátis"
+        : "condição especial";
+
+  return (
+    <div className="aacp-offer aacp-offer-banner aacp-pending-offer">
+      <div className="aacp-offer-icon aacp-pending-offer-icon">
+        <Gift size={20} />
+      </div>
+      <div className="aacp-offer-text">
+        <strong>Oferta exclusiva para você</strong>
+        <span>
+          Preparamos {savingsLabel} se você finalizar agora. Aproveite antes de pagar.
+        </span>
+      </div>
+      <button
+        type="button"
+        className="aacp-offer-cta aacp-pending-offer-cta"
+        onClick={() => void vm.applyOffer()}
+        disabled={vm.busy}
+      >
+        Aplicar oferta
       </button>
     </div>
   );

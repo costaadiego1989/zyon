@@ -259,6 +259,21 @@ export const crossSellAcceptResponseSchema = z.object({
   agent_turn: chatTurnSchema.optional()
 }).passthrough();
 
+export const catalogSearchResponseSchema = z.object({
+  merchant_id: z.string().optional(),
+  query: z.string(),
+  products: z.array(z.object({
+    sku: z.string().min(1),
+    name: z.string().min(1),
+    unit_price: z.number().finite().nonnegative()
+  }).passthrough())
+}).passthrough();
+
+export const catalogAddResponseSchema = z.object({
+  experience: checkoutExperienceSnapshotSchema,
+  agent_turn: chatTurnSchema.optional()
+}).passthrough();
+
 export const productCartResponseSchema = z.object({
   cart: cartSchema
 }).passthrough();

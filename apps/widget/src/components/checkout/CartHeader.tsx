@@ -1,16 +1,9 @@
 import { X } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { brandInitials, CART_JOURNEY, resolveCartJourneyIndex } from "../../hooks/checkout-view-model.js";
-import { TrustStrip } from "./TrustStrip.js";
 
 export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const experience = vm.activeExperience;
-  const trustBadges = [
-    ...(vm.theme.trustBadges ?? []),
-    ...(experience.copy.trust_badges ?? [])
-  ]
-    .filter(Boolean)
-    .slice(0, 3);
   const orderRef = vm.session?.session_id?.slice(-6).toUpperCase() ?? "3EE8A6";
   const itemCount = vm.visibleItems.reduce((sum, item) => sum + item.quantity, 0);
   const journeyIndex = resolveCartJourneyIndex(vm.checkoutStage, itemCount);
@@ -66,8 +59,6 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
         <span className="aacp-cart-status-label">{journeyStep.label}</span>
         <span className="aacp-cart-status-hint">{journeyStep.hint}</span>
       </div>
-
-      <TrustStrip items={trustBadges} variant="inline" className="aacp-cart-trust" />
     </header>
   );
 }

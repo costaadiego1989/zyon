@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStoreReturnUrl } from "../hooks/checkout-view-model.js";
+import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl } from "../hooks/checkout-view-model.js";
 
 describe("brandInitials", () => {
   it("returns first letters for multi-word brands", () => {
@@ -36,6 +36,14 @@ describe("resolveCartJourneyIndex", () => {
   });
 });
 
+describe("resolveStepperProgressPct", () => {
+  it("includes the active step in fill percentage", () => {
+    expect(resolveStepperProgressPct(0, 4)).toBe(25);
+    expect(resolveStepperProgressPct(1, 4)).toBe(50);
+    expect(resolveStepperProgressPct(3, 4)).toBe(100);
+  });
+});
+
 describe("filterCheckoutQuickReplies", () => {
   it("keeps shipping complement replies from leaking freight, coupon, offer, or payment chips", () => {
     const replies = filterCheckoutQuickReplies(
@@ -68,6 +76,15 @@ describe("filterCheckoutQuickReplies", () => {
       "Correios PAC (7 dias) - R$ 19,90",
       "Transportadora Entrega padrao (5 dias) - R$ 24,90"
     ]);
+  });
+
+  it("uses cross-sell quick replies before payment methods", () => {
+    const replies = filterCheckoutQuickReplies(
+      [{ label: "PIX" }, { label: "Cartao de credito" }],
+      { stage: "payment", prePaymentStep: "cross_sell" }
+    );
+
+    expect(replies.map((reply) => reply.label)).toEqual(["Não agora", "Ir para pagamento"]);
   });
 
   it("uses the coupon gate before exposing payment methods", () => {

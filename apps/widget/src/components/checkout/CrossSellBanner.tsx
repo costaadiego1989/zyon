@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Package, Plus, Check, X } from "lucide-react";
+import { ArrowRight, Package, Plus, Check, X } from "lucide-react";
 import type { SuggestedProduct } from "@aacp/shared-types";
 import { formatCurrency } from "../../hooks/checkout-view-model.js";
 
@@ -8,9 +8,10 @@ interface CrossSellBannerProps {
   currency?: string;
   onAdd: (product: SuggestedProduct) => Promise<void>;
   onDismiss: () => void;
+  onProceedToPayment: () => void;
 }
 
-export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss }: CrossSellBannerProps) {
+export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss, onProceedToPayment }: CrossSellBannerProps) {
   if (!products.length) return null;
 
   return (
@@ -39,6 +40,15 @@ export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss }
           />
         ))}
       </div>
+
+      <button
+        type="button"
+        className="aacp-cross-sell-proceed"
+        onClick={onProceedToPayment}
+      >
+        Finalizar pagamento agora
+        <ArrowRight size={16} aria-hidden="true" />
+      </button>
     </div>
   );
 }
@@ -90,7 +100,7 @@ function CrossSellCard({
         type="button"
         disabled={loading || added}
         onClick={() => void handleAdd()}
-        className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold transition-all disabled:opacity-50 shrink-0 bg-[var(--aacp-grad-primary)] text-white"
+        className="aacp-cross-sell-add"
       >
         {added ? (
           <>

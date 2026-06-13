@@ -21,19 +21,21 @@ const BELT: SuggestedProduct = {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+const noopProceed = vi.fn();
+
 describe("CrossSellBanner", () => {
   // ── Rendering ───────────────────────────────────────────────────────────────
 
   it("renders nothing when products list is empty", () => {
     const { container } = render(
-      <CrossSellBanner products={[]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     expect(container.firstChild).toBeNull();
   });
 
   it("renders a card for each suggested product", () => {
     const { getAllByRole } = render(
-      <CrossSellBanner products={[WALLET, BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET, BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     const cards = getAllByRole("article");
     expect(cards).toHaveLength(2);
@@ -41,7 +43,7 @@ describe("CrossSellBanner", () => {
 
   it("renders product name and formatted price", () => {
     const { getByText } = render(
-      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     expect(getByText("Carteira Slim RFID")).not.toBeNull();
     expect(getByText(/129/)).not.toBeNull();
@@ -49,7 +51,7 @@ describe("CrossSellBanner", () => {
 
   it("renders product image when image_url provided", () => {
     const { getByRole } = render(
-      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     const img = getByRole("img", { name: "Carteira Slim RFID" });
     expect((img as HTMLImageElement).src).toContain("wallet.jpg");
@@ -57,7 +59,7 @@ describe("CrossSellBanner", () => {
 
   it("renders placeholder icon when no image_url", () => {
     const { container } = render(
-      <CrossSellBanner products={[BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     expect(container.querySelector(".aacp-cross-sell-thumb svg")).not.toBeNull();
     expect(container.querySelector(".aacp-cross-sell-thumb img")).toBeNull();
@@ -65,7 +67,7 @@ describe("CrossSellBanner", () => {
 
   it("renders an Adicionar button for each product", () => {
     const { getAllByRole } = render(
-      <CrossSellBanner products={[WALLET, BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET, BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     const addBtns = getAllByRole("button", { name: /Adicionar/i });
     expect(addBtns).toHaveLength(2);
@@ -73,7 +75,7 @@ describe("CrossSellBanner", () => {
 
   it("renders a dismiss button", () => {
     const { getByLabelText } = render(
-      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     expect(getByLabelText("Fechar sugestões")).not.toBeNull();
   });
@@ -83,7 +85,7 @@ describe("CrossSellBanner", () => {
   it("calls onAdd with product when Adicionar is clicked", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const { getAllByRole } = render(
-      <CrossSellBanner products={[WALLET, BELT]} onAdd={onAdd} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET, BELT]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     const [firstBtn] = getAllByRole("button", { name: /Adicionar/i });
     await act(async () => { fireEvent.click(firstBtn); });
@@ -94,7 +96,7 @@ describe("CrossSellBanner", () => {
     let resolve!: () => void;
     const onAdd = vi.fn(() => new Promise<void>((r) => { resolve = r; }));
     const { getAllByRole } = render(
-      <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     const [btn] = getAllByRole("button", { name: /Adicionar/i });
     fireEvent.click(btn);
@@ -105,7 +107,7 @@ describe("CrossSellBanner", () => {
   it("shows 'Adicionado!' label after successful add", async () => {
     const onAdd = vi.fn().mockResolvedValue(undefined);
     const { getAllByRole, getByText } = render(
-      <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     const [btn] = getAllByRole("button", { name: /Adicionar/i });
     await act(async () => { fireEvent.click(btn); });
@@ -117,16 +119,25 @@ describe("CrossSellBanner", () => {
   it("calls onDismiss when dismiss button is clicked", () => {
     const onDismiss = vi.fn();
     const { getByLabelText } = render(
-      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={onDismiss} />
+      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={onDismiss} onProceedToPayment={noopProceed} />
     );
     fireEvent.click(getByLabelText("Fechar sugestões"));
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
+  it("calls onProceedToPayment when proceed CTA is clicked", () => {
+    const onProceedToPayment = vi.fn();
+    const { getByRole } = render(
+      <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={onProceedToPayment} />
+    );
+    fireEvent.click(getByRole("button", { name: /Finalizar pagamento agora/i }));
+    expect(onProceedToPayment).toHaveBeenCalledOnce();
+  });
+
   it("renders variant text when product has variant", () => {
     const product: SuggestedProduct = { ...WALLET, variant: "Preto · Couro" };
     const { getByText } = render(
-      <CrossSellBanner products={[product]} onAdd={vi.fn()} onDismiss={vi.fn()} />
+      <CrossSellBanner products={[product]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
     expect(getByText("Preto · Couro")).not.toBeNull();
   });

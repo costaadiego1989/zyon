@@ -19,7 +19,7 @@ export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
     <section
       className="aacp-page aacp-widget aacp-widget--conversational"
-      style={themeStyle(vm.theme, true)}
+      style={themeStyle(vm.theme, true, vm.colorMode)}
       data-cart-open={vm.cartOpen ? "true" : undefined}
       data-color-mode={vm.colorMode}
       data-theme={vm.colorMode}
