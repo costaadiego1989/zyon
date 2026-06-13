@@ -15,6 +15,7 @@ describe("useCheckoutPanels", () => {
     expect(result.current.supportOpen).toBe(false);
     expect(result.current.userPanelOpen).toBe(false);
     expect(result.current.showCardForm).toBe(false);
+    expect(result.current.showCryptoPanel).toBe(false);
     expect(result.current.cardError).toBeNull();
     expect(result.current.colorMode).toBe("light");
   });
@@ -103,6 +104,7 @@ describe("useCheckoutPanels", () => {
       result.current.setSupportOpen(true);
       result.current.setBuyerGuestModalOpen(true);
       result.current.setShowCardForm(true);
+      result.current.setShowCryptoPanel(true);
       result.current.setCardError("Falha");
     });
     act(() => { result.current.resetPanels(); });
@@ -110,6 +112,7 @@ describe("useCheckoutPanels", () => {
     expect(result.current.activeSurface).toEqual({ kind: "none" });
     expect(result.current.buyerGuestModalOpen).toBe(false);
     expect(result.current.showCardForm).toBe(false);
+    expect(result.current.showCryptoPanel).toBe(false);
     expect(result.current.cardError).toBeNull();
   });
 });

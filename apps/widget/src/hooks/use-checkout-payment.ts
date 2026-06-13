@@ -5,6 +5,8 @@ import { paymentIntentSnapshotSchema } from "../lib/widget-schemas.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { CheckoutChatState } from "./use-checkout-chat.js";
 
+import type { CryptoPaymentState } from "./crypto-payment.types.js";
+
 export interface StripeIntent {
   clientSecret: string;
   publishableKey: string;
@@ -20,8 +22,10 @@ export function useCheckoutPayment(
   const { session, apiOrigin, embedOpts } = sessionState;
   const { appendAgentTurn, lastChat } = chatState;
   const [stripeIntent, setStripeIntent] = useState<StripeIntent | null>(null);
+  const [cryptoPayment, setCryptoPayment] = useState<CryptoPaymentState | null>(null);
 
   type PaySnapshot = {
+    id?: string;
     amountCents?: number;
     approvedAmountCents?: number;
     currency?: string;
@@ -31,11 +35,23 @@ export function useCheckoutPayment(
       qrCodeCopyPaste?: string;
       clientSecret?: string;
       stripePublishableKey?: string;
+      chainId?: number;
+      chain?: string;
+      evmNetwork?: string;
+      chainLabel?: string;
+      tokenAddress?: string;
+      tokenSymbol?: string;
+      amountAtomic?: string;
+      amountDisplay?: string;
+      destinationAddress?: string;
+      quoteExpiresAt?: string;
+      walletConnectProjectId?: string;
     };
   };
 
   function markPaymentCompleted(amountCents?: number, currency = "BRL"): void {
     setStripeIntent(null);
+    setCryptoPayment(null);
     const total = typeof amountCents === "number"
       ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
       : "";
@@ -56,7 +72,7 @@ export function useCheckoutPayment(
     });
   }
 
-  async function createPaymentIntent(method: "pix" | "card"): Promise<void> {
+  async function createPaymentIntent(method: "pix" | "card" | "crypto"): Promise<void> {
     if (!session) return;
     const offerNow = lastChat?.authorized_offer;
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
@@ -81,12 +97,48 @@ export function useCheckoutPayment(
       }
 
       if (method === "card" && bf?.clientSecret && bf?.stripePublishableKey) {
+        setCryptoPayment(null);
         setStripeIntent({
           clientSecret: bf.clientSecret,
           publishableKey: bf.stripePublishableKey,
           amountCents: snap.amountCents ?? 0,
           currency: snap.currency ?? "BRL"
         });
+        return;
+      }
+
+      if (
+        method === "crypto" &&
+        bf?.chainId &&
+        bf?.tokenAddress &&
+        bf?.amountAtomic &&
+        bf?.destinationAddress &&
+        bf?.quoteExpiresAt &&
+        snap.id
+      ) {
+        setStripeIntent(null);
+        setCryptoPayment({
+          intentId: snap.id,
+          amountCents: snap.amountCents,
+          currency: snap.currency,
+          quote: {
+            chainId: bf.chainId,
+            chain: bf.chain ?? "polygon",
+            evmNetwork: bf.evmNetwork ?? "testnet",
+            chainLabel: bf.chainLabel ?? "Polygon",
+            tokenAddress: bf.tokenAddress,
+            tokenSymbol: bf.tokenSymbol ?? "USDC",
+            amountAtomic: bf.amountAtomic,
+            amountDisplay: bf.amountDisplay ?? `${bf.amountAtomic} USDC`,
+            destinationAddress: bf.destinationAddress,
+            quoteExpiresAt: bf.quoteExpiresAt,
+            walletConnectProjectId: bf.walletConnectProjectId
+          }
+        });
+        appendAgentTurn(
+          `Cotação crypto pronta: ${bf.amountDisplay ?? "USDC"} na rede ${bf.chainLabel ?? "EVM"}. Conecte sua carteira e confirme o envio.`,
+          { stream: true }
+        );
         return;
       }
 
@@ -167,10 +219,44 @@ export function useCheckoutPayment(
     }
   }
 
+  async function confirmCryptoPayment(
+    intentId: string,
+    txHash: string,
+    walletAddress: string
+  ): Promise<void> {
+    if (!session) return;
+    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    const path = paths.cryptoPaymentConfirm(intentId);
+    try {
+      const result = await checkoutJson<{ status: string }>(apiOrigin, path, {
+        ...embedOpts,
+        body: {
+          session_id: session.session_id,
+          tx_hash: txHash,
+          wallet_address: walletAddress,
+          ...(config.mode !== "embed" && { merchant_id: config.merchantId })
+        },
+        schema: undefined
+      });
+      if (result.status === "approved") {
+        markPaymentCompleted(cryptoPayment?.amountCents, cryptoPayment?.currency ?? "BRL");
+      }
+    } catch {
+      appendAgentTurn(
+        "Recebemos sua transação, mas a confirmação ainda não foi validada. Aguarde alguns segundos ou tente novamente.",
+        { stream: true }
+      );
+      throw new Error("crypto_confirm_failed");
+    }
+  }
+
   return {
     createPaymentIntent,
     createEmbedPaymentIntentDemo,
     stripeIntent,
+    cryptoPayment,
+    setCryptoPayment,
+    confirmCryptoPayment,
     onStripePaymentConfirmed,
     onStripePaymentError
   };

@@ -2,6 +2,7 @@ import { Bot, CheckCircle2, Gift, Copy, Check, Truck, Tag, ExternalLink } from "
 import { CrossSellBanner } from "./CrossSellBanner.js";
 import { ProductSearchResults } from "./ProductSearchResults.js";
 import { CreditCardForm } from "./CreditCardForm.js";
+import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
 import { ShippingSelector } from "./ShippingSelector.js";
 import { Composer } from "./Composer.js";
 import { useEffect, useRef, useState } from "react";
@@ -106,7 +107,11 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
 
-      {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm)) && !vm.composerLocked && vm.quickReplies.length > 0 ? (
+      {vm.showCryptoPanel && vm.cryptoPayment && vm.checkoutStage !== "completed" ? (
+        <CryptoPaymentPanel vm={vm} />
+      ) : null}
+
+      {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm && !vm.showCryptoPanel)) && !vm.composerLocked && vm.quickReplies.length > 0 ? (
         <div className="aacp-quick-replies aacp-quick-replies--in-thread" role="group" aria-label="Respostas sugeridas">
           {vm.quickReplies.map((reply) => (
             <button

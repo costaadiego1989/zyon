@@ -2891,3 +2891,89 @@
     border: 1px solid CanvasText;
   }
 }
+
+.aacp-widget--conversational .aacp-crypto-panel {
+  width: min(100%, 650px);
+  margin: 8px auto 0;
+  padding: 16px;
+  border: 1px solid var(--aacp-enterprise-line);
+  border-radius: 16px;
+  background: var(--aacp-enterprise-surface);
+}
+
+.aacp-widget--conversational .aacp-crypto-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.aacp-widget--conversational .aacp-crypto-panel-head strong {
+  display: block;
+  font-size: 14px;
+}
+
+.aacp-widget--conversational .aacp-crypto-panel-head small {
+  color: var(--aacp-enterprise-muted);
+  font-size: 11px;
+}
+
+.aacp-widget--conversational .aacp-crypto-quote {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 12px;
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+.aacp-widget--conversational .aacp-crypto-quote dt {
+  color: var(--aacp-enterprise-muted);
+}
+
+.aacp-widget--conversational .aacp-crypto-quote dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.aacp-widget--conversational .aacp-crypto-mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+.aacp-widget--conversational .aacp-crypto-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aacp-widget--conversational .aacp-crypto-btn--ghost {
+  background: transparent;
+}
+
+.aacp-widget--conversational .aacp-crypto-pay {
+  width: 100%;
+  justify-content: center;
+}
+
+.aacp-widget--conversational .aacp-crypto-error {
+  color: var(--aacp-enterprise-error, #b45309);
+  font-size: 12px;
+}
+
+.aacp-widget--conversational .aacp-crypto-status,
+.aacp-widget--conversational .aacp-crypto-wallet,
+.aacp-widget--conversational .aacp-crypto-footnote {
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--aacp-enterprise-muted);
+}
+
+.aacp-widget--conversational .aacp-spin {
+  animation: aacp-spin 0.8s linear infinite;
+}
+
+@keyframes aacp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

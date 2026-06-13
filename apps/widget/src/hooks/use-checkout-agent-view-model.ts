@@ -46,12 +46,14 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     checkoutStage === "payment" &&
     activeExperience.rules?.couponBoxEnabled !== false &&
     visibleTotals.discount === 0 &&
-    !panels.showCardForm;
+    !panels.showCardForm &&
+    !panels.showCryptoPanel;
   const showCouponBox =
     checkoutStage === "payment" &&
     activeExperience.rules?.couponBoxEnabled !== false &&
     visibleTotals.discount === 0 &&
     !panels.showCardForm &&
+    !panels.showCryptoPanel &&
     (prePaymentStep === "coupon_entry" || couponInputVisible);
   const showOfferBanner = visibleTotals.discount > 0;
   const showPendingOffer =
@@ -59,7 +61,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     visibleTotals.discount === 0 &&
     checkoutStage === "payment" &&
     prePaymentStep !== "cross_sell" &&
-    !panels.showCardForm;
+    !panels.showCardForm &&
+    !panels.showCryptoPanel;
   const chatTrustBadges = activeExperience.copy.trust_badges.slice(0, 3);
 
   const auth = useGlobalAuth({
@@ -304,6 +307,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       return;
     }
     if (/cartao|cartao de credito|cartao de debito|cart[aã]o/i.test(reply.label)) {
+      panels.setShowCryptoPanel(false);
       panels.setShowCardForm(true);
       chatState.appendAgentTurn(
         "Preencha os dados do seu cartao abaixo. Seus dados sao criptografados e transmitidos com seguranca via checkout transparente.",
@@ -322,7 +326,14 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       return;
     }
     if (/^pix$/i.test(reply.label)) {
+      panels.setShowCryptoPanel(false);
       await payment.createPaymentIntent("pix");
+      return;
+    }
+    if (/crypto|cripto/i.test(reply.label)) {
+      panels.setShowCardForm(false);
+      panels.setShowCryptoPanel(true);
+      await payment.createPaymentIntent("crypto");
       return;
     }
     if (/^boleto$/i.test(reply.label)) {
@@ -444,6 +455,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     setUserTab: panels.setUserTab,
     showCardForm: panels.showCardForm,
     setShowCardForm: panels.setShowCardForm,
+    showCryptoPanel: panels.showCryptoPanel,
+    setShowCryptoPanel: panels.setShowCryptoPanel,
+    cryptoPayment: payment.cryptoPayment,
+    confirmCryptoPayment: payment.confirmCryptoPayment,
     cardError: panels.cardError,
     setCardError: panels.setCardError,
     shippingOptions,

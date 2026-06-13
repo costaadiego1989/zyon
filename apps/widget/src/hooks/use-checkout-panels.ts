@@ -23,6 +23,7 @@ export function useCheckoutPanels() {
     useState<BuyerHubSection>("profile");
   const [buyerGuestModalOpen, setBuyerGuestModalOpen] = useState(false);
   const [showCardForm, setShowCardForm] = useState(false);
+  const [showCryptoPanel, setShowCryptoPanel] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
   const [colorMode, setColorMode] = useState<"light" | "dark">(readStoredColorMode);
 
@@ -82,6 +83,7 @@ export function useCheckoutPanels() {
     setActiveSurface({ kind: "none" });
     setBuyerGuestModalOpen(false);
     setShowCardForm(false);
+    setShowCryptoPanel(false);
     setCardError(null);
   }, []);
 
@@ -104,6 +106,8 @@ export function useCheckoutPanels() {
     setUserTab,
     showCardForm,
     setShowCardForm,
+    showCryptoPanel,
+    setShowCryptoPanel,
     cardError,
     setCardError,
     colorMode,

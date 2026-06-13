@@ -127,4 +127,12 @@ describe("filterCheckoutQuickReplies", () => {
 
     expect(replies.map((reply) => reply.label)).toEqual(["PIX", "Cartao de credito"]);
   });
+
+  it("allows crypto payment chip in payment_method step", () => {
+    const replies = filterCheckoutQuickReplies(
+      [{ label: "Pagar com crypto" }, { label: "PIX" }],
+      { stage: "payment", prePaymentStep: "payment_method" }
+    );
+    expect(replies.map((reply) => reply.label)).toEqual(["Pagar com crypto", "PIX"]);
+  });
 });

@@ -427,7 +427,7 @@ function hasCouponIntent(value: string | undefined): boolean {
 }
 
 function isPaymentOrOfferLabel(label: string): boolean {
-  return /\b(pix|boleto|pagamento|pagar|finalizar|cartao|credito|debito|desconto|oferta)\b/.test(label);
+  return /\b(pix|boleto|pagamento|pagar|finalizar|cartao|credito|debito|desconto|oferta|crypto|cripto)\b/.test(label);
 }
 
 function isShippingSelectionLabel(label: string): boolean {

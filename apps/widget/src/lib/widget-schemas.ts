@@ -148,7 +148,7 @@ const chatTurnSchema = z.object({
 export const checkoutExperienceSnapshotSchema = z.object({
   brand: checkoutBrandSnapshotSchema,
   stage: z.enum(["data_collection", "shipping", "payment", "completed"]).optional(),
-  rules: z.object({ couponBoxEnabled: z.boolean() }).optional(),
+  rules: z.object({ couponBoxEnabled: z.boolean(), cryptoPaymentsEnabled: z.boolean().optional() }).optional(),
   items: z.array(checkoutItemSnapshotSchema),
   totals: checkoutTotalsSnapshotSchema,
   shipping: shippingSchema.optional(),
@@ -234,6 +234,7 @@ export const applyOfferResponseSchema = z.object({
 }).passthrough();
 
 export const paymentIntentSnapshotSchema = z.object({
+  id: z.string().optional(),
   amountCents: z.number().int().nonnegative().optional(),
   approvedAmountCents: z.number().int().nonnegative().optional(),
   currency: z.string().optional(),
