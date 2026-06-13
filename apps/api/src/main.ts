@@ -2,8 +2,14 @@ import "reflect-metadata";
 import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
+import { resolveCorsConfig } from "./shared/config/cors-config.js";
+import {
+  PRODUCTION_REQUIRED_SECRETS,
+  assertRequiredSecretsInProduction,
+} from "./shared/config/secret-config.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -11,11 +17,17 @@ loadDotenv({ path: resolve(__dirname, "../.env") });
 loadDotenv({ path: resolve(__dirname, "../../../.env"), override: false });
 
 async function bootstrap() {
+  assertRequiredSecretsInProduction(PRODUCTION_REQUIRED_SECRETS);
+
   const app = await NestFactory.create(AppModule, { rawBody: true });
-  app.enableCors({
-    origin: true,
-    credentials: true
-  });
+  app.enableCors(resolveCorsConfig());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    })
+  );
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
   console.log(`AI Checkout API listening on http://localhost:${port}`);
