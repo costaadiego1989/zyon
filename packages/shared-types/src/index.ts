@@ -74,6 +74,7 @@ export interface CustomerHints {
   email?: string;
   email_verified?: boolean;
   otp_code?: string;
+  recognized_buyer?: boolean;
   phone?: string;
   phone_verified?: boolean;
   phone_otp_code?: string;
@@ -171,6 +172,7 @@ export interface StartCheckoutRequest {
 
 export interface MerchantTheme {
   accentColor: string;
+  secondaryColor?: string;
   textColor: string;
   backgroundColor: string;
   fontFamily: string;
@@ -194,6 +196,7 @@ export interface MerchantTheme {
 
 export const DEFAULT_MERCHANT_THEME: MerchantTheme = {
   accentColor: "#0F766E",
+  secondaryColor: "#1E40AF",
   textColor: "#111827",
   backgroundColor: "#F7F8FA",
   fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",

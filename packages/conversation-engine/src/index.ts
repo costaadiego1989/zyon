@@ -38,7 +38,8 @@ export function generateDeterministicReply(input: ConversationInput): Conversati
     input.missingFields,
     input.merchantName,
     input.deliverySummary,
-    input.userMessage
+    input.userMessage,
+    input.shippingOptions
   );
 }
 
@@ -54,7 +55,8 @@ export async function generateSalesReply(input: ConversationInput): Promise<Conv
       input.missingFields,
       input.merchantName,
       input.deliverySummary,
-      input.userMessage
+      input.userMessage,
+      input.shippingOptions
     );
   if (!apiKey) return fb();
 
@@ -154,7 +156,7 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
   if (input.deliverySummary) {
     lines.push(`Contexto de entrega já conhecido (use como referência, não repita tudo): ${input.deliverySummary}`);
   }
-  if (input.shippingOptions?.length && !input.deliverySummary) {
+  if (input.shippingOptions?.length && input.stage === "shipping" && input.missingFields?.[0] === "frete") {
     const opts = input.shippingOptions
       .map((o) => `${o.method ?? o.carrier ?? "Frete"}: R$${o.customerPrice.toFixed(2)} (${o.deliveryDays ?? "?"} dias úteis)`)
       .join(" | ");
@@ -230,6 +232,14 @@ function stageInstructions(stage: ChatStage, missingFields: string[]): string {
         "ETAPA: endereço de entrega — já temos o número.",
         "Peça apenas se há algum complemento (apto, bloco, casa). Diga que se não houver, o comprador pode responder 'não tem'.",
         "Não ofereça cupom ou desconto nesta etapa."
+      ].join("\n");
+    }
+    if (next === "frete") {
+      return [
+        "ETAPA: selecao de frete.",
+        "As opcoes de frete ja foram calculadas. Peca ao comprador para escolher uma opcao disponivel.",
+        "Nao peca CEP, numero ou complemento novamente.",
+        "Nao mencione pagamento, PIX, cartao, cupom ou desconto antes da escolha do frete."
       ].join("\n");
     }
     if (next.includes("confirmar")) {
@@ -316,7 +326,8 @@ function fallbackReply(
   missingFields?: string[],
   merchantName?: string,
   deliverySummary?: string,
-  userMessage?: string
+  userMessage?: string,
+  shippingOptions?: ShippingQuote[]
 ): ConversationOutput {
   const agentName = agentContext?.agent.agentName;
   const prefix = agentName ? `${agentName}: ` : "";
@@ -334,6 +345,28 @@ function fallbackReply(
   }
   if (stage === "shipping") {
     const next = missingFields?.[0] ?? "CEP";
+    const normalizedNext = normalize(next);
+    if (normalizedNext.includes("numero")) {
+      return {
+        objection,
+        message: `${prefix}Ja achei o endereco pelo CEP. Qual o numero do imovel?`
+      };
+    }
+    if (normalizedNext.includes("complemento")) {
+      return {
+        objection,
+        message: `${prefix}Numero anotado. Tem complemento, como apto, bloco ou casa? Se nao tiver, responda "Nao tem".`
+      };
+    }
+    if (next === "frete") {
+      const optionCount = shippingOptions?.length ?? 0;
+      return {
+        objection,
+        message: optionCount > 0
+          ? `${prefix}Calculei ${optionCount} opcoes de frete. Selecione uma delas para seguirmos.`
+          : `${prefix}Ja tenho o endereco completo. Vou carregar as opcoes de frete para voce escolher.`
+      };
+    }
     if (next === "confirmar endereço") {
       const addrSnippet = deliverySummary
         ?.replace(/^Referência para entrega:\s*/i, "")
@@ -410,6 +443,7 @@ function matchQuickReplyResponse(
 ): string | null {
   const normalized = message.toLowerCase().trim();
   const storeName = merchantName ?? "nossa loja";
+  const nextField = normalize(missingFields?.[0] ?? "");
 
   // --- Data Collection stage quick replies ---
   if (stage === "data_collection") {
@@ -471,6 +505,8 @@ function matchQuickReplyResponse(
 
   // --- Shipping stage quick replies ---
   if (stage === "shipping") {
+    const isNoNumberOrComplementReply = normalize(message).includes("nao tem") || /minha casa n[aÃ£]o tem n[uÃº]mero/i.test(message);
+    if (isNoNumberOrComplementReply && !(nextField.includes("numero") || nextField.includes("complemento"))) return null;
     if (/como calculo o frete/i.test(message)) {
       return `O frete é calculado automaticamente pelo CEP de entrega. Basta informar os 8 dígitos do seu CEP que mostro as opções disponíveis com preço e prazo.`;
     }

@@ -45,6 +45,36 @@ test("generateDeterministicReply uses stage templates for shipping", () => {
   assert.match(result.message, /CEP/i);
 });
 
+test("generateDeterministicReply asks for complement after number without repeating number", () => {
+  const result = generateDeterministicReply({
+    userMessage: "95",
+    brandVoice: "consultative",
+    stage: "shipping",
+    missingFields: ["complemento (ou responda que nao tem)"]
+  });
+
+  assert.match(result.message, /complemento/i);
+  assert.match(result.message, /Nao tem/i);
+  assert.doesNotMatch(result.message, /numero e complemento/i);
+});
+
+test("generateDeterministicReply asks to select freight when quotes are ready", () => {
+  const result = generateDeterministicReply({
+    userMessage: "Nao tem",
+    brandVoice: "consultative",
+    stage: "shipping",
+    missingFields: ["frete"],
+    shippingOptions: [
+      { carrier: "Correios", method: "PAC", customerPrice: 19.9, deliveryDays: 7 },
+      { carrier: "Correios", method: "Sedex", customerPrice: 29.9, deliveryDays: 3 }
+    ]
+  });
+
+  assert.match(result.message, /frete/i);
+  assert.match(result.message, /Selecione|escol/i);
+  assert.doesNotMatch(result.message, /CEP/i);
+});
+
 test("generateDeterministicReply shows address confirmation (not CEP error) when address found", () => {
   const result = generateDeterministicReply({
     userMessage: "01310100",
