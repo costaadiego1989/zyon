@@ -22,6 +22,9 @@ function attachWidget(opts: HybridCheckoutOptions): void {
   if (opts.embedSessionToken) {
     el.setAttribute("embed-session-token", opts.embedSessionToken);
   }
+  if (opts.storeUrl) {
+    el.setAttribute("store-url", opts.storeUrl);
+  }
 
   const chatMount = document.getElementById("aacp-chat-mount");
   if (chatMount) {

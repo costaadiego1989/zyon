@@ -46,7 +46,26 @@ export interface CheckoutExperienceSnapshot {
   };
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
-  customer?: { email?: string; isReturning?: boolean };
+  customer?: {
+    email?: string;
+    email_verified?: boolean;
+    recognized_buyer?: boolean;
+    isReturning?: boolean;
+    fullName?: string;
+    cpf?: string;
+    phone?: string;
+    phone_verified?: boolean;
+    address_verified?: boolean;
+    address?: {
+      zip?: string;
+      street?: string;
+      number?: string;
+      complement?: string;
+      neighborhood?: string;
+      city?: string;
+      state?: string;
+    };
+  };
   agent: { name: string; greeting: string; tone: string; language: string };
   copy: {
     headline: string;
@@ -173,6 +192,34 @@ export function completedExperience(): CheckoutExperienceSnapshot {
   });
 }
 
+export function recognizedBuyerShippingExperience(): CheckoutExperienceSnapshot {
+  return buildExperience({
+    stage: "shipping",
+    shippingOptions: SHIPPING_OPTIONS,
+    customer: {
+      email: "costaadiego1989@gmail.com",
+      email_verified: true,
+      recognized_buyer: true,
+      isReturning: true,
+      fullName: "Diego Costa",
+      cpf: "05178178700",
+      phone: "21993001883",
+      phone_verified: true,
+      address_verified: true,
+      address: {
+        zip: "25958180",
+        street: "Rua Paulo Lossio",
+        number: "95",
+        complement: "",
+        neighborhood: "Araras",
+        city: "Teresopolis",
+        state: "RJ",
+      },
+    },
+    copy: { ...BASE_COPY, quick_replies: ["Correios PAC (7 dias) - R$ 19,90", "Correios Sedex (3 dias) - R$ 29,90"] },
+  });
+}
+
 // ─── Response builders ────────────────────────────────────────────────────────
 
 export function startCheckoutResponse(experience?: CheckoutExperienceSnapshot) {
@@ -236,6 +283,15 @@ export function pixPaymentResponse() {
   };
 }
 
+export function couponApplyResponse() {
+  return {
+    redemption_id: "red_test_001",
+    discount_applied: 89.98,
+    coupon: { code: "DESCONTO10" },
+    experience: paymentExperience(89.98),
+  };
+}
+
 // ─── Conversation flow sequences ─────────────────────────────────────────────
 
 export type FlowStep =
@@ -245,6 +301,8 @@ export type FlowStep =
   | "ask_cpf"
   | "ask_phone"
   | "ask_cep"
+  | "existing_buyer_otp_sent"
+  | "existing_buyer_shipping_options"
   | "confirm_address"
   | "ask_number"
   | "show_shipping_options"
@@ -291,6 +349,18 @@ const FLOW_RESPONSES: Record<FlowStep, () => ReturnType<typeof chatResponse>> = 
     experience: shippingExperience(),
     stage: "shipping",
     missingFields: ["shipping.address.zipCode"],
+  }),
+  existing_buyer_otp_sent: () => chatResponse({
+    message: "Reconheci seu cadastro. Informe o codigo enviado para seu e-mail para continuar.",
+    experience: dataCollectionExperience(),
+    stage: "data_collection",
+    missingFields: ["codigo de verificacao"],
+  }),
+  existing_buyer_shipping_options: () => chatResponse({
+    message: "Bem-vindo de volta, Diego. Ja tenho seu endereco salvo. Escolha a opcao de frete:",
+    experience: recognizedBuyerShippingExperience(),
+    stage: "shipping",
+    missingFields: ["frete"],
   }),
   confirm_address: () => chatResponse({
     message: "Encontrei o endereço: Rua das Flores, 123 - Jardim Primavera, São Paulo/SP. Está correto?",
@@ -445,6 +515,20 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
     });
   });
 
+  await page.route("**/buyer/login-from-session", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        global_user_id: "buyer_existing_e2e",
+        email: "costaadiego1989@gmail.com",
+        access_token: "tok_existing_buyer_e2e",
+        token_type: "Bearer",
+        expires_in: 3600,
+      }),
+    });
+  });
+
   await page.route("**/support/faq**", async (route: Route) => {
     await route.fulfill({
       status: 200,
@@ -477,6 +561,22 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
       status: 200,
       contentType: "application/json",
       body: JSON.stringify(getFlowResponse("coupon_applied")),
+    });
+  });
+
+  await page.route("**/coupons/apply", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(couponApplyResponse()),
+    });
+  });
+
+  await page.route("**/embed/coupons/apply", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(couponApplyResponse()),
     });
   });
 }

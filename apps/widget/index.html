@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Checkout conversacional com IA · AACP Embed Demo</title>
+    <title>Checkout inteligente com IA · AACP Embed Demo</title>
     <meta
       name="description"
       content="Demo: sessão iniciada pela API · fechamento de compra com assistente dentro de grande painel enterprise (modo §6 conversacional)."
@@ -17,16 +17,13 @@
     <link rel="stylesheet" href="/demo-checkout-enterprise.css" />
   </head>
   <body class="aacp-demo-page">
-    <!--
-      Hospedeiro mínimo: o embed JS pinta marca + área gigante para o chat IA.
-      data-embed-session-token opcional quando a API Nest emitir token secure embed (SEW).
-    -->
     <div
       id="aacp-merchant-mount"
       data-merchant-id="mrc_athom_tech"
-      data-api-base-url="http://localhost:3000"
+      data-api-base-url="http://localhost:3009"
       data-brand-title="Athom Tech"
       data-brand-subtitle="Checkout inteligente com IA para sua loja"
+      data-store-url="https://athomtech.com.br"
       data-cart-json='{"currency":"BRL","source":"storefront","total":299.9,"items":[{"sku":"athom-kit-001","name":"Kit Smart Home Athom Tech","price":299.9,"cost":140,"quantity":1,"imageUrl":"https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=640","productUrl":"https://athomtech.com.br/kit-smart-home","category":"Smart Home","variant":"Padrão"}]}'
       data-customer-json='{"email":"costaadiego1989@gmail.com","isReturning":false}'
     ></div>

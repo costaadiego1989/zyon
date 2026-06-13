@@ -47,7 +47,9 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
   const input = page.locator("input[aria-label='Mensagem para o assistente']");
   await expect(input).toBeVisible({ timeout: 5_000 });
   await input.fill(text);
-  await page.keyboard.press("Enter");
+  const sendButton = page.locator("button[aria-label='Enviar mensagem']").first();
+  await expect(sendButton).toBeEnabled({ timeout: 5_000 });
+  await sendButton.click();
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
@@ -75,6 +77,11 @@ async function clickQuickReply(page: import("@playwright/test").Page, text: stri
   const chip = page.locator(".aacp-chip", { hasText: text }).first();
   await expect(chip).toBeVisible({ timeout: 5_000 });
   await chip.click();
+}
+
+async function continueWithoutCoupon(page: import("@playwright/test").Page) {
+  await clickQuickReply(page, /N(?:a|ã)o tenho cupom/i);
+  await waitForStreamingDone(page);
 }
 
 // ─── 1. Quick Replies - Data Collection Stage ────────────────────────────────
@@ -304,6 +311,7 @@ test.describe("Quick Replies - Payment Stage", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
 
     const labels = await getQuickReplyLabels(page);
     expect(labels.some(l => /cart[aã]o/i.test(l))).toBe(true);
@@ -317,6 +325,7 @@ test.describe("Quick Replies - Payment Stage", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
 
     await clickQuickReply(page, /cart[aã]o/i);
     const cardForm = page.locator("form").filter({ hasText: /Pagar|Número do cartão|Card|Validade/i });
@@ -330,6 +339,7 @@ test.describe("Quick Replies - Payment Stage", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
 
     await clickQuickReply(page, /^pix$/i);
     // Should show PIX-related content (QR code or payment message)
@@ -401,12 +411,13 @@ test.describe("Quick Replies - Payment Stage", () => {
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
+    await continueWithoutCoupon(page);
 
     await clickQuickReply(page, /^boleto$/i);
     await waitForStreamingDone(page);
     const bubbles = page.locator(".aacp-bubble-agent");
     const lastBubble = bubbles.last();
     const text = await lastBubble.textContent();
-    expect(text).toMatch(/boleto.*não.*disponível|não.*disponível.*boleto|escolha.*cartão.*pix/i);
+    expect(text).toMatch(/boleto.*n[aã]o.*dispon[ií]vel|n[aã]o.*dispon[ií]vel.*boleto|escolha.*cart[aã]o.*pix/i);
   });
 });

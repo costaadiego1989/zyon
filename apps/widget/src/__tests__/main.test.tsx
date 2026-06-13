@@ -143,8 +143,13 @@ function buildChatResponse(
     actions?: ChatAction[];
     authorizedOffer?: ChatMessageResponse["authorized_offer"] | null;
     experience?: Partial<StartCheckoutResponse["experience"]>;
+    missingFields?: string[];
   } = {}
 ): ChatMessageResponse {
+  const inferredMissingFields =
+    stage === "shipping" && (overrides.experience?.shippingOptions?.length ?? 0) > 0
+      ? ["frete"]
+      : undefined;
   return {
     message,
     objection: "price",
@@ -176,6 +181,7 @@ function buildChatResponse(
       }
     ],
     stage,
+    missing_fields: overrides.missingFields ?? inferredMissingFields,
     experience: {
       stage,
       brand: {
@@ -544,7 +550,7 @@ describe("CheckoutAgent (conversational)", () => {
     expect(container.textContent).toContain("Northstar Atelier");
   });
 
-  it("renders the welcome message with configured discount from the checkout API", async () => {
+  it("renders the welcome message with configured discount without exposing coupon before payment", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
@@ -567,7 +573,7 @@ describe("CheckoutAgent (conversational)", () => {
         "12% de desconto"
       );
     });
-    expect(container.textContent).toContain("Tenho um cupom de desconto");
+    expect(container.textContent).not.toContain("Tenho um cupom de desconto");
   });
 
   it("sends message, shows typing, then renders agent reply from server turns", async () => {
@@ -712,7 +718,6 @@ describe("CheckoutAgent (conversational)", () => {
     expect(chips).toEqual([
       "Olá!",
       "Quero começar",
-      "Quero finalizar agora",
       "Meu nome completo é…",
       "Como prefere me chamar?",
       "Posso usar nome social?"
@@ -930,6 +935,7 @@ describe("CheckoutAgent (conversational)", () => {
         let messageText = "Como posso ajudar?";
         let qrs: string[] = [];
         let expOver: any = {};
+        let missingFields: string[] | undefined;
 
         if (lastSentMessage.includes("Diego")) {
           messageText = "Obrigado, Diego! Agora informe seu email.";
@@ -970,9 +976,15 @@ describe("CheckoutAgent (conversational)", () => {
           qrs = ["95"];
           nextStage = "shipping";
         } else if (lastSentMessage.includes("95")) {
+          messageText = "Tem complemento? Se nao tiver, responda Nao tem.";
+          qrs = ["Nao tem", "Como informo o bloco?", "Moro em zona rural"];
+          nextStage = "shipping";
+          missingFields = ["complemento (ou responda que nao tem)"];
+        } else if (/n[aã]o tem/i.test(lastSentMessage)) {
           messageText = "Escolha a entrega. Frete Grátis acima de R$500!";
           qrs = ["PAC (Grátis)", "Sedex (R$ 15,00)"];
           nextStage = "shipping";
+          missingFields = ["frete"];
           expOver = {
             shippingOptions: [
               { customerPrice: 0, carrier: "Correios", method: "PAC", deliveryDays: 5 },
@@ -1014,7 +1026,8 @@ describe("CheckoutAgent (conversational)", () => {
             buildChatResponse(messageText, nextStage, {
               quickReplies: qrs,
               experience: expOver,
-              actions: []
+              actions: [],
+              missingFields
             })
           ),
           { status: 200, headers: { "content-type": "application/json" } }
@@ -1085,6 +1098,14 @@ describe("CheckoutAgent (conversational)", () => {
 
     // Send Number
     fireEvent.change(input, { target: { value: "Número é 95" } });
+    fireEvent.submit(container.querySelector("form")!);
+    await waitFor(() => {
+      expect(container.textContent).toContain("Tem complemento");
+      expect(container.textContent).not.toContain("PAC (Grátis)");
+    });
+
+    // Confirm no complement before showing shipping options
+    fireEvent.change(input, { target: { value: "Nao tem" } });
     fireEvent.submit(container.querySelector("form")!);
     await waitFor(() => {
       expect(container.textContent).toContain("Escolha a entrega");

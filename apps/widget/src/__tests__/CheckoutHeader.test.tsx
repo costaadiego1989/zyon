@@ -39,6 +39,13 @@ function buildVm(overrides: Partial<CheckoutAgentViewModel> = {}): CheckoutAgent
       logout: vi.fn()
     },
     setUserPanelOpen: vi.fn(),
+    config: {
+      mode: "legacy",
+      merchantId: "mrc_demo",
+      apiBaseUrl: "http://localhost:3009",
+      cart: { currency: "BRL", source: "storefront", total: 929.7, items: [] },
+      uiPresentation: "conversational"
+    },
     ...overrides
   } as unknown as CheckoutAgentViewModel;
 }
@@ -68,7 +75,7 @@ describe("CheckoutHeader", () => {
     expect(container.querySelector(".aacp-agent-sub")?.textContent).not.toContain("Pagamento seguro");
   });
 
-  it("renders enterprise theme header copy and trust badges", () => {
+  it("renders enterprise theme header copy without trust strip", () => {
     const vm = buildVm();
     vm.theme.headerTitle = "Concierge Northstar";
     vm.theme.headerSubtitle = "Pagamento seguro com acompanhamento premium";
@@ -77,43 +84,46 @@ describe("CheckoutHeader", () => {
     const { container, getByText } = render(<CheckoutHeader vm={vm} />);
     expect(getByText("Concierge Northstar")).not.toBeNull();
     expect(container.querySelector(".aacp-agent-sub")?.textContent).toContain("Pagamento seguro");
-    expect(container.querySelectorAll(".aacp-header-badge")).toHaveLength(3);
+    expect(container.querySelectorAll(".aacp-trust-seal")).toHaveLength(0);
   });
 
   it("renders avatar image when agentAvatarUrl is set", () => {
     const vm = buildVm();
     vm.theme.agentAvatarUrl = "https://cdn.example.com/avatar.png";
     const { container } = render(<CheckoutHeader vm={vm} />);
-    const img = container.querySelector(".aacp-avatar img");
+    const img = container.querySelector(".aacp-header-agent-avatar img");
     expect(img).not.toBeNull();
     expect((img as HTMLImageElement).src).toContain("avatar.png");
   });
 
-  it("renders Sparkles fallback avatar when no agentAvatarUrl", () => {
+  it("renders Bot icon in chat header when no agentAvatarUrl", () => {
     const vm = buildVm();
     vm.theme.agentAvatarUrl = undefined;
     const { container } = render(<CheckoutHeader vm={vm} />);
-    expect(container.querySelector(".aacp-avatar img")).toBeNull();
-    expect(container.querySelector(".aacp-avatar svg")).not.toBeNull();
+    expect(container.querySelector(".aacp-header-agent-avatar img")).toBeNull();
+    expect(container.querySelector(".aacp-header-agent-avatar svg")).not.toBeNull();
   });
 
-  // ── Color mode toggle ───────────────────────────────────────────────────────
-
-  it("shows Moon button in light mode with correct aria-label", () => {
-    const { getByLabelText } = render(<CheckoutHeader vm={buildVm({ colorMode: "light" })} />);
-    expect(getByLabelText("Modo escuro")).not.toBeNull();
+  it("does not render merchant initials in chat header", () => {
+    const vm = buildVm();
+    vm.theme.logoUrl = undefined;
+    const { container } = render(<CheckoutHeader vm={vm} />);
+    expect(container.querySelector(".aacp-header-monogram-text")).toBeNull();
+    expect(container.querySelector(".aacp-header-agent-avatar")).not.toBeNull();
   });
 
-  it("shows Sun button in dark mode with correct aria-label", () => {
-    const { getByLabelText } = render(<CheckoutHeader vm={buildVm({ colorMode: "dark" })} />);
-    expect(getByLabelText("Modo claro")).not.toBeNull();
-  });
+  // ── Store return ────────────────────────────────────────────────────────────
 
-  it("calls toggleColorMode when theme button is clicked", () => {
-    const toggleColorMode = vi.fn();
-    const { getByLabelText } = render(<CheckoutHeader vm={buildVm({ toggleColorMode })} />);
-    fireEvent.click(getByLabelText("Modo escuro"));
-    expect(toggleColorMode).toHaveBeenCalledOnce();
+  it("renders back to store link when storeUrl is configured", () => {
+    const vm = buildVm();
+    vm.config = {
+      ...vm.config,
+      storeUrl: "https://minhaloja.com.br",
+      cart: { currency: "BRL", source: "storefront", total: 0, items: [] }
+    };
+    const { getByLabelText } = render(<CheckoutHeader vm={vm} />);
+    const link = getByLabelText("Voltar ao site") as HTMLAnchorElement;
+    expect(link.getAttribute("href")).toContain("https://minhaloja.com.br");
   });
 
   // ── Login states ────────────────────────────────────────────────────────────

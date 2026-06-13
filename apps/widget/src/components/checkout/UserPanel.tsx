@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import {
   X, User, Bot, ShoppingBag, Settings, Package,
-  LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Smartphone, Search, Truck
+  LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Smartphone, Search, Truck, MapPin, ExternalLink, ChevronDown
 } from "lucide-react";
+import type { CustomerAddress } from "@aacp/shared-types";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import type { BuyerAgentPersonality } from "../../hooks/use-buyer-hub.js";
 
@@ -26,6 +27,31 @@ const TRACKING_STATUS_LABEL: Record<string, string> = {
 function trackingStatusLabel(status?: string | null): string | null {
   if (!status) return null;
   return TRACKING_STATUS_LABEL[status] ?? status.replace(/_/g, " ");
+}
+
+function correiosTrackingUrl(code: string): string {
+  return `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(code)}`;
+}
+
+function normalizeAddress(address?: CustomerAddress): CustomerAddress {
+  return {
+    zip: address?.zip ?? "",
+    street: address?.street ?? "",
+    number: address?.number ?? "",
+    complement: address?.complement ?? "",
+    neighborhood: address?.neighborhood ?? "",
+    city: address?.city ?? "",
+    state: address?.state ?? ""
+  };
+}
+
+function compactAddress(address: CustomerAddress): CustomerAddress | undefined {
+  const next: CustomerAddress = {};
+  for (const key of ["zip", "street", "number", "complement", "neighborhood", "city", "state"] as const) {
+    const value = address[key]?.trim();
+    if (value) next[key] = value;
+  }
+  return Object.keys(next).length > 0 ? next : undefined;
 }
 
 export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
@@ -108,8 +134,11 @@ function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
   const fallbackName = hub.profile?.display_name ?? vm.activeExperience?.customer?.fullName ?? "";
   const fallbackPhone = hub.profile?.phone ?? vm.activeExperience?.customer?.phone ?? "";
   const fallbackEmail = hub.profile?.email ?? vm.auth.session?.email ?? vm.activeExperience?.customer?.email ?? "";
+  const fallbackAddress = normalizeAddress(hub.profile?.address ?? vm.activeExperience?.customer?.address);
+  const fallbackAddressKey = JSON.stringify(fallbackAddress);
   const [name, setName] = useState(fallbackName);
   const [phone, setPhone] = useState(fallbackPhone);
+  const [address, setAddress] = useState<CustomerAddress>(fallbackAddress);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -117,14 +146,19 @@ function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
   React.useEffect(() => {
     setName(fallbackName);
     setPhone(fallbackPhone);
-  }, [fallbackName, fallbackPhone]);
+    setAddress(fallbackAddress);
+  }, [fallbackName, fallbackPhone, fallbackAddressKey]);
 
   async function handleSave() {
     setSaving(true);
     setSaved(false);
     setSaveError(null);
     try {
-      await hub.saveProfile({ display_name: name.trim(), phone: phone.trim() || undefined });
+      await hub.saveProfile({
+        display_name: name.trim(),
+        phone: phone.trim() || undefined,
+        address: compactAddress(address)
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -168,6 +202,81 @@ function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
             placeholder="+55 11 99999-9999"
             aria-label="Telefone"
           />
+        </div>
+      </div>
+
+      <div className="aacp-side-section-title" style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 6 }}>
+        <MapPin size={14} />
+        Endereco de entrega
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 0.7fr", gap: 8 }}>
+        <div className="aacp-side-field">
+          <span>CEP</span>
+          <div className="aacp-side-input">
+            <input
+              value={address.zip ?? ""}
+              onChange={(e) => setAddress((current) => ({ ...current, zip: e.target.value }))}
+              placeholder="00000-000"
+              aria-label="CEP de entrega"
+            />
+          </div>
+        </div>
+        <div className="aacp-side-field">
+          <span>Numero</span>
+          <div className="aacp-side-input">
+            <input
+              value={address.number ?? ""}
+              onChange={(e) => setAddress((current) => ({ ...current, number: e.target.value }))}
+              placeholder="95"
+              aria-label="Numero de entrega"
+            />
+          </div>
+        </div>
+      </div>
+      <div className="aacp-side-field">
+        <span>Rua</span>
+        <div className="aacp-side-input">
+          <input
+            value={address.street ?? ""}
+            onChange={(e) => setAddress((current) => ({ ...current, street: e.target.value }))}
+            placeholder="Rua, avenida ou estrada"
+            aria-label="Rua de entrega"
+          />
+        </div>
+      </div>
+      <div className="aacp-side-field">
+        <span>Complemento ou referencia</span>
+        <div className="aacp-side-input">
+          <input
+            value={address.complement ?? ""}
+            onChange={(e) => setAddress((current) => ({ ...current, complement: e.target.value }))}
+            placeholder="Apto, bloco, casa ou referencia"
+            aria-label="Complemento de entrega"
+          />
+        </div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 8 }}>
+        <div className="aacp-side-field">
+          <span>Cidade</span>
+          <div className="aacp-side-input">
+            <input
+              value={address.city ?? ""}
+              onChange={(e) => setAddress((current) => ({ ...current, city: e.target.value }))}
+              placeholder="Cidade"
+              aria-label="Cidade de entrega"
+            />
+          </div>
+        </div>
+        <div className="aacp-side-field">
+          <span>UF</span>
+          <div className="aacp-side-input">
+            <input
+              value={address.state ?? ""}
+              onChange={(e) => setAddress((current) => ({ ...current, state: e.target.value.toUpperCase().slice(0, 2) }))}
+              placeholder="RJ"
+              aria-label="Estado de entrega"
+            />
+          </div>
         </div>
       </div>
 
@@ -223,7 +332,7 @@ function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
     setSaveError(null);
     try {
       await hub.saveAgent({
-        agent_name: agentName.trim(),
+        agent_name: agentName.trim() || "Meu agente",
         personality,
         target_discount_percent: targetDiscount,
         auto_accept_threshold: autoAccept
@@ -341,6 +450,7 @@ function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
 function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
   const hub = vm.buyerHub;
   const [query, setQuery] = useState("");
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
   const filteredPurchases = normalizedQuery
     ? hub.purchases.filter((purchase) =>
@@ -390,6 +500,8 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
               {(() => {
                 const statusLabel = trackingStatusLabel(p.tracking_status);
                 const timeline = (p.tracking_events ?? []).slice(-3);
+                const isOpen = selectedOrderId === p.id;
+                const trackingHref = p.tracking_code ? p.tracking_url ?? correiosTrackingUrl(p.tracking_code) : null;
                 return (
                   <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -406,6 +518,15 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
                   </span>
                 )}
               </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOrderId(isOpen ? null : p.id)}
+                aria-expanded={isOpen}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11, fontWeight: 700, color: "var(--aacp-accent)", background: "transparent", padding: 0 }}
+              >
+                {isOpen ? "Ocultar detalhes" : "Ver detalhes do pedido"}
+                <ChevronDown size={12} style={{ transform: isOpen ? "rotate(180deg)" : "none", transition: "transform 160ms ease" }} />
+              </button>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 11, color: "var(--aacp-muted)" }}>
                 <Truck size={13} style={{ flexShrink: 0 }} />
                 {p.tracking_code ? (
@@ -424,6 +545,17 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
                   <span>Aguardando codigo de rastreio</span>
                 )}
               </div>
+              {trackingHref ? (
+                <a
+                  href={trackingHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11, fontWeight: 700, color: "var(--aacp-accent)", textDecoration: "none" }}
+                >
+                  Rastrear pedido
+                  <ExternalLink size={12} />
+                </a>
+              ) : null}
               {timeline.length > 0 ? (
                 <div style={{ display: "grid", gap: 6, marginTop: 10, paddingTop: 8, borderTop: "1px solid var(--aacp-line)" }}>
                   {timeline.map((event) => (
@@ -437,6 +569,21 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
                       </span>
                     </div>
                   ))}
+                </div>
+              ) : null}
+              {isOpen ? (
+                <div style={{ display: "grid", gap: 8, marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--aacp-line)" }}>
+                  <strong style={{ fontSize: 12, color: "var(--aacp-fg)" }}>Detalhes do pedido</strong>
+                  {(p.items ?? []).length > 0 ? (
+                    (p.items ?? []).map((item) => (
+                      <div key={`${item.sku ?? item.name}-${item.quantity}`} style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11, color: "var(--aacp-muted)" }}>
+                        <span>{item.quantity}x {item.name}{item.variant ? ` - ${item.variant}` : ""}</span>
+                        <span style={{ color: "var(--aacp-fg)", fontWeight: 700 }}>{fmtBRL(item.line_total)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <span style={{ fontSize: 11, color: "var(--aacp-muted)" }}>Itens detalhados ainda nao foram sincronizados pela loja.</span>
+                  )}
                 </div>
               ) : null}
               {p.order_id ? (

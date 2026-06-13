@@ -36,7 +36,9 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
   const input = page.locator("input[aria-label='Mensagem para o assistente']");
   await expect(input).toBeVisible({ timeout: 5_000 });
   await input.fill(text);
-  await page.keyboard.press("Enter");
+  const sendButton = page.locator("button[aria-label='Enviar mensagem']").first();
+  await expect(sendButton).toBeEnabled({ timeout: 5_000 });
+  await sendButton.click();
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
@@ -49,6 +51,13 @@ async function waitForAgentReply(page: import("@playwright/test").Page) {
   const bubbles = page.locator(".aacp-bubble-agent");
   const count = await bubbles.count();
   return bubbles.nth(count - 1);
+}
+
+async function continueWithoutCoupon(page: import("@playwright/test").Page) {
+  const noCoupon = page.locator(".aacp-chip", { hasText: /N(?:a|ã)o tenho cupom/i }).first();
+  await expect(noCoupon).toBeVisible({ timeout: 5_000 });
+  await noCoupon.click();
+  await waitForStreamingDone(page);
 }
 
 // ─── Shipping Selection Flow ─────────────────────────────────────────────────
@@ -232,6 +241,8 @@ test.describe("Shipping Selection Flow", () => {
 
     const reply = await waitForAgentReply(page);
     const text = await reply.textContent();
-    expect(text).toMatch(/pagamento|pagar/i);
+    expect(text).toMatch(/cupom|pagamento|pagar/i);
+    await continueWithoutCoupon(page);
+    await expect(page.locator(".aacp-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
   });
 });

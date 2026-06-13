@@ -27,6 +27,36 @@ export const STAGE_FLOW = [
   { key: "completed", label: "Concluído", shortLabel: "Concluído" }
 ] as const;
 
+export const CART_JOURNEY = [
+  { key: "items", label: "Itens no carrinho", shortLabel: "Carrinho", hint: "Produtos selecionados" },
+  { key: "identity", label: "Seus dados", shortLabel: "Dados", hint: "Nome, e-mail e contato" },
+  { key: "delivery", label: "Entrega", shortLabel: "Frete", hint: "CEP e opção de envio" },
+  { key: "payment", label: "Fechar compra", shortLabel: "Pagamento", hint: "PIX ou cartão seguro" }
+] as const;
+
+export function resolveCartJourneyIndex(checkoutStage: string, itemCount: number): number {
+  if (checkoutStage === "completed") return CART_JOURNEY.length - 1;
+  if (checkoutStage === "payment") return 3;
+  if (checkoutStage === "shipping") return 2;
+  if (checkoutStage === "data_collection") return itemCount > 0 ? 1 : 0;
+  return 0;
+}
+
+export function resolveStoreReturnUrl(
+  config?: Pick<WidgetConfig, "storeUrl" | "emptyCartRedirectUrl" | "cart">
+): string | undefined {
+  if (!config) return undefined;
+  if (config.storeUrl?.trim()) return config.storeUrl.trim();
+  if (config.emptyCartRedirectUrl?.trim()) return config.emptyCartRedirectUrl.trim();
+  const productUrl = config.cart?.items?.[0]?.productUrl?.trim();
+  if (!productUrl) return undefined;
+  try {
+    return new URL(productUrl).origin;
+  } catch {
+    return undefined;
+  }
+}
+
 export function cn(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(" ");
 }
@@ -35,24 +65,36 @@ export function formatCurrency(value: number, currency: string): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
 }
 
+export function brandInitials(name: string, max = 2): string {
+  const parts = name
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "AC";
+  if (parts.length === 1) return parts[0].slice(0, max).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+}
+
 export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CSSProperties {
   const merged: MerchantTheme = {
     ...DEFAULT_MERCHANT_THEME,
     ...(theme ?? {})
   };
   const accent = merged.accentColor || "#0F766E";
+  const secondary = merged.secondaryColor ?? "#1E40AF";
   const surface = merged.surfaceColor ?? "#FFFFFF";
   const elevated = merged.surfaceElevatedColor ?? "#F8FAFC";
   const border = merged.borderColor ?? "#D9E2EC";
   const text = merged.textColor ?? "#111827";
   const muted = merged.mutedTextColor ?? "#64748B";
   const background = merged.backgroundColor ?? "#F7F8FA";
-  const radius = `${merged.borderRadius ?? 8}px`;
+  const radius = `${merged.borderRadius ?? 12}px`;
   const density = merged.density ?? "comfortable";
   const hasBackgroundImage = typeof merged.backgroundImageUrl === "string" && merged.backgroundImageUrl.startsWith("https://");
 
   const styles: Record<string, string> = {
     "--aacp-accent": accent,
+    "--aacp-accent-2": secondary,
     "--aacp-accent-strong": accent,
     "--aacp-fg": text,
     "--aacp-bg": background,
@@ -69,11 +111,28 @@ export function themeStyle(theme: MerchantTheme, isForcedMode = false): React.CS
     "--aacp-font-display": merged.fontDisplay ?? merged.fontFamily,
     "--aacp-radius": radius,
     "--aacp-density-scale": density === "compact" ? "0.88" : density === "spacious" ? "1.08" : "1",
-    "--aacp-grad-primary": `linear-gradient(135deg, ${accent} 0%, ${accent}cc 50%, ${accent}99 100%)`,
-    "--aacp-grad-soft": `linear-gradient(135deg, ${accent}26, ${accent}1a)`,
-    "--aacp-grad-bubble-buyer": `linear-gradient(135deg, ${accent}dd 0%, ${accent} 60%, ${accent}99 100%)`,
-    "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${accent}2e, transparent 70%)`,
-    "--aacp-glow": `0 0 40px ${accent}59`,
+    "--aacp-grad-primary": `linear-gradient(135deg, ${accent} 0%, ${secondary} 100%)`,
+    "--aacp-grad-soft": `linear-gradient(135deg, ${accent}14, ${secondary}0f)`,
+    "--aacp-grad-bubble-buyer": `linear-gradient(135deg, ${accent} 0%, ${secondary} 100%)`,
+    "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${accent}18, transparent 70%)`,
+    "--aacp-glow": `0 0 40px ${accent}33`,
+    "--aacp-shadow-sm": "0 1px 2px rgba(15, 23, 42, 0.06)",
+    "--aacp-shadow-md": "0 8px 24px rgba(15, 23, 42, 0.08)",
+    "--aacp-shadow-lg": "0 24px 64px rgba(15, 23, 42, 0.12)",
+    "--aacp-shell-bg": surface,
+    "--aacp-shell-border": border,
+    "--aacp-radius-sm": `calc(${radius} - 4px)`,
+    "--aacp-radius-md": radius,
+    "--aacp-radius-lg": `calc(${radius} + 4px)`,
+    "--aacp-radius-pill": `calc(${radius} + 10px)`,
+    "--aacp-accent-ring": `color-mix(in srgb, ${accent} 14%, transparent)`,
+    "--aacp-accent-border": `color-mix(in srgb, ${accent} 32%, transparent)`,
+    "--aacp-accent-hover-bg": `color-mix(in srgb, ${accent} 7%, ${surface})`,
+    "--aacp-accent-hover-border": `color-mix(in srgb, ${accent} 42%, ${border})`,
+    "--aacp-accent-shadow": `color-mix(in srgb, ${accent} 26%, transparent)`,
+    "--aacp-accent-shadow-strong": `color-mix(in srgb, ${accent} 38%, transparent)`,
+    "--aacp-panel-bg": elevated,
+    "--aacp-inset-bg": `color-mix(in srgb, ${text} 3%, ${surface})`,
   };
 
   if (hasBackgroundImage && merged.backgroundImageUrl) {
@@ -181,9 +240,21 @@ export function quickReplyId(reply: QuickReplyChoice): string {
 }
 
 const GOOGLE_FONT_WEIGHTS = "400;500;600;700;800";
+export const THEME_STUDIO_FONT_OPTIONS = [
+  { label: "Inter", value: "Inter, ui-sans-serif, system-ui, sans-serif" },
+  { label: "Manrope", value: "Manrope, Inter, ui-sans-serif, system-ui, sans-serif" },
+  { label: "Plus Jakarta Sans", value: "\"Plus Jakarta Sans\", Inter, ui-sans-serif, system-ui, sans-serif" },
+  { label: "DM Sans", value: "\"DM Sans\", Inter, ui-sans-serif, system-ui, sans-serif" },
+  { label: "IBM Plex Sans", value: "\"IBM Plex Sans\", ui-sans-serif, system-ui, sans-serif" },
+  { label: "Sora", value: "Sora, Inter, ui-sans-serif, system-ui, sans-serif" },
+  { label: "Space Grotesk", value: "\"Space Grotesk\", Inter, ui-sans-serif, system-ui, sans-serif" },
+  { label: "Outfit", value: "Outfit, Inter, ui-sans-serif, system-ui, sans-serif" },
+] as const;
+
 const GOOGLE_FONT_FAMILIES = new Set([
   "Inter", "Manrope", "Plus Jakarta Sans", "DM Sans", "Poppins",
-  "Roboto", "Sora", "Space Grotesk", "Montserrat", "Outfit", "Raleway"
+  "Roboto", "Sora", "Space Grotesk", "Montserrat", "Outfit", "Raleway",
+  "IBM Plex Sans"
 ]);
 
 function extractPrimaryFontFamily(fontFamily: string): string {
@@ -256,20 +327,52 @@ export function filterSuggestedQuickReplies(
   replies: QuickReplyChoice[],
   stage: string
 ): QuickReplyChoice[] {
-  if (stage === "data_collection") {
-    return replies.filter(r => !/frete|pagamento|cartao|pix|cupom/i.test(r.label));
+  return filterCheckoutQuickReplies(replies, {
+    stage,
+    prePaymentStep: stage === "payment" ? "payment_method" : undefined
+  });
+}
+
+export function filterCheckoutQuickReplies(
+  replies: QuickReplyChoice[],
+  context: { stage: string; missingField?: string; prePaymentStep?: string }
+): QuickReplyChoice[] {
+  if (context.stage === "payment") {
+    if (context.prePaymentStep === "coupon_gate") return [{ label: "Sim, tenho cupom" }, { label: "Nao tenho cupom" }];
+    if (context.prePaymentStep !== "payment_method") return [];
+    return replies.filter((reply) => {
+      const label = normalizeQuickReplyLabel(reply.label);
+      return !hasCouponIntent(label) && isPaymentOrOfferLabel(label);
+    });
   }
-  if (stage === "shipping") {
-    return replies.filter(r => !/cadastro|identificar|cupom/i.test(r.label));
-  }
-  if (stage === "payment") {
-    const filtered = replies.filter(r => /pagamento|finalizar|cartao|pix|cupom/i.test(r.label));
-    // Add coupon option if not already present
-    const hasCoupon = filtered.some(r => /cupom/i.test(r.label));
-    if (!hasCoupon) {
-      filtered.push({ label: "Não possuo cupom" });
-    }
-    return filtered;
-  }
-  return replies;
+
+  return replies.filter((reply) => {
+    const label = normalizeQuickReplyLabel(reply.label);
+    if (!label) return false;
+    if (isPaymentOrOfferLabel(label) || hasCouponIntent(label)) return false;
+    if (context.stage === "data_collection") return !isShippingSelectionLabel(label);
+    if (context.stage !== "shipping") return true;
+    if (normalizeQuickReplyLabel(context.missingField) === "frete") return true;
+    return !isShippingSelectionLabel(label);
+  });
+}
+
+function normalizeQuickReplyLabel(value: string | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase()
+    .trim();
+}
+
+function hasCouponIntent(value: string | undefined): boolean {
+  return /\bcupom\b/.test(normalizeQuickReplyLabel(value));
+}
+
+function isPaymentOrOfferLabel(label: string): boolean {
+  return /\b(pix|boleto|pagamento|pagar|finalizar|cartao|credito|debito|desconto|oferta)\b/.test(label);
+}
+
+function isShippingSelectionLabel(label: string): boolean {
+  return /\b(pac|sedex|correios|transportadora|entrega padrao|\d+\s*dias|r\$)\b/.test(label);
 }

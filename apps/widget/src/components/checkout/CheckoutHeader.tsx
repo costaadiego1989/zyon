@@ -1,15 +1,14 @@
-import { LogIn, Moon, ShoppingBag, Sparkles, Sun } from "lucide-react";
+import { ArrowLeft, Bot, LogIn, ShoppingBag } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { agentGivenAndRest, formatCurrency } from "../../hooks/checkout-view-model.js";
+import { agentGivenAndRest, formatCurrency, resolveStoreReturnUrl } from "../../hooks/checkout-view-model.js";
 
 export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.theme.agentName || vm.activeExperience.agent.name);
   const headerTitle = vm.theme.headerTitle?.trim() || agentName.given;
   const headerSubtitle =
     vm.theme.headerSubtitle?.trim() ||
-    `${vm.activeExperience.brand.name} - online - responde em segundos`;
-  const trustBadges = (vm.theme.trustBadges ?? []).filter(Boolean).slice(0, 3);
-  const isDark = vm.colorMode === "dark";
+    `${vm.activeExperience.brand.name} · online · responde em segundos`;
+  const storeUrl = resolveStoreReturnUrl(vm.config);
   const openAccount = () => {
     if (vm.auth.session?.global_user_id) {
       vm.setUserPanelOpen(true);
@@ -19,44 +18,38 @@ export function CheckoutHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   };
 
   return (
-    <header className="aacp-header aacp-shell-header">
+    <header className="aacp-header aacp-shell-header aacp-chat-header">
       <div className="aacp-header-left">
-        <div className="aacp-avatar" aria-hidden="true">
+        <div className="aacp-header-agent-avatar" aria-label="Assistente virtual">
           {vm.theme.agentAvatarUrl ? (
-            <img src={vm.theme.agentAvatarUrl} alt="" style={{ width: "100%", height: "100%", borderRadius: "inherit", objectFit: "cover" }} />
+            <img src={vm.theme.agentAvatarUrl} alt="" className="aacp-header-agent-img" />
           ) : (
-            <Sparkles size={20} />
+            <Bot size={22} strokeWidth={2} />
           )}
           <span className="aacp-status-dot" />
         </div>
+
         <div className="aacp-header-copy">
           <div className="aacp-agent-name">
-            {headerTitle} <span className="sep">·</span>{" "}
-            <span className="role">{agentName.rest || "Assistente de Vendas"}</span>
+            {headerTitle}
+            <span className="aacp-agent-role">
+              {agentName.rest || "Assistente de Vendas"}
+            </span>
           </div>
           <div className="aacp-agent-sub">
             <span className="live-dot" />
             {headerSubtitle}
           </div>
-          {trustBadges.length ? (
-            <div className="aacp-header-badges" aria-label="Selos do checkout">
-              {trustBadges.map((badge) => (
-                <span key={badge} className="aacp-header-badge">{badge}</span>
-              ))}
-            </div>
-          ) : null}
         </div>
       </div>
 
       <div className="aacp-header-actions">
-        <button
-          className="aacp-icon-btn"
-          onClick={vm.toggleColorMode}
-          aria-label={isDark ? "Modo claro" : "Modo escuro"}
-          title={isDark ? "Modo claro" : "Modo escuro"}
-        >
-          {isDark ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
+        {storeUrl ? (
+          <a className="aacp-back-to-store" href={storeUrl} aria-label="Voltar ao site">
+            <ArrowLeft size={15} aria-hidden />
+            <span>Voltar ao site</span>
+          </a>
+        ) : null}
 
         {vm.auth.session ? (
           <button className="aacp-user-chip" onClick={openAccount} aria-label="Minha conta">

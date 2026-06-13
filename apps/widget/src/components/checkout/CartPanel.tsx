@@ -1,10 +1,11 @@
-import { Package, ShoppingBag, Store, Trash2, X, ShieldCheck, LockKeyhole } from "lucide-react";
+import { Minus, Package, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { cn, formatCurrency, stageLabel } from "../../hooks/checkout-view-model.js";
+import { cn, formatCurrency } from "../../hooks/checkout-view-model.js";
+import { CartHeader } from "./CartHeader.js";
+import { CartJourneyStepper } from "./CartJourneyStepper.js";
 
 export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
-  const experience = vm.activeExperience;
-  const trustBadges = experience.copy.trust_badges ?? [];
+  const itemCount = vm.visibleItems.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
     <aside
@@ -12,79 +13,20 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       className={cn("aacp-cart", vm.cartOpen ? "open" : "")}
       aria-label="Resumo do pedido"
     >
-      <div className="aacp-cart-header">
-        <div className="aacp-cart-logo-wrap">
-          {vm.theme.logoUrl ? (
-            <img className="aacp-cart-logo" src={vm.theme.logoUrl} alt={experience.brand.name} />
-          ) : (
-            <Store size={20} />
-          )}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="aacp-cart-brand aacp-cart-store"><strong>{experience.brand.name}</strong></div>
-          <span className="aacp-cart-headline">Pedido #{vm.session?.session_id?.slice(-6) ?? "3EE8A6"}</span>
-        </div>
+      <CartHeader vm={vm} />
 
-        {(import.meta as any).env?.DEV && (
-          <button
-            type="button"
-            className="text-xs font-bold px-2 py-1 bg-red-500/20 text-red-400 rounded-md hover:bg-red-500/30 transition-colors"
-            onClick={() => {
-              window.localStorage.removeItem("aacp_session_id");
-              window.location.reload();
-            }}
-            title="Resetar Sessão"
-          >
-            Reset
-          </button>
-        )}
+      <CartJourneyStepper checkoutStage={vm.checkoutStage} itemCount={itemCount} />
 
-        <button className="aacp-cart-close lg:hidden" onClick={() => vm.setCartOpen(false)} aria-label="Fechar" type="button">
-          <X size={18} />
-        </button>
-      </div>
+      <section className="aacp-cart-items-block">
+        <header className="aacp-cart-items-head">
+          <h3 className="aacp-cart-items-title">Itens do pedido</h3>
+          <span className="aacp-cart-items-count">{itemCount}</span>
+        </header>
 
-      <div className="aacp-intel">
-        <div>
-          <span>Etapa</span>
-          <strong>{stageLabel(vm.checkoutStage)}</strong>
-        </div>
-        <div>
-          <span>Frete</span>
-          <strong>{vm.visibleTotals.shipping > 0 ? formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency) : "Aguardando"}</strong>
-        </div>
-        <div>
-          <span>Proteção</span>
-          <strong>{vm.offer?.approved ? "Oferta" : "Ativa"}</strong>
-        </div>
-      </div>
-
-      {/* Dynamic trust badges from merchant config */}
-      {trustBadges.length > 0 && (
-        <div className="aacp-trust-row" role="group" aria-label="Garantias e segurança">
-          {trustBadges.map((badge, i) => (
-            <span key={i} className="aacp-trust-pill">
-              <ShieldCheck size={12} />
-              {badge}
-            </span>
-          ))}
-        </div>
-      )}
-
-      {/* Fallback security badges */}
-      {trustBadges.length === 0 && (
-        <div className="aacp-trust-row" role="group" aria-label="Garantias e segurança">
-          <span className="aacp-trust-pill"><ShieldCheck size={12} />Compra segura</span>
-          <span className="aacp-trust-pill"><LockKeyhole size={12} />SSL 256-bit</span>
-        </div>
-      )}
-
-      <div>
-        <div className="aacp-section-title aacp-cart-title">Seu pedido agora · {vm.visibleItems.length}</div>
         <div className="aacp-items">
           {vm.visibleItems.length > 0 ? (
             vm.visibleItems.map((item) => (
-              <div key={item.sku} className="aacp-item">
+              <article key={item.sku} className="aacp-item aacp-cart-item">
                 <div className="aacp-item-thumb">
                   {item.image_url ? (
                     <img src={item.image_url} alt="" />
@@ -92,39 +34,61 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                     <Package size={22} />
                   )}
                 </div>
-                <div className="aacp-item-info">
-                  <div className="aacp-item-name">{item.name}</div>
-                  <div className="aacp-item-meta">{item.variant ? `${item.variant} · ` : ""}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px', background: 'rgba(255,255,255,0.06)', borderRadius: '10px', padding: '2px', width: 'fit-content' }}>
-                      <button type="button" style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', color: 'var(--aacp-fg)', fontSize: '18px', fontWeight: 600, lineHeight: 1, flexShrink: 0 }} onClick={() => vm.decrementItem(item.sku)} aria-label={`Diminuir quantidade de ${item.name}`} disabled={vm.busy}>−</button>
-                      <span style={{ minWidth: '28px', textAlign: 'center', fontSize: '14px', fontWeight: 600 }}>{item.quantity}</span>
-                      <button type="button" style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'rgba(255,255,255,0.07)', color: 'var(--aacp-fg)', fontSize: '18px', fontWeight: 600, lineHeight: 1, flexShrink: 0 }} onClick={() => vm.incrementItem(item.sku)} aria-label={`Aumentar quantidade de ${item.name}`} disabled={vm.busy}>+</button>
+
+                <div className="aacp-item-body">
+                  <div className="aacp-item-top">
+                    <h4 className="aacp-item-name">{item.name}</h4>
+                    <div className="aacp-item-price">{formatCurrency(item.line_total, vm.visibleTotals.currency)}</div>
+                  </div>
+
+                  {item.variant ? <p className="aacp-item-variant">{item.variant}</p> : null}
+
+                  <div className="aacp-item-controls">
+                    <div className="aacp-qty-control" aria-label={`Quantidade de ${item.name}`}>
+                      <button
+                        type="button"
+                        className="aacp-qty-btn"
+                        onClick={() => vm.decrementItem(item.sku)}
+                        aria-label={`Diminuir quantidade de ${item.name}`}
+                        disabled={vm.busy}
+                      >
+                        <Minus size={14} />
+                      </button>
+                      <span className="aacp-qty-value">{item.quantity}</span>
+                      <button
+                        type="button"
+                        className="aacp-qty-btn"
+                        onClick={() => vm.incrementItem(item.sku)}
+                        aria-label={`Aumentar quantidade de ${item.name}`}
+                        disabled={vm.busy}
+                      >
+                        <Plus size={14} />
+                      </button>
                     </div>
+
+                    <button
+                      type="button"
+                      className="aacp-item-remove"
+                      onClick={() => vm.handleRemoveCartItem(item.sku)}
+                      disabled={vm.busy}
+                      aria-label={`Remover ${item.name}`}
+                    >
+                      <Trash2 size={12} />
+                      Remover
+                    </button>
                   </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', flexShrink: 0 }}>
-                  <div className="aacp-item-price">{formatCurrency(item.line_total, vm.visibleTotals.currency)}</div>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-[10px] font-bold uppercase text-red-400 hover:text-red-300 transition-colors"
-                    onClick={() => vm.handleRemoveCartItem(item.sku)}
-                    disabled={vm.busy}
-                    aria-label={`Remover ${item.name}`}
-                  >
-                    <Trash2 size={10} /> Remover
-                  </button>
-                </div>
-              </div>
+              </article>
             ))
           ) : (
-            <div className="aacp-cart-empty py-12 text-center flex flex-col items-center justify-center gap-4 text-[var(--aacp-muted)]">
-              <ShoppingBag size={32} className="opacity-20" />
-              <div className="text-sm font-semibold">Seu carrinho está vazio</div>
+            <div className="aacp-cart-empty">
+              <ShoppingBag size={32} className="aacp-cart-empty-icon" />
+              <div className="aacp-cart-empty-title">Seu carrinho está vazio</div>
               {vm.config.emptyCartRedirectUrl && (
                 <a
                   id="aacp-empty-cart-redirect-btn"
                   href={vm.config.emptyCartRedirectUrl}
-                  className="mt-2 text-xs font-bold text-[var(--aacp-accent)] border border-[var(--aacp-accent)] rounded-full px-4 py-2 hover:bg-[var(--aacp-accent)] hover:text-white transition-colors"
+                  className="aacp-cart-empty-link"
                 >
                   Voltar para Loja
                 </a>
@@ -132,7 +96,7 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             </div>
           )}
         </div>
-      </div>
+      </section>
 
       <dl className="aacp-totals">
         <dt>Subtotal</dt>
@@ -145,8 +109,8 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         )}
         {vm.visibleTotals.discount > 0 && (
           <>
-            <dt style={{ color: "var(--aacp-success)", fontWeight: 700 }}>Desconto</dt>
-            <dd style={{ color: "var(--aacp-success)", fontWeight: 700 }}>-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
+            <dt className="aacp-totals-discount">Desconto</dt>
+            <dd className="aacp-totals-discount">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
           </>
         )}
         <div className="aacp-cart-total">
@@ -154,7 +118,6 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           <dd className="total-row value">{formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency)}</dd>
         </div>
       </dl>
-
     </aside>
   );
 }

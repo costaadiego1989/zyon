@@ -29,7 +29,9 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
   const input = page.locator("input[aria-label='Mensagem para o assistente']");
   await expect(input).toBeVisible({ timeout: 5_000 });
   await input.fill(text);
-  await page.keyboard.press("Enter");
+  const sendButton = page.locator("button[aria-label='Enviar mensagem']").first();
+  await expect(sendButton).toBeEnabled({ timeout: 5_000 });
+  await sendButton.click();
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
@@ -51,6 +53,13 @@ async function waitForComposer(page: import("@playwright/test").Page) {
   const composerWrap = page.locator(".aacp-thread-composer-wrap");
   await expect(composerWrap).toBeVisible({ timeout: 10_000 });
   return composerWrap;
+}
+
+async function continueWithoutCoupon(page: import("@playwright/test").Page) {
+  const noCoupon = page.locator(".aacp-chip", { hasText: /N(?:a|ã)o tenho cupom/i }).first();
+  await expect(noCoupon).toBeVisible({ timeout: 5_000 });
+  await noCoupon.click();
+  await waitForStreamingDone(page);
 }
 
 // ─── 1. Fluxo de Cadastro (data_collection) ──────────────────────────────────
@@ -122,7 +131,7 @@ test.describe("1. Fluxo de Cadastro (data_collection)", () => {
   });
 
   test("usuário envia telefone → transição para shipping", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["ask_cep"] });
+    await setupApiMocks(page, { chatSequence: ["ask_cep", "ask_cep"] });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -207,7 +216,9 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
     await pacOption.click();
     const reply = await waitForAgentReply(page);
     const text = await reply.textContent();
-    expect(text).toMatch(/pagamento|pagar/i);
+    expect(text).toMatch(/cupom|pagamento|pagar/i);
+    await continueWithoutCoupon(page);
+    await expect(page.locator(".aacp-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("totais do carrinho atualizam com valor do frete", async ({ page }) => {
@@ -231,17 +242,18 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
 // ─── 3. Fluxo de Pagamento (payment) ─────────────────────────────────────────
 
 test.describe("3. Fluxo de Pagamento (payment)", () => {
-  test("quick replies de pagamento aparecem (Cartão, PIX, Cupom)", async ({ page }) => {
+  test("quick replies de pagamento aparecem apos pular cupom", async ({ page }) => {
     await setupApiMocks(page, { chatSequence: ["payment_options"] });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
     const chips = page.locator(".aacp-chip");
     await expect(chips.filter({ hasText: /cart[aã]o/i }).first()).toBeVisible({ timeout: 5_000 });
     await expect(chips.filter({ hasText: /pix/i }).first()).toBeVisible({ timeout: 3_000 });
-    await expect(chips.filter({ hasText: /cupom/i }).first()).toBeVisible({ timeout: 3_000 });
+    await expect(chips.filter({ hasText: /cupom/i })).toHaveCount(0);
   });
 
   test("clicar Cartão de crédito → abre CardForm", async ({ page }) => {
@@ -251,6 +263,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
     const cardChip = page.locator(".aacp-chip", { hasText: /cart[aã]o/i }).first();
     await expect(cardChip).toBeVisible({ timeout: 5_000 });
     await cardChip.click();
@@ -266,6 +279,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
     const cardChip = page.locator(".aacp-chip", { hasText: /cart[aã]o/i }).first();
     await expect(cardChip).toBeVisible({ timeout: 5_000 });
     await cardChip.click();
@@ -284,6 +298,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
     const pixChip = page.locator(".aacp-chip", { hasText: /pix/i }).first();
     await expect(pixChip).toBeVisible({ timeout: 5_000 });
     await pixChip.click();
@@ -299,6 +314,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
     const pixChip = page.locator(".aacp-chip", { hasText: /pix/i }).first();
     await expect(pixChip).toBeVisible({ timeout: 5_000 });
     await pixChip.click();
@@ -315,6 +331,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
+    await continueWithoutCoupon(page);
     const pixChip = page.locator(".aacp-chip", { hasText: /pix/i }).first();
     await expect(pixChip).toBeVisible({ timeout: 5_000 });
     await pixChip.click();

@@ -11,6 +11,7 @@ import { SupportFAB } from "./SupportFAB.js";
 import { SupportPanel } from "./SupportPanel.js";
 import { CartFAB } from "./CartFAB.js";
 import { FloatingCheckout } from "./FloatingCheckout.js";
+import { ThemeStudio } from "./ThemeStudio.js";
 
 export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
   if (!vm.isConversational) return <FloatingCheckout vm={vm} />;
@@ -43,6 +44,7 @@ export function CheckoutShell({ vm }: { vm: CheckoutAgentViewModel }) {
       <SupportFAB vm={vm} />
       <SupportPanel vm={vm} />
       <CartFAB vm={vm} />
+      <ThemeStudio studio={vm.themeStudio} theme={vm.theme} />
       <GlobalAuthModal auth={vm.auth} hub={vm.hub} />
     </section>
   );

@@ -30,6 +30,7 @@ const customerHintsSchema: z.ZodType<CustomerHints> = z.object({
     email: z.string().email().optional(),
     email_verified: z.boolean().optional(),
     otp_code: z.string().min(1).optional(),
+    recognized_buyer: z.boolean().optional(),
     phone: z.string().min(5).optional(),
     phone_verified: z.boolean().optional(),
     phone_otp_code: z.string().min(1).optional(),
@@ -95,6 +96,9 @@ const widgetConfigSchema = z.object({
   shipping: shippingSchema.optional(),
   uiPresentation: z.enum(["floating", "conversational"]),
   emptyCartRedirectUrl: z.string().or(z.string().url()).optional(),
+  storeUrl: z.string().or(z.string().url()).optional(),
+  successRedirectUrl: z.string().or(z.string().url()).optional(),
+  successRedirectLabel: z.string().min(1).optional(),
   agent: agentConfigSchema.optional(),
   copy: copyConfigSchema.optional()
 });
@@ -323,6 +327,9 @@ export function parseWidgetConfig(input: {
   shipping?: ShippingQuote;
   uiPresentation?: "floating" | "conversational";
   emptyCartRedirectUrl?: string;
+  storeUrl?: string;
+  successRedirectUrl?: string;
+  successRedirectLabel?: string;
   agent?: WidgetConfig["agent"];
   copy?: WidgetConfig["copy"];
 }): WidgetConfig {
@@ -338,6 +345,9 @@ export function parseWidgetConfig(input: {
     shipping: input.shipping,
     uiPresentation: input.uiPresentation ?? "floating",
     emptyCartRedirectUrl: input.emptyCartRedirectUrl,
+    storeUrl: input.storeUrl,
+    successRedirectUrl: input.successRedirectUrl,
+    successRedirectLabel: input.successRedirectLabel,
     agent: input.agent,
     copy: input.copy
   });
@@ -355,6 +365,9 @@ export function parseWidgetConfig(input: {
     customer: input.customer,
     shipping: input.shipping,
     uiPresentation: input.uiPresentation ?? "floating",
-    emptyCartRedirectUrl: input.emptyCartRedirectUrl
+    emptyCartRedirectUrl: input.emptyCartRedirectUrl,
+    storeUrl: input.storeUrl,
+    successRedirectUrl: input.successRedirectUrl,
+    successRedirectLabel: input.successRedirectLabel
   };
 }

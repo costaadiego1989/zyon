@@ -41,8 +41,8 @@ export function useCheckoutPayment(
       : "";
     appendAgentTurn(
       total
-        ? `Pagamento confirmado (${total}). Seu pedido foi processado com sucesso!`
-        : "Pagamento confirmado! Seu pedido foi processado com sucesso!",
+        ? `Pagamento confirmado (${total}). Pedido aprovado! Separei o resumo e o link de retorno logo abaixo.`
+        : "Pagamento confirmado! Pedido aprovado. Separei o resumo e o link de retorno logo abaixo.",
       { stream: true }
     );
     sessionState.syncExperience({

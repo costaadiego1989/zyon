@@ -1,5 +1,6 @@
 import type { Cart, CheckoutEventName, CustomerHints, ShippingQuote } from "@aacp/shared-types";
 import type { ProductSelectionLine } from "./widget-types.js";
+import { brandInitials } from "../hooks/checkout-view-model.js";
 
 export interface HybridCheckoutOptions {
   merchantId: string;
@@ -12,6 +13,7 @@ export interface HybridCheckoutOptions {
   embedSessionToken?: string;
   brandTitle: string;
   brandSubtitle: string;
+  storeUrl?: string;
 }
 
 export function emitCheckoutEvent(event: CheckoutEventName): void {
@@ -19,22 +21,22 @@ export function emitCheckoutEvent(event: CheckoutEventName): void {
 }
 
 export function renderConversationalCheckoutChrome(mount: HTMLElement, opts: HybridCheckoutOptions): void {
+  const storeLink = opts.storeUrl
+    ? `<a class="store-return-link" href="${escapeHtml(opts.storeUrl)}">← Voltar ao site</a>`
+    : "";
+
   mount.innerHTML = `
     <a class="skip-link" href="#aacp-conversacional-principal">Ir para checkout conversacional</a>
     <div class="shell shell-conversational">
       <header class="topbar">
         <div class="brand-lockup">
-          <div class="brand-mark" aria-hidden="true"></div>
+          <div class="brand-mark" aria-hidden="true">${escapeHtml(brandInitials(opts.brandTitle))}</div>
           <div class="brand-text">
             <h1>${escapeHtml(opts.brandTitle)}</h1>
             <p>${escapeHtml(opts.brandSubtitle)}</p>
           </div>
         </div>
-        
-        <div class="trust-chip trust-chip-ai" role="status">
-          <span aria-hidden="true">✨</span>
-          <span>Checkout conversacional · agente fecha frete, cupom e pagamento dentro da política</span>
-        </div>
+        ${storeLink}
       </header>
 
       <main id="aacp-conversacional-principal" class="aacp-chat-column" aria-label="Checkout conversacional com IA">

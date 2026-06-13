@@ -224,6 +224,15 @@ body.aacp-demo-page {
   border-radius: 10px;
   background: linear-gradient(145deg, #0f766e, #134e4a);
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
 }
 
 .brand-text h1 {
@@ -238,6 +247,27 @@ body.aacp-demo-page {
   margin: 2px 0 0;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.store-return-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.18s ease, color 0.18s ease;
+  white-space: nowrap;
+}
+
+.store-return-link:hover {
+  color: var(--accent);
+  border-color: rgba(15, 118, 110, 0.35);
 }
 
 .trust-chip {

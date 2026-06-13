@@ -1,4 +1,4 @@
-import { CheckCircle2, Gift, Copy, Check, Truck, Tag } from "lucide-react";
+import { CheckCircle2, Gift, Copy, Check, Truck, Tag, ExternalLink } from "lucide-react";
 import { CrossSellBanner } from "./CrossSellBanner.js";
 import { CardForm } from "./CardForm.js";
 import { ShippingSelector } from "./ShippingSelector.js";
@@ -47,7 +47,10 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
 
-      {!vm.selectedShippingMethod && vm.shippingOptions.length > 0 && vm.checkoutStage === "shipping" ? (
+      {!vm.selectedShippingMethod &&
+      vm.shippingOptions.length > 0 &&
+      vm.checkoutStage === "shipping" &&
+      vm.lastChat?.missing_fields?.[0] === "frete" ? (
         <ShippingSelector
           options={vm.shippingOptions}
           selectedMethod={vm.selectedShippingMethod}
@@ -99,7 +102,9 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
 function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
   const orderRef = vm.session?.session_id?.slice(-6)?.toUpperCase() ?? "------";
-  const storeUrl = vm.config.emptyCartRedirectUrl || vm.config.storeUrl;
+  const fallbackReturnUrl = typeof window !== "undefined" ? window.location.origin : undefined;
+  const redirectUrl = vm.config.successRedirectUrl || vm.config.storeUrl || vm.config.emptyCartRedirectUrl || fallbackReturnUrl;
+  const redirectLabel = vm.config.successRedirectLabel || "Voltar para a loja";
 
   return (
     <div className="aacp-order-confirmation" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "20px 16px" }}>
@@ -109,7 +114,7 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
         <div className="aacp-offer-text">
           <strong style={{ fontSize: "16px" }}>Pedido confirmado!</strong>
-          <span>{vm.lastChat?.message || "Seu pedido foi processado com sucesso!"}</span>
+          <span>Pagamento aprovado. Obrigado pela compra! Enviamos os detalhes do pedido e, quando houver rastreio, voce podera acompanhar pelo seu painel.</span>
           <span style={{ fontSize: "12px", opacity: 0.7, marginTop: "4px" }}>
             Referência: #{orderRef}
           </span>
@@ -147,9 +152,10 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-        {storeUrl && (
+        {redirectUrl && (
           <a
-            href={storeUrl}
+            href={redirectUrl}
+            target="_top"
             className="aacp-cta"
             style={{
               display: "flex",
@@ -167,7 +173,8 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
             }}
             data-testid="return-to-store"
           >
-            Voltar para a loja
+            {redirectLabel}
+            <ExternalLink size={14} />
           </a>
         )}
       </div>

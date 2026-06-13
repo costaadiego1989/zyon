@@ -30,6 +30,10 @@ const ATTRS = [
   "shipping-json",
   "ui-presentation",
   "empty-cart-redirect-url",
+  "store-url",
+  "success-redirect-url",
+  "return-url",
+  "success-redirect-label",
   "agent-json",
   "copy-json"
 ] as const;
@@ -39,7 +43,17 @@ function widgetReloadKey(cfg: WidgetConfig): string {
   const productSelectionKey = cfg.productSelection
     ?.map((item) => `${item.sku}:${item.quantity}`)
     .join(",") ?? "";
-  return `${base}:${cfg.uiPresentation}:${cfg.cart.total}:${cfg.productApiBaseUrl ?? ""}:${productSelectionKey}:${cfg.emptyCartRedirectUrl ?? ""}`;
+  return [
+    base,
+    cfg.uiPresentation,
+    cfg.cart.total,
+    cfg.productApiBaseUrl ?? "",
+    productSelectionKey,
+    cfg.emptyCartRedirectUrl ?? "",
+    cfg.storeUrl ?? "",
+    cfg.successRedirectUrl ?? "",
+    cfg.successRedirectLabel ?? ""
+  ].join(":");
 }
 
 function readConfig(element: HTMLElement): WidgetConfig {
@@ -64,6 +78,11 @@ function readConfig(element: HTMLElement): WidgetConfig {
     }
   };
 
+  const successRedirectUrl =
+    element.getAttribute("success-redirect-url")?.trim() ||
+    element.getAttribute("return-url")?.trim() ||
+    undefined;
+
   return parseWidgetConfig({
     merchantId: merchantIdFromAttr,
     embedSessionToken,
@@ -77,6 +96,9 @@ function readConfig(element: HTMLElement): WidgetConfig {
     shipping: parseJson<ShippingQuote>(element.getAttribute("shipping-json")),
     uiPresentation,
     emptyCartRedirectUrl: element.getAttribute("empty-cart-redirect-url")?.trim() || undefined,
+    storeUrl: element.getAttribute("store-url")?.trim() || undefined,
+    successRedirectUrl,
+    successRedirectLabel: element.getAttribute("success-redirect-label")?.trim() || undefined,
     agent: parseJson(element.getAttribute("agent-json")),
     copy: parseJson(element.getAttribute("copy-json"))
   });

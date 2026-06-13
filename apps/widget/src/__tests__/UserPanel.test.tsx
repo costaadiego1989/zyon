@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render } from "@testing-library/react";
+import { fireEvent, render, waitFor } from "@testing-library/react";
 import { UserPanel } from "../components/checkout/UserPanel.js";
 import type { CheckoutAgentViewModel } from "../hooks/use-checkout-agent-view-model.js";
 import type { BuyerHubState } from "../hooks/use-buyer-hub.js";
@@ -121,6 +121,39 @@ describe("UserPanel", () => {
     expect(phoneInput?.value).toBe("21993001883");
   });
 
+  it("saves delivery address from profile tab", async () => {
+    const saveProfile = vi.fn().mockResolvedValue(undefined);
+    const vm = buildVm({
+      buyerHub: buildBuyerHub({
+        saveProfile,
+        profile: {
+          global_user_id: "guser_001",
+          display_name: "Diego Costa",
+          email: "diego@test.com",
+          phone: "21993001883"
+        }
+      })
+    });
+    const { getByLabelText, getByText } = render(<UserPanel vm={vm} />);
+    fireEvent.change(getByLabelText("CEP de entrega"), { target: { value: "25958080" } });
+    fireEvent.change(getByLabelText("Rua de entrega"), { target: { value: "Rua Paulo Lossio" } });
+    fireEvent.change(getByLabelText("Numero de entrega"), { target: { value: "95" } });
+    fireEvent.change(getByLabelText("Cidade de entrega"), { target: { value: "Teresopolis" } });
+    fireEvent.change(getByLabelText("Estado de entrega"), { target: { value: "rj" } });
+    fireEvent.click(getByText(/Salvar/i));
+    await waitFor(() => {
+      expect(saveProfile).toHaveBeenCalledWith(expect.objectContaining({
+        address: expect.objectContaining({
+          zip: "25958080",
+          street: "Rua Paulo Lossio",
+          number: "95",
+          city: "Teresopolis",
+          state: "RJ"
+        })
+      }));
+    });
+  });
+
   it("shows display_name initial as avatar letter", () => {
     const vm = buildVm({
       buyerHub: buildBuyerHub({
@@ -168,6 +201,15 @@ describe("UserPanel", () => {
             total: 199.9,
             discount_amount: 0,
             items_count: 1,
+            items: [
+              {
+                sku: "kit-1",
+                name: "Kit Smart Home",
+                quantity: 1,
+                unit_price: 199.9,
+                line_total: 199.9
+              }
+            ],
             currency: "BRL",
             created_at: "2026-05-20T12:00:00.000Z"
           }
@@ -181,6 +223,9 @@ describe("UserPanel", () => {
     expect(getByText("Em transporte - Objeto em transferencia")).not.toBeNull();
     expect(getByText("21/05/2026 - Sao Paulo, SP")).not.toBeNull();
     expect(getByText("Pedido order_1")).not.toBeNull();
+    fireEvent.click(getByText("Ver detalhes do pedido"));
+    expect(getByText("1x Kit Smart Home")).not.toBeNull();
+    expect(getByText("Rastrear pedido")).not.toBeNull();
   });
 
   it("shows pending tracking state when order has no tracking code yet", () => {

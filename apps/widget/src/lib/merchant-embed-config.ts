@@ -89,6 +89,11 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
       optionalQueryJson<CustomerHints>(params, ["customerJson", "customer_json"]) ??
       parseJsonAttr<CustomerHints>(ds.customerJson, fallbackCustomer),
     shipping: parseOptionalJsonAttr<ShippingQuote>(ds.shippingJson),
-    embedSessionToken: firstQueryValue(params, ["embedToken", "embedSessionToken", "embed_session_token"]) || ds.embedSessionToken?.trim() || undefined
+    embedSessionToken: firstQueryValue(params, ["embedToken", "embedSessionToken", "embed_session_token"]) || ds.embedSessionToken?.trim() || undefined,
+    storeUrl:
+      firstQueryValue(params, ["storeUrl", "store_url"]) ||
+      ds.storeUrl?.trim() ||
+      ds.store_url?.trim() ||
+      undefined
   };
 }

@@ -36,13 +36,20 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
   const input = page.locator("input[aria-label='Mensagem para o assistente']");
   await expect(input).toBeVisible({ timeout: 5_000 });
   await input.fill(text);
-  await page.keyboard.press("Enter");
+  const sendButton = page.locator("button[aria-label='Enviar mensagem']").first();
+  await expect(sendButton).toBeEnabled({ timeout: 5_000 });
+  await sendButton.click();
 }
 
 async function tapQuickReply(page: import("@playwright/test").Page, label: RegExp | string) {
   const btn = page.locator(".aacp-quick-replies button", { hasText: label });
   await expect(btn).toBeVisible({ timeout: 5_000 });
   await btn.click();
+}
+
+async function continueWithoutCoupon(page: import("@playwright/test").Page) {
+  await tapQuickReply(page, /N(?:a|ã)o tenho cupom/i);
+  await waitForStreamingDone(page);
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
@@ -211,7 +218,8 @@ test.describe("Full Checkout Flow E2E", () => {
     const pacBtn = selector.locator("button", { hasText: /PAC/ }).first();
     await pacBtn.click();
     reply = await waitForAgentReply(page);
-    expect(await reply.textContent()).toMatch(/pagamento|pagar/i);
+    expect(await reply.textContent()).toMatch(/cupom|pagamento|pagar/i);
+    await continueWithoutCoupon(page);
 
     // Step 9: Tap PIX quick reply — generates payment intent (does not complete order)
     await tapQuickReply(page, /PIX/i);
@@ -223,6 +231,42 @@ test.describe("Full Checkout Flow E2E", () => {
     const bubbles = page.locator(".aacp-bubble-agent");
     const lastBubble = bubbles.last();
     await expect(lastBubble).toContainText(/Cobrança|PIX/i, { timeout: 5_000 });
+  });
+
+  test("cliente existente verifica email, loga e pula direto para escolha do frete", async ({ page }) => {
+    await setupApiMocks(page, {
+      chatSequence: ["ask_email", "existing_buyer_otp_sent", "existing_buyer_shipping_options"],
+    });
+    await page.goto(BASE);
+    await waitForGreeting(page);
+    await waitForStreamingDone(page);
+
+    await sendMessage(page, "Diego Costa");
+    let reply = await waitForAgentReply(page);
+    expect(await reply.textContent()).toMatch(/e-?mail/i);
+
+    await sendMessage(page, "costaadiego1989@gmail.com");
+    reply = await waitForAgentReply(page);
+    expect(await reply.textContent()).toMatch(/codigo|verifica/i);
+
+    const loginResponse = page.waitForResponse((res) =>
+      res.url().includes("/buyer/login-from-session") && res.request().method() === "POST"
+    );
+    await sendMessage(page, "123456");
+    await waitForAgentReply(page);
+
+    const selector = page.locator(".aacp-shipping-selector");
+    await expect(selector).toBeVisible({ timeout: 5_000 });
+    await expect(selector).toContainText("PAC");
+    await expect(selector).toContainText("Sedex");
+
+    const logged = await loginResponse;
+    expect(logged.ok()).toBe(true);
+    const stored = await page.evaluate(() => window.localStorage.getItem("aacp_global_auth_session"));
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored!);
+    expect(parsed.email).toBe("costaadiego1989@gmail.com");
+    expect(parsed.global_user_id).toBe("buyer_existing_e2e");
   });
 
   test("stage indicator updates through the flow", async ({ page }) => {

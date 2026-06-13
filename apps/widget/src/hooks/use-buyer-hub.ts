@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GlobalAuthSession } from "../lib/widget-schemas.js";
+import type { CustomerAddress } from "@aacp/shared-types";
 
 export interface BuyerProfile {
   global_user_id: string;
   display_name: string;
   email: string;
   phone?: string;
+  address?: CustomerAddress;
 }
 
 export interface BuyerSummary {
@@ -26,8 +28,19 @@ export interface BuyerPurchase {
   total: number;
   discount_amount: number;
   items_count: number;
+  items?: BuyerPurchaseItem[];
   currency: string;
   created_at: string;
+}
+
+export interface BuyerPurchaseItem {
+  sku?: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  line_total: number;
+  image_url?: string | null;
+  variant?: string | null;
 }
 
 export interface BuyerTrackingEvent {
@@ -56,7 +69,7 @@ export interface BuyerHubState {
   hasMorePurchases: boolean;
   refresh: () => Promise<void>;
   loadMorePurchases: () => Promise<void>;
-  saveProfile: (data: Partial<Pick<BuyerProfile, "display_name" | "phone">>) => Promise<void>;
+  saveProfile: (data: Partial<Pick<BuyerProfile, "display_name" | "phone" | "address">>) => Promise<void>;
   saveAgent: (data: Partial<BuyerAgentProfile>) => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
@@ -149,7 +162,7 @@ export function useBuyerHub(options: {
   }, [base, cursor, options.session]);
 
   const saveProfile = useCallback(
-    async (data: Partial<Pick<BuyerProfile, "display_name" | "phone">>): Promise<void> => {
+    async (data: Partial<Pick<BuyerProfile, "display_name" | "phone" | "address">>): Promise<void> => {
       if (!options.session) throw new Error("Não autenticado.");
       const updated = await fetchJson<BuyerProfile>(`${base}/buyer/me/profile`, {
         method: "PATCH",
