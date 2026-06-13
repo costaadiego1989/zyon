@@ -115,6 +115,16 @@ export interface StageQuickReplies {
   completed?: string[];
 }
 
+export interface MerchantCryptoPayments {
+  enabled: boolean;
+  chain: "polygon" | "base";
+  network: "mainnet" | "testnet";
+  treasuryAddress: string;
+  token: "USDC";
+  quoteTtlSeconds: number;
+  brlPerUsdc?: number;
+}
+
 export interface MerchantRules {
   maxDiscountPercent: number;
   minimumMarginPercent: number;
@@ -131,11 +141,12 @@ export interface MerchantRules {
   couponBoxEnabled: boolean;
   originZip?: string;
   quickReplies?: StageQuickReplies;
+  cryptoPayments?: MerchantCryptoPayments;
 }
 
 export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
 
-export type PaymentMethod = "pix" | "credit_card";
+export type PaymentMethod = "pix" | "credit_card" | "crypto";
 
 export type ChatTurnRole = "buyer" | "agent";
 
@@ -260,6 +271,7 @@ export interface CheckoutExperienceSnapshot {
   stage?: ChatStage;
   rules?: {
     couponBoxEnabled: boolean;
+    cryptoPaymentsEnabled?: boolean;
   };
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;

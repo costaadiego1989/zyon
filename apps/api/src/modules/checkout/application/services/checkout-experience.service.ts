@@ -98,6 +98,9 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
       return ["Qual o prazo médio?", "Tem opção de retirada?", "Como acompanho o pedido?"];
     case "payment": {
       const base = ["Cartão de crédito", "Cartão de débito", "PIX", "Boleto"];
+      if (rules?.cryptoPayments?.enabled) {
+        base.push("Pagar com crypto");
+      }
       if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
         return ["Tenho um cupom de desconto", ...base];
       }
@@ -149,7 +152,10 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       accent_color: theme.accentColor,
       theme
     },
-    rules: { couponBoxEnabled: deps.couponBoxEnabled ?? true },
+    rules: {
+      couponBoxEnabled: deps.couponBoxEnabled ?? true,
+      cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true
+    },
     items,
     totals: {
       currency: input.cart.currency,

@@ -1,6 +1,7 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 import type { MerchantProfile, MerchantRules } from "../domain/merchant.types.js";
+import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 
 @Injectable()
 export class GetMerchantProfileUseCase {
@@ -26,7 +27,16 @@ export class GetMerchantRulesUseCase {
 export class UpdateMerchantRulesUseCase {
   constructor(@Inject(MERCHANT_REPOSITORY) private readonly repository: MerchantRepository) {}
 
-  execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
-    return this.repository.updateRules(merchantId, rules);
+  async execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
+    const patch = { ...rules };
+    if (patch.cryptoPayments !== undefined) {
+      try {
+        patch.cryptoPayments = normalizeMerchantCryptoPayments(patch.cryptoPayments);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "crypto_config_invalid";
+        throw new BadRequestException(message);
+      }
+    }
+    return this.repository.updateRules(merchantId, patch);
   }
 }

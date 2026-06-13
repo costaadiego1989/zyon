@@ -85,6 +85,9 @@ function toUpdate(rules: MerchantRules) {
     quickReplies: rules.quickReplies != null
       ? (rules.quickReplies as unknown as Prisma.InputJsonValue)
       : Prisma.JsonNull,
+    cryptoPayments: rules.cryptoPayments != null
+      ? (rules.cryptoPayments as unknown as Prisma.InputJsonValue)
+      : Prisma.JsonNull,
   };
 }
 
@@ -104,6 +107,7 @@ function toRules(row: {
   couponBoxEnabled?: boolean | null;
   originZip?: string | null;
   quickReplies?: unknown;
+  cryptoPayments?: unknown;
 }): MerchantRules {
   return {
     maxDiscountPercent: row.maxDiscountPercent,
@@ -122,6 +126,9 @@ function toRules(row: {
     originZip: row.originZip ?? undefined,
     quickReplies: row.quickReplies != null
       ? (row.quickReplies as unknown as StageQuickReplies)
+      : undefined,
+    cryptoPayments: row.cryptoPayments != null
+      ? (row.cryptoPayments as MerchantRules["cryptoPayments"])
       : undefined,
   };
 }

@@ -144,6 +144,7 @@ model MerchantRule {
   brandVoice                          String   @map("brand_voice")
   originZip                           String?  @map("origin_zip")
   quickReplies                        Json?    @map("quick_replies")
+  cryptoPayments                      Json?    @map("crypto_payments")
   updatedAt                           DateTime @updatedAt @map("updated_at")
 
   @@map("merchant_rules")
