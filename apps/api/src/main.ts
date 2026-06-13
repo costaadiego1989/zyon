@@ -6,6 +6,7 @@ import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
 import { resolveCorsConfig } from "./shared/config/cors-config.js";
+import { resolveSecurityHeaders } from "./shared/config/security-headers-config.js";
 import {
   PRODUCTION_REQUIRED_SECRETS,
   assertRequiredSecretsInProduction,
@@ -21,6 +22,15 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, { rawBody: true });
   app.enableCors(resolveCorsConfig());
+
+  const securityHeaders = resolveSecurityHeaders();
+  app.use((_req: unknown, res: { setHeader(name: string, value: string): void }, next: () => void) => {
+    for (const [name, value] of Object.entries(securityHeaders)) {
+      res.setHeader(name, value);
+    }
+    next();
+  });
+
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,
