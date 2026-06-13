@@ -1168,7 +1168,7 @@ describe("CheckoutAgent (conversational)", () => {
     });
   });
 
-  it("Card flow: clicar quick reply 'Cartão' abre CardForm; preencher dados; submit confirma pagamento", async () => {
+  it("Card flow: quick reply 'Cartão' abre Stripe Elements; submit deixa pagamento pendente aguardando webhook (sem confirmação otimista, sem PAN/CVV)", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
@@ -1188,14 +1188,25 @@ describe("CheckoutAgent (conversational)", () => {
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
-      if (url.endsWith("/payment/card-intent")) {
+      if (url.endsWith("/embed/payment/intents")) {
         return new Response(
-          JSON.stringify({ amount_cents: 92970, currency: "BRL" }),
+          JSON.stringify({
+            amountCents: 92970,
+            currency: "BRL",
+            status: "pending",
+            buyerFacing: {
+              clientSecret: "pi_test_secret_abc",
+              stripePublishableKey: "pk_test_xyz"
+            }
+          }),
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
       return new Response(JSON.stringify({}), { status: 200 });
     });
+
+    // Stripe client-side confirm succeeds, but that is NOT authoritative.
+    mockConfirmPaymentGlobal.mockResolvedValue({ error: undefined });
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
@@ -1213,38 +1224,56 @@ describe("CheckoutAgent (conversational)", () => {
       expect(container.textContent).toContain("Pagar com Cartão de Crédito");
     });
 
-    // Click card quick reply → showCardForm = true → CardForm renders
+    // Click card quick reply → showCardForm = true → CreditCardForm (Stripe) renders
     const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("Cartão"));
     expect(cardQr).not.toBeUndefined();
 
     await act(async () => { fireEvent.click(cardQr!); });
 
-    // CardForm renders with cc inputs
+    // No raw PAN/CVV inputs are ever rendered — provider-side tokenization only.
     await waitFor(() => {
-      expect(container.querySelector('input[autocomplete="cc-number"]')).not.toBeNull();
+      expect(container.textContent).toContain("Pagar com cartão");
+    });
+    expect(container.querySelector('input[autocomplete="cc-number"]')).toBeNull();
+    expect(container.querySelector('input[autocomplete="cc-csc"]')).toBeNull();
+
+    // Initiate the payment intent → Stripe Elements (mocked PaymentElement) render.
+    const initiateBtn = Array.from(container.querySelectorAll("button"))
+      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
+    expect(initiateBtn).not.toBeUndefined();
+    await act(async () => { fireEvent.click(initiateBtn!); });
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="stripe-payment-element"]')).not.toBeNull();
     });
 
-    // Fill valid card data
-    const ccNumber = container.querySelector('input[autocomplete="cc-number"]') as HTMLInputElement;
-    const ccName = container.querySelector('input[autocomplete="cc-name"]') as HTMLInputElement;
-    const ccExp = container.querySelector('input[autocomplete="cc-exp"]') as HTMLInputElement;
-    const ccCvv = container.querySelector('input[autocomplete="cc-csc"]') as HTMLInputElement;
+    // Submit the Stripe form → client-side confirm succeeds.
+    const stripeForm = container.querySelector("form");
+    expect(stripeForm).not.toBeNull();
+    await act(async () => { fireEvent.submit(stripeForm!); });
 
-    fireEvent.change(ccNumber, { target: { value: "4111111111111111" } });
-    fireEvent.change(ccName, { target: { value: "DIEGO COSTA" } });
-    fireEvent.change(ccExp, { target: { value: "12/28" } });
-    fireEvent.change(ccCvv, { target: { value: "123" } });
+    expect(mockConfirmPaymentGlobal).toHaveBeenCalledWith(
+      expect.objectContaining({ redirect: "if_required" })
+    );
 
-    const cardForm = container.querySelector("form");
-    expect(cardForm).not.toBeNull();
-
-    await act(async () => { fireEvent.submit(cardForm!); });
-
-    // onStripePaymentConfirmed appends agent turn with "Pagamento confirmado"
+    // Authoritative confirmation comes only via webhook → status. Until then the
+    // widget stays pending and must NOT optimistically declare the order complete.
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagamento confirmado");
+      expect(container.textContent).toContain("aguardando a confirmacao");
     });
+    expect(container.textContent).not.toContain("Pagamento confirmado");
+    expect(container.textContent).not.toContain("Pedido confirmado");
+
+    // No PAN/CVV ever sent to backend: no card body posted to the intents endpoint.
+    const intentCall = fetchMock.mock.calls.find(([reqUrl]) =>
+      (typeof reqUrl === "string" ? reqUrl : String(reqUrl)).endsWith("/embed/payment/intents")
+    );
+    expect(intentCall).not.toBeUndefined();
+    const sentBody = intentCall?.[1]?.body ? String(intentCall[1].body) : "";
+    expect(sentBody).not.toContain("credit_card");
+    expect(sentBody.toLowerCase()).not.toContain("ccv");
+    expect(sentBody.toLowerCase()).not.toContain("cvv");
   });
 
   it("supports dynamic client configuration for agent and copy from attributes and renders relocated Reset button", async () => {
@@ -1537,7 +1566,7 @@ describe("CheckoutAgent (conversational)", () => {
     });
   });
 
-  it("Card declined: CardForm exibe erro quando /payment/card-intent retorna 4xx", async () => {
+  it("Card declined: Stripe Elements exibe erro quando confirmPayment é recusado (sem confirmação, sem PAN/CVV)", async () => {
     fetchMock.mockImplementation(async (input: RequestInfo | URL) => {
       const url = typeof input === "string" ? input : input.toString();
       if (url.endsWith("/embed/start")) {
@@ -1559,11 +1588,24 @@ describe("CheckoutAgent (conversational)", () => {
       }
       if (url.endsWith("/embed/payment/intents")) {
         return new Response(
-          JSON.stringify({ message: "Seu cartão foi recusado." }),
-          { status: 402, headers: { "content-type": "application/json" } }
+          JSON.stringify({
+            amountCents: 92970,
+            currency: "BRL",
+            status: "pending",
+            buyerFacing: {
+              clientSecret: "pi_test_secret_abc",
+              stripePublishableKey: "pk_test_xyz"
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
         );
       }
       return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    // Stripe declines the card client-side.
+    mockConfirmPaymentGlobal.mockResolvedValue({
+      error: { message: "Seu cartão foi recusado." }
     });
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
@@ -1586,25 +1628,27 @@ describe("CheckoutAgent (conversational)", () => {
     await act(async () => { fireEvent.click(cardQr!); });
 
     await waitFor(() => {
-      expect(container.querySelector('input[autocomplete="cc-number"]')).not.toBeNull();
+      expect(container.textContent).toContain("Pagar com cartão");
+    });
+    expect(container.querySelector('input[autocomplete="cc-number"]')).toBeNull();
+    expect(container.querySelector('input[autocomplete="cc-csc"]')).toBeNull();
+
+    const initiateBtn = Array.from(container.querySelectorAll("button"))
+      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
+    await act(async () => { fireEvent.click(initiateBtn!); });
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-testid="stripe-payment-element"]')).not.toBeNull();
     });
 
-    const ccNumber = container.querySelector('input[autocomplete="cc-number"]') as HTMLInputElement;
-    const ccName = container.querySelector('input[autocomplete="cc-name"]') as HTMLInputElement;
-    const ccExp = container.querySelector('input[autocomplete="cc-exp"]') as HTMLInputElement;
-    const ccCvv = container.querySelector('input[autocomplete="cc-csc"]') as HTMLInputElement;
-
-    fireEvent.change(ccNumber, { target: { value: "4111111111111111" } });
-    fireEvent.change(ccName, { target: { value: "DIEGO COSTA" } });
-    fireEvent.change(ccExp, { target: { value: "12/28" } });
-    fireEvent.change(ccCvv, { target: { value: "123" } });
-
-    const cardForm = container.querySelector("form");
-    await act(async () => { fireEvent.submit(cardForm!); });
+    const stripeForm = container.querySelector("form");
+    await act(async () => { fireEvent.submit(stripeForm!); });
 
     await waitFor(() => {
       expect(container.textContent).toContain("Seu cartão foi recusado.");
     });
+    expect(container.textContent).not.toContain("Pagamento confirmado");
+    expect(container.textContent).not.toContain("Pedido confirmado");
   });
 
   it("validates email, OTP, and phone with success and error cases", async () => {

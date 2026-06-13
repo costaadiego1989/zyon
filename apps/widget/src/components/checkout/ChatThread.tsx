@@ -1,7 +1,7 @@
-import { CheckCircle2, Gift, Copy, Check, Truck, Tag, ExternalLink } from "lucide-react";
+import { Bot, CheckCircle2, Gift, Copy, Check, Truck, Tag, ExternalLink } from "lucide-react";
 import { CrossSellBanner } from "./CrossSellBanner.js";
 import { ProductSearchResults } from "./ProductSearchResults.js";
-import { CardForm } from "./CardForm.js";
+import { CreditCardForm } from "./CreditCardForm.js";
 import { ShippingSelector } from "./ShippingSelector.js";
 import { Composer } from "./Composer.js";
 import { useEffect, useRef, useState } from "react";
@@ -15,14 +15,33 @@ import {
   bubbleKey,
   cn,
   formatCurrency,
-  quickReplyId
+  quickReplyId,
+  stripAgentMessagePrefix
 } from "../../hooks/checkout-view-model.js";
 
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
+  const stageLead = conversationLead(vm.checkoutStage);
 
   return (
     <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
+      <section className="aacp-conversation-lead" aria-labelledby="aacp-conversation-title">
+        <span className="aacp-conversation-avatar" aria-hidden="true">
+          {vm.theme?.agentAvatarUrl ? (
+            <img src={vm.theme.agentAvatarUrl} alt="" />
+          ) : (
+            <Bot size={20} />
+          )}
+        </span>
+        <div>
+          <span className="aacp-conversation-agent">
+            {agentName.given}, agente de compras
+          </span>
+          <h2 id="aacp-conversation-title">{stageLead.title}</h2>
+          <p>{stageLead.description}</p>
+        </div>
+      </section>
+
       {vm.networkError ? <NetworkError vm={vm} /> : null}
 
       {vm.turns.map((turn, index) => {
@@ -31,10 +50,12 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
           <ChatBubble
             key={key}
             turn={turn}
-            agentName={vm.activeExperience.agent.name}
+            agentName={vm.theme?.agentName || vm.activeExperience.agent.name}
+            agentAvatarUrl={vm.theme?.agentAvatarUrl}
             bubbleKey={key}
             streamingKey={vm.streamingTurnKey}
             onAgentTypingDone={vm.handleAgentTypingDone}
+            isLatest={index === vm.turns.length - 1}
           />
         );
       })}
@@ -83,7 +104,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {vm.showCouponBox ? <CouponBox vm={vm} /> : null}
 
-      {vm.showCardForm && vm.checkoutStage !== "completed" ? <CardForm vm={vm} /> : null}
+      {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
 
       {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm)) && !vm.composerLocked && vm.quickReplies.length > 0 ? (
         <div className="aacp-quick-replies aacp-quick-replies--in-thread" role="group" aria-label="Respostas sugeridas">
@@ -122,78 +143,59 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
   const redirectLabel = vm.config.successRedirectLabel || "Voltar para a loja";
 
   return (
-    <div className="aacp-order-confirmation" style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "20px 16px" }}>
-      <div className="aacp-offer" style={{ borderColor: "var(--aacp-success)", background: "rgba(16, 185, 129, 0.05)" }}>
-        <div className="aacp-offer-icon" style={{ background: "rgba(16, 185, 129, 0.1)", color: "var(--aacp-success)" }}>
+    <section className="aacp-order-confirmation" aria-labelledby="aacp-order-confirmation-title">
+      <div className="aacp-order-confirmation-head">
+        <div className="aacp-order-confirmation-icon" aria-hidden="true">
           <CheckCircle2 size={24} />
         </div>
-        <div className="aacp-offer-text">
-          <strong style={{ fontSize: "16px" }}>Pedido confirmado!</strong>
-          <span>Pagamento aprovado. Obrigado pela compra! Enviamos os detalhes do pedido e, quando houver rastreio, voce podera acompanhar pelo seu painel.</span>
-          <span style={{ fontSize: "12px", opacity: 0.7, marginTop: "4px" }}>
-            Referência: #{orderRef}
-          </span>
+        <div>
+          <span className="aacp-order-confirmation-kicker">Pagamento aprovado</span>
+          <h3 id="aacp-order-confirmation-title">Pedido confirmado</h3>
+          <p>Enviaremos as atualizações de entrega e rastreio para sua conta.</p>
+          <span className="aacp-order-confirmation-reference">Pedido #{orderRef}</span>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", padding: "0 4px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 600, opacity: 0.6, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-          Resumo do pedido
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <div className="aacp-order-confirmation-summary">
+        <h4>Resumo do pedido</h4>
+        <div className="aacp-order-confirmation-lines">
           {summaryItems.map((item) => (
-            <div key={item.sku} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px" }}>
+            <div key={item.sku}>
               <span>{item.quantity}x {item.name}</span>
-              <span style={{ fontWeight: 600 }}>{formatCurrency(item.line_total, summaryTotals.currency)}</span>
+              <strong>{formatCurrency(item.line_total, summaryTotals.currency)}</strong>
             </div>
           ))}
           {summaryTotals.shipping > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", opacity: 0.7 }}>
+            <div>
               <span>Frete</span>
-              <span>{formatCurrency(summaryTotals.shipping, summaryTotals.currency)}</span>
+              <strong>{formatCurrency(summaryTotals.shipping, summaryTotals.currency)}</strong>
             </div>
           )}
           {summaryTotals.discount > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", color: "var(--aacp-success)" }}>
+            <div className="is-discount">
               <span>Desconto</span>
-              <span>-{formatCurrency(summaryTotals.discount, summaryTotals.currency)}</span>
+              <strong>-{formatCurrency(summaryTotals.discount, summaryTotals.currency)}</strong>
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "14px", fontWeight: 700, borderTop: "1px solid var(--aacp-line)", paddingTop: "8px", marginTop: "4px" }}>
+          <div className="aacp-order-confirmation-total">
             <span>Total</span>
-            <span>{formatCurrency(summaryTotals.total, summaryTotals.currency)}</span>
+            <strong>{formatCurrency(summaryTotals.total, summaryTotals.currency)}</strong>
           </div>
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
-        {redirectUrl && (
-          <a
-            href={redirectUrl}
-            target="_top"
-            className="aacp-cta"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-              width: "100%",
-              padding: "12px 16px",
-              borderRadius: "12px",
-              fontWeight: 700,
-              fontSize: "14px",
-              textDecoration: "none",
-              color: "white",
-              background: "var(--aacp-grad-primary)"
-            }}
-            data-testid="return-to-store"
-          >
-            {redirectLabel}
-            <ExternalLink size={14} />
-          </a>
-        )}
-      </div>
-    </div>
+      {redirectUrl && (
+        <a
+          href={redirectUrl}
+          target="_top"
+          className="aacp-cta aacp-order-confirmation-action"
+          data-testid="return-to-store"
+        >
+          {redirectLabel}
+          <ExternalLink size={14} />
+        </a>
+      )}
+    </section>
   );
 }
 
@@ -202,21 +204,29 @@ export function ChatBubble({
   bubbleKey: key,
   streamingKey,
   onAgentTypingDone,
+  isLatest = false,
+  agentName,
+  agentAvatarUrl,
 }: {
   turn: ChatTurn;
   agentName: string;
+  agentAvatarUrl?: string;
   bubbleKey: string;
   streamingKey: string | null;
   onAgentTypingDone?: (key: string) => void;
+  isLatest?: boolean;
 }) {
   const bubbleRef = useRef<HTMLDivElement | null>(null);
-  const shouldStream = streamingKey !== null && key === streamingKey && turn.role === "agent";
-  const { displayed, isStreaming } = useStreamedText(turn.text, {
+  const isAgent = turn.role === "agent";
+  const messageText = isAgent ? stripAgentMessagePrefix(turn.text, agentName) : turn.text;
+  const shouldStream = streamingKey !== null && key === streamingKey && isAgent;
+  const { displayed, isStreaming } = useStreamedText(messageText, {
     enabled: shouldStream,
-    skipCompleteWhenDisabled: turn.role === "agent",
-    onComplete: turn.role === "agent" ? () => onAgentTypingDone?.(key) : undefined
+    skipCompleteWhenDisabled: isAgent,
+    onComplete: isAgent ? () => onAgentTypingDone?.(key) : undefined
   });
   const showCaret = shouldStream && isStreaming;
+  const { given } = agentGivenAndRest(agentName);
   
   const pixMatch = displayed.match(/000201[a-zA-Z0-9.*]{40,}/);
   const pixCode = pixMatch ? pixMatch[0] : null;
@@ -226,19 +236,71 @@ export function ChatBubble({
     bubbleRef.current.scrollIntoView({ block: "end" });
   }, [displayed]);
 
-  return (
-    <div key={key} ref={bubbleRef} className={`aacp-bubble aacp-bubble-${turn.role} aacp-chat-bubble aacp-chat-bubble--${turn.role}`}>
+  const bubbleBody = (
+    <div
+      ref={isAgent ? undefined : bubbleRef}
+      className={`aacp-bubble aacp-bubble-${turn.role} aacp-chat-bubble aacp-chat-bubble--${turn.role}${isLatest ? " is-latest" : ""}`}
+    >
       <span className="aacp-chat-text">{displayed}</span>
       {showCaret && <span className="chat-caret" aria-hidden="true" />}
       
-      {pixCode && turn.role === "agent" && !showCaret ? (
-        <div className="mt-4 p-4 bg-white rounded-xl flex flex-col items-center gap-3 text-slate-800">
+      {pixCode && isAgent && !showCaret ? (
+        <div className="aacp-pix-panel">
           <QRCode value={pixCode} size={160} />
           <PixCopyButton pixCode={pixCode} />
         </div>
       ) : null}
     </div>
   );
+
+  if (!isAgent) {
+    return (
+      <div key={key} ref={bubbleRef} className="aacp-bubble-stack aacp-bubble-stack--buyer">
+        {bubbleBody}
+      </div>
+    );
+  }
+
+  return (
+    <div key={key} ref={bubbleRef} className="aacp-bubble-stack aacp-bubble-stack--agent">
+      <div className="aacp-bubble-meta" aria-hidden="true">
+        <span className="aacp-bubble-meta-avatar">
+          {agentAvatarUrl ? (
+            <img src={agentAvatarUrl} alt="" />
+          ) : (
+            <Bot size={16} strokeWidth={2} />
+          )}
+        </span>
+        <span className="aacp-bubble-meta-name">{given || agentName}</span>
+      </div>
+      {bubbleBody}
+    </div>
+  );
+}
+
+function conversationLead(stage: string): { title: string; description: string } {
+  if (stage === "completed") {
+    return {
+      title: "Pedido confirmado",
+      description: "Confira os detalhes e acompanhe os próximos passos pela sua conta.",
+    };
+  }
+  if (stage === "payment") {
+    return {
+      title: "Escolha como pagar",
+      description: "Revise o total antes de confirmar. Nenhuma cobrança acontece sem sua ação.",
+    };
+  }
+  if (stage === "shipping") {
+    return {
+      title: "Vamos definir a entrega",
+      description: "Escolha o endereço e a opção de frete que funcionam melhor para você.",
+    };
+  }
+  return {
+    title: "Vamos finalizar seu pedido",
+    description: "Responda uma etapa por vez. Você pode revisar o resumo a qualquer momento.",
+  };
 }
 
 function PixCopyButton({ pixCode }: { pixCode: string }) {
@@ -254,7 +316,7 @@ function PixCopyButton({ pixCode }: { pixCode: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 rounded-full text-xs font-bold transition-colors w-full justify-center"
+      className="aacp-pix-copy"
     >
       {copied ? <Check size={16} /> : <Copy size={16} />}
       {copied ? "Copiado!" : "Copiar código PIX"}
@@ -264,9 +326,9 @@ function PixCopyButton({ pixCode }: { pixCode: string }) {
 
 export function NetworkError({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
-    <div className="aacp-bubble aacp-bubble-agent" style={{ borderColor: "rgba(239, 68, 68, 0.2)", background: "rgba(239, 68, 68, 0.05)", color: "rgba(239, 68, 68, 0.8)" }}>
-      {vm.networkError}
-      <button type="button" className="font-bold underline ml-2" onClick={vm.retryStartCheckout}>
+    <div className="aacp-network-error" role="alert">
+      <span>{vm.networkError}</span>
+      <button type="button" onClick={vm.retryStartCheckout}>
         Tentar novamente
       </button>
     </div>
@@ -297,8 +359,7 @@ export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
       <button
         type="submit"
         disabled={!vm.coupon.trim() || vm.busy}
-        className="rounded-xl px-4 py-2.5 text-sm font-bold text-white disabled:opacity-40 transition-opacity"
-        style={{ background: "var(--aacp-grad-primary)" }}
+        className="aacp-coupon-submit"
       >
         Aplicar
       </button>
