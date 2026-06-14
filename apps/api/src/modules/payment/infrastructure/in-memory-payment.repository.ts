@@ -1,6 +1,13 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional, Inject } from "@nestjs/common";
+import type { DomainEventEnvelope } from "@aacp/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
-import type { PaymentRepository, SavePaymentIntentInput } from "../domain/ports/payment-repository.port.js";
+import type {
+  PaymentRepository,
+  ProviderEventKey,
+  SavePaymentIntentInput,
+  StalePendingQuery
+} from "../domain/ports/payment-repository.port.js";
+import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 
 function trim(s: string): string {
   return s.trim();
@@ -14,12 +21,39 @@ function keyProvider(merchantId: string, providerPaymentId: string): string {
   return `${trim(merchantId)}::${trim(providerPaymentId)}`;
 }
 
+function keyEvent(key: ProviderEventKey): string {
+  return `${key.provider}::${key.merchantId ?? ""}::${trim(key.eventId)}`;
+}
+
 @Injectable()
 export class InMemoryPaymentRepository implements PaymentRepository {
   private readonly byIdempotency = new Map<string, PaymentIntentEntity>();
   private readonly byProvider = new Map<string, PaymentIntentEntity>();
   private readonly byIntentId = new Map<string, PaymentIntentEntity>();
   private readonly processedEvents = new Set<string>();
+  readonly capturedEvents: DomainEventEnvelope[] = [];
+
+  constructor(@Optional() @Inject(OUTBOX_REPOSITORY) private readonly outbox?: OutboxRepository) {}
+
+  async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
+    await this.saveIntent(input);
+    if (this.outbox) {
+      await this.outbox.appendOutbox(event);
+    } else {
+      this.capturedEvents.push(event);
+    }
+  }
+
+  async listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {
+    const out: PaymentIntentEntity[] = [];
+    for (const entity of this.byIntentId.values()) {
+      const snap = entity.snapshot();
+      if (snap.status !== "pending" && snap.status !== "requires_action") continue;
+      out.push(entity);
+      if (out.length >= query.limit) break;
+    }
+    return out;
+  }
 
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const snap = input.intent.snapshot();
@@ -60,14 +94,14 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     return this.byProvider.get(keyProvider(merchantId, providerPaymentId)) ?? null;
   }
 
-  async hasProcessedProviderEvent(providerEventId: string): Promise<boolean> {
-    return this.processedEvents.has(providerEventId.trim());
+  async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
+    return this.processedEvents.has(keyEvent(key));
   }
 
-  async recordProcessedProviderEvent(providerEventId: string): Promise<boolean> {
-    const id = providerEventId.trim();
-    if (this.processedEvents.has(id)) return false;
-    this.processedEvents.add(id);
+  async recordProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
+    const k = keyEvent(key);
+    if (this.processedEvents.has(k)) return false;
+    this.processedEvents.add(k);
     return true;
   }
 }

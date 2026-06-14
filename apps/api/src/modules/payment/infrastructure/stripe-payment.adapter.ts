@@ -3,8 +3,27 @@ import Stripe from "stripe";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
+  FetchPaymentStatusInput,
+  FetchPaymentStatusOutput,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
+
+function stripeStateFromStatus(status: Stripe.PaymentIntent.Status): FetchPaymentStatusOutput["state"] {
+  switch (status) {
+    case "succeeded":
+      return "approved";
+    case "canceled":
+      return "failed";
+    case "processing":
+    case "requires_action":
+    case "requires_confirmation":
+    case "requires_payment_method":
+    case "requires_capture":
+      return "pending";
+    default:
+      return "unknown";
+  }
+}
 
 @Injectable()
 export class StripePaymentAdapter implements PaymentProviderPort {
@@ -54,6 +73,14 @@ export class StripePaymentAdapter implements PaymentProviderPort {
         clientSecret: paymentIntent.client_secret,
         stripePublishableKey: this.publishableKey
       }
+    };
+  }
+
+  async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
+    const pi = await this.stripe.paymentIntents.retrieve(input.providerPaymentId);
+    return {
+      state: stripeStateFromStatus(pi.status),
+      approvedAmountCents: pi.amount_received || undefined
     };
   }
 }

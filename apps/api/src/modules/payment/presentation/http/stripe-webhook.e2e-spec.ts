@@ -74,7 +74,7 @@ async function setupSession(
     customer: { email: "buyer@test.com" }
   });
 
-  return new CreatePaymentIntentUseCase(checkout, checkout, payments, provider, checkout).execute({
+  return new CreatePaymentIntentUseCase(checkout, checkout, payments, provider).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     idempotency_key: `idem_stripe_${crypto.randomUUID()}`,

@@ -3,7 +3,8 @@ import Stripe from "stripe";
 import type { CurrencyCode } from "@aacp/shared-types";
 import {
   PAYMENT_REPOSITORY,
-  type PaymentRepository
+  type PaymentRepository,
+  type ProviderEventKey
 } from "../domain/ports/payment-repository.port.js";
 import type { PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
@@ -61,13 +62,24 @@ export class HandleStripeWebhookUseCase {
 
   /** Exposed for testing — bypasses signature verification. */
   async dispatchEvent(event: Stripe.Event): Promise<HandleStripeWebhookResult> {
-    if (await this.payments.hasProcessedProviderEvent(event.id)) {
+    const merchantId = await this.resolveMerchantId(event);
+    const eventKey: ProviderEventKey = { provider: "stripe", merchantId, eventId: event.id };
+
+    if (await this.payments.hasProcessedProviderEvent(eventKey)) {
       return { outcome: "duplicate" };
     }
 
     const effect = await this.dispatch(event);
-    await this.payments.recordProcessedProviderEvent(event.id);
+    await this.payments.recordProcessedProviderEvent(eventKey);
     return { outcome: "processed", effect };
+  }
+
+  private async resolveMerchantId(event: Stripe.Event): Promise<string | null> {
+    const obj = event.data.object as { metadata?: Record<string, string> | null };
+    const intentId = obj?.metadata?.intent_id;
+    if (!intentId) return null;
+    const intent = await this.payments.getIntentById(intentId);
+    return intent ? intent.snapshot().merchantId : null;
   }
 
   private async dispatch(event: Stripe.Event): Promise<string> {

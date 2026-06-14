@@ -9,6 +9,7 @@ import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-paymen
 import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-payment.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
+import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
@@ -44,6 +45,7 @@ function shouldForceFakePaymentProvider(): boolean {
     HandleAsaasWebhookUseCase,
     HandleStripeWebhookUseCase,
     StripeConnectProvisioner,
+    ReconcilePaymentIntentsUseCase,
     InMemoryPaymentRepository,
     FakePaymentProvider,
     EvmCryptoPaymentAdapter,

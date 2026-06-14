@@ -3,7 +3,8 @@ import type { CurrencyCode } from "@aacp/shared-types";
 import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import {
   PAYMENT_REPOSITORY,
-  type PaymentRepository
+  type PaymentRepository,
+  type ProviderEventKey
 } from "../domain/ports/payment-repository.port.js";
 import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
@@ -92,32 +93,34 @@ export class HandleAsaasWebhookUseCase {
       throw new BadRequestException("asaas_webhook_invalid_shape");
     }
 
-    if (await this.payments.hasProcessedProviderEvent(body.id)) {
-      return { outcome: "duplicate" };
-    }
-
     const extRef = body.payment?.externalReference?.trim() ?? "";
 
     let intentEntity: PaymentIntentEntity | null = extRef ? await this.payments.getIntentById(extRef) : null;
+    const merchantId = intentEntity ? intentEntity.snapshot().merchantId : null;
+    const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
+
+    if (await this.payments.hasProcessedProviderEvent(eventKey)) {
+      return { outcome: "duplicate" };
+    }
 
     if (!intentEntity && extRef === "" && typeof body.payment?.id === "string" && body.payment.id.trim() !== "") {
-      await this.payments.recordProcessedProviderEvent(body.id);
+      await this.payments.recordProcessedProviderEvent(eventKey);
       return { outcome: "ignored", reason: "intent_lookup_requires_external_reference" };
     }
 
     if (!intentEntity) {
-      await this.payments.recordProcessedProviderEvent(body.id);
+      await this.payments.recordProcessedProviderEvent(eventKey);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
 
     try {
       const effect = await this.dispatch(body.event, intentEntity.snapshot().id, body.payment);
-      await this.payments.recordProcessedProviderEvent(body.id);
+      await this.payments.recordProcessedProviderEvent(eventKey);
       return { outcome: "processed", effect };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown_error";
       if (msg.includes("illegal_transition")) {
-        await this.payments.recordProcessedProviderEvent(body.id);
+        await this.payments.recordProcessedProviderEvent(eventKey);
         return { outcome: "ignored", reason: "illegal_transition_swallowed" };
       }
       throw e;

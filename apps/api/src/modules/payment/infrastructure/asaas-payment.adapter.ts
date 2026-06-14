@@ -2,8 +2,30 @@ import { Injectable } from "@nestjs/common";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
+  FetchPaymentStatusInput,
+  FetchPaymentStatusOutput,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
+
+function asaasStateFromStatus(status: string | undefined): FetchPaymentStatusOutput["state"] {
+  switch (status) {
+    case "RECEIVED":
+    case "CONFIRMED":
+    case "RECEIVED_IN_CASH":
+      return "approved";
+    case "OVERDUE":
+    case "REFUNDED":
+    case "CHARGEBACK_REQUESTED":
+    case "CHARGEBACK_DISPUTE":
+    case "DELETED":
+      return "failed";
+    case "PENDING":
+    case "AWAITING_RISK_ANALYSIS":
+      return "pending";
+    default:
+      return "unknown";
+  }
+}
 
 type AsaasBillingType = "BOLETO" | "PIX" | "CREDIT_CARD" | "UNDEFINED";
 
@@ -37,6 +59,27 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     private readonly apiKey: string,
     private readonly fetchImpl: typeof fetch
   ) { }
+
+  async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
+    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+      headers: {
+        accept: "application/json",
+        access_token: this.apiKey
+      }
+    });
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      throw new Error(`asaas_payment_fetch_failed:${res.status}:${errorText}`);
+    }
+    const payment = (await res.json()) as { status?: string; value?: number };
+    const state = asaasStateFromStatus(typeof payment.status === "string" ? payment.status : undefined);
+    const approvedAmountCents =
+      typeof payment.value === "number" && !Number.isNaN(payment.value)
+        ? Math.round(payment.value * 100)
+        : undefined;
+    return { state, approvedAmountCents };
+  }
 
   async createCustomer(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");

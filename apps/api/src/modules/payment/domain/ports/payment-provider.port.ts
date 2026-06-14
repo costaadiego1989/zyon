@@ -56,7 +56,24 @@ export type CreateProviderPaymentOutput = {
   } & Partial<CryptoBuyerFacingPayload>;
 };
 
+export type AuthoritativePaymentState = "approved" | "failed" | "pending" | "unknown";
+
+export type FetchPaymentStatusInput = {
+  merchantId: string;
+  providerPaymentId: string;
+};
+
+export type FetchPaymentStatusOutput = {
+  state: AuthoritativePaymentState;
+  approvedAmountCents?: number;
+};
+
 export interface PaymentProviderPort {
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
   createCustomer?(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string>;
+  /**
+   * Authoritative provider state for reconciliation of stale intents. Never used
+   * for optimistic confirmation — only to drive the same transitions a webhook would.
+   */
+  fetchPaymentStatus?(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput>;
 }

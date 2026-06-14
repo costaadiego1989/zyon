@@ -185,6 +185,7 @@ describe("SelectShippingMethodUseCase", () => {
         total: 150,
         items: [{ sku: "sku_free", name: "Produto", price: 150, quantity: 1 }]
       },
+      customer: { email: "buyer@test.com", asaasCustomerId: "cus_free_fixture" },
       shipping: undefined
     }));
     await quotesRepo.saveWithEvents(
@@ -210,9 +211,8 @@ describe("SelectShippingMethodUseCase", () => {
     const payment = await new CreatePaymentIntentUseCase(
       checkoutRepo,
       checkoutRepo,
-      new InMemoryPaymentRepository(),
-      new FakePaymentProvider(),
-      checkoutRepo
+      new InMemoryPaymentRepository(checkoutRepo),
+      new FakePaymentProvider()
     ).execute({
       merchant_id: "mrc_1",
       session_id: "sess_free",

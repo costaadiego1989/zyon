@@ -531,13 +531,19 @@ model PaymentIntent {
   @@unique([merchantId, providerPaymentId])
   @@index([merchantId, sessionId])
   @@index([merchantId, commerceOrderId])
+  @@index([status, updatedAt])
   @@map("payment_intents")
 }
 
 model PaymentProviderEvent {
   id          String   @id
+  provider    String   @default("asaas")
+  merchantId  String?  @map("merchant_id")
+  eventId     String   @map("event_id")
   processedAt DateTime @default(now()) @map("processed_at")
 
+  @@unique([provider, merchantId, eventId])
+  @@index([merchantId, processedAt])
   @@map("payment_provider_events")
 }
 

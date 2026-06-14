@@ -47,7 +47,7 @@ test("duplicate provider event id short-circuits", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
   const uc = new HandleAsaasWebhookUseCase(payments, checkoutPort);
-  await payments.recordProcessedProviderEvent("evt_dup_1");
+  await payments.recordProcessedProviderEvent({ provider: "asaas", merchantId: null, eventId: "evt_dup_1" });
 
   const r = await uc.execute(undefined, {
     id: "evt_dup_1",
@@ -195,7 +195,7 @@ test("PAYMENT_RECEIVED retries commerce paid sync after post-approval failure", 
 
   await assert.rejects(() => uc.execute(undefined, webhookBody), /commerce_paid_sync_failed/);
 
-  assert.equal(await payments.hasProcessedProviderEvent("evt_retry"), false);
+  assert.equal(await payments.hasProcessedProviderEvent({ provider: "asaas", merchantId: "mrc_1", eventId: "evt_retry" }), false);
   assert.equal(checkoutPort.approved.length, 1);
 
   const retried = await uc.execute(undefined, webhookBody);
@@ -204,7 +204,7 @@ test("PAYMENT_RECEIVED retries commerce paid sync after post-approval failure", 
   if (retried.outcome === "processed") assert.equal(retried.effect, "already_approved");
   assert.equal(commercePaidCalls, 2);
   assert.equal(checkoutPort.approved.length, 1);
-  assert.equal(await payments.hasProcessedProviderEvent("evt_retry"), true);
+  assert.equal(await payments.hasProcessedProviderEvent({ provider: "asaas", merchantId: "mrc_1", eventId: "evt_retry" }), true);
 });
 
 test("PAYMENT_DELETED marks failed and records payment_failed event", async () => {

@@ -14,6 +14,7 @@ test(
     const repository = new PrismaPaymentRepository(prisma);
     const merchantId = `mrc_pay_${crypto.randomUUID().replace(/-/g, "")}`;
     const evtId = `evt_${crypto.randomUUID().replace(/-/g, "")}`;
+    const evtKey = { provider: "asaas" as const, merchantId, eventId: evtId };
 
     const intent = PaymentIntentEntity.create({
       merchantId,
@@ -44,12 +45,12 @@ test(
       assert.equal(reloadedSame.snapshot().buyerFacing?.invoiceUrl, "https://invoice.test/a");
       assert.equal(reloadedSame.snapshot().commerceOrderId, "draft_prisma_1");
 
-      assert.equal(await repository.hasProcessedProviderEvent(evtId), false);
-      assert.equal(await repository.recordProcessedProviderEvent(evtId), true);
-      assert.equal(await repository.recordProcessedProviderEvent(evtId), false);
-      assert.equal(await repository.hasProcessedProviderEvent(evtId), true);
+      assert.equal(await repository.hasProcessedProviderEvent(evtKey), false);
+      assert.equal(await repository.recordProcessedProviderEvent(evtKey), true);
+      assert.equal(await repository.recordProcessedProviderEvent(evtKey), false);
+      assert.equal(await repository.hasProcessedProviderEvent(evtKey), true);
     } finally {
-      await prisma.paymentProviderEvent.deleteMany({ where: { id: evtId } });
+      await prisma.paymentProviderEvent.deleteMany({ where: { eventId: evtId } });
       await prisma.paymentIntent.deleteMany({ where: { merchantId } });
       await prisma.$disconnect();
     }

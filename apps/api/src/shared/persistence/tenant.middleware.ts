@@ -35,6 +35,7 @@ export const TENANT_SCOPED_MODELS = [
   "OutboxMessage",
   "CheckoutIntervention",
   "PaymentIntent",
+  "PaymentProviderEvent",
 ] as const;
 
 export const TENANT_SCOPED_READ_OPERATIONS = [

@@ -1,10 +1,73 @@
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import type { DomainEventEnvelope } from "@aacp/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
-import type { PaymentRepository, SavePaymentIntentInput } from "../domain/ports/payment-repository.port.js";
+import type {
+  PaymentRepository,
+  ProviderEventKey,
+  SavePaymentIntentInput,
+  StalePendingQuery
+} from "../domain/ports/payment-repository.port.js";
 import type { PaymentIntentSnapshot, PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import type { PaymentMethod } from "../domain/payment-intent.entity.js";
+
+type PrismaTx = Prisma.TransactionClient;
+
+function paymentIntentUpsertArgs(d: PaymentIntentSnapshot) {
+  const s = strip(d);
+  const createData = {
+    id: d.id,
+    merchantId: s.merchantId,
+    sessionId: s.sessionId,
+    idempotencyKey: s.idempotencyKey,
+    amountCents: d.amountCents,
+    currency: d.currency,
+    method: d.method,
+    status: d.status,
+    providerPaymentId: d.providerPaymentId ?? null,
+    approvedAmountCents: d.approvedAmountCents ?? null,
+    acceptedOfferId: d.acceptedOfferId ?? null,
+    commerceOrderId: d.commerceOrderId ?? null,
+    buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
+    statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue
+  };
+  const updateData = {
+    status: d.status,
+    providerPaymentId: d.providerPaymentId ?? null,
+    approvedAmountCents: d.approvedAmountCents ?? null,
+    acceptedOfferId: d.acceptedOfferId ?? null,
+    commerceOrderId: d.commerceOrderId ?? null,
+    buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
+    statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue,
+    currency: d.currency,
+    method: d.method,
+    amountCents: d.amountCents
+  };
+  return {
+    where: { merchantId_sessionId_idempotencyKey: s },
+    create: createData as any,
+    update: updateData as any
+  };
+}
+
+function outboxUpsertArgs(event: DomainEventEnvelope) {
+  return {
+    where: { eventId: event.event_id },
+    create: {
+      eventId: event.event_id,
+      eventType: event.event_type,
+      schemaVersion: event.schema_version,
+      merchantId: event.merchant_id,
+      occurredAt: new Date(event.occurred_at),
+      correlationId: event.correlation_id,
+      causationId: event.causation_id,
+      producer: event.producer,
+      payload: event.payload as Prisma.InputJsonValue
+    },
+    update: {}
+  };
+}
 
 function strip(d: PaymentIntentSnapshot) {
   return {
@@ -78,43 +141,28 @@ export class PrismaPaymentRepository implements PaymentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
-    const d = input.intent.snapshot();
-    const s = strip(d);
-    const createData = {
-      id: d.id,
-      merchantId: s.merchantId,
-      sessionId: s.sessionId,
-      idempotencyKey: s.idempotencyKey,
-      amountCents: d.amountCents,
-      currency: d.currency,
-      method: d.method,
-      status: d.status,
-      providerPaymentId: d.providerPaymentId ?? null,
-      approvedAmountCents: d.approvedAmountCents ?? null,
-      acceptedOfferId: d.acceptedOfferId ?? null,
-      commerceOrderId: d.commerceOrderId ?? null,
-      buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
-      statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue
-    };
-    const updateData = {
-      status: d.status,
-      providerPaymentId: d.providerPaymentId ?? null,
-      approvedAmountCents: d.approvedAmountCents ?? null,
-      acceptedOfferId: d.acceptedOfferId ?? null,
-      commerceOrderId: d.commerceOrderId ?? null,
-      buyerFacing: d.buyerFacing ? (d.buyerFacing as Prisma.InputJsonValue) : Prisma.DbNull,
-      statusHistory: d.statusHistory as unknown as Prisma.InputJsonValue,
-      currency: d.currency,
-      method: d.method,
-      amountCents: d.amountCents
-    };
-    await this.prisma.paymentIntent.upsert({
-      where: {
-        merchantId_sessionId_idempotencyKey: s
-      },
-      create: createData as any,
-      update: updateData as any
+    await this.prisma.paymentIntent.upsert(paymentIntentUpsertArgs(input.intent.snapshot()));
+  }
+
+  async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
+    const intentArgs = paymentIntentUpsertArgs(input.intent.snapshot());
+    const outboxArgs = outboxUpsertArgs(event);
+    await this.prisma.$transaction(async (tx: PrismaTx) => {
+      await tx.paymentIntent.upsert(intentArgs);
+      await tx.outboxMessage.upsert(outboxArgs);
     });
+  }
+
+  async listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: {
+        status: { in: ["pending", "requires_action"] },
+        updatedAt: { lt: query.olderThan }
+      },
+      orderBy: { updatedAt: "asc" },
+      take: query.limit
+    });
+    return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
   }
 
   async getByIdempotency(
@@ -154,18 +202,28 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
   }
 
-  async hasProcessedProviderEvent(providerEventId: string): Promise<boolean> {
-    const id = providerEventId.trim();
-    const row = await this.prisma.paymentProviderEvent.findUnique({
-      where: { id }
+  async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
+    const row = await this.prisma.paymentProviderEvent.findFirst({
+      where: {
+        provider: key.provider,
+        merchantId: key.merchantId,
+        eventId: key.eventId.trim()
+      }
     });
     return Boolean(row);
   }
 
-  async recordProcessedProviderEvent(providerEventId: string): Promise<boolean> {
-    const id = providerEventId.trim();
+  async recordProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
+    const eventId = key.eventId.trim();
     try {
-      await this.prisma.paymentProviderEvent.create({ data: { id } });
+      await this.prisma.paymentProviderEvent.create({
+        data: {
+          id: `${key.provider}:${key.merchantId ?? "_"}:${eventId}`,
+          provider: key.provider,
+          merchantId: key.merchantId,
+          eventId
+        }
+      });
       return true;
     } catch (e) {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;

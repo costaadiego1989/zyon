@@ -2,6 +2,8 @@ import { Injectable } from "@nestjs/common";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
+  FetchPaymentStatusInput,
+  FetchPaymentStatusOutput,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 
@@ -35,5 +37,10 @@ export class FakePaymentProvider implements PaymentProviderPort {
         invoiceUrl: "https://example.test/invoice/fake_pay_1"
       }
     };
+  }
+
+  async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
+    void input;
+    return { state: "pending" };
   }
 }

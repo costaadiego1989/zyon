@@ -37,7 +37,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
     shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
-  const intentSnap = await new CreatePaymentIntentUseCase(checkout, checkout, payments, new FakePaymentProvider(), checkout).execute({
+  const intentSnap = await new CreatePaymentIntentUseCase(checkout, checkout, payments, new FakePaymentProvider()).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     idempotency_key: `idem_${crypto.randomUUID()}`
@@ -111,7 +111,7 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(
-    checkout, checkout, payments, new FakePaymentProvider(), checkout
+    checkout, checkout, payments, new FakePaymentProvider()
   ).execute({
     merchant_id: merchantId,
     session_id: sessionId,
@@ -166,7 +166,7 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
   });
 
   const intentSnap = await new CreatePaymentIntentUseCase(
-    checkout, checkout, payments, new FakePaymentProvider(), checkout
+    checkout, checkout, payments, new FakePaymentProvider()
   ).execute({
     merchant_id: merchantId,
     session_id: sessionId,
@@ -223,7 +223,7 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
     shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
-  const intentSnap = await new CreatePaymentIntentUseCase(checkout, checkout, payments, new FakePaymentProvider(), checkout).execute({
+  const intentSnap = await new CreatePaymentIntentUseCase(checkout, checkout, payments, new FakePaymentProvider()).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     idempotency_key: `idem_del_${crypto.randomUUID()}`

@@ -2,7 +2,6 @@ import { BadRequestException, Inject, Injectable, NotFoundException, Optional } 
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
-import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
@@ -50,6 +49,13 @@ function shouldForceFakePaymentProvider(): boolean {
   return process.env.PAYMENT_PROVIDER === "fake" || process.env.E2E_SEED_ENABLED === "true";
 }
 
+function resolveAsaasCustomerForProvider(useFakeProvider: boolean, asaasCustomer: string | undefined): string {
+  const resolved = asaasCustomer?.trim();
+  if (resolved) return resolved;
+  if (useFakeProvider) return "cust_fake_test_placeholder";
+  throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
+}
+
 function assertCheckoutReadyForPayment(session: CheckoutSession): void {
   if (session.cart.items.length > 0 && !session.shipping) {
     throw new BadRequestException("shipping_method_required_before_payment");
@@ -73,7 +79,6 @@ export class CreatePaymentIntentUseCase {
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment?: CheckoutPaymentPort,
     @Optional() private readonly validateCommerceCart?: ValidateCartForPaymentUseCase,
     @Optional() private readonly syncPendingCommerceOrder?: SyncPendingOrderUseCase
@@ -180,7 +185,7 @@ export class CreatePaymentIntentUseCase {
       ...(isStripeCardPayment
         ? { stripeConnectAccountId, platformFeeCents }
         : {
-            asaasCustomerId: asaasCustomer ?? "cust_fake_test_placeholder",
+            asaasCustomerId: resolveAsaasCustomerForProvider(useFakeProvider, asaasCustomer),
             creditCard: body.credit_card,
             creditCardHolderInfo,
             remoteIp: body.remote_ip
@@ -209,8 +214,8 @@ export class CreatePaymentIntentUseCase {
       });
     }
 
-    await this.payments.saveIntent({ intent });
-    await this.outbox.appendOutbox(
+    await this.payments.saveIntentWithOutbox(
+      { intent },
       createCheckoutEventEnvelope({
         eventType: "payment.status.changed",
         merchantId,
