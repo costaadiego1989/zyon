@@ -61,7 +61,11 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", () => 
   const context = contextFor({});
   assert.throws(() => guard.canActivate(context), UnauthorizedException);
 
-  const request: { headers: { authorization: string }; user?: unknown } = {
+  const request: {
+    headers: { authorization: string };
+    user?: unknown;
+    tenantPrincipal?: unknown;
+  } = {
     headers: {
       authorization: `Bearer ${jwt.sign({
         userId: "usr_1",
@@ -77,6 +81,13 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", () => 
     merchantId: "mrc_1",
     email: "owner@example.com",
     role: "owner"
+  });
+  assert.deepEqual(request.tenantPrincipal, {
+    kind: "human",
+    tenantId: "mrc_1",
+    userId: "usr_1",
+    email: "owner@example.com",
+    role: "owner",
   });
 
   const cookieRequest: { headers: { cookie: string }; user?: unknown } = {

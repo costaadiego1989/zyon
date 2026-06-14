@@ -9,10 +9,10 @@ import { AuthCookieService } from "./domain/services/auth-cookie.service.js";
 import { JwtService } from "./domain/services/jwt.service.js";
 import { LoginRateLimiter } from "./domain/services/login-rate-limiter.service.js";
 import { PasswordHasher } from "./domain/services/password-hasher.service.js";
-import { InMemoryAuthRepository } from "./infrastructure/in-memory-auth.repository.js";
 import { PrismaAuthRepository } from "./infrastructure/prisma-auth.repository.js";
 import { AuthController } from "./presentation/auth.controller.js";
 import { AuthGuard } from "./presentation/auth.guard.js";
+import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
 
 @Module({
   imports: [forwardRef(() => MerchantModule)],
@@ -25,18 +25,13 @@ import { AuthGuard } from "./presentation/auth.guard.js";
     AuthCookieService,
     LoginRateLimiter,
     AuthGuard,
-    InMemoryAuthRepository,
+    TenantRoleGuard,
     {
       provide: AUTH_REPOSITORY,
-      useFactory: (inMemory: InMemoryAuthRepository, prisma: PrismaClient) => {
-        if (process.env.AUTH_REPOSITORY === "prisma" || process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaAuthRepository(prisma);
-        }
-        return inMemory;
-      },
-      inject: [InMemoryAuthRepository, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaAuthRepository(prisma),
+      inject: [PRISMA_CLIENT]
     }
   ],
-  exports: [AuthGuard, JwtService, AuthCookieService, AUTH_REPOSITORY]
+  exports: [AuthGuard, TenantRoleGuard, JwtService, AuthCookieService, AUTH_REPOSITORY]
 })
 export class AuthModule {}

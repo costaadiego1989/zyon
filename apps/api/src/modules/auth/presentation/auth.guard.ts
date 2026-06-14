@@ -1,4 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  setTenantPrincipal,
+  type TenantPrincipalRequest,
+} from "../../../shared/auth/tenant-principal.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import { JwtService } from "../domain/services/jwt.service.js";
 
@@ -19,7 +23,15 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException("missing_bearer_token");
     }
     try {
-      request.user = this.jwt.verify(token);
+      const user = this.jwt.verify(token);
+      request.user = user;
+      setTenantPrincipal(request as TenantPrincipalRequest, {
+        kind: "human",
+        tenantId: user.merchantId,
+        userId: user.userId,
+        email: user.email,
+        role: user.role,
+      });
       return true;
     } catch {
       throw new UnauthorizedException("invalid_bearer_token");

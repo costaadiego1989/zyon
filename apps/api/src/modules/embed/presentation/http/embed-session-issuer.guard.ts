@@ -1,15 +1,21 @@
-import { CanActivate, ExecutionContext, Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  setTenantPrincipal,
+  type TenantPrincipal,
+} from "../../../../shared/auth/tenant-principal.js";
 import { AuthCookieService } from "../../../auth/domain/services/auth-cookie.service.js";
 import { JwtService } from "../../../auth/domain/services/jwt.service.js";
 import type { AuthenticatedPrincipal } from "../../../auth/domain/auth.types.js";
-import { ApiKeyService } from "../../../integrations/domain/api-key.service.js";
-import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
+import { AuthenticateMerchantApiKeyService } from "../../../integrations/application/authenticate-merchant-api-key.service.js";
+import { hasApiKeyScope } from "../../../integrations/domain/api-key-scope.js";
 import type { MerchantApiKeyContext } from "../../../integrations/domain/integrations.types.js";
 
 type IssuerRequest = {
   headers?: Record<string, string | string[] | undefined>;
+  ip?: string;
   user?: AuthenticatedPrincipal;
   apiKey?: MerchantApiKeyContext;
+  tenantPrincipal?: TenantPrincipal;
 };
 
 @Injectable()
@@ -17,8 +23,7 @@ export class EmbedSessionIssuerGuard implements CanActivate {
   constructor(
     private readonly jwt: JwtService,
     private readonly cookies: AuthCookieService,
-    @Inject(INTEGRATIONS_REPOSITORY) private readonly integrations: IntegrationsRepository,
-    private readonly apiKeys: ApiKeyService
+    private readonly authenticateApiKey: AuthenticateMerchantApiKeyService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -30,7 +35,15 @@ export class EmbedSessionIssuerGuard implements CanActivate {
 
     if (jwtToken) {
       try {
-        request.user = this.jwt.verify(jwtToken);
+        const user = this.jwt.verify(jwtToken);
+        request.user = user;
+        setTenantPrincipal(request, {
+          kind: "human",
+          tenantId: user.merchantId,
+          userId: user.userId,
+          email: user.email,
+          role: user.role,
+        });
         return true;
       } catch {
         // Bearer may be a server API key, so keep trying below.
@@ -39,16 +52,18 @@ export class EmbedSessionIssuerGuard implements CanActivate {
 
     const rawApiKey = readExplicitApiKey(headers) ?? bearer;
     if (!rawApiKey) throw new UnauthorizedException("missing_embed_issuer_credentials");
-    const apiKey = await this.integrations.findActiveApiKeyByHash(this.apiKeys.hash(rawApiKey));
-    if (!apiKey || !apiKey.scopes.includes("embed:sessions:create")) {
+    const apiKey = await this.authenticateApiKey.execute(rawApiKey, request.ip);
+    if (!hasApiKeyScope(apiKey.scopes, "embed:sessions:create")) {
       throw new UnauthorizedException("invalid_embed_issuer_api_key");
     }
-    await this.integrations.touchApiKeyLastUsed(apiKey.id, new Date().toISOString());
-    request.apiKey = {
-      id: apiKey.id,
-      merchantId: apiKey.merchantId,
-      scopes: apiKey.scopes
-    };
+    request.apiKey = apiKey;
+    setTenantPrincipal(request, {
+      kind: "service",
+      tenantId: apiKey.merchantId,
+      credentialId: apiKey.id,
+      environment: apiKey.environment,
+      scopes: apiKey.scopes,
+    });
     return true;
   }
 }
