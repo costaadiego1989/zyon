@@ -86,12 +86,12 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | ADR | Superfície | Fase | Alvo | Status | Progresso |
 |---|---|---|---|:--:|---|
 | [0009](./0009-platform-p0-hardening.md) | Plataforma P0 | P0 | L3-gate | ✅ | `[##########]` 100% |
-| [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | ⬜ | `[----------]` 0% |
+| [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | 🟨 | `[#######---]` 67% |
 | [0011](./0011-payment-hardening.md) | Payment | P1 | L3 | ✅ | `[##########]` 100% |
 | [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ✅ | `[##########]` 100% |
 | [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ✅ | `[##########]` 100% |
 | [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ✅ | `[##########]` 100% |
-| [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | ⬜ | `[----------]` 0% |
+| [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | 🟨 | `[#####-----]` 50% |
 | [0015](./0015-auth-and-tenant-onboarding.md) | Auth + onboarding | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0016](./0016-merchant-config-surface-hardening.md) | Merchant/agent-rules/settings | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0017](./0017-integrations-api-keys-webhooks.md) | Integrations | P2 | L3 | ⬜ | `[----------]` 0% |
@@ -114,9 +114,9 @@ de cada bloco move o ADR para `✅`.
 
 ### P1 — Caminho transacional
 **0010 Checkout**
-- [ ] Rotas legadas abertas (sessão/decisão/regras/`orders/complete`) fechadas.
-- [ ] Carrinho/frete/pagamento confiados somente server-side.
-- [ ] Desacoplamento por eventos concluído; E2E happy + erros.
+- [x] Rotas legadas abertas (sessão/decisão/regras/`orders/complete`) fechadas (`@NonProductionRoute`).
+- [x] Carrinho/frete/pagamento confiados somente server-side.
+- [~] Desacoplamento por eventos concluído (sem `CheckoutPaymentAdapter`); conclusão de pedido + outbox atômicos e idempotentes por chave natural (P2002 → idempotente). Falta E2E realapi happy + erros.
 
 **0011 Payment**
 - [x] Endpoint legado protegido; sem fallback fake em produção.
@@ -137,8 +137,8 @@ de cada bloco move o ADR para `✅`.
 
 **0022 Widget transacional**
 - [ ] Carrinho com mutação server-side (mesmo total no pagamento).
-- [ ] `CardForm` substituído por tokenização provider-side; confirmação por webhook.
-- [ ] PIX com estado pendente/expiração/polling; confirmação não otimista.
+- [x] `CardForm` substituído por tokenização provider-side (Stripe Elements, sem PAN/CVV ao backend); confirmação por webhook (não otimista).
+- [x] PIX com estado pendente/expiração/polling; confirmação não otimista (poll do status autoritativo).
 - [ ] Frete confirmado na API; confirmação usa `order_id`/recibo/status reais.
 
 ### P2 — Identidade e operação
