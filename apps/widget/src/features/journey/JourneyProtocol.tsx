@@ -63,6 +63,7 @@ export function JourneyProtocol({ model }: { model: JourneyProtocolModel }) {
           Agora
         </span>
       </div>
+      <span className="aacp-stage-progress-shine" aria-hidden="true" />
     </section>
   );
 }

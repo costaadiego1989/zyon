@@ -45,6 +45,8 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </span>
       </section>
 
+      <div className="aacp-conversation-divider" aria-hidden="true" />
+
       {vm.networkError ? <NetworkError vm={vm} /> : null}
 
       {vm.turns.map((turn, index) => {
