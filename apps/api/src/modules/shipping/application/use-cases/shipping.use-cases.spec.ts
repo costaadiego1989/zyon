@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { QuoteShippingUseCase } from "./quote-shipping.use-case.js";
 import { SelectShippingMethodUseCase } from "./select-shipping-method.use-case.js";
 import { InMemoryShippingQuoteRepository } from "../../infrastructure/repositories/in-memory-shipping-quote.repository.js";
+import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
 import type { CarrierPort } from "../../domain/ports/carrier.port.js";
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { ShippingQuoteEntity } from "../../domain/entities/shipping-quote.entity.js";
@@ -32,7 +33,7 @@ function makeFailingCarrier(key: string): CarrierPort {
 }
 
 function makeSetup(carriers: CarrierPort[] = []) {
-  const quotesRepo = new InMemoryShippingQuoteRepository();
+  const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
   const useCase = new QuoteShippingUseCase(quotesRepo, carriers);
   return { quotesRepo, useCase };
 }
@@ -138,14 +139,14 @@ describe("QuoteShippingUseCase", () => {
 
 describe("SelectShippingMethodUseCase", () => {
   it("persists selected paid shipping to checkout session", async () => {
-    const quotesRepo = new InMemoryShippingQuoteRepository();
+    const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
     const checkoutRepo = new InMemoryCheckoutRepository();
     await checkoutRepo.saveSession(checkoutSession({
       merchantId: "mrc_1",
       sessionId: "sess_1",
       shipping: undefined
     }));
-    await quotesRepo.save(
+    await quotesRepo.saveWithEvents(
       ShippingQuoteEntity.create({
         merchant_id: "mrc_1",
         session_id: "sess_1",
@@ -174,7 +175,7 @@ describe("SelectShippingMethodUseCase", () => {
   });
 
   it("persists selected free shipping and lets payment guard pass", async () => {
-    const quotesRepo = new InMemoryShippingQuoteRepository();
+    const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
     const checkoutRepo = new InMemoryCheckoutRepository();
     await checkoutRepo.saveSession(checkoutSession({
       merchantId: "mrc_1",
@@ -186,7 +187,7 @@ describe("SelectShippingMethodUseCase", () => {
       },
       shipping: undefined
     }));
-    await quotesRepo.save(
+    await quotesRepo.saveWithEvents(
       ShippingQuoteEntity.create({
         merchant_id: "mrc_1",
         session_id: "sess_free",
