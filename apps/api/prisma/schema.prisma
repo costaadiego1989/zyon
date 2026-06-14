@@ -19,8 +19,54 @@ model Merchant {
   webhookEndpoints    MerchantWebhookEndpoint[]
   webhookDeliveries   MerchantWebhookDelivery[]
   shipments           Shipment[]
+  commerceConnection  MerchantCommerceConnection?
+  commercePendingOrders CommercePendingOrder[]
+  commercePaidEvents  CommercePaidEvent[]
 
   @@map("merchants")
+}
+
+model MerchantCommerceConnection {
+  merchantId       String   @id @map("merchant_id")
+  provider         String   @default("shopify")
+  shopDomain       String   @map("shop_domain")
+  adminTokenCipher String   @map("admin_token_cipher")
+  apiVersion       String?  @map("api_version")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("merchant_commerce_connections")
+}
+
+model CommercePendingOrder {
+  merchantId      String   @map("merchant_id")
+  sessionId       String   @map("session_id")
+  commerceOrderId String   @map("commerce_order_id")
+  status          String   @default("pending")
+  paymentReference String? @map("payment_reference")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  merchant        Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, sessionId])
+  @@index([merchantId, status, updatedAt])
+  @@map("commerce_pending_orders")
+}
+
+model CommercePaidEvent {
+  merchantId       String   @map("merchant_id")
+  paymentReference String   @map("payment_reference")
+  commerceOrderId  String   @map("commerce_order_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, paymentReference])
+  @@index([merchantId, createdAt])
+  @@map("commerce_paid_events")
 }
 
 model MerchantUser {

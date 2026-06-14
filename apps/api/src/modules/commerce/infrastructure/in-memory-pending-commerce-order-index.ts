@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import type { DomainEventEnvelope } from "@aacp/shared-types";
 import type { PendingCommerceOrderIndexPort } from "../domain/ports/pending-commerce-order-index.port.js";
 
 function keyOf(merchantId: string, sessionId: string): string {
@@ -13,7 +14,12 @@ export class InMemoryPendingCommerceOrderIndex implements PendingCommerceOrderIn
     return this.rows.get(keyOf(merchantId, sessionId));
   }
 
-  async remember(merchantId: string, sessionId: string, commerceOrderId: string): Promise<void> {
+  async remember(
+    merchantId: string,
+    sessionId: string,
+    commerceOrderId: string,
+    _event?: DomainEventEnvelope
+  ): Promise<void> {
     this.rows.set(keyOf(merchantId, sessionId), commerceOrderId.trim());
   }
 }

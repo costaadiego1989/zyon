@@ -5,6 +5,7 @@ import {
   COMMERCE_PENDING_ORDER_INDEX,
   type PendingCommerceOrderIndexPort
 } from "../domain/ports/pending-commerce-order-index.port.js";
+import { createCommerceEventEnvelope } from "../domain/events/commerce-domain-event.js";
 
 export type SyncPendingOrderInput = {
   merchantId: string;
@@ -39,7 +40,17 @@ export class SyncPendingOrderUseCase {
       sessionId,
       cart: input.cart
     });
-    await this.index.remember(merchantId, sessionId, commerceOrderId);
+    const event = createCommerceEventEnvelope({
+      eventType: "commerce.order.pending",
+      merchantId,
+      payload: {
+        commerce_order_id: commerceOrderId,
+        session_id: sessionId,
+        currency: input.cart.currency,
+        total_cents: input.cart.totalCents
+      }
+    });
+    await this.index.remember(merchantId, sessionId, commerceOrderId, event);
     return { commerceOrderId };
   }
 }

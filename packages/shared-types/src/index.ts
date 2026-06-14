@@ -448,6 +448,10 @@ export type FulfillmentDomainEventType =
   | "shipment.status-updated"
   | "shipment.delivered";
 
+export type CommerceDomainEventType =
+  | "commerce.order.pending"
+  | "commerce.order.paid";
+
 export type DomainEventType =
   | CheckoutDomainEventType
   | CrossSellDomainEventType
@@ -455,7 +459,8 @@ export type DomainEventType =
   | SelfCheckoutDomainEventType
   | ScrapingAgentDomainEventType
   | ShippingDomainEventType
-  | FulfillmentDomainEventType;
+  | FulfillmentDomainEventType
+  | CommerceDomainEventType;
 
 export type DomainEventProducer =
   | "checkout"
@@ -464,7 +469,8 @@ export type DomainEventProducer =
   | "self-checkout"
   | "scraping-agent"
   | "shipping"
-  | "fulfillment";
+  | "fulfillment"
+  | "commerce";
 
 export interface DomainEventEnvelope<TPayload = Record<string, unknown>> {
   event_id: string;
