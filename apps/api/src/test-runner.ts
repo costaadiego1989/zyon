@@ -105,6 +105,8 @@ import "./shared/persistence/tenant.middleware.spec.js";
 import "./shared/persistence/module-prisma-architecture.spec.js";
 import "./modules/checkout/presentation/http/cross-tenant-fuzz.e2e-spec.js";
 import "./shared/http/http-client.service.spec.js";
+import "./shared/http/api-documentation.spec.js";
+import "./shared/http/api-versioning.spec.js";
 import "./shared/config/security-headers-config.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
 import "./modules/cross-sell/domain/policies/cross-sell-policies.spec.js";

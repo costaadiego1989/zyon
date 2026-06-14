@@ -32,3 +32,5 @@ Status permitidos: `proposed` | `accepted` | `deprecated` | `superseded`.
 | [0024](./0024-dashboard-config-preview-onboarding.md) | Dashboard: config do checkout, live preview, onboarding e páginas | proposed |
 | [0025](./0025-packages-engines-sdk-hardening.md) | Packages: engines, SDK e shared-types | proposed |
 | [0026](./0026-production-readiness-tracker.md) | Tracker de prontidão para produção (source of truth) | accepted |
+| [0027](./0027-payment-crypto-evm.md) | Payment: Crypto EVM (Polygon/Base, USDC) | accepted |
+| [0028](./0028-merchant-console-integration-api-v1.md) | Merchant Console e Integration API V1 | accepted |
