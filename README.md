@@ -27,7 +27,7 @@ pnpm dev:widget
 pnpm dev:dashboard
 ```
 
-The API uses an in-memory repository for the MVP so the full flow runs immediately. PostgreSQL is the intended persistence target for the next hardening pass.
+A API persiste estado em PostgreSQL via Prisma. Suba o banco (`docker compose up -d postgres`) e rode as migrations (`cd apps/api && pnpm prisma:deploy`) antes de `pnpm dev:api`.
 
 ## AI conversation provider (DeepSeek / OpenAI)
 
@@ -109,13 +109,15 @@ Optional **reset** (last resort): Docker Desktop → Troubleshoot → **Reset to
 
 O demo do widget (`apps/widget/index.html`) não depende mais de carrinho fixo no código React. O host da loja envia `data-cart-json`, `data-customer-json` e `data-shipping-json`; o widget repassa isso para a API em `/checkout/start` ou `/embed/start`, e a API devolve `experience` com marca, resumo do pedido, copy inicial e sugestões.
 
-Smoke test local sem Docker:
+Smoke test local:
 
-1. Configure `DATABASE_URL` apontando para um Postgres local se quiser repositórios Prisma. Para fluxo em memória, mantenha `CHECKOUT_REPOSITORY` sem `prisma`.
-2. Rode `pnpm dev:api`.
-3. Em outro terminal, rode `pnpm dev:widget`.
-4. Abra `http://localhost:5173`.
-5. Confirme que o painel mostra a marca `Northstar Atelier`, o item `Bolsa Executiva Couro Safiano`, total com frete e mensagem inicial retornada pela API.
+1. Suba o Postgres: `docker compose up -d postgres` (ou `pnpm db:up` na raiz).
+2. Rode as migrations: `cd apps/api && pnpm prisma:deploy`.
+3. Configure `DATABASE_URL` em `apps/api/.env`.
+4. Rode `pnpm dev:api`.
+5. Em outro terminal, rode `pnpm dev:widget`.
+6. Abra `http://localhost:5173`.
+7. Confirme que o painel mostra a marca `Northstar Atelier`, o item `Bolsa Executiva Couro Safiano`, total com frete e mensagem inicial retornada pela API.
 
 Integrações de clientes podem escolher entre dois modelos: **Embed UI**, com a interface enterprise da AACP instalada por script/Web Component, ou **API-only**, em que a loja mantém sua própria UI e consome nossas rotas de sessão, chat, eventos, ofertas e pagamento. Consulte `docs/integrations/checkout-widget-and-api.md` para snippets, payloads e requisitos de segurança.
 

@@ -3,7 +3,6 @@ import type { PrismaClient } from "@prisma/client";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
 import { SHIPPING_METHOD_REPOSITORY } from "./domain/ports/shipping-method-repository.port.js";
 import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
-import { InMemoryShippingQuoteRepository } from "./infrastructure/repositories/in-memory-shipping-quote.repository.js";
 import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/prisma-shipping-quote.repository.js";
 import { InMemoryShippingMethodRepository } from "./infrastructure/repositories/in-memory-shipping-method.repository.js";
 import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
@@ -18,25 +17,19 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 
-function usePrismaShipping(): boolean {
-  return process.env.SHIPPING_REPOSITORY === "prisma" || process.env.CHECKOUT_REPOSITORY === "prisma";
-}
-
 @Module({
   imports: [MerchantModule, forwardRef(() => CheckoutModule)],
   controllers: [WidgetShippingController, EmbedShippingController],
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
-    InMemoryShippingQuoteRepository,
     InMemoryShippingMethodRepository,
     FlatRateCarrierAdapter,
     MelhorEnvioCarrierAdapter,
     {
       provide: SHIPPING_QUOTE_REPOSITORY,
-      useFactory: (memory: InMemoryShippingQuoteRepository, prisma: PrismaClient) =>
-        usePrismaShipping() ? new PrismaShippingQuoteRepository(prisma) : memory,
-      inject: [InMemoryShippingQuoteRepository, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaShippingQuoteRepository(prisma),
+      inject: [PRISMA_CLIENT]
     },
     { provide: SHIPPING_METHOD_REPOSITORY, useExisting: InMemoryShippingMethodRepository },
     {

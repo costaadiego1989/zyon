@@ -213,8 +213,8 @@ Rules:
 - Reject offers below `minimumMarginPercent`.
 - Margin uses item `cost`; if missing, default cost = 50% of price.
 - Payment fee estimate = 4%.
-- In-memory repos are dev/test default.
-- Prisma repos are production mode.
+- Prisma repos are the only runtime persistence (dev and prod). Module roots wire Prisma always; no env-switchable in-memory fallback.
+- In-memory repos exist only as test doubles, constructed directly in specs (never injected via module roots).
 - Prisma schema lives at `apps/api/prisma/schema.prisma`.
 
 ## Spec Workflow

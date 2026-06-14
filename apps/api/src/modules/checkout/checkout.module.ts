@@ -44,8 +44,6 @@ import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.noti
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
-import { InMemoryCheckoutRepository } from "./infrastructure/repositories/in-memory-checkout.repository.js";
-import { InMemoryInterventionLedger } from "./infrastructure/in-memory-intervention-ledger.js";
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
 import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
@@ -70,16 +68,10 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     CheckoutCustomerService,
     CheckoutShippingService,
     CheckoutOfferService,
-    InMemoryInterventionLedger,
     {
       provide: CHECKOUT_INTERVENTION_LEDGER,
-      useFactory: (memory: InMemoryInterventionLedger, prisma: PrismaClient) => {
-        if (process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaInterventionLedgerRepository(prisma);
-        }
-        return memory;
-      },
-      inject: [InMemoryInterventionLedger, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaInterventionLedgerRepository(prisma),
+      inject: [PRISMA_CLIENT]
     },
     EvaluateShippingUseCase,
     AcceptCheckoutOfferUseCase,
@@ -89,7 +81,6 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     GetDashboardOverviewUseCase,
     GetMerchantRulesUseCase,
     UpdateMerchantRulesUseCase,
-    InMemoryCheckoutRepository,
     AgentRulesContextAdapter,
     BuyerPurchaseHistoryAdapter,
     CheckoutSettingsAdapter,
@@ -98,13 +89,8 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     ShopifyCommerceOfferAdapter,
     {
       provide: CHECKOUT_REPOSITORY,
-      useFactory: (inMemory: InMemoryCheckoutRepository, prisma: PrismaClient) => {
-        if (process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaCheckoutRepository(prisma);
-        }
-        return inMemory;
-      },
-      inject: [InMemoryCheckoutRepository, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),
+      inject: [PRISMA_CLIENT]
     },
     { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },

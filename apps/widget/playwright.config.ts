@@ -53,12 +53,9 @@ export default defineConfig({
             env: {
               PORT: "3000",
               E2E_SEED_ENABLED: "true",
-              AACP_REPOSITORY: "memory",
-              CHECKOUT_REPOSITORY: "in-memory",
-              MERCHANT_REPOSITORY: "in-memory",
-              BUYER_ACCOUNT_REPOSITORY: "in-memory",
-              BUYER_PURCHASE_HISTORY_REPOSITORY: "in-memory",
-              SUPPORT_SETTINGS_REPOSITORY: "in-memory",
+              DATABASE_URL:
+                process.env.DATABASE_URL ??
+                "postgresql://postgres:postgres@localhost:55432/aacp_test?schema=public",
               WEBHOOK_DISPATCH_INTERVAL_MS: "250",
               NODE_ENV: "test"
             }

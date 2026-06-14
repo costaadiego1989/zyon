@@ -11,14 +11,7 @@ const runHttpLive =
   Boolean(process.env.DATABASE_URL) &&
   Boolean(process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY);
 
-const HTTP_E2E_ENV = {
-  CHECKOUT_REPOSITORY: "prisma",
-  CHECKOUT_SETTINGS_REPOSITORY: "prisma",
-  MERCHANT_REPOSITORY: "prisma",
-  AUTH_REPOSITORY: "prisma",
-  AGENT_RULES_REPOSITORY: "prisma",
-  BUYER_PURCHASE_HISTORY_REPOSITORY: "prisma"
-} as const;
+const HTTP_E2E_ENV = {} as const;
 
 test(
   "real HTTP checkout e2e covers welcome, cadastro, OTP, freight, payment, and final confirmation",

@@ -13,7 +13,6 @@ import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
-import { InMemoryPaymentRepository } from "./infrastructure/in-memory-payment.repository.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
 import { FakePaymentProvider } from "./infrastructure/fake-payment-provider.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
@@ -46,7 +45,6 @@ function shouldForceFakePaymentProvider(): boolean {
     HandleStripeWebhookUseCase,
     StripeConnectProvisioner,
     ReconcilePaymentIntentsUseCase,
-    InMemoryPaymentRepository,
     FakePaymentProvider,
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
@@ -81,13 +79,8 @@ function shouldForceFakePaymentProvider(): boolean {
     },
     {
       provide: PAYMENT_REPOSITORY,
-      useFactory: (memory: InMemoryPaymentRepository, prisma: PrismaClient) => {
-        if (process.env.CHECKOUT_REPOSITORY === "prisma") {
-          return new PrismaPaymentRepository(prisma);
-        }
-        return memory;
-      },
-      inject: [InMemoryPaymentRepository, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma),
+      inject: [PRISMA_CLIENT]
     }
   ],
   exports: [CreatePaymentIntentUseCase, ConfirmCryptoPaymentUseCase, ConfirmStripePaymentUseCase, StripeConnectProvisioner]
