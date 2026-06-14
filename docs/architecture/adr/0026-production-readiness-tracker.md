@@ -48,14 +48,14 @@ média dos ADRs concluídos na fase. A % geral é a média ponderada por fase
 ## Progresso geral
 
 ```txt
-Geral      [#---------]  11%   (2/18 ADRs concluídos)
+Geral      [##--------]  22%   (4/18 ADRs concluídos)
 Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 ```
 
 | Fase | Escopo | Progresso | ADRs |
 |---|---|---|---|
 | **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
-| **P1** | Caminho transacional do piloto | `[#---------]` 14% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
+| **P1** | Caminho transacional do piloto | `[####------]` 43% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
 | **P2** | Identidade e operação do merchant | `[----------]` 0% | 0015, 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
 | **P4** | Expansão pós-piloto | `[----------]` 0% | 0021 |
@@ -89,8 +89,8 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0011](./0011-payment-hardening.md) | Payment | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ✅ | `[##########]` 100% |
-| [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ⬜ | `[----------]` 0% |
-| [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ⬜ | `[----------]` 0% |
+| [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ✅ | `[##########]` 100% |
+| [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ✅ | `[##########]` 100% |
 | [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | ⬜ | `[----------]` 0% |
 | [0015](./0015-auth-and-tenant-onboarding.md) | Auth + onboarding | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0016](./0016-merchant-config-surface-hardening.md) | Merchant/agent-rules/settings | P2 | L3 | ⬜ | `[----------]` 0% |
@@ -128,12 +128,12 @@ de cada bloco move o ADR para `✅`.
 - [x] Modo sem token removido do piloto.
 
 **0013 Commerce**
-- [ ] Índice de pedido pendente + deduplicação persistidos; credenciais por tenant.
-- [ ] Retry/reconciliação + smoke Shopify.
+- [x] Índice de pedido pendente + deduplicação persistidos; credenciais por tenant.
+- [x] Retry/reconciliação + smoke Shopify.
 
 **0014 Shipping**
-- [ ] Embed/tenant confiável exigido; regra comercial não vem do browser.
-- [ ] Quote/seleção/expiração persistidos; smoke de carrier.
+- [x] Embed/tenant confiável exigido; regra comercial não vem do browser.
+- [x] Quote/seleção/expiração persistidos; smoke de carrier.
 
 **0022 Widget transacional**
 - [ ] Carrinho com mutação server-side (mesmo total no pagamento).
