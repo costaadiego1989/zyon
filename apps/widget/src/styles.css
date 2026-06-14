@@ -588,16 +588,58 @@ textarea {
 
 /* ============ STAGE PROGRESS (chat) ============ */
 .aacp-stage-progress {
+  position: relative;
   width: 100%;
   min-width: 0;
-  padding: var(--aacp-space-3) var(--aacp-space-6);
-  border-bottom: 1px solid var(--aacp-line-strong);
+  padding: var(--aacp-space-4) var(--aacp-space-6) var(--aacp-space-3);
+  border-bottom: 0;
   background: oklch(99.65% 0.005 232);
   box-shadow: inset 0 1px 0 color-mix(in oklch, white 70%, transparent);
   --aacp-stage-progress-steps: 4;
   --aacp-stage-marker-size: 12px;
   --aacp-stage-head-height: 32px;
   --aacp-header-indent: calc(48px + 14px);
+}
+
+.aacp-stage-progress-shine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.aacp-stage-progress-shine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--aacp-line-strong);
+}
+
+.aacp-stage-progress-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(42%, 220px);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--aacp-success) 40%, white) 50%,
+    transparent 100%
+  );
+  animation: aacp-stage-shine-sweep 2.8s ease-in-out infinite;
+}
+
+.aacp-conversation-divider {
+  width: min(100%, 680px);
+  height: 1px;
+  margin: 18px auto 22px;
+  border: 0;
+  background: var(--aacp-line-strong);
 }
 
 .aacp-stage-progress-body {
@@ -1070,6 +1112,26 @@ textarea {
   font-size: 13px;
   font-weight: 700;
   color: var(--aacp-fg);
+}
+
+@keyframes aacp-stage-shine-sweep {
+  0% {
+    transform: translateX(-130%);
+    opacity: 0;
+  }
+
+  18% {
+    opacity: 1;
+  }
+
+  82% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(330%);
+    opacity: 0;
+  }
 }
 
 @keyframes pulse-ring {

@@ -5,6 +5,7 @@
   --continuum-surface-strong: var(--aacp-enterprise-surface-strong);
   --continuum-ice: var(--aacp-enterprise-ice);
   --continuum-journey-bg: var(--continuum-ice);
+  --continuum-stepper-bg: var(--continuum-ice);
   --continuum-glass-bg: color-mix(in oklch, var(--continuum-ice) 76%, transparent);
   --continuum-glass-border: color-mix(in oklch, var(--continuum-line-soft) 55%, transparent);
   --continuum-edge-highlight: color-mix(in oklch, white 88%, transparent);
@@ -29,11 +30,11 @@
 .checkout-experience[data-theme="dark"] {
   --continuum-primary: var(--continuum-success);
   --continuum-on-primary: oklch(18% 0.018 155);
-  --continuum-ice: oklch(31% 0.018 232);
-  --continuum-journey-bg: var(--continuum-ice);
+  --continuum-journey-bg: oklch(28% 0.02 155);
+  --continuum-stepper-bg: var(--continuum-journey-bg);
   --continuum-glass-bg: color-mix(in oklch, var(--continuum-surface) 86%, transparent);
   --continuum-glass-border: color-mix(in oklch, var(--continuum-line) 78%, transparent);
-  --continuum-edge-highlight: color-mix(in oklch, white 9%, transparent);
+  --continuum-edge-highlight: transparent;
 }
 
 .checkout-experience.aacp-widget--conversational.aacp-page {
@@ -209,13 +210,16 @@
 }
 
 .checkout-experience[data-theme="dark"].aacp-widget--conversational .aacp-stage-progress {
-  border-bottom-color: var(--continuum-line);
+  border-top: 1px solid color-mix(in oklch, var(--continuum-line) 50%, transparent);
+  border-bottom: 0;
+  background: var(--continuum-stepper-bg);
+  box-shadow: none;
 }
 
 .checkout-experience[data-theme="dark"].aacp-widget--conversational
   .aacp-stage-progress-index {
-  background: color-mix(in oklch, var(--continuum-success) 14%, var(--continuum-ice));
-  border-color: color-mix(in oklch, var(--continuum-success) 30%, var(--continuum-line));
+  background: color-mix(in oklch, var(--continuum-success) 11%, var(--continuum-surface-strong));
+  border-color: color-mix(in oklch, var(--continuum-success) 24%, var(--continuum-line));
 }
 
 .checkout-experience[data-theme="dark"].aacp-widget--conversational
@@ -244,15 +248,60 @@
 /* Journey protocol */
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress {
+  position: relative;
   z-index: 4;
   min-height: 52px;
-  padding: 14px 28px 12px;
+  padding: 14px 28px 13px;
   border: 0;
-  border-bottom: 1px solid var(--continuum-line-soft);
-  background: var(--continuum-ice);
+  border-bottom: 0;
+  background: var(--continuum-stepper-bg);
   box-shadow: inset 0 1px 0 var(--continuum-edge-highlight);
   --aacp-stage-head-height: 32px;
   --aacp-stage-marker-size: 14px;
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-shine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-shine::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--continuum-line-soft);
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-shine::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(42%, 220px);
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--continuum-success) 35%, white) 48%,
+    transparent 100%
+  );
+  filter: blur(0.2px);
+  animation: aacp-stage-shine-sweep 2.8s ease-in-out infinite;
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational
+  .aacp-stage-progress-shine::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in oklch, var(--continuum-success) 72%, white) 50%,
+    transparent 100%
+  );
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-body {
@@ -398,7 +447,7 @@
 .checkout-experience.aacp-widget--conversational
   .aacp-stage-progress-step.active
   .aacp-stage-progress-dot {
-  border: 5px solid var(--continuum-ice);
+  border: 5px solid var(--continuum-stepper-bg);
   background: var(--continuum-success);
   box-shadow: 0 0 0 1px var(--continuum-success);
 }
@@ -450,9 +499,17 @@
   align-items: start;
   gap: 30px;
   width: min(100%, 680px);
-  margin: 0 auto 12px;
-  padding: 0 0 12px;
+  margin: 0 auto 0;
+  padding: 0;
   border: 0;
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-conversation-divider {
+  width: min(100%, 680px);
+  height: 1px;
+  margin: 18px auto 22px;
+  border: 0;
+  background: var(--continuum-line-soft);
 }
 
 .checkout-experience.aacp-widget--conversational
@@ -1166,7 +1223,7 @@
 
   .checkout-experience.aacp-widget--conversational .aacp-stage-progress {
     min-height: auto;
-    padding: 8px 14px;
+    padding: 12px 14px 10px;
     --aacp-stage-head-height: 28px;
     --aacp-stage-marker-size: 12px;
   }
@@ -1225,8 +1282,13 @@
     .aacp-conversation-lead {
     grid-template-columns: minmax(0, 1fr) 44px;
     gap: 18px;
-    margin-bottom: 8px;
+    margin-bottom: 0;
     padding: 0;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-conversation-divider {
+    width: 100%;
+    margin: 14px auto 18px;
   }
 
   .checkout-experience.aacp-widget--conversational
