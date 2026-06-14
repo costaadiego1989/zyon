@@ -90,3 +90,11 @@ function blocked(reason: string, cart: Cart, subsidy: number): OfferEvaluation {
 
 export { selectCheapestQuote } from "./select-cheapest-quote.js";
 export type { CarrierQuoteInput } from "./select-cheapest-quote.js";
+
+export {
+  buildQuoteKey,
+  computeQuoteExpiry,
+  isQuoteExpired,
+  DEFAULT_QUOTE_TTL_SECONDS
+} from "./quote-key.js";
+export type { QuoteKeyInput } from "./quote-key.js";

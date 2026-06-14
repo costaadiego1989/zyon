@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, Optional } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, Optional, ConflictException, BadRequestException } from "@nestjs/common";
 import type { ShippingQuote } from "@aacp/shared-types";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
@@ -14,8 +14,19 @@ export class SelectShippingMethodUseCase {
   async execute(input: { session_id: string; merchant_id: string; carrier_key: string }) {
     const quote = await this.quotes.findBySession(input.session_id, input.merchant_id);
     if (!quote) throw new NotFoundException("shipping_quote_not_found");
-    const updated = quote.selectCarrier(input.carrier_key);
-    await this.quotes.save(updated);
+    if (quote.isExpired()) throw new ConflictException("shipping_quote_expired");
+
+    let updated;
+    try {
+      updated = quote.selectCarrier(input.carrier_key);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "shipping_select_failed";
+      if (reason === "shipping_quote_expired") throw new ConflictException(reason);
+      if (reason === "shipping_carrier_not_in_quote") throw new BadRequestException(reason);
+      throw error;
+    }
+
+    await this.quotes.saveWithEvents(updated);
     const snapshot = updated.snapshot();
     await this.persistSelectionToCheckoutSession(input, snapshot);
     return snapshot;

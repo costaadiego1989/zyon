@@ -96,6 +96,38 @@ export interface ShippingQuote {
   region?: string;
 }
 
+export interface ShippingQuoteRequest {
+  session_id: string;
+  destination_zip: string;
+  cart_total: number;
+  free_shipping_threshold?: number;
+  packages?: PackageDimensions[];
+}
+
+export interface ShippingSelectRequest {
+  session_id: string;
+  carrier_key: string;
+}
+
+export interface ShippingQuoteResultDto {
+  carrier_key: string;
+  label: string;
+  price: number;
+  eta_days: number;
+  is_free: boolean;
+}
+
+export interface ShippingQuoteResponse {
+  id: string;
+  session_id: string;
+  merchant_id: string;
+  destination_zip: string;
+  results: ShippingQuoteResultDto[];
+  selected_carrier_key: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
 export interface StageQuickReplies {
   data_collection?: {
     nome?: string[];

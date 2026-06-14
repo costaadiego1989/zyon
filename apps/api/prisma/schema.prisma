@@ -493,6 +493,22 @@ model CheckoutIntervention {
   @@map("checkout_interventions")
 }
 
+model ShippingQuote {
+  id                 String   @id
+  merchantId         String   @map("merchant_id")
+  sessionId          String   @map("session_id")
+  destinationZip     String   @map("destination_zip")
+  quoteKey           String   @map("quote_key")
+  results            Json
+  selectedCarrierKey String?  @map("selected_carrier_key")
+  createdAt          DateTime @default(now()) @map("created_at")
+  expiresAt          DateTime @map("expires_at")
+
+  @@index([merchantId, sessionId, createdAt])
+  @@index([merchantId, quoteKey, expiresAt])
+  @@map("shipping_quotes")
+}
+
 model PaymentIntent {
   id                   String    @id
   merchantId           String    @map("merchant_id")

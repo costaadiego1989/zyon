@@ -1,9 +1,21 @@
 import { Injectable, Inject } from "@nestjs/common";
+import { buildQuoteKey } from "@aacp/shipping-engine";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
 import type { PackageDimensions } from "@aacp/shared-types";
+
+export interface QuoteShippingInput {
+  session_id: string;
+  merchant_id: string;
+  destination_zip: string;
+  cart_total: number;
+  free_shipping_threshold?: number;
+  origin_zip?: string;
+  packages?: PackageDimensions[];
+  items?: { sku: string; quantity: number }[];
+}
 
 @Injectable()
 export class QuoteShippingUseCase {
@@ -12,22 +24,27 @@ export class QuoteShippingUseCase {
     @Inject(CARRIER_ADAPTERS) private readonly carriers: CarrierPort[]
   ) {}
 
-  async execute(input: {
-    session_id: string;
-    merchant_id: string;
-    destination_zip: string;
-    cart_total: number;
-    free_shipping_threshold?: number;
-    origin_zip?: string;
-    packages?: PackageDimensions[];
-  }) {
+  async execute(input: QuoteShippingInput) {
+    const cartTotalCents = Math.round(input.cart_total * 100);
+    const quoteKey = buildQuoteKey({
+      merchantId: input.merchant_id,
+      destinationZip: input.destination_zip,
+      cartTotalCents,
+      items: input.items
+    });
+
+    const reusable = await this.quotes.findValidByKey(quoteKey, input.merchant_id);
+    if (reusable) {
+      return reusable.snapshot();
+    }
+
     let quote = ShippingQuoteEntity.create({
       session_id: input.session_id,
       merchant_id: input.merchant_id,
-      destination_zip: input.destination_zip
+      destination_zip: input.destination_zip,
+      quote_key: quoteKey
     });
 
-    const cartTotalCents = Math.round(input.cart_total * 100);
     const ctx = {
       originZip: input.origin_zip ?? "",
       destinationZip: input.destination_zip,
@@ -66,8 +83,8 @@ export class QuoteShippingUseCase {
       ).filter((r) => r.is_free && !quote.snapshot().results.find((existing) => existing.carrier_key === r.carrier_key && existing.is_free))
     );
 
-    const finalQuote = withFreeShipping;
-    await this.quotes.save(finalQuote);
+    const finalQuote = withFreeShipping.recordCreated();
+    await this.quotes.saveWithEvents(finalQuote);
     return finalQuote.snapshot();
   }
 }
