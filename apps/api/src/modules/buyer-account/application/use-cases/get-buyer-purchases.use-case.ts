@@ -5,6 +5,7 @@ import {
   BUYER_PURCHASE_HISTORY_REPOSITORY,
   type BuyerPurchaseHistoryRepository
 } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
+import { usesPrismaPurchaseHistory } from "../../../buyer-purchase-history/infrastructure/purchase-history-storage-mode.js";
 import type { PurchaseRecord as PurchaseHistoryRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
@@ -235,13 +236,6 @@ export class GetBuyerPurchasesUseCase {
       items: purchase.items
     };
   }
-}
-
-function usesPrismaPurchaseHistory(): boolean {
-  if (process.env.CHECKOUT_REPOSITORY === "in-memory" || process.env.BUYER_PURCHASE_HISTORY_REPOSITORY === "in-memory") {
-    return false;
-  }
-  return true;
 }
 
 function isWithinRange(purchase: PurchaseHistoryRecord, input: GetBuyerPurchasesRequest): boolean {

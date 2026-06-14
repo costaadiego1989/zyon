@@ -1,9 +1,15 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
 import type { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import type { BuyerAgentProfile } from "../../domain/entities/buyer-agent-profile.entity.js";
+import {
+  BUYER_PURCHASE_HISTORY_REPOSITORY,
+  type BuyerPurchaseHistoryRepository,
+} from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
+import type { PurchaseRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
+import { usesPrismaPurchaseHistory } from "../../../buyer-purchase-history/infrastructure/purchase-history-storage-mode.js";
 
 export interface BuyerSummary {
   profile: BuyerAccount;
@@ -16,11 +22,16 @@ export interface BuyerSummary {
   };
 }
 
+type PurchaseStat = Pick<PurchaseRecord, "merchantId" | "totalAmount" | "discountAmount">;
+
 @Injectable()
 export class GetBuyerSummaryUseCase {
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
-    @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient
+    @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Optional()
+    @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY)
+    private readonly purchaseHistory?: BuyerPurchaseHistoryRepository,
   ) {}
 
   async execute(globalUserId: string): Promise<BuyerSummary> {
@@ -30,10 +41,9 @@ export class GetBuyerSummaryUseCase {
     ]);
     if (!profile) throw new NotFoundException("buyer_account_not_found");
 
-    const records = await this.prisma.buyerPurchaseRecord.findMany({
-      where: { globalUserId },
-      select: { merchantId: true, totalAmount: true, discountAmount: true },
-    });
+    const records = usesPrismaPurchaseHistory()
+      ? await this.loadRecordsFromPrisma(globalUserId)
+      : await this.loadRecordsFromRepository(globalUserId);
 
     const totalOrders = records.length;
     const totalSpent = records.reduce((s, r) => s + r.totalAmount, 0);
@@ -49,11 +59,16 @@ export class GetBuyerSummaryUseCase {
       .slice(0, 5)
       .map(([id]) => id);
 
-    const merchants = await this.prisma.merchant.findMany({
-      where: { id: { in: topMerchantIds } },
-      select: { id: true, name: true },
-    });
-    const merchantMap = new Map(merchants.map((m) => [m.id, m.name]));
+    const merchantMap = usesPrismaPurchaseHistory()
+      ? new Map(
+          (
+            await this.prisma.merchant.findMany({
+              where: { id: { in: topMerchantIds } },
+              select: { id: true, name: true },
+            })
+          ).map((m) => [m.id, m.name] as const),
+        )
+      : new Map<string, string>();
 
     const topMerchants = topMerchantIds.map((id) => ({
       merchantId: id,
@@ -62,5 +77,25 @@ export class GetBuyerSummaryUseCase {
     }));
 
     return { profile, agent, stats: { totalOrders, totalSpent, totalSaved, topMerchants } };
+  }
+
+  private async loadRecordsFromPrisma(globalUserId: string): Promise<PurchaseStat[]> {
+    return this.prisma.buyerPurchaseRecord.findMany({
+      where: { globalUserId },
+      select: { merchantId: true, totalAmount: true, discountAmount: true },
+    });
+  }
+
+  private async loadRecordsFromRepository(globalUserId: string): Promise<PurchaseStat[]> {
+    const repo = this.purchaseHistory as BuyerPurchaseHistoryRepository & {
+      listPurchasesForGlobalUser?: (id: string) => Promise<PurchaseRecord[]>;
+    };
+    if (!repo || typeof repo.listPurchasesForGlobalUser !== "function") return [];
+    const purchases = await repo.listPurchasesForGlobalUser(globalUserId);
+    return purchases.map((purchase) => ({
+      merchantId: purchase.merchantId,
+      totalAmount: purchase.totalAmount,
+      discountAmount: purchase.discountAmount,
+    }));
   }
 }

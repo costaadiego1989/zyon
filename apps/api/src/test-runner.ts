@@ -95,6 +95,7 @@ import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-hi
 import "./modules/buyer-purchase-history/presentation/http/buyer-purchase-history.controller.spec.js";
 import "./modules/buyer-account/application/use-cases/login-buyer-from-session.use-case.spec.js";
 import "./modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.spec.js";
+import "./modules/buyer-account/application/use-cases/get-buyer-summary.use-case.spec.js";
 import "./modules/checkout/__tests__/update-order-tracking.use-case.spec.js";
 import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.js";
 import "./shared/tenant/tenant-context.service.spec.js";
