@@ -1,6 +1,15 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { requireSecret } from "../../../shared/config/secret-config.js";
 
 export type EmbedTokenSecret = { value: Buffer };
+
+export type EmbedScope =
+  | "checkout:start"
+  | "checkout:track"
+  | "checkout:chat"
+  | "offers:apply"
+  | "coupons:apply"
+  | "payment:intents:create";
 
 export type EmbedTokenClaims = {
   typ: "aacp_embed_v1";
@@ -9,19 +18,18 @@ export type EmbedTokenClaims = {
   expiresAtUnix: number;
   nonce: string;
   allowedOrigin?: string;
-  scopes?: string[];
+  scopes?: EmbedScope[];
   cartRef?: string;
 };
 
+const EMBED_TOKEN_SECRET_DEV_FALLBACK = "dev_embed_token_secret_32_characters_min!!";
+
 function embedSecret(): Buffer {
-  const v = process.env.EMBED_TOKEN_SECRET;
-  if (v && v.length >= 16) {
-    return Buffer.from(v, "utf8");
+  const value = requireSecret("EMBED_TOKEN_SECRET", EMBED_TOKEN_SECRET_DEV_FALLBACK);
+  if (value.length < 16) {
+    throw new Error("EMBED_TOKEN_SECRET must be at least 16 characters");
   }
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("EMBED_TOKEN_SECRET must be set in production");
-  }
-  return Buffer.from("dev_embed_token_secret_32_characters_min!!", "utf8");
+  return Buffer.from(value, "utf8");
 }
 
 export class EmbedTokenService {

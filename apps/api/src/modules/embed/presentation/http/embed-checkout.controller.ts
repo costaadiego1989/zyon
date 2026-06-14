@@ -30,6 +30,7 @@ import {
 } from "../../../checkout/domain/ports/checkout-repository.port.js";
 import type { EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
+import { RequireEmbedScope } from "./embed-scope.decorator.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -64,6 +65,7 @@ export class EmbedCheckoutController {
   ) {}
 
   @Post("start")
+  @RequireEmbedScope("checkout:start")
   async start(@Req() request: EmbedHttpRequest, @Body() body: StartCheckoutRequest) {
     const embed = request.embedClaims!;
     const { merchant_id: _discard, merchantId: _d2, ...rest } = body as StartCheckoutRequest & {
@@ -76,6 +78,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("track")
+  @RequireEmbedScope("checkout:track")
   async track(@Req() request: EmbedHttpRequest, @Body() body: TrackEventRequest) {
     const embed = request.embedClaims!;
     if (typeof body.session_id !== "string") {
@@ -90,6 +93,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("chat")
+  @RequireEmbedScope("checkout:chat")
   async chat(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageRequest) {
     const embed = request.embedClaims!;
     if (typeof body.session_id !== "string") {
@@ -104,6 +108,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("offers/apply")
+  @RequireEmbedScope("offers:apply")
   async applyOffer(@Req() request: EmbedHttpRequest, @Body() body: ApplyOfferRequest): Promise<ApplyOfferResponse> {
     const embed = request.embedClaims!;
     if (typeof body.session_id !== "string" || typeof body.offer_id !== "string") {
@@ -118,6 +123,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("payment/intents")
+  @RequireEmbedScope("payment:intents:create")
   async intentFromEmbed(
     @Req() request: EmbedHttpRequest,
     @Body()
