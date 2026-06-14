@@ -175,8 +175,17 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> {
     const existing = await this.getCompletedOrder(order.merchantId, order.sessionId, order.externalOrderId);
     if (existing) return { order: existing, idempotent: true };
-    const row = await this.prisma.completedOrder.create({ data: toCompletedOrderCreate(order) as any });
-    return { order: toCompletedOrder(row), idempotent: false };
+    try {
+      const row = await this.prisma.completedOrder.create({ data: toCompletedOrderCreate(order) as any });
+      return { order: toCompletedOrder(row), idempotent: false };
+    } catch (error) {
+      // Concurrent completion lost the create race; treat the winner's row as idempotent.
+      if (isPrismaUniqueViolation(error)) {
+        const winner = await this.getCompletedOrder(order.merchantId, order.sessionId, order.externalOrderId);
+        if (winner) return { order: winner, idempotent: true };
+      }
+      throw error;
+    }
   }
 
   async getCompletedOrder(merchantId: string, sessionId: string, externalOrderId: string): Promise<CompletedOrder | undefined> {
@@ -619,5 +628,14 @@ function isPrismaRecordNotFound(error: unknown): boolean {
     error !== null &&
     "code" in error &&
     (error as { code?: string }).code === "P2025"
+  );
+}
+
+function isPrismaUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2002"
   );
 }

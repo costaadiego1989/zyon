@@ -7,6 +7,20 @@ import { planOmnichannelConfirmation } from "../../domain/policies/omnichannel-c
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../domain/ports/order.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
+import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@aacp/shared-types";
+
+/** Persistence surface required to commit an order atomically with its events. */
+interface OrderCommitRepository {
+  saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
+  recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> | void;
+  appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> | DomainEventEnvelope;
+}
+
+/** Optional transaction boundary; absent under in-memory test doubles. */
+interface TransactionRunner {
+  transaction?<T>(work: (repository: OrderCommitRepository) => Promise<T>): Promise<T>;
+}
 import {
   PURCHASE_HISTORY_PORT,
   type PurchaseHistoryPort
@@ -21,7 +35,8 @@ export class CompleteOrderUseCase {
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort,
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository,
-    @Optional() private readonly metrics?: MetricsService
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner
   ) { }
 
   async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
@@ -29,12 +44,19 @@ export class CompleteOrderUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
 
     const order = CompletedOrderEntity.complete(input).snapshot();
-    const saved = await this.orders.saveCompletedOrder(order);
-    if (!saved.idempotent) {
-      this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
-      await this.sessions.recordEvent(input.merchant_id, input.session_id, "order_completed");
+    const whatsappMessage =
+      session.customer?.phone && order.trackingCode
+        ? `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`
+        : undefined;
+
+    // Order aggregate + its outbox events must commit atomically: a crash must
+    // not persist a completed order without emitting order.completed.
+    const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
+      const saved = await repo.saveCompletedOrder(order);
+      if (saved.idempotent) return true;
+      await repo.recordEvent(input.merchant_id, input.session_id, "order_completed");
       const confirmation_touchpoints = planOmnichannelConfirmation(input.order_total);
-      await this.outbox.appendOutbox(
+      await repo.appendOutbox(
         createCheckoutEventEnvelope({
           eventType: "order.completed",
           merchantId: input.merchant_id,
@@ -50,10 +72,8 @@ export class CompleteOrderUseCase {
           causationId: input.external_order_id
         })
       );
-      if (session.customer?.phone && order.trackingCode) {
-        const messageText = `Olá ${session.customer.fullName || "Cliente"}! Seu pagamento foi confirmado com sucesso. Seu pedido foi processado e o código de rastreio é: ${order.trackingCode}. Obrigado por comprar conosco!`;
-
-        await this.outbox.appendOutbox(
+      if (whatsappMessage && session.customer?.phone && order.trackingCode) {
+        await repo.appendOutbox(
           createCheckoutEventEnvelope({
             eventType: "whatsapp.message.requested",
             merchantId: input.merchant_id,
@@ -63,12 +83,28 @@ export class CompleteOrderUseCase {
               template: "order_tracking",
               external_order_id: input.external_order_id,
               tracking_code: order.trackingCode,
-              message: messageText
+              message: whatsappMessage
             },
             causationId: input.external_order_id
           })
         );
+      }
+      return false;
+    };
 
+    const fallbackRepo: OrderCommitRepository = {
+      saveCompletedOrder: (o) => this.orders.saveCompletedOrder(o),
+      recordEvent: (m, s, e) => this.sessions.recordEvent(m, s, e),
+      appendOutbox: (e) => this.outbox.appendOutbox(e)
+    };
+    const idempotent = this.txRunner?.transaction
+      ? await this.txRunner.transaction(commit)
+      : await commit(fallbackRepo);
+
+    if (!idempotent) {
+      this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
+      // Side effects outside the transaction: external calls and cross-aggregate writes.
+      if (whatsappMessage && session.customer?.phone) {
         const bubbleUrl = process.env.BUBBLEWHATS_API_URL;
         const bubbleToken = process.env.BUBBLEWHATS_TOKEN;
         if (bubbleUrl && bubbleToken) {
@@ -84,7 +120,7 @@ export class CompleteOrderUseCase {
               },
               body: JSON.stringify({
                 jid,
-                message: messageText
+                message: whatsappMessage
               })
             });
 
@@ -123,7 +159,7 @@ export class CompleteOrderUseCase {
 
     return {
       recorded: true,
-      idempotent: saved.idempotent,
+      idempotent,
       event_type: "order.completed"
     };
   }

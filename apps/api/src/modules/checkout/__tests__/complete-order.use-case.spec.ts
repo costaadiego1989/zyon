@@ -36,6 +36,38 @@ test("CompleteOrderUseCase records order completion idempotently and emits once"
   assert.equal(completed?.payload.tracking_code, null);
 });
 
+test("CompleteOrderUseCase commits order and outbox through the transaction boundary", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession());
+  let transactionCalls = 0;
+  const txRunner = {
+    async transaction<T>(work: (repo: typeof repository) => Promise<T>): Promise<T> {
+      transactionCalls += 1;
+      return work(repository);
+    }
+  };
+  const useCase = new CompleteOrderUseCase(
+    repository,
+    repository,
+    repository,
+    undefined,
+    undefined,
+    undefined,
+    txRunner as never
+  );
+
+  const first = await useCase.execute(completeOrderRequest());
+  const second = await useCase.execute(completeOrderRequest());
+
+  assert.equal(transactionCalls, 2);
+  assert.equal(first.idempotent, false);
+  assert.equal(second.idempotent, true);
+  assert.equal(
+    repository.listOutbox("mrc_1").filter((event) => event.event_type === "order.completed").length,
+    1
+  );
+});
+
 test("CompleteOrderUseCase emits WhatsApp tracking request when real tracking exists", async () => {
   const repository = new InMemoryCheckoutRepository();
   repository.saveSession(
