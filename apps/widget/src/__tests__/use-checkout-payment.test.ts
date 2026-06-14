@@ -105,6 +105,7 @@ describe("useCheckoutPayment", () => {
     });
 
     expect(result.current.stripeIntent).toEqual({
+      intentId: "",
       clientSecret: "pi_xxx_secret",
       publishableKey: "pk_test_abc",
       amountCents: 30000,
@@ -226,9 +227,10 @@ describe("useCheckoutPayment", () => {
     expect(chat.appendAgentTurn).not.toHaveBeenCalled();
   });
 
-  it("onStripePaymentConfirmed → limpa stripeIntent e fica PENDENTE aguardando webhook (sem confirmação otimista)", async () => {
+  it("onStripePaymentConfirmed → fica PENDENTE aguardando webhook (sem confirmação otimista)", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
+        id: "pi_int_1",
         amountCents: 50000,
         currency: "BRL",
         buyerFacing: { clientSecret: "pi_c", stripePublishableKey: "pk_test" }
@@ -247,11 +249,15 @@ describe("useCheckoutPayment", () => {
 
     expect(result.current.stripeIntent).not.toBeNull();
 
-    act(() => {
-      result.current.onStripePaymentConfirmed(50000, "BRL");
+    // Provider confirm not authoritative → stays pending until webhook.
+    fetchMock.mockRejectedValueOnce(new Error("network"));
+
+    await act(async () => {
+      await result.current.onStripePaymentConfirmed(50000, "BRL");
     });
 
-    expect(result.current.stripeIntent).toBeNull();
+    // Intent kept; client-side confirm must NOT clear it nor complete the order.
+    expect(result.current.stripeIntent).not.toBeNull();
     const calls = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls;
     const lastMsg = calls[calls.length - 1][0];
     expect(lastMsg).toContain("500.00 BRL");

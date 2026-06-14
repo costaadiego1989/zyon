@@ -1033,6 +1033,19 @@ describe("CheckoutAgent (conversational)", () => {
           { status: 200, headers: { "content-type": "application/json" } }
         );
       }
+      if (url.endsWith("/embed/payment/intents")) {
+        return new Response(
+          JSON.stringify({
+            id: "pi_pix_1",
+            status: "approved",
+            amountCents: 80982,
+            approvedAmountCents: 80982,
+            currency: "BRL",
+            buyerFacing: { qrCodeCopyPaste: "00020126pixcode" }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
       return new Response(JSON.stringify({}), { status: 200 });
     });
 
@@ -1130,24 +1143,14 @@ describe("CheckoutAgent (conversational)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("PIX");
     });
-    const pixQr = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+    const pixQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("PIX"));
     expect(pixQr).not.toBeUndefined();
     fireEvent.click(pixQr!);
 
-    // Confirm Payment
-    await waitFor(() => {
-      expect(container.textContent).toContain("Confirmar Pagamento");
-    });
-    const confirmPayQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
-      .find((b) => (b.textContent ?? "").includes("Confirmar Pagamento"));
-    expect(confirmPayQr).not.toBeUndefined();
-    fireEvent.click(confirmPayQr!);
-
-    // Check payment successful and WhatsApp confirmation text
+    // PIX intent approved by backend → order completed (no optimistic client confirm).
     await waitFor(() => {
       expect(container.textContent).toContain("Pagamento confirmado");
-      expect(container.textContent).toContain("WhatsApp");
     });
 
     // 5. Completion clears the transactional cart and preserves the store fallback.
