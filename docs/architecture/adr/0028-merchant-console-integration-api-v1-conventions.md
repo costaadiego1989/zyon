@@ -20,6 +20,33 @@ O header `x-aacp-api-key` e temporario e sera removido apos o cutover. Sessoes
 do Merchant Console usam cookie `HttpOnly`; chaves de servico nunca devem ser
 armazenadas no navegador.
 
+### Chaves de servico
+
+- sandbox: prefixo `aacp_test_*`;
+- producao: prefixo `aacp_live_*`;
+- o segredo e exibido somente na criacao ou rotacao;
+- cada chave possui ambiente, escopos, expiracao opcional e CIDRs opcionais;
+- rotacao cria uma nova chave e limita a anterior a uma janela de overlap;
+- revogacao e imediata;
+- chaves legadas `aacp_sk_*` continuam validas apenas durante o cutover.
+
+Escopos V1:
+
+```text
+checkout:read          checkout:write
+configuration:read     configuration:write
+orders:read            orders:write
+customers:read
+catalog:read
+embed:sessions:create
+tracking:read          tracking:write
+commerce:read          commerce:write
+payments:read
+support:read           support:write
+webhooks:read          webhooks:write
+audit:read
+```
+
 ## Paginacao
 
 ```json

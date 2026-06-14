@@ -8,27 +8,67 @@ import {
   CreateMerchantApiKeyUseCase,
   ListWebhookDeliveriesUseCase,
   ReplayWebhookDeliveryUseCase,
+  RotateMerchantApiKeyUseCase,
   TenantWebhookPublisher,
   UpdateTenantOrderTrackingUseCase,
   UpsertWebhookEndpointUseCase
 } from "./integrations.use-cases.js";
 import { ApiKeyService } from "../domain/api-key.service.js";
+import { ApiKeyAccessPolicy } from "../domain/api-key-access-policy.js";
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
 import { WebhookDeliveryDispatcher } from "./webhook-delivery-dispatcher.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
 
 test("CreateMerchantApiKeyUseCase returns the raw secret once and stores only hashed metadata", async () => {
   const repo = new InMemoryIntegrationsRepository();
-  const useCase = new CreateMerchantApiKeyUseCase(repo, new ApiKeyService());
+  const useCase = new CreateMerchantApiKeyUseCase(
+    repo,
+    new ApiKeyService(),
+    new ApiKeyAccessPolicy(),
+  );
 
-  const created = await useCase.execute({ merchantId: "mrc_1", name: "ERP", scopes: ["orders:tracking:write"] });
-  assert.match(created.secret_key, /^aacp_sk_/);
+  const created = await useCase.execute({
+    merchantId: "mrc_1",
+    name: "ERP",
+    scopes: ["tracking:write"],
+    environment: "test",
+    allowedCidrs: ["203.0.113.10"],
+  });
+  assert.match(created.secret_key, /^aacp_test_/);
   assert.equal(created.api_key.name, "ERP");
-  assert.equal(created.api_key.scopes.includes("orders:tracking:write"), true);
+  assert.equal(created.api_key.scopes.includes("tracking:write"), true);
+  assert.deepEqual(created.api_key.allowedCidrs, ["203.0.113.10/32"]);
 
   const stored = await repo.findActiveApiKeyByHash(new ApiKeyService().hash(created.secret_key));
   assert.equal(stored?.keyHash, new ApiKeyService().hash(created.secret_key));
   assert.equal((stored as any).secret_key, undefined);
+});
+
+test("RotateMerchantApiKeyUseCase overlaps the previous key and returns a new secret once", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const create = new CreateMerchantApiKeyUseCase(
+    repo,
+    new ApiKeyService(),
+    new ApiKeyAccessPolicy(),
+  );
+  const original = await create.execute({
+    merchantId: "mrc_1",
+    name: "Production ERP",
+    environment: "live",
+    scopes: ["orders:read", "tracking:write"],
+  });
+
+  const rotated = await new RotateMerchantApiKeyUseCase(repo, create).execute({
+    merchantId: "mrc_1",
+    apiKeyId: original.api_key.id,
+    overlapSeconds: 60,
+  });
+
+  assert.match(rotated.secret_key, /^aacp_live_/);
+  assert.equal(rotated.api_key.rotatedFromId, original.api_key.id);
+  assert.equal(rotated.previous_api_key_id, original.api_key.id);
+  assert.ok(rotated.previous_key_expires_at);
+  assert.equal((await repo.getApiKey("mrc_1", original.api_key.id))?.expiresAt, rotated.previous_key_expires_at);
 });
 
 test("UpdateTenantOrderTrackingUseCase updates completed order, persists shipment timeline and enqueues webhook", async () => {
@@ -80,7 +120,13 @@ test("UpdateTenantOrderTrackingUseCase updates completed order, persists shipmen
   );
 
   const result = await useCase.execute({
-    context: { id: "mak_1", merchantId: "mrc_1", scopes: ["orders:tracking:write"] },
+    context: {
+      id: "mak_1",
+      merchantId: "mrc_1",
+      scopes: ["orders:tracking:write"],
+      environment: "test",
+      allowedCidrs: [],
+    },
     externalOrderId: "ord_900",
     body: {
       tracking_code: " BR123456789AA ",

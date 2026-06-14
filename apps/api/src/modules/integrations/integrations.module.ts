@@ -4,9 +4,9 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { ApiKeyService } from "./domain/api-key.service.js";
+import { ApiKeyAccessPolicy } from "./domain/api-key-access-policy.js";
 import { WebhookSignatureService } from "./domain/webhook-signature.service.js";
 import { INTEGRATIONS_REPOSITORY } from "./domain/ports/integrations.repository.port.js";
-import { InMemoryIntegrationsRepository } from "./infrastructure/in-memory-integrations.repository.js";
 import { PrismaIntegrationsRepository } from "./infrastructure/prisma-integrations.repository.js";
 import {
   CreateMerchantApiKeyUseCase,
@@ -17,6 +17,7 @@ import {
   ListWebhookEndpointsUseCase,
   ReplayWebhookDeliveryUseCase,
   RevokeMerchantApiKeyUseCase,
+  RotateMerchantApiKeyUseCase,
   TenantWebhookPublisher,
   TestWebhookEndpointUseCase,
   UpdateTenantOrderTrackingUseCase,
@@ -26,28 +27,27 @@ import { WebhookDeliveryDispatcher } from "./application/webhook-delivery-dispat
 import { TenantWebhooksOnCheckoutHandler } from "./infrastructure/event-handlers/tenant-webhooks-on-checkout.handler.js";
 import { IntegrationsController } from "./presentation/http/integrations.controller.js";
 import { MerchantApiKeyGuard } from "./presentation/http/merchant-api-key.guard.js";
+import { ApiKeyScopeGuard } from "./presentation/http/api-key-scope.guard.js";
 import { TenantTrackingController } from "./presentation/http/tenant-tracking.controller.js";
+import { AuthenticateMerchantApiKeyService } from "./application/authenticate-merchant-api-key.service.js";
 
 @Module({
   imports: [AuthModule, CheckoutModule],
   controllers: [IntegrationsController, TenantTrackingController],
   providers: [
     ApiKeyService,
+    ApiKeyAccessPolicy,
+    AuthenticateMerchantApiKeyService,
     WebhookSignatureService,
-    InMemoryIntegrationsRepository,
     {
       provide: INTEGRATIONS_REPOSITORY,
-      useFactory: (memory: InMemoryIntegrationsRepository, prisma: PrismaClient) => {
-        if (process.env.CHECKOUT_REPOSITORY === "prisma" || process.env.INTEGRATIONS_REPOSITORY === "prisma") {
-          return new PrismaIntegrationsRepository(prisma);
-        }
-        return memory;
-      },
-      inject: [InMemoryIntegrationsRepository, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaIntegrationsRepository(prisma),
+      inject: [PRISMA_CLIENT]
     },
     CreateMerchantApiKeyUseCase,
     ListMerchantApiKeysUseCase,
     RevokeMerchantApiKeyUseCase,
+    RotateMerchantApiKeyUseCase,
     UpsertWebhookEndpointUseCase,
     ListWebhookEndpointsUseCase,
     TenantWebhookPublisher,
@@ -59,8 +59,15 @@ import { TenantTrackingController } from "./presentation/http/tenant-tracking.co
     GetTrackingTimelineUseCase,
     WebhookDeliveryDispatcher,
     TenantWebhooksOnCheckoutHandler,
-    MerchantApiKeyGuard
+    MerchantApiKeyGuard,
+    ApiKeyScopeGuard,
   ],
-  exports: [INTEGRATIONS_REPOSITORY, ApiKeyService, TenantWebhookPublisher]
+  exports: [
+    INTEGRATIONS_REPOSITORY,
+    ApiKeyService,
+    ApiKeyAccessPolicy,
+    AuthenticateMerchantApiKeyService,
+    TenantWebhookPublisher,
+  ]
 })
 export class IntegrationsModule {}

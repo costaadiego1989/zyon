@@ -29,14 +29,36 @@ export class InMemoryIntegrationsRepository implements IntegrationsRepository {
       .map(clone);
   }
 
-  async findActiveApiKeyByHash(keyHash: string): Promise<MerchantApiKey | undefined> {
-    const found = Array.from(this.apiKeys.values()).find((apiKey) => apiKey.keyHash === keyHash && !apiKey.revokedAt);
+  async getApiKey(merchantId: string, apiKeyId: string): Promise<MerchantApiKey | undefined> {
+    const apiKey = this.apiKeys.get(apiKeyId);
+    return apiKey?.merchantId === merchantId ? clone(apiKey) : undefined;
+  }
+
+  async findActiveApiKeyByHash(keyHash: string, now = new Date().toISOString()): Promise<MerchantApiKey | undefined> {
+    const found = Array.from(this.apiKeys.values()).find(
+      (apiKey) =>
+        apiKey.keyHash === keyHash
+        && !apiKey.revokedAt
+        && (!apiKey.expiresAt || apiKey.expiresAt > now),
+    );
     return found ? clone(found) : undefined;
   }
 
   async touchApiKeyLastUsed(apiKeyId: string, at: string): Promise<void> {
     const existing = this.apiKeys.get(apiKeyId);
     if (existing) this.apiKeys.set(apiKeyId, { ...existing, lastUsedAt: at });
+  }
+
+  async setApiKeyExpiry(
+    merchantId: string,
+    apiKeyId: string,
+    expiresAt: string,
+  ): Promise<MerchantApiKey | undefined> {
+    const existing = this.apiKeys.get(apiKeyId);
+    if (!existing || existing.merchantId !== merchantId) return undefined;
+    const updated = { ...existing, expiresAt };
+    this.apiKeys.set(apiKeyId, updated);
+    return clone(updated);
   }
 
   async revokeApiKey(merchantId: string, apiKeyId: string, at: string): Promise<MerchantApiKey | undefined> {

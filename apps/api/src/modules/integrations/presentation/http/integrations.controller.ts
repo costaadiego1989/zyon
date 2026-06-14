@@ -1,5 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
+import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
+import { TenantRoleGuard } from "../../../auth/presentation/tenant-role.guard.js";
 import {
   CreateMerchantApiKeyUseCase,
   ListMerchantApiKeysUseCase,
@@ -8,18 +11,27 @@ import {
   ListWebhookEndpointsUseCase,
   ReplayWebhookDeliveryUseCase,
   RevokeMerchantApiKeyUseCase,
+  RotateMerchantApiKeyUseCase,
   TestWebhookEndpointUseCase,
   UpsertWebhookEndpointUseCase
 } from "../../application/integrations.use-cases.js";
-import type { MerchantApiKeyScope, TenantWebhookEventType } from "../../domain/integrations.types.js";
+import type { TenantWebhookEventType } from "../../domain/integrations.types.js";
+import {
+  CreateMerchantApiKeyDto,
+  RotateMerchantApiKeyDto,
+} from "./api-key.dto.js";
 
-@UseGuards(AuthGuard)
+@ApiTags("Developer operations")
+@ApiCookieAuth("console_session")
+@RequireTenantRoles("owner", "admin")
+@UseGuards(AuthGuard, TenantRoleGuard)
 @Controller("integrations")
 export class IntegrationsController {
   constructor(
     private readonly createApiKey: CreateMerchantApiKeyUseCase,
     private readonly listApiKeys: ListMerchantApiKeysUseCase,
     private readonly revokeApiKey: RevokeMerchantApiKeyUseCase,
+    private readonly rotateApiKey: RotateMerchantApiKeyUseCase,
     private readonly listWebhookEndpoints: ListWebhookEndpointsUseCase,
     private readonly upsertWebhookEndpoint: UpsertWebhookEndpointUseCase,
     private readonly listWebhookDeliveries: ListWebhookDeliveriesUseCase,
@@ -34,17 +46,33 @@ export class IntegrationsController {
   }
 
   @Post("api-keys")
-  createKey(@Req() request: unknown, @Body() body: { name?: string; scopes?: MerchantApiKeyScope[] }) {
+  createKey(@Req() request: unknown, @Body() body: CreateMerchantApiKeyDto) {
     return this.createApiKey.execute({
       merchantId: currentUser(request as { user?: unknown }).merchantId,
       name: body.name,
-      scopes: body.scopes
+      scopes: body.scopes,
+      environment: body.environment,
+      expiresAt: body.expires_at,
+      allowedCidrs: body.allowed_cidrs,
     });
   }
 
   @Delete("api-keys/:apiKeyId")
   revokeKey(@Req() request: unknown, @Param("apiKeyId") apiKeyId: string) {
     return this.revokeApiKey.execute(currentUser(request as { user?: unknown }).merchantId, apiKeyId);
+  }
+
+  @Post("api-keys/:apiKeyId/rotate")
+  rotateKey(
+    @Req() request: unknown,
+    @Param("apiKeyId") apiKeyId: string,
+    @Body() body: RotateMerchantApiKeyDto,
+  ) {
+    return this.rotateApiKey.execute({
+      merchantId: currentUser(request as { user?: unknown }).merchantId,
+      apiKeyId,
+      overlapSeconds: body.overlap_seconds,
+    });
   }
 
   @Get("webhooks")

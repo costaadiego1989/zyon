@@ -1,12 +1,15 @@
-export type MerchantApiKeyScope =
-  | "embed:sessions:create"
-  | "orders:tracking:write"
-  | "webhooks:read"
-  | "webhooks:write";
+import type { TenantApiScope } from "../../../shared/auth/tenant-principal.js";
+
+export type MerchantApiKeyEnvironment = "test" | "live";
+export type LegacyMerchantApiKeyScope = "orders:tracking:write";
+export type MerchantApiKeyScope = TenantApiScope | LegacyMerchantApiKeyScope;
 
 export const DEFAULT_MERCHANT_API_KEY_SCOPES: MerchantApiKeyScope[] = [
   "embed:sessions:create",
-  "orders:tracking:write"
+  "orders:read",
+  "orders:write",
+  "tracking:read",
+  "tracking:write",
 ];
 
 export interface MerchantApiKey {
@@ -16,7 +19,11 @@ export interface MerchantApiKey {
   keyHash: string;
   keyPrefix: string;
   scopes: MerchantApiKeyScope[];
+  environment: MerchantApiKeyEnvironment;
+  allowedCidrs: string[];
   createdAt: string;
+  expiresAt?: string;
+  rotatedFromId?: string;
   lastUsedAt?: string;
   revokedAt?: string;
 }
@@ -26,7 +33,11 @@ export interface MerchantApiKeyPublic {
   name: string;
   keyPrefix: string;
   scopes: MerchantApiKeyScope[];
+  environment: MerchantApiKeyEnvironment;
+  allowedCidrs: string[];
   createdAt: string;
+  expiresAt?: string;
+  rotatedFromId?: string;
   lastUsedAt?: string;
   revokedAt?: string;
 }
@@ -35,6 +46,9 @@ export interface MerchantApiKeyContext {
   id: string;
   merchantId: string;
   scopes: MerchantApiKeyScope[];
+  environment: MerchantApiKeyEnvironment;
+  allowedCidrs: string[];
+  expiresAt?: string;
 }
 
 export type TenantWebhookEventType =

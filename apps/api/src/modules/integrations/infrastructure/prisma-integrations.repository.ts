@@ -29,9 +29,23 @@ export class PrismaIntegrationsRepository implements IntegrationsRepository {
     return rows.map(toApiKey);
   }
 
-  async findActiveApiKeyByHash(keyHash: string): Promise<MerchantApiKey | undefined> {
+  async getApiKey(merchantId: string, apiKeyId: string): Promise<MerchantApiKey | undefined> {
     const row = await (this.prisma as any).merchantApiKey.findFirst({
-      where: { keyHash, revokedAt: null }
+      where: { id: apiKeyId, merchantId },
+    });
+    return row ? toApiKey(row) : undefined;
+  }
+
+  async findActiveApiKeyByHash(
+    keyHash: string,
+    now = new Date().toISOString(),
+  ): Promise<MerchantApiKey | undefined> {
+    const row = await (this.prisma as any).merchantApiKey.findFirst({
+      where: {
+        keyHash,
+        revokedAt: null,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date(now) } }],
+      }
     });
     return row ? toApiKey(row) : undefined;
   }
@@ -41,6 +55,23 @@ export class PrismaIntegrationsRepository implements IntegrationsRepository {
       where: { id: apiKeyId },
       data: { lastUsedAt: new Date(at) }
     });
+  }
+
+  async setApiKeyExpiry(
+    merchantId: string,
+    apiKeyId: string,
+    expiresAt: string,
+  ): Promise<MerchantApiKey | undefined> {
+    try {
+      const row = await (this.prisma as any).merchantApiKey.update({
+        where: { id: apiKeyId, merchantId },
+        data: { expiresAt: new Date(expiresAt) },
+      });
+      return toApiKey(row);
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return undefined;
+      throw error;
+    }
   }
 
   async revokeApiKey(merchantId: string, apiKeyId: string, at: string): Promise<MerchantApiKey | undefined> {
@@ -179,7 +210,11 @@ function toApiKeyCreate(apiKey: MerchantApiKey) {
     keyHash: apiKey.keyHash,
     keyPrefix: apiKey.keyPrefix,
     scopes: apiKey.scopes,
+    environment: apiKey.environment,
+    allowedCidrs: apiKey.allowedCidrs,
     createdAt: new Date(apiKey.createdAt),
+    expiresAt: apiKey.expiresAt ? new Date(apiKey.expiresAt) : undefined,
+    rotatedFromId: apiKey.rotatedFromId,
     lastUsedAt: apiKey.lastUsedAt ? new Date(apiKey.lastUsedAt) : undefined,
     revokedAt: apiKey.revokedAt ? new Date(apiKey.revokedAt) : undefined
   };
@@ -193,7 +228,11 @@ function toApiKey(row: any): MerchantApiKey {
     keyHash: row.keyHash,
     keyPrefix: row.keyPrefix,
     scopes: row.scopes as MerchantApiKeyScope[],
+    environment: row.environment,
+    allowedCidrs: row.allowedCidrs,
     createdAt: row.createdAt.toISOString(),
+    expiresAt: row.expiresAt?.toISOString(),
+    rotatedFromId: row.rotatedFromId ?? undefined,
     lastUsedAt: row.lastUsedAt?.toISOString(),
     revokedAt: row.revokedAt?.toISOString()
   };

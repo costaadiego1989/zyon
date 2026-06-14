@@ -1,13 +1,21 @@
 import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { randomBytes, randomUUID } from "node:crypto";
+import {
+  TENANT_API_SCOPES,
+  type TenantApiScope,
+} from "../../../shared/auth/tenant-principal.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../checkout/domain/ports/order.repository.port.js";
 import { UpdateOrderTrackingUseCase } from "../../checkout/application/use-cases/update-order-tracking.use-case.js";
 import { ApiKeyService } from "../domain/api-key.service.js";
+import { ApiKeyAccessPolicy } from "../domain/api-key-access-policy.js";
+import { hasApiKeyScope } from "../domain/api-key-scope.js";
 import {
   DEFAULT_MERCHANT_API_KEY_SCOPES,
   TENANT_WEBHOOK_EVENTS,
+  type MerchantApiKey,
   type MerchantApiKeyContext,
+  type MerchantApiKeyEnvironment,
   type MerchantApiKeyPublic,
   type MerchantApiKeyScope,
   type MerchantWebhookDelivery,
@@ -35,11 +43,21 @@ const ALLOWED_SHIPMENT_STATUSES: ShipmentStatus[] = [
 export class CreateMerchantApiKeyUseCase {
   constructor(
     @Inject(INTEGRATIONS_REPOSITORY) private readonly repo: IntegrationsRepository,
-    private readonly apiKeys: ApiKeyService
+    private readonly apiKeys: ApiKeyService,
+    private readonly accessPolicy: ApiKeyAccessPolicy,
   ) {}
 
-  async execute(input: { merchantId: string; name?: string; scopes?: MerchantApiKeyScope[] }) {
-    const generated = this.apiKeys.generate();
+  async execute(input: {
+    merchantId: string;
+    name?: string;
+    scopes?: MerchantApiKeyScope[];
+    environment?: MerchantApiKeyEnvironment;
+    expiresAt?: string;
+    allowedCidrs?: string[];
+    rotatedFromId?: string;
+  }) {
+    const environment = input.environment ?? "test";
+    const generated = this.apiKeys.generate(environment);
     const now = new Date().toISOString();
     const scopes = sanitizeScopes(input.scopes ?? DEFAULT_MERCHANT_API_KEY_SCOPES);
     const apiKey = await this.repo.createApiKey({
@@ -49,7 +67,11 @@ export class CreateMerchantApiKeyUseCase {
       keyHash: generated.keyHash,
       keyPrefix: generated.keyPrefix,
       scopes,
-      createdAt: now
+      environment,
+      allowedCidrs: this.accessPolicy.normalizeCidrs(input.allowedCidrs),
+      createdAt: now,
+      expiresAt: parseFutureExpiry(input.expiresAt, now),
+      rotatedFromId: input.rotatedFromId,
     });
 
     return {
@@ -76,6 +98,71 @@ export class RevokeMerchantApiKeyUseCase {
     const revoked = await this.repo.revokeApiKey(merchantId, apiKeyId, new Date().toISOString());
     if (!revoked) throw new NotFoundException("merchant_api_key_not_found");
     return toApiKeyPublic(revoked);
+  }
+}
+
+@Injectable()
+export class RotateMerchantApiKeyUseCase {
+  constructor(
+    @Inject(INTEGRATIONS_REPOSITORY) private readonly repo: IntegrationsRepository,
+    private readonly createApiKey: CreateMerchantApiKeyUseCase,
+  ) {}
+
+  async execute(input: {
+    merchantId: string;
+    apiKeyId: string;
+    overlapSeconds?: number;
+  }) {
+    const existing = await this.repo.getApiKey(input.merchantId, input.apiKeyId);
+    if (!existing || existing.revokedAt) {
+      throw new NotFoundException("merchant_api_key_not_found");
+    }
+
+    const now = new Date().toISOString();
+    if (existing.expiresAt && existing.expiresAt <= now) {
+      throw new NotFoundException("merchant_api_key_not_found");
+    }
+    const overlapSeconds = Math.max(
+      0,
+      Math.min(input.overlapSeconds ?? 300, 86_400),
+    );
+    const requestedOverlapEnd = new Date(
+      Date.now() + overlapSeconds * 1000,
+    ).toISOString();
+    const oldKeyExpiresAt = existing.expiresAt
+      && existing.expiresAt < requestedOverlapEnd
+      ? existing.expiresAt
+      : requestedOverlapEnd;
+
+    const rotated = await this.createApiKey.execute({
+      merchantId: input.merchantId,
+      name: `${existing.name} (rotated)`,
+      scopes: existing.scopes.map((scope) =>
+        scope === "orders:tracking:write" ? "tracking:write" : scope),
+      environment: existing.environment,
+      expiresAt: existing.expiresAt,
+      allowedCidrs: existing.allowedCidrs,
+      rotatedFromId: existing.id,
+    });
+    const updatedPrevious = await this.repo.setApiKeyExpiry(
+      input.merchantId,
+      input.apiKeyId,
+      oldKeyExpiresAt,
+    );
+    if (!updatedPrevious) {
+      await this.repo.revokeApiKey(
+        input.merchantId,
+        rotated.api_key.id,
+        new Date().toISOString(),
+      );
+      throw new NotFoundException("merchant_api_key_not_found");
+    }
+
+    return {
+      ...rotated,
+      previous_api_key_id: existing.id,
+      previous_key_expires_at: oldKeyExpiresAt,
+    };
   }
 }
 
@@ -247,7 +334,7 @@ export class UpdateTenantOrderTrackingUseCase {
       }>;
     };
   }) {
-    requireScope(input.context, "orders:tracking:write");
+    requireScope(input.context, "tracking:write");
     const trackingCode = input.body.tracking_code?.trim();
     if (!trackingCode) throw new BadRequestException("tracking_code_required");
     const merchantId = input.context.merchantId;
@@ -348,17 +435,23 @@ export class GetTrackingTimelineUseCase {
   }
 }
 
-export function requireScope(context: MerchantApiKeyContext, scope: MerchantApiKeyScope): void {
-  if (!context.scopes.includes(scope)) throw new ForbiddenException("missing_api_key_scope");
+export function requireScope(context: MerchantApiKeyContext, scope: TenantApiScope): void {
+  if (!hasApiKeyScope(context.scopes, scope)) {
+    throw new ForbiddenException("missing_api_key_scope");
+  }
 }
 
-function toApiKeyPublic(apiKey: { id: string; name: string; keyPrefix: string; scopes: MerchantApiKeyScope[]; createdAt: string; lastUsedAt?: string; revokedAt?: string }): MerchantApiKeyPublic {
+function toApiKeyPublic(apiKey: MerchantApiKey): MerchantApiKeyPublic {
   return {
     id: apiKey.id,
     name: apiKey.name,
     keyPrefix: apiKey.keyPrefix,
     scopes: apiKey.scopes,
+    environment: apiKey.environment,
+    allowedCidrs: apiKey.allowedCidrs,
     createdAt: apiKey.createdAt,
+    expiresAt: apiKey.expiresAt,
+    rotatedFromId: apiKey.rotatedFromId,
     lastUsedAt: apiKey.lastUsedAt,
     revokedAt: apiKey.revokedAt
   };
@@ -404,10 +497,19 @@ function sanitizeName(value: string | undefined, fallback: string): string {
 }
 
 function sanitizeScopes(scopes: MerchantApiKeyScope[]): MerchantApiKeyScope[] {
-  const allowed = new Set<MerchantApiKeyScope>(["embed:sessions:create", "orders:tracking:write", "webhooks:read", "webhooks:write"]);
+  const allowed = new Set<MerchantApiKeyScope>(TENANT_API_SCOPES);
   const unique = Array.from(new Set(scopes.filter((scope) => allowed.has(scope))));
   if (!unique.length) throw new BadRequestException("api_key_scopes_required");
   return unique;
+}
+
+function parseFutureExpiry(value: string | undefined, now: string): string | undefined {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime()) || parsed.toISOString() <= now) {
+    throw new BadRequestException("api_key_expiry_must_be_in_the_future");
+  }
+  return parsed.toISOString();
 }
 
 function sanitizeWebhookEvents(events: TenantWebhookEventType[]): TenantWebhookEventType[] {

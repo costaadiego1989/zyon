@@ -38,6 +38,8 @@ test(
         keyHash: `hash_${crypto.randomUUID()}`,
         keyPrefix: "aacp_live_1234",
         scopes: ["embed:sessions:create", "orders:tracking:write"],
+        environment: "live",
+        allowedCidrs: [],
         createdAt: now
       });
       await repository.createApiKey({
@@ -47,6 +49,8 @@ test(
         keyHash: `hash_${crypto.randomUUID()}`,
         keyPrefix: "aacp_live_other",
         scopes: ["embed:sessions:create"],
+        environment: "live",
+        allowedCidrs: [],
         createdAt: now
       });
 

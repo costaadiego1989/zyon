@@ -12,8 +12,10 @@ export const INTEGRATIONS_REPOSITORY = Symbol("INTEGRATIONS_REPOSITORY");
 export interface IntegrationsRepository {
   createApiKey(apiKey: MerchantApiKey): Promise<MerchantApiKey>;
   listApiKeys(merchantId: string): Promise<MerchantApiKey[]>;
-  findActiveApiKeyByHash(keyHash: string): Promise<MerchantApiKey | undefined>;
+  getApiKey(merchantId: string, apiKeyId: string): Promise<MerchantApiKey | undefined>;
+  findActiveApiKeyByHash(keyHash: string, now?: string): Promise<MerchantApiKey | undefined>;
   touchApiKeyLastUsed(apiKeyId: string, at: string): Promise<void>;
+  setApiKeyExpiry(merchantId: string, apiKeyId: string, expiresAt: string): Promise<MerchantApiKey | undefined>;
   revokeApiKey(merchantId: string, apiKeyId: string, at: string): Promise<MerchantApiKey | undefined>;
 
   upsertWebhookEndpoint(endpoint: MerchantWebhookEndpoint): Promise<MerchantWebhookEndpoint>;
