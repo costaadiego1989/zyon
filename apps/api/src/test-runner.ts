@@ -27,6 +27,7 @@ import "./modules/commerce/infrastructure/prisma-commerce.repository.int-spec.js
 import "./modules/payment/domain/payment-intent.entity.spec.js";
 import "./modules/payment/infrastructure/in-memory-payment.repository.spec.js";
 import "./modules/payment/application/create-payment-intent.use-case.spec.js";
+import "./modules/payment/application/get-payment-intent-status.use-case.spec.js";
 import "./modules/payment/application/handle-asaas-webhook.use-case.spec.js";
 import "./modules/payment/infrastructure/asaas-env.spec.js";
 import "./modules/payment/infrastructure/asaas-payment.adapter.spec.js";
@@ -108,6 +109,8 @@ import "./modules/checkout/presentation/http/cross-tenant-fuzz.e2e-spec.js";
 import "./shared/http/http-client.service.spec.js";
 import "./shared/http/api-documentation.spec.js";
 import "./shared/http/api-versioning.spec.js";
+import "./shared/http/http-contract.spec.js";
+import "./shared/http/idempotency/idempotency.interceptor.spec.js";
 import "./shared/config/security-headers-config.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
 import "./modules/cross-sell/domain/policies/cross-sell-policies.spec.js";

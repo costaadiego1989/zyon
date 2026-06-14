@@ -7,6 +7,7 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-payment.use-case.js";
+import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-status.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
@@ -41,6 +42,7 @@ function shouldForceFakePaymentProvider(): boolean {
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,
+    GetPaymentIntentStatusUseCase,
     HandleAsaasWebhookUseCase,
     HandleStripeWebhookUseCase,
     StripeConnectProvisioner,
@@ -83,6 +85,6 @@ function shouldForceFakePaymentProvider(): boolean {
       inject: [PRISMA_CLIENT]
     }
   ],
-  exports: [CreatePaymentIntentUseCase, ConfirmCryptoPaymentUseCase, ConfirmStripePaymentUseCase, StripeConnectProvisioner]
+  exports: [CreatePaymentIntentUseCase, ConfirmCryptoPaymentUseCase, ConfirmStripePaymentUseCase, GetPaymentIntentStatusUseCase, StripeConnectProvisioner]
 })
 export class PaymentModule {}

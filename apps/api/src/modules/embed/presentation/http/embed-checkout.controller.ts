@@ -2,9 +2,11 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Get,
   Inject,
   Injectable,
   Post,
+  Query,
   Req,
   Param,
   UnauthorizedException,
@@ -24,6 +26,7 @@ import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
+import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
@@ -61,7 +64,8 @@ export class EmbedCheckoutController {
     private readonly applyOfferUseCase: ApplyOfferUseCase,
     private readonly createPaymentIntent: CreatePaymentIntentUseCase,
     private readonly confirmCryptoPayment: ConfirmCryptoPaymentUseCase,
-    private readonly confirmStripePayment: ConfirmStripePaymentUseCase
+    private readonly confirmStripePayment: ConfirmStripePaymentUseCase,
+    private readonly getPaymentIntentStatus: GetPaymentIntentStatusUseCase
   ) {}
 
   @Post("start")
@@ -204,6 +208,24 @@ export class EmbedCheckoutController {
     return this.confirmStripePayment.execute({
       merchant_id: embed.merchantId,
       session_id: body.session_id.trim(),
+      intent_id: intentId.trim()
+    });
+  }
+
+  @Get("payment/intents/:intentId/status")
+  async paymentStatusFromEmbed(
+    @Req() request: EmbedHttpRequest,
+    @Param("intentId") intentId: string,
+    @Query("session_id") sessionId: string
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string" || !sessionId.trim()) {
+      throw new BadRequestException("session_id_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId.trim());
+    return this.getPaymentIntentStatus.execute({
+      merchant_id: embed.merchantId,
+      session_id: sessionId.trim(),
       intent_id: intentId.trim()
     });
   }
