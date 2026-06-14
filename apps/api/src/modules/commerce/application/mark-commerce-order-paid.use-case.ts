@@ -4,6 +4,7 @@ import {
   COMMERCE_PAID_WEBHOOK_DEDUP,
   type CommercePaidWebhookDedupPort
 } from "../domain/ports/commerce-paid-webhook-dedup.port.js";
+import { createCommerceEventEnvelope } from "../domain/events/commerce-domain-event.js";
 
 export type MarkCommerceOrderPaidInput = {
   merchantId: string;
@@ -39,7 +40,15 @@ export class MarkCommerceOrderPaidUseCase {
       commerceOrderId,
       paymentReference
     });
-    await this.dedup.markProcessed(merchantId, paymentReference);
+    const event = createCommerceEventEnvelope({
+      eventType: "commerce.order.paid",
+      merchantId,
+      payload: {
+        commerce_order_id: commerceOrderId,
+        payment_reference: paymentReference
+      }
+    });
+    await this.dedup.markProcessed(merchantId, paymentReference, commerceOrderId, event);
     return { invokedCommerceSync: true };
   }
 }
