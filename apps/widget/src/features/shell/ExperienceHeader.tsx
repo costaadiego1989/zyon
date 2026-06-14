@@ -1,8 +1,8 @@
 import {
+  Bot,
   CircleHelp,
   LogIn,
   Moon,
-  Sparkles,
   ShoppingBag,
   Sun,
 } from "lucide-react";
@@ -19,7 +19,7 @@ export function ExperienceHeader({ model }: { model: ExperienceHeaderModel }) {
           {model.agent.avatarUrl ? (
             <img src={model.agent.avatarUrl} alt="" className="aacp-header-agent-img" />
           ) : (
-            <IconFrame icon={Sparkles} status="online" />
+            <IconFrame icon={Bot} status="none" label="Agente de compras" />
           )}
         </div>
 
@@ -31,7 +31,6 @@ export function ExperienceHeader({ model }: { model: ExperienceHeaderModel }) {
       </div>
 
       <div className="aacp-header-presence" aria-label={model.agent.statusLabel}>
-        <span className="aacp-header-presence-dot" aria-hidden="true" />
         <span>{model.agent.statusLabel}</span>
       </div>
 

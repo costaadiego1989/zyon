@@ -3,6 +3,11 @@
   --continuum-surface: var(--aacp-enterprise-surface);
   --continuum-surface-muted: var(--aacp-enterprise-surface-muted);
   --continuum-surface-strong: var(--aacp-enterprise-surface-strong);
+  --continuum-ice: var(--aacp-enterprise-ice);
+  --continuum-journey-bg: var(--continuum-ice);
+  --continuum-glass-bg: color-mix(in oklch, var(--continuum-ice) 76%, transparent);
+  --continuum-glass-border: color-mix(in oklch, var(--continuum-line-soft) 55%, transparent);
+  --continuum-edge-highlight: color-mix(in oklch, white 88%, transparent);
   --continuum-ink: var(--aacp-enterprise-ink);
   --continuum-muted: var(--aacp-enterprise-muted);
   --continuum-faint: var(--aacp-enterprise-faint);
@@ -24,6 +29,11 @@
 .checkout-experience[data-theme="dark"] {
   --continuum-primary: var(--continuum-success);
   --continuum-on-primary: oklch(18% 0.018 155);
+  --continuum-ice: oklch(31% 0.018 232);
+  --continuum-journey-bg: var(--continuum-ice);
+  --continuum-glass-bg: color-mix(in oklch, var(--continuum-surface) 86%, transparent);
+  --continuum-glass-border: color-mix(in oklch, var(--continuum-line) 78%, transparent);
+  --continuum-edge-highlight: color-mix(in oklch, white 9%, transparent);
 }
 
 .checkout-experience.aacp-widget--conversational.aacp-page {
@@ -59,13 +69,21 @@
 /* Experience context */
 
 .checkout-experience.aacp-widget--conversational .aacp-header {
-  z-index: 5;
+  position: sticky;
+  top: 0;
+  z-index: 6;
   grid-template-columns: minmax(0, 1fr) auto auto;
   min-height: 72px;
   gap: 20px;
-  padding: 16px 28px 8px;
+  padding: 16px 28px 14px;
   border: 0;
-  background: var(--continuum-surface);
+  border-bottom: 1px solid var(--continuum-glass-border);
+  background: var(--continuum-glass-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(165%);
+  backdrop-filter: blur(18px) saturate(165%);
+  box-shadow:
+    inset 0 1px 0 var(--continuum-edge-highlight),
+    0 10px 28px color-mix(in oklch, var(--continuum-ink) 5%, transparent);
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-header-left {
@@ -133,11 +151,7 @@
 
 .checkout-experience.aacp-widget--conversational
   .aacp-header-presence-dot {
-  width: 6px;
-  height: 6px;
-  flex: 0 0 6px;
-  border-radius: 999px;
-  background: var(--continuum-success);
+  display: none;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-header-actions {
@@ -188,67 +202,173 @@
   display: none;
 }
 
+.checkout-experience[data-theme="dark"].aacp-widget--conversational .aacp-header {
+  box-shadow:
+    inset 0 1px 0 var(--continuum-edge-highlight),
+    0 10px 32px oklch(0% 0 0 / 0.32);
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational .aacp-stage-progress {
+  border-bottom-color: var(--continuum-line);
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational
+  .aacp-stage-progress-index {
+  background: color-mix(in oklch, var(--continuum-success) 14%, var(--continuum-ice));
+  border-color: color-mix(in oklch, var(--continuum-success) 30%, var(--continuum-line));
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational
+  .aacp-stage-progress-status {
+  background: color-mix(in oklch, var(--continuum-success) 12%, var(--continuum-surface-strong));
+  border-color: color-mix(in oklch, var(--continuum-success) 26%, var(--continuum-line));
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational
+  .aacp-stage-progress-dot {
+  background: var(--continuum-surface-strong);
+  border-color: var(--continuum-line);
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational
+  .aacp-stage-progress-label {
+  color: var(--continuum-faint);
+}
+
+.checkout-experience[data-theme="dark"].aacp-widget--conversational
+  .aacp-stage-progress-step.active
+  .aacp-stage-progress-label {
+  color: var(--continuum-ink);
+}
+
 /* Journey protocol */
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress {
   z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  min-height: 62px;
-  gap: 10px;
-  padding: 4px 28px 18px;
+  min-height: 52px;
+  padding: 14px 28px 12px;
   border: 0;
-  background: var(--continuum-surface);
+  border-bottom: 1px solid var(--continuum-line-soft);
+  background: var(--continuum-ice);
+  box-shadow: inset 0 1px 0 var(--continuum-edge-highlight);
+  --aacp-stage-head-height: 32px;
+  --aacp-stage-marker-size: 14px;
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-body {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  min-width: 0;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-head {
-  display: grid;
-  align-self: flex-start;
-  gap: 0;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: min(36%, 200px);
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-index {
-  display: none;
+  display: inline-grid;
+  place-items: center;
+  width: var(--aacp-stage-head-height);
+  height: var(--aacp-stage-head-height);
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: color-mix(in oklch, var(--continuum-surface-muted) 48%, var(--continuum-ice));
+  border: 1px solid color-mix(in oklch, var(--continuum-line) 55%, transparent);
+  color: var(--continuum-success);
+  font-family: var(--continuum-operational);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-current {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
   min-width: 0;
-  gap: 1px;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-kicker {
-  color: var(--continuum-faint);
-  font-family: var(--continuum-operational);
-  font-size: 8px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  flex-shrink: 0;
+  color: var(--continuum-muted);
+  font-family: var(--continuum-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.15;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-title {
   overflow: hidden;
+  margin: 0;
   color: var(--continuum-ink);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  height: var(--aacp-stage-head-height);
+  padding: 0 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--continuum-success) 8%, var(--continuum-surface));
+  border: 1px solid color-mix(in srgb, var(--continuum-success) 18%, var(--continuum-line));
+  color: var(--continuum-success);
+  font-family: var(--continuum-operational);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.checkout-experience.aacp-widget--conversational .aacp-stage-progress-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-ring 2s ease-out infinite;
+}
+
 .checkout-experience.aacp-widget--conversational
   .aacp-stage-progress-rail-wrap {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+  align-self: center;
   padding: 0;
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-stage-progress-track {
-  top: 8px;
+  top: calc(var(--aacp-stage-marker-size) / 2);
   right: calc(50% / var(--aacp-stage-progress-steps, 4));
   left: calc(50% / var(--aacp-stage-progress-steps, 4));
   height: 1px;
+  transform: translateY(-50%);
   background: var(--continuum-line);
 }
 
@@ -267,8 +387,9 @@
   .aacp-stage-progress-dot {
   display: inline-grid;
   place-items: center;
-  width: 17px;
-  height: 17px;
+  box-sizing: border-box;
+  width: var(--aacp-stage-marker-size);
+  height: var(--aacp-stage-marker-size);
   border-width: 1px;
   border-color: var(--continuum-line);
   background: var(--continuum-surface);
@@ -277,7 +398,7 @@
 .checkout-experience.aacp-widget--conversational
   .aacp-stage-progress-step.active
   .aacp-stage-progress-dot {
-  border: 5px solid var(--continuum-surface);
+  border: 5px solid var(--continuum-ice);
   background: var(--continuum-success);
   box-shadow: 0 0 0 1px var(--continuum-success);
 }
@@ -292,22 +413,12 @@
 
 .checkout-experience.aacp-widget--conversational
   .aacp-stage-progress-label {
-  display: flex;
-  align-items: baseline;
-  justify-content: center;
+  display: block;
   width: 100%;
-  gap: 5px;
   color: var(--continuum-faint);
   font-size: 8px;
   font-weight: 600;
   text-align: center;
-}
-
-.checkout-experience.aacp-widget--conversational
-  .aacp-stage-progress-step-number {
-  color: var(--continuum-faint);
-  font-family: var(--continuum-operational);
-  font-size: 6px;
 }
 
 .checkout-experience.aacp-widget--conversational
@@ -1054,37 +1165,55 @@
   }
 
   .checkout-experience.aacp-widget--conversational .aacp-stage-progress {
-    min-height: 54px;
-    gap: 8px;
-    padding: 4px 14px 12px;
+    min-height: auto;
+    padding: 8px 14px;
+    --aacp-stage-head-height: 28px;
+    --aacp-stage-marker-size: 12px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-stage-progress-index {
-    width: 28px;
-    height: 28px;
-    flex-basis: 28px;
-    border-radius: 9px;
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-body {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-stage-progress-kicker {
-    display: block;
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-head {
+    width: 100%;
+    max-width: none;
+    justify-content: center;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-stage-progress-title {
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-lead {
+    justify-content: center;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-current {
+    align-items: center;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-rail-wrap {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-index {
+    font-size: 11px;
+    border-radius: 8px;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-status {
+    display: inline-flex;
+    height: auto;
+    padding: 5px 10px;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-title {
+    font-size: 13px;
+  }
+
+  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-kicker {
     font-size: 10px;
-  }
-
-  .checkout-experience.aacp-widget--conversational
-    .aacp-stage-progress-label {
-    font-size: 0;
-  }
-
-  .checkout-experience.aacp-widget--conversational
-    .aacp-stage-progress-step-number {
-    display: none;
   }
 
   .checkout-experience.aacp-widget--conversational .aacp-thread {

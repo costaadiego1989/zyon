@@ -16,6 +16,10 @@
   --aacp-enterprise-line-soft: oklch(91% 0.014 108);
   --aacp-enterprise-success: oklch(45% 0.11 153);
   --aacp-enterprise-success-soft: oklch(94% 0.035 150);
+  --aacp-enterprise-ice: oklch(99.65% 0.005 232);
+  --aacp-enterprise-journey-bg: var(--aacp-enterprise-ice);
+  --aacp-enterprise-glass-bg: color-mix(in oklch, var(--aacp-enterprise-ice) 76%, transparent);
+  --aacp-enterprise-glass-border: color-mix(in oklch, var(--aacp-enterprise-line-soft) 55%, transparent);
   --aacp-enterprise-error: oklch(50% 0.16 28);
   --aacp-enterprise-error-soft: oklch(95% 0.025 28);
   --aacp-enterprise-warning: oklch(54% 0.11 72);
@@ -50,6 +54,10 @@
   --aacp-enterprise-line-soft: oklch(32% 0.016 150);
   --aacp-enterprise-success: oklch(72% 0.12 150);
   --aacp-enterprise-success-soft: oklch(28% 0.035 150);
+  --aacp-enterprise-ice: oklch(27.5% 0.012 232);
+  --aacp-enterprise-journey-bg: var(--aacp-enterprise-ice);
+  --aacp-enterprise-glass-bg: color-mix(in oklch, var(--aacp-enterprise-ice) 68%, transparent);
+  --aacp-enterprise-glass-border: color-mix(in oklch, var(--aacp-enterprise-line-soft) 65%, transparent);
   --aacp-enterprise-error: oklch(72% 0.13 28);
   --aacp-enterprise-error-soft: oklch(28% 0.035 28);
   --aacp-enterprise-shadow: 0 26px 80px oklch(8% 0.01 150 / 0.48);
@@ -136,17 +144,22 @@
 /* Header */
 
 .aacp-widget--conversational .aacp-header {
-  position: relative;
-  z-index: 4;
+  position: sticky;
+  top: 0;
+  z-index: 5;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   min-height: 72px;
   padding: 12px 20px;
   border: 0;
-  border-bottom: 1px solid var(--aacp-enterprise-line-soft);
-  background: var(--aacp-enterprise-surface);
-  box-shadow: none;
+  border-bottom: 1px solid var(--aacp-enterprise-glass-border);
+  background: var(--aacp-enterprise-glass-bg);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklch, white 58%, transparent),
+    0 10px 28px color-mix(in oklch, var(--aacp-enterprise-ink) 5%, transparent);
 }
 
 .aacp-widget--conversational .aacp-header-left {
@@ -380,66 +393,132 @@
 .aacp-widget--conversational .aacp-stage-progress {
   position: relative;
   z-index: 3;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  min-height: 78px;
-  padding: 12px 24px 14px;
+  min-height: 56px;
+  padding: 10px 24px 12px;
   border: 0;
   border-bottom: 1px solid var(--aacp-enterprise-line-soft);
-  background: var(--aacp-enterprise-surface);
-  box-shadow: none;
+  background: var(--aacp-enterprise-ice);
+  box-shadow: inset 0 1px 0 color-mix(in oklch, white 72%, transparent);
+  --aacp-stage-head-height: 32px;
+  --aacp-stage-marker-size: 13px;
+}
+
+.aacp-widget--conversational .aacp-stage-progress-body {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  min-width: 0;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-head,
 .aacp-widget--conversational .aacp-stage-progress-head--indented {
-  display: grid;
-  gap: 3px;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-width: 0;
+  max-width: min(36%, 200px);
   padding: 0;
   margin: 0;
-  align-self: flex-start;
 }
 
-.aacp-widget--conversational .aacp-stage-progress-kicker {
-  color: var(--aacp-enterprise-faint);
-  font-size: 9px;
-  font-weight: 750;
-  letter-spacing: 0.13em;
-  line-height: 1.2;
-  text-transform: uppercase;
+.aacp-widget--conversational .aacp-stage-progress-lead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.aacp-widget--conversational .aacp-stage-progress-index {
+  display: inline-grid;
+  place-items: center;
+  width: var(--aacp-stage-head-height);
+  height: var(--aacp-stage-head-height);
+  flex-shrink: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--aacp-enterprise-success) 10%, var(--aacp-enterprise-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-enterprise-success) 24%, var(--aacp-enterprise-line));
+  color: var(--aacp-enterprise-success);
+  font-size: 12px;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  line-height: 1;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-current {
-  display: grid;
-  gap: 1px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.aacp-widget--conversational .aacp-stage-progress-kicker {
+  flex-shrink: 0;
+  color: var(--aacp-enterprise-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1.15;
+  text-transform: none;
+  white-space: nowrap;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-title {
+  overflow: hidden;
+  margin: 0;
   color: var(--aacp-enterprise-ink);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 760;
   letter-spacing: -0.015em;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.aacp-widget--conversational .aacp-stage-progress-current > span {
-  color: var(--aacp-enterprise-muted);
-  font-size: 10px;
+.aacp-widget--conversational .aacp-stage-progress-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+  gap: 5px;
+  height: var(--aacp-stage-head-height);
+  padding: 0 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--aacp-enterprise-success) 8%, var(--aacp-enterprise-surface));
+  border: 1px solid color-mix(in srgb, var(--aacp-enterprise-success) 18%, var(--aacp-enterprise-line-soft));
+  color: var(--aacp-enterprise-success);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.aacp-widget--conversational .aacp-stage-progress-status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse-ring 2s ease-out infinite;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-rail-wrap {
   position: relative;
+  flex: 1;
   min-width: 0;
-  width: 100%;
+  align-self: center;
   padding: 0;
 }
 
 .aacp-widget--conversational .aacp-stage-progress-track {
   position: absolute;
-  top: 7px;
+  top: calc(var(--aacp-stage-marker-size) / 2);
   right: calc(50% / var(--aacp-stage-progress-steps, 4));
   left: calc(50% / var(--aacp-stage-progress-steps, 4));
   height: 2px;
+  transform: translateY(-50%);
   border-radius: 0;
   background: var(--aacp-enterprise-line);
   overflow: hidden;
@@ -472,8 +551,9 @@
 .aacp-widget--conversational .aacp-stage-progress-dot {
   display: inline-grid;
   place-items: center;
-  width: 15px;
-  height: 15px;
+  box-sizing: border-box;
+  width: var(--aacp-stage-marker-size);
+  height: var(--aacp-stage-marker-size);
   border: 2px solid var(--aacp-enterprise-line);
   border-radius: 50%;
   background: var(--aacp-enterprise-surface);
@@ -2732,18 +2812,56 @@
   }
 
   .aacp-widget--conversational .aacp-stage-progress {
-    min-height: 66px;
-    gap: 8px;
-    padding: 10px 12px 11px;
+    min-height: auto;
+    padding: 8px 12px;
+    --aacp-stage-head-height: 28px;
+    --aacp-stage-marker-size: 11px;
   }
 
-  .aacp-widget--conversational .aacp-stage-progress-kicker,
-  .aacp-widget--conversational .aacp-stage-progress-current > span {
-    display: none;
+  .aacp-widget--conversational .aacp-stage-progress-body {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-head,
+  .aacp-widget--conversational .aacp-stage-progress-head--indented {
+    width: 100%;
+    max-width: none;
+    justify-content: center;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-lead {
+    justify-content: center;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-current {
+    align-items: center;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-rail-wrap {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-index {
+    font-size: 11px;
+    border-radius: 8px;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-status {
+    display: inline-flex;
+    height: auto;
+    padding: 5px 10px;
   }
 
   .aacp-widget--conversational .aacp-stage-progress-title {
-    font-size: 11px;
+    font-size: 13px;
+  }
+
+  .aacp-widget--conversational .aacp-stage-progress-kicker {
+    font-size: 10px;
   }
 
   .aacp-widget--conversational .aacp-stage-progress-label {

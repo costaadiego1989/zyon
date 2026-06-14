@@ -66,10 +66,10 @@ describe("CrossSellBanner", () => {
   });
 
   it("renders an Adicionar button for each product", () => {
-    const { getAllByRole } = render(
+    const { container } = render(
       <CrossSellBanner products={[WALLET, BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const addBtns = getAllByRole("button", { name: /Adicionar/i });
+    const addBtns = container.querySelectorAll(".aacp-cross-sell-add");
     expect(addBtns).toHaveLength(2);
   });
 
@@ -84,10 +84,10 @@ describe("CrossSellBanner", () => {
 
   it("calls onAdd with product when Adicionar is clicked", async () => {
     const onAdd = vi.fn().mockResolvedValue(true);
-    const { getAllByRole } = render(
+    const { container } = render(
       <CrossSellBanner products={[WALLET, BELT]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const [firstBtn] = getAllByRole("button", { name: /Adicionar/i });
+    const [firstBtn] = Array.from(container.querySelectorAll(".aacp-cross-sell-add"));
     await act(async () => { fireEvent.click(firstBtn); });
     expect(onAdd).toHaveBeenCalledWith(WALLET);
   });
@@ -95,24 +95,24 @@ describe("CrossSellBanner", () => {
   it("disables Adicionar button while onAdd is pending", async () => {
     let resolve!: () => void;
     const onAdd = vi.fn(() => new Promise<boolean>((r) => { resolve = () => r(true); }));
-    const { getAllByRole } = render(
+    const { container } = render(
       <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const [btn] = getAllByRole("button", { name: /Adicionar/i });
+    const btn = container.querySelector(".aacp-cross-sell-add") as HTMLButtonElement;
     fireEvent.click(btn);
     await waitFor(() => expect(btn.hasAttribute("disabled")).toBe(true));
     await act(async () => { resolve(); });
   });
 
-  it("shows 'Adicionado!' label after successful add", async () => {
+  it("shows 'Adicionado' label after successful add", async () => {
     const onAdd = vi.fn().mockResolvedValue(true);
-    const { getAllByRole, getByText } = render(
+    const { container, getByText } = render(
       <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const [btn] = getAllByRole("button", { name: /Adicionar/i });
+    const btn = container.querySelector(".aacp-cross-sell-add") as HTMLButtonElement;
     await act(async () => { fireEvent.click(btn); });
     await waitFor(() => {
-      expect(getByText("Adicionado!")).not.toBeNull();
+      expect(getByText("Adicionado")).not.toBeNull();
     });
   });
 
@@ -130,7 +130,7 @@ describe("CrossSellBanner", () => {
     const { getByRole } = render(
       <CrossSellBanner products={[WALLET]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={onProceedToPayment} />
     );
-    fireEvent.click(getByRole("button", { name: /Finalizar pagamento agora/i }));
+    fireEvent.click(getByRole("button", { name: /Continuar sem adicionar/i }));
     expect(onProceedToPayment).toHaveBeenCalledOnce();
   });
 

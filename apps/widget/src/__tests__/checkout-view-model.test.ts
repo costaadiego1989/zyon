@@ -156,7 +156,7 @@ describe("filterCheckoutQuickReplies", () => {
       { stage: "payment", prePaymentStep: "coupon_gate" }
     );
 
-    expect(replies.map((reply) => reply.label)).toEqual(["Sim, tenho cupom", "Nao tenho cupom"]);
+    expect(replies.map((reply) => reply.label)).toEqual(["Sim", "Não"]);
   });
 
   it("hides quick replies while the coupon input is active", () => {

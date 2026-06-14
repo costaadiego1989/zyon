@@ -400,7 +400,7 @@ export function filterCheckoutQuickReplies(
       }));
       return [...productChips, { label: "Não agora" }, { label: "Ir para pagamento" }];
     }
-    if (context.prePaymentStep === "coupon_gate") return [{ label: "Sim, tenho cupom" }, { label: "Nao tenho cupom" }];
+    if (context.prePaymentStep === "coupon_gate") return [{ label: "Sim" }, { label: "Não" }];
     if (context.prePaymentStep !== "payment_method") return [];
     return replies.filter((reply) => {
       const label = normalizeQuickReplyLabel(reply.label);

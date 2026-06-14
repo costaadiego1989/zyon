@@ -73,7 +73,7 @@ describe("checkout experience presentation", () => {
 
     expect(model.currentLabel).toBe("Entrega");
     expect(model.currentNumber).toBe("02");
-    expect(model.progressPercent).toBe(50);
+    expect(model.progressPercent).toBe(37.5);
     expect(model.steps.map((step) => step.status)).toEqual([
       "done",
       "active",

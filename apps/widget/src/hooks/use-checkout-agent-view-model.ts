@@ -66,7 +66,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     Boolean(offer?.approved) &&
     visibleTotals.discount === 0 &&
     checkoutStage === "payment" &&
-    (prePaymentStep === "coupon_gate" || prePaymentStep === "coupon_entry") &&
+    prePaymentStep === "payment_method" &&
     !panels.showCardForm &&
     !panels.showCryptoPanel;
   const chatTrustBadges = activeExperience.copy.trust_badges.slice(0, 3);
@@ -234,23 +234,38 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
   async function addSuggestedProduct(product: SuggestedProduct): Promise<boolean> {
     if (!session || networkError || chatState.busy) return false;
-    if (chatState.isCartEmpty) {
-      const added = await chatState.addCatalogProduct(product);
-      if (added) setCrossSellDismissed(true);
-      return added;
-    }
-    if (product.suggestion_id) {
-      const accepted = await chatState.acceptCrossSell(product);
-      if (accepted) {
-        setCrossSellDismissed(true);
-        chatState.appendAgentTurn(`Perfeito! ${product.name} foi adicionado ao seu pedido.`, { stream: true });
+
+    let added = false;
+    let agentAlreadyReplied = false;
+
+    if (chatState.isCartEmpty && product.sku) {
+      added = config.mode === "embed" ? await chatState.addCatalogProduct(product) : false;
+      agentAlreadyReplied = added;
+    } else if (config.mode === "embed" && product.suggestion_id) {
+      added = await chatState.acceptCrossSell(product);
+      agentAlreadyReplied = added;
+      if (!added && product.sku) {
+        added = await chatState.addCatalogProduct(product);
+        agentAlreadyReplied = added;
       }
-      return accepted;
+    } else if (config.mode === "embed" && product.sku) {
+      added = await chatState.addCatalogProduct(product);
+      agentAlreadyReplied = added;
     }
-    const added = await chatState.addCatalogProduct(product);
+
+    if (!added) {
+      await chatState.sendMessageWithOverride(`Quero adicionar: ${product.name}`);
+      added = !sessionState.networkError;
+      agentAlreadyReplied = added;
+    }
+
     if (added) {
       setCrossSellDismissed(true);
-      chatState.appendAgentTurn(`Perfeito! ${product.name} foi adicionado ao seu pedido.`, { stream: true });
+      if (!agentAlreadyReplied) {
+        chatState.appendAgentTurn(`Perfeito! ${product.name} foi adicionado ao seu pedido.`, { stream: true });
+      }
+    } else {
+      sessionState.setNetworkError?.("Falha ao adicionar o produto. Tente novamente em instantes.");
     }
     return added;
   }
@@ -277,7 +292,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       return;
     }
     panels.setUserPanelOpen(false);
-    panels.setBuyerGuestModalOpen(true);
+    panels.setBuyerGuestModalOpen(false);
+    auth.openLogin();
   }
 
   async function tapShippingOption(option: ShippingQuote): Promise<void> {
@@ -308,6 +324,31 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       }
       if (/pagamento|finalizar|pagar/i.test(reply.label)) {
         proceedFromCrossSell();
+        return;
+      }
+    }
+    if (checkoutStage === "payment" && prePaymentStep === "coupon_gate") {
+      const normalized = normalizeQuickReplyLabel(reply.label);
+      if (normalized === "sim" || /^(sim|tenho|usar|informar).*\bcupom\b/.test(normalized)) {
+        setCouponInputVisible(true);
+        setPrePaymentStep("coupon_entry");
+        chatState.appendAgentTurn("Digite o codigo do cupom para eu aplicar antes de liberar o pagamento.", { stream: true });
+        return;
+      }
+      if (normalized === "nao" || /^(nao|sem)\b.*cupom|^nao tenho cupom$/.test(normalized)) {
+        setCouponInputVisible(false);
+        setPrePaymentStep("payment_method");
+        if (offer?.approved && visibleTotals.discount === 0) {
+          await chatState.applyOffer();
+          chatState.appendAgentTurn(
+            offer.type === "discount_percent" && offer.value > 0
+              ? `Sem problema. Liberamos ${offer.value}% de desconto para voce finalizar agora.`
+              : "Perfeito. Liberamos uma condicao especial para voce finalizar agora.",
+            { stream: true }
+          );
+        } else {
+          chatState.appendAgentTurn("Perfeito. Agora escolha a forma de pagamento para finalizar.", { stream: true });
+        }
         return;
       }
     }
@@ -396,19 +437,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       prePaymentStep,
       suggestedProducts: prePaymentStep === "cross_sell" ? suggestedProducts : undefined
     });
-    if (
-      checkoutStage === "payment" &&
-      prePaymentStep === "coupon_gate" &&
-      offer?.approved &&
-      visibleTotals.discount === 0
-    ) {
-      const pct = offer.type === "discount_percent" ? offer.value : 0;
-      if (pct > 0 && offer.id && !filtered.some((r) => /desconto|oferta/i.test(r.label ?? ""))) {
-        return [...filtered, { label: `Aplicar desconto de ${pct}%`, offerId: offer.id }];
-      }
-    }
     return filtered;
-  }, [activeExperience.rules?.cryptoPaymentsEnabled, chatState.quickReplies, checkoutStage, currentMissingField, offer, prePaymentStep, suggestedProducts, visibleTotals.discount]);
+  }, [activeExperience.rules?.cryptoPaymentsEnabled, chatState.quickReplies, checkoutStage, currentMissingField, prePaymentStep, suggestedProducts]);
 
   async function submitCoupon(): Promise<void> {
     const applied = await chatState.submitCoupon();

@@ -525,7 +525,6 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
       }
       return true;
     } catch {
-      sessionState.setNetworkError?.("Falha ao adicionar o complemento. Tente novamente em instantes.");
       return false;
     } finally {
       setBusy(false);

@@ -15,22 +15,23 @@ export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss, 
   if (!products.length) return null;
 
   return (
-    <div className="aacp-cross-sell mt-3">
-      <div className="flex items-center justify-between mb-2 px-1">
-        <span className="text-[11px] font-bold uppercase tracking-wider opacity-50">
-          Você também pode gostar
-        </span>
+    <section className="aacp-cross-sell mt-3" aria-label="Complementos sugeridos">
+      <div className="aacp-cross-sell-head">
+        <div>
+          <span className="aacp-cross-sell-kicker">Antes de pagar</span>
+          <strong className="aacp-cross-sell-title">Você também pode gostar</strong>
+        </div>
         <button
           type="button"
           aria-label="Fechar sugestões"
           onClick={onDismiss}
-          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-[var(--aacp-surface-2)] text-[var(--aacp-muted)] transition-colors"
+          className="aacp-cross-sell-dismiss"
         >
-          <X size={12} />
+          <X size={14} />
         </button>
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="aacp-cross-sell-list">
         {products.map((product) => (
           <CrossSellCard
             key={product.sku}
@@ -43,13 +44,13 @@ export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss, 
 
       <button
         type="button"
-        className="aacp-cross-sell-proceed"
+        className="aacp-cross-sell-skip"
         onClick={onProceedToPayment}
       >
-        Finalizar pagamento agora
+        Continuar sem adicionar
         <ArrowRight size={16} aria-hidden="true" />
       </button>
-    </div>
+    </section>
   );
 }
 
@@ -73,25 +74,25 @@ function CrossSellCard({
   }
 
   return (
-    <article className="aacp-cross-sell-card flex items-center gap-3 rounded-xl border border-[var(--aacp-line)] bg-[var(--aacp-surface-2)] p-3">
-      <div className="aacp-cross-sell-thumb w-12 h-12 rounded-xl overflow-hidden flex items-center justify-center bg-[var(--aacp-surface-3)] shrink-0">
+    <article className="aacp-cross-sell-card">
+      <div className="aacp-cross-sell-thumb">
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
-            className="w-full h-full object-cover"
+            className="aacp-cross-sell-thumb-image"
           />
         ) : (
-          <Package size={20} className="opacity-30" />
+          <Package size={20} className="aacp-cross-sell-thumb-fallback" />
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-semibold text-[var(--aacp-fg)] truncate">{product.name}</div>
-        {product.variant && (
-          <div className="text-[11px] text-[var(--aacp-muted)]">{product.variant}</div>
-        )}
-        <div className="text-sm font-bold text-[var(--aacp-accent)] mt-0.5">
+      <div className="aacp-cross-sell-body">
+        <div className="aacp-cross-sell-name">{product.name}</div>
+        {product.variant ? (
+          <div className="aacp-cross-sell-variant">{product.variant}</div>
+        ) : null}
+        <div className="aacp-cross-sell-price">
           {formatCurrency(product.unit_price, currency)}
         </div>
       </div>
@@ -100,17 +101,18 @@ function CrossSellCard({
         type="button"
         disabled={loading || added}
         onClick={() => void handleAdd()}
-        className="aacp-cross-sell-add"
+        className="aacp-cta aacp-cross-sell-add"
+        aria-label={added ? `${product.name} adicionado` : `Adicionar ${product.name}`}
       >
         {added ? (
           <>
-            <Check size={12} />
-            Adicionado!
+            <Check size={14} />
+            Adicionado
           </>
         ) : (
           <>
-            <Plus size={12} />
-            Adicionar {product.name}
+            <Plus size={14} />
+            Adicionar
           </>
         )}
       </button>

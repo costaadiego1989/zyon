@@ -238,17 +238,51 @@ async function skipCouponGate(container: HTMLElement) {
   await waitFor(() => {
     expect(
       Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).some(
-        (button) => button.textContent === "Nao tenho cupom"
+        (button) => button.textContent === "Não"
       )
     ).toBe(true);
   });
 
   const skipCoupon = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).find(
-    (button) => button.textContent === "Nao tenho cupom"
+    (button) => button.textContent === "Não"
   );
   expect(skipCoupon).not.toBeUndefined();
   await act(async () => {
     fireEvent.click(skipCoupon!);
+  });
+}
+
+function mockOfferApplyOnCouponSkip(
+  fetchMock: ReturnType<typeof vi.fn>,
+  appliedDiscount = 79.9,
+  appliedTotal = 850
+): void {
+  fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    expect(url.endsWith("/embed/offers/apply")).toBe(true);
+    const appliedExperience = buildChatResponse(
+      "Oferta aplicada. Vamos seguir para o pagamento.",
+      "payment",
+      { quickReplies: ["Prefiro PIX", "Prefiro cartão"] }
+    ).experience!;
+    appliedExperience.totals.discount = appliedDiscount;
+    appliedExperience.totals.total = appliedTotal;
+    return new Response(
+      JSON.stringify({
+        success: true,
+        discount_code: "AURORA5",
+        new_total: appliedTotal,
+        expires_at: new Date().toISOString(),
+        experience: appliedExperience,
+        agent_turn: {
+          role: "agent",
+          text: "Pronto! Apliquei 5% de desconto. Vamos para o pagamento — prefere PIX ou cartão de crédito?",
+          occurredAt: new Date().toISOString(),
+          authorizedOfferId: "off_1"
+        }
+      }),
+      { status: 200, headers: { "content-type": "application/json" } }
+    );
   });
 }
 
@@ -644,7 +678,7 @@ describe("CheckoutAgent (conversational)", () => {
       container.querySelectorAll(".aacp-quick-replies--in-thread button")
     ).map((b) => b.textContent ?? "");
     expect(quickReplyLabels).toEqual(
-      expect.arrayContaining(["Sim, tenho cupom", "Nao tenho cupom"])
+      expect.arrayContaining(["Sim", "Não"])
     );
     expect(quickReplyLabels).not.toContain("Prefiro PIX");
     expect(container.querySelector(".aacp-flow-rail")?.textContent).toContain("Pagamento");
@@ -766,56 +800,14 @@ describe("CheckoutAgent (conversational)", () => {
       );
     });
 
+    mockOfferApplyOnCouponSkip(fetchMock);
+
     await skipCouponGate(container);
-
-    await waitFor(() => {
-      expect(
-        Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).some((button) =>
-          (button.textContent ?? "").includes("Aplicar oferta autorizada")
-        )
-      ).toBe(true);
-    });
-
-    fetchMock.mockImplementationOnce(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input.toString();
-      expect(url.endsWith("/embed/offers/apply")).toBe(true);
-      const appliedExperience = buildChatResponse(
-        "Oferta aplicada. Vamos seguir para o pagamento.",
-        "payment",
-        {
-          quickReplies: ["Prefiro PIX", "Prefiro cartão"]
-        }
-      ).experience!;
-      appliedExperience.totals.discount = 79.9;
-      appliedExperience.totals.total = 850;
-      return new Response(
-        JSON.stringify({
-          success: true,
-          discount_code: "AURORA5",
-          new_total: 850,
-          expires_at: new Date().toISOString(),
-          experience: appliedExperience,
-          agent_turn: {
-            role: "agent",
-            text: "Pronto! Apliquei 5% de desconto. Vamos para o pagamento — prefere PIX ou cartão de crédito?",
-            occurredAt: new Date().toISOString(),
-            authorizedOfferId: "off_1"
-          }
-        }),
-        { status: 200, headers: { "content-type": "application/json" } }
-      );
-    });
-
-    const quickReplyButton = Array.from(
-      container.querySelectorAll(".aacp-quick-replies--in-thread button")
-    ).find((button) => (button.textContent ?? "").includes("Aplicar oferta autorizada"));
-    expect(quickReplyButton).not.toBeUndefined();
-    fireEvent.click(quickReplyButton!);
 
     await waitFor(() => {
       expect(container.querySelector(".aacp-offer-banner")).not.toBeNull();
     });
-    expect(container.querySelector(".aacp-offer-banner")?.textContent).toContain("novo total");
+    expect(container.querySelector(".aacp-offer-banner")?.textContent).toContain("Oferta aplicada");
   });
 
   it("opens the phone login modal and keeps Google disabled until OAuth is enabled", async () => {
@@ -1034,7 +1026,8 @@ describe("CheckoutAgent (conversational)", () => {
               quickReplies: qrs,
               experience: expOver,
               actions: [],
-              missingFields
+              missingFields,
+              authorizedOffer: nextStage === "payment" ? null : undefined
             })
           ),
           { status: 200, headers: { "content-type": "application/json" } }
@@ -1133,12 +1126,12 @@ describe("CheckoutAgent (conversational)", () => {
       expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("809,82");
     });
 
-    // 4. Payment method selection in quick replies
+    // 4. Payment method selection in quick replies (discount already applied → skip coupon gate)
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com PIX");
+      expect(container.textContent).toContain("PIX");
     });
-    const pixQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
-      .find((b) => (b.textContent ?? "").includes("Pagar com PIX"));
+    const pixQr = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+      .find((b) => (b.textContent ?? "").includes("PIX"));
     expect(pixQr).not.toBeUndefined();
     fireEvent.click(pixQr!);
 
@@ -1179,6 +1172,7 @@ describe("CheckoutAgent (conversational)", () => {
         return new Response(
           JSON.stringify(
             buildChatResponse("Escolha o método de pagamento", "payment", {
+              authorizedOffer: null,
               quickReplies: ["Pagar com Cartão de Crédito", "Pagar com PIX"],
               actions: []
             })
@@ -1219,11 +1213,11 @@ describe("CheckoutAgent (conversational)", () => {
     await skipCouponGate(container);
 
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com Cartão de Crédito");
+      expect(container.textContent).toContain("Cartão de crédito");
     });
 
     // Click card quick reply → showCardForm = true → CreditCardForm (Stripe) renders
-    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
       .find((b) => (b.textContent ?? "").includes("Cartão"));
     expect(cardQr).not.toBeUndefined();
 
@@ -1489,7 +1483,7 @@ describe("CheckoutAgent (conversational)", () => {
 
     const couponGate = await waitFor(() => {
       const button = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
-        .find((candidate) => candidate.textContent === "Sim, tenho cupom");
+        .find((candidate) => candidate.textContent === "Sim");
       expect(button).not.toBeUndefined();
       return button as HTMLButtonElement;
     });
@@ -1549,18 +1543,20 @@ describe("CheckoutAgent (conversational)", () => {
 
     await waitFor(() => {
       const labels = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
-      expect(labels).toEqual(expect.arrayContaining(["Sim, tenho cupom", "Nao tenho cupom"]));
+      expect(labels).toContain("Sim");
+      expect(labels).toContain("Não");
       expect(labels).not.toContain("PIX");
     });
     expect(container.querySelector("input[aria-label='Cupom de desconto']")).toBeNull();
 
     const skipCoupon = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
-      .find((button) => button.textContent === "Nao tenho cupom");
+      .find((button) => button.textContent === "Não");
     fireEvent.click(skipCoupon!);
 
     await waitFor(() => {
       const labels = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
-      expect(labels).toEqual(expect.arrayContaining(["PIX", "Cartao de credito"]));
+      expect(labels).toContain("PIX");
+      expect(labels).toContain("Cartão de crédito");
     });
   });
 
@@ -1577,6 +1573,7 @@ describe("CheckoutAgent (conversational)", () => {
         return new Response(
           JSON.stringify(
             buildChatResponse("Escolha o método de pagamento", "payment", {
+              authorizedOffer: null,
               quickReplies: ["Pagar com Cartão de Crédito"],
               actions: []
             })
@@ -1618,10 +1615,10 @@ describe("CheckoutAgent (conversational)", () => {
     await skipCouponGate(container);
 
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com Cartão de Crédito");
+      expect(container.textContent).toContain("Cartão de crédito");
     });
 
-    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
       .find((b) => (b.textContent ?? "").includes("Cartão"));
     await act(async () => { fireEvent.click(cardQr!); });
 
