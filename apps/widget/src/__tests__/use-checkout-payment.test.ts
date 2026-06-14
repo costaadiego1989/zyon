@@ -173,6 +173,55 @@ describe("useCheckoutPayment", () => {
     );
   });
 
+  it("createPaymentIntent('pix') pendente → faz polling do status autoritativo e completa em approved", async () => {
+    vi.useFakeTimers();
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          id: "pay_int_1",
+          amountCents: 15000,
+          currency: "BRL",
+          buyerFacing: { qrCodeCopyPaste: "00020126580014br.gov.bcb.pix" }
+        })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ status: "pending", amount_cents: 15000, currency: "BRL" })
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ status: "approved", amount_cents: 15000, approved_amount_cents: 15000, currency: "BRL" })
+      );
+
+    const session = buildSessionState();
+    const chat = buildChatState();
+    const { result } = renderHook(() =>
+      useCheckoutPayment(buildConfig(), session, chat)
+    );
+
+    await act(async () => {
+      await result.current.createPaymentIntent("pix");
+    });
+    expect(session.syncExperience).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(session.syncExperience).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(4000);
+    });
+    expect(session.syncExperience).toHaveBeenCalledWith(
+      expect.objectContaining({ stage: "completed" })
+    );
+
+    // GET status calls hit the authoritative status path.
+    const statusCall = fetchMock.mock.calls.find(([url]) =>
+      String(url).includes("/payment/intents/pay_int_1/status")
+    );
+    expect(statusCall).toBeTruthy();
+    vi.useRealTimers();
+  });
+
   it("createPaymentIntent('pix') com invoiceUrl → agent turn com link", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

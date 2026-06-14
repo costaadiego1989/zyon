@@ -13,6 +13,7 @@ export const CHECKOUT_EMBED_PATHS = {
   catalogSearch: "/embed/catalog/search",
   catalogAdd: "/embed/catalog/add",
   paymentIntents: "/embed/payment/intents",
+  paymentStatus: (intentId: string) => `/embed/payment/intents/${intentId}/status`,
   cryptoPaymentConfirm: (intentId: string) => `/embed/payment/intents/${intentId}/crypto/confirm`,
   stripePaymentConfirm: (intentId: string) => `/embed/payment/intents/${intentId}/stripe/confirm`,
   buyerLoginFromSession: "/buyer/login-from-session"
@@ -28,6 +29,7 @@ export const CHECKOUT_LEGACY_PATHS = {
   catalogSearch: "/catalog/search",
   catalogAdd: "/catalog/add",
   paymentIntents: "/payment/intents",
+  paymentStatus: (intentId: string) => `/payment/intents/${intentId}/status`,
   cryptoPaymentConfirm: (intentId: string) => `/payment/intents/${intentId}/crypto/confirm`,
   stripePaymentConfirm: (intentId: string) => `/payment/intents/${intentId}/stripe/confirm`,
   buyerLoginFromSession: "/buyer/login-from-session"

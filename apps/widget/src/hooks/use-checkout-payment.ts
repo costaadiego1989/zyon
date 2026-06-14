@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { WidgetConfig } from "../lib/widget-types.js";
-import { checkoutJson, CHECKOUT_EMBED_PATHS, CHECKOUT_LEGACY_PATHS } from "../lib/embed-client.js";
+import { checkoutGet, checkoutJson, CHECKOUT_EMBED_PATHS, CHECKOUT_LEGACY_PATHS } from "../lib/embed-client.js";
 import { paymentIntentSnapshotSchema } from "../lib/widget-schemas.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { CheckoutChatState } from "./use-checkout-chat.js";
@@ -24,6 +24,82 @@ export function useCheckoutPayment(
   const { appendAgentTurn, lastChat } = chatState;
   const [stripeIntent, setStripeIntent] = useState<StripeIntent | null>(null);
   const [cryptoPayment, setCryptoPayment] = useState<CryptoPaymentState | null>(null);
+  const [pixPolling, setPixPolling] = useState(false);
+  const pollRef = useRef<{ active: boolean } | null>(null);
+
+  function cancelPoll(): void {
+    if (pollRef.current) pollRef.current.active = false;
+    pollRef.current = null;
+  }
+
+  // Cancel any in-flight PIX poll when the widget unmounts.
+  useEffect(() => () => cancelPoll(), []);
+
+  function delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Poll the authoritative payment status until the provider webhook flips it
+   * to approved, or the charge fails/expires, or the deadline passes. PIX is
+   * never confirmed optimistically — only the persisted status drives completion.
+   */
+  async function pollPaymentStatus(
+    intentId: string,
+    opts?: { intervalMs?: number; timeoutMs?: number }
+  ): Promise<void> {
+    if (!session || !intentId) return;
+    const intervalMs = opts?.intervalMs ?? 4000;
+    const timeoutMs = opts?.timeoutMs ?? 1000 * 60 * 10;
+    const deadline = Date.now() + timeoutMs;
+    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    const base = paths.paymentStatus(intentId);
+    const query = config.mode === "embed"
+      ? `?session_id=${encodeURIComponent(session.session_id)}`
+      : `?session_id=${encodeURIComponent(session.session_id)}&merchant_id=${encodeURIComponent(config.merchantId)}`;
+    const path = `${base}${query}`;
+
+    const controller = { active: true };
+    pollRef.current = controller;
+    setPixPolling(true);
+    try {
+      while (controller.active && Date.now() < deadline) {
+        await delay(intervalMs);
+        if (!controller.active) return;
+        try {
+          const res = await checkoutGet<{
+            status: string;
+            amount_cents: number;
+            approved_amount_cents?: number;
+            currency: string;
+          }>(apiOrigin, path, { ...embedOpts });
+          if (res.status === "approved") {
+            markPaymentCompleted(res.approved_amount_cents ?? res.amount_cents, res.currency);
+            return;
+          }
+          if (res.status === "failed" || res.status === "expired" || res.status === "canceled") {
+            appendAgentTurn(
+              "O pagamento PIX expirou ou foi recusado. Gere uma nova cobranca para tentar novamente.",
+              { stream: true }
+            );
+            return;
+          }
+        } catch {
+          // Transient read error; keep polling until the deadline.
+        }
+      }
+      if (controller.active) {
+        appendAgentTurn(
+          "Ainda nao recebi a confirmacao do seu PIX. Assim que o pagamento for compensado, libero seu pedido aqui.",
+          { stream: true }
+        );
+      }
+    } finally {
+      controller.active = false;
+      if (pollRef.current === controller) pollRef.current = null;
+      setPixPolling(false);
+    }
+  }
 
   type PaySnapshot = {
     id?: string;
@@ -51,6 +127,7 @@ export function useCheckoutPayment(
   };
 
   function markPaymentCompleted(amountCents?: number, currency = "BRL"): void {
+    cancelPoll();
     setStripeIntent(null);
     setCryptoPayment(null);
     const total = typeof amountCents === "number"
@@ -153,6 +230,12 @@ export function useCheckoutPayment(
           ? ` Copia e cola PIX: ${bf.qrCodeCopyPaste.slice(0, 80)}${bf.qrCodeCopyPaste.length > 80 ? "..." : ""}.`
           : "";
       appendAgentTurn(total ? `Cobranca gerada (${total}).${pixLine}` : `Cobranca criada.${pixLine}`, { stream: true });
+
+      // Async charge (PIX/boleto): poll authoritative status; confirmation is webhook-driven.
+      cancelPoll();
+      if (snap.id) {
+        void pollPaymentStatus(snap.id);
+      }
     } catch {
       appendAgentTurn(
         "Nao foi possivel gerar a cobranca. Verifique os dados de pagamento.",
@@ -286,6 +369,8 @@ export function useCheckoutPayment(
   return {
     createPaymentIntent,
     createEmbedPaymentIntentDemo,
+    pollPaymentStatus,
+    pixPolling,
     stripeIntent,
     cryptoPayment,
     setCryptoPayment,
