@@ -33,5 +33,14 @@ describe("public OpenAPI document", () => {
       document.paths["/v1/integrations/orders/{externalOrderId}/tracking"]?.put?.security,
       [{ service_api_key: [] }, { legacy_api_key: [] }],
     );
+    assert.equal(
+      document.paths["/v1/integrations/orders/{externalOrderId}/tracking"]?.put
+        ?.parameters?.some(
+          (parameter) =>
+            "name" in parameter && parameter.name === "Idempotency-Key",
+        ),
+      true,
+    );
+    assert.ok(document.components?.schemas?.ProblemDetails);
   });
 });

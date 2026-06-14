@@ -21,9 +21,16 @@ export class GetCheckoutSettingsUseCase {
 export class UpdateCheckoutSettingsUseCase {
   constructor(@Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly repository: CheckoutSettingsRepository) {}
 
-  async execute(merchantId: string, patch: CheckoutSettingsPatch): Promise<CheckoutSettings> {
+  async execute(
+    merchantId: string,
+    patch: CheckoutSettingsPatch,
+    expectedUpdatedAt?: string,
+  ): Promise<CheckoutSettings> {
     const current = (await this.repository.get(merchantId)) ?? CheckoutSettingsEntity.createDefault({ merchantId }).snapshot();
-    return this.repository.save(CheckoutSettingsEntity.rehydrate(current).update(patch).snapshot());
+    return this.repository.save(
+      CheckoutSettingsEntity.rehydrate(current).update(patch).snapshot(),
+      expectedUpdatedAt,
+    );
   }
 }
 
@@ -31,9 +38,20 @@ export class UpdateCheckoutSettingsUseCase {
 export class ResetCheckoutSettingsUseCase {
   constructor(@Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly repository: CheckoutSettingsRepository) {}
 
-  async execute(merchantId: string): Promise<CheckoutSettings> {
-    await this.repository.delete(merchantId);
-    return this.repository.save(CheckoutSettingsEntity.createDefault({ merchantId }).snapshot());
+  async execute(
+    merchantId: string,
+    expectedUpdatedAt?: string,
+  ): Promise<CheckoutSettings> {
+    const current = await this.repository.get(merchantId);
+    if (!current) {
+      return this.repository.save(
+        CheckoutSettingsEntity.createDefault({ merchantId }).snapshot(),
+      );
+    }
+    return this.repository.save(
+      CheckoutSettingsEntity.createDefault({ merchantId }).snapshot(),
+      expectedUpdatedAt,
+    );
   }
 }
 

@@ -22,6 +22,7 @@ model Merchant {
   commerceConnection  MerchantCommerceConnection?
   commercePendingOrders CommercePendingOrder[]
   commercePaidEvents  CommercePaidEvent[]
+  httpIdempotencyRecords HttpIdempotencyRecord[]
 
   @@map("merchants")
 }
@@ -301,6 +302,29 @@ model MerchantApiKey {
   @@index([merchantId, environment, revokedAt])
   @@index([merchantId, expiresAt])
   @@map("merchant_api_keys")
+}
+
+model HttpIdempotencyRecord {
+  id                 String   @id @default(cuid())
+  merchantId         String   @map("merchant_id")
+  idempotencyKey     String   @map("idempotency_key")
+  requestFingerprint String   @map("request_fingerprint")
+  method             String
+  route              String
+  state              String   @default("processing")
+  statusCode         Int?     @map("status_code")
+  responseBody       Json?    @map("response_body")
+  responseHeaders    Json?    @map("response_headers")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+  expiresAt          DateTime @map("expires_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, idempotencyKey])
+  @@index([merchantId, state, updatedAt])
+  @@index([expiresAt])
+  @@map("http_idempotency_records")
 }
 
 model MerchantWebhookEndpoint {

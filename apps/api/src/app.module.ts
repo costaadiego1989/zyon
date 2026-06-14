@@ -32,7 +32,11 @@ import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module
         autoLogging: true,
         quietReqLogger: true,
         customProps: (req: import("http").IncomingMessage) => ({
-          correlationId: (req.headers["x-correlation-id"] as string | undefined) ?? crypto.randomUUID(),
+          correlationId:
+            (req as import("http").IncomingMessage & { correlationId?: string })
+              .correlationId ??
+            (req.headers["x-correlation-id"] as string | undefined) ??
+            crypto.randomUUID(),
         }),
         transport: process.env.NODE_ENV !== "production"
           ? { target: "pino-pretty", options: { colorize: true, singleLine: true } }

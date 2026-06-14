@@ -182,6 +182,37 @@ export function createPublicApiDocument(document: OpenAPIObject): OpenAPIObject 
 
   return {
     ...document,
+    components: {
+      ...document.components,
+      schemas: {
+        ...document.components?.schemas,
+        ProblemDetails: {
+          type: "object",
+          required: [
+            "type",
+            "title",
+            "status",
+            "code",
+            "correlation_id",
+          ],
+          properties: {
+            type: { type: "string", format: "uri" },
+            title: { type: "string" },
+            status: { type: "integer", minimum: 400, maximum: 599 },
+            code: { type: "string" },
+            detail: { type: "string" },
+            fields: {
+              type: "object",
+              additionalProperties: {
+                type: "array",
+                items: { type: "string" },
+              },
+            },
+            correlation_id: { type: "string" },
+          },
+        },
+      },
+    },
     paths,
   };
 }
@@ -201,7 +232,12 @@ function filterPublicPathItem(
       continue;
     }
 
-    filtered[method] = withSecurity(operation, rule.security);
+    filtered[method] = withPublicHttpContract(
+      operation,
+      rule.security,
+      method,
+      path,
+    );
   }
 
   return HTTP_METHODS.some((method) => Boolean(filtered[method]))
@@ -218,20 +254,91 @@ function publicOperationRule(
   );
 }
 
-function withSecurity(
+function withPublicHttpContract(
   operation: OperationObject,
   security: PublicOperationRule["security"],
+  method: HttpMethod,
+  path: string,
 ): OperationObject {
+  const parameters = [...(operation.parameters ?? [])];
+  if (requiresIdempotency(method, path)) {
+    parameters.push({
+      in: "header",
+      name: "Idempotency-Key",
+      required: true,
+      description:
+        "Unique key for safely retrying this mutation. Reuse with a different payload returns 409.",
+      schema: { type: "string", minLength: 8, maxLength: 255 },
+    });
+  }
+  if (requiresIfMatch(method, path)) {
+    parameters.push({
+      in: "header",
+      name: "If-Match",
+      required: true,
+      description: "ETag returned by the latest configuration read.",
+      schema: { type: "string" },
+    });
+  }
+
+  const responses: OperationObject["responses"] = {
+    ...operation.responses,
+    default: {
+      description: "RFC 7807 error response.",
+      content: {
+        "application/problem+json": {
+          schema: { $ref: "#/components/schemas/ProblemDetails" },
+        },
+      },
+    },
+  };
+
+  if (path.startsWith("/checkout-settings")) {
+    for (const response of Object.values(responses)) {
+      if (!response || "$ref" in response) continue;
+      response.headers = {
+        ...response.headers,
+        ETag: {
+          description: "Opaque version of the returned configuration.",
+          schema: { type: "string" },
+        },
+      };
+    }
+  }
+
+  const contracted = {
+    ...operation,
+    ...(parameters.length > 0 ? { parameters } : {}),
+    responses,
+  };
+
   if (security === "none") {
-    return { ...operation, security: [] };
+    return { ...contracted, security: [] };
   }
 
   return {
-    ...operation,
+    ...contracted,
     security: security === "session"
       ? [{ console_session: [] }]
       : [{ service_api_key: [] }, { legacy_api_key: [] }],
   };
+}
+
+function requiresIdempotency(method: HttpMethod, path: string): boolean {
+  return (
+    ["post", "put", "patch", "delete"].includes(method) &&
+    (path.startsWith("/integrations") ||
+      path === "/embed-sessions" ||
+      path === "/checkout-settings" ||
+      path === "/checkout-settings/reset")
+  );
+}
+
+function requiresIfMatch(method: HttpMethod, path: string): boolean {
+  return (
+    (method === "put" && path === "/checkout-settings") ||
+    (method === "post" && path === "/checkout-settings/reset")
+  );
 }
 
 function scalarSecurityHeaders(

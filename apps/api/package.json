@@ -5,11 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "nest start --watch",
-    "build": "pnpm --filter @aacp/shared-types build && prisma generate --schema prisma/schema.prisma && nest build",
+    "build": "pnpm --filter @aacp/contracts build && pnpm --filter @aacp/shared-types build && prisma generate --schema prisma/schema.prisma && nest build",
     "start": "node dist/main.js",
     "lint": "eslint src",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm --filter @aacp/shared-types build && pnpm build && node dist/test-runner.js",
+    "typecheck": "pnpm --filter @aacp/contracts build && tsc -p tsconfig.json --noEmit",
+    "test": "pnpm --filter @aacp/contracts build && pnpm --filter @aacp/shared-types build && pnpm build && node dist/test-runner.js",
     "test:prisma": "pnpm --filter @aacp/shared-types build && pnpm build && node dist/test-runner-prisma.js",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@aacp/commerce-adapters": "workspace:*",
+    "@aacp/contracts": "workspace:*",
     "@aacp/conversation-engine": "workspace:*",
     "@aacp/decision-engine": "workspace:*",
     "@aacp/fake-commerce-api": "workspace:^",

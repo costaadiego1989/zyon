@@ -1,5 +1,6 @@
 import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
 
 type IssueBody = {
@@ -18,6 +19,7 @@ export class EmbedSessionsController {
   constructor(private readonly issue: IssueEmbedSessionUseCase) {}
 
   @Post()
+  @Idempotent()
   issueSession(@Req() request: unknown, @Body() body: IssueBody) {
     const issuer = currentEmbedIssuer(request as never);
     const ttl = typeof body?.ttl_seconds === "number" && Number.isFinite(body.ttl_seconds) ? body.ttl_seconds : 900;

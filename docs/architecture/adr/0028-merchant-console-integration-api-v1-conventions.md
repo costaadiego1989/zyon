@@ -79,14 +79,32 @@ Erros seguem `application/problem+json`:
 
 ## Idempotencia
 
-Mutacoes externas aceitam `Idempotency-Key`. A chave e isolada por tenant,
-credencial, operacao e payload normalizado. Reutilizar a chave com outro payload
-retorna `409 idempotency_key_reused`.
+Mutacoes externas exigem `Idempotency-Key` com 8 a 255 caracteres URL-safe.
+A chave e persistida por tenant por 24 horas junto do fingerprint canonico de
+metodo, rota, query e payload. Reutilizar a chave com outro request retorna
+`409 idempotency_key_reused`; uma chamada concorrente ainda em processamento
+retorna `409 idempotency_request_in_progress`.
+
+Uma repeticao concluida devolve o mesmo status e corpo, preserva headers
+relevantes e inclui:
+
+```http
+Idempotency-Replayed: true
+```
 
 ## Concorrencia
 
 Leituras de configuracao retornam `ETag`. Atualizacoes exigem `If-Match`; uma
-revisao desatualizada retorna `412 configuration_version_conflict`.
+revisao desatualizada retorna `412 precondition_failed`. A ausencia do header
+retorna `428 precondition_required`. A comparacao final tambem ocorre no
+repositorio para impedir lost updates entre a leitura e a escrita.
+
+## Correlacao
+
+Toda resposta inclui `x-correlation-id`. Um identificador valido enviado pelo
+cliente e propagado; valores ausentes ou invalidos sao substituidos por um
+identificador gerado pela API. O mesmo valor aparece em logs e em
+`correlation_id` nos erros RFC 7807.
 
 ## Rate limit
 

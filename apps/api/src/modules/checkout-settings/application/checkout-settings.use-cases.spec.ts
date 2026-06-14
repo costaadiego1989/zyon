@@ -7,6 +7,7 @@ import {
   ResetCheckoutSettingsUseCase,
   UpdateCheckoutSettingsUseCase
 } from "./checkout-settings.use-cases.js";
+import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.errors.js";
 
 test("checkout settings use cases create defaults, update partially, and expose safe context", async () => {
   const repository = new InMemoryCheckoutSettingsRepository();
@@ -53,4 +54,22 @@ test("checkout settings remain isolated by merchant", async () => {
   const other = await getSettings.execute("mrc_2");
 
   assert.equal(other.mode, "silent_until_trigger");
+});
+
+test("checkout settings reject stale optimistic concurrency versions", async () => {
+  const repository = new InMemoryCheckoutSettingsRepository();
+  const getSettings = new GetCheckoutSettingsUseCase(repository);
+  const updateSettings = new UpdateCheckoutSettingsUseCase(repository);
+
+  await getSettings.execute("mrc_1");
+
+  await assert.rejects(
+    () =>
+      updateSettings.execute(
+        "mrc_1",
+        { mode: "manual_only" },
+        "2020-01-01T00:00:00.000Z",
+      ),
+    OptimisticConcurrencyError,
+  );
 });

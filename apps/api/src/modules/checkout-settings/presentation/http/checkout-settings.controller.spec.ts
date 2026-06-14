@@ -8,6 +8,8 @@ import {
   UpdateCheckoutSettingsUseCase
 } from "../../application/checkout-settings.use-cases.js";
 import { CheckoutSettingsController } from "./checkout-settings.controller.js";
+import { EntityTagService } from "../../../../shared/http/entity-tag.service.js";
+import type { Response } from "express";
 
 test("CheckoutSettingsController manages authenticated merchant settings", async () => {
   const repository = new InMemoryCheckoutSettingsRepository();
@@ -15,14 +17,28 @@ test("CheckoutSettingsController manages authenticated merchant settings", async
     new GetCheckoutSettingsUseCase(repository),
     new UpdateCheckoutSettingsUseCase(repository),
     new ResetCheckoutSettingsUseCase(repository),
-    new GetCheckoutSettingsContextUseCase(repository)
+    new GetCheckoutSettingsContextUseCase(repository),
+    new EntityTagService(),
   );
   const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
+  const headers: Record<string, string> = {};
+  const response = {
+    setHeader(name: string, value: string) {
+      headers[name] = value;
+      return this;
+    },
+  } as unknown as Response;
 
-  const updated = await controller.update(request, {
-    mode: "manual_only",
-    widgetBehavior: { openWidgetOnTrigger: false }
-  });
+  await controller.get(request, response);
+  const updated = await controller.update(
+    request,
+    response,
+    headers.ETag,
+    {
+      mode: "manual_only",
+      widgetBehavior: { openWidgetOnTrigger: false },
+    },
+  );
   const context = await controller.context(request);
 
   assert.equal(updated.mode, "manual_only");

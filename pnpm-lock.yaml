@@ -20,6 +20,9 @@ importers:
       '@aacp/commerce-adapters':
         specifier: workspace:*
         version: link:../../packages/commerce-adapters
+      '@aacp/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
       '@aacp/conversation-engine':
         specifier: workspace:*
         version: link:../../packages/conversation-engine
@@ -288,6 +291,12 @@ importers:
       '@aacp/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+
+  packages/contracts:
+    dependencies:
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/conversation-engine:
     dependencies:

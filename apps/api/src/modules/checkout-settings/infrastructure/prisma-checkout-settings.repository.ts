@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CheckoutSettings } from "@aacp/shared-types";
 import type { CheckoutSettingsRepository } from "../domain/ports/checkout-settings-repository.port.js";
+import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.errors.js";
 
 export class PrismaCheckoutSettingsRepository implements CheckoutSettingsRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -10,7 +11,27 @@ export class PrismaCheckoutSettingsRepository implements CheckoutSettingsReposit
     return row ? toCheckoutSettings(row) : undefined;
   }
 
-  async save(settings: CheckoutSettings): Promise<CheckoutSettings> {
+  async save(
+    settings: CheckoutSettings,
+    expectedUpdatedAt?: string,
+  ): Promise<CheckoutSettings> {
+    if (expectedUpdatedAt) {
+      const result = await this.prisma.checkoutSetting.updateMany({
+        where: {
+          merchantId: settings.merchantId,
+          updatedAt: new Date(expectedUpdatedAt),
+        },
+        data: toUpdate(settings),
+      });
+      if (result.count !== 1) {
+        throw new OptimisticConcurrencyError();
+      }
+      const updated = await this.prisma.checkoutSetting.findUniqueOrThrow({
+        where: { merchantId: settings.merchantId },
+      });
+      return toCheckoutSettings(updated);
+    }
+
     const row = await this.prisma.checkoutSetting.upsert({
       where: { merchantId: settings.merchantId },
       create: toCreate(settings),

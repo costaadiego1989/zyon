@@ -3,6 +3,7 @@ import { ApiCookieAuth, ApiTags } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
 import { TenantRoleGuard } from "../../../auth/presentation/tenant-role.guard.js";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import {
   CreateMerchantApiKeyUseCase,
   ListMerchantApiKeysUseCase,
@@ -46,6 +47,7 @@ export class IntegrationsController {
   }
 
   @Post("api-keys")
+  @Idempotent()
   createKey(@Req() request: unknown, @Body() body: CreateMerchantApiKeyDto) {
     return this.createApiKey.execute({
       merchantId: currentUser(request as { user?: unknown }).merchantId,
@@ -58,11 +60,13 @@ export class IntegrationsController {
   }
 
   @Delete("api-keys/:apiKeyId")
+  @Idempotent()
   revokeKey(@Req() request: unknown, @Param("apiKeyId") apiKeyId: string) {
     return this.revokeApiKey.execute(currentUser(request as { user?: unknown }).merchantId, apiKeyId);
   }
 
   @Post("api-keys/:apiKeyId/rotate")
+  @Idempotent()
   rotateKey(
     @Req() request: unknown,
     @Param("apiKeyId") apiKeyId: string,
@@ -81,6 +85,7 @@ export class IntegrationsController {
   }
 
   @Post("webhooks")
+  @Idempotent()
   createWebhook(@Req() request: unknown, @Body() body: { url: string; events?: TenantWebhookEventType[]; enabled?: boolean; description?: string }) {
     return this.upsertWebhookEndpoint.execute({
       merchantId: currentUser(request as { user?: unknown }).merchantId,
@@ -92,6 +97,7 @@ export class IntegrationsController {
   }
 
   @Put("webhooks/:endpointId")
+  @Idempotent()
   updateWebhook(
     @Req() request: unknown,
     @Param("endpointId") endpointId: string,
@@ -108,6 +114,7 @@ export class IntegrationsController {
   }
 
   @Post("webhooks/:endpointId/test")
+  @Idempotent()
   testWebhook(@Req() request: unknown, @Param("endpointId") endpointId: string) {
     return this.testWebhookEndpoint.execute(currentUser(request as { user?: unknown }).merchantId, endpointId);
   }
@@ -118,6 +125,7 @@ export class IntegrationsController {
   }
 
   @Post("webhook-deliveries/:deliveryId/replay")
+  @Idempotent()
   replayDelivery(@Req() request: unknown, @Param("deliveryId") deliveryId: string) {
     return this.replayWebhookDelivery.execute(currentUser(request as { user?: unknown }).merchantId, deliveryId);
   }

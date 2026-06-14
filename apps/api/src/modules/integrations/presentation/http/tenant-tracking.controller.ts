@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Put, Req, UseGuards } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { GetTrackingTimelineUseCase, UpdateTenantOrderTrackingUseCase } from "../../application/integrations.use-cases.js";
 import { RequireApiKeyScopes } from "./api-key-scope.decorator.js";
 import { ApiKeyScopeGuard } from "./api-key-scope.guard.js";
@@ -16,6 +17,7 @@ export class TenantTrackingController {
   ) {}
 
   @Put("orders/:externalOrderId/tracking")
+  @Idempotent()
   @RequireApiKeyScopes("tracking:write")
   update(@Req() request: unknown, @Param("externalOrderId") externalOrderId: string, @Body() body: Record<string, unknown>) {
     return this.updateTracking.execute({

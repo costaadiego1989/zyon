@@ -36,6 +36,7 @@ export const TENANT_SCOPED_MODELS = [
   "CheckoutIntervention",
   "PaymentIntent",
   "PaymentProviderEvent",
+  "HttpIdempotencyRecord",
 ] as const;
 
 export const TENANT_SCOPED_READ_OPERATIONS = [
