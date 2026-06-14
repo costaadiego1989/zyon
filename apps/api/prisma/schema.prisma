@@ -287,6 +287,10 @@ model MerchantApiKey {
   keyHash     String    @unique @map("key_hash")
   keyPrefix   String    @map("key_prefix")
   scopes      String[]  @default([])
+  environment String    @default("test")
+  allowedCidrs String[] @default([]) @map("allowed_cidrs")
+  expiresAt   DateTime? @map("expires_at")
+  rotatedFromId String? @map("rotated_from_id")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   lastUsedAt  DateTime? @map("last_used_at")
@@ -294,7 +298,8 @@ model MerchantApiKey {
 
   merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
-  @@index([merchantId, revokedAt])
+  @@index([merchantId, environment, revokedAt])
+  @@index([merchantId, expiresAt])
   @@map("merchant_api_keys")
 }
 
