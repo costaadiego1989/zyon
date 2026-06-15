@@ -1,9 +1,10 @@
-import { Bot, CheckCircle2, Gift, Copy, Check, Truck, Tag, ExternalLink } from "lucide-react";
-import { CrossSellBanner } from "./CrossSellBanner.js";
-import { ProductSearchResults } from "./ProductSearchResults.js";
-import { CreditCardForm } from "./CreditCardForm.js";
-import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
-import { ShippingSelector } from "./ShippingSelector.js";
+import {
+  Bot,
+  CheckCircle2,
+  Copy,
+  Check,
+  ExternalLink,
+} from "lucide-react";
 import { Composer } from "./Composer.js";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
@@ -16,17 +17,36 @@ import {
   bubbleKey,
   cn,
   formatCurrency,
-  quickReplyId,
-  stripAgentMessagePrefix
+  stripAgentMessagePrefix,
 } from "../../hooks/checkout-view-model.js";
+import {
+  selectCheckoutPanels,
+  selectCouponBoxModel,
+  selectNetworkErrorModel,
+  selectOfferBannerModel,
+  selectPendingOfferBannerModel,
+} from "../../presentation/selectors/checkout-panels.selector.js";
+import {
+  CouponBoxView,
+  NetworkErrorView,
+  OfferBannerView,
+  PendingOfferBannerView,
+} from "../../features/conversation/CheckoutActionPanels.js";
+import { CrossSellBanner } from "./CrossSellBanner.js";
+import { ProductSearchResults } from "./ProductSearchResults.js";
+import { CreditCardForm } from "./CreditCardForm.js";
+import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
+import { ShippingSelector } from "./ShippingSelector.js";
+import { quickReplyId } from "../../hooks/checkout-view-model.js";
 
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
   const stageLead = conversationLead(vm.checkoutStage);
   const latestAgentIndex = vm.turns.reduce(
     (latest, turn, index) => (turn.role === "agent" ? index : latest),
-    -1
+    -1,
   );
+  const panels = selectCheckoutPanels(vm, { variant: "thread" });
 
   return (
     <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
@@ -47,7 +67,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       <div className="aacp-conversation-divider" aria-hidden="true" />
 
-      {vm.networkError ? <NetworkError vm={vm} /> : null}
+      {panels.networkError ? <NetworkErrorView model={panels.networkError} /> : null}
 
       {vm.turns.map((turn, index) => {
         const key = bubbleKey(turn, index);
@@ -73,59 +93,56 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : null}
 
-      {vm.showOfferBanner ? <OfferBanner vm={vm} /> : null}
+      {panels.offerBanner ? <OfferBannerView model={panels.offerBanner} /> : null}
 
-      {!vm.selectedShippingMethod &&
-      !vm.activeExperience.shipping &&
-      vm.shippingOptions.length > 0 &&
-      vm.checkoutStage === "shipping" &&
-      vm.lastChat?.missing_fields?.[0] === "frete" ? (
+      {panels.shipping ? (
         <ShippingSelector
-          options={vm.shippingOptions}
-          selectedMethod={vm.selectedShippingMethod}
-          onSelect={(opt) => void vm.tapShippingOption(opt)}
-          busy={vm.busy}
+          options={panels.shipping.options}
+          selectedMethod={panels.shipping.selectedMethod}
+          onSelect={(opt) => void panels.shipping!.onSelect(opt)}
+          busy={panels.shipping.busy}
         />
       ) : null}
 
-      {vm.isCartEmpty && vm.catalogResults.length > 0 ? (
+      {panels.catalogResults ? (
         <ProductSearchResults
-          products={vm.catalogResults}
-          currency={vm.visibleTotals.currency}
-          onAdd={vm.addCatalogProduct}
+          products={panels.catalogResults.products}
+          currency={panels.catalogResults.currency}
+          onAdd={panels.catalogResults.onAdd}
         />
       ) : null}
 
-      {vm.suggestedProducts && vm.suggestedProducts.length > 0 && !vm.crossSellDismissed ? (
+      {panels.crossSell ? (
         <CrossSellBanner
-          products={vm.suggestedProducts}
-          currency={vm.visibleTotals.currency}
-          onAdd={(p) => vm.addSuggestedProduct(p)}
-          onDismiss={vm.dismissCrossSell}
-          onProceedToPayment={vm.proceedFromCrossSell}
+          products={panels.crossSell.products}
+          currency={panels.crossSell.currency}
+          onAdd={panels.crossSell.onAdd}
+          onDismiss={panels.crossSell.onDismiss}
+          onProceedToPayment={panels.crossSell.onProceedToPayment}
         />
       ) : null}
 
-      {vm.showPendingOffer ? <PendingOfferBanner vm={vm} /> : null}
+      {panels.pendingOffer ? <PendingOfferBannerView model={panels.pendingOffer} /> : null}
 
-      {vm.showCouponBox ? <CouponBox vm={vm} /> : null}
+      {panels.couponBox ? <CouponBoxView model={panels.couponBox} /> : null}
 
-      {vm.showCardForm && vm.checkoutStage !== "completed" ? <CreditCardForm vm={vm} /> : null}
+      {panels.creditCardForm ? <CreditCardForm model={panels.creditCardForm} /> : null}
 
-      {vm.showCryptoPanel && vm.cryptoPayment && vm.checkoutStage !== "completed" ? (
-        <CryptoPaymentPanel vm={vm} />
-      ) : null}
+      {panels.showCryptoPanel ? <CryptoPaymentPanel vm={vm} /> : null}
 
-      {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm && !vm.showCryptoPanel)) &&
-      !vm.composerLocked &&
-      vm.quickReplies.length > 0 ? (
-        <div className="aacp-quick-replies aacp-quick-replies--in-thread" role="group" aria-label="Respostas sugeridas">
-          {vm.quickReplies.map((reply) => (
+      {panels.quickReplies ? (
+        <div
+          className="aacp-quick-replies aacp-quick-replies--in-thread"
+          role="group"
+          aria-label="Respostas sugeridas"
+        >
+          {panels.quickReplies.items.map((reply) => (
             <button
               className="aacp-chip"
               key={quickReplyId(reply)}
               type="button"
-              onClick={() => void vm.tapQuick(reply)}
+              onClick={() => void panels.quickReplies!.onTap(reply)}
+              disabled={panels.quickReplies?.disabled}
             >
               {reply.label}
             </button>
@@ -151,7 +168,11 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
   const summaryItems = vm.completedOrderSnapshot?.items ?? vm.visibleItems;
   const summaryTotals = vm.completedOrderSnapshot?.totals ?? vm.visibleTotals;
   const fallbackReturnUrl = typeof window !== "undefined" ? window.location.origin : undefined;
-  const redirectUrl = vm.config.successRedirectUrl || vm.config.storeUrl || vm.config.emptyCartRedirectUrl || fallbackReturnUrl;
+  const redirectUrl =
+    vm.config.successRedirectUrl ||
+    vm.config.storeUrl ||
+    vm.config.emptyCartRedirectUrl ||
+    fallbackReturnUrl;
   const redirectLabel = vm.config.successRedirectLabel || "Voltar para a loja";
 
   return (
@@ -237,11 +258,11 @@ export function ChatBubble({
   const { displayed, isStreaming } = useStreamedText(messageText, {
     enabled: shouldStream,
     skipCompleteWhenDisabled: isAgent,
-    onComplete: isAgent ? () => onAgentTypingDone?.(key) : undefined
+    onComplete: isAgent ? () => onAgentTypingDone?.(key) : undefined,
   });
   const showCaret = shouldStream && isStreaming;
   const { given } = agentGivenAndRest(agentName);
-  
+
   const pixMatch = displayed.match(/000201[a-zA-Z0-9.*]{40,}/);
   const pixCode = pixMatch ? pixMatch[0] : null;
 
@@ -258,7 +279,7 @@ export function ChatBubble({
     >
       <span className="aacp-chat-text">{displayed}</span>
       {showCaret && <span className="chat-caret" aria-hidden="true" />}
-      
+
       {pixCode && isAgent && !showCaret ? (
         <div className="aacp-pix-panel">
           <QRCode value={pixCode} size={160} />
@@ -332,11 +353,7 @@ function PixCopyButton({ pixCode }: { pixCode: string }) {
   };
 
   return (
-    <button
-      type="button"
-      onClick={handleCopy}
-      className="aacp-pix-copy"
-    >
+    <button type="button" onClick={handleCopy} className="aacp-pix-copy">
       {copied ? <Check size={16} /> : <Copy size={16} />}
       {copied ? "Copiado!" : "Copiar código PIX"}
     </button>
@@ -344,122 +361,25 @@ function PixCopyButton({ pixCode }: { pixCode: string }) {
 }
 
 export function NetworkError({ vm }: { vm: CheckoutAgentViewModel }) {
-  return (
-    <div className="aacp-network-error" role="alert">
-      <span>{vm.networkError}</span>
-      <button type="button" onClick={vm.retryStartCheckout}>
-        Tentar novamente
-      </button>
-    </div>
-  );
+  const model = selectNetworkErrorModel(vm);
+  if (!model) return null;
+  return <NetworkErrorView model={model} />;
 }
 
 export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
-  return (
-    <form
-      className="aacp-coupon-box mt-3 flex gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        void vm.submitCoupon();
-      }}
-    >
-      <div className="relative flex-1">
-        <Tag size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--aacp-muted)]" aria-hidden="true" />
-        <input
-          className="w-full rounded-xl border border-[var(--aacp-line)] bg-[var(--aacp-surface-2)] pl-9 pr-3 py-2.5 text-sm text-[var(--aacp-fg)] placeholder:text-[var(--aacp-muted)] focus:outline-none focus:border-[var(--aacp-accent)]"
-          value={vm.coupon}
-          onChange={(e) => vm.setCoupon(e.target.value)}
-          placeholder="Código do cupom"
-          aria-label="Cupom de desconto"
-          disabled={vm.busy}
-          autoComplete="off"
-        />
-      </div>
-      <button
-        type="submit"
-        disabled={!vm.coupon.trim() || vm.busy}
-        className="aacp-coupon-submit"
-      >
-        Aplicar
-      </button>
-    </form>
-  );
+  const model = selectCouponBoxModel(vm);
+  if (!model) return null;
+  return <CouponBoxView model={model} />;
 }
 
 export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
-  const hasShipping = vm.visibleTotals.shipping > 0;
-  const orderTotal = Math.max(
-    0,
-    vm.visibleTotals.subtotal + vm.visibleTotals.shipping - vm.visibleTotals.discount
-  );
-
-  return (
-    <div className="aacp-offer aacp-offer-banner aacp-offer-banner--applied">
-      <div className="aacp-offer-icon">
-        <Gift size={18} />
-      </div>
-      <div className="aacp-offer-text">
-        <strong>Oferta aplicada</strong>
-        <span>
-          -{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}
-          {hasShipping ? (
-            <>
-              {" "}
-              · pedido{" "}
-              <b>{formatCurrency(orderTotal, vm.visibleTotals.currency)}</b>
-              {" "}
-              (inclui frete de {formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)})
-            </>
-          ) : (
-            <>
-              {" "}
-              · novo total <b>{formatCurrency(orderTotal, vm.visibleTotals.currency)}</b>
-            </>
-          )}
-        </span>
-      </div>
-      <button
-        type="button"
-        className="aacp-offer-cta"
-        onClick={() => void vm.continueToPayment()}
-        disabled={vm.busy}
-      >
-        Continuar
-      </button>
-    </div>
-  );
+  const model = selectOfferBannerModel(vm);
+  if (!model) return null;
+  return <OfferBannerView model={model} />;
 }
 
 export function PendingOfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
-  const offer = vm.offer;
-  if (!offer?.approved) return null;
-  const pct = offer.type === "discount_percent" ? offer.value : 0;
-  const savingsLabel =
-    pct > 0
-      ? `${pct}% de desconto`
-      : offer.type === "shipping_free"
-        ? "frete grátis"
-        : "condição especial";
-
-  return (
-    <div className="aacp-offer aacp-offer-banner aacp-pending-offer">
-      <div className="aacp-offer-icon aacp-pending-offer-icon">
-        <Gift size={20} />
-      </div>
-      <div className="aacp-offer-text">
-        <strong>Oferta exclusiva para você</strong>
-        <span>
-          Preparamos {savingsLabel} se você finalizar agora. Aproveite antes de pagar.
-        </span>
-      </div>
-      <button
-        type="button"
-        className="aacp-offer-cta aacp-pending-offer-cta"
-        onClick={() => void vm.applyOffer()}
-        disabled={vm.busy}
-      >
-        Aplicar oferta
-      </button>
-    </div>
-  );
+  const model = selectPendingOfferBannerModel(vm);
+  if (!model) return null;
+  return <PendingOfferBannerView model={model} />;
 }

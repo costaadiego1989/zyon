@@ -2,10 +2,9 @@ import { type FormEvent, useState } from "react";
 import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-stripe-js";
 import { loadStripe } from "@stripe/stripe-js";
 import { CreditCard, Lock, AlertCircle, Loader2 } from "lucide-react";
-import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
+import type { CreditCardFormModel } from "../../presentation/models/credit-card-form.model.js";
 import { formatCurrency } from "../../hooks/checkout-view-model.js";
 
-// Stripe.js loaded outside render to avoid re-creating on every render
 export const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
 
 function getStripePromise(publishableKey: string) {
@@ -15,13 +14,15 @@ function getStripePromise(publishableKey: string) {
   return stripePromiseCache.get(publishableKey)!;
 }
 
-function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
+function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const intent = vm.stripeIntent;
-  const total = intent ? formatCurrency(intent.amountCents / 100, intent.currency) : "";
+  const intent = model.stripeIntent;
+  const total = intent
+    ? formatCurrency(intent.amountCents / 100, intent.currency)
+    : "";
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,19 +32,19 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
 
     const { error: stripeError } = await stripe.confirmPayment({
       elements,
-      redirect: "if_required"
+      redirect: "if_required",
     });
 
     setSubmitting(false);
 
     if (stripeError) {
       setError(stripeError.message ?? "Pagamento recusado.");
-      vm.onStripePaymentError(stripeError.message ?? "Pagamento recusado.");
+      model.onStripePaymentError(stripeError.message ?? "Pagamento recusado.");
       return;
     }
 
-    await vm.onStripePaymentConfirmed(intent.amountCents, intent.currency);
-    vm.setShowCardForm(false);
+    await model.onStripePaymentConfirmed(intent.amountCents, intent.currency);
+    model.onClose();
   }
 
   return (
@@ -62,7 +63,7 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
         <PaymentElement
           options={{
             layout: "tabs",
-            wallets: { applePay: "never", googlePay: "never" }
+            wallets: { applePay: "never", googlePay: "never" },
           }}
         />
       </div>
@@ -88,7 +89,7 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
 
         <button
           type="button"
-          onClick={() => vm.setShowCardForm(false)}
+          onClick={() => model.onClose()}
           disabled={submitting}
           className="px-4 py-3.5 rounded-xl text-xs font-bold transition-all bg-[rgba(255,255,255,0.03)] border border-[var(--aacp-line-strong)] text-[var(--aacp-muted)] hover:text-[var(--aacp-fg)] hover:border-[var(--aacp-line)]"
         >
@@ -104,11 +105,10 @@ function StripePaymentForm({ vm }: { vm: CheckoutAgentViewModel }) {
   );
 }
 
-export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
+export function CreditCardForm({ model }: { model: CreditCardFormModel }) {
   const [loading, setLoading] = useState(false);
-  const intent = vm.stripeIntent;
-  const total = formatCurrency(vm.visibleTotals.total, vm.visibleTotals.currency);
-  const isDark = vm.colorMode === "dark";
+  const intent = model.stripeIntent;
+  const isDark = model.colorMode === "dark";
   const stripeAppearance = isDark
     ? {
         theme: "night" as const,
@@ -117,8 +117,8 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
           colorBackground: "#111827",
           colorText: "#f8fafc",
           colorDanger: "#f87171",
-          borderRadius: "12px"
-        }
+          borderRadius: "12px",
+        },
       }
     : {
         theme: "stripe" as const,
@@ -128,13 +128,13 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
           colorText: "#0f172a",
           colorTextSecondary: "#475569",
           colorDanger: "#dc2626",
-          borderRadius: "12px"
-        }
+          borderRadius: "12px",
+        },
       };
 
   async function handleInitiate() {
     setLoading(true);
-    await vm.createPaymentIntent("card");
+    await model.onInitiate();
     setLoading(false);
   }
 
@@ -149,7 +149,7 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
             Pagamento com cartão
           </strong>
           <span className="block text-xs text-[var(--aacp-muted)]">
-            Total: {total} · Protegido pela Stripe
+            Total: {model.totalLabel} · Protegido pela Stripe
           </span>
         </div>
         <Lock size={14} className="text-[var(--aacp-success)]" />
@@ -161,15 +161,15 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
           options={{
             clientSecret: intent.clientSecret,
             appearance: stripeAppearance,
-            locale: "pt-BR"
+            locale: "pt-BR",
           }}
         >
-          <StripePaymentForm vm={vm} />
+          <StripePaymentForm model={model} />
         </Elements>
       ) : (
         <button
           onClick={handleInitiate}
-          disabled={loading || vm.busy}
+          disabled={loading || model.busy}
           className="w-full flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--aacp-enterprise-ink,var(--continuum-primary,#14532d))] text-[var(--aacp-enterprise-surface,var(--continuum-on-primary,#fff))] shadow-[var(--aacp-shadow-md)]"
         >
           {loading ? (
@@ -180,7 +180,7 @@ export function CreditCardForm({ vm }: { vm: CheckoutAgentViewModel }) {
           ) : (
             <>
               <Lock size={14} />
-              Pagar com cartão · {total}
+              Pagar com cartão · {model.totalLabel}
             </>
           )}
         </button>

@@ -5,40 +5,77 @@ import type { WidgetConfig } from "../lib/widget-types.js";
 import { useGlobalAuth } from "./use-global-auth.js";
 import { useAccountHub } from "./use-account-hub.js";
 import { useBuyerHub } from "./use-buyer-hub.js";
-import { filterCheckoutQuickReplies, buildEmptyCompletedExperience, injectGoogleFont, matchShippingOptionFromLabel, stageNarrative, isBuyerHubEligible, type QuickReplyChoice, type VisibleCartState, normalizeQuickReplyLabel } from "./checkout-view-model.js";
-import { emitCheckoutEvent } from "../lib/merchant-checkout-shell.js";
+import {
+  injectGoogleFont,
+  isBuyerHubEligible,
+  stageNarrative,
+  type VisibleCartState,
+} from "./checkout-view-model.js";
 import { useCheckoutPanels } from "./use-checkout-panels.js";
 import { useCheckoutSession } from "./use-checkout-session.js";
 import { useCheckoutCart } from "./use-checkout-cart.js";
 import { useCheckoutChat } from "./use-checkout-chat.js";
 import { useCheckoutPayment } from "./use-checkout-payment.js";
 import { useThemeStudio } from "./use-theme-studio.js";
-
-type PrePaymentStep = "cross_sell" | "coupon_gate" | "coupon_entry" | "payment_method";
+import { useCheckoutPrePayment } from "./use-checkout-pre-payment.js";
+import { useCheckoutQuickReplies } from "./use-checkout-quick-replies.js";
+import { useOrderCompletion } from "./use-order-completion.js";
 
 export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const isConversational = config.uiPresentation === "conversational";
   const [open, setOpen] = useState(isConversational);
-  const [crossSellDismissed, setCrossSellDismissed] = useState(false);
-  const [couponInputVisible, setCouponInputVisible] = useState(false);
-  const [prePaymentStep, setPrePaymentStep] = useState<PrePaymentStep>("cross_sell");
-  const [completedOrderSnapshot, setCompletedOrderSnapshot] = useState<VisibleCartState | null>(null);
-  const couponGatePromptedKey = useRef<string | null>(null);
-  const orderCompletionHandled = useRef(false);
   const buyerLoginAttemptedKey = useRef<string | null>(null);
+
   const sessionState = useCheckoutSession(config);
   const cartState = useCheckoutCart(sessionState.experience, config, sessionState.updateCart);
   const panels = useCheckoutPanels();
   const chatState = useCheckoutChat(config, sessionState, {
-    purchaseChannel: panels.purchaseChannel
+    purchaseChannel: panels.purchaseChannel,
   });
   const payment = useCheckoutPayment(config, sessionState, chatState);
+
   const { activeExperience, session, networkError, track, apiOrigin } = sessionState;
-  const { visibleItems, visibleTotals, cartItemCount, handleRemoveCartItem, incrementItem, decrementItem, applyShipping, selectedShippingMethod } = cartState;
+  const {
+    visibleItems,
+    visibleTotals,
+    cartItemCount,
+    handleRemoveCartItem,
+    incrementItem,
+    decrementItem,
+    applyShipping,
+    selectedShippingMethod,
+  } = cartState;
   const { checkoutStage, composerLocked, streamingTurnKey, awaitingAgentPlayback } = chatState;
   const offer = chatState.lastChat?.authorized_offer;
   const currentMissingField = chatState.lastChat?.missing_fields?.[0];
   const stageNote = stageNarrative(checkoutStage, currentMissingField);
+
+  const suggestedProducts: SuggestedProduct[] = useMemo(
+    () => activeExperience.suggestedProducts ?? [],
+    [activeExperience.suggestedProducts],
+  );
+
+  const couponBoxEnabled = activeExperience.rules?.couponBoxEnabled !== false;
+
+  const prePayment = useCheckoutPrePayment({
+    checkoutStage,
+    sessionId: session?.session_id,
+    visibleTotals,
+    showCardForm: panels.showCardForm,
+    showCryptoPanel: panels.showCryptoPanel,
+    couponBoxEnabled,
+    suggestedProducts,
+    appendAgentTurn: chatState.appendAgentTurn,
+  });
+
+  const showPendingOffer =
+    Boolean(offer?.approved) &&
+    visibleTotals.discount === 0 &&
+    checkoutStage === "payment" &&
+    prePayment.prePaymentStep === "payment_method" &&
+    !panels.showCardForm &&
+    !panels.showCryptoPanel;
+
   const showComposer =
     isConversational &&
     panels.purchaseChannel !== "voice" &&
@@ -47,37 +84,13 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     checkoutStage !== "completed" &&
     checkoutStage !== "payment" &&
     !awaitingAgentPlayback;
-  const suggestedProducts: SuggestedProduct[] = useMemo(
-    () => activeExperience.suggestedProducts ?? [],
-    [activeExperience.suggestedProducts]
-  );
-  const couponGateEnabled =
-    checkoutStage === "payment" &&
-    activeExperience.rules?.couponBoxEnabled !== false &&
-    visibleTotals.discount === 0 &&
-    !panels.showCardForm &&
-    !panels.showCryptoPanel;
-  const showCouponBox =
-    checkoutStage === "payment" &&
-    activeExperience.rules?.couponBoxEnabled !== false &&
-    visibleTotals.discount === 0 &&
-    !panels.showCardForm &&
-    !panels.showCryptoPanel &&
-    (prePaymentStep === "coupon_entry" || couponInputVisible);
-  const showOfferBanner = visibleTotals.discount > 0;
-  const showPendingOffer =
-    Boolean(offer?.approved) &&
-    visibleTotals.discount === 0 &&
-    checkoutStage === "payment" &&
-    prePaymentStep === "payment_method" &&
-    !panels.showCardForm &&
-    !panels.showCryptoPanel;
+
   const chatTrustBadges = activeExperience.copy.trust_badges.slice(0, 3);
 
   const auth = useGlobalAuth({
     apiBaseUrl: sessionState.apiOrigin,
     defaultMerchantName: activeExperience.brand.name,
-    defaultEmail: activeExperience.customer?.email ?? config.customer?.email
+    defaultEmail: activeExperience.customer?.email ?? config.customer?.email,
   });
 
   useEffect(() => {
@@ -90,17 +103,12 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
     buyerLoginAttemptedKey.current = loginKey;
     void auth.loginFromCheckoutSession(sessionId, config.merchantId);
-  }, [
-    activeExperience.customer,
-    auth,
-    auth.session,
-    config.merchantId,
-    session?.session_id
-  ]);
+  }, [activeExperience.customer, auth, auth.session, config.merchantId, session?.session_id]);
+
   const hub = useAccountHub({
     apiBaseUrl: sessionState.apiOrigin,
     session: auth.session,
-    enabled: auth.open && auth.panel === "hub" && Boolean(auth.session?.merchant_id)
+    enabled: auth.open && auth.panel === "hub" && Boolean(auth.session?.merchant_id),
   });
 
   const isBuyerSession = Boolean(auth.session?.global_user_id);
@@ -114,7 +122,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
       if (session) {
         void auth.refreshBuyerFromCheckoutSession(session.session_id, config.merchantId);
       }
-    }
+    },
   });
 
   const baseTheme: MerchantTheme = activeExperience.brand.theme ?? DEFAULT_MERCHANT_THEME;
@@ -122,7 +130,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     merchantId: config.merchantId,
     baseTheme,
     session: auth.session,
-    apiBaseUrl: apiOrigin
+    apiBaseUrl: apiOrigin,
   });
   const theme = themeStudio.resolvedTheme;
 
@@ -136,104 +144,51 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   }, [sessionState.startedEvent]);
 
   useEffect(() => {
-    if (checkoutStage !== "payment") {
-      setPrePaymentStep("cross_sell");
-      setCouponInputVisible(false);
-      setCrossSellDismissed(false);
-      couponGatePromptedKey.current = null;
-      return;
-    }
-
-    if (prePaymentStep === "cross_sell" && (crossSellDismissed || suggestedProducts.length === 0)) {
-      const nextStep = couponGateEnabled ? "coupon_gate" : "payment_method";
-      setPrePaymentStep(nextStep);
-      if (nextStep === "coupon_gate") {
-        const promptKey = session?.session_id ?? "payment";
-        if (couponGatePromptedKey.current !== promptKey) {
-          couponGatePromptedKey.current = promptKey;
-          chatState.appendAgentTurn("Antes de liberar PIX ou cartao, voce tem algum cupom?", { stream: true });
-        }
-      }
-      return;
-    }
-
-    if (prePaymentStep === "coupon_gate" && !couponGateEnabled) {
-      setPrePaymentStep("payment_method");
-    }
-  }, [checkoutStage, couponGateEnabled, crossSellDismissed, prePaymentStep, session?.session_id, suggestedProducts.length]);
-
-  useEffect(() => {
     const listener = (event: Event) => {
       const custom = event as CustomEvent<{ event: Parameters<typeof track>[0] }>;
       if (custom.detail?.event) void track(custom.detail.event);
     };
     window.addEventListener("aacp:checkout-event", listener);
-    return () => { window.removeEventListener("aacp:checkout-event", listener); };
+    return () => {
+      window.removeEventListener("aacp:checkout-event", listener);
+    };
   }, [track]);
 
   useEffect(() => {
-    if (checkoutStage === "completed" && session && !auth.session && isBuyerHubEligible(activeExperience.customer)) {
+    if (
+      checkoutStage === "completed" &&
+      session &&
+      !auth.session &&
+      isBuyerHubEligible(activeExperience.customer)
+    ) {
       void auth.loginFromCheckoutSession(session.session_id, config.merchantId);
     }
   }, [checkoutStage, session, auth.session, auth, config.merchantId, activeExperience.customer]);
 
-  useEffect(() => {
-    if (checkoutStage !== "completed" || orderCompletionHandled.current) return;
-    orderCompletionHandled.current = true;
-
-    setCompletedOrderSnapshot({
-      items: [...cartState.visibleItems],
-      totals: { ...cartState.visibleTotals }
-    });
-
-    const currency = activeExperience.totals.currency ?? config.cart.currency ?? "BRL";
-    sessionState.syncExperience(buildEmptyCompletedExperience(activeExperience, currency));
-    cartState.resetCart(currency);
-    chatState.resetAfterCompletion();
-    panels.resetPanels();
-    setCrossSellDismissed(true);
-    setCouponInputVisible(false);
-    setPrePaymentStep("cross_sell");
-    sessionState.clearPersistedSession();
-
-    emitCheckoutEvent("order_completed");
-    if (typeof window !== "undefined") {
-      window.parent?.postMessage(
-        {
-          type: "aacp:order-completed",
-          merchant_id: config.merchantId,
-          session_id: session?.session_id ?? null
-        },
-        "*"
-      );
-    }
-
-    window.setTimeout(() => {
-      void auth.loginFromCheckoutSession(session?.session_id ?? "", config.merchantId).finally(() => {
-        if (isBuyerSession || auth.session?.global_user_id) {
-          void buyerHub.refresh();
-        }
-      });
-    }, 600);
-  }, [
-    activeExperience,
-    auth,
-    buyerHub,
-    cartState,
-    chatState,
-    checkoutStage,
-    config.cart.currency,
-    config.merchantId,
-    isBuyerSession,
-    panels,
-    session?.session_id,
-    sessionState
-  ]);
-
   const shippingOptions: ShippingQuote[] = useMemo(
     () => chatState.lastChat?.experience?.shippingOptions ?? [],
-    [chatState.lastChat?.experience?.shippingOptions]
+    [chatState.lastChat?.experience?.shippingOptions],
   );
+
+  const { completedOrderSnapshot } = useOrderCompletion({
+    checkoutStage,
+    sessionId: session?.session_id,
+    merchantId: config.merchantId,
+    activeExperience,
+    currency: activeExperience.totals.currency ?? config.cart.currency ?? "BRL",
+    visibleItems: cartState.visibleItems,
+    visibleTotals: cartState.visibleTotals,
+    isBuyerSession,
+    syncExperience: sessionState.syncExperience,
+    resetCart: cartState.resetCart,
+    resetChat: chatState.resetAfterCompletion,
+    resetPanels: panels.resetPanels,
+    resetPrePayment: prePayment.resetAfterCompletion,
+    clearPersistedSession: sessionState.clearPersistedSession,
+    loginFromCheckout: auth.loginFromCheckoutSession,
+    refreshBuyerHub: buyerHub.refresh,
+    authSession: auth.session,
+  });
 
   async function addSuggestedProduct(product: SuggestedProduct): Promise<boolean> {
     if (!session || networkError || chatState.busy) return false;
@@ -263,9 +218,11 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     }
 
     if (added) {
-      setCrossSellDismissed(true);
+      prePayment.dismissCrossSell();
       if (!agentAlreadyReplied) {
-        chatState.appendAgentTurn(`Perfeito! ${product.name} foi adicionado ao seu pedido.`, { stream: true });
+        chatState.appendAgentTurn(`Perfeito! ${product.name} foi adicionado ao seu pedido.`, {
+          stream: true,
+        });
       }
     } else {
       sessionState.setNetworkError?.("Falha ao adicionar o produto. Tente novamente em instantes.");
@@ -273,13 +230,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     return added;
   }
 
-  function dismissCrossSell(): void {
-    setCrossSellDismissed(true);
-  }
-
   function proceedFromCrossSell(): void {
-    dismissCrossSell();
-    chatState.appendAgentTurn("Perfeito. Vamos finalizar seu pagamento.", { stream: true });
+    prePayment.proceedFromCrossSell((text) =>
+      chatState.appendAgentTurn(text, { stream: true }),
+    );
   }
 
   function openBuyerPanel(): void {
@@ -305,150 +259,41 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     await chatState.sendMessageWithOverride(option.method || "Selecionar frete");
   }
 
-  async function tapQuick(reply: QuickReplyChoice): Promise<void> {
-    if (!session || networkError || chatState.busy) return;
-    if (!quickReplies.some((allowed) => allowed.label === reply.label && allowed.type === reply.type && allowed.offerId === reply.offerId)) return;
-
-    const crossSellProduct = suggestedProducts.find((product) => {
-      const label = normalizeQuickReplyLabel(reply.label);
-      const productName = normalizeQuickReplyLabel(product.name);
-      return label === normalizeQuickReplyLabel(`Adicionar ${product.name}`) ||
-        (label.startsWith("adicionar") && label.includes(productName));
-    });
-    if (crossSellProduct && checkoutStage === "payment" && prePaymentStep === "cross_sell") {
-      await addSuggestedProduct(crossSellProduct);
-      return;
-    }
-
-    if (checkoutStage === "payment" && prePaymentStep === "cross_sell") {
-      if (/^nao agora$/i.test(reply.label)) {
-        proceedFromCrossSell();
-        return;
-      }
-      if (/pagamento|finalizar|pagar/i.test(reply.label)) {
-        proceedFromCrossSell();
-        return;
-      }
-    }
-    if (checkoutStage === "payment" && prePaymentStep === "coupon_gate") {
-      const normalized = normalizeQuickReplyLabel(reply.label);
-      if (normalized === "sim" || /^(sim|tenho|usar|informar).*\bcupom\b/.test(normalized)) {
-        setCouponInputVisible(true);
-        setPrePaymentStep("coupon_entry");
-        chatState.appendAgentTurn("Digite o codigo do cupom para eu aplicar antes de liberar o pagamento.", { stream: true });
-        return;
-      }
-      if (normalized === "nao" || /^(nao|sem)\b.*cupom|^nao tenho cupom$/.test(normalized)) {
-        setCouponInputVisible(false);
-        setPrePaymentStep("payment_method");
-        if (offer?.approved && visibleTotals.discount === 0) {
-          await chatState.applyOffer();
-          chatState.appendAgentTurn(
-            offer.type === "discount_percent" && offer.value > 0
-              ? `Sem problema. Liberamos ${offer.value}% de desconto para voce finalizar agora.`
-              : "Perfeito. Liberamos uma condicao especial para voce finalizar agora.",
-            { stream: true }
-          );
-        } else {
-          chatState.appendAgentTurn("Perfeito. Agora escolha a forma de pagamento para finalizar.", { stream: true });
-        }
-        return;
-      }
-    }
-    if (checkoutStage === "payment" && /^(sim|tenho|usar|informar).*\bcupom\b/i.test(reply.label)) {
-      setCouponInputVisible(true);
-      setPrePaymentStep("coupon_entry");
-      chatState.appendAgentTurn("Digite o codigo do cupom para eu aplicar antes de liberar o pagamento.", { stream: true });
-      return;
-    }
-    if (checkoutStage === "payment" && /^(nao|sem)\b.*cupom|^nao tenho cupom$/i.test(reply.label)) {
-      setCouponInputVisible(false);
-      setPrePaymentStep("payment_method");
-      if (offer?.approved && visibleTotals.discount === 0) {
-        await chatState.applyOffer();
-      }
-      chatState.appendAgentTurn("Perfeito. Agora escolha a forma de pagamento para finalizar.", { stream: true });
-      return;
-    }
-    if (checkoutStage === "payment" && prePaymentStep !== "payment_method" && (/^pix$/i.test(reply.label) || /cartao|cartao de credito|cartao de debito/i.test(reply.label))) {
-      return;
-    }
-    if (/cartao|cartao de credito|cartao de debito|cart[aã]o/i.test(reply.label)) {
-      panels.setShowCryptoPanel(false);
-      panels.setShowCardForm(true);
-      chatState.appendAgentTurn(
-        "Preencha os dados do seu cartao abaixo. Seus dados sao criptografados e transmitidos com seguranca via checkout transparente.",
-        { stream: true }
-      );
-      return;
-    }
-    if (/^(tenho|adicionar|usar|inserir|informar)\b.*\bcupom\b/i.test(reply.label)) {
-      setCouponInputVisible(true);
-      setPrePaymentStep("coupon_entry");
-      chatState.appendAgentTurn("Insira o codigo do seu cupom abaixo para aplicar o desconto.", { stream: true });
-      return;
-    }
-    if (/aplicar.*desconto|aceitar.*desconto|aplicar oferta/i.test(reply.label)) {
-      void chatState.applyOffer().then(() => {
-        setPrePaymentStep("payment_method");
-      });
-      return;
-    }
-    if (/^pix$/i.test(reply.label)) {
-      panels.setShowCryptoPanel(false);
-      await payment.createPaymentIntent("pix");
-      return;
-    }
-    if (/crypto|cripto/i.test(reply.label)) {
-      panels.setShowCardForm(false);
-      panels.setShowCryptoPanel(true);
-      await payment.createPaymentIntent("crypto");
-      return;
-    }
-    if (/^boleto$/i.test(reply.label)) {
-      chatState.appendAgentTurn(
-        "No momento, o pagamento via boleto nao esta disponivel para esta compra. Por favor, escolha cartao de credito ou PIX.",
-        { stream: true }
-      );
-      return;
-    }
-    if (checkoutStage === "shipping" && currentMissingField === "frete") {
-      const shippingOption = matchShippingOptionFromLabel(reply.label, shippingOptions);
-      if (shippingOption) {
-        await tapShippingOption(shippingOption);
-        return;
-      }
-    }
-    return chatState.tapQuick(reply);
-  }
-
-  const quickReplies = useMemo(() => {
-    if (checkoutStage === "payment" && prePaymentStep === "payment_method") {
-      const methods: QuickReplyChoice[] = [
-        { label: "Cartão de crédito" },
-        { label: "PIX" }
-      ];
-      if (activeExperience.rules?.cryptoPaymentsEnabled) {
-        methods.push({ label: "Pagar com crypto" });
-      }
-      return methods;
-    }
-
-    const filtered = filterCheckoutQuickReplies(chatState.quickReplies, {
-      stage: checkoutStage,
-      missingField: currentMissingField,
-      prePaymentStep,
-      suggestedProducts: prePaymentStep === "cross_sell" ? suggestedProducts : undefined
-    });
-    return filtered;
-  }, [activeExperience.rules?.cryptoPaymentsEnabled, chatState.quickReplies, checkoutStage, currentMissingField, prePaymentStep, suggestedProducts]);
+  const { quickReplies, tapQuick } = useCheckoutQuickReplies({
+    config,
+    checkoutStage,
+    currentMissingField,
+    prePaymentStep: prePayment.prePaymentStep,
+    suggestedProducts,
+    cryptoPaymentsEnabled: activeExperience.rules?.cryptoPaymentsEnabled,
+    chatQuickReplies: chatState.quickReplies,
+    shippingOptions,
+    offer,
+    visibleTotals,
+    session,
+    networkError,
+    busy: chatState.busy,
+    addSuggestedProduct,
+    proceedFromCrossSell,
+    setCouponInputVisible: prePayment.setCouponInputVisible,
+    setPrePaymentStep: prePayment.setPrePaymentStep,
+    appendAgentTurn: chatState.appendAgentTurn,
+    applyOffer: chatState.applyOffer,
+    setShowCardForm: panels.setShowCardForm,
+    setShowCryptoPanel: panels.setShowCryptoPanel,
+    createPaymentIntent: payment.createPaymentIntent,
+    tapShippingOption,
+    tapQuickFromChat: chatState.tapQuick,
+  });
 
   async function submitCoupon(): Promise<void> {
     const applied = await chatState.submitCoupon();
     if (!applied) return;
-    setCouponInputVisible(false);
-    setPrePaymentStep("payment_method");
-    chatState.appendAgentTurn("Desconto aplicado. Agora escolha PIX, cartao ou crypto para concluir.", { stream: true });
+    prePayment.setCouponInputVisible(false);
+    prePayment.setPrePaymentStep("payment_method");
+    chatState.appendAgentTurn("Desconto aplicado. Agora escolha PIX, cartao ou crypto para concluir.", {
+      stream: true,
+    });
   }
 
   function retryStartCheckout(): void {
@@ -459,8 +304,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     panels.selectPurchaseChannel(channel);
   }
 
-  const showChannelWelcome =
-    isConversational && panels.purchaseChannel === "pending";
+  const showChannelWelcome = isConversational && panels.purchaseChannel === "pending";
 
   return {
     config,
@@ -496,8 +340,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     showComposer,
     composerLocked,
     awaitingAgentPlayback: chatState.awaitingAgentPlayback,
-    showCouponBox,
-    showOfferBanner,
+    showCouponBox: prePayment.showCouponBox,
+    showOfferBanner: prePayment.showOfferBanner,
     showPendingOffer,
     chatTrustBadges,
     quickReplies,
@@ -540,15 +384,16 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     cardError: panels.cardError,
     setCardError: panels.setCardError,
     shippingOptions,
-    suggestedProducts: prePaymentStep === "cross_sell" ? suggestedProducts : [],
-    crossSellDismissed,
+    suggestedProducts:
+      prePayment.prePaymentStep === "cross_sell" ? suggestedProducts : [],
+    crossSellDismissed: prePayment.crossSellDismissed,
     addSuggestedProduct,
-    dismissCrossSell,
+    dismissCrossSell: prePayment.dismissCrossSell,
     proceedFromCrossSell,
     openBuyerPanel,
     tapShippingOption,
-    couponInputVisible,
-    setCouponInputVisible,
+    couponInputVisible: prePayment.couponInputVisible,
+    setCouponInputVisible: prePayment.setCouponInputVisible,
     buyerHub,
     apiOrigin,
     purchaseChannel: panels.purchaseChannel,
@@ -558,4 +403,4 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 }
 
 export type CheckoutAgentViewModel = ReturnType<typeof useCheckoutAgentViewModel>;
-export type { Cart, CustomerHints, ShippingQuote };
+export type { Cart, CustomerHints, ShippingQuote, VisibleCartState };
