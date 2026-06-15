@@ -122,6 +122,7 @@ de cada bloco move o ADR para `✅`.
 - [x] Endpoint legado protegido; sem fallback fake em produção.
 - [x] Índice de idempotência de webhook persistido; intent + outbox atômicos.
 - [x] Confirmação só por estado autoritativo/webhook; reconciliação + refund + smoke sandbox.
+- [x] Onboarding de pagamento do merchant (Stripe Connect/Asaas sub-conta) e assinatura de billing persistidos e tenant-scoped; segredos cifrados em repouso (`AACP_PAYMENT_ENC_KEY`); intents/webhooks roteados pela conexão da plataforma; endpoints `/payments/connections` e `/billing` human-only no OpenAPI.
 
 **0012 Embed**
 - [x] `allowedOrigin`/`scopes`/`cartRef` aplicados; nonce/replay; CORS/CSP.
