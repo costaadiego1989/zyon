@@ -23,7 +23,17 @@ test.beforeEach(async ({ page }) => {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+async function selectChatIfChannelGateIsOpen(page: import("@playwright/test").Page) {
+  const dialog = page.getByRole("dialog");
+  if (!(await dialog.isVisible().catch(() => false))) return;
+
+  const chatButton = dialog.getByRole("button", { name: /Comprar por chat/i });
+  await expect(chatButton).toBeEnabled({ timeout: 10_000 });
+  await chatButton.click();
+}
+
 async function waitForGreeting(page: import("@playwright/test").Page) {
+  await selectChatIfChannelGateIsOpen(page);
   const thread = page.locator(".aacp-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
   const firstBubble = thread.locator(".aacp-bubble-agent").first();
@@ -328,9 +338,7 @@ test.describe("Quick Replies - Payment Stage", () => {
     await continueWithoutCoupon(page);
 
     await clickQuickReply(page, /cart[aã]o/i);
-    await expect(
-      page.getByRole("button", { name: /Pagar com cart[aã]o/i })
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".aacp-stripe-element-wrap")).toBeVisible({ timeout: 5_000 });
   });
 
   test("clicking 'PIX' triggers payment intent", async ({ page }) => {

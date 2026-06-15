@@ -27,7 +27,7 @@ export default defineConfig({
   projects: [
     {
       name: "widget-mocked",
-      testMatch: /widget\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts/,
+      testMatch: /widget\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|voice-checkout-flow-e2e\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] }
     },
     {

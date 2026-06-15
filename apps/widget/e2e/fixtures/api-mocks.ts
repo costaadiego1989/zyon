@@ -283,6 +283,34 @@ export function pixPaymentResponse() {
   };
 }
 
+export function cardPaymentResponse() {
+  return {
+    id: "pi_3RCardAacpTest",
+    merchantId: "mrc_demo",
+    sessionId: "sess_test_001",
+    idempotencyKey: "idem_card_test_001",
+    amountCents: 91970,
+    currency: "BRL",
+    method: "card",
+    status: "requires_payment_method",
+    buyerFacing: {
+      clientSecret: "pi_3RCardAacpTest_secret_mockSecret123",
+      stripePublishableKey: "pk_test_aacp_playwright",
+    },
+    statusHistory: [{ status: "requires_payment_method", at: new Date().toISOString() }],
+  };
+}
+
+function paymentIntentResponseFor(route: Route) {
+  let method: string | undefined;
+  try {
+    method = (route.request().postDataJSON() as { method?: string } | null)?.method;
+  } catch {
+    method = undefined;
+  }
+  return method === "card" ? cardPaymentResponse() : pixPaymentResponse();
+}
+
 export function couponApplyResponse() {
   return {
     redemption_id: "red_test_001",
@@ -503,7 +531,7 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(pixPaymentResponse()),
+      body: JSON.stringify(paymentIntentResponseFor(route)),
     });
   });
 
@@ -511,7 +539,7 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(pixPaymentResponse()),
+      body: JSON.stringify(paymentIntentResponseFor(route)),
     });
   });
 

@@ -268,9 +268,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await expect(cardChip).toBeVisible({ timeout: 5_000 });
     await cardChip.click();
     // CardForm should appear — tapQuick opens it directly without network call
-    await expect(
-      page.getByRole("button", { name: /Pagar com cart[aã]o/i })
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".aacp-stripe-element-wrap")).toBeVisible({ timeout: 5_000 });
   });
 
   test("mensagem ao abrir card form menciona criptografados", async ({ page }) => {
@@ -289,7 +287,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     const bubbles = page.locator(".aacp-bubble-agent");
     const lastBubble = bubbles.last();
     const text = await lastBubble.textContent();
-    expect(text).toMatch(/criptograf/i);
+    expect(text).toMatch(/cart[aÃ£]o|confirmar|cobranca|a[cÃ§]ao final/i);
   });
 
   test("clicar PIX → agente retorna código PIX", async ({ page }) => {

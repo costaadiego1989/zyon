@@ -20,15 +20,25 @@ function hasWholeWord(text: string, token: string): boolean {
 function matchesVoiceQuickReply(transcript: string, reply: QuickReplyChoice): boolean {
   const heard = normalizeVoiceText(transcript).replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
   const label = normalizeQuickReplyLabel(reply.label).replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  const rawLabel = reply.label.toLowerCase();
   if (!heard || !label) return false;
   if (heard === label || heard.includes(label)) return true;
 
+  const heardWantsCard = /\bcartao\b|\bcredito\b|\bdebito\b/.test(heard);
+  const labelOffersCard = /cart|cr[eéÃ]|d[eéÃ]/i.test(rawLabel) || /\bcartao\b|\bcredito\b|\bdebito\b/.test(label);
+  if (heardWantsCard && labelOffersCard) return true;
+
+  const heardWantsPix = /\bpix\b/.test(heard);
+  const labelOffersPix = /\bpix\b/i.test(rawLabel) || /\bpix\b/.test(label);
+  if (heardWantsPix && labelOffersPix) return true;
+
+  const heardMentionsCoupon = /\bcupom\b/.test(heard);
+  const labelMentionsCoupon = /cupom/i.test(rawLabel) || /\bcupom\b/.test(label);
+  if (heardMentionsCoupon && labelMentionsCoupon) return true;
+
   if (label.length <= 3) return hasWholeWord(heard, label);
-  if (/\bpix\b/.test(heard) && /\bpix\b/.test(label)) return true;
-  if (/\bcartao\b|\bcredito\b|\bdebito\b/.test(heard) && /\bcartao\b|\bcredito\b|\bdebito\b/.test(label)) return true;
-  if (/\bcupom\b/.test(heard) && /\bcupom\b/.test(label)) return true;
-  if (/^(nao|sem)\b.*\bcupom\b/.test(heard) && label === "nao") return true;
-  if (/^(sim|tenho|usar|informar)\b.*\bcupom\b/.test(heard) && label === "sim") return true;
+  if (/^(nao|sem)\b.*\bcupom\b/.test(heard) && /^n(a|ã|Ã)/i.test(rawLabel)) return true;
+  if (/^(sim|tenho|usar|informar)\b.*\bcupom\b/.test(heard) && /^sim\b/i.test(rawLabel)) return true;
 
   const compactLabel = label
     .replace(/\b(pagar|pagamento|com|de|do|da|credito|debito|desconto)\b/g, " ")
