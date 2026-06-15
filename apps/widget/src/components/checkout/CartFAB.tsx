@@ -1,7 +1,7 @@
 import React from "react";
 import { ChevronUp, ShoppingBag } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { formatCurrency } from "../../hooks/checkout-view-model.js";
+import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 export function CartFAB({ vm }: { vm: CheckoutAgentViewModel }) {
   if (vm.cartOpen || !vm.isConversational) return null;

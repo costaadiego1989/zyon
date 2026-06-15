@@ -18,7 +18,7 @@ import {
   cn,
   formatCurrency,
   stripAgentMessagePrefix,
-} from "../../hooks/checkout-view-model.js";
+} from "../../hooks/checkout-presentation.js";
 import {
   selectCheckoutPanels,
   selectCouponBoxModel,
@@ -26,6 +26,7 @@ import {
   selectOfferBannerModel,
   selectPendingOfferBannerModel,
 } from "../../presentation/selectors/checkout-panels.selector.js";
+import { selectComposerModel } from "../../presentation/selectors/composer.selector.js";
 import {
   CouponBoxView,
   NetworkErrorView,
@@ -37,7 +38,7 @@ import { ProductSearchResults } from "./ProductSearchResults.js";
 import { CreditCardForm } from "./CreditCardForm.js";
 import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
 import { ShippingSelector } from "./ShippingSelector.js";
-import { quickReplyId } from "../../hooks/checkout-view-model.js";
+import { quickReplyId } from "../../hooks/checkout-presentation.js";
 
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
@@ -47,6 +48,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
     -1,
   );
   const panels = selectCheckoutPanels(vm, { variant: "thread" });
+  const composer = selectComposerModel(vm);
 
   return (
     <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
@@ -128,7 +130,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {panels.creditCardForm ? <CreditCardForm model={panels.creditCardForm} /> : null}
 
-      {panels.showCryptoPanel ? <CryptoPaymentPanel vm={vm} /> : null}
+      {panels.cryptoPanel ? <CryptoPaymentPanel model={panels.cryptoPanel} /> : null}
 
       {panels.quickReplies ? (
         <div
@@ -150,11 +152,11 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       ) : null}
 
-      {vm.showComposer && (
+      {composer ? (
         <div className="aacp-thread-composer-wrap">
-          <Composer vm={vm} />
+          <Composer model={composer} />
         </div>
-      )}
+      ) : null}
 
       {vm.checkoutStage === "completed" ? (
         <OrderConfirmation vm={vm} />

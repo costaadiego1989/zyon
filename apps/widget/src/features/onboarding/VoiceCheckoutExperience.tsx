@@ -9,7 +9,7 @@ import {
   Volume2,
 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { cn, quickReplyId } from "../../hooks/checkout-view-model.js";
+import { cn, quickReplyId } from "../../hooks/checkout-presentation.js";
 import { useVoiceCheckoutExperience } from "../../hooks/use-voice-checkout-experience.js";
 import { CheckoutPanels } from "../conversation/CheckoutPanels.js";
 import { NetworkErrorView } from "../conversation/CheckoutActionPanels.js";
@@ -192,7 +192,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
           </div>
 
           <section className="aacp-voice-panels" aria-label="Ações do checkout">
-            <CheckoutPanels model={panels} vm={vm} />
+            <CheckoutPanels model={panels} />
           </section>
 
           <button

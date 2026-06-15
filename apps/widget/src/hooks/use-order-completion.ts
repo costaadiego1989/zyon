@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { CheckoutExperienceSnapshot, CurrencyCode } from "@aacp/shared-types";
-import { buildEmptyCompletedExperience } from "./checkout-view-model.js";
-import type { VisibleCartState } from "./checkout-view-model.js";
+import { buildEmptyCompletedExperience } from "./checkout-presentation.js";
+import type { VisibleCartState } from "./checkout-presentation.js";
 import { emitCheckoutEvent } from "../lib/merchant-checkout-shell.js";
 
 type UseOrderCompletionInput = {

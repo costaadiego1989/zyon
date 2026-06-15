@@ -3,8 +3,7 @@ import { ProductSearchResults } from "../../components/checkout/ProductSearchRes
 import { CreditCardForm } from "../../components/checkout/CreditCardForm.js";
 import { CryptoPaymentPanel } from "../../components/checkout/CryptoPaymentPanel.js";
 import { ShippingSelector } from "../../components/checkout/ShippingSelector.js";
-import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { quickReplyId } from "../../hooks/checkout-view-model.js";
+import { quickReplyId } from "../../hooks/checkout-presentation.js";
 import type { CheckoutPanelsModel } from "../../presentation/models/checkout-panels.model.js";
 import {
   CouponBoxView,
@@ -15,15 +14,10 @@ import {
 
 type CheckoutPanelsProps = {
   model: CheckoutPanelsModel;
-  vm?: CheckoutAgentViewModel;
   className?: string;
 };
 
-export function CheckoutPanels({
-  model,
-  vm,
-  className,
-}: CheckoutPanelsProps) {
+export function CheckoutPanels({ model, className }: CheckoutPanelsProps) {
   return (
     <div className={className}>
       {model.networkError ? <NetworkErrorView model={model.networkError} /> : null}
@@ -55,7 +49,7 @@ export function CheckoutPanels({
       {model.pendingOffer ? <PendingOfferBannerView model={model.pendingOffer} /> : null}
       {model.couponBox ? <CouponBoxView model={model.couponBox} /> : null}
       {model.creditCardForm ? <CreditCardForm model={model.creditCardForm} /> : null}
-      {model.showCryptoPanel && vm ? <CryptoPaymentPanel vm={vm} /> : null}
+      {model.cryptoPanel ? <CryptoPaymentPanel model={model.cryptoPanel} /> : null}
       {model.quickReplies ? (
         <CheckoutQuickReplies model={model.quickReplies} />
       ) : null}

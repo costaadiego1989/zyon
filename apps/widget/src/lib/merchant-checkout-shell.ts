@@ -1,6 +1,6 @@
 import type { Cart, CheckoutEventName, CustomerHints, ShippingQuote } from "@aacp/shared-types";
 import type { ProductSelectionLine } from "./widget-types.js";
-import { brandInitials } from "../hooks/checkout-view-model.js";
+import { brandInitials } from "../hooks/checkout-presentation.js";
 
 export interface HybridCheckoutOptions {
   merchantId: string;

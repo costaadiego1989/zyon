@@ -1,5 +1,5 @@
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { cn } from "../../hooks/checkout-view-model.js";
+import { cn } from "../../hooks/checkout-presentation.js";
 import { CartPanel } from "../../components/checkout/CartPanel.js";
 import { UserPanel } from "../../components/checkout/UserPanel.js";
 

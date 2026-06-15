@@ -1,5 +1,5 @@
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { formatCurrency } from "../../hooks/checkout-view-model.js";
+import { formatCurrency } from "../../hooks/checkout-presentation.js";
 import type {
   CouponBoxModel,
   NetworkErrorModel,
@@ -8,6 +8,7 @@ import type {
 } from "../models/checkout-action-panels.model.js";
 import type { CreditCardFormModel } from "../models/credit-card-form.model.js";
 import type { CheckoutPanelsModel } from "../models/checkout-panels.model.js";
+import { selectCryptoPaymentPanelModel } from "./crypto-payment-panel.selector.js";
 
 export function shouldShowShippingSelector(vm: CheckoutAgentViewModel): boolean {
   return (
@@ -168,7 +169,7 @@ export function selectCheckoutPanels(
           }
         : null,
     creditCardForm: selectCreditCardFormModel(vm),
-    showCryptoPanel: shouldShowCryptoPanel(vm),
+    cryptoPanel: shouldShowCryptoPanel(vm) ? selectCryptoPaymentPanelModel(vm) : null,
     quickReplies: quickRepliesVisible
       ? {
           items: vm.quickReplies,

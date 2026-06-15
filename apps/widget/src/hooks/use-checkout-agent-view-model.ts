@@ -10,7 +10,7 @@ import {
   isBuyerHubEligible,
   stageNarrative,
   type VisibleCartState,
-} from "./checkout-view-model.js";
+} from "./checkout-presentation.js";
 import { useCheckoutPanels } from "./use-checkout-panels.js";
 import { useCheckoutSession } from "./use-checkout-session.js";
 import { useCheckoutCart } from "./use-checkout-cart.js";

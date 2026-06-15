@@ -6,7 +6,7 @@ import {
   resolveStepperProgressPct,
   STAGE_FLOW,
   themeStyle,
-} from "../hooks/checkout-view-model.js";
+} from "../hooks/checkout-presentation.js";
 
 export type ExperienceAccountModel =
   | {

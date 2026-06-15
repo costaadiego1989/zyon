@@ -3,7 +3,7 @@ import { Elements, PaymentElement, useElements, useStripe } from "@stripe/react-
 import { loadStripe } from "@stripe/stripe-js";
 import { CreditCard, Lock, AlertCircle, Loader2 } from "lucide-react";
 import type { CreditCardFormModel } from "../../presentation/models/credit-card-form.model.js";
-import { formatCurrency } from "../../hooks/checkout-view-model.js";
+import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 export const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
 

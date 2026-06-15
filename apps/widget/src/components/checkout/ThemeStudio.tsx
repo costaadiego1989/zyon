@@ -1,7 +1,7 @@
 import { Download, RotateCcw, Save, Settings2, Upload, X } from "lucide-react";
 import type { MerchantTheme } from "@aacp/shared-types";
 import type { ThemeStudioState } from "../../hooks/use-theme-studio.js";
-import { THEME_STUDIO_FONT_OPTIONS } from "../../hooks/checkout-view-model.js";
+import { THEME_STUDIO_FONT_OPTIONS } from "../../hooks/checkout-presentation.js";
 import { THEME_COLOR_FIELDS, THEME_PRESETS } from "../../lib/theme-studio.js";
 
 function colorValue(theme: MerchantTheme, key: keyof MerchantTheme, fallback: string): string {

@@ -1,6 +1,6 @@
 import { Minus, Package, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { cn, formatCurrency } from "../../hooks/checkout-view-model.js";
+import { cn, formatCurrency } from "../../hooks/checkout-presentation.js";
 import { CartHeader } from "./CartHeader.js";
 
 export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {

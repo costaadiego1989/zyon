@@ -1,6 +1,6 @@
 import { CheckCircle2, CreditCard, Truck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { cn, STAGE_FLOW } from "../../hooks/checkout-view-model.js";
+import { cn, STAGE_FLOW } from "../../hooks/checkout-presentation.js";
 
 const STEP_ICONS: Record<(typeof STAGE_FLOW)[number]["key"], LucideIcon> = {
   data_collection: UserRound,

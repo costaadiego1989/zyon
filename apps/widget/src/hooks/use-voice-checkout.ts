@@ -112,9 +112,11 @@ type UseVoiceCheckoutOptions = {
   busy: boolean;
   composerLocked: boolean;
   awaitingAgentPlayback: boolean;
+  agentPlaybackKey?: string | null;
   latestAgentText: string | null;
   buildPendingTurn?: (text: string) => PendingVoiceTurnDraft;
   onConfirmTranscript: (text: string) => void | Promise<void>;
+  onAgentPlaybackDone?: (key: string) => void;
 };
 
 export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckoutState {
@@ -122,10 +124,11 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     enabled,
     busy,
     composerLocked,
-    awaitingAgentPlayback,
+    agentPlaybackKey,
     latestAgentText,
     buildPendingTurn,
     onConfirmTranscript,
+    onAgentPlaybackDone,
   } = options;
 
   const [listening, setListening] = useState(false);
@@ -138,6 +141,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   const autoListenRef = useRef(false);
   const buildPendingTurnRef = useRef(buildPendingTurn);
   const onConfirmTranscriptRef = useRef(onConfirmTranscript);
+  const onAgentPlaybackDoneRef = useRef(onAgentPlaybackDone);
 
   useEffect(() => {
     buildPendingTurnRef.current = buildPendingTurn;
@@ -146,6 +150,10 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   useEffect(() => {
     onConfirmTranscriptRef.current = onConfirmTranscript;
   }, [onConfirmTranscript]);
+
+  useEffect(() => {
+    onAgentPlaybackDoneRef.current = onAgentPlaybackDone;
+  }, [onAgentPlaybackDone]);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
@@ -267,8 +275,20 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   }, [busy, composerLocked, pendingTurn]);
 
   const speakAgentLine = useCallback(
-    (text: string) => {
-      if (!enabled || typeof window === "undefined" || !window.speechSynthesis) return;
+    (text: string, playbackKey?: string | null) => {
+      const markPlaybackDone = () => {
+        if (playbackKey) onAgentPlaybackDoneRef.current?.(playbackKey);
+      };
+
+      if (
+        !enabled ||
+        typeof window === "undefined" ||
+        !window.speechSynthesis ||
+        typeof SpeechSynthesisUtterance === "undefined"
+      ) {
+        markPlaybackDone();
+        return;
+      }
 
       const utterance = new SpeechSynthesisUtterance(stripAgentPrefix(text));
       utterance.lang = "pt-BR";
@@ -280,6 +300,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       };
       utterance.onend = () => {
         setSpeaking(false);
+        markPlaybackDone();
         setHint("Toque no microfone quando quiser responder.");
         if (autoListenRef.current && !busy && !composerLocked) {
           void startListening();
@@ -287,6 +308,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       };
       utterance.onerror = () => {
         setSpeaking(false);
+        markPlaybackDone();
         setHint("Toque no microfone quando quiser responder.");
       };
 
@@ -297,12 +319,13 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   );
 
   useEffect(() => {
-    if (!enabled || !latestAgentText || awaitingAgentPlayback || busy) return;
-    if (spokenKeyRef.current === latestAgentText) return;
-    spokenKeyRef.current = latestAgentText;
+    if (!enabled || !latestAgentText || busy) return;
+    const spokenKey = agentPlaybackKey ?? latestAgentText;
+    if (spokenKeyRef.current === spokenKey) return;
+    spokenKeyRef.current = spokenKey;
     autoListenRef.current = true;
-    speakAgentLine(latestAgentText);
-  }, [awaitingAgentPlayback, busy, enabled, latestAgentText, speakAgentLine]);
+    speakAgentLine(latestAgentText, agentPlaybackKey);
+  }, [agentPlaybackKey, busy, enabled, latestAgentText, speakAgentLine]);
 
   function replayAgentLine(): void {
     if (!latestAgentText || busy) return;

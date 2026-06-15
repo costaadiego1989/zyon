@@ -16,7 +16,7 @@ import {
 } from "../lib/embed-client.js";
 import { productCartResponseSchema, startCheckoutResponseSchema, trackEventResponseSchema, updateCartResponseSchema } from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
-import { fallbackExperience } from "./checkout-view-model.js";
+import { fallbackExperience } from "./checkout-presentation.js";
 
 export interface SessionStartedEvent {
   response: StartCheckoutResponse;

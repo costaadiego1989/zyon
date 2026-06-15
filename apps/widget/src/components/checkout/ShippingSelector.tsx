@@ -1,6 +1,6 @@
 import React from "react";
 import type { ShippingQuote } from "@aacp/shared-types";
-import { formatCurrency } from "../../hooks/checkout-view-model.js";
+import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 interface ShippingSelectorProps {
   options: ShippingQuote[];

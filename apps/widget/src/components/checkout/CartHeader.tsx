@@ -1,6 +1,6 @@
 import { X } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { brandInitials, CART_JOURNEY, resolveCartJourneyIndex } from "../../hooks/checkout-view-model.js";
+import { brandInitials, CART_JOURNEY, resolveCartJourneyIndex } from "../../hooks/checkout-presentation.js";
 
 export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
   const experience = vm.activeExperience;

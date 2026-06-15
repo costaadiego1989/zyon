@@ -1,6 +1,6 @@
 import { MessageCircle, Send, X } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { cn, themeStyle } from "../../hooks/checkout-view-model.js";
+import { cn, themeStyle } from "../../hooks/checkout-presentation.js";
 import { ThemeStudio } from "./ThemeStudio.js";
 
 export function FloatingCheckout({ vm }: { vm: CheckoutAgentViewModel }) {

@@ -20,7 +20,7 @@ import {
   crossSellAcceptResponseSchema
 } from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
-import { bubbleKey, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, type QuickReplyChoice } from "./checkout-view-model.js";
+import { bubbleKey, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, type QuickReplyChoice } from "./checkout-presentation.js";
 import { disableStreamingByEnv } from "./use-streamed-text.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { PurchaseChannel } from "./use-checkout-panels.js";
@@ -219,6 +219,7 @@ export function useCheckoutChat(
     if (!channelReady) return;
     const sessionId = session?.session_id;
     if (!sessionId || !isConversational || isCartEmpty || networkError || busy) return;
+    if (purchaseChannel === "voice") return;
 
     const customer = activeExperience.customer ?? config.customer;
     const stage = lastChat?.stage ?? activeExperience.stage;
@@ -240,17 +241,18 @@ export function useCheckoutChat(
     return () => clearTimeout(timer);
   }, [
     activeExperience.customer,
-    activeExperience.stage,
-    busy,
-    config.customer,
-    isCartEmpty,
-    isConversational,
-    lastChat,
-    networkError,
-    session,
-    session?.session_id,
-    channelReady
-  ]);
+      activeExperience.stage,
+      busy,
+      config.customer,
+      isCartEmpty,
+      isConversational,
+      lastChat,
+      networkError,
+      purchaseChannel,
+      session,
+      session?.session_id,
+      channelReady
+    ]);
 
   async function runShippingBootstrap(sessionId: string): Promise<void> {
     if (shippingBootstrapped.current === sessionId) return;

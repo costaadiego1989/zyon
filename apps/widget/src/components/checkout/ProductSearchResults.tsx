@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Package, Plus } from "lucide-react";
 import type { SuggestedProduct } from "@aacp/shared-types";
-import { formatCurrency } from "../../hooks/checkout-view-model.js";
+import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 export function ProductSearchResults({
   products,

@@ -6,7 +6,7 @@ import {
   matchShippingOptionFromLabel,
   normalizeQuickReplyLabel,
   type QuickReplyChoice,
-} from "./checkout-view-model.js";
+} from "./checkout-presentation.js";
 import type { PrePaymentStep } from "./use-checkout-pre-payment.js";
 
 type ChatOffer = {
@@ -175,9 +175,10 @@ export function useCheckoutQuickReplies(input: UseCheckoutQuickRepliesInput) {
       input.setShowCryptoPanel(false);
       input.setShowCardForm(true);
       input.appendAgentTurn(
-        "Preencha os dados do seu cartao abaixo. Seus dados sao criptografados e transmitidos com seguranca via checkout transparente.",
+        "Vou abrir o pagamento por cartao agora. Confira o valor antes de confirmar: nenhuma cobranca acontece sem sua acao final.",
         { stream: true },
       );
+      await input.createPaymentIntent("card");
       return;
     }
 

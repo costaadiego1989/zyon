@@ -1,6 +1,6 @@
 import { Check, CreditCard, ShoppingBag, Truck, UserRound } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { CART_JOURNEY, cn, resolveCartJourneyIndex, resolveStepperProgressPct } from "../../hooks/checkout-view-model.js";
+import { CART_JOURNEY, cn, resolveCartJourneyIndex, resolveStepperProgressPct } from "../../hooks/checkout-presentation.js";
 
 const JOURNEY_ICONS: Record<(typeof CART_JOURNEY)[number]["key"], LucideIcon> = {
   items: ShoppingBag,

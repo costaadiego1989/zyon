@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, isBuyerHubEligible, isBuyerRegistrationComplete } from "../hooks/checkout-view-model.js";
+import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, isBuyerHubEligible, isBuyerRegistrationComplete } from "../hooks/checkout-presentation.js";
 
 describe("brandInitials", () => {
   it("returns first letters for multi-word brands", () => {

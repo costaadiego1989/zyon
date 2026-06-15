@@ -5,7 +5,9 @@ import {
 } from "lucide-react";
 import type { CustomerAddress } from "@aacp/shared-types";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
+import { selectUserPanelModel } from "../../presentation/selectors/user-panel.selector.js";
 import type { BuyerAgentPersonality } from "../../hooks/use-buyer-hub.js";
+import type { UserPanelModel } from "../../presentation/models/user-panel.model.js";
 
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
@@ -55,26 +57,26 @@ function compactAddress(address: CustomerAddress): CustomerAddress | undefined {
 }
 
 export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
-  const isBuyerLoggedIn = Boolean(vm.auth.session?.global_user_id);
-  if (!vm.userPanelOpen || !isBuyerLoggedIn) return null;
+  const model = selectUserPanelModel(vm);
+  if (!model) return null;
+  return <UserPanelView model={model} />;
+}
 
-  const hub = vm.buyerHub;
-  const displayName = hub.profile?.display_name || vm.activeExperience?.customer?.fullName || "Cliente";
-  const email = hub.profile?.email || vm.auth.session?.email || vm.activeExperience?.customer?.email || "";
-  const avatarLetter = displayName[0]?.toUpperCase() ?? "C";
+function UserPanelView({ model }: { model: UserPanelModel }) {
+  const hub = model.buyerHub;
 
   return (
     <>
-      <div className="aacp-side-backdrop" onClick={() => vm.setUserPanelOpen(false)} />
+      <div className="aacp-side-backdrop" onClick={model.onClose} />
       <aside className="aacp-side-panel aacp-user-panel">
         <div className="aacp-side-head">
           <div className="aacp-side-user">
-            <div className="aacp-side-avatar">{avatarLetter}</div>
+            <div className="aacp-side-avatar">{model.avatarLetter}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="aacp-side-name">{displayName}</div>
-              <div className="aacp-side-email">{email}</div>
+              <div className="aacp-side-name">{model.displayName}</div>
+              <div className="aacp-side-email">{model.email}</div>
             </div>
-            <button className="aacp-side-close" onClick={() => vm.setUserPanelOpen(false)} aria-label="Fechar painel">
+            <button className="aacp-side-close" onClick={model.onClose} aria-label="Fechar painel">
               <X size={18} />
             </button>
           </div>
@@ -89,8 +91,8 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           ].map((t) => (
             <button
               key={t.id}
-              className={`aacp-side-tab ${vm.userTab === t.id ? "active" : ""}`}
-              onClick={() => vm.setUserTab(t.id as any)}
+              className={`aacp-side-tab ${model.activeTab === t.id ? "active" : ""}`}
+              onClick={() => model.onSelectTab(t.id as UserPanelModel["activeTab"])}
             >
               {t.icon}
               <span>{t.label}</span>
@@ -108,10 +110,10 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             <HubError error={hub.error} onRetry={() => void hub.refresh()} />
           ) : (
             <>
-              {vm.userTab === "profile" && <ProfileTab vm={vm} />}
-              {vm.userTab === "agent" && <AgentTab vm={vm} />}
-              {vm.userTab === "orders" && <OrdersTab vm={vm} />}
-              {vm.userTab === "settings" && <SettingsTab vm={vm} />}
+              {model.activeTab === "profile" && <ProfileTab model={model} />}
+              {model.activeTab === "agent" && <AgentTab model={model} />}
+              {model.activeTab === "orders" && <OrdersTab model={model} />}
+              {model.activeTab === "settings" && <SettingsTab model={model} />}
             </>
           )}
         </div>
@@ -134,12 +136,12 @@ function HubError({ error, onRetry }: { error: string; onRetry: () => void }) {
   );
 }
 
-function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
-  const hub = vm.buyerHub;
-  const fallbackName = hub.profile?.display_name ?? vm.activeExperience?.customer?.fullName ?? "";
-  const fallbackPhone = hub.profile?.phone ?? vm.activeExperience?.customer?.phone ?? "";
-  const fallbackEmail = hub.profile?.email ?? vm.auth.session?.email ?? vm.activeExperience?.customer?.email ?? "";
-  const fallbackAddress = normalizeAddress(hub.profile?.address ?? vm.activeExperience?.customer?.address);
+function ProfileTab({ model }: { model: UserPanelModel }) {
+  const hub = model.buyerHub;
+  const fallbackName = hub.profile?.display_name ?? model.activeExperience?.customer?.fullName ?? "";
+  const fallbackPhone = hub.profile?.phone ?? model.activeExperience?.customer?.phone ?? "";
+  const fallbackEmail = hub.profile?.email ?? model.auth.session?.email ?? model.activeExperience?.customer?.email ?? "";
+  const fallbackAddress = normalizeAddress(hub.profile?.address ?? model.activeExperience?.customer?.address);
   const fallbackAddressKey = JSON.stringify(fallbackAddress);
   const [name, setName] = useState(fallbackName);
   const [phone, setPhone] = useState(fallbackPhone);
@@ -311,8 +313,8 @@ function ProfileTab({ vm }: { vm: CheckoutAgentViewModel }) {
   );
 }
 
-function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
-  const hub = vm.buyerHub;
+function AgentTab({ model }: { model: UserPanelModel }) {
+  const hub = model.buyerHub;
   const [agentName, setAgentName] = useState(hub.agent?.agent_name ?? "");
   const [personality, setPersonality] = useState<BuyerAgentPersonality>(hub.agent?.personality ?? "balanced");
   const [targetDiscount, setTargetDiscount] = useState(hub.agent?.target_discount_percent ?? 10);
@@ -452,8 +454,8 @@ function AgentTab({ vm }: { vm: CheckoutAgentViewModel }) {
   );
 }
 
-function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
-  const hub = vm.buyerHub;
+function OrdersTab({ model }: { model: UserPanelModel }) {
+  const hub = model.buyerHub;
   const [query, setQuery] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const normalizedQuery = query.trim().toLowerCase();
@@ -619,18 +621,18 @@ function OrdersTab({ vm }: { vm: CheckoutAgentViewModel }) {
   );
 }
 
-function SettingsTab({ vm }: { vm: CheckoutAgentViewModel }) {
+function SettingsTab({ model }: { model: UserPanelModel }) {
   return (
     <div className="aacp-side-section">
       <div className="aacp-side-section-title">Preferências</div>
 
       <div className="aacp-toggle-row">
         <div>
-          <strong>Tema {vm.colorMode === "dark" ? "escuro" : "claro"}</strong>
+          <strong>Tema {model.colorMode === "dark" ? "escuro" : "claro"}</strong>
           <p>Alterne entre claro e escuro</p>
         </div>
-        <button className="aacp-icon-btn" onClick={vm.toggleColorMode} aria-label="Alternar tema">
-          {vm.colorMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        <button className="aacp-icon-btn" onClick={model.onToggleColorMode} aria-label="Alternar tema">
+          {model.colorMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>
 
@@ -643,7 +645,10 @@ function SettingsTab({ vm }: { vm: CheckoutAgentViewModel }) {
       <button
         className="aacp-side-logout"
         style={{ marginTop: 24 }}
-        onClick={() => { vm.auth.logout?.(); vm.setUserPanelOpen(false); }}
+        onClick={() => {
+          model.auth.logout?.();
+          model.onClose();
+        }}
       >
         <LogOut size={14} />Sair da conta
       </button>

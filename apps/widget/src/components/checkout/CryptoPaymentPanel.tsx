@@ -1,40 +1,32 @@
 import { useState } from "react";
 import { Wallet, Loader2 } from "lucide-react";
-import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
+import type { CryptoPaymentPanelModel } from "../../presentation/models/crypto-payment-panel.model.js";
 import { useCryptoWallet } from "../../hooks/use-crypto-wallet.js";
-import { formatCurrency } from "../../hooks/checkout-view-model.js";
 
 function truncateAddress(value: string): string {
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
 }
 
-export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
-  const quote = vm.cryptoPayment?.quote;
+export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }) {
   const wallet = useCryptoWallet();
   const [paying, setPaying] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
-
-  if (!quote || !vm.cryptoPayment) return null;
-
-  const expired = Date.parse(quote.quoteExpiresAt) <= Date.now();
-  const brlLabel =
-    typeof vm.cryptoPayment.amountCents === "number"
-      ? formatCurrency(vm.cryptoPayment.amountCents / 100, vm.cryptoPayment.currency ?? "BRL")
-      : null;
+  const quote = model.quote;
 
   async function handlePay() {
-    if (expired || paying) return;
+    if (model.expired || paying) return;
     setPaying(true);
     setStatus(null);
     try {
       const account = wallet.address ?? (await wallet.connectMetaMask());
       setStatus("Enviando USDC...");
-      const txHash = await wallet.sendUsdcTransfer(quote!, account);
+      const txHash = await wallet.sendUsdcTransfer(quote, account);
       setStatus("Confirmando na blockchain...");
-      await vm.confirmCryptoPayment(vm.cryptoPayment!.intentId, txHash, account);
-      vm.setShowCryptoPanel(false);
+      await model.onConfirmPayment(model.intentId, txHash, account);
+      model.onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Não foi possível concluir o pagamento crypto.";
+      const message =
+        err instanceof Error ? err.message : "Não foi possível concluir o pagamento crypto.";
       wallet.setError(message);
       setStatus(null);
     } finally {
@@ -56,10 +48,10 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       </div>
 
       <dl className="aacp-crypto-quote">
-        {brlLabel ? (
+        {model.orderTotalLabel ? (
           <>
             <dt>Total do pedido</dt>
-            <dd>{brlLabel}</dd>
+            <dd>{model.orderTotalLabel}</dd>
           </>
         ) : null}
         <dt>Valor em crypto</dt>
@@ -70,7 +62,7 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         <dd>{new Date(quote.quoteExpiresAt).toLocaleTimeString("pt-BR")}</dd>
       </dl>
 
-      {expired ? (
+      {model.expired ? (
         <p className="aacp-crypto-error" role="alert">
           Cotação expirada. Escolha pagar com crypto novamente para gerar um novo valor.
         </p>
@@ -84,7 +76,8 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {wallet.address ? (
         <p className="aacp-crypto-wallet">
-          Carteira conectada: <span className="aacp-crypto-mono">{truncateAddress(wallet.address)}</span>
+          Carteira conectada:{" "}
+          <span className="aacp-crypto-mono">{truncateAddress(wallet.address)}</span>
         </p>
       ) : null}
 
@@ -94,7 +87,7 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             <button
               type="button"
               className="aacp-chip aacp-crypto-btn"
-              disabled={wallet.connecting || expired}
+              disabled={wallet.connecting || model.expired}
               onClick={() => void wallet.connectMetaMask()}
             >
               {wallet.connecting ? <Loader2 size={16} className="aacp-spin" /> : null}
@@ -103,7 +96,7 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
             <button
               type="button"
               className="aacp-chip aacp-crypto-btn aacp-crypto-btn--ghost"
-              disabled={wallet.connecting || expired}
+              disabled={wallet.connecting || model.expired}
               onClick={() => void wallet.connectMetaMask()}
             >
               Conectar Trust Wallet
@@ -113,7 +106,7 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           <button
             type="button"
             className="aacp-cta aacp-crypto-pay"
-            disabled={paying || expired}
+            disabled={paying || model.expired}
             onClick={() => void handlePay()}
           >
             {paying ? <Loader2 size={16} className="aacp-spin" /> : null}
@@ -125,7 +118,8 @@ export function CryptoPaymentPanel({ vm }: { vm: CheckoutAgentViewModel }) {
       {status ? <p className="aacp-crypto-status">{status}</p> : null}
 
       <p className="aacp-crypto-footnote">
-        Envie exatamente {quote.amountDisplay} na rede {quote.chainLabel}. Nunca compartilhe sua seed phrase.
+        Envie exatamente {quote.amountDisplay} na rede {quote.chainLabel}. Nunca compartilhe sua
+        seed phrase.
       </p>
     </div>
   );

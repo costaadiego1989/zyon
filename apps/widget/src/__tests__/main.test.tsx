@@ -1228,20 +1228,10 @@ describe("CheckoutAgent (conversational)", () => {
 
     // No raw PAN/CVV inputs are ever rendered — provider-side tokenization only.
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com cartão");
+      expect(container.querySelector('[data-testid="stripe-payment-element"]')).not.toBeNull();
     });
     expect(container.querySelector('input[autocomplete="cc-number"]')).toBeNull();
     expect(container.querySelector('input[autocomplete="cc-csc"]')).toBeNull();
-
-    // Initiate the payment intent → Stripe Elements (mocked PaymentElement) render.
-    const initiateBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
-    expect(initiateBtn).not.toBeUndefined();
-    await act(async () => { fireEvent.click(initiateBtn!); });
-
-    await waitFor(() => {
-      expect(container.querySelector('[data-testid="stripe-payment-element"]')).not.toBeNull();
-    });
 
     // Submit the Stripe form → client-side confirm succeeds.
     const stripeForm = container.querySelector("form");
@@ -1663,18 +1653,10 @@ describe("CheckoutAgent (conversational)", () => {
     await act(async () => { fireEvent.click(cardQr!); });
 
     await waitFor(() => {
-      expect(container.textContent).toContain("Pagar com cartão");
+      expect(container.querySelector('[data-testid="stripe-payment-element"]')).not.toBeNull();
     });
     expect(container.querySelector('input[autocomplete="cc-number"]')).toBeNull();
     expect(container.querySelector('input[autocomplete="cc-csc"]')).toBeNull();
-
-    const initiateBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => /Pagar com cartão/i.test(b.textContent ?? ""));
-    await act(async () => { fireEvent.click(initiateBtn!); });
-
-    await waitFor(() => {
-      expect(container.querySelector('[data-testid="stripe-payment-element"]')).not.toBeNull();
-    });
 
     const stripeForm = container.querySelector("form");
     await act(async () => { fireEvent.submit(stripeForm!); });

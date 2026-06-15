@@ -13,7 +13,7 @@ import {
 import { useState } from "react";
 import type { AccountHubSection, AccountHubState } from "../../hooks/use-account-hub.js";
 import type { GlobalAuthController } from "../../hooks/use-global-auth.js";
-import { cn } from "../../hooks/checkout-view-model.js";
+import { cn } from "../../hooks/checkout-presentation.js";
 
 interface GlobalAuthModalProps {
   auth: GlobalAuthController;

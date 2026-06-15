@@ -5,7 +5,7 @@ import { CheckoutShell } from "./components/checkout/CheckoutShell.js";
 import { DEFAULT_WIDGET_API_BASE_URL, parseWidgetConfig } from "./lib/widget-schemas.js";
 import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model.js";
 import type { ProductSelectionLine, WidgetConfig } from "./lib/widget-types.js";
-import { themeStyle } from "./hooks/checkout-view-model.js";
+import { themeStyle } from "./hooks/checkout-presentation.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";

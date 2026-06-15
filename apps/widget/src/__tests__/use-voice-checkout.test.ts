@@ -114,6 +114,28 @@ describe("useVoiceCheckout", () => {
     expect(utterance.lang).toBe("pt-BR");
   });
 
+  it("uses voice playback as the agent playback gate and releases the turn on audio end", async () => {
+    const onAgentPlaybackDone = vi.fn();
+    renderVoiceHook({
+      awaitingAgentPlayback: true,
+      agentPlaybackKey: "agent-turn-2",
+      latestAgentText: "Zion: Agora me informe seu CPF.",
+      onAgentPlaybackDone,
+    });
+
+    await waitFor(() => {
+      expect(speakMock).toHaveBeenCalledTimes(1);
+    });
+
+    const utterance = speakMock.mock.calls[0]![0] as MockSpeechSynthesisUtterance;
+    expect(utterance.text).toBe("Agora me informe seu CPF.");
+    act(() => {
+      utterance.onend?.();
+    });
+
+    expect(onAgentPlaybackDone).toHaveBeenCalledWith("agent-turn-2");
+  });
+
   it("sends the raw transcript only after explicit confirmation", async () => {
     const { result, onConfirmTranscript } = renderVoiceHook();
 

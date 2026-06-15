@@ -1,7 +1,8 @@
 import type { ShippingQuote, SuggestedProduct } from "@aacp/shared-types";
-import type { QuickReplyChoice } from "../../hooks/checkout-view-model.js";
+import type { QuickReplyChoice } from "../../hooks/checkout-presentation.js";
 import type { CouponBoxModel } from "./checkout-action-panels.model.js";
 import type { CreditCardFormModel } from "./credit-card-form.model.js";
+import type { CryptoPaymentPanelModel } from "./crypto-payment-panel.model.js";
 import type { NetworkErrorModel } from "./checkout-action-panels.model.js";
 import type { OfferBannerModel } from "./checkout-action-panels.model.js";
 import type { PendingOfferBannerModel } from "./checkout-action-panels.model.js";
@@ -43,6 +44,6 @@ export type CheckoutPanelsModel = {
   catalogResults: CatalogResultsPanelModel | null;
   crossSell: CrossSellPanelModel | null;
   creditCardForm: CreditCardFormModel | null;
-  showCryptoPanel: boolean;
+  cryptoPanel: CryptoPaymentPanelModel | null;
   quickReplies: QuickRepliesPanelModel | null;
 };

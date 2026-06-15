@@ -3,7 +3,7 @@ import {
   agentGivenAndRest,
   formatCurrency,
   stripAgentMessagePrefix,
-} from "../../hooks/checkout-view-model.js";
+} from "../../hooks/checkout-presentation.js";
 import type { VoiceCheckoutState } from "../../hooks/use-voice-checkout.js";
 import {
   selectCheckoutExperiencePresentation,

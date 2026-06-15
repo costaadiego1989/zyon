@@ -1,5 +1,5 @@
 import type { JourneyProtocolModel } from "../../presentation/checkout-experience-model.js";
-import { cn } from "../../hooks/checkout-view-model.js";
+import { cn } from "../../hooks/checkout-presentation.js";
 
 export function JourneyProtocol({ model }: { model: JourneyProtocolModel }) {
   const stepIndex = Number(model.currentNumber);
