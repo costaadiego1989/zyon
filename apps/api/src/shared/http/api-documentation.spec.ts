@@ -31,6 +31,18 @@ describe("public OpenAPI document", () => {
           get: { operationId: "getInstallation", responses: {} },
           put: { operationId: "updateInstallation", responses: {} },
         },
+        "/orders": {
+          get: { operationId: "listOrders", responses: {} },
+        },
+        "/customers": {
+          get: { operationId: "listCustomers", responses: {} },
+        },
+        "/payments": {
+          get: { operationId: "listPayments", responses: {} },
+        },
+        "/audit-events": {
+          get: { operationId: "listAuditEvents", responses: {} },
+        },
         "/webhooks/stripe": {
           post: { operationId: "stripeCallback", responses: {} },
         },
@@ -48,6 +60,10 @@ describe("public OpenAPI document", () => {
       "/v1/payments/connections/stripe/onboarding-link",
       "/v1/billing/subscription",
       "/v1/installations/{installationId}",
+      "/v1/orders",
+      "/v1/customers",
+      "/v1/payments",
+      "/v1/audit-events",
     ]);
     assert.deepEqual(document.paths["/v1/auth/login"]?.post?.security, []);
     assert.deepEqual(

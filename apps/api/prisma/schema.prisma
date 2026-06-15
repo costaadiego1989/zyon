@@ -27,6 +27,7 @@ model Merchant {
   billingSubscription    MerchantBillingSubscription?
   onboardingState        MerchantOnboardingState?
   installations          MerchantInstallation[]
+  auditEvents            MerchantAuditEvent[]
 
   @@map("merchants")
 }
@@ -61,6 +62,25 @@ model MerchantInstallation {
   @@unique([merchantId, name, environment])
   @@index([merchantId, environment, status])
   @@map("merchant_installations")
+}
+
+model MerchantAuditEvent {
+  id            String   @id @default(cuid())
+  merchantId    String   @map("merchant_id")
+  actorType     String   @map("actor_type")
+  actorId       String   @map("actor_id")
+  action        String
+  resourceType  String   @map("resource_type")
+  resourceId    String?  @map("resource_id")
+  correlationId String?  @map("correlation_id")
+  metadata      Json     @default("{}")
+  occurredAt    DateTime @default(now()) @map("occurred_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, occurredAt, id])
+  @@index([merchantId, resourceType, resourceId])
+  @@map("merchant_audit_events")
 }
 
 model MerchantCommerceConnection {
