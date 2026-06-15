@@ -4,7 +4,9 @@ import type {
   CheckoutEventName,
   CheckoutExperienceSnapshot,
   StartCheckoutResponse,
-  TrackEventResponse
+  TrackEventResponse,
+  UpdateCartItemInput,
+  UpdateCartResponse
 } from "@aacp/shared-types";
 import {
   checkoutJson,
@@ -12,7 +14,7 @@ import {
   CHECKOUT_LEGACY_PATHS,
   normalizeApiBase
 } from "../lib/embed-client.js";
-import { productCartResponseSchema, startCheckoutResponseSchema, trackEventResponseSchema } from "../lib/widget-schemas.js";
+import { productCartResponseSchema, startCheckoutResponseSchema, trackEventResponseSchema, updateCartResponseSchema } from "../lib/widget-schemas.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { fallbackExperience } from "./checkout-view-model.js";
 
@@ -117,6 +119,26 @@ export function useCheckoutSession(config: WidgetConfig) {
     }
   }
 
+  async function updateCart(items: UpdateCartItemInput[]): Promise<void> {
+    if (!session || items.length === 0) return;
+    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    const body =
+      config.mode === "embed"
+        ? { session_id: session.session_id, items }
+        : { merchant_id: config.merchantId, session_id: session.session_id, items };
+    try {
+      const response = await checkoutJson<UpdateCartResponse>(apiOrigin, paths.cart, {
+        ...embedOpts,
+        method: config.mode === "embed" ? "POST" : "PATCH",
+        body,
+        schema: updateCartResponseSchema
+      });
+      syncExperience(response.experience);
+    } catch {
+      setNetworkError("Não consegui atualizar o carrinho agora. Tente novamente.");
+    }
+  }
+
   function retryStartCheckout(): void {
     setNetworkError(null);
     void startCheckout();
@@ -144,6 +166,7 @@ export function useCheckoutSession(config: WidgetConfig) {
     embedOpts,
     syncExperience,
     track,
+    updateCart,
     retryStartCheckout,
     clearPersistedSession,
     resetSessionAfterOrder,

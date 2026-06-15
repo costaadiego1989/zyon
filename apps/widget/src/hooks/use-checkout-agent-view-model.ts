@@ -27,7 +27,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const orderCompletionHandled = useRef(false);
   const buyerLoginAttemptedKey = useRef<string | null>(null);
   const sessionState = useCheckoutSession(config);
-  const cartState = useCheckoutCart(sessionState.experience, config);
+  const cartState = useCheckoutCart(sessionState.experience, config, sessionState.updateCart);
   const panels = useCheckoutPanels();
   const chatState = useCheckoutChat(config, sessionState);
   const payment = useCheckoutPayment(config, sessionState, chatState);

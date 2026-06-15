@@ -206,6 +206,11 @@ export const trackEventResponseSchema = z.object({
   trigger_agent: z.boolean()
 }).passthrough();
 
+export const updateCartResponseSchema = z.object({
+  session_id: z.string().min(1),
+  experience: checkoutExperienceSnapshotSchema
+}).passthrough();
+
 export const chatMessageResponseSchema = z.object({
   message: z.string(),
   objection: z.enum(["shipping_cost", "price", "trust", "payment", "unknown"]),

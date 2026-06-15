@@ -1414,6 +1414,36 @@ describe("CheckoutAgent (conversational)", () => {
   });
 
   it("cart quantity increment and decrement update item count", async () => {
+    const cartCalls: Array<{ sku: string; quantity: number }> = [];
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/cart")) {
+        const body = JSON.parse(String(init?.body || "{}")) as { items: Array<{ sku: string; quantity: number }> };
+        cartCalls.push(...body.items);
+        // Server reconciles: reflect requested quantity in the returned experience.
+        const change = body.items[0]!;
+        const experience = buildStartResponse(baseTheme).experience;
+        const unitPrice = 449.9;
+        experience.items =
+          change.quantity === 0
+            ? []
+            : [{ sku: change.sku, name: "Bolsa Executiva", quantity: change.quantity, unit_price: unitPrice, line_total: unitPrice * change.quantity }];
+        const subtotal = change.quantity * unitPrice;
+        experience.totals = { currency: "BRL", subtotal, shipping: 0, discount: 0, total: subtotal };
+        return new Response(
+          JSON.stringify({ session_id: "sess_1", experience }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
       expect(container.querySelector(".aacp-cart-brand strong")?.textContent).toBe("Northstar Atelier");
@@ -1440,6 +1470,13 @@ describe("CheckoutAgent (conversational)", () => {
     await waitFor(() => {
       expect(container.querySelector(".aacp-cart-empty")).not.toBeNull();
     });
+
+    // Server is the authority: each mutation persisted with sku + quantity (never price).
+    await waitFor(() => {
+      expect(cartCalls.some((call) => call.quantity === 0)).toBe(true);
+    });
+    expect(cartCalls[0]).toMatchObject({ quantity: 3 });
+    expect(cartCalls.every((call) => typeof call.sku === "string")).toBe(true);
   });
 
   it("coupon box: typing code and submitting calls coupon API endpoint", async () => {

@@ -6,6 +6,7 @@ export function normalizeApiBase(url: string): string {
 export const CHECKOUT_EMBED_PATHS = {
   start: "/embed/start",
   track: "/embed/track",
+  cart: "/embed/cart",
   chatMessage: "/embed/chat",
   applyOffer: "/embed/offers/apply",
   applyCoupon: "/embed/coupons/apply",
@@ -22,6 +23,7 @@ export const CHECKOUT_EMBED_PATHS = {
 export const CHECKOUT_LEGACY_PATHS = {
   start: "/start-checkout",
   track: "/track-event",
+  cart: "/cart",
   chatMessage: "/chat/message",
   applyOffer: "/offers/apply",
   applyCoupon: "/coupons/apply",
@@ -38,7 +40,7 @@ export const CHECKOUT_LEGACY_PATHS = {
 export async function checkoutJson<T>(
   origin: string,
   path: string,
-  options: { embedToken?: string; body: Record<string, unknown>; schema?: { parse(input: unknown): T } }
+  options: { embedToken?: string; body: Record<string, unknown>; method?: "POST" | "PATCH"; schema?: { parse(input: unknown): T } }
 ): Promise<T> {
   const url = `${origin}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {
@@ -49,7 +51,7 @@ export async function checkoutJson<T>(
   }
 
   const response = await fetch(url, {
-    method: "POST",
+    method: options.method ?? "POST",
     headers,
     body: JSON.stringify(options.body)
   });

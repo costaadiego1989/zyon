@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import type { CheckoutExperienceSnapshot } from "@aacp/shared-types";
+import type { CheckoutExperienceSnapshot, UpdateCartItemInput } from "@aacp/shared-types";
 import { buildVisibleCart, countVisibleItems, removeVisibleCartItem, incrementVisibleCartItem, decrementVisibleCartItem, fallbackExperience, type VisibleCartState } from "./checkout-view-model.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 
 export function useCheckoutCart(
   experience: CheckoutExperienceSnapshot | null,
-  config: WidgetConfig
+  config: WidgetConfig,
+  persistCart?: (items: UpdateCartItemInput[]) => void | Promise<void>
 ) {
   const [visibleCart, setVisibleCart] = useState<VisibleCartState>(() =>
     buildVisibleCart(fallbackExperience(config))
@@ -21,16 +22,32 @@ export function useCheckoutCart(
     setVisibleCart(cart);
   }, [experience]);
 
+  // Optimistic local update for snappy UI; server reconciles cart + payable total
+  // via persistCart. `next` carries the post-mutation quantity to send to the server.
+  function persistQuantity(sku: string, next: VisibleCartState): void {
+    const item = next.items.find((entry) => entry.sku === sku);
+    void persistCart?.([{ sku, quantity: item?.quantity ?? 0 }]);
+  }
+
   function handleRemoveCartItem(sku: string): void {
     setVisibleCart((current) => removeVisibleCartItem(current, sku));
+    void persistCart?.([{ sku, quantity: 0 }]);
   }
 
   function incrementItem(sku: string): void {
-    setVisibleCart((current) => incrementVisibleCartItem(current, sku));
+    setVisibleCart((current) => {
+      const next = incrementVisibleCartItem(current, sku);
+      persistQuantity(sku, next);
+      return next;
+    });
   }
 
   function decrementItem(sku: string): void {
-    setVisibleCart((current) => decrementVisibleCartItem(current, sku));
+    setVisibleCart((current) => {
+      const next = decrementVisibleCartItem(current, sku);
+      persistQuantity(sku, next);
+      return next;
+    });
   }
 
   function applyShipping(method: string, price: number): void {
