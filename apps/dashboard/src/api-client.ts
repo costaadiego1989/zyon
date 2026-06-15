@@ -4,12 +4,16 @@ import type {
   DashboardOverview,
   MerchantRules,
   MerchantTheme,
+  OnboardingStateResponse,
+  OnboardingStepId,
   SupportSettings,
   SupportSettingsPatch,
   SupportTicket,
   SupportTicketStatus,
   SupportTicketStatusPatch,
 } from "@aacp/shared-types";
+
+export type { OnboardingStateResponse, OnboardingStepId } from "@aacp/shared-types";
 
 export type { DashboardOverview } from "@aacp/shared-types";
 
@@ -383,6 +387,19 @@ export function createDashboardApi(options: {
       cart_ref?: string;
     }): Promise<EmbedSessionResponse> {
       return dashboardJson(base, "/embed-sessions", { method: "POST", jsonBody: payload }, f);
+    },
+
+    getOnboardingState(): Promise<OnboardingStateResponse> {
+      return dashboardJson(base, "/onboarding", { method: "GET" }, f);
+    },
+
+    completeOnboardingStep(step: OnboardingStepId): Promise<OnboardingStateResponse> {
+      return dashboardJson(
+        base,
+        `/onboarding/steps/${encodeURIComponent(step)}/complete`,
+        { method: "POST" },
+        f
+      );
     },
   };
 }

@@ -345,3 +345,55 @@ describe("createDashboardApi", () => {
     expect(saved.density).toBe("comfortable");
   });
 });
+
+describe("onboarding api", () => {
+  const stateBody = {
+    merchant_id: "mrc_1",
+    steps: [
+      { id: "account", status: "completed" },
+      { id: "checkout_config", status: "pending" },
+      { id: "embed", status: "pending" },
+      { id: "publish", status: "pending" }
+    ],
+    completed: false,
+    next_step: "checkout_config"
+  };
+
+  function stubFetch() {
+    const spy = vi.fn(async (): Promise<Response> => {
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(stateBody),
+        json: async () => stateBody
+      } as Response;
+    });
+    vi.stubGlobal("fetch", spy);
+    return spy;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("getOnboardingState GET /onboarding com cookies", async () => {
+    const spy = stubFetch();
+    const api = createDashboardApi({ baseUrl: "http://api.test" });
+    const state = await api.getOnboardingState();
+    expect(spy).toHaveBeenCalledWith(
+      "http://api.test/onboarding",
+      expect.objectContaining({ credentials: "include", method: "GET" })
+    );
+    expect(state.next_step).toBe("checkout_config");
+  });
+
+  it("completeOnboardingStep POST encoded step path", async () => {
+    const spy = stubFetch();
+    const api = createDashboardApi({ baseUrl: "http://api.test" });
+    await api.completeOnboardingStep("checkout_config");
+    expect(spy).toHaveBeenCalledWith(
+      "http://api.test/onboarding/steps/checkout_config/complete",
+      expect.objectContaining({ credentials: "include", method: "POST" })
+    );
+  });
+});

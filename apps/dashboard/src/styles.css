@@ -915,3 +915,69 @@ button.chip.selected {
   font-size: 11px;
   font-weight: 800;
 }
+
+/* Onboarding wizard (ADR 0024) */
+.onboarding-wizard .onboarding-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+.onboarding-steps .step {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border, #2a2f3a);
+  border-radius: 12px;
+  opacity: 0.7;
+}
+.onboarding-steps .step.current {
+  opacity: 1;
+  border-color: var(--accent, #6ea8fe);
+  box-shadow: 0 0 0 1px var(--accent, #6ea8fe) inset;
+}
+.onboarding-steps .step.done {
+  opacity: 1;
+}
+.onboarding-steps .step-icon {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  padding-top: 2px;
+}
+.onboarding-steps .step.done .step-icon {
+  color: #3ddc97;
+}
+.onboarding-steps .step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.onboarding-steps .step-body strong {
+  font-size: 15px;
+}
+.onboarding-steps .step-body span {
+  font-size: 13px;
+  opacity: 0.8;
+}
+.onboarding-steps .step-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.onboarding-wizard .link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 8px;
+  color: var(--accent, #6ea8fe);
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: underline;
+  width: fit-content;
+}
+.onboarding-done button {
+  width: fit-content;
+}

@@ -9,6 +9,7 @@ import {
   MessageSquare,
   PackageSearch,
   Palette,
+  Rocket,
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
@@ -33,12 +34,14 @@ import { OrdersShipmentsPage } from "./pages/orders-shipments-page.js";
 import { CustomersPage } from "./pages/customers-page.js";
 import { EmbedPage } from "./pages/embed-page.js";
 import { ThemePage } from "./pages/theme-page.js";
+import { OnboardingWizard } from "./pages/onboarding-wizard.js";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 const DEFAULT_MERCHANT_ID = import.meta.env.VITE_MERCHANT_ID ?? "mrc_demo";
 
 type TabKey =
+  | "onboarding"
   | "overview"
   | "integrations"
   | "shipments"
@@ -53,6 +56,7 @@ type TabKey =
 type AuthMode = "login" | "signup";
 
 const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: LucideIcon }> = [
+  { key: "onboarding", label: "Primeiros passos", section: "Comecar", icon: Rocket },
   { key: "overview", label: "Operacao", section: "Hoje", icon: BarChart3 },
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
@@ -198,6 +202,13 @@ function App() {
       const profile = await api.merchantProfile();
       setMe(profile);
       setAuthHint(null);
+      // Resume the guided onboarding when provisioning is incomplete.
+      try {
+        const onboarding = await api.getOnboardingState();
+        if (!onboarding.completed) setTab("onboarding");
+      } catch {
+        // Onboarding state is best-effort; never block console access.
+      }
     } catch {
       setMe(null);
     } finally {
@@ -333,6 +344,14 @@ function App() {
         </header>
 
         <section className="dashboard-content">
+          {tab === "onboarding" ? (
+            <OnboardingWizard
+              apiBaseUrl={API_BASE_URL}
+              me={me}
+              onNavigate={(target) => setTab(target)}
+              onFinished={() => setTab("overview")}
+            />
+          ) : null}
           {tab === "overview" ? (
             <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id || DEFAULT_MERCHANT_ID} me={me} />
           ) : null}
