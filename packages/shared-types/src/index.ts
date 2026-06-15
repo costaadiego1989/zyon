@@ -352,6 +352,22 @@ export interface TrackEventResponse {
   trigger_agent: boolean;
 }
 
+export interface UpdateCartItemInput {
+  sku: string;
+  quantity: number;
+}
+
+export interface UpdateCartRequest {
+  merchant_id: string;
+  session_id: string;
+  items: UpdateCartItemInput[];
+}
+
+export interface UpdateCartResponse {
+  session_id: string;
+  experience: CheckoutExperienceSnapshot;
+}
+
 export interface DecisionRequest {
   merchant_id: string;
   session_id: string;
@@ -442,6 +458,7 @@ export type CheckoutDomainEventType =
   | "checkout.event.tracked"
   | "checkout.abandonment.scored"
   | "checkout.abandoned"
+  | "checkout.cart.updated"
   | "order.completed"
   | "order.tracking.updated"
   | "whatsapp.message.requested"
