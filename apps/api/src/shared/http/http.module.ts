@@ -20,10 +20,12 @@ import {
 import { PrismaIdempotencyRepository } from "./idempotency/prisma-idempotency.repository.js";
 import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 import { ProblemDetailsFilter } from "./problem-details.filter.js";
+import { WidgetAssetsController } from "./widget-assets.controller.js";
 
 @Global()
 @Module({
   imports: [PersistenceModule],
+  controllers: [WidgetAssetsController],
   providers: [
     {
       provide: HttpClientService,
