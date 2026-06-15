@@ -1,7 +1,6 @@
 import type {
   CheckoutSettings,
   CheckoutSettingsPatch,
-  DashboardOverview,
   MerchantRules,
   MerchantTheme,
   OnboardingStateResponse,
@@ -15,9 +14,6 @@ import type {
 
 export type { OnboardingStateResponse, OnboardingStepId } from "@aacp/shared-types";
 
-export type { DashboardOverview } from "@aacp/shared-types";
-
-/** Base da API (sem barra final), ex.: `http://localhost:3001`. */
 export function normalizeApiBase(url: string): string {
   return url.trimEnd().replace(/\/+$/, "");
 }
@@ -38,12 +34,21 @@ function mergePath(urlPath: string): string {
   return `/${trimmed}`;
 }
 
-function mergeUrl(baseUrl: string, path: string): string {
-  const base = normalizeApiBase(baseUrl);
-  return `${base}${mergePath(path)}`;
+function versionedPath(path: string): string {
+  const normalized = mergePath(path);
+  return normalized === "/v1" || normalized.startsWith("/v1/")
+    ? normalized
+    : `/v1${normalized}`;
 }
 
-/** POST /auth/login (define cookie HttpOnly). */
+function mergeUrl(baseUrl: string, path: string): string {
+  const base = normalizeApiBase(baseUrl);
+  const normalizedPath = versionedPath(path);
+  return base.endsWith("/v1")
+    ? `${base}${normalizedPath.slice(3)}`
+    : `${base}${normalizedPath}`;
+}
+
 export type DashboardLoginAuth = {
   merchant_id: string;
   user_id: string;
@@ -113,19 +118,46 @@ export type WebhookDelivery = {
   deliveredAt?: string;
 };
 
-export type TenantShipment = {
+export type TenantOrder = {
   id: string;
-  merchantId: string;
-  sessionId: string;
-  externalOrderId: string;
-  carrier: string;
-  trackingCode: string;
-  trackingUrl?: string;
+  session_id: string;
+  external_order_id: string;
+  status: "approved" | "cancelled";
+  total: number;
+  currency: string;
+  tracking_code: string | null;
+  customer: Record<string, unknown> | null;
+  cart: Record<string, unknown>;
+  completed_at: string;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+};
+
+export type TenantCustomer = {
+  id: string;
+  profile: Record<string, unknown>;
+  first_seen_at: string;
+  last_seen_at: string;
+};
+
+export type TenantPayment = {
+  id: string;
+  session_id: string;
+  amount: number;
+  approved_amount: number | null;
+  currency: string;
+  method: string;
   status: string;
-  createdAt: string;
-  updatedAt: string;
-  estimatedEta?: string;
-  deliveredAt?: string;
+  provider_reference: string | null;
+  commerce_order_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type CursorPage<T> = {
+  data: T[];
+  next_cursor: string | null;
+  has_more: boolean;
 };
 
 export type EmbedSessionResponse = {
@@ -133,10 +165,6 @@ export type EmbedSessionResponse = {
   expires_at_unix: number;
 };
 
-/**
- * Fetch com sessão merchant: credenciais **sempre** `include` (cookies HttpOnly).
- * Ao receber 401, tenta refresh silencioso e retenta a request original.
- */
 export async function dashboardFetch(
   apiBaseUrl: string,
   path: string,
@@ -170,11 +198,9 @@ export async function dashboardFetch(
 
   const res = await doFetch();
 
-  // Se 401 e não é o próprio refresh/login, tenta renovar token
   if (res.status === 401 && !path.includes("/auth/")) {
     const refreshed = await silentRefresh(apiBaseUrl, fetchImpl);
     if (refreshed) {
-      // Retenta a request original com o novo cookie
       return doFetch();
     }
   }
@@ -182,11 +208,9 @@ export async function dashboardFetch(
   return res;
 }
 
-/** Tenta renovar o token via POST /auth/refresh. Retorna true se sucesso. */
 let refreshInFlight: Promise<boolean> | null = null;
 
 async function silentRefresh(apiBaseUrl: string, fetchImpl: typeof fetch): Promise<boolean> {
-  // Evita múltiplos refreshes simultâneos
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
@@ -206,7 +230,6 @@ async function silentRefresh(apiBaseUrl: string, fetchImpl: typeof fetch): Promi
   return refreshInFlight;
 }
 
-/** Evento disparado quando sessão expirou definitivamente (refresh falhou). */
 export const SESSION_EXPIRED_EVENT = "aacp:session_expired";
 
 function emitSessionExpired() {
@@ -288,24 +311,6 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/merchants/me/theme", { method: "PUT", jsonBody: theme }, f);
     },
 
-    /** Rotas públicas MVP (merchant no path) — continuam disponíveis sem login */
-    getDashboardOverview(merchantId: string): Promise<DashboardOverview> {
-      return dashboardJson(base, `/dashboard/overview/${encodeURIComponent(merchantId)}`, { method: "GET" }, f);
-    },
-
-    getDashboardRulesLegacy(
-      merchantId: string
-    ): Promise<MerchantRules> {
-      return dashboardJson(base, `/dashboard/rules/${encodeURIComponent(merchantId)}`, { method: "GET" }, f);
-    },
-
-    putDashboardRulesLegacy(
-      merchantId: string,
-      patch: Partial<MerchantRules>
-    ): Promise<MerchantRules> {
-      return dashboardJson(base, `/dashboard/rules/${encodeURIComponent(merchantId)}`, { method: "PUT", jsonBody: patch }, f);
-    },
-
     getCheckoutSettings(): Promise<CheckoutSettings> {
       return dashboardJson(base, "/checkout-settings", { method: "GET" }, f);
     },
@@ -361,34 +366,123 @@ export function createDashboardApi(options: {
       return dashboardJson(base, `/integrations/api-keys/${encodeURIComponent(apiKeyId)}`, { method: "DELETE" }, f);
     },
 
-    getWebhookEndpoints(): Promise<WebhookEndpoint[]> {
-      return dashboardJson(base, "/integrations/webhooks", { method: "GET" }, f);
+    async getWebhookEndpoints(): Promise<WebhookEndpoint[]> {
+      const page = await dashboardJson<CursorPage<WebhookEndpointApi>>(
+        base,
+        "/webhook-endpoints",
+        { method: "GET" },
+        f,
+      );
+      return page.data.map(mapWebhookEndpoint);
     },
 
-    createWebhookEndpoint(payload: { url: string; events?: string[]; enabled?: boolean; description?: string }): Promise<WebhookEndpoint> {
-      return dashboardJson(base, "/integrations/webhooks", { method: "POST", jsonBody: payload }, f);
+    async createWebhookEndpoint(payload: { url: string; events?: string[]; enabled?: boolean; description?: string }): Promise<WebhookEndpoint> {
+      return mapWebhookEndpoint(
+        await dashboardJson<WebhookEndpointApi>(
+          base,
+          "/webhook-endpoints",
+          { method: "POST", jsonBody: payload },
+          f,
+        ),
+      );
     },
 
-    updateWebhookEndpoint(endpointId: string, payload: { url: string; events?: string[]; enabled?: boolean; description?: string }): Promise<WebhookEndpoint> {
-      return dashboardJson(base, `/integrations/webhooks/${encodeURIComponent(endpointId)}`, { method: "PUT", jsonBody: payload }, f);
+    async updateWebhookEndpoint(endpointId: string, payload: { url: string; events?: string[]; enabled?: boolean; description?: string }): Promise<WebhookEndpoint> {
+      return mapWebhookEndpoint(
+        await dashboardJson<WebhookEndpointApi>(
+          base,
+          `/webhook-endpoints/${encodeURIComponent(endpointId)}`,
+          {
+            method: "PUT",
+            headers: { "If-Match": "*" },
+            jsonBody: payload,
+          },
+          f,
+        ),
+      );
     },
 
-    testWebhookEndpoint(endpointId: string): Promise<WebhookDelivery> {
-      return dashboardJson(base, `/integrations/webhooks/${encodeURIComponent(endpointId)}/test`, { method: "POST" }, f);
+    async testWebhookEndpoint(endpointId: string): Promise<WebhookDelivery> {
+      return mapWebhookDelivery(
+        await dashboardJson<WebhookDeliveryApi>(
+          base,
+          `/webhook-endpoints/${encodeURIComponent(endpointId)}/test`,
+          { method: "POST" },
+          f,
+        ),
+      );
     },
 
-    getWebhookDeliveries(limit?: number): Promise<WebhookDelivery[]> {
+    async getWebhookDeliveries(limit?: number): Promise<WebhookDelivery[]> {
       const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
-      return dashboardJson(base, `/integrations/webhook-deliveries${query}`, { method: "GET" }, f);
+      const endpoints = (
+        await dashboardJson<CursorPage<WebhookEndpointApi>>(
+          base,
+          "/webhook-endpoints",
+          { method: "GET" },
+          f,
+        )
+      ).data;
+      const pages = await Promise.all(
+        endpoints.map((endpoint) =>
+          dashboardJson<CursorPage<WebhookDeliveryApi>>(
+            base,
+            `/webhook-endpoints/${encodeURIComponent(endpoint.id)}/deliveries${query}`,
+            { method: "GET" },
+            f,
+          ),
+        ),
+      );
+      return pages
+        .flatMap((page) => page.data.map(mapWebhookDelivery))
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
     },
 
-    replayWebhookDelivery(deliveryId: string): Promise<WebhookDelivery> {
-      return dashboardJson(base, `/integrations/webhook-deliveries/${encodeURIComponent(deliveryId)}/replay`, { method: "POST" }, f);
+    async replayWebhookDelivery(endpointId: string, deliveryId: string): Promise<WebhookDelivery> {
+      return mapWebhookDelivery(
+        await dashboardJson<WebhookDeliveryApi>(
+          base,
+          `/webhook-endpoints/${encodeURIComponent(endpointId)}/deliveries/${encodeURIComponent(deliveryId)}/replay`,
+          { method: "POST" },
+          f,
+        ),
+      );
     },
 
-    getTenantShipments(limit?: number): Promise<TenantShipment[]> {
+    async getOrders(limit?: number): Promise<TenantOrder[]> {
       const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
-      return dashboardJson(base, `/integrations/shipments${query}`, { method: "GET" }, f);
+      return (
+        await dashboardJson<CursorPage<TenantOrder>>(
+          base,
+          `/orders${query}`,
+          { method: "GET" },
+          f,
+        )
+      ).data;
+    },
+
+    async getCustomers(limit?: number): Promise<TenantCustomer[]> {
+      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
+      return (
+        await dashboardJson<CursorPage<TenantCustomer>>(
+          base,
+          `/customers${query}`,
+          { method: "GET" },
+          f,
+        )
+      ).data;
+    },
+
+    async getPayments(limit?: number): Promise<TenantPayment[]> {
+      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
+      return (
+        await dashboardJson<CursorPage<TenantPayment>>(
+          base,
+          `/payments${query}`,
+          { method: "GET" },
+          f,
+        )
+      ).data;
     },
 
     createEmbedSession(payload: {
@@ -397,7 +491,7 @@ export function createDashboardApi(options: {
       scopes?: string[];
       cart_ref?: string;
     }): Promise<EmbedSessionResponse> {
-      return dashboardJson(base, "/embed-sessions", { method: "POST", jsonBody: payload }, f);
+      return dashboardJson(base, "/embed/sessions", { method: "POST", jsonBody: payload }, f);
     },
 
     getOnboardingState(): Promise<OnboardingStateResponse> {
@@ -421,4 +515,66 @@ function createIdempotencyKey(): string {
       ? globalThis.crypto.randomUUID()
       : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   return `dashboard_${random}`;
+}
+
+type WebhookEndpointApi = {
+  id: string;
+  url: string;
+  enabled: boolean;
+  events: string[];
+  description: string | null;
+  signing_secret?: string;
+  signing_secret_hint: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type WebhookDeliveryApi = {
+  id: string;
+  endpoint_id: string;
+  endpoint_url: string;
+  event_id: string;
+  event_type: string;
+  status: "pending" | "delivered" | "failed";
+  attempts: number;
+  next_attempt_at: string | null;
+  response_status: number | null;
+  response_body: string | null;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+  delivered_at: string | null;
+};
+
+function mapWebhookEndpoint(value: WebhookEndpointApi): WebhookEndpoint {
+  return {
+    id: value.id,
+    url: value.url,
+    enabled: value.enabled,
+    events: value.events,
+    description: value.description ?? undefined,
+    createdAt: value.created_at,
+    updatedAt: value.updated_at,
+    signingSecret: value.signing_secret,
+    signingSecretHint: value.signing_secret_hint,
+  };
+}
+
+function mapWebhookDelivery(value: WebhookDeliveryApi): WebhookDelivery {
+  return {
+    id: value.id,
+    endpointId: value.endpoint_id,
+    endpointUrl: value.endpoint_url,
+    eventId: value.event_id,
+    eventType: value.event_type,
+    status: value.status,
+    attempts: value.attempts,
+    nextAttemptAt: value.next_attempt_at ?? undefined,
+    responseStatus: value.response_status ?? undefined,
+    responseBody: value.response_body ?? undefined,
+    error: value.error ?? undefined,
+    createdAt: value.created_at,
+    updatedAt: value.updated_at,
+    deliveredAt: value.delivered_at ?? undefined,
+  };
 }

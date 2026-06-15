@@ -80,7 +80,6 @@ export function OverviewDemoPage(props: {
 }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
 
-  const [merchantId, setMerchantId] = useState(props.defaultMerchantId);
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [rules, setRules] = useState<MerchantRules | null>(null);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[] | null>(null);
@@ -89,11 +88,28 @@ export function OverviewDemoPage(props: {
 
   const load = useCallback(async () => {
     try {
-      const [ov, rl] = await Promise.all([
-        api.getDashboardOverview(merchantId),
-        api.getDashboardRulesLegacy(merchantId)
+      const [orders, payments, rl] = await Promise.all([
+        api.getOrders(100),
+        api.getPayments(100),
+        api.getMerchantRules(),
       ]);
-      setOverview(ov);
+      const approvedPayments = payments.filter((payment) => payment.status === "approved");
+      setOverview({
+        merchant_id: props.me?.id ?? props.defaultMerchantId,
+        conversations_started: 0,
+        orders_completed: orders.filter((order) => order.status === "approved").length,
+        conversion_rate_with_agent: 0,
+        offers_viewed: 0,
+        offers_accepted: 0,
+        average_discount: 0,
+        average_shipping_subsidy: 0,
+        incremental_revenue: approvedPayments.reduce(
+          (sum, payment) => sum + (payment.approved_amount ?? payment.amount),
+          0,
+        ) / 100,
+        recent_offers: [],
+        recent_sessions: [],
+      });
       setRules(rl);
       if (props.me) {
         try {
@@ -109,7 +125,7 @@ export function OverviewDemoPage(props: {
       setRules(null);
       setSupportTickets(null);
     }
-  }, [api, merchantId, props.me]);
+  }, [api, props.me]);
 
   useEffect(() => {
     void load();
@@ -119,7 +135,7 @@ export function OverviewDemoPage(props: {
     if (!rules) return;
     setSaving(true);
     try {
-      const saved = await api.putDashboardRulesLegacy(merchantId, rules);
+      const saved = await api.putMerchantRules(rules);
       setRules(saved);
     } finally {
       setSaving(false);
@@ -130,13 +146,9 @@ export function OverviewDemoPage(props: {
     <>
       <header className="topbar">
         <div>
-          <h1>Painel (demo por merchant)</h1>
-          <p>Metricas e regras via rotas publicas `/dashboard/*` por ID, com suporte autenticado quando houver login.</p>
+          <h1>Operacao do tenant</h1>
+          <p>Metricas derivadas dos read models autenticados de pedidos, pagamentos e suporte.</p>
         </div>
-        <label>
-          Merchant ID (URL)
-          <input value={merchantId} onChange={(event) => setMerchantId(event.target.value)} />
-        </label>
       </header>
 
       <section className="metrics">
@@ -156,7 +168,7 @@ export function OverviewDemoPage(props: {
       <section className="layout">
         <div className="panel">
           <div className="panel-title">
-            <h2>Regras comerciais (legacy)</h2>
+            <h2>Regras comerciais</h2>
             <button onClick={() => void saveRules()} disabled={saving || !rules}>
               <Save size={16} />
               Salvar

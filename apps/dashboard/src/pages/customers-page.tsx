@@ -1,13 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { RefreshCw, UsersRound } from "lucide-react";
-import { createDashboardApi, DashboardHttpError, type DashboardOverview, type MerchantProfile } from "../api-client.js";
+import {
+  createDashboardApi,
+  DashboardHttpError,
+  type MerchantProfile,
+  type TenantCustomer,
+} from "../api-client.js";
 
 type CustomerRow = {
   globalUserId: string;
   name: string;
   email: string;
   phone: string;
-  lastSessionId: string;
   lastSeen: string;
 };
 
@@ -30,8 +34,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     setBusy(true);
     setMessage(null);
     try {
-      const overview = await api.getDashboardOverview(props.me.id);
-      setRows(toCustomerRows(overview));
+      setRows(toCustomerRows(await api.getCustomers(100)));
     } catch (e) {
       setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
     } finally {
@@ -74,19 +77,19 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                 <th>Email</th>
                 <th>Telefone</th>
                 <th>Global user</th>
-                <th>Ultima sessao</th>
+                <th>Ultima atividade</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={`${row.globalUserId}:${row.lastSessionId}`}>
+                <tr key={row.globalUserId}>
                   <td>{row.name}</td>
                   <td>{row.email}</td>
                   <td>{row.phone}</td>
                   <td>
                     <code>{row.globalUserId}</code>
                   </td>
-                  <td>{row.lastSessionId}</td>
+                  <td>{formatDate(row.lastSeen)}</td>
                 </tr>
               ))}
               {rows.length === 0 ? (
@@ -102,19 +105,23 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   );
 }
 
-function toCustomerRows(overview: DashboardOverview): CustomerRow[] {
-  const rows = new Map<string, CustomerRow>();
-  for (const session of overview.recent_sessions ?? []) {
-    const customer = session.customer;
-    if (!customer?.email && !customer?.phone && !customer?.fullName) continue;
-    rows.set(session.globalUserId, {
-      globalUserId: session.globalUserId,
-      name: customer.fullName ?? "-",
-      email: customer.email ?? "-",
-      phone: customer.phone ?? "-",
-      lastSessionId: session.sessionId,
-      lastSeen: session.updatedAt
-    });
-  }
-  return Array.from(rows.values()).sort((a, b) => b.lastSeen.localeCompare(a.lastSeen));
+function toCustomerRows(customers: TenantCustomer[]): CustomerRow[] {
+  return customers.map((customer) => ({
+    globalUserId: customer.id,
+    name: text(customer.profile.full_name),
+    email: text(customer.profile.email),
+    phone: text(customer.profile.phone),
+    lastSeen: customer.last_seen_at,
+  }));
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" && value ? value : "-";
+}
+
+function formatDate(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
 }

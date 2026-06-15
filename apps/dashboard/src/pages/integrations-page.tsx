@@ -120,7 +120,9 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     setBusy(true);
     setMessage(null);
     try {
-      const delivery = await api.replayWebhookDelivery(deliveryId);
+      const current = deliveries.find((item) => item.id === deliveryId);
+      if (!current) return;
+      const delivery = await api.replayWebhookDelivery(current.endpointId, deliveryId);
       setDeliveries((prev) => prev.map((item) => (item.id === deliveryId ? delivery : item)));
       setMessage("Replay enfileirado.");
     } catch (e) {

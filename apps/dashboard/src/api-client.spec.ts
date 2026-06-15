@@ -24,7 +24,7 @@ describe("dashboardFetch", () => {
     const spy = vi.mocked(fetch);
     await dashboardFetch("http://localhost:3001/", "/merchants/me", { method: "GET" });
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:3001/merchants/me",
+      "http://localhost:3001/v1/merchants/me",
       expect.objectContaining({ credentials: "include" })
     );
   });
@@ -32,7 +32,13 @@ describe("dashboardFetch", () => {
   it("normaliza barras repetidas entre base e path", async () => {
     const spy = vi.mocked(fetch);
     await dashboardFetch("http://localhost:3001///", "//foo/bar", {});
-    expect(spy.mock.calls[0]![0]).toBe("http://localhost:3001/foo/bar");
+    expect(spy.mock.calls[0]![0]).toBe("http://localhost:3001/v1/foo/bar");
+  });
+
+  it("nao duplica a versao quando a base ja termina em /v1", async () => {
+    const spy = vi.mocked(fetch);
+    await dashboardFetch("http://localhost:3001/v1", "/orders", {});
+    expect(spy.mock.calls[0]![0]).toBe("http://localhost:3001/v1/orders");
   });
 
   it("envia JSON e Content-Type quando jsonBody existe", async () => {
@@ -100,7 +106,7 @@ describe("createDashboardApi", () => {
     });
     const out = await api.evaluateNegotiation({ cart: { total: 120, items: [{ sku: "x", price: 120, quantity: 1 }] } });
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/negotiations/evaluate",
+      "http://localhost:9999/v1/negotiations/evaluate",
       expect.objectContaining({
         credentials: "include",
         method: "POST"
@@ -126,7 +132,7 @@ describe("createDashboardApi", () => {
     await api.getSupportTickets("open");
 
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/support/tickets?status=open",
+      "http://localhost:9999/v1/support/tickets?status=open",
       expect.objectContaining({
         credentials: "include",
         method: "GET"
@@ -166,7 +172,7 @@ describe("createDashboardApi", () => {
     await api.logout();
 
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/auth/register",
+      "http://localhost:9999/v1/auth/register",
       expect.objectContaining({
         credentials: "include",
         method: "POST",
@@ -178,7 +184,7 @@ describe("createDashboardApi", () => {
       })
     );
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/auth/logout",
+      "http://localhost:9999/v1/auth/logout",
       expect.objectContaining({
         credentials: "include",
         method: "POST"
@@ -212,7 +218,7 @@ describe("createDashboardApi", () => {
     const out = await api.patchSupportTicketStatus("sup_1", "resolved");
 
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/support/tickets/sup_1",
+      "http://localhost:9999/v1/support/tickets/sup_1",
       expect.objectContaining({
         credentials: "include",
         method: "PATCH",
@@ -224,11 +230,18 @@ describe("createDashboardApi", () => {
 
   it("integration API helpers call authenticated tenant routes", async () => {
     const spy = vi.fn(
-      async (): Promise<Response> =>
+      async (url: RequestInfo | URL): Promise<Response> =>
         ({
           ok: true,
           status: 200,
-          text: async () => "[]"
+          text: async () =>
+            String(url).includes("/integrations/api-keys")
+              ? "[]"
+              : JSON.stringify({
+                  data: [],
+                  next_cursor: null,
+                  has_more: false,
+                }),
         }) as Response
     );
     const api = createDashboardApi({
@@ -238,18 +251,18 @@ describe("createDashboardApi", () => {
 
     await api.getIntegrationApiKeys();
     await api.getWebhookDeliveries(20);
-    await api.getTenantShipments(50);
+    await api.getOrders(50);
 
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/integrations/api-keys",
+      "http://localhost:9999/v1/integrations/api-keys",
       expect.objectContaining({ credentials: "include", method: "GET" })
     );
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/integrations/webhook-deliveries?limit=20",
+      "http://localhost:9999/v1/webhook-endpoints",
       expect.objectContaining({ credentials: "include", method: "GET" })
     );
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/integrations/shipments?limit=50",
+      "http://localhost:9999/v1/orders?limit=50",
       expect.objectContaining({ credentials: "include", method: "GET" })
     );
   });
@@ -276,7 +289,7 @@ describe("createDashboardApi", () => {
     });
 
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/embed-sessions",
+      "http://localhost:9999/v1/embed/sessions",
       expect.objectContaining({
         credentials: "include",
         method: "POST",
@@ -324,11 +337,11 @@ describe("createDashboardApi", () => {
     });
 
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/merchants/me/theme",
+      "http://localhost:9999/v1/merchants/me/theme",
       expect.objectContaining({ credentials: "include", method: "GET" })
     );
     expect(spy).toHaveBeenCalledWith(
-      "http://localhost:9999/merchants/me/theme",
+      "http://localhost:9999/v1/merchants/me/theme",
       expect.objectContaining({
         credentials: "include",
         method: "PUT",
@@ -381,7 +394,7 @@ describe("onboarding api", () => {
     const api = createDashboardApi({ baseUrl: "http://api.test" });
     const state = await api.getOnboardingState();
     expect(spy).toHaveBeenCalledWith(
-      "http://api.test/onboarding",
+      "http://api.test/v1/onboarding",
       expect.objectContaining({ credentials: "include", method: "GET" })
     );
     expect(state.next_step).toBe("checkout_config");
@@ -392,7 +405,7 @@ describe("onboarding api", () => {
     const api = createDashboardApi({ baseUrl: "http://api.test" });
     await api.completeOnboardingStep("checkout_config");
     expect(spy).toHaveBeenCalledWith(
-      "http://api.test/onboarding/steps/checkout_config/complete",
+      "http://api.test/v1/onboarding/steps/checkout_config/complete",
       expect.objectContaining({ credentials: "include", method: "POST" })
     );
   });

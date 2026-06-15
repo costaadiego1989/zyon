@@ -64,7 +64,7 @@ class IssueEmbedSessionDto {
 @ApiBearerAuth("service_api_key")
 @ApiCookieAuth("console_session")
 @UseGuards(EmbedSessionIssuerGuard)
-@Controller("embed-sessions")
+@Controller(["embed-sessions", "embed/sessions"])
 export class EmbedSessionsController {
   constructor(
     private readonly issue: IssueEmbedSessionUseCase,
