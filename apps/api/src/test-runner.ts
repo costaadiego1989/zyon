@@ -95,6 +95,7 @@ import "./modules/embed/presentation/http/embed-security.scenarios.spec.js";
 import "./modules/embed/presentation/http/embed-origin-scope.guard.spec.js";
 import "./modules/embed/presentation/http/embed.checkout-flow.e2e-spec.js";
 import "./modules/embed/presentation/http/embed-payment-intents.e2e-spec.js";
+import "./modules/installations/application/installation.use-cases.spec.js";
 import "./modules/buyer-purchase-history/domain/entities/buyer-purchase-history.entity.spec.js";
 import "./modules/buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.spec.js";
 import "./modules/buyer-purchase-history/application/buyer-purchase-history.use-cases.spec.js";

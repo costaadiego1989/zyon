@@ -14,6 +14,9 @@ export type EmbedScope =
 export type EmbedTokenClaims = {
   typ: "aacp_embed_v1";
   merchantId: string;
+  installationId?: string;
+  environment?: "test" | "live";
+  widgetVersion?: string;
   issuedAtUnix: number;
   expiresAtUnix: number;
   nonce: string;

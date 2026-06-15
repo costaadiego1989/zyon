@@ -32,8 +32,9 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["post"], path: /^\/auth\/(refresh|logout)$/, security: "session" },
   { methods: ["get", "put"], path: /^\/merchants\/me(?:\/.*)?$/, security: "session" },
   { methods: ["get", "put"], path: /^\/agent-rules(?:\/.*)?$/, security: "session" },
-  { methods: ["get", "post", "put"], path: /^\/checkout-settings(?:\/.*)?$/, security: "session" },
-  { methods: ["post"], path: /^\/embed-sessions$/, security: "service" },
+  { methods: ["get", "post", "put"], path: /^\/checkout-settings(?:\/.*)?$/, security: "tenant" },
+  { methods: ["post"], path: /^\/embed-sessions$/, security: "tenant" },
+  { methods: ["get", "post", "put"], path: /^\/installations(?:\/.*)?$/, security: "tenant" },
   { methods: ["put"], path: /^\/integrations\/orders\/[^/]+\/tracking$/, security: "service" },
   { methods: ["get"], path: /^\/integrations\/tracking\/[^/]+$/, security: "service" },
   { methods: ["get", "post", "put", "delete"], path: /^\/integrations(?:\/.*)?$/, security: "session" },
@@ -342,6 +343,7 @@ function requiresIdempotency(method: HttpMethod, path: string): boolean {
       path.startsWith("/commerce/connections") ||
       path.startsWith("/payments/connections") ||
       path.startsWith("/billing") ||
+      path.startsWith("/installations") ||
       path === "/embed-sessions" ||
       path === "/checkout-settings" ||
       path === "/checkout-settings/reset")
@@ -351,7 +353,8 @@ function requiresIdempotency(method: HttpMethod, path: string): boolean {
 function requiresIfMatch(method: HttpMethod, path: string): boolean {
   return (
     (method === "put" && path === "/checkout-settings") ||
-    (method === "post" && path === "/checkout-settings/reset")
+    (method === "post" && path === "/checkout-settings/reset") ||
+    (method === "put" && /^\/installations\/[^/]+$/.test(path))
   );
 }
 

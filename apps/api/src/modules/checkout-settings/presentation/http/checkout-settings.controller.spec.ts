@@ -20,7 +20,15 @@ test("CheckoutSettingsController manages authenticated merchant settings", async
     new GetCheckoutSettingsContextUseCase(repository),
     new EntityTagService(),
   );
-  const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
+  const request = {
+    tenantPrincipal: {
+      kind: "human" as const,
+      tenantId: "mrc_1",
+      userId: "usr_1",
+      email: "owner@example.com",
+      role: "owner" as const,
+    },
+  };
   const headers: Record<string, string> = {};
   const response = {
     setHeader(name: string, value: string) {

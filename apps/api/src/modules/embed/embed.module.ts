@@ -14,9 +14,10 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./presentatio
 import { WidgetCrossSellController } from "../cross-sell/presentation/http/widget-cross-sell.controller.js";
 import { WidgetCatalogController } from "../catalog/presentation/http/widget-catalog.controller.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
+import { InstallationsModule } from "../installations/installations.module.js";
 
 @Module({
-  imports: [AuthModule, CheckoutModule, CrossSellModule, MerchantModule, PaymentModule, IntegrationsModule, CatalogModule],
+  imports: [AuthModule, CheckoutModule, CrossSellModule, MerchantModule, PaymentModule, IntegrationsModule, CatalogModule, InstallationsModule],
   controllers: [EmbedSessionsController, EmbedCheckoutController, WidgetCrossSellController, WidgetCatalogController],
   providers: [EmbedTokenService, IssueEmbedSessionUseCase, EmbedAuthGuard, EmbedSessionIssuerGuard, EmbedCheckoutGuardHelper],
   exports: [EmbedTokenService, EmbedAuthGuard, EmbedCheckoutGuardHelper]

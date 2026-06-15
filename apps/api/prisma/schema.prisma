@@ -7,25 +7,26 @@ datasource db {
 }
 
 model Merchant {
-  id                    String   @id
-  name                  String
-  theme                 Json?
-  stripeConnectAccountId String? @map("stripe_connect_account_id")
-  createdAt             DateTime @default(now()) @map("created_at")
-  updatedAt             DateTime @updatedAt @map("updated_at")
+  id                     String   @id
+  name                   String
+  theme                  Json?
+  stripeConnectAccountId String?  @map("stripe_connect_account_id")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
 
-  users               MerchantUser[]
-  apiKeys             MerchantApiKey[]
-  webhookEndpoints    MerchantWebhookEndpoint[]
-  webhookDeliveries   MerchantWebhookDelivery[]
-  shipments           Shipment[]
-  commerceConnection  MerchantCommerceConnection?
-  commercePendingOrders CommercePendingOrder[]
-  commercePaidEvents  CommercePaidEvent[]
+  users                  MerchantUser[]
+  apiKeys                MerchantApiKey[]
+  webhookEndpoints       MerchantWebhookEndpoint[]
+  webhookDeliveries      MerchantWebhookDelivery[]
+  shipments              Shipment[]
+  commerceConnection     MerchantCommerceConnection?
+  commercePendingOrders  CommercePendingOrder[]
+  commercePaidEvents     CommercePaidEvent[]
   httpIdempotencyRecords HttpIdempotencyRecord[]
-  paymentConnections MerchantPaymentConnection[]
-  billingSubscription MerchantBillingSubscription?
-  onboardingState     MerchantOnboardingState?
+  paymentConnections     MerchantPaymentConnection[]
+  billingSubscription    MerchantBillingSubscription?
+  onboardingState        MerchantOnboardingState?
+  installations          MerchantInstallation[]
 
   @@map("merchants")
 }
@@ -36,47 +37,68 @@ model MerchantOnboardingState {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@map("merchant_onboarding_states")
 }
 
+model MerchantInstallation {
+  id             String    @id @default(cuid())
+  merchantId     String    @map("merchant_id")
+  name           String
+  environment    String
+  status         String    @default("active")
+  widgetVersion  String    @map("widget_version")
+  allowedOrigins String[]  @map("allowed_origins")
+  lastHealthAt   DateTime? @map("last_health_at")
+  lastSeenAt     DateTime? @map("last_seen_at")
+  lastErrorCode  String?   @map("last_error_code")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, name, environment])
+  @@index([merchantId, environment, status])
+  @@map("merchant_installations")
+}
+
 model MerchantCommerceConnection {
-  merchantId       String   @id @map("merchant_id")
-  provider         String   @default("shopify")
-  shopDomain       String   @map("shop_domain")
-  adminTokenCipher String   @map("admin_token_cipher")
-  apiVersion       String?  @map("api_version")
-  status           String   @default("pending")
+  merchantId       String    @id @map("merchant_id")
+  provider         String    @default("shopify")
+  shopDomain       String    @map("shop_domain")
+  adminTokenCipher String    @map("admin_token_cipher")
+  apiVersion       String?   @map("api_version")
+  status           String    @default("pending")
   lastTestedAt     DateTime? @map("last_tested_at")
   lastSyncedAt     DateTime? @map("last_synced_at")
-  lastErrorCode    String?  @map("last_error_code")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  lastErrorCode    String?   @map("last_error_code")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
-  merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([provider, status])
   @@map("merchant_commerce_connections")
 }
 
 model MerchantPaymentConnection {
-  merchantId         String   @map("merchant_id")
-  provider           String
-  environment        String
-  status             String   @default("pending")
-  externalAccountId  String?  @map("external_account_id")
-  secretCipher       String?  @map("secret_cipher")
-  walletId           String?  @map("wallet_id")
-  chargesEnabled     Boolean  @default(false) @map("charges_enabled")
-  payoutsEnabled     Boolean  @default(false) @map("payouts_enabled")
-  requirements       Json?
-  lastSyncedAt       DateTime? @map("last_synced_at")
-  lastErrorCode      String?  @map("last_error_code")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  merchantId        String    @map("merchant_id")
+  provider          String
+  environment       String
+  status            String    @default("pending")
+  externalAccountId String?   @map("external_account_id")
+  secretCipher      String?   @map("secret_cipher")
+  walletId          String?   @map("wallet_id")
+  chargesEnabled    Boolean   @default(false) @map("charges_enabled")
+  payoutsEnabled    Boolean   @default(false) @map("payouts_enabled")
+  requirements      Json?
+  lastSyncedAt      DateTime? @map("last_synced_at")
+  lastErrorCode     String?   @map("last_error_code")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  merchant           Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@id([merchantId, provider])
   @@index([provider, status])
@@ -84,33 +106,33 @@ model MerchantPaymentConnection {
 }
 
 model MerchantBillingSubscription {
-  merchantId             String   @id @map("merchant_id")
-  stripeCustomerId       String?  @unique @map("stripe_customer_id")
-  stripeSubscriptionId   String?  @unique @map("stripe_subscription_id")
-  stripePriceId          String?  @map("stripe_price_id")
-  status                 String   @default("trialing")
-  trialEndsAt            DateTime? @map("trial_ends_at")
-  currentPeriodEnd       DateTime? @map("current_period_end")
-  cancelAtPeriodEnd      Boolean  @default(false) @map("cancel_at_period_end")
-  createdAt              DateTime @default(now()) @map("created_at")
-  updatedAt              DateTime @updatedAt @map("updated_at")
+  merchantId           String    @id @map("merchant_id")
+  stripeCustomerId     String?   @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?   @unique @map("stripe_subscription_id")
+  stripePriceId        String?   @map("stripe_price_id")
+  status               String    @default("trialing")
+  trialEndsAt          DateTime? @map("trial_ends_at")
+  currentPeriodEnd     DateTime? @map("current_period_end")
+  cancelAtPeriodEnd    Boolean   @default(false) @map("cancel_at_period_end")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
 
-  merchant               Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([status, trialEndsAt])
   @@map("merchant_billing_subscriptions")
 }
 
 model CommercePendingOrder {
-  merchantId      String   @map("merchant_id")
-  sessionId       String   @map("session_id")
-  commerceOrderId String   @map("commerce_order_id")
-  status          String   @default("pending")
-  paymentReference String? @map("payment_reference")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  merchantId       String   @map("merchant_id")
+  sessionId        String   @map("session_id")
+  commerceOrderId  String   @map("commerce_order_id")
+  status           String   @default("pending")
+  paymentReference String?  @map("payment_reference")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
-  merchant        Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@id([merchantId, sessionId])
   @@index([merchantId, status, updatedAt])
@@ -123,7 +145,7 @@ model CommercePaidEvent {
   commerceOrderId  String   @map("commerce_order_id")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@id([merchantId, paymentReference])
   @@index([merchantId, createdAt])
@@ -139,8 +161,8 @@ model MerchantUser {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  agentRules   AgentRule[]
+  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  agentRules AgentRule[]
 
   @@unique([email])
   @@index([merchantId])
@@ -160,7 +182,7 @@ model AgentRule {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  user             MerchantUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user MerchantUser? @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([merchantId, agentId])
   @@unique([merchantId, userId, scope])
@@ -185,25 +207,25 @@ model CheckoutSetting {
 }
 
 model CheckoutSession {
-  id                 String   @id @default(cuid())
-  merchantId         String   @map("merchant_id")
-  sessionId          String   @map("session_id")
-  globalUserId       String   @map("global_user_id")
-  conversationId     String   @map("conversation_id")
-  cart               Json
-  customer           Json?
-  shipping           Json?
-  shippingOptions    Json?    @map("shipping_options")
-  abandonmentScore   Float    @default(0) @map("abandonment_score")
-  triggerAgent       Boolean  @default(false) @map("trigger_agent")
-  chatHistory        Json     @default("[]") @map("chat_history")
-  createdAt          DateTime @map("created_at")
-  updatedAt          DateTime @map("updated_at")
+  id               String   @id @default(cuid())
+  merchantId       String   @map("merchant_id")
+  sessionId        String   @map("session_id")
+  globalUserId     String   @map("global_user_id")
+  conversationId   String   @map("conversation_id")
+  cart             Json
+  customer         Json?
+  shipping         Json?
+  shippingOptions  Json?    @map("shipping_options")
+  abandonmentScore Float    @default(0) @map("abandonment_score")
+  triggerAgent     Boolean  @default(false) @map("trigger_agent")
+  chatHistory      Json     @default("[]") @map("chat_history")
+  createdAt        DateTime @map("created_at")
+  updatedAt        DateTime @map("updated_at")
 
-  events             CheckoutEvent[]
-  authorizedOffers   AuthorizedOffer[]
-  acceptedOffers     AcceptedOffer[]
-  completedOrders    CompletedOrder[]
+  events           CheckoutEvent[]
+  authorizedOffers AuthorizedOffer[]
+  acceptedOffers   AcceptedOffer[]
+  completedOrders  CompletedOrder[]
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
@@ -211,13 +233,13 @@ model CheckoutSession {
 }
 
 model CheckoutEvent {
-  id          String   @id @default(cuid())
-  merchantId  String   @map("merchant_id")
-  sessionId   String   @map("session_id")
-  eventName   String   @map("event_name")
-  occurredAt  DateTime @map("occurred_at")
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  sessionId  String   @map("session_id")
+  eventName  String   @map("event_name")
+  occurredAt DateTime @map("occurred_at")
 
-  session     CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
 
   @@index([merchantId, sessionId, occurredAt])
   @@map("checkout_events")
@@ -235,25 +257,25 @@ model BuyerIdentity {
 }
 
 model MerchantRule {
-  id                                  String   @id @default(cuid())
-  merchantId                          String   @unique @map("merchant_id")
-  maxDiscountPercent                  Float    @map("max_discount_percent")
-  minimumMarginPercent                Float    @map("minimum_margin_percent")
-  allowFreeShipping                   Boolean  @map("allow_free_shipping")
-  allowShippingDiscount               Boolean  @map("allow_shipping_discount")
-  allowBonusItem                      Boolean  @map("allow_bonus_item")
-  allowStackDiscountAndFreeShipping   Boolean  @map("allow_stack_discount_and_free_shipping")
-  couponBoxEnabled                    Boolean  @map("coupon_box_enabled")
-  freeShippingMinCartValue            Float    @map("free_shipping_min_cart_value")
-  maxShippingSubsidy                  Float    @map("max_shipping_subsidy")
-  maxPartialShippingDiscount          Float    @map("max_partial_shipping_discount")
-  offerExpirationMinutes              Int      @map("offer_expiration_minutes")
-  blockedRegions                      String[] @map("blocked_regions")
-  brandVoice                          String   @map("brand_voice")
-  originZip                           String?  @map("origin_zip")
-  quickReplies                        Json?    @map("quick_replies")
-  cryptoPayments                      Json?    @map("crypto_payments")
-  updatedAt                           DateTime @updatedAt @map("updated_at")
+  id                                String   @id @default(cuid())
+  merchantId                        String   @unique @map("merchant_id")
+  maxDiscountPercent                Float    @map("max_discount_percent")
+  minimumMarginPercent              Float    @map("minimum_margin_percent")
+  allowFreeShipping                 Boolean  @map("allow_free_shipping")
+  allowShippingDiscount             Boolean  @map("allow_shipping_discount")
+  allowBonusItem                    Boolean  @map("allow_bonus_item")
+  allowStackDiscountAndFreeShipping Boolean  @map("allow_stack_discount_and_free_shipping")
+  couponBoxEnabled                  Boolean  @map("coupon_box_enabled")
+  freeShippingMinCartValue          Float    @map("free_shipping_min_cart_value")
+  maxShippingSubsidy                Float    @map("max_shipping_subsidy")
+  maxPartialShippingDiscount        Float    @map("max_partial_shipping_discount")
+  offerExpirationMinutes            Int      @map("offer_expiration_minutes")
+  blockedRegions                    String[] @map("blocked_regions")
+  brandVoice                        String   @map("brand_voice")
+  originZip                         String?  @map("origin_zip")
+  quickReplies                      Json?    @map("quick_replies")
+  cryptoPayments                    Json?    @map("crypto_payments")
+  updatedAt                         DateTime @updatedAt @map("updated_at")
 
   @@map("merchant_rules")
 }
@@ -286,37 +308,37 @@ model SupportTicket {
 }
 
 model AuthorizedOffer {
-  id                 String   @id
-  merchantId          String   @map("merchant_id")
-  sessionId           String   @map("session_id")
-  type                String
-  value               Float
-  approved            Boolean
-  reason              String
-  marginAfterOffer    Float    @map("margin_after_offer")
-  expiresAt           DateTime @map("expires_at")
-  discountCode        String?  @map("discount_code")
+  id               String   @id
+  merchantId       String   @map("merchant_id")
+  sessionId        String   @map("session_id")
+  type             String
+  value            Float
+  approved         Boolean
+  reason           String
+  marginAfterOffer Float    @map("margin_after_offer")
+  expiresAt        DateTime @map("expires_at")
+  discountCode     String?  @map("discount_code")
 
-  session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
-  acceptedOffers      AcceptedOffer[]
+  session        CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  acceptedOffers AcceptedOffer[]
 
   @@index([merchantId, sessionId])
   @@map("authorized_offers")
 }
 
 model AcceptedOffer {
-  id                 String   @id @default(cuid())
-  merchantId          String   @map("merchant_id")
-  sessionId           String   @map("session_id")
-  offerId             String   @map("offer_id")
-  type                String
-  value               Float
-  marginAfterOffer    Float    @map("margin_after_offer")
-  acceptedAt          DateTime @map("accepted_at")
-  expiresAt           DateTime @map("expires_at")
+  id               String   @id @default(cuid())
+  merchantId       String   @map("merchant_id")
+  sessionId        String   @map("session_id")
+  offerId          String   @map("offer_id")
+  type             String
+  value            Float
+  marginAfterOffer Float    @map("margin_after_offer")
+  acceptedAt       DateTime @map("accepted_at")
+  expiresAt        DateTime @map("expires_at")
 
-  session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
-  offer               AuthorizedOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  offer   AuthorizedOffer @relation(fields: [offerId], references: [id], onDelete: Cascade)
 
   @@unique([merchantId, sessionId, offerId])
   @@index([merchantId, acceptedAt])
@@ -324,17 +346,17 @@ model AcceptedOffer {
 }
 
 model CompletedOrder {
-  id                 String   @id @default(cuid())
-  merchantId          String   @map("merchant_id")
-  sessionId           String   @map("session_id")
-  externalOrderId     String   @map("external_order_id")
-  orderTotal          Float    @map("order_total")
-  currency            String
-  acceptedOfferId     String?  @map("accepted_offer_id")
-  trackingCode        String?  @map("tracking_code")
-  completedAt         DateTime @map("completed_at")
+  id              String   @id @default(cuid())
+  merchantId      String   @map("merchant_id")
+  sessionId       String   @map("session_id")
+  externalOrderId String   @map("external_order_id")
+  orderTotal      Float    @map("order_total")
+  currency        String
+  acceptedOfferId String?  @map("accepted_offer_id")
+  trackingCode    String?  @map("tracking_code")
+  completedAt     DateTime @map("completed_at")
 
-  session             CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
 
   @@unique([merchantId, sessionId, externalOrderId])
   @@index([merchantId, completedAt])
@@ -342,22 +364,22 @@ model CompletedOrder {
 }
 
 model MerchantApiKey {
-  id          String    @id
-  merchantId  String    @map("merchant_id")
-  name        String
-  keyHash     String    @unique @map("key_hash")
-  keyPrefix   String    @map("key_prefix")
-  scopes      String[]  @default([])
-  environment String    @default("test")
-  allowedCidrs String[] @default([]) @map("allowed_cidrs")
-  expiresAt   DateTime? @map("expires_at")
-  rotatedFromId String? @map("rotated_from_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  lastUsedAt  DateTime? @map("last_used_at")
-  revokedAt   DateTime? @map("revoked_at")
+  id            String    @id
+  merchantId    String    @map("merchant_id")
+  name          String
+  keyHash       String    @unique @map("key_hash")
+  keyPrefix     String    @map("key_prefix")
+  scopes        String[]  @default([])
+  environment   String    @default("test")
+  allowedCidrs  String[]  @default([]) @map("allowed_cidrs")
+  expiresAt     DateTime? @map("expires_at")
+  rotatedFromId String?   @map("rotated_from_id")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  lastUsedAt    DateTime? @map("last_used_at")
+  revokedAt     DateTime? @map("revoked_at")
 
-  merchant    Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, environment, revokedAt])
   @@index([merchantId, expiresAt])
@@ -388,18 +410,18 @@ model HttpIdempotencyRecord {
 }
 
 model MerchantWebhookEndpoint {
-  id             String   @id
-  merchantId     String   @map("merchant_id")
-  url            String
-  enabled        Boolean  @default(true)
-  events         String[] @default([])
-  signingSecret  String   @map("signing_secret")
-  description    String?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id            String   @id
+  merchantId    String   @map("merchant_id")
+  url           String
+  enabled       Boolean  @default(true)
+  events        String[] @default([])
+  signingSecret String   @map("signing_secret")
+  description   String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
-  merchant       Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  deliveries     MerchantWebhookDelivery[]
+  merchant   Merchant                  @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deliveries MerchantWebhookDelivery[]
 
   @@index([merchantId, enabled])
   @@map("merchant_webhook_endpoints")
@@ -424,8 +446,8 @@ model MerchantWebhookDelivery {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  merchant       Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  endpoint       MerchantWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  merchant Merchant                @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  endpoint MerchantWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
 
   @@unique([endpointId, eventId])
   @@index([merchantId, status, nextAttemptAt])
@@ -447,8 +469,8 @@ model Shipment {
   estimatedEta    DateTime? @map("estimated_eta")
   deliveredAt     DateTime? @map("delivered_at")
 
-  merchant        Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  trackingEvents  TrackingEvent[]
+  merchant       Merchant        @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  trackingEvents TrackingEvent[]
 
   @@unique([merchantId, externalOrderId])
   @@unique([merchantId, trackingCode])
@@ -468,7 +490,7 @@ model TrackingEvent {
   occurredAt   DateTime @map("occurred_at")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  shipment     Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  shipment Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([merchantId, trackingCode, occurredAt])
   @@index([shipmentId, occurredAt])
@@ -477,16 +499,16 @@ model TrackingEvent {
 
 model BuyerPurchaseRecord {
   id                 String   @id @default(cuid())
-  merchantId          String   @map("merchant_id")
-  orderId             String   @map("order_id")
-  globalUserId        String?  @map("global_user_id")
-  merchantCustomerId  String?  @map("merchant_customer_id")
-  currency            String
-  totalAmount         Float    @map("total_amount")
-  discountAmount      Float    @map("discount_amount")
-  completedAt         DateTime @map("completed_at")
-  items               Json
-  createdAt           DateTime @default(now()) @map("created_at")
+  merchantId         String   @map("merchant_id")
+  orderId            String   @map("order_id")
+  globalUserId       String?  @map("global_user_id")
+  merchantCustomerId String?  @map("merchant_customer_id")
+  currency           String
+  totalAmount        Float    @map("total_amount")
+  discountAmount     Float    @map("discount_amount")
+  completedAt        DateTime @map("completed_at")
+  items              Json
+  createdAt          DateTime @default(now()) @map("created_at")
 
   @@unique([merchantId, orderId])
   @@index([merchantId, globalUserId])
@@ -548,22 +570,22 @@ model NegotiationCostLedgerEntry {
 }
 
 model OutboxMessage {
-  eventId        String    @id @map("event_id")
-  eventType      String    @map("event_type")
-  schemaVersion  Int       @map("schema_version")
-  merchantId     String    @map("merchant_id")
-  occurredAt     DateTime  @map("occurred_at")
-  correlationId  String    @map("correlation_id")
-  causationId    String    @map("causation_id")
-  producer       String
-  payload        Json
-  status         String    @default("pending")
-  attempts       Int       @default(0)
-  lastError      String?   @map("last_error")
-  nextAttemptAt  DateTime? @map("next_attempt_at")
-  deliveredAt    DateTime? @map("delivered_at")
-  publishedAt    DateTime? @map("published_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  eventId       String    @id @map("event_id")
+  eventType     String    @map("event_type")
+  schemaVersion Int       @map("schema_version")
+  merchantId    String    @map("merchant_id")
+  occurredAt    DateTime  @map("occurred_at")
+  correlationId String    @map("correlation_id")
+  causationId   String    @map("causation_id")
+  producer      String
+  payload       Json
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  lastError     String?   @map("last_error")
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  deliveredAt   DateTime? @map("delivered_at")
+  publishedAt   DateTime? @map("published_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
 
   @@index([merchantId, createdAt])
   @@index([status, createdAt])
@@ -599,22 +621,22 @@ model ShippingQuote {
 }
 
 model PaymentIntent {
-  id                   String    @id
-  merchantId           String    @map("merchant_id")
-  sessionId            String    @map("session_id")
-  idempotencyKey       String    @map("idempotency_key")
-  amountCents          Int       @map("amount_cents")
-  currency             String
-  method               String
-  status               String
-  providerPaymentId    String?   @map("provider_payment_id")
-  approvedAmountCents  Int?      @map("approved_amount_cents")
-  acceptedOfferId      String?   @map("accepted_offer_id")
-  commerceOrderId      String?   @map("commerce_order_id")
-  buyerFacing          Json?     @map("buyer_facing")
-  statusHistory        Json      @default("[]") @map("status_history")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+  id                  String   @id
+  merchantId          String   @map("merchant_id")
+  sessionId           String   @map("session_id")
+  idempotencyKey      String   @map("idempotency_key")
+  amountCents         Int      @map("amount_cents")
+  currency            String
+  method              String
+  status              String
+  providerPaymentId   String?  @map("provider_payment_id")
+  approvedAmountCents Int?     @map("approved_amount_cents")
+  acceptedOfferId     String?  @map("accepted_offer_id")
+  commerceOrderId     String?  @map("commerce_order_id")
+  buyerFacing         Json?    @map("buyer_facing")
+  statusHistory       Json     @default("[]") @map("status_history")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@unique([merchantId, sessionId, idempotencyKey])
   @@unique([merchantId, providerPaymentId])
@@ -637,21 +659,20 @@ model PaymentProviderEvent {
 }
 
 model BuyerAccount {
-  globalUserId  String   @id @default(cuid()) @map("global_user_id")
-  email         String   @unique
-  passwordHash  String   @map("password_hash")
-  displayName   String   @map("display_name")
-  phone         String?
-  cpf           String?
-  address       Json?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  globalUserId String   @id @default(cuid()) @map("global_user_id")
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  phone        String?
+  cpf          String?
+  address      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  agentProfile  BuyerAgentProfile?
+  agentProfile BuyerAgentProfile?
 
   @@map("buyer_accounts")
 }
-
 
 model BuyerAgentProfile {
   id                               String    @id @default(cuid())
@@ -668,7 +689,7 @@ model BuyerAgentProfile {
   createdAt                        DateTime  @default(now()) @map("created_at")
   updatedAt                        DateTime  @updatedAt @map("updated_at")
 
-  account  BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
 
   @@map("buyer_agent_profiles")
 }

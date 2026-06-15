@@ -28,6 +28,7 @@ export const TENANT_SCOPED_MODELS = [
   "MerchantOnboardingState",
   "MerchantPaymentConnection",
   "MerchantBillingSubscription",
+  "MerchantInstallation",
   "CommercePendingOrder",
   "CommercePaidEvent",
   "BuyerPurchaseRecord",

@@ -14,9 +14,21 @@ const EMBED_SCOPES: readonly EmbedScope[] = [
 export class IssueEmbedSessionUseCase {
   constructor(private readonly tokens: EmbedTokenService) {}
 
-  execute(input: { merchantId: string; ttlSeconds: number; allowedOrigin?: string; scopes?: string[]; cartRef?: string }): {
+  execute(input: {
+    merchantId: string;
+    ttlSeconds: number;
+    installationId?: string;
+    environment?: "test" | "live";
+    widgetVersion?: string;
+    allowedOrigin?: string;
+    scopes?: string[];
+    cartRef?: string;
+  }): {
     embed_session_token: string;
     expires_at_unix: number;
+    installation_id: string | null;
+    environment: "test" | "live" | null;
+    widget_version: string | null;
   } {
     const now = Math.floor(Date.now() / 1000);
     const expiresAtUnix = now + Math.min(Math.max(input.ttlSeconds, 60), 86400);
@@ -24,6 +36,9 @@ export class IssueEmbedSessionUseCase {
     const claims: EmbedTokenClaims = {
       typ: "aacp_embed_v1",
       merchantId: input.merchantId,
+      installationId: input.installationId,
+      environment: input.environment,
+      widgetVersion: input.widgetVersion,
       issuedAtUnix: now,
       expiresAtUnix,
       nonce: crypto.randomUUID(),
@@ -34,7 +49,10 @@ export class IssueEmbedSessionUseCase {
 
     return {
       embed_session_token: this.tokens.sign(claims),
-      expires_at_unix: expiresAtUnix
+      expires_at_unix: expiresAtUnix,
+      installation_id: input.installationId ?? null,
+      environment: input.environment ?? null,
+      widget_version: input.widgetVersion ?? null,
     };
   }
 }

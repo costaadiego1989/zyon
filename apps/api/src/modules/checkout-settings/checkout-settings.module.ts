@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import { AuthModule } from "../auth/auth.module.js";
+import { TenantAccessModule } from "../integrations/tenant-access.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
   GetCheckoutSettingsContextUseCase,
@@ -13,7 +13,7 @@ import { PrismaCheckoutSettingsRepository } from "./infrastructure/prisma-checko
 import { CheckoutSettingsController } from "./presentation/http/checkout-settings.controller.js";
 
 @Module({
-  imports: [AuthModule],
+  imports: [TenantAccessModule],
   controllers: [CheckoutSettingsController],
   providers: [
     GetCheckoutSettingsUseCase,

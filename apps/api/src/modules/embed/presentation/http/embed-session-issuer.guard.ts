@@ -68,9 +68,19 @@ export class EmbedSessionIssuerGuard implements CanActivate {
   }
 }
 
-export function currentEmbedIssuer(request: IssuerRequest): { merchantId: string; type: "dashboard" | "api_key" } {
+export function currentEmbedIssuer(request: IssuerRequest): {
+  merchantId: string;
+  type: "dashboard" | "api_key";
+  environment?: "test" | "live";
+} {
   if (request.user) return { merchantId: request.user.merchantId, type: "dashboard" };
-  if (request.apiKey) return { merchantId: request.apiKey.merchantId, type: "api_key" };
+  if (request.apiKey) {
+    return {
+      merchantId: request.apiKey.merchantId,
+      type: "api_key",
+      environment: request.apiKey.environment,
+    };
+  }
   throw new UnauthorizedException("missing_embed_issuer_context");
 }
 

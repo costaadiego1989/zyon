@@ -27,6 +27,10 @@ describe("public OpenAPI document", () => {
         "/billing/subscription": {
           get: { operationId: "billingSubscription", responses: {} },
         },
+        "/installations/{installationId}": {
+          get: { operationId: "getInstallation", responses: {} },
+          put: { operationId: "updateInstallation", responses: {} },
+        },
         "/webhooks/stripe": {
           post: { operationId: "stripeCallback", responses: {} },
         },
@@ -43,6 +47,7 @@ describe("public OpenAPI document", () => {
       "/v1/catalog",
       "/v1/payments/connections/stripe/onboarding-link",
       "/v1/billing/subscription",
+      "/v1/installations/{installationId}",
     ]);
     assert.deepEqual(document.paths["/v1/auth/login"]?.post?.security, []);
     assert.deepEqual(
@@ -79,6 +84,14 @@ describe("public OpenAPI document", () => {
     assert.deepEqual(
       document.paths["/v1/billing/subscription"]?.get?.security,
       [{ console_session: [] }],
+    );
+    assert.equal(
+      document.paths["/v1/installations/{installationId}"]?.put?.parameters
+        ?.some(
+          (parameter) =>
+            "name" in parameter && parameter.name === "If-Match",
+        ),
+      true,
     );
   });
 });
