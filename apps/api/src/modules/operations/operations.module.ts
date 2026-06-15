@@ -12,7 +12,10 @@ import {
   ListOrdersUseCase,
   ListPaymentsUseCase,
 } from "./application/operations-read.use-cases.js";
-import { CancelOrderUseCase } from "./application/order-command.use-cases.js";
+import {
+  CancelOrderUseCase,
+  CreateOrderFromPaymentUseCase,
+} from "./application/order-command.use-cases.js";
 import { OPERATIONS_READ_REPOSITORY } from "./domain/ports/operations-read.repository.port.js";
 import { PrismaOperationsReadRepository } from "./infrastructure/prisma-operations-read.repository.js";
 import {
@@ -36,6 +39,7 @@ import {
     ListPaymentsUseCase,
     GetPaymentUseCase,
     CancelOrderUseCase,
+    CreateOrderFromPaymentUseCase,
     {
       provide: OPERATIONS_READ_REPOSITORY,
       useFactory: (prisma: PrismaClient) =>

@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { CommerceOrderPort } from "@aacp/commerce-adapters";
+import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import type { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
 import type {
   OperationsReadRepository,
   OrderDetail,
 } from "../domain/ports/operations-read.repository.port.js";
-import { CancelOrderUseCase } from "./order-command.use-cases.js";
+import {
+  CancelOrderUseCase,
+  CreateOrderFromPaymentUseCase,
+} from "./order-command.use-cases.js";
 
 describe("CancelOrderUseCase", () => {
   it("cancels the provider order, persists status and emits a tenant webhook", async () => {
@@ -67,6 +71,51 @@ describe("CancelOrderUseCase", () => {
   });
 });
 
+describe("CreateOrderFromPaymentUseCase", () => {
+  it("materializes an approved tenant payment and returns the same order idempotently", async () => {
+    const checkout = completedOrderRepository(false);
+    const readRepository = new PaymentBackedOperationsRepository(checkout);
+    const useCase = new CreateOrderFromPaymentUseCase(
+      readRepository,
+      new CompleteOrderUseCase(checkout, checkout, checkout),
+    );
+
+    const first = await useCase.execute({
+      merchantId: "mrc_a",
+      paymentId: "pay_int_approved",
+    });
+    const second = await useCase.execute({
+      merchantId: "mrc_a",
+      paymentId: "pay_int_approved",
+    });
+
+    assert.equal(first.idempotent, false);
+    assert.equal(second.idempotent, true);
+    assert.equal(first.order.externalOrderId, "pay_provider_1");
+    assert.equal(first.order.totalMinor, 29_990);
+  });
+
+  it("rejects a payment that is not approved", async () => {
+    const checkout = completedOrderRepository(false);
+    const readRepository = new PaymentBackedOperationsRepository(
+      checkout,
+      "requires_action",
+    );
+    const useCase = new CreateOrderFromPaymentUseCase(
+      readRepository,
+      new CompleteOrderUseCase(checkout, checkout, checkout),
+    );
+
+    await assert.rejects(
+      useCase.execute({
+        merchantId: "mrc_a",
+        paymentId: "pay_int_approved",
+      }),
+      /payment_not_approved/,
+    );
+  });
+});
+
 class FakeCommerceOrderPort implements CommerceOrderPort {
   readonly cancelled: Array<Record<string, unknown>> = [];
 
@@ -109,6 +158,10 @@ class StubOperationsRepository implements OperationsReadRepository {
     };
   }
 
+  async getOrderByExternalId() {
+    return undefined;
+  }
+
   async listOrders() {
     return [];
   }
@@ -130,16 +183,121 @@ class StubOperationsRepository implements OperationsReadRepository {
   }
 }
 
-function completedOrderRepository() {
+class PaymentBackedOperationsRepository
+  implements OperationsReadRepository
+{
+  constructor(
+    private readonly checkout: InMemoryCheckoutRepository,
+    private readonly paymentStatus = "approved",
+  ) {}
+
+  async getPayment(merchantId: string, paymentId: string) {
+    if (
+      merchantId !== "mrc_a" ||
+      paymentId !== "pay_int_approved"
+    ) {
+      return undefined;
+    }
+    return {
+      id: paymentId,
+      sessionId: "session_1",
+      amountMinor: 29_990,
+      approvedAmountMinor: 29_990,
+      currency: "BRL",
+      method: "pix",
+      status: this.paymentStatus,
+      providerReference: "pay_provider_1",
+      commerceOrderId: "draft_1",
+      statusHistory: [],
+      createdAt: "2026-06-15T12:00:00.000Z",
+      updatedAt: "2026-06-15T12:01:00.000Z",
+    };
+  }
+
+  async getOrderByExternalId(
+    merchantId: string,
+    externalOrderId: string,
+  ): Promise<OrderDetail | undefined> {
+    const order = this.checkout.findCompletedOrderByExternalOrderId(
+      merchantId,
+      externalOrderId,
+    );
+    return order
+      ? {
+          id: "ord_created",
+          sessionId: order.sessionId,
+          externalOrderId: order.externalOrderId,
+          status: order.status ?? "approved",
+          totalMinor: Math.round(order.orderTotal * 100),
+          currency: order.currency,
+          customer: null,
+          cart: {},
+          completedAt: order.completedAt,
+          timeline: [],
+        }
+      : undefined;
+  }
+
+  async getOrder() {
+    return undefined;
+  }
+
+  async listOrders() {
+    return [];
+  }
+
+  async listCustomers() {
+    return [];
+  }
+
+  async getCustomer() {
+    return undefined;
+  }
+
+  async listPayments() {
+    return [];
+  }
+}
+
+function completedOrderRepository(withOrder = true) {
   const repository = new InMemoryCheckoutRepository();
-  repository.saveCompletedOrder({
+  repository.saveSession({
     merchantId: "mrc_a",
     sessionId: "session_1",
-    externalOrderId: "external_1",
-    orderTotal: 299.9,
-    currency: "BRL",
-    status: "approved",
-    completedAt: "2026-06-15T12:00:00.000Z",
+    globalUserId: "usr_1",
+    conversationId: "cnv_1",
+    cart: {
+      currency: "BRL",
+      total: 299.9,
+      items: [
+        {
+          sku: "sku_1",
+          name: "Enterprise Kit",
+          price: 299.9,
+          quantity: 1,
+        },
+      ],
+    },
+    customer: {
+      email: "buyer@example.com",
+      fullName: "Buyer",
+    },
+    abandonmentScore: 0,
+    triggerAgent: false,
+    chatHistory: [],
+    createdAt: "2026-06-15T12:00:00.000Z",
+    updatedAt: "2026-06-15T12:00:00.000Z",
   });
+  if (withOrder) {
+    repository.saveCompletedOrder({
+      merchantId: "mrc_a",
+      sessionId: "session_1",
+      externalOrderId: "external_1",
+      orderTotal: 299.9,
+      currency: "BRL",
+      status: "approved",
+      completedAt: "2026-06-15T12:00:00.000Z",
+    });
+  }
   return repository;
 }

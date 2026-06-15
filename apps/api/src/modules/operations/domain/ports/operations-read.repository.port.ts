@@ -66,6 +66,7 @@ export interface PaymentSummary {
   status: string;
   providerReference?: string;
   commerceOrderId?: string;
+  acceptedOfferId?: string;
   statusHistory: unknown;
   createdAt: string;
   updatedAt: string;
@@ -80,6 +81,10 @@ export interface OperationsReadRepository {
   getOrder(
     merchantId: string,
     orderId: string,
+  ): Promise<OrderDetail | undefined>;
+  getOrderByExternalId(
+    merchantId: string,
+    externalOrderId: string,
   ): Promise<OrderDetail | undefined>;
   listCustomers(input: {
     merchantId: string;

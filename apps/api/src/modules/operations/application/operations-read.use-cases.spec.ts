@@ -65,6 +65,17 @@ class StubOperationsRepository implements OperationsReadRepository {
       : undefined;
   }
 
+  async getOrderByExternalId(
+    merchantId: string,
+    externalOrderId: string,
+  ) {
+    return merchantId === "mrc_a"
+      ? this.orders.find(
+          (row) => row.externalOrderId === externalOrderId,
+        )
+      : undefined;
+  }
+
   async listCustomers() {
     return [];
   }

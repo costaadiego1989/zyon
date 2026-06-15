@@ -39,8 +39,23 @@ export class PrismaOperationsReadRepository
     merchantId: string,
     orderId: string,
   ): Promise<OrderDetail | undefined> {
+    return this.findOrder({ id: orderId, merchantId });
+  }
+
+  async getOrderByExternalId(
+    merchantId: string,
+    externalOrderId: string,
+  ): Promise<OrderDetail | undefined> {
+    return this.findOrder({ externalOrderId, merchantId });
+  }
+
+  private async findOrder(where: {
+    merchantId: string;
+    id?: string;
+    externalOrderId?: string;
+  }): Promise<OrderDetail | undefined> {
     const row = await this.prisma.completedOrder.findFirst({
-      where: { id: orderId, merchantId },
+      where,
       include: {
         session: {
           select: {
@@ -55,11 +70,17 @@ export class PrismaOperationsReadRepository
 
     const [payments, shipment] = await Promise.all([
       this.prisma.paymentIntent.findMany({
-        where: { merchantId, sessionId: row.sessionId },
+        where: {
+          merchantId: where.merchantId,
+          sessionId: row.sessionId,
+        },
         orderBy: { createdAt: "asc" },
       }),
       this.prisma.shipment.findFirst({
-        where: { merchantId, externalOrderId: row.externalOrderId },
+        where: {
+          merchantId: where.merchantId,
+          externalOrderId: row.externalOrderId,
+        },
         include: { trackingEvents: { orderBy: { occurredAt: "asc" } } },
       }),
     ]);
@@ -287,6 +308,7 @@ function toPaymentSummary(row: {
   status: string;
   providerPaymentId: string | null;
   commerceOrderId: string | null;
+  acceptedOfferId: string | null;
   statusHistory: unknown;
   createdAt: Date;
   updatedAt: Date;
@@ -301,6 +323,7 @@ function toPaymentSummary(row: {
     status: row.status,
     providerReference: row.providerPaymentId ?? undefined,
     commerceOrderId: row.commerceOrderId ?? undefined,
+    acceptedOfferId: row.acceptedOfferId ?? undefined,
     statusHistory: Array.isArray(row.statusHistory) ? row.statusHistory : [],
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),

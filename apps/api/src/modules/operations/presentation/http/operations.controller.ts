@@ -28,7 +28,10 @@ import {
   ListOrdersUseCase,
   ListPaymentsUseCase,
 } from "../../application/operations-read.use-cases.js";
-import { CancelOrderUseCase } from "../../application/order-command.use-cases.js";
+import {
+  CancelOrderUseCase,
+  CreateOrderFromPaymentUseCase,
+} from "../../application/order-command.use-cases.js";
 import type {
   CustomerDetail,
   CustomerSummary,
@@ -37,7 +40,10 @@ import type {
   PaymentSummary,
 } from "../../domain/ports/operations-read.repository.port.js";
 import { UpdateOrderTrackingDto } from "./order-tracking.dto.js";
-import { CancelOrderDto } from "./order-command.dto.js";
+import {
+  CancelOrderDto,
+  CreateOrderDto,
+} from "./order-command.dto.js";
 
 @ApiTags("Orders")
 @ApiBearerAuth("service_api_key")
@@ -50,6 +56,7 @@ export class OrdersController {
     private readonly getOrder: GetOrderUseCase,
     private readonly updateOrderTracking: UpdateTenantOrderTrackingUseCase,
     private readonly cancelOrder: CancelOrderUseCase,
+    private readonly createOrder: CreateOrderFromPaymentUseCase,
   ) {}
 
   @Get()
@@ -65,6 +72,23 @@ export class OrdersController {
       cursor,
     });
     return pageResponse(page, toOrderResponse);
+  }
+
+  @Post()
+  @Idempotent()
+  @RequireTenantAccess({ serviceScopes: ["orders:write"] })
+  async create(
+    @Req() request: unknown,
+    @Body() body: CreateOrderDto,
+  ) {
+    const result = await this.createOrder.execute({
+      merchantId: tenantId(request),
+      paymentId: body.payment_id,
+    });
+    return {
+      ...toOrderDetailResponse(result.order),
+      idempotent: result.idempotent,
+    };
   }
 
   @Get(":orderId")

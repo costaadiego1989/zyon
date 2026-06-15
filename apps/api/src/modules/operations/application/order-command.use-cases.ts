@@ -1,9 +1,11 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import {
   COMMERCE_ORDER_PORT,
   type CommerceOrderPort,
@@ -101,6 +103,55 @@ export class CancelOrderUseCase {
       cancelled.idempotent,
       providerCancellationRequested,
     );
+  }
+}
+
+@Injectable()
+export class CreateOrderFromPaymentUseCase {
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly readRepository: OperationsReadRepository,
+    private readonly completeOrder: CompleteOrderUseCase,
+  ) {}
+
+  async execute(input: { merchantId: string; paymentId: string }) {
+    const merchantId = required(input.merchantId, "merchant_id");
+    const paymentId = required(input.paymentId, "payment_id");
+    const payment = await this.readRepository.getPayment(
+      merchantId,
+      paymentId,
+    );
+    if (!payment) throw new NotFoundException("payment_not_found");
+    if (payment.status !== "approved") {
+      throw new ConflictException("payment_not_approved");
+    }
+    if (!payment.providerReference) {
+      throw new ConflictException("payment_provider_reference_missing");
+    }
+
+    const existing = await this.readRepository.getOrderByExternalId(
+      merchantId,
+      payment.providerReference,
+    );
+    if (existing) return { order: existing, idempotent: true };
+
+    const completion = await this.completeOrder.execute({
+      merchant_id: merchantId,
+      session_id: payment.sessionId,
+      external_order_id: payment.providerReference,
+      order_total:
+        (payment.approvedAmountMinor ?? payment.amountMinor) / 100,
+      currency: payment.currency as Parameters<
+        CompleteOrderUseCase["execute"]
+      >[0]["currency"],
+      accepted_offer_id: payment.acceptedOfferId,
+    });
+    const order = await this.readRepository.getOrderByExternalId(
+      merchantId,
+      payment.providerReference,
+    );
+    if (!order) throw new NotFoundException("order_not_found_after_creation");
+    return { order, idempotent: completion.idempotent };
   }
 }
 

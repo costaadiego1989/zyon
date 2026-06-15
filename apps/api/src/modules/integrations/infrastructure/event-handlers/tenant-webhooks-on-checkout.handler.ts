@@ -31,6 +31,23 @@ export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
     ]);
     if (!order) return;
 
+    const createdDeliveries = await this.publisher.publish({
+      merchantId: event.merchantId,
+      eventType: "order.created",
+      occurredAt: order.completedAt,
+      data: {
+        order: {
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          created_at: order.completedAt,
+          total: order.orderTotal,
+          currency: order.currency,
+          status: order.status ?? "approved",
+        },
+      },
+    });
+    await this.dispatchDeliveries(createdDeliveries);
+
     const orderDeliveries = await this.publisher.publish({
       merchantId: event.merchantId,
       eventType: "order.approved",

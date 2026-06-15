@@ -20,3 +20,10 @@ export class CancelOrderDto {
   @IsBoolean()
   restock?: boolean;
 }
+
+export class CreateOrderDto {
+  @IsString()
+  @MinLength(8)
+  @MaxLength(160)
+  payment_id!: string;
+}
