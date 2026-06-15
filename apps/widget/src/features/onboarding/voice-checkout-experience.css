@@ -1,0 +1,534 @@
+.aacp-widget--voice {
+  --voice-accent: var(--aacp-accent, oklch(45% 0.11 165));
+  --voice-surface: var(--aacp-enterprise-surface, oklch(99.2% 0.006 100));
+  --voice-surface-muted: var(--aacp-enterprise-surface-muted, oklch(96.2% 0.012 108));
+  --voice-ink: var(--aacp-enterprise-ink, oklch(23% 0.022 155));
+  --voice-muted: var(--aacp-enterprise-muted, oklch(47% 0.018 155));
+  --voice-line: var(--aacp-enterprise-line-soft, oklch(91% 0.014 108));
+  --voice-success: var(--aacp-success, oklch(45% 0.11 153));
+}
+
+.aacp-widget--voice[data-theme="dark"] {
+  --voice-surface: var(--aacp-enterprise-surface, oklch(22% 0.018 155));
+  --voice-surface-muted: var(--aacp-enterprise-surface-muted, oklch(25.5% 0.018 155));
+  --voice-ink: var(--aacp-enterprise-ink, oklch(94% 0.01 105));
+  --voice-muted: var(--aacp-enterprise-muted, oklch(73% 0.012 120));
+  --voice-line: var(--aacp-enterprise-line-soft, oklch(32% 0.016 150));
+}
+
+.aacp-widget--voice.aacp-page {
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding:
+    max(18px, env(safe-area-inset-top))
+    max(18px, env(safe-area-inset-right))
+    max(18px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
+  background: var(--aacp-enterprise-canvas, var(--aacp-bg));
+  color: var(--voice-ink);
+}
+
+.aacp-voice-shell {
+  position: relative;
+  width: min(720px, 100%);
+  margin: 0 auto;
+  min-height: min(92vh, 860px);
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border: 1px solid var(--voice-line);
+  border-radius: 24px;
+  background: var(--voice-surface);
+  box-shadow: var(--aacp-enterprise-shadow, 0 24px 70px color-mix(in oklch, var(--voice-ink) 10%, transparent));
+  overflow: hidden;
+}
+
+.aacp-voice-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--voice-line);
+  background: color-mix(in oklch, var(--voice-surface-muted) 55%, var(--voice-surface));
+}
+
+.aacp-voice-header__brand {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.aacp-voice-header__merchant {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--voice-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.aacp-voice-header__mode {
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--voice-ink);
+}
+
+.aacp-voice-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.aacp-voice-header__order {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--voice-line);
+  border-radius: 999px;
+  background: var(--voice-surface);
+  color: var(--voice-ink);
+  font-size: 0.82rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.aacp-voice-header__order small {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--voice-muted);
+}
+
+.aacp-voice-header__icon,
+.aacp-voice-header__switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--voice-line);
+  border-radius: 999px;
+  background: var(--voice-surface);
+  color: var(--voice-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aacp-voice-header__switch {
+  color: var(--voice-accent);
+  border-color: color-mix(in oklch, var(--voice-accent) 28%, var(--voice-line));
+}
+
+.aacp-voice-main {
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 0;
+  min-height: 0;
+  padding: 18px 18px 14px;
+}
+
+.aacp-voice-progress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 18px;
+  padding: 0;
+  list-style: none;
+}
+
+.aacp-voice-progress__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--voice-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.aacp-voice-progress__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--voice-line);
+}
+
+.aacp-voice-progress__step.is-done .aacp-voice-progress__dot {
+  background: var(--voice-success);
+}
+
+.aacp-voice-progress__step.is-active .aacp-voice-progress__dot {
+  width: 10px;
+  height: 10px;
+  background: var(--voice-accent);
+  box-shadow: 0 0 0 4px color-mix(in oklch, var(--voice-accent) 18%, transparent);
+}
+
+.aacp-voice-progress__step.is-active .aacp-voice-progress__label {
+  color: var(--voice-ink);
+}
+
+.aacp-voice-progress__label {
+  display: none;
+}
+
+.aacp-voice-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  min-height: 0;
+  padding: 8px 10px 16px;
+}
+
+.aacp-voice-orb {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  display: grid;
+  place-items: center;
+}
+
+.aacp-voice-orb__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid color-mix(in oklch, var(--voice-accent) 24%, var(--voice-line));
+}
+
+.aacp-voice-orb__ring--inner {
+  inset: 12px;
+  border-color: color-mix(in oklch, var(--voice-accent) 16%, var(--voice-line));
+}
+
+.aacp-voice-orb__core {
+  position: relative;
+  z-index: 1;
+  width: 88px;
+  height: 88px;
+  display: grid;
+  place-items: center;
+  border-radius: 28px;
+  border: 1px solid color-mix(in oklch, var(--voice-accent) 30%, var(--voice-line));
+  background:
+    radial-gradient(circle at 30% 20%, color-mix(in oklch, var(--voice-accent) 16%, transparent), transparent 58%),
+    var(--voice-surface-muted);
+  color: color-mix(in oklch, var(--voice-accent) 80%, var(--voice-ink));
+  overflow: hidden;
+}
+
+.aacp-voice-orb__core img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.aacp-voice-orb--listening .aacp-voice-orb__ring--outer,
+.aacp-voice-orb--speaking .aacp-voice-orb__ring--outer {
+  animation: aacp-voice-orb-pulse 1.6s ease-out infinite;
+}
+
+.aacp-voice-orb--listening .aacp-voice-orb__core {
+  box-shadow: 0 0 0 6px color-mix(in oklch, var(--voice-accent) 14%, transparent);
+}
+
+.aacp-voice-orb--speaking .aacp-voice-orb__core {
+  box-shadow: 0 0 0 6px color-mix(in oklch, var(--voice-success) 14%, transparent);
+}
+
+.aacp-voice-orb--thinking .aacp-voice-orb__core {
+  animation: aacp-voice-orb-breathe 1.2s ease-in-out infinite;
+}
+
+.aacp-voice-agent-name {
+  margin: 0;
+  font-family: "IBM Plex Serif", Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--voice-ink);
+}
+
+.aacp-voice-caption {
+  width: min(100%, 46ch);
+  display: grid;
+  gap: 8px;
+}
+
+.aacp-voice-caption__agent {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.5;
+  color: var(--voice-ink);
+}
+
+.aacp-voice-caption__buyer {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--voice-muted);
+}
+
+.aacp-voice-status {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--voice-muted);
+}
+
+.aacp-voice-status--busy {
+  color: color-mix(in oklch, var(--voice-accent) 70%, var(--voice-muted));
+}
+
+.aacp-voice-controls {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  margin-top: 4px;
+}
+
+.aacp-voice-mic {
+  display: grid;
+  place-items: center;
+  width: 84px;
+  height: 84px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--voice-accent);
+  color: color-mix(in oklch, var(--voice-accent) 10%, white);
+  cursor: pointer;
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aacp-voice-mic:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 36px color-mix(in oklch, var(--voice-accent) 30%, transparent);
+}
+
+.aacp-voice-mic:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.aacp-voice-mic.is-listening {
+  background: color-mix(in oklch, var(--voice-accent) 78%, oklch(52% 0.16 25));
+  animation: aacp-voice-mic-pulse 1.4s ease-out infinite;
+}
+
+.aacp-voice-mic.is-speaking {
+  background: color-mix(in oklch, var(--voice-accent) 68%, var(--voice-ink));
+}
+
+.aacp-voice-controls__label {
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--voice-muted);
+}
+
+.aacp-voice-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  width: min(100%, 560px);
+  margin-top: 4px;
+}
+
+.aacp-voice-chip {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--voice-line);
+  border-radius: 999px;
+  background: var(--voice-surface);
+  color: var(--voice-ink);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aacp-voice-chip:hover:not(:disabled) {
+  border-color: color-mix(in oklch, var(--voice-accent) 35%, var(--voice-line));
+  background: color-mix(in oklch, var(--voice-accent) 6%, var(--voice-surface));
+}
+
+.aacp-voice-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.aacp-voice-panels {
+  display: grid;
+  gap: 10px;
+  width: min(100%, 560px);
+  margin: 0 auto;
+  padding-top: 8px;
+}
+
+.aacp-voice-order-strip {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--voice-line);
+  border-radius: 16px;
+  background: var(--voice-surface-muted);
+  color: var(--voice-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.aacp-voice-order-strip__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--voice-muted);
+}
+
+.aacp-voice-order-strip__meta {
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.aacp-voice-order-strip__action {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--voice-accent);
+}
+
+.aacp-widget--voice .aacp-network-error {
+  width: min(100%, 520px);
+}
+
+.aacp-widget--voice .aacp-cart {
+  border-left: 1px solid var(--voice-line);
+}
+
+.aacp-widget--voice .aacp-cart-fab {
+  display: none;
+}
+
+.aacp-widget--voice .aacp-voice-shell {
+  position: relative;
+}
+
+.aacp-widget--voice .aacp-cart {
+  position: fixed;
+  z-index: 55;
+  top: auto !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: min(100%, 720px) !important;
+  margin: 0 auto;
+  max-width: none;
+  height: min(78dvh, 680px);
+  min-height: 0;
+  border: 1px solid var(--voice-line);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -22px 60px color-mix(in oklch, var(--voice-ink) 16%, transparent);
+  transform: translateY(calc(100% + 24px)) !important;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aacp-widget--voice .aacp-cart.open {
+  transform: translateY(0) !important;
+}
+
+.aacp-widget--voice .aacp-cart-overlay {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: block;
+  background: color-mix(in oklch, var(--voice-ink) 42%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+.aacp-widget--voice .aacp-cart-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@keyframes aacp-voice-orb-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+  70% {
+    transform: scale(1.08);
+    opacity: 0.35;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.85;
+  }
+}
+
+@keyframes aacp-voice-orb-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.03);
+  }
+}
+
+@keyframes aacp-voice-mic-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklch, var(--voice-accent) 42%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 14px transparent;
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@media (min-width: 720px) {
+  .aacp-voice-progress__label {
+    display: inline;
+  }
+}
+
+@media (max-width: 640px) {
+  .aacp-voice-shell {
+    min-height: calc(100dvh - 36px);
+    border-radius: 18px;
+  }
+
+  .aacp-voice-header__order span:not(:first-child),
+  .aacp-voice-header__order small {
+    display: none;
+  }
+
+  .aacp-voice-caption__agent {
+    font-size: 0.96rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .aacp-voice-orb--listening .aacp-voice-orb__ring--outer,
+  .aacp-voice-orb--speaking .aacp-voice-orb__ring--outer,
+  .aacp-voice-orb--thinking .aacp-voice-orb__core,
+  .aacp-voice-mic.is-listening {
+    animation: none;
+  }
+}

@@ -116,7 +116,9 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         <CryptoPaymentPanel vm={vm} />
       ) : null}
 
-      {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm && !vm.showCryptoPanel)) && !vm.composerLocked && vm.quickReplies.length > 0 ? (
+      {(vm.showComposer || (vm.checkoutStage === "payment" && !vm.showCardForm && !vm.showCryptoPanel)) &&
+      !vm.composerLocked &&
+      vm.quickReplies.length > 0 ? (
         <div className="aacp-quick-replies aacp-quick-replies--in-thread" role="group" aria-label="Respostas sugeridas">
           {vm.quickReplies.map((reply) => (
             <button
