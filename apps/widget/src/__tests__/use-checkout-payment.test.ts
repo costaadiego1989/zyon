@@ -188,7 +188,15 @@ describe("useCheckoutPayment", () => {
         jsonResponse({ status: "pending", amount_cents: 15000, currency: "BRL" })
       )
       .mockResolvedValueOnce(
-        jsonResponse({ status: "approved", amount_cents: 15000, approved_amount_cents: 15000, currency: "BRL" })
+        jsonResponse({
+          status: "approved",
+          amount_cents: 15000,
+          approved_amount_cents: 15000,
+          currency: "BRL",
+          order_id: "ord_555",
+          provider_payment_id: "pay_asaas_555",
+          receipt_url: "https://pay.example/receipt/555"
+        })
       );
 
     const session = buildSessionState();
@@ -212,6 +220,16 @@ describe("useCheckoutPayment", () => {
     });
     expect(session.syncExperience).toHaveBeenCalledWith(
       expect.objectContaining({ stage: "completed" })
+    );
+
+    // Confirmation surfaces the real order id + receipt from authoritative status.
+    expect(chat.appendAgentTurn).toHaveBeenCalledWith(
+      expect.stringContaining("Pedido ord_555"),
+      { stream: true }
+    );
+    expect(chat.appendAgentTurn).toHaveBeenCalledWith(
+      expect.stringContaining("https://pay.example/receipt/555"),
+      { stream: true }
     );
 
     // GET status calls hit the authoritative status path.

@@ -39,6 +39,46 @@ export function useCheckoutPayment(
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  type PaymentStatusResponse = {
+    status: string;
+    amount_cents: number;
+    approved_amount_cents?: number;
+    currency: string;
+    order_id?: string;
+    provider_payment_id?: string;
+    receipt_url?: string;
+  };
+
+  /**
+   * Read the authoritative status once and complete the confirmation with the
+   * real order id / receipt. Falls back to known amount/currency if the read
+   * fails so the buyer still gets a confirmation after an approved charge.
+   */
+  async function finalizeConfirmation(
+    intentId: string,
+    fallbackAmountCents?: number,
+    fallbackCurrency = "BRL"
+  ): Promise<void> {
+    if (!session) return;
+    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    const query = config.mode === "embed"
+      ? `?session_id=${encodeURIComponent(session.session_id)}`
+      : `?session_id=${encodeURIComponent(session.session_id)}&merchant_id=${encodeURIComponent(config.merchantId)}`;
+    try {
+      const res = await checkoutGet<PaymentStatusResponse>(
+        apiOrigin,
+        `${paths.paymentStatus(intentId)}${query}`,
+        { ...embedOpts }
+      );
+      markPaymentCompleted(res.approved_amount_cents ?? res.amount_cents ?? fallbackAmountCents, res.currency ?? fallbackCurrency, {
+        orderId: res.order_id,
+        receiptUrl: res.receipt_url
+      });
+    } catch {
+      markPaymentCompleted(fallbackAmountCents, fallbackCurrency);
+    }
+  }
+
   /**
    * Poll the authoritative payment status until the provider webhook flips it
    * to approved, or the charge fails/expires, or the deadline passes. PIX is
@@ -67,14 +107,12 @@ export function useCheckoutPayment(
         await delay(intervalMs);
         if (!controller.active) return;
         try {
-          const res = await checkoutGet<{
-            status: string;
-            amount_cents: number;
-            approved_amount_cents?: number;
-            currency: string;
-          }>(apiOrigin, path, { ...embedOpts });
+          const res = await checkoutGet<PaymentStatusResponse>(apiOrigin, path, { ...embedOpts });
           if (res.status === "approved") {
-            markPaymentCompleted(res.approved_amount_cents ?? res.amount_cents, res.currency);
+            markPaymentCompleted(res.approved_amount_cents ?? res.amount_cents, res.currency, {
+              orderId: res.order_id,
+              receiptUrl: res.receipt_url
+            });
             return;
           }
           if (res.status === "failed" || res.status === "expired" || res.status === "canceled") {
@@ -126,17 +164,26 @@ export function useCheckoutPayment(
     };
   };
 
-  function markPaymentCompleted(amountCents?: number, currency = "BRL"): void {
+  function markPaymentCompleted(
+    amountCents?: number,
+    currency = "BRL",
+    opts?: { orderId?: string; receiptUrl?: string }
+  ): void {
     cancelPoll();
     setStripeIntent(null);
     setCryptoPayment(null);
     const total = typeof amountCents === "number"
       ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
       : "";
+    // Confirmation is built from real, authoritative references: the order id and
+    // the provider receipt URL persisted server-side (never optimistic/synthetic).
+    const orderLine = opts?.orderId ? ` Pedido ${opts.orderId}.` : "";
+    const receiptLine = opts?.receiptUrl ? ` Recibo: ${opts.receiptUrl}.` : "";
     appendAgentTurn(
-      total
-        ? `Pagamento confirmado (${total}). Pedido aprovado! Separei o resumo e o link de retorno logo abaixo.`
-        : "Pagamento confirmado! Pedido aprovado. Separei o resumo e o link de retorno logo abaixo.",
+      (total
+        ? `Pagamento confirmado (${total}). Pedido aprovado!`
+        : "Pagamento confirmado! Pedido aprovado.") +
+        `${orderLine}${receiptLine} Separei o resumo e o link de retorno logo abaixo.`,
       { stream: true }
     );
     sessionState.syncExperience({
@@ -170,7 +217,11 @@ export function useCheckoutPayment(
       const bf = snap.buyerFacing;
 
       if (snap.status === "approved") {
-        markPaymentCompleted(snap.approvedAmountCents ?? snap.amountCents, snap.currency ?? "BRL");
+        if (snap.id) {
+          await finalizeConfirmation(snap.id, snap.approvedAmountCents ?? snap.amountCents, snap.currency ?? "BRL");
+        } else {
+          markPaymentCompleted(snap.approvedAmountCents ?? snap.amountCents, snap.currency ?? "BRL");
+        }
         return;
       }
 
@@ -268,7 +319,7 @@ export function useCheckoutPayment(
         }
       });
       if (result.status === "approved") {
-        markPaymentCompleted(amountCents, currency);
+        await finalizeConfirmation(stripeIntent.intentId, amountCents, currency);
         return;
       }
       appendAgentTurn(
@@ -311,7 +362,11 @@ export function useCheckoutPayment(
       );
 
       if (snap.status === "approved") {
-        markPaymentCompleted(snap.approvedAmountCents ?? snap.amountCents, snap.currency ?? "BRL");
+        if (snap.id) {
+          await finalizeConfirmation(snap.id, snap.approvedAmountCents ?? snap.amountCents, snap.currency ?? "BRL");
+        } else {
+          markPaymentCompleted(snap.approvedAmountCents ?? snap.amountCents, snap.currency ?? "BRL");
+        }
         return;
       }
 
@@ -355,7 +410,7 @@ export function useCheckoutPayment(
         schema: undefined
       });
       if (result.status === "approved") {
-        markPaymentCompleted(cryptoPayment?.amountCents, cryptoPayment?.currency ?? "BRL");
+        await finalizeConfirmation(intentId, cryptoPayment?.amountCents, cryptoPayment?.currency ?? "BRL");
       }
     } catch {
       appendAgentTurn(
