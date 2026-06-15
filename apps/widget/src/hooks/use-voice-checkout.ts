@@ -16,6 +16,34 @@ type BrowserSpeechRecognition = {
 
 type BrowserSpeechRecognitionCtor = new () => BrowserSpeechRecognition;
 
+export type VoiceCheckoutRiskLevel = "low" | "medium" | "high";
+
+export type VoiceCheckoutField =
+  | "email"
+  | "cpf"
+  | "shipping"
+  | "payment"
+  | "coupon"
+  | "generic";
+
+export type PendingVoiceTurn = {
+  id: string;
+  rawTranscript: string;
+  displayTranscript: string;
+  interpretedAction: string;
+  riskLevel: VoiceCheckoutRiskLevel;
+  field: VoiceCheckoutField;
+  requiresTapConfirmation: boolean;
+};
+
+export type PendingVoiceTurnDraft = {
+  displayTranscript?: string;
+  interpretedAction: string;
+  riskLevel?: VoiceCheckoutRiskLevel;
+  field?: VoiceCheckoutField;
+  requiresTapConfirmation?: boolean;
+};
+
 function getSpeechRecognitionCtor(): BrowserSpeechRecognitionCtor | null {
   if (typeof window === "undefined") return null;
   const w = window as Window & {
@@ -29,11 +57,51 @@ function stripAgentPrefix(text: string): string {
   return text.replace(/^[A-Za-zÀ-ÿ][\wÀ-ÿ]*:\s*/u, "").trim();
 }
 
+function createVoiceTurnId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `voice_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+
+export function maskVoiceTranscriptForDisplay(text: string): string {
+  return text
+    .replace(/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, (email) => {
+      const [localPart = "", domain = ""] = email.split("@");
+      const visibleLocal =
+        localPart.length <= 2 ? `${localPart[0] ?? ""}***` : `${localPart.slice(0, 2)}***`;
+      return `${visibleLocal}@${domain}`;
+    })
+    .replace(/\b(\d{3})[.\s-]?(\d{3})[.\s-]?(\d{3})[.\s-]?(\d{2})\b/g, "$1.***.***-$4")
+    .replace(/\b(?:\d[ -]?){13,19}\b/g, "[numero protegido]");
+}
+
+function createPendingVoiceTurn(
+  transcript: string,
+  buildPendingTurn?: (text: string) => PendingVoiceTurnDraft,
+): PendingVoiceTurn {
+  const draft = buildPendingTurn?.(transcript);
+
+  return {
+    id: createVoiceTurnId(),
+    rawTranscript: transcript,
+    displayTranscript: draft?.displayTranscript ?? maskVoiceTranscriptForDisplay(transcript),
+    interpretedAction: draft?.interpretedAction ?? "Enviar esta resposta ao agente.",
+    riskLevel: draft?.riskLevel ?? "medium",
+    field: draft?.field ?? "generic",
+    requiresTapConfirmation: draft?.requiresTapConfirmation ?? true,
+  };
+}
+
 export type VoiceCheckoutState = {
   listening: boolean;
   speaking: boolean;
   unsupported: boolean;
   hint: string;
+  pendingTurn: PendingVoiceTurn | null;
+  confirmPendingTurn: () => Promise<void>;
+  discardPendingTurn: () => void;
+  retryPendingTurn: () => void;
   handleMicPress: () => void;
   stopAll: () => void;
 };
@@ -44,7 +112,8 @@ type UseVoiceCheckoutOptions = {
   composerLocked: boolean;
   awaitingAgentPlayback: boolean;
   latestAgentText: string | null;
-  onTranscript: (text: string) => void | Promise<void>;
+  buildPendingTurn?: (text: string) => PendingVoiceTurnDraft;
+  onConfirmTranscript: (text: string) => void | Promise<void>;
 };
 
 export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckoutState {
@@ -54,21 +123,28 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     composerLocked,
     awaitingAgentPlayback,
     latestAgentText,
-    onTranscript,
+    buildPendingTurn,
+    onConfirmTranscript,
   } = options;
 
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [unsupported, setUnsupported] = useState(false);
+  const [pendingTurn, setPendingTurn] = useState<PendingVoiceTurn | null>(null);
   const [hint, setHint] = useState("Toque no microfone e responda em voz alta.");
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const spokenKeyRef = useRef<string | null>(null);
   const autoListenRef = useRef(false);
-  const onTranscriptRef = useRef(onTranscript);
+  const buildPendingTurnRef = useRef(buildPendingTurn);
+  const onConfirmTranscriptRef = useRef(onConfirmTranscript);
 
   useEffect(() => {
-    onTranscriptRef.current = onTranscript;
-  }, [onTranscript]);
+    buildPendingTurnRef.current = buildPendingTurn;
+  }, [buildPendingTurn]);
+
+  useEffect(() => {
+    onConfirmTranscriptRef.current = onConfirmTranscript;
+  }, [onConfirmTranscript]);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
@@ -92,6 +168,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       stopAll();
       spokenKeyRef.current = null;
       autoListenRef.current = false;
+      setPendingTurn(null);
       setHint("Toque no microfone e responda em voz alta.");
       return;
     }
@@ -130,7 +207,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
 
     recognition.onstart = () => {
       setListening(true);
-      setHint("Estou ouvindo…");
+      setHint("Estou ouvindo...");
     };
 
     recognition.onerror = () => {
@@ -148,8 +225,8 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
         setHint("Não entendi. Pode repetir?");
         return;
       }
-      setHint(`Você disse: “${transcript}”`);
-      void onTranscriptRef.current(transcript);
+      setPendingTurn(createPendingVoiceTurn(transcript, buildPendingTurnRef.current));
+      setHint("Confira o que entendi antes de enviar.");
     };
 
     try {
@@ -159,6 +236,34 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       setListening(false);
     }
   }, [busy, composerLocked, enabled, speaking, stopSpeaking]);
+
+  const discardPendingTurn = useCallback(() => {
+    setPendingTurn(null);
+    setHint("Toque no microfone quando quiser responder.");
+  }, []);
+
+  const retryPendingTurn = useCallback(() => {
+    setPendingTurn(null);
+    setHint("Pode falar de novo. Estou ouvindo.");
+    autoListenRef.current = false;
+    void startListening();
+  }, [startListening]);
+
+  const confirmPendingTurn = useCallback(async () => {
+    if (!pendingTurn || busy || composerLocked) return;
+
+    const turn = pendingTurn;
+    setPendingTurn(null);
+    setHint("Enviando sua resposta confirmada.");
+
+    try {
+      await onConfirmTranscriptRef.current(turn.rawTranscript);
+      setHint("Resposta enviada. Vou continuar daqui.");
+    } catch {
+      setPendingTurn(turn);
+      setHint("Não consegui enviar agora. Confirme novamente ou tente pelo chat.");
+    }
+  }, [busy, composerLocked, pendingTurn]);
 
   const speakAgentLine = useCallback(
     (text: string) => {
@@ -170,7 +275,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       utterance.onstart = () => {
         setSpeaking(true);
         stopListening();
-        setHint("Estou falando com você…");
+        setHint("Estou falando com você...");
       };
       utterance.onend = () => {
         setSpeaking(false);
@@ -200,6 +305,10 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
 
   function handleMicPress(): void {
     if (unsupported) return;
+    if (pendingTurn) {
+      setHint("Confirme, edite ou fale de novo antes de continuar.");
+      return;
+    }
     if (listening) {
       stopListening();
       setHint("Toque no microfone quando quiser responder.");
@@ -214,6 +323,10 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     speaking,
     unsupported,
     hint,
+    pendingTurn,
+    confirmPendingTurn,
+    discardPendingTurn,
+    retryPendingTurn,
     handleMicPress,
     stopAll,
   };
