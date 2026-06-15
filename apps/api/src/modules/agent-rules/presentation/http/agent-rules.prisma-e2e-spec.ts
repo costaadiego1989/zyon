@@ -24,7 +24,11 @@ test(
     const authRepository = new PrismaAuthRepository(prisma);
     const jwt = new JwtService("test-secret", 3600);
     const merchantRepository = new PrismaMerchantRepository(prisma);
-    const register = new RegisterMerchantUseCase(authRepository, merchantRepository, new PasswordHasher(), jwt);
+    const register = new RegisterMerchantUseCase(
+      authRepository,
+      new PasswordHasher(),
+      jwt,
+    );
     const repository = new PrismaAgentRulesRepository(prisma);
     const controller = new AgentRulesController(
       new GetAgentRulesUseCase(repository),

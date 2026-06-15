@@ -15,6 +15,12 @@ export class PrismaAuthRepository implements AuthRepository {
       data: {
         id: input.merchantId,
         name: input.merchantName,
+        billingSubscription: {
+          create: {
+            status: "trialing",
+            trialEndsAt: new Date(Date.now() + 14 * 86_400_000),
+          },
+        },
         users: {
           create: {
             email: input.email,

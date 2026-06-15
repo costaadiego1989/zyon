@@ -2,9 +2,6 @@ import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 import { JwtService } from "../domain/services/jwt.service.js";
 import { PasswordHasher } from "../domain/services/password-hasher.service.js";
-import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
-import { provisionStripeConnectForMerchant } from "../../payment/infrastructure/stripe-connect.provisioner.js";
-import { isStripeConfigured } from "../../payment/infrastructure/stripe-env.js";
 
 export interface RegisterMerchantRequest {
   merchant_id?: string;
@@ -26,7 +23,6 @@ export interface AuthResponse {
 export class RegisterMerchantUseCase {
   constructor(
     @Inject(AUTH_REPOSITORY) private readonly repository: AuthRepository,
-    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     private readonly passwordHasher: PasswordHasher,
     private readonly jwt: JwtService
   ) {}
@@ -42,13 +38,6 @@ export class RegisterMerchantUseCase {
       email,
       passwordHash
     });
-    if (isStripeConfigured()) {
-      await provisionStripeConnectForMerchant(this.merchants, {
-        merchantId: created.merchant.id,
-        merchantName: created.merchant.name,
-        email
-      });
-    }
     return toAuthResponse(created.user, this.jwt);
   }
 }

@@ -1,6 +1,5 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
-import { MerchantModule } from "../merchant/merchant.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { LoginUseCase } from "./application/login.use-case.js";
 import { RegisterMerchantUseCase } from "./application/register-merchant.use-case.js";
@@ -15,7 +14,6 @@ import { AuthGuard } from "./presentation/auth.guard.js";
 import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
 
 @Module({
-  imports: [forwardRef(() => MerchantModule)],
   controllers: [AuthController],
   providers: [
     RegisterMerchantUseCase,
