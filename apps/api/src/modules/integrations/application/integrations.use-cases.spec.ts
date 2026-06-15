@@ -122,13 +122,7 @@ test("UpdateTenantOrderTrackingUseCase updates completed order, persists shipmen
   );
 
   const result = await useCase.execute({
-    context: {
-      id: "mak_1",
-      merchantId: "mrc_1",
-      scopes: ["orders:tracking:write"],
-      environment: "test",
-      allowedCidrs: [],
-    },
+    merchantId: "mrc_1",
     externalOrderId: "ord_900",
     body: {
       tracking_code: " BR123456789AA ",

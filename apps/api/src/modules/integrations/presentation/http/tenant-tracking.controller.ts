@@ -21,7 +21,7 @@ export class TenantTrackingController {
   @RequireApiKeyScopes("tracking:write")
   update(@Req() request: unknown, @Param("externalOrderId") externalOrderId: string, @Body() body: Record<string, unknown>) {
     return this.updateTracking.execute({
-      context: currentApiKey(request as { apiKey?: unknown }),
+      merchantId: currentApiKey(request as { apiKey?: unknown }).merchantId,
       externalOrderId,
       body: body as any
     });

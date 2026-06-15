@@ -1,7 +1,9 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
+  Put,
   Query,
   Req,
   UseGuards,
@@ -12,6 +14,8 @@ import {
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
+import { UpdateTenantOrderTrackingUseCase } from "../../../integrations/application/integrations.use-cases.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
@@ -30,6 +34,7 @@ import type {
   OrderSummary,
   PaymentSummary,
 } from "../../domain/ports/operations-read.repository.port.js";
+import { UpdateOrderTrackingDto } from "./order-tracking.dto.js";
 
 @ApiTags("Orders")
 @ApiBearerAuth("service_api_key")
@@ -40,6 +45,7 @@ export class OrdersController {
   constructor(
     private readonly listOrders: ListOrdersUseCase,
     private readonly getOrder: GetOrderUseCase,
+    private readonly updateOrderTracking: UpdateTenantOrderTrackingUseCase,
   ) {}
 
   @Get()
@@ -90,6 +96,39 @@ export class OrdersController {
       external_order_id: order.externalOrderId,
       tracking_code: order.trackingCode ?? null,
       timeline: order.timeline.filter((entry) => entry.type === "tracking"),
+    };
+  }
+
+  @Put(":orderId/tracking")
+  @Idempotent()
+  @RequireTenantAccess({ serviceScopes: ["tracking:write"] })
+  async updateTracking(
+    @Req() request: unknown,
+    @Param("orderId") orderId: string,
+    @Body() body: UpdateOrderTrackingDto,
+  ) {
+    const merchantId = tenantId(request);
+    const order = await this.getOrder.execute(merchantId, orderId);
+    const result = await this.updateOrderTracking.execute({
+      merchantId,
+      externalOrderId: order.externalOrderId,
+      body: {
+        session_id: order.sessionId,
+        tracking_code: body.tracking_code,
+        carrier: body.carrier,
+        tracking_url: body.tracking_url,
+        status: body.status,
+        events: body.events,
+      },
+    });
+    return {
+      updated: result.updated,
+      changed: result.changed,
+      order_id: order.id,
+      external_order_id: order.externalOrderId,
+      tracking_code: result.order.trackingCode ?? null,
+      shipment: result.shipment,
+      events_recorded: result.events_recorded,
     };
   }
 }

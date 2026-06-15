@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
-import { TenantAccessModule } from "../integrations/tenant-access.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
 import {
   GetCustomerUseCase,
   GetOrderUseCase,
@@ -19,7 +19,7 @@ import {
 } from "./presentation/http/operations.controller.js";
 
 @Module({
-  imports: [TenantAccessModule],
+  imports: [IntegrationsModule],
   controllers: [
     OrdersController,
     CustomersController,

@@ -68,6 +68,7 @@ import { DnsWebhookTargetPolicy } from "./infrastructure/dns-webhook-target-poli
   exports: [
     TenantAccessModule,
     TenantWebhookPublisher,
+    UpdateTenantOrderTrackingUseCase,
   ]
 })
 export class IntegrationsModule {}

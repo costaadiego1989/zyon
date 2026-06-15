@@ -393,7 +393,7 @@ export class UpdateTenantOrderTrackingUseCase {
   ) {}
 
   async execute(input: {
-    context: MerchantApiKeyContext;
+    merchantId: string;
     externalOrderId: string;
     body: {
       session_id?: string;
@@ -410,10 +410,10 @@ export class UpdateTenantOrderTrackingUseCase {
       }>;
     };
   }) {
-    requireScope(input.context, "tracking:write");
     const trackingCode = input.body.tracking_code?.trim();
     if (!trackingCode) throw new BadRequestException("tracking_code_required");
-    const merchantId = input.context.merchantId;
+    const merchantId = input.merchantId.trim();
+    if (!merchantId) throw new BadRequestException("merchant_id_required");
     const order = input.body.session_id
       ? await this.orders.getCompletedOrder(merchantId, input.body.session_id, input.externalOrderId)
       : await this.orders.findCompletedOrderByExternalOrderId(merchantId, input.externalOrderId);
