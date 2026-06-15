@@ -5,6 +5,7 @@ import {
   Bot,
   Code2,
   KeyRound,
+  Eye,
   LogOut,
   MessageSquare,
   PackageSearch,
@@ -35,6 +36,7 @@ import { CustomersPage } from "./pages/customers-page.js";
 import { EmbedPage } from "./pages/embed-page.js";
 import { ThemePage } from "./pages/theme-page.js";
 import { OnboardingWizard } from "./pages/onboarding-wizard.js";
+import { CheckoutPreviewPage } from "./pages/preview-page.js";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -47,6 +49,7 @@ type TabKey =
   | "shipments"
   | "customers"
   | "embed"
+  | "preview"
   | "theme"
   | "support"
   | "settings"
@@ -62,6 +65,7 @@ const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: Luci
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
   { key: "integrations", label: "Integracoes", section: "Plataforma", icon: Webhook },
   { key: "embed", label: "Embed", section: "Plataforma", icon: Code2 },
+  { key: "preview", label: "Preview", section: "Plataforma", icon: Eye },
   { key: "theme", label: "Tema", section: "Plataforma", icon: Palette },
   { key: "support", label: "Suporte", section: "Atendimento", icon: MessageSquare },
   { key: "settings", label: "Checkout", section: "Atendimento", icon: Settings2 },
@@ -363,6 +367,7 @@ function App() {
           {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "customers" ? <CustomersPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "embed" ? <EmbedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+          {tab === "preview" ? <CheckoutPreviewPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
         </section>
       </main>
