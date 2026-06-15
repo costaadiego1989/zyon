@@ -55,7 +55,7 @@ Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 | Fase | Escopo | Progresso | ADRs |
 |---|---|---|---|
 | **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
-| **P1** | Caminho transacional do piloto | `[######----]` 57% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
+| **P1** | Caminho transacional do piloto | `[########--]` 85% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
 | **P2** | Identidade e operação do merchant | `[----------]` 0% | 0015, 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
 | **P4** | Expansão pós-piloto | `[----------]` 0% | 0021 |
@@ -86,12 +86,12 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | ADR | Superfície | Fase | Alvo | Status | Progresso |
 |---|---|---|---|:--:|---|
 | [0009](./0009-platform-p0-hardening.md) | Plataforma P0 | P0 | L3-gate | ✅ | `[##########]` 100% |
-| [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | 🟨 | `[#######---]` 67% |
+| [0010](./0010-checkout-pilot-path-hardening.md) | Checkout | P1 | L3 | ✅ | `[##########]` 100% |
 | [0011](./0011-payment-hardening.md) | Payment | P1 | L3 | ✅ | `[##########]` 100% |
 | [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ✅ | `[##########]` 100% |
 | [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ✅ | `[##########]` 100% |
 | [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ✅ | `[##########]` 100% |
-| [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | 🟨 | `[#####-----]` 50% |
+| [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | 🟨 | `[########--]` 75% |
 | [0015](./0015-auth-and-tenant-onboarding.md) | Auth + onboarding | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0016](./0016-merchant-config-surface-hardening.md) | Merchant/agent-rules/settings | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0017](./0017-integrations-api-keys-webhooks.md) | Integrations | P2 | L3 | ⬜ | `[----------]` 0% |
@@ -116,7 +116,7 @@ de cada bloco move o ADR para `✅`.
 **0010 Checkout**
 - [x] Rotas legadas abertas (sessão/decisão/regras/`orders/complete`) fechadas (`@NonProductionRoute`).
 - [x] Carrinho/frete/pagamento confiados somente server-side.
-- [~] Desacoplamento por eventos concluído (sem `CheckoutPaymentAdapter`); conclusão de pedido + outbox atômicos e idempotentes por chave natural (P2002 → idempotente). Falta E2E realapi happy + erros.
+- [x] Desacoplamento por eventos concluído (sem `CheckoutPaymentAdapter`); conclusão de pedido + outbox atômicos e idempotentes por chave natural (P2002 → idempotente); E2E webhook duplicado emite `order.completed` uma única vez.
 
 **0011 Payment**
 - [x] Endpoint legado protegido; sem fallback fake em produção.
@@ -136,7 +136,7 @@ de cada bloco move o ADR para `✅`.
 - [x] Quote/seleção/expiração persistidos; smoke de carrier.
 
 **0022 Widget transacional**
-- [ ] Carrinho com mutação server-side (mesmo total no pagamento).
+- [x] Carrinho com mutação server-side (`PATCH /cart` + `POST /embed/cart`, preço autoritativo no servidor; widget sincroniza experiência da resposta; frete obsoleto limpo na mudança).
 - [x] `CardForm` substituído por tokenização provider-side (Stripe Elements, sem PAN/CVV ao backend); confirmação por webhook (não otimista).
 - [x] PIX com estado pendente/expiração/polling; confirmação não otimista (poll do status autoritativo).
 - [ ] Frete confirmado na API; confirmação usa `order_id`/recibo/status reais.
