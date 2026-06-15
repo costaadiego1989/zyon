@@ -20,7 +20,6 @@ import {
   formatCurrency,
   quickReplyId,
   stripAgentMessagePrefix,
-  STAGE_FLOW,
 } from "../../hooks/checkout-view-model.js";
 import {
   useVoiceCheckout,
@@ -44,6 +43,7 @@ import { GlobalAuthModal } from "../../components/checkout/GlobalAuthModal.js";
 import { SupportPanel } from "../../components/checkout/SupportPanel.js";
 import { ThemeStudio } from "../../components/checkout/ThemeStudio.js";
 import { UserPanel } from "../../components/checkout/UserPanel.js";
+import { JourneyProtocol } from "../journey/JourneyProtocol.js";
 import { AgentChannelWelcome } from "./AgentChannelWelcome.js";
 import "./voice-checkout-experience.css";
 
@@ -58,11 +58,6 @@ function latestTurnText(
     }
   }
   return null;
-}
-
-function voiceStageIndex(stage: string): number {
-  const index = STAGE_FLOW.findIndex((step) => step.key === stage);
-  return index >= 0 ? index : 0;
 }
 
 function normalizeVoiceText(text: string): string {
@@ -238,7 +233,6 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
     ? stripAgentMessagePrefix(latestAgentRaw, agentName)
     : vm.activeExperience.agent.greeting || "Vou conduzir sua compra por voz. Pode falar comigo.";
   const latestBuyerText = useMemo(() => latestTurnText(vm.turns, "buyer"), [vm.turns]);
-  const stageIndex = voiceStageIndex(vm.checkoutStage);
   const itemCountLabel =
     vm.cartItemCount === 1 ? "1 item" : `${vm.cartItemCount} itens`;
 
@@ -247,7 +241,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
     busy: vm.busy,
     composerLocked: vm.composerLocked,
     awaitingAgentPlayback: vm.awaitingAgentPlayback,
-    latestAgentText: latestAgentRaw,
+    latestAgentText,
     buildPendingTurn: (text) => describePendingVoiceTurn(vm, text),
     onConfirmTranscript: (text) => vm.sendMessageWithOverride(text),
   });
@@ -323,22 +317,9 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
         </header>
 
         <main className="aacp-voice-main" aria-label="Sessão de compra por voz">
-          <ol className="aacp-voice-progress" aria-label="Etapas da compra">
-            {STAGE_FLOW.map((step, index) => (
-              <li
-                key={step.key}
-                className={cn(
-                  "aacp-voice-progress__step",
-                  index < stageIndex ? "is-done" : "",
-                  index === stageIndex ? "is-active" : "",
-                )}
-                aria-current={index === stageIndex ? "step" : undefined}
-              >
-                <span className="aacp-voice-progress__dot" aria-hidden="true" />
-                <span className="aacp-voice-progress__label">{step.shortLabel}</span>
-              </li>
-            ))}
-          </ol>
+          <div className="aacp-voice-journey">
+            <JourneyProtocol model={presentation.journey} />
+          </div>
 
           <div className="aacp-voice-stage">
             <div className={`aacp-voice-orb aacp-voice-orb--${voiceState}`} aria-hidden="true">
@@ -357,6 +338,15 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
             <div className="aacp-voice-caption" aria-live="polite">
               <p className="aacp-voice-caption__agent">{latestAgentText}</p>
+              <button
+                type="button"
+                className="aacp-voice-caption__replay"
+                onClick={voice.replayAgentLine}
+                disabled={vm.busy || voice.speaking}
+              >
+                <Volume2 size={14} />
+                Ouvir pergunta
+              </button>
               {latestBuyerText ? (
                 <p className="aacp-voice-caption__buyer">Você: {latestBuyerText}</p>
               ) : null}

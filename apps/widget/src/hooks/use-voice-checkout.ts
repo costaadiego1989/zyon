@@ -102,6 +102,7 @@ export type VoiceCheckoutState = {
   confirmPendingTurn: () => Promise<void>;
   discardPendingTurn: () => void;
   retryPendingTurn: () => void;
+  replayAgentLine: () => void;
   handleMicPress: () => void;
   stopAll: () => void;
 };
@@ -303,6 +304,13 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     speakAgentLine(latestAgentText);
   }, [awaitingAgentPlayback, busy, enabled, latestAgentText, speakAgentLine]);
 
+  function replayAgentLine(): void {
+    if (!latestAgentText || busy) return;
+    autoListenRef.current = false;
+    spokenKeyRef.current = null;
+    speakAgentLine(latestAgentText);
+  }
+
   function handleMicPress(): void {
     if (unsupported) return;
     if (pendingTurn) {
@@ -327,6 +335,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     confirmPendingTurn,
     discardPendingTurn,
     retryPendingTurn,
+    replayAgentLine,
     handleMicPress,
     stopAll,
   };

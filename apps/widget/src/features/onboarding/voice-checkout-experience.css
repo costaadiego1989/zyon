@@ -132,6 +132,25 @@
   padding: 18px 18px 14px;
 }
 
+.aacp-voice-journey {
+  margin: 0 0 18px;
+}
+
+.aacp-widget--voice .aacp-stage-progress {
+  border: 1px solid var(--voice-line);
+  border-radius: 18px;
+  background: color-mix(in oklch, var(--voice-surface-muted) 64%, var(--voice-surface));
+  box-shadow: none;
+}
+
+.aacp-widget--voice .aacp-stage-progress-body {
+  gap: 14px;
+}
+
+.aacp-widget--voice .aacp-stage-progress-shine::after {
+  animation-duration: 3.4s;
+}
+
 .aacp-voice-progress {
   display: flex;
   align-items: center;
@@ -282,6 +301,37 @@
   font-size: 0.84rem;
   line-height: 1.4;
   color: var(--voice-muted);
+}
+
+.aacp-voice-caption__replay {
+  width: fit-content;
+  min-height: 34px;
+  justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--voice-accent) 9%, var(--voice-surface-muted));
+  color: color-mix(in oklch, var(--voice-accent) 78%, var(--voice-ink));
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 150ms cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 150ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.aacp-voice-caption__replay:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background: color-mix(in oklch, var(--voice-accent) 14%, var(--voice-surface-muted));
+}
+
+.aacp-voice-caption__replay:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .aacp-voice-status {

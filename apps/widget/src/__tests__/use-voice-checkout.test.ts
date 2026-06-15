@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { maskVoiceTranscriptForDisplay, useVoiceCheckout } from "../hooks/use-voice-checkout.js";
 
@@ -36,6 +36,19 @@ class MockSpeechRecognition {
   }
 }
 
+class MockSpeechSynthesisUtterance {
+  text: string;
+  lang = "";
+  rate = 1;
+  onstart: (() => void) | null = null;
+  onend: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+
+  constructor(text: string) {
+    this.text = text;
+  }
+}
+
 function renderVoiceHook(
   overrides: Partial<Parameters<typeof useVoiceCheckout>[0]> = {},
 ) {
@@ -56,12 +69,16 @@ function renderVoiceHook(
 }
 
 describe("useVoiceCheckout", () => {
+  let speakMock: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     MockSpeechRecognition.instances = [];
+    speakMock = vi.fn();
     vi.stubGlobal("SpeechRecognition", MockSpeechRecognition);
+    vi.stubGlobal("SpeechSynthesisUtterance", MockSpeechSynthesisUtterance);
     vi.stubGlobal("speechSynthesis", {
       cancel: vi.fn(),
-      speak: vi.fn(),
+      speak: speakMock,
     });
   });
 
@@ -83,6 +100,18 @@ describe("useVoiceCheckout", () => {
     expect(result.current.pendingTurn?.rawTranscript).toBe("meu cpf 12345678901");
     expect(result.current.pendingTurn?.displayTranscript).toContain("123.***.***-01");
     expect(result.current.hint).toBe("Confira o que entendi antes de enviar.");
+  });
+
+  it("speaks the latest agent line through browser audio when voice mode starts", async () => {
+    renderVoiceHook({ latestAgentText: "Zion: Qual e o melhor e-mail para o pedido?" });
+
+    await waitFor(() => {
+      expect(speakMock).toHaveBeenCalledTimes(1);
+    });
+
+    const utterance = speakMock.mock.calls[0]![0] as MockSpeechSynthesisUtterance;
+    expect(utterance.text).toBe("Qual e o melhor e-mail para o pedido?");
+    expect(utterance.lang).toBe("pt-BR");
   });
 
   it("sends the raw transcript only after explicit confirmation", async () => {
