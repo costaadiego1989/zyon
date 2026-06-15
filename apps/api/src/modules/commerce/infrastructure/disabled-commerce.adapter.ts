@@ -14,4 +14,8 @@ export class DisabledCommerceAdapter implements CommerceCartPort, CommerceOrderP
   async markOrderPaid(): Promise<void> {
     throw new BadRequestException("commerce_adapter_not_configured");
   }
+
+  async cancelOrder(): Promise<void> {
+    throw new BadRequestException("commerce_adapter_not_configured");
+  }
 }

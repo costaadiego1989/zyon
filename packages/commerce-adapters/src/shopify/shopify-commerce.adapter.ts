@@ -323,25 +323,104 @@ export class ShopifyCommerceAdapter
     commerceOrderId: string;
     paymentReference: string;
   }): Promise<void> {
-    const orderId = input.commerceOrderId.trim();
-    const url = this.adminUrl(`/orders/${encodeURIComponent(orderId)}/transactions.json`);
-    const body = {
-      transaction: {
-        kind: "capture",
-        status: "success",
-        gateway: "manual",
-        source_name: `aacp:${input.paymentReference.trim()}`
-      }
-    };
+    const draftOrderId = toShopifyGid(
+      "DraftOrder",
+      input.commerceOrderId,
+    );
+    if (await this.findCompletedOrderId(draftOrderId)) return;
 
-    const response = await this.#fetch(url, {
-      method: "POST",
-      headers: adminHeaders(this.#token),
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-      throw new Error(`shopify_mark_paid_failed_${response.status}`);
+    const data = await this.adminGraphql<ShopifyDraftOrderCompleteData>(
+      `mutation AacpDraftOrderComplete($id: ID!, $sourceName: String) {
+        draftOrderComplete(id: $id, sourceName: $sourceName) {
+          draftOrder {
+            id
+            order { id }
+          }
+          userErrors { field message }
+        }
+      }`,
+      {
+        id: draftOrderId,
+        sourceName: "aacp",
+      },
+      "shopify_mark_paid",
+    );
+    assertNoShopifyUserErrors(
+      data.draftOrderComplete.userErrors,
+      "shopify_mark_paid",
+    );
+    if (!data.draftOrderComplete.draftOrder?.order?.id) {
+      throw new Error("shopify_completed_order_id_missing");
     }
+  }
+
+  async cancelOrder(input: {
+    merchantId: string;
+    commerceOrderId: string;
+    reason: string;
+    notifyCustomer?: boolean;
+    restock?: boolean;
+  }): Promise<void> {
+    const orderId = input.commerceOrderId.startsWith("gid://shopify/Order/")
+      ? input.commerceOrderId
+      : await this.findCompletedOrderId(
+          toShopifyGid("DraftOrder", input.commerceOrderId),
+        );
+    if (!orderId) throw new Error("shopify_completed_order_not_found");
+
+    const data = await this.adminGraphql<ShopifyOrderCancelData>(
+      `mutation AacpOrderCancel(
+        $orderId: ID!
+        $notifyCustomer: Boolean
+        $refundMethod: OrderCancelRefundMethodInput!
+        $restock: Boolean!
+        $reason: OrderCancelReason!
+        $staffNote: String
+      ) {
+        orderCancel(
+          orderId: $orderId
+          notifyCustomer: $notifyCustomer
+          refundMethod: $refundMethod
+          restock: $restock
+          reason: $reason
+          staffNote: $staffNote
+        ) {
+          job { id done }
+          orderCancelUserErrors { field message code }
+        }
+      }`,
+      {
+        orderId,
+        notifyCustomer: input.notifyCustomer ?? false,
+        refundMethod: { originalPaymentMethodsRefund: false },
+        restock: input.restock ?? true,
+        reason: shopifyCancellationReason(input.reason),
+        staffNote: input.reason.trim().slice(0, 255),
+      },
+      "shopify_cancel_order",
+    );
+    assertNoShopifyUserErrors(
+      data.orderCancel.orderCancelUserErrors,
+      "shopify_cancel_order",
+    );
+    if (!data.orderCancel.job?.id) {
+      throw new Error("shopify_cancel_order_job_missing");
+    }
+  }
+
+  private async findCompletedOrderId(
+    draftOrderId: string,
+  ): Promise<string | undefined> {
+    const data = await this.adminGraphql<ShopifyDraftOrderLookupData>(
+      `query AacpDraftOrder($id: ID!) {
+        draftOrder(id: $id) {
+          order { id }
+        }
+      }`,
+      { id: draftOrderId },
+      "shopify_draft_order_lookup",
+    );
+    return data.draftOrder?.order?.id;
   }
 }
 
@@ -355,6 +434,49 @@ function moneyToCents(value: string | number): number {
 
 function escapeShopifySearch(value: string): string {
   return value.replace(/([\\":()])/g, "\\$1");
+}
+
+function toShopifyGid(
+  resource: "DraftOrder" | "Order",
+  value: string,
+): string {
+  const normalized = value.trim();
+  if (normalized.startsWith(`gid://shopify/${resource}/`)) return normalized;
+  if (!/^\d+$/.test(normalized)) {
+    throw new Error(`shopify_${resource.toLowerCase()}_id_invalid`);
+  }
+  return `gid://shopify/${resource}/${normalized}`;
+}
+
+function shopifyCancellationReason(reason: string): string {
+  const normalized = reason.trim().toLowerCase();
+  if (normalized.includes("fraud")) return "FRAUD";
+  if (normalized.includes("inventory") || normalized.includes("estoque")) {
+    return "INVENTORY";
+  }
+  if (
+    normalized.includes("payment") ||
+    normalized.includes("pagamento") ||
+    normalized.includes("declin")
+  ) {
+    return "DECLINED";
+  }
+  if (
+    normalized.includes("customer") ||
+    normalized.includes("cliente") ||
+    normalized.includes("comprador")
+  ) {
+    return "CUSTOMER";
+  }
+  return "OTHER";
+}
+
+function assertNoShopifyUserErrors(
+  errors: Array<{ message: string }> | undefined,
+  code: string,
+): void {
+  if (!errors?.length) return;
+  throw new Error(`${code}_user_error:${errors[0]?.message ?? "unknown"}`);
 }
 
 function mapShopifyProduct(
@@ -390,6 +512,35 @@ function mapShopifyProduct(
 type GraphqlResponse<T> = {
   data?: T;
   errors?: Array<{ message?: string }>;
+};
+
+type ShopifyUserError = {
+  field?: string[] | null;
+  message: string;
+  code?: string | null;
+};
+
+type ShopifyDraftOrderLookupData = {
+  draftOrder: {
+    order?: { id: string } | null;
+  } | null;
+};
+
+type ShopifyDraftOrderCompleteData = {
+  draftOrderComplete: {
+    draftOrder?: {
+      id: string;
+      order?: { id: string } | null;
+    } | null;
+    userErrors: ShopifyUserError[];
+  };
+};
+
+type ShopifyOrderCancelData = {
+  orderCancel: {
+    job?: { id: string; done: boolean } | null;
+    orderCancelUserErrors: ShopifyUserError[];
+  };
 };
 
 type ShopifyShopQueryData = {

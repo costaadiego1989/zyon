@@ -27,6 +27,13 @@ export interface CommerceOrderPort {
     commerceOrderId: string;
     paymentReference: string;
   }): Promise<void>;
+  cancelOrder?(input: {
+    merchantId: string;
+    commerceOrderId: string;
+    reason: string;
+    notifyCustomer?: boolean;
+    restock?: boolean;
+  }): Promise<void>;
 }
 
 export interface CommerceOfferPort {

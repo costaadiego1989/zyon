@@ -101,11 +101,17 @@ test("WooCommerce adapter validates and marks an existing order paid", async () 
     commerceOrderId: order.commerceOrderId,
     paymentReference: "pay_1",
   });
+  await adapter.cancelOrder({
+    merchantId: "mrc_1",
+    commerceOrderId: order.commerceOrderId,
+    reason: "Customer request",
+  });
 
   assert.equal(cart.totalCents, 12_000);
   assert.equal(cart.lines[0]?.unitPriceCents, 6_000);
   assert.equal(order.commerceOrderId, "99");
   assert.match(calls[1]?.body ?? "", /"set_paid":true/);
+  assert.match(calls[2]?.body ?? "", /"status":"cancelled"/);
 });
 
 function json(body: unknown, headers?: Record<string, string>): Response {

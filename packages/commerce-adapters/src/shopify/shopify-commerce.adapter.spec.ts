@@ -99,18 +99,36 @@ test("createPendingOrder POST draft_orders carries cart line prices in currency 
   assertNoAsaasBilling(urls);
 });
 
-test("markOrderPaid POSTs transactions to scoped order endpoint", async () => {
+test("markOrderPaid completes the scoped Shopify draft order", async () => {
   const urls: string[] = [];
+  let call = 0;
   const fetchImpl: typeof fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
     urls.push(url);
     assert.equal(init?.method, "POST");
-    assert.match(url, /\/orders\/77821\/transactions\.json$/);
+    assert.match(url, /\/graphql\.json$/);
     const body = JSON.parse((init!.body ?? "{}") as string) as {
-      transaction: { source_name: string };
+      query: string;
+      variables: Record<string, unknown>;
     };
-    assert.equal(body.transaction.source_name, "aacp:pay_xyz");
-    return Response.json({ transaction: { id: 1 } });
+    assert.equal(body.variables.id, "gid://shopify/DraftOrder/77821");
+    if (call++ === 0) {
+      assert.match(body.query, /query AacpDraftOrder/);
+      return Response.json({ data: { draftOrder: { order: null } } });
+    }
+    assert.match(body.query, /mutation AacpDraftOrderComplete/);
+    assert.equal(body.variables.sourceName, "aacp");
+    return Response.json({
+      data: {
+        draftOrderComplete: {
+          draftOrder: {
+            id: "gid://shopify/DraftOrder/77821",
+            order: { id: "gid://shopify/Order/991" },
+          },
+          userErrors: [],
+        },
+      },
+    });
   };
 
   const adapter = new ShopifyCommerceAdapter({ shopDomain: MY_SHOP, adminAccessToken: "t" }, fetchImpl);
@@ -119,6 +137,7 @@ test("markOrderPaid POSTs transactions to scoped order endpoint", async () => {
     commerceOrderId: "77821",
     paymentReference: "pay_xyz"
   });
+  assert.equal(call, 2);
   assertNoAsaasBilling(urls);
 });
 
@@ -160,9 +179,26 @@ test("full mocked flow uses Storefront cart and Shopify admin order APIs", async
       step += 1;
       return Response.json({ draft_order: { id: 500 } });
     }
-    assert.ok(url.includes("/transactions.json"));
+    if (step === 2) {
+      assert.ok(url.includes("/graphql.json"));
+      step += 1;
+      return Response.json({
+        data: { draftOrder: { order: null } },
+      });
+    }
+    assert.ok(url.includes("/graphql.json"));
     step += 1;
-    return Response.json({ transaction: {} });
+    return Response.json({
+      data: {
+        draftOrderComplete: {
+          draftOrder: {
+            id: "gid://shopify/DraftOrder/500",
+            order: { id: "gid://shopify/Order/600" },
+          },
+          userErrors: [],
+        },
+      },
+    });
   };
 
   const adapter = new ShopifyCommerceAdapter(
@@ -190,8 +226,54 @@ test("full mocked flow uses Storefront cart and Shopify admin order APIs", async
     paymentReference: "ref_abc"
   });
 
-  assert.equal(step, 3);
+  assert.equal(step, 4);
   assertNoAsaasBilling(urls);
+});
+
+test("cancelOrder resolves the real order and requests cancellation without refund", async () => {
+  let call = 0;
+  const fetchImpl: typeof fetch = async (_input, init) => {
+    const body = JSON.parse((init?.body ?? "{}") as string) as {
+      query: string;
+      variables: Record<string, unknown>;
+    };
+    if (call++ === 0) {
+      return Response.json({
+        data: {
+          draftOrder: {
+            order: { id: "gid://shopify/Order/600" },
+          },
+        },
+      });
+    }
+    assert.match(body.query, /mutation AacpOrderCancel/);
+    assert.equal(body.variables.orderId, "gid://shopify/Order/600");
+    assert.deepEqual(body.variables.refundMethod, {
+      originalPaymentMethodsRefund: false,
+    });
+    assert.equal(body.variables.restock, true);
+    return Response.json({
+      data: {
+        orderCancel: {
+          job: { id: "gid://shopify/Job/1", done: false },
+          orderCancelUserErrors: [],
+        },
+      },
+    });
+  };
+  const adapter = new ShopifyCommerceAdapter(
+    { shopDomain: MY_SHOP, adminAccessToken: "t" },
+    fetchImpl,
+  );
+
+  await adapter.cancelOrder({
+    merchantId: "m1",
+    commerceOrderId: "500",
+    reason: "Pedido cancelado pelo cliente",
+    restock: true,
+  });
+
+  assert.equal(call, 2);
 });
 
 test("searchCatalog maps Shopify products and inventory in minor units", async () => {

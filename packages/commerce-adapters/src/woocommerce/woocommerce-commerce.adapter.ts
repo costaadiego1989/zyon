@@ -99,6 +99,23 @@ export class WooCommerceCommerceAdapter
     );
   }
 
+  async cancelOrder(input: {
+    merchantId: string;
+    commerceOrderId: string;
+    reason: string;
+    notifyCustomer?: boolean;
+    restock?: boolean;
+  }): Promise<void> {
+    await this.request(
+      `/orders/${encodeURIComponent(input.commerceOrderId.trim())}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ status: "cancelled" }),
+      },
+      "woocommerce_cancel_order",
+    );
+  }
+
   async testConnection(): Promise<CommerceConnectionHealth> {
     const [site, currency] = await Promise.all([
       this.publicRequest<WooSite>("/wp-json", "woocommerce_site"),

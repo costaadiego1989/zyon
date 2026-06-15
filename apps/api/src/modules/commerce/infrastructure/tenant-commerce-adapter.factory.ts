@@ -107,6 +107,20 @@ export class TenantCommerceAdapterFactory
     await retryWithBackoff(() => adapter.markOrderPaid(input));
   }
 
+  async cancelOrder(input: {
+    merchantId: string;
+    commerceOrderId: string;
+    reason: string;
+    notifyCustomer?: boolean;
+    restock?: boolean;
+  }): Promise<void> {
+    const adapter = await this.resolve(input.merchantId);
+    if (!adapter.cancelOrder) {
+      throw new BadRequestException("commerce_order_cancellation_not_supported");
+    }
+    await retryWithBackoff(() => adapter.cancelOrder!(input));
+  }
+
   async testConnection(merchantId: string): Promise<CommerceConnectionHealth> {
     const adapter = await this.resolve(merchantId);
     return retryWithBackoff(() => adapter.testConnection());
