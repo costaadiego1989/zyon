@@ -501,6 +501,10 @@ export type CommerceDomainEventType =
   | "commerce.order.pending"
   | "commerce.order.paid";
 
+export type OnboardingDomainEventType =
+  | "merchant.onboarding.step.completed"
+  | "merchant.onboarding.completed";
+
 export type DomainEventType =
   | CheckoutDomainEventType
   | CrossSellDomainEventType
@@ -509,7 +513,8 @@ export type DomainEventType =
   | ScrapingAgentDomainEventType
   | ShippingDomainEventType
   | FulfillmentDomainEventType
-  | CommerceDomainEventType;
+  | CommerceDomainEventType
+  | OnboardingDomainEventType;
 
 export type DomainEventProducer =
   | "checkout"
@@ -519,7 +524,30 @@ export type DomainEventProducer =
   | "scraping-agent"
   | "shipping"
   | "fulfillment"
-  | "commerce";
+  | "commerce"
+  | "onboarding";
+
+/**
+ * Self-serve tenant onboarding (ADR 0015/0024). Resumable provisioning steps,
+ * persisted server-side so the guided wizard can resume across sessions.
+ */
+export type OnboardingStepId = "account" | "checkout_config" | "embed" | "publish";
+
+export type OnboardingStepStatus = "pending" | "completed";
+
+export interface OnboardingStepState {
+  id: OnboardingStepId;
+  status: OnboardingStepStatus;
+  completed_at?: string;
+}
+
+export interface OnboardingStateResponse {
+  merchant_id: string;
+  steps: OnboardingStepState[];
+  completed: boolean;
+  completed_at?: string;
+  next_step?: OnboardingStepId;
+}
 
 export interface DomainEventEnvelope<TPayload = Record<string, unknown>> {
   event_id: string;
