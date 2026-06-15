@@ -70,7 +70,13 @@ export type FetchPaymentStatusOutput = {
 
 export interface PaymentProviderPort {
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
-  createCustomer?(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string>;
+  createCustomer?(input: {
+    merchantId: string;
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    phone?: string;
+  }): Promise<string>;
   /**
    * Authoritative provider state for reconciliation of stale intents. Never used
    * for optimistic confirmation — only to drive the same transitions a webhook would.

@@ -24,7 +24,7 @@ type HttpMethod = (typeof HTTP_METHODS)[number];
 type PublicOperationRule = {
   methods: readonly HttpMethod[];
   path: RegExp;
-  security: "none" | "session" | "service" | "tenant";
+  security: "none" | "session" | "service" | "tenant" | "human";
 };
 
 const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
@@ -39,6 +39,8 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get", "post", "put", "delete"], path: /^\/integrations(?:\/.*)?$/, security: "session" },
   { methods: ["get", "post", "delete"], path: /^\/commerce\/connections(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/catalog(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post"], path: /^\/payments\/connections(?:\/.*)?$/, security: "human" },
+  { methods: ["get", "post"], path: /^\/billing(?:\/.*)?$/, security: "human" },
   { methods: ["get", "put"], path: /^\/support\/settings$/, security: "session" },
   { methods: ["get", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "session" },
 ];
@@ -321,7 +323,7 @@ function withPublicHttpContract(
   return {
     ...contracted,
     security:
-      security === "session"
+      security === "session" || security === "human"
         ? [{ console_session: [] }]
         : security === "tenant"
           ? [
@@ -338,6 +340,8 @@ function requiresIdempotency(method: HttpMethod, path: string): boolean {
     ["post", "put", "patch", "delete"].includes(method) &&
     (path.startsWith("/integrations") ||
       path.startsWith("/commerce/connections") ||
+      path.startsWith("/payments/connections") ||
+      path.startsWith("/billing") ||
       path === "/embed-sessions" ||
       path === "/checkout-settings" ||
       path === "/checkout-settings/reset")

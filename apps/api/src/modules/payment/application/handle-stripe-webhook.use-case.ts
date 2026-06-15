@@ -12,6 +12,7 @@ import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js"
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { readStripeConnection } from "../infrastructure/stripe-env.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -33,7 +34,8 @@ export class HandleStripeWebhookUseCase {
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase
+    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
+    @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
   ) {
     const { secretKey } = readStripeConnection();
     this.stripe = new Stripe(secretKey ?? "__missing__", { apiVersion: "2026-04-22.dahlia" });
@@ -89,6 +91,21 @@ export class HandleStripeWebhookUseCase {
 
       case "payment_intent.payment_failed":
         return this.handleFailed(event.data.object as Stripe.PaymentIntent);
+
+      case "account.updated":
+        return this.handleAccountUpdated(event.data.object as Stripe.Account);
+
+      case "checkout.session.completed":
+        return this.handleCheckoutCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
+
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+      case "customer.subscription.deleted":
+        return this.handleSubscriptionUpdated(
+          event.data.object as Stripe.Subscription,
+        );
 
       default:
         return "ignored_event_type";
@@ -183,5 +200,103 @@ export class HandleStripeWebhookUseCase {
     });
 
     return "payment_failed";
+  }
+
+  private async handleAccountUpdated(
+    account: Stripe.Account,
+  ): Promise<string> {
+    const merchantId = account.metadata?.merchant_id;
+    if (!merchantId || !this.platformEvents) {
+      return "ignored_missing_merchant_id";
+    }
+    await this.platformEvents.accountUpdated({
+      merchantId,
+      accountId: account.id,
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+      detailsSubmitted: account.details_submitted,
+      requirements: [
+        ...(account.requirements?.currently_due ?? []),
+        ...(account.requirements?.past_due ?? []),
+      ],
+    });
+    return "stripe_connect_status_updated";
+  }
+
+  private async handleCheckoutCompleted(
+    session: Stripe.Checkout.Session,
+  ): Promise<string> {
+    const merchantId =
+      session.metadata?.merchant_id ?? session.client_reference_id;
+    if (
+      session.mode !== "subscription" ||
+      !merchantId ||
+      !this.platformEvents
+    ) {
+      return "ignored_non_billing_checkout";
+    }
+    await this.platformEvents.checkoutCompleted({
+      merchantId,
+      customerId: idFrom(session.customer),
+      subscriptionId: idFrom(session.subscription),
+    });
+    return "billing_checkout_completed";
+  }
+
+  private async handleSubscriptionUpdated(
+    subscription: Stripe.Subscription,
+  ): Promise<string> {
+    if (!this.platformEvents) return "ignored_platform_events_disabled";
+    const raw = subscription as Stripe.Subscription & {
+      current_period_end?: number;
+    };
+    await this.platformEvents.subscriptionUpdated({
+      merchantId: subscription.metadata?.merchant_id,
+      customerId: idFrom(subscription.customer) ?? "",
+      subscriptionId: subscription.id,
+      priceId: subscription.items.data[0]?.price.id,
+      status: billingStatus(subscription.status),
+      currentPeriodEnd: raw.current_period_end
+        ? new Date(raw.current_period_end * 1000).toISOString()
+        : undefined,
+      cancelAtPeriodEnd: subscription.cancel_at_period_end,
+    });
+    return "billing_subscription_updated";
+  }
+}
+
+function idFrom(
+  value:
+    | string
+    | { id: string }
+    | null
+    | undefined,
+): string | undefined {
+  return typeof value === "string" ? value : value?.id;
+}
+
+function billingStatus(
+  status: Stripe.Subscription.Status,
+):
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "unpaid"
+  | "paused"
+  | "cancelled"
+  | "incomplete" {
+  switch (status) {
+    case "trialing":
+    case "active":
+    case "past_due":
+    case "unpaid":
+    case "paused":
+    case "incomplete":
+    case "incomplete_expired":
+      return status === "incomplete_expired" ? "incomplete" : status;
+    case "canceled":
+      return "cancelled";
+    default:
+      return "incomplete";
   }
 }

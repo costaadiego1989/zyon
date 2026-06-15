@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
@@ -28,16 +29,62 @@ import { AsaasWebhookController } from "./presentation/http/asaas-webhook.contro
 import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
 import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-env.js";
 import { isStripeConfigured, readStripeConnection } from "./infrastructure/stripe-env.js";
-import { StripeConnectProvisioner } from "./infrastructure/stripe-connect.provisioner.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
+import { isProduction } from "../../shared/config/secret-config.js";
+import {
+  ASAAS_PLATFORM_PORT,
+  BILLING_CONFIG_PORT,
+  PAYMENT_PLATFORM_ENVIRONMENT,
+  STRIPE_PLATFORM_PORT,
+} from "./domain/ports/payment-platform-provider.port.js";
+import { PAYMENT_PLATFORM_REPOSITORY } from "./domain/ports/payment-platform-repository.port.js";
+import { PrismaPaymentPlatformRepository } from "./infrastructure/prisma-payment-platform.repository.js";
+import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.js";
+import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
+import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
+import {
+  CreateAsaasSubaccountUseCase,
+  CreateBillingCheckoutUseCase,
+  CreateBillingPortalUseCase,
+  CreateStripeConnectOnboardingLinkUseCase,
+  GetAsaasOnboardingLinkUseCase,
+  GetBillingSubscriptionUseCase,
+  GetPaymentConnectionsUseCase,
+  HandleStripePlatformEventUseCase,
+  SyncAsaasSubaccountUseCase,
+  SyncStripeConnectUseCase,
+} from "./application/payment-platform.use-cases.js";
+import {
+  BillingController,
+  PaymentPlatformController,
+} from "./presentation/http/payment-platform.controller.js";
 
 function shouldForceFakePaymentProvider(): boolean {
-  return process.env.PAYMENT_PROVIDER === "fake" || process.env.E2E_SEED_ENABLED === "true";
+  const forced =
+    process.env.PAYMENT_PROVIDER === "fake" ||
+    process.env.E2E_SEED_ENABLED === "true";
+  if (forced && isProduction()) {
+    throw new Error("fake_payment_provider_forbidden_in_production");
+  }
+  return forced;
 }
 
 @Module({
-  imports: [CheckoutModule, CommerceModule, MerchantModule],
-  controllers: [PaymentHttpController, CryptoPaymentController, StripePaymentController, AsaasWebhookController, StripeWebhookController],
+  imports: [
+    CheckoutModule,
+    CommerceModule,
+    MerchantModule,
+    IntegrationsModule,
+  ],
+  controllers: [
+    PaymentHttpController,
+    CryptoPaymentController,
+    StripePaymentController,
+    AsaasWebhookController,
+    StripeWebhookController,
+    PaymentPlatformController,
+    BillingController,
+  ],
   providers: [
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
@@ -45,8 +92,17 @@ function shouldForceFakePaymentProvider(): boolean {
     GetPaymentIntentStatusUseCase,
     HandleAsaasWebhookUseCase,
     HandleStripeWebhookUseCase,
-    StripeConnectProvisioner,
     ReconcilePaymentIntentsUseCase,
+    GetPaymentConnectionsUseCase,
+    CreateStripeConnectOnboardingLinkUseCase,
+    SyncStripeConnectUseCase,
+    CreateAsaasSubaccountUseCase,
+    GetAsaasOnboardingLinkUseCase,
+    SyncAsaasSubaccountUseCase,
+    GetBillingSubscriptionUseCase,
+    CreateBillingCheckoutUseCase,
+    CreateBillingPortalUseCase,
+    HandleStripePlatformEventUseCase,
     FakePaymentProvider,
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
@@ -68,23 +124,88 @@ function shouldForceFakePaymentProvider(): boolean {
     },
     {
       provide: PAYMENT_PROVIDER_PORT,
-      useFactory: (fake: FakePaymentProvider, asaas: AsaasPaymentAdapter, stripe: StripePaymentAdapter, evmCrypto: EvmCryptoPaymentAdapter) => {
+      useFactory: (
+        fake: FakePaymentProvider,
+        asaas: AsaasPaymentAdapter,
+        stripe: StripePaymentAdapter,
+        evmCrypto: EvmCryptoPaymentAdapter,
+        platformConnections: import("./domain/ports/payment-platform-repository.port.js").PaymentPlatformRepository,
+        http: HttpClientService,
+      ) => {
         if (shouldForceFakePaymentProvider()) return fake;
+        const { baseUrl } = readAsaasConnection();
         return new RoutingPaymentAdapter(
           isStripeConfigured() ? stripe : null,
           isAsaasConfigured() ? asaas : null,
           evmCrypto,
-          fake
+          platformConnections,
+          baseUrl,
+          http.toFetch(),
         );
       },
-      inject: [FakePaymentProvider, AsaasPaymentAdapter, StripePaymentAdapter, EvmCryptoPaymentAdapter]
+      inject: [
+        FakePaymentProvider,
+        AsaasPaymentAdapter,
+        StripePaymentAdapter,
+        EvmCryptoPaymentAdapter,
+        PAYMENT_PLATFORM_REPOSITORY,
+        HttpClientService,
+      ]
     },
     {
       provide: PAYMENT_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma),
       inject: [PRISMA_CLIENT]
-    }
+    },
+    {
+      provide: PAYMENT_PLATFORM_REPOSITORY,
+      useFactory: (prisma: PrismaClient) =>
+        new PrismaPaymentPlatformRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
+    {
+      provide: STRIPE_PLATFORM_PORT,
+      useFactory: () => {
+        const { secretKey } = readStripeConnection();
+        return new StripePlatformAdapter(secretKey ?? "__missing__");
+      },
+    },
+    {
+      provide: ASAAS_PLATFORM_PORT,
+      useFactory: (http: HttpClientService) => {
+        const { apiKey, baseUrl } = readAsaasConnection();
+        return new AsaasPlatformAdapter(
+          baseUrl,
+          apiKey ?? "__missing__",
+          http.toFetch(),
+        );
+      },
+      inject: [HttpClientService],
+    },
+    {
+      provide: PAYMENT_PLATFORM_ENVIRONMENT,
+      useFactory: () => {
+        const stripe = readStripeConnection();
+        const asaas = readAsaasConnection();
+        return {
+          stripe: stripe.secretKey?.startsWith("sk_live_")
+            ? "live"
+            : "test",
+          asaas: asaas.sandbox ? "test" : "live",
+        };
+      },
+    },
+    {
+      provide: BILLING_CONFIG_PORT,
+      useClass: EnvironmentBillingConfig,
+    },
   ],
-  exports: [CreatePaymentIntentUseCase, ConfirmCryptoPaymentUseCase, ConfirmStripePaymentUseCase, GetPaymentIntentStatusUseCase, StripeConnectProvisioner]
+  exports: [
+    CreatePaymentIntentUseCase,
+    ConfirmCryptoPaymentUseCase,
+    ConfirmStripePaymentUseCase,
+    GetPaymentIntentStatusUseCase,
+    PAYMENT_PLATFORM_REPOSITORY,
+  ]
 })
 export class PaymentModule {}

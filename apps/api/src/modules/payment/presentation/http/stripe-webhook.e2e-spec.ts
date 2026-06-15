@@ -71,7 +71,15 @@ async function setupSession(
       total: amountBrl,
       items: [{ sku: "prod", name: "Produto", price: amountBrl, quantity: 1 }]
     },
-    customer: { email: "buyer@test.com" }
+    customer: {
+      email: "buyer@test.com",
+      asaasCustomerId: "cus_stripe_fixture",
+    },
+    shipping: {
+      customerPrice: 0,
+      realCost: 0,
+      method: "Test shipping",
+    },
   });
 
   return new CreatePaymentIntentUseCase(checkout, checkout, payments, provider).execute({

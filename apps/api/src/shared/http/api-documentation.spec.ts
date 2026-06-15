@@ -21,6 +21,12 @@ describe("public OpenAPI document", () => {
         "/catalog": {
           get: { operationId: "catalog", responses: {} },
         },
+        "/payments/connections/stripe/onboarding-link": {
+          post: { operationId: "stripeOnboarding", responses: {} },
+        },
+        "/billing/subscription": {
+          get: { operationId: "billingSubscription", responses: {} },
+        },
         "/webhooks/stripe": {
           post: { operationId: "stripeCallback", responses: {} },
         },
@@ -35,6 +41,8 @@ describe("public OpenAPI document", () => {
       "/v1/integrations/orders/{externalOrderId}/tracking",
       "/v1/commerce/connections",
       "/v1/catalog",
+      "/v1/payments/connections/stripe/onboarding-link",
+      "/v1/billing/subscription",
     ]);
     assert.deepEqual(document.paths["/v1/auth/login"]?.post?.security, []);
     assert.deepEqual(
@@ -61,6 +69,16 @@ describe("public OpenAPI document", () => {
     assert.equal(
       document.paths["/v1/catalog"]?.get?.security?.length,
       3,
+    );
+    assert.deepEqual(
+      document.paths[
+        "/v1/payments/connections/stripe/onboarding-link"
+      ]?.post?.security,
+      [{ console_session: [] }],
+    );
+    assert.deepEqual(
+      document.paths["/v1/billing/subscription"]?.get?.security,
+      [{ console_session: [] }],
     );
   });
 });

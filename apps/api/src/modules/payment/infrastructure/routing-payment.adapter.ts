@@ -9,8 +9,10 @@ import type {
 import { isProduction } from "../../../shared/config/secret-config.js";
 import { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
-import { FakePaymentProvider } from "./fake-payment-provider.js";
 import { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
+import type {
+  PaymentPlatformRepository,
+} from "../domain/ports/payment-platform-repository.port.js";
 
 @Injectable()
 export class RoutingPaymentAdapter implements PaymentProviderPort {
@@ -18,40 +20,78 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     private readonly stripe: StripePaymentAdapter | null,
     private readonly asaas: AsaasPaymentAdapter | null,
     private readonly evmCrypto: EvmCryptoPaymentAdapter,
-    private readonly fake: FakePaymentProvider
+    private readonly platformConnections?: PaymentPlatformRepository,
+    private readonly asaasBaseUrl?: string,
+    private readonly fetchImpl: typeof fetch = globalThis.fetch,
   ) {}
 
-  createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
+  async createPayment(
+    input: CreateProviderPaymentInput,
+  ): Promise<CreateProviderPaymentOutput> {
     if (input.method === "crypto") {
       return this.evmCrypto.createPayment(input);
     }
     if (input.method === "card" && this.stripe) {
       return this.stripe.createPayment(input);
     }
-    if (this.asaas) {
-      return this.asaas.createPayment(input);
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (asaas) {
+      return asaas.createPayment(input);
     }
-    return this.fake.createPayment(input);
+    throw new Error("payment_provider_not_configured");
   }
 
-  fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
+  async fetchPaymentStatus(
+    input: FetchPaymentStatusInput,
+  ): Promise<FetchPaymentStatusOutput> {
     const isStripeId = input.providerPaymentId.startsWith("pi_");
     if (isStripeId && this.stripe) {
       return this.stripe.fetchPaymentStatus(input);
     }
-    if (this.asaas) {
-      return this.asaas.fetchPaymentStatus(input);
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (asaas) {
+      return asaas.fetchPaymentStatus(input);
     }
-    return this.fake.fetchPaymentStatus(input);
+    throw new Error("payment_provider_not_configured");
   }
 
-  async createCustomer(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string> {
-    if (this.asaas) {
-      return this.asaas.createCustomer(input);
+  async createCustomer(input: {
+    merchantId: string;
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    phone?: string;
+  }): Promise<string> {
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (asaas) {
+      return asaas.createCustomer(input);
     }
-    if (isProduction()) {
-      throw new Error("payment_provider_not_configured_for_customer_creation");
+    throw new Error("payment_provider_not_configured_for_customer_creation");
+  }
+
+  private async resolveAsaas(
+    merchantId: string,
+  ): Promise<AsaasPaymentAdapter | null> {
+    const connection =
+      await this.platformConnections?.getConnection(
+        merchantId,
+        "asaas",
+      );
+    if (this.platformConnections && connection?.status !== "active") {
+      throw new Error("asaas_connection_not_active");
     }
-    return `cust_fake_${Date.now()}`;
+    const tenantKey =
+      await this.platformConnections?.getConnectionSecret(
+        merchantId,
+        "asaas",
+      );
+    if (tenantKey && this.asaasBaseUrl) {
+      return new AsaasPaymentAdapter(
+        this.asaasBaseUrl,
+        tenantKey,
+        this.fetchImpl,
+      );
+    }
+    return isProduction() ? null : this.asaas;
   }
 }

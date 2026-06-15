@@ -32,6 +32,10 @@ export class TenantAccessGuard implements CanActivate {
       throw new ForbiddenException("tenant_role_required");
     }
 
+    if (requirement.humanOnly) {
+      throw new ForbiddenException("human_session_required");
+    }
+
     const requiredScopes = requirement.serviceScopes ?? [];
     const missing = requiredScopes.filter(
       (scope) => !principal.scopes.includes(scope),

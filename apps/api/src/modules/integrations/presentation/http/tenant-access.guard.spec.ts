@@ -53,13 +53,39 @@ describe("TenantAccessGuard", () => {
       /missing_api_key_scope/,
     );
   });
+
+  it("rejects service credentials for human-only operations", () => {
+    const guard = new TenantAccessGuard(new Reflector());
+
+    assert.throws(
+      () =>
+        guard.canActivate(
+          context(
+            {
+              kind: "service",
+              tenantId: "mrc_1",
+              credentialId: "key_1",
+              environment: "test",
+              scopes: ["payments:read"],
+            },
+            { humanOnly: true },
+          ),
+        ),
+      /human_session_required/,
+    );
+  });
 });
 
-function context(tenantPrincipal: Record<string, unknown>): ExecutionContext {
+function context(
+  tenantPrincipal: Record<string, unknown>,
+  requirement: Record<string, unknown> = {
+    serviceScopes: ["commerce:read"],
+  },
+): ExecutionContext {
   const handler = () => undefined;
   Reflect.defineMetadata(
     TENANT_ACCESS_METADATA,
-    { serviceScopes: ["commerce:read"] },
+    requirement,
     handler,
   );
   return {

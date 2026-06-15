@@ -15,6 +15,10 @@ import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checko
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
 import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
+import {
+  PAYMENT_PLATFORM_REPOSITORY,
+  type PaymentPlatformRepository,
+} from "../domain/ports/payment-platform-repository.port.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -81,7 +85,9 @@ export class CreatePaymentIntentUseCase {
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
     @Optional() @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment?: CheckoutPaymentPort,
     @Optional() private readonly validateCommerceCart?: ValidateCartForPaymentUseCase,
-    @Optional() private readonly syncPendingCommerceOrder?: SyncPendingOrderUseCase
+    @Optional() private readonly syncPendingCommerceOrder?: SyncPendingOrderUseCase,
+    @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY)
+    private readonly platformConnections?: PaymentPlatformRepository,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -112,10 +118,24 @@ export class CreatePaymentIntentUseCase {
     let platformFeeCents = 0;
 
     if (isStripeCard) {
-      stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
-      if (stripeConnectAccountId) {
-        platformFeeCents = readPlatformFeeCents();
+      const stripeConnection =
+        await this.platformConnections?.getConnection(
+          merchantId,
+          "stripe",
+        );
+      if (
+        this.platformConnections &&
+        stripeConnection?.status !== "active"
+      ) {
+        throw new BadRequestException("stripe_connect_not_active");
       }
+      stripeConnectAccountId = await this.merchants.getStripeConnectAccountId(merchantId);
+      stripeConnectAccountId =
+        stripeConnection?.externalAccountId ?? stripeConnectAccountId;
+      if (!stripeConnectAccountId) {
+        throw new BadRequestException("stripe_connect_not_configured");
+      }
+      platformFeeCents = readPlatformFeeCents();
     }
 
     const amountCents = orderAmountCents + platformFeeCents;
@@ -136,6 +156,7 @@ export class CreatePaymentIntentUseCase {
         throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
       }
       asaasCustomer = await this.provider.createCustomer({
+        merchantId,
         name: customer.fullName,
         email: customer.email,
         cpfCnpj: customer.cpf,

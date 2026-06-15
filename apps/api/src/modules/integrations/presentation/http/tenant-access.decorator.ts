@@ -7,6 +7,7 @@ import type {
 export const TENANT_ACCESS_METADATA = "tenant_access";
 
 export interface TenantAccessRequirement {
+  humanOnly?: boolean;
   humanRoles?: readonly TenantRole[];
   serviceScopes?: readonly TenantApiScope[];
 }

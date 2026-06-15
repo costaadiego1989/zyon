@@ -1,0 +1,279 @@
+import type { PrismaClient } from "@prisma/client";
+import type {
+  PaymentPlatformRepository,
+  SaveBillingSubscriptionInput,
+  SavePaymentConnectionInput,
+} from "../domain/ports/payment-platform-repository.port.js";
+import type {
+  BillingSubscriptionSnapshot,
+  PaymentConnectionSnapshot,
+} from "../domain/payment-platform.types.js";
+import {
+  decryptPaymentSecret,
+  encryptPaymentSecret,
+} from "./payment-secret-cipher.js";
+
+export class PrismaPaymentPlatformRepository
+  implements PaymentPlatformRepository
+{
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async listConnections(
+    merchantId: string,
+  ): Promise<PaymentConnectionSnapshot[]> {
+    const rows = await this.prisma.merchantPaymentConnection.findMany({
+      where: { merchantId: merchantId.trim() },
+      orderBy: { provider: "asc" },
+    });
+    return rows.map(toConnection);
+  }
+
+  async getConnection(
+    merchantId: string,
+    provider: "stripe" | "asaas",
+  ): Promise<PaymentConnectionSnapshot | undefined> {
+    const row = await this.prisma.merchantPaymentConnection.findUnique({
+      where: {
+        merchantId_provider: {
+          merchantId: merchantId.trim(),
+          provider,
+        },
+      },
+    });
+    return row ? toConnection(row) : undefined;
+  }
+
+  async getConnectionSecret(
+    merchantId: string,
+    provider: "stripe" | "asaas",
+  ): Promise<string | undefined> {
+    const row = await this.prisma.merchantPaymentConnection.findUnique({
+      where: {
+        merchantId_provider: {
+          merchantId: merchantId.trim(),
+          provider,
+        },
+      },
+      select: { secretCipher: true },
+    });
+    return row?.secretCipher
+      ? decryptPaymentSecret(row.secretCipher)
+      : undefined;
+  }
+
+  async saveConnection(input: SavePaymentConnectionInput): Promise<void> {
+    const merchantId = input.merchantId.trim();
+    const data = {
+      environment: input.environment,
+      status: input.status,
+      externalAccountId: input.externalAccountId ?? null,
+      walletId: input.walletId ?? null,
+      chargesEnabled: input.chargesEnabled ?? false,
+      payoutsEnabled: input.payoutsEnabled ?? false,
+      requirements: input.requirements ?? [],
+      lastSyncedAt: input.syncedAt ? new Date(input.syncedAt) : null,
+      lastErrorCode: input.errorCode ?? null,
+      ...(input.secret
+        ? { secretCipher: encryptPaymentSecret(input.secret) }
+        : {}),
+    };
+    await this.prisma.merchantPaymentConnection.upsert({
+      where: {
+        merchantId_provider: {
+          merchantId,
+          provider: input.provider,
+        },
+      },
+      create: {
+        merchantId,
+        provider: input.provider,
+        ...data,
+      },
+      update: data,
+    });
+  }
+
+  async getOrCreateTrial(
+    merchantId: string,
+    trialDays: number,
+  ): Promise<BillingSubscriptionSnapshot> {
+    const trialEndsAt = new Date(
+      Date.now() + Math.max(1, trialDays) * 86_400_000,
+    );
+    const row = await this.prisma.merchantBillingSubscription.upsert({
+      where: { merchantId: merchantId.trim() },
+      create: {
+        merchantId: merchantId.trim(),
+        status: "trialing",
+        trialEndsAt,
+      },
+      update: {},
+    });
+    return toBilling(row);
+  }
+
+  async saveBilling(input: SaveBillingSubscriptionInput): Promise<void> {
+    const update = {
+      ...(input.stripeCustomerId !== undefined
+        ? { stripeCustomerId: input.stripeCustomerId || null }
+        : {}),
+      ...(input.stripeSubscriptionId !== undefined
+        ? { stripeSubscriptionId: input.stripeSubscriptionId || null }
+        : {}),
+      ...(input.stripePriceId !== undefined
+        ? { stripePriceId: input.stripePriceId || null }
+        : {}),
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.trialEndsAt !== undefined
+        ? {
+            trialEndsAt: input.trialEndsAt
+              ? new Date(input.trialEndsAt)
+              : null,
+          }
+        : {}),
+      ...(input.currentPeriodEnd !== undefined
+        ? {
+            currentPeriodEnd: input.currentPeriodEnd
+              ? new Date(input.currentPeriodEnd)
+              : null,
+          }
+        : {}),
+      ...(input.cancelAtPeriodEnd !== undefined
+        ? { cancelAtPeriodEnd: input.cancelAtPeriodEnd }
+        : {}),
+    };
+    await this.prisma.merchantBillingSubscription.upsert({
+      where: { merchantId: input.merchantId.trim() },
+      create: {
+        merchantId: input.merchantId.trim(),
+        status: input.status ?? "trialing",
+        cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
+        ...update,
+      },
+      update,
+    });
+  }
+
+  async getBilling(
+    merchantId: string,
+  ): Promise<BillingSubscriptionSnapshot | undefined> {
+    const row = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: merchantId.trim() },
+    });
+    return row ? toBilling(row) : undefined;
+  }
+
+  async findMerchantByStripeCustomerId(
+    customerId: string,
+  ): Promise<string | undefined> {
+    const row = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { stripeCustomerId: customerId.trim() },
+      select: { merchantId: true },
+    });
+    return row?.merchantId;
+  }
+
+  async findMerchantByStripeSubscriptionId(
+    subscriptionId: string,
+  ): Promise<string | undefined> {
+    const row = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { stripeSubscriptionId: subscriptionId.trim() },
+      select: { merchantId: true },
+    });
+    return row?.merchantId;
+  }
+}
+
+function toConnection(row: {
+  merchantId: string;
+  provider: string;
+  environment: string;
+  status: string;
+  externalAccountId: string | null;
+  walletId: string | null;
+  chargesEnabled: boolean;
+  payoutsEnabled: boolean;
+  requirements: unknown;
+  lastSyncedAt: Date | null;
+  lastErrorCode: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}): PaymentConnectionSnapshot {
+  if (row.provider !== "stripe" && row.provider !== "asaas") {
+    throw new Error("payment_connection_provider_invalid");
+  }
+  return {
+    merchantId: row.merchantId,
+    provider: row.provider,
+    environment: row.environment === "live" ? "live" : "test",
+    status: toConnectionStatus(row.status),
+    externalAccountId: row.externalAccountId ?? undefined,
+    walletId: row.walletId ?? undefined,
+    chargesEnabled: row.chargesEnabled,
+    payoutsEnabled: row.payoutsEnabled,
+    requirements: Array.isArray(row.requirements)
+      ? row.requirements.filter(
+          (item): item is string => typeof item === "string",
+        )
+      : [],
+    lastSyncedAt: row.lastSyncedAt?.toISOString(),
+    lastErrorCode: row.lastErrorCode ?? undefined,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toConnectionStatus(
+  value: string,
+): PaymentConnectionSnapshot["status"] {
+  if (
+    value === "active" ||
+    value === "restricted" ||
+    value === "degraded"
+  ) {
+    return value;
+  }
+  return "pending";
+}
+
+function toBilling(row: {
+  merchantId: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  stripePriceId: string | null;
+  status: string;
+  trialEndsAt: Date | null;
+  currentPeriodEnd: Date | null;
+  cancelAtPeriodEnd: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}): BillingSubscriptionSnapshot {
+  return {
+    merchantId: row.merchantId,
+    stripeCustomerId: row.stripeCustomerId ?? undefined,
+    stripeSubscriptionId: row.stripeSubscriptionId ?? undefined,
+    stripePriceId: row.stripePriceId ?? undefined,
+    status: toBillingStatus(row.status),
+    trialEndsAt: row.trialEndsAt?.toISOString(),
+    currentPeriodEnd: row.currentPeriodEnd?.toISOString(),
+    cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+function toBillingStatus(
+  status: string,
+): BillingSubscriptionSnapshot["status"] {
+  if (
+    status === "active" ||
+    status === "past_due" ||
+    status === "unpaid" ||
+    status === "paused" ||
+    status === "cancelled" ||
+    status === "incomplete"
+  ) {
+    return status;
+  }
+  return "trialing";
+}

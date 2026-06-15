@@ -81,7 +81,13 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     return { state, approvedAmountCents };
   }
 
-  async createCustomer(input: { name: string; email: string; cpfCnpj: string; phone?: string }): Promise<string> {
+  async createCustomer(input: {
+    merchantId: string;
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    phone?: string;
+  }): Promise<string> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");
     const body: Record<string, unknown> = {
       name: input.name,
