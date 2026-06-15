@@ -6,6 +6,7 @@ export const PUBLIC_API_PREFIX = `/${PUBLIC_API_VERSION}`;
 const LEGACY_EXEMPT_PATHS = [
   "/docs",
   "/openapi.json",
+  "/postman.json",
   "/metrics",
 ];
 

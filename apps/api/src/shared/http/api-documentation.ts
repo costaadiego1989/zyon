@@ -8,6 +8,7 @@ import type {
 import { apiReference } from "@scalar/nestjs-api-reference";
 import type { NextFunction, Request, Response } from "express";
 import { PUBLIC_API_PREFIX } from "./api-versioning.js";
+import { createPostmanCollection } from "./postman-collection.js";
 
 const HTTP_METHODS = [
   "get",
@@ -33,22 +34,25 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get", "put"], path: /^\/merchants\/me(?:\/.*)?$/, security: "session" },
   { methods: ["get", "put"], path: /^\/agent-rules(?:\/.*)?$/, security: "session" },
   { methods: ["get", "post", "put"], path: /^\/checkout-settings(?:\/.*)?$/, security: "tenant" },
-  { methods: ["post"], path: /^\/embed-sessions$/, security: "tenant" },
+  { methods: ["post"], path: /^\/embed\/sessions$/, security: "tenant" },
   { methods: ["get", "post", "put"], path: /^\/installations(?:\/.*)?$/, security: "tenant" },
-  { methods: ["get"], path: /^\/orders(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post", "put"], path: /^\/orders(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/customers(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/payments(?:\/(?!connections(?:\/|$))[^/]+)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/audit-events$/, security: "tenant" },
   { methods: ["get", "post", "put"], path: /^\/webhook-endpoints(?:\/.*)?$/, security: "tenant" },
-  { methods: ["put"], path: /^\/integrations\/orders\/[^/]+\/tracking$/, security: "service" },
-  { methods: ["get"], path: /^\/integrations\/tracking\/[^/]+$/, security: "service" },
-  { methods: ["get", "post", "put", "delete"], path: /^\/integrations(?:\/.*)?$/, security: "session" },
+  {
+    methods: ["get", "post", "delete"],
+    path: /^\/integrations\/api-keys(?:\/[^/]+(?:\/rotate)?)?$/,
+    security: "human",
+  },
   { methods: ["get", "post", "delete"], path: /^\/commerce\/connections(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/catalog(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/payments\/connections(?:\/.*)?$/, security: "human" },
   { methods: ["get", "post"], path: /^\/billing(?:\/.*)?$/, security: "human" },
   { methods: ["get", "put"], path: /^\/support\/settings$/, security: "tenant" },
   { methods: ["get", "post", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post"], path: /^\/onboarding(?:\/.*)?$/, security: "session" },
 ];
 
 const SCALAR_CSS = `
@@ -108,11 +112,16 @@ export function configureApiDocumentation(app: INestApplication): OpenAPIObject 
     )
     .setVersion("1.0.0")
     .addServer(
-      process.env.AACP_SANDBOX_API_URL ?? "https://sandbox-api.aacp.dev/v1",
+      apiOrigin(
+        process.env.AACP_SANDBOX_API_URL
+        ?? "https://sandbox-api.aacp.dev",
+      ),
       "Sandbox",
     )
     .addServer(
-      process.env.AACP_PRODUCTION_API_URL ?? "https://api.aacp.dev/v1",
+      apiOrigin(
+        process.env.AACP_PRODUCTION_API_URL ?? "https://api.aacp.dev",
+      ),
       "Production",
     )
     .addBearerAuth(
@@ -156,6 +165,23 @@ export function configureApiDocumentation(app: INestApplication): OpenAPIObject 
     raw: ["json"],
     jsonDocumentUrl: "openapi.json",
   });
+
+  const postmanCollection = createPostmanCollection(publicDocument);
+  app.use(
+    "/postman.json",
+    (request: Request, response: Response, next: NextFunction) => {
+      if (request.method !== "GET") {
+        next();
+        return;
+      }
+      response.setHeader(
+        "Content-Disposition",
+        'attachment; filename="aacp-integration-api.postman_collection.json"',
+      );
+      response.setHeader("Cache-Control", "public, max-age=300");
+      response.type("application/json").send(postmanCollection);
+    },
+  );
 
   app.use(
     "/docs",
@@ -356,6 +382,8 @@ function requiresIdempotency(method: HttpMethod, path: string): boolean {
       path === "/support/settings" ||
       path.startsWith("/support/tickets") ||
       path === "/embed-sessions" ||
+      path === "/embed/sessions" ||
+      path.startsWith("/orders") ||
       path === "/checkout-settings" ||
       path === "/checkout-settings/reset")
   );
@@ -390,4 +418,8 @@ function scalarSecurityHeaders(
   );
   response.setHeader("Cache-Control", "no-store");
   next();
+}
+
+function apiOrigin(value: string): string {
+  return value.replace(/\/+$/, "").replace(/\/v1$/, "");
 }

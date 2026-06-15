@@ -33,6 +33,13 @@ describe("public OpenAPI document", () => {
         },
         "/orders": {
           get: { operationId: "listOrders", responses: {} },
+          post: { operationId: "createOrder", responses: {} },
+        },
+        "/orders/{orderId}/tracking": {
+          put: { operationId: "updateTracking", responses: {} },
+        },
+        "/embed/sessions": {
+          post: { operationId: "createEmbedSession", responses: {} },
         },
         "/customers": {
           get: { operationId: "listCustomers", responses: {} },
@@ -51,6 +58,9 @@ describe("public OpenAPI document", () => {
           get: { operationId: "listSupportTickets", responses: {} },
           post: { operationId: "createSupportTicket", responses: {} },
         },
+        "/onboarding": {
+          get: { operationId: "getOnboarding", responses: {} },
+        },
         "/webhooks/stripe": {
           post: { operationId: "stripeCallback", responses: {} },
         },
@@ -62,31 +72,25 @@ describe("public OpenAPI document", () => {
 
     assert.deepEqual(Object.keys(document.paths), [
       "/v1/auth/login",
-      "/v1/integrations/orders/{externalOrderId}/tracking",
       "/v1/commerce/connections",
       "/v1/catalog",
       "/v1/payments/connections/stripe/onboarding-link",
       "/v1/billing/subscription",
       "/v1/installations/{installationId}",
       "/v1/orders",
+      "/v1/orders/{orderId}/tracking",
+      "/v1/embed/sessions",
       "/v1/customers",
       "/v1/payments",
       "/v1/audit-events",
       "/v1/webhook-endpoints/{endpointId}",
       "/v1/support/tickets",
+      "/v1/onboarding",
     ]);
     assert.deepEqual(document.paths["/v1/auth/login"]?.post?.security, []);
-    assert.deepEqual(
-      document.paths["/v1/integrations/orders/{externalOrderId}/tracking"]?.put?.security,
-      [{ service_api_key: [] }, { legacy_api_key: [] }],
-    );
     assert.equal(
-      document.paths["/v1/integrations/orders/{externalOrderId}/tracking"]?.put
-        ?.parameters?.some(
-          (parameter) =>
-            "name" in parameter && parameter.name === "Idempotency-Key",
-        ),
-      true,
+      document.paths["/v1/integrations/orders/{externalOrderId}/tracking"],
+      undefined,
     );
     assert.ok(document.components?.schemas?.ProblemDetails);
     assert.deepEqual(
@@ -130,6 +134,28 @@ describe("public OpenAPI document", () => {
     assert.equal(
       document.paths["/v1/support/tickets"]?.post?.security?.length,
       3,
+    );
+    assert.equal(
+      document.paths["/v1/orders"]?.post?.parameters?.some(
+        (parameter) =>
+          "name" in parameter && parameter.name === "Idempotency-Key",
+      ),
+      true,
+    );
+    assert.equal(
+      document.paths["/v1/orders/{orderId}/tracking"]?.put?.security?.length,
+      3,
+    );
+    assert.equal(
+      document.paths["/v1/embed/sessions"]?.post?.parameters?.some(
+        (parameter) =>
+          "name" in parameter && parameter.name === "Idempotency-Key",
+      ),
+      true,
+    );
+    assert.deepEqual(
+      document.paths["/v1/onboarding"]?.get?.security,
+      [{ console_session: [] }],
     );
   });
 });

@@ -63,7 +63,7 @@ const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: Luci
   { key: "overview", label: "Operacao", section: "Hoje", icon: BarChart3 },
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
-  { key: "integrations", label: "Integracoes", section: "Plataforma", icon: Webhook },
+  { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook },
   { key: "embed", label: "Embed", section: "Plataforma", icon: Code2 },
   { key: "preview", label: "Preview", section: "Plataforma", icon: Eye },
   { key: "theme", label: "Tema", section: "Plataforma", icon: Palette },

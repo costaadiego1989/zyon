@@ -1,5 +1,18 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { KeyRound, RefreshCw, RotateCcw, Send, Trash2, Webhook } from "lucide-react";
+import {
+  Activity,
+  BookOpenCheck,
+  Copy,
+  Download,
+  ExternalLink,
+  KeyRound,
+  RefreshCw,
+  RotateCcw,
+  Send,
+  TerminalSquare,
+  Trash2,
+  Webhook,
+} from "lucide-react";
 import {
   createDashboardApi,
   DashboardHttpError,
@@ -10,15 +23,50 @@ import {
 } from "../api-client.js";
 
 const ALL_EVENTS = [
+  "checkout.started",
+  "checkout.abandoned",
+  "order.created",
   "order.approved",
-  "customer.upserted",
-  "order.tracking.updated",
+  "order.cancelled",
+  "payment.pending",
+  "payment.approved",
   "payment.failed",
+  "payment.refunded",
+  "customer.upserted",
+  "tracking.updated",
   "support.ticket.created",
-  "checkout.abandoned"
+  "commerce.connection.degraded",
 ];
 
-const DEFAULT_SCOPES = ["embed:sessions:create", "orders:tracking:write"];
+const ALL_SCOPES = [
+  "checkout:read",
+  "checkout:write",
+  "configuration:read",
+  "configuration:write",
+  "orders:read",
+  "orders:write",
+  "customers:read",
+  "catalog:read",
+  "embed:sessions:create",
+  "tracking:read",
+  "tracking:write",
+  "commerce:read",
+  "commerce:write",
+  "payments:read",
+  "support:read",
+  "support:write",
+  "webhooks:read",
+  "webhooks:write",
+  "audit:read",
+];
+
+const DEFAULT_SCOPES = [
+  "catalog:read",
+  "embed:sessions:create",
+  "orders:read",
+  "tracking:write",
+  "webhooks:read",
+];
 
 export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
@@ -27,10 +75,25 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
   const [newKeyName, setNewKeyName] = useState("Backend principal");
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(DEFAULT_SCOPES);
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [selectedEvents, setSelectedEvents] = useState<string[]>(["order.approved", "customer.upserted", "order.tracking.updated"]);
+  const [selectedEvents, setSelectedEvents] = useState<string[]>([
+    "order.approved",
+    "customer.upserted",
+    "tracking.updated",
+  ]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
+  const documentationRoot = useMemo(
+    () => apiDocumentationRoot(props.apiBaseUrl),
+    [props.apiBaseUrl],
+  );
+  const quickstart = useMemo(
+    () => embedSessionQuickstart(documentationRoot),
+    [documentationRoot],
+  );
 
   useEffect(() => {
     if (!props.me) {
@@ -43,6 +106,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
   }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
+    setLoading(true);
+    setApiReachable(null);
     setMessage(null);
     try {
       const [keys, endpoints, logs] = await Promise.all([
@@ -53,8 +118,12 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       setApiKeys(keys);
       setWebhooks(endpoints);
       setDeliveries(logs);
+      setApiReachable(true);
     } catch (e) {
+      setApiReachable(false);
       setMessage(readError(e));
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -62,7 +131,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     setBusy(true);
     setMessage(null);
     try {
-      const created = await api.createIntegrationApiKey({ name: newKeyName, scopes: DEFAULT_SCOPES });
+      const created = await api.createIntegrationApiKey({
+        name: newKeyName,
+        scopes: selectedScopes,
+      });
       setNewSecret(created.secret_key);
       setApiKeys((prev) => [created.api_key, ...prev]);
       setMessage("Chave criada.");
@@ -138,10 +210,27 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     );
   }
 
+  function toggleScope(scope: string) {
+    setSelectedScopes((prev) =>
+      prev.includes(scope)
+        ? prev.filter((item) => item !== scope)
+        : [...prev, scope],
+    );
+  }
+
+  async function copySecret() {
+    if (!newSecret) return;
+    await copyText(
+      newSecret,
+      "Secret key copiada. Ela nao sera exibida novamente.",
+      setMessage,
+    );
+  }
+
   if (!props.me) {
     return (
       <>
-        <h1>Integracoes</h1>
+        <h1>Desenvolvedores</h1>
         <p className="page-lead">Login necessario.</p>
       </>
     );
@@ -151,21 +240,119 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     <>
       <header className="page-head">
         <div>
-          <h1>Integracoes</h1>
-          <p className="page-lead">API keys, webhooks e entregas do tenant.</p>
+          <p className="eyebrow">Integration API V1</p>
+          <h1>Desenvolvedores</h1>
+          <p className="page-lead">
+            Integre o checkout agentico pelo seu backend com contratos publicos,
+            chaves por escopo e webhooks assinados.
+          </p>
         </div>
-        <button type="button" disabled={busy} onClick={() => void load()}>
-          <RefreshCw size={16} />
-          Atualizar
-        </button>
+        <div className="developer-actions">
+          <a className="developer-link primary" href={`${documentationRoot}/docs`} target="_blank" rel="noreferrer">
+            <BookOpenCheck size={16} />
+            Abrir Scalar
+            <ExternalLink size={13} />
+          </a>
+          <a className="developer-link" href={`${documentationRoot}/postman.json`} download>
+            <Download size={16} />
+            Postman
+          </a>
+          <button type="button" disabled={busy || loading} onClick={() => void load()}>
+            <RefreshCw size={16} />
+            {loading ? "Atualizando..." : "Atualizar"}
+          </button>
+        </div>
       </header>
       {message ? <p className="panel panel-info">{message}</p> : null}
       {newSecret ? (
         <section className="secret-box">
-          <strong>Secret key</strong>
+          <div className="panel-title">
+            <div>
+              <strong>Secret key exibida uma unica vez</strong>
+              <span>Armazene-a em um secret manager. Nunca envie para o navegador.</span>
+            </div>
+            <button type="button" onClick={() => void copySecret()}>
+              <Copy size={15} />
+              Copiar
+            </button>
+          </div>
           <code>{newSecret}</code>
         </section>
       ) : null}
+
+      <section className="developer-status-strip" aria-label="Status da integracao">
+        <article>
+          <Activity size={18} />
+          <span>API publica</span>
+          <strong>
+            {apiReachable === null
+              ? "Verificando"
+              : apiReachable
+                ? "Respondendo"
+                : "Indisponivel"}
+          </strong>
+          <small>{documentationRoot}</small>
+        </article>
+        <article>
+          <KeyRound size={18} />
+          <span>Chaves ativas</span>
+          <strong>{apiKeys.filter((key) => !key.revokedAt).length}</strong>
+          <small>isoladas por tenant e escopo</small>
+        </article>
+        <article>
+          <Webhook size={18} />
+          <span>Webhooks ativos</span>
+          <strong>{webhooks.filter((endpoint) => endpoint.enabled).length}</strong>
+          <small>assinatura HMAC e replay</small>
+        </article>
+        <article>
+          <RotateCcw size={18} />
+          <span>Falhas recentes</span>
+          <strong>{deliveries.filter((delivery) => delivery.status === "failed").length}</strong>
+          <small>ultimas {deliveries.length} entregas</small>
+        </article>
+      </section>
+
+      <section className="panel developer-quickstart">
+        <div>
+          <p className="eyebrow">Backend quickstart</p>
+          <h2>Emita uma sessao curta para o widget</h2>
+          <p>
+            A chave vive somente no servidor. O navegador recebe apenas o token
+            efemero vinculado ao tenant, origem e escopos permitidos.
+          </p>
+          <ol className="developer-steps">
+            <li>Crie uma chave de sandbox com o menor conjunto de escopos.</li>
+            <li>Cadastre a origem permitida em Instalacoes.</li>
+            <li>Emita a embed session no seu backend.</li>
+            <li>Inicialize o widget com o token retornado.</li>
+          </ol>
+          <a className="developer-inline-link" href={`${documentationRoot}/openapi.json`} target="_blank" rel="noreferrer">
+            Ver OpenAPI machine-readable
+            <ExternalLink size={13} />
+          </a>
+        </div>
+        <div className="developer-code">
+          <div className="panel-title">
+            <span><TerminalSquare size={15} /> cURL</span>
+            <button
+              type="button"
+              onClick={() =>
+                void copyText(
+                  quickstart,
+                  "Quickstart copiado.",
+                  setMessage,
+                )
+              }
+            >
+              <Copy size={14} />
+              Copiar
+            </button>
+          </div>
+          <pre className="code-block">{quickstart}</pre>
+        </div>
+      </section>
+
       <div className="ops-grid">
         <section className="panel stacked">
           <div className="panel-title">
@@ -177,11 +364,30 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               Nome
               <input value={newKeyName} onChange={(event) => setNewKeyName(event.target.value)} />
             </label>
-            <button type="button" disabled={busy} onClick={() => void createKey()}>
+            <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()}>
               <KeyRound size={16} />
               Criar
             </button>
           </div>
+          <details className="scope-disclosure">
+            <summary>
+              Escopos da nova chave
+              <span>{selectedScopes.length} selecionados</span>
+            </summary>
+            <div className="chip-row scope-grid">
+              {ALL_SCOPES.map((scope) => (
+                <button
+                  key={scope}
+                  type="button"
+                  className={selectedScopes.includes(scope) ? "chip selected" : "chip"}
+                  aria-pressed={selectedScopes.includes(scope)}
+                  onClick={() => toggleScope(scope)}
+                >
+                  {scope}
+                </button>
+              ))}
+            </div>
+          </details>
           <div className="table-wrap">
             <table className="data-table">
               <thead>
@@ -213,6 +419,11 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                     </td>
                   </tr>
                 ))}
+                {apiKeys.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>Crie uma chave de sandbox para iniciar a integracao server-to-server.</td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -233,6 +444,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                 key={eventName}
                 type="button"
                 className={selectedEvents.includes(eventName) ? "chip selected" : "chip"}
+                aria-pressed={selectedEvents.includes(eventName)}
                 onClick={() => toggleEvent(eventName)}
               >
                 {eventName}
@@ -257,6 +469,9 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                 </button>
               </article>
             ))}
+            {webhooks.length === 0 ? (
+              <p className="developer-empty">Cadastre um endpoint HTTPS para receber eventos do checkout.</p>
+            ) : null}
           </div>
         </section>
       </div>
@@ -301,6 +516,11 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                   </td>
                 </tr>
               ))}
+              {deliveries.length === 0 ? (
+                <tr>
+                  <td colSpan={6}>As tentativas de entrega aparecerao aqui apos o primeiro evento.</td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -311,4 +531,34 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
 
 function readError(error: unknown): string {
   return error instanceof DashboardHttpError ? error.responseBody.slice(0, 180) : error instanceof Error ? error.message : String(error);
+}
+
+function apiDocumentationRoot(apiBaseUrl: string): string {
+  return apiBaseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
+}
+
+function embedSessionQuickstart(apiRoot: string): string {
+  return `curl --request POST '${apiRoot}/v1/embed/sessions' \\
+  --header 'Authorization: Bearer aacp_test_REPLACE_ME' \\
+  --header 'Content-Type: application/json' \\
+  --header 'Idempotency-Key: checkout-{{customer_cart_id}}' \\
+  --data '{
+    "allowed_origin": "https://checkout.sualoja.com",
+    "installation_id": "ins_REPLACE_ME",
+    "cart_ref": "cart_REPLACE_ME",
+    "scopes": ["checkout:start", "checkout:chat"]
+  }'`;
+}
+
+async function copyText(
+  value: string,
+  successMessage: string,
+  setMessage: (message: string) => void,
+): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(value);
+    setMessage(successMessage);
+  } catch {
+    setMessage("Nao foi possivel copiar automaticamente neste navegador.");
+  }
 }
