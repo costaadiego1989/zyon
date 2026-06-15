@@ -1,10 +1,8 @@
 import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
-import { SHIPPING_METHOD_REPOSITORY } from "./domain/ports/shipping-method-repository.port.js";
 import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
 import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/prisma-shipping-quote.repository.js";
-import { InMemoryShippingMethodRepository } from "./infrastructure/repositories/in-memory-shipping-method.repository.js";
 import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
 import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
@@ -23,7 +21,6 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
-    InMemoryShippingMethodRepository,
     FlatRateCarrierAdapter,
     MelhorEnvioCarrierAdapter,
     {
@@ -31,7 +28,6 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
       useFactory: (prisma: PrismaClient) => new PrismaShippingQuoteRepository(prisma),
       inject: [PRISMA_CLIENT]
     },
-    { provide: SHIPPING_METHOD_REPOSITORY, useExisting: InMemoryShippingMethodRepository },
     {
       provide: CARRIER_ADAPTERS,
       useFactory: (flat: FlatRateCarrierAdapter, melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio, flat],

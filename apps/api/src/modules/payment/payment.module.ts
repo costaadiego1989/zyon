@@ -16,7 +16,6 @@ import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
-import { FakePaymentProvider } from "./infrastructure/fake-payment-provider.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
 import { RoutingPaymentAdapter } from "./infrastructure/routing-payment.adapter.js";
@@ -30,7 +29,6 @@ import { StripeWebhookController } from "./presentation/http/stripe-webhook.cont
 import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-env.js";
 import { isStripeConfigured, readStripeConnection } from "./infrastructure/stripe-env.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
-import { isProduction } from "../../shared/config/secret-config.js";
 import {
   ASAAS_PLATFORM_PORT,
   BILLING_CONFIG_PORT,
@@ -58,16 +56,6 @@ import {
   BillingController,
   PaymentPlatformController,
 } from "./presentation/http/payment-platform.controller.js";
-
-function shouldForceFakePaymentProvider(): boolean {
-  const forced =
-    process.env.PAYMENT_PROVIDER === "fake" ||
-    process.env.E2E_SEED_ENABLED === "true";
-  if (forced && isProduction()) {
-    throw new Error("fake_payment_provider_forbidden_in_production");
-  }
-  return forced;
-}
 
 @Module({
   imports: [
@@ -103,7 +91,6 @@ function shouldForceFakePaymentProvider(): boolean {
     CreateBillingCheckoutUseCase,
     CreateBillingPortalUseCase,
     HandleStripePlatformEventUseCase,
-    FakePaymentProvider,
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
     { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
@@ -125,14 +112,12 @@ function shouldForceFakePaymentProvider(): boolean {
     {
       provide: PAYMENT_PROVIDER_PORT,
       useFactory: (
-        fake: FakePaymentProvider,
         asaas: AsaasPaymentAdapter,
         stripe: StripePaymentAdapter,
         evmCrypto: EvmCryptoPaymentAdapter,
         platformConnections: import("./domain/ports/payment-platform-repository.port.js").PaymentPlatformRepository,
         http: HttpClientService,
       ) => {
-        if (shouldForceFakePaymentProvider()) return fake;
         const { baseUrl } = readAsaasConnection();
         return new RoutingPaymentAdapter(
           isStripeConfigured() ? stripe : null,
@@ -144,7 +129,6 @@ function shouldForceFakePaymentProvider(): boolean {
         );
       },
       inject: [
-        FakePaymentProvider,
         AsaasPaymentAdapter,
         StripePaymentAdapter,
         EvmCryptoPaymentAdapter,

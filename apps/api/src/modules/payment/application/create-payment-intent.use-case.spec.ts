@@ -272,9 +272,11 @@ test("CreatePaymentIntentUseCase rejects commerce-backed payment when trusted ca
   assert.equal(provider.inputs.length, 0);
 });
 
-test("CreatePaymentIntentUseCase auto-approves fake provider when E2E seed is enabled", async () => {
-  const previous = process.env.E2E_SEED_ENABLED;
+test("CreatePaymentIntentUseCase never auto-approves from runtime flags", async () => {
+  const previousSeed = process.env.E2E_SEED_ENABLED;
+  const previousAutoApprove = process.env.PAYMENT_FAKE_AUTO_APPROVE;
   process.env.E2E_SEED_ENABLED = "true";
+  process.env.PAYMENT_FAKE_AUTO_APPROVE = "true";
   try {
     const checkout = new InMemoryCheckoutRepository();
     await checkout.saveSession(
@@ -304,13 +306,14 @@ test("CreatePaymentIntentUseCase auto-approves fake provider when E2E seed is en
       method: "pix"
     });
 
-    assert.equal(intent.status, "approved");
-    assert.deepEqual(intent.statusHistory.map((entry) => entry.status), ["pending", "requires_action", "approved"]);
-    assert.equal(completed.length, 1);
-    assert.equal((completed[0] as any).externalOrderId, "fake_pay_1");
+    assert.equal(intent.status, "requires_action");
+    assert.deepEqual(intent.statusHistory.map((entry) => entry.status), ["pending", "requires_action"]);
+    assert.equal(completed.length, 0);
   } finally {
-    if (previous === undefined) delete process.env.E2E_SEED_ENABLED;
-    else process.env.E2E_SEED_ENABLED = previous;
+    if (previousSeed === undefined) delete process.env.E2E_SEED_ENABLED;
+    else process.env.E2E_SEED_ENABLED = previousSeed;
+    if (previousAutoApprove === undefined) delete process.env.PAYMENT_FAKE_AUTO_APPROVE;
+    else process.env.PAYMENT_FAKE_AUTO_APPROVE = previousAutoApprove;
   }
 });
 

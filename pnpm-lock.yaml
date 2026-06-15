@@ -29,9 +29,6 @@ importers:
       '@aacp/decision-engine':
         specifier: workspace:*
         version: link:../../packages/decision-engine
-      '@aacp/fake-commerce-api':
-        specifier: workspace:^
-        version: link:../fake-commerce-api
       '@aacp/negotiation-engine':
         specifier: workspace:*
         version: link:../../packages/negotiation-engine

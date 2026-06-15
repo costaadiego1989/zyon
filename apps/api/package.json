@@ -20,7 +20,6 @@
     "@aacp/contracts": "workspace:*",
     "@aacp/conversation-engine": "workspace:*",
     "@aacp/decision-engine": "workspace:*",
-    "@aacp/fake-commerce-api": "workspace:^",
     "@aacp/negotiation-engine": "workspace:*",
     "@aacp/rules-engine": "workspace:*",
     "@aacp/shared-types": "workspace:*",

@@ -6,7 +6,6 @@ import type {
   FetchPaymentStatusOutput,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
-import { isProduction } from "../../../shared/config/secret-config.js";
 import { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
 import { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
@@ -92,6 +91,6 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
         this.fetchImpl,
       );
     }
-    return isProduction() ? null : this.asaas;
+    return this.asaas;
   }
 }

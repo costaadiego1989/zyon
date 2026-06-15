@@ -9,7 +9,6 @@ import {
 import type { PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession, CurrencyCode } from "@aacp/shared-types";
-import { isAsaasConfigured } from "../infrastructure/asaas-env.js";
 import { isStripeConfigured, readPlatformFeeCents } from "../infrastructure/stripe-env.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
@@ -44,19 +43,9 @@ function resolveAsaasCustomerIdFromSession(session: CheckoutSession): string | u
   return trimmed || undefined;
 }
 
-function shouldAutoApproveFakePayment(providerPaymentId: string | undefined): boolean {
-  if (!providerPaymentId?.startsWith("fake_")) return false;
-  return process.env.PAYMENT_FAKE_AUTO_APPROVE === "true" || process.env.E2E_SEED_ENABLED === "true";
-}
-
-function shouldForceFakePaymentProvider(): boolean {
-  return process.env.PAYMENT_PROVIDER === "fake" || process.env.E2E_SEED_ENABLED === "true";
-}
-
-function resolveAsaasCustomerForProvider(useFakeProvider: boolean, asaasCustomer: string | undefined): string {
+function resolveAsaasCustomerForProvider(asaasCustomer: string | undefined): string {
   const resolved = asaasCustomer?.trim();
   if (resolved) return resolved;
-  if (useFakeProvider) return "cust_fake_test_placeholder";
   throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
 }
 
@@ -113,7 +102,8 @@ export class CreatePaymentIntentUseCase {
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
     const method: PaymentMethod = body.method ?? "pix";
-    const isStripeCard = !shouldForceFakePaymentProvider() && method === "card" && isStripeConfigured();
+    const isStripeCard = method === "card" && isStripeConfigured();
+    const usesAsaas = method !== "crypto" && !isStripeCard;
     let stripeConnectAccountId: string | undefined;
     let platformFeeCents = 0;
 
@@ -141,13 +131,7 @@ export class CreatePaymentIntentUseCase {
     const amountCents = orderAmountCents + platformFeeCents;
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
-    const useFakeProvider = shouldForceFakePaymentProvider();
-    const needsAsaas =
-      method !== "crypto" &&
-      !useFakeProvider &&
-      isAsaasConfigured() &&
-      !(method === "card" && isStripeConfigured());
-    if (needsAsaas && !asaasCustomer) {
+    if (usesAsaas && !asaasCustomer) {
       const customer = session.customer;
       if (!customer?.fullName || !customer?.email || !customer?.cpf) {
         throw new BadRequestException("asaas_customer_data_incomplete");
@@ -181,10 +165,8 @@ export class CreatePaymentIntentUseCase {
       commerceOrderId
     });
 
-    const isStripeCardPayment = !useFakeProvider && method === "card" && isStripeConfigured();
-
     let creditCardHolderInfo: any = undefined;
-    if (method === "card" && !isStripeCardPayment && session.customer) {
+    if (method === "card" && usesAsaas && session.customer) {
       creditCardHolderInfo = {
         name: session.customer.fullName || "Comprador",
         email: session.customer.email || "",
@@ -203,37 +185,22 @@ export class CreatePaymentIntentUseCase {
       currency: intent.snapshot().currency,
       method,
       description: paymentDescription(merchantId, sessionId, commerceOrderId),
-      ...(isStripeCardPayment
+      ...(isStripeCard
         ? { stripeConnectAccountId, platformFeeCents }
-        : {
-            asaasCustomerId: resolveAsaasCustomerForProvider(useFakeProvider, asaasCustomer),
+        : usesAsaas
+          ? {
+            asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
             creditCard: body.credit_card,
             creditCardHolderInfo,
             remoteIp: body.remote_ip
-          })
+          }
+          : {})
     });
 
     intent.markRequiresAction({ providerPaymentId: created.providerPaymentId });
     intent.setBuyerFacingPayload({
       ...(created.buyerFacingPayload ?? {})
     });
-
-    if (shouldAutoApproveFakePayment(created.providerPaymentId) && this.checkoutPayment) {
-      intent.markApproved({
-        providerPaymentId: created.providerPaymentId,
-        approvedAmountCents: amountCents
-      });
-    } else if (
-      method === "crypto" &&
-      useFakeProvider &&
-      created.providerPaymentId.startsWith("fake_crypto_") &&
-      this.checkoutPayment
-    ) {
-      intent.markApproved({
-        providerPaymentId: created.providerPaymentId,
-        approvedAmountCents: amountCents
-      });
-    }
 
     await this.payments.saveIntentWithOutbox(
       { intent },

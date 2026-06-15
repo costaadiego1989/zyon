@@ -16,7 +16,6 @@ import {
 import { RecordNegotiationSessionUseCase } from "./application/record-negotiation-session.use-case.js";
 import { ApplyNegotiationAgreementToCheckoutUseCase } from "./application/apply-negotiation-agreement-to-checkout.use-case.js";
 import { NEGOTIATION_STORE } from "./domain/ports/negotiation-store.port.js";
-import { InMemoryNegotiationStore } from "./infrastructure/in-memory-negotiation.store.js";
 import { PrismaNegotiationStore } from "./infrastructure/prisma-negotiation.store.js";
 import { NegotiationController } from "./presentation/http/negotiation.controller.js";
 import { MerchantNegotiationPolicyController } from "./presentation/http/merchant-negotiation-policy.controller.js";
@@ -37,16 +36,10 @@ import { BuyerAgentNegotiationPreferencesController } from "./presentation/http/
     UpsertBuyerAgentPreferencesUseCase,
     RecordNegotiationSessionUseCase,
     ApplyNegotiationAgreementToCheckoutUseCase,
-    InMemoryNegotiationStore,
     {
       provide: NEGOTIATION_STORE,
-      useFactory: (mem: InMemoryNegotiationStore, prisma: PrismaClient) => {
-        if (process.env.NEGOTIATION_REPOSITORY === "prisma" && process.env.DATABASE_URL) {
-          return new PrismaNegotiationStore(prisma);
-        }
-        return mem;
-      },
-      inject: [InMemoryNegotiationStore, PRISMA_CLIENT]
+      useFactory: (prisma: PrismaClient) => new PrismaNegotiationStore(prisma),
+      inject: [PRISMA_CLIENT]
     }
   ]
 })

@@ -116,6 +116,7 @@ import "./shared/tenant/tenant.guard.spec.js";
 import "./shared/tenant/tenant.interceptor.spec.js";
 import "./shared/persistence/tenant.middleware.spec.js";
 import "./shared/persistence/module-prisma-architecture.spec.js";
+import "./shared/persistence/production-composition-architecture.spec.js";
 import "./modules/checkout/presentation/http/cross-tenant-fuzz.e2e-spec.js";
 import "./shared/http/http-client.service.spec.js";
 import "./shared/http/api-documentation.spec.js";

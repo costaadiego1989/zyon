@@ -8,7 +8,7 @@ import {
 } from "./application/buyer-purchase-history.use-cases.js";
 import { BUYER_PURCHASE_HISTORY_REPOSITORY } from "./domain/ports/buyer-purchase-history-repository.port.js";
 import { BUYER_IDENTITY_REPOSITORY } from "./domain/ports/buyer-identity.repository.port.js";
-import { InMemoryBuyerIdentityRepository } from "./infrastructure/in-memory-buyer-identity.repository.js";
+import { PrismaBuyerIdentityRepository } from "./infrastructure/prisma-buyer-identity.repository.js";
 import { PrismaBuyerPurchaseHistoryRepository } from "./infrastructure/prisma-buyer-purchase-history.repository.js";
 import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purchase-history.controller.js";
 
@@ -16,12 +16,13 @@ import { BuyerPurchaseHistoryController } from "./presentation/http/buyer-purcha
   imports: [AuthModule],
   controllers: [BuyerPurchaseHistoryController],
   providers: [
-    InMemoryBuyerIdentityRepository,
     RecordCompletedPurchaseUseCase,
     GetBuyerPurchaseContextUseCase,
     {
       provide: BUYER_IDENTITY_REPOSITORY,
-      useClass: InMemoryBuyerIdentityRepository
+      useFactory: (prisma: PrismaClient) =>
+        new PrismaBuyerIdentityRepository(prisma),
+      inject: [PRISMA_CLIENT],
     },
     {
       provide: BUYER_PURCHASE_HISTORY_REPOSITORY,

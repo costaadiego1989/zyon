@@ -44,4 +44,9 @@ export function assertRequiredSecretsInProduction(
   }
 }
 
-export const PRODUCTION_REQUIRED_SECRETS = ["JWT_SECRET", "BUYER_JWT_SECRET", "EMBED_TOKEN_SECRET"] as const;
+export const PRODUCTION_REQUIRED_SECRETS = [
+  "DATABASE_URL",
+  "JWT_SECRET",
+  "BUYER_JWT_SECRET",
+  "EMBED_TOKEN_SECRET",
+] as const;
