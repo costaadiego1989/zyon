@@ -418,9 +418,12 @@ export interface CompletedOrder {
   externalOrderId: string;
   orderTotal: number;
   currency: CurrencyCode;
+  status?: "approved" | "cancelled";
   acceptedOfferId?: string;
   trackingCode?: string;
   completedAt: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
 }
 
 export interface CompleteOrderRequest {

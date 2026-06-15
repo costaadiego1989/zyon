@@ -12,6 +12,7 @@ export class CompletedOrderEntity {
       externalOrderId: input.external_order_id,
       orderTotal: input.order_total,
       currency: input.currency,
+      status: "approved",
       acceptedOfferId: input.accepted_offer_id,
       trackingCode,
       completedAt: now.toISOString()

@@ -78,6 +78,7 @@ import { CommerceConnectionsController } from "./presentation/http/commerce-conn
     COMMERCE_PAID_WEBHOOK_DEDUP,
     COMMERCE_CONNECTION_PORT,
     COMMERCE_CATALOG_PORT,
+    COMMERCE_ORDER_PORT,
     TenantCommerceAdapterFactory,
   ]
 })

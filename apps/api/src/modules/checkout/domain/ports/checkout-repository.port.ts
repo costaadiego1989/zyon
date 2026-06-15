@@ -57,6 +57,14 @@ export interface CheckoutRepository {
     externalOrderId: string;
     trackingCode: string;
   }): MaybePromise<CompletedOrder | undefined>;
+  /** @deprecated Use OrderRepository.cancelCompletedOrder */
+  cancelCompletedOrder(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    reason: string;
+    cancelledAt: string;
+  }): MaybePromise<{ order: CompletedOrder; idempotent: boolean } | undefined>;
   /** @deprecated Use OutboxRepository.appendOutbox */
   appendOutbox(event: DomainEventEnvelope): MaybePromise<DomainEventEnvelope>;
   /** @deprecated Use OutboxRepository.listOutbox */

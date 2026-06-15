@@ -366,20 +366,24 @@ model AcceptedOffer {
 }
 
 model CompletedOrder {
-  id              String   @id @default(cuid())
-  merchantId      String   @map("merchant_id")
-  sessionId       String   @map("session_id")
-  externalOrderId String   @map("external_order_id")
-  orderTotal      Float    @map("order_total")
-  currency        String
-  acceptedOfferId String?  @map("accepted_offer_id")
-  trackingCode    String?  @map("tracking_code")
-  completedAt     DateTime @map("completed_at")
+  id                 String    @id @default(cuid())
+  merchantId         String    @map("merchant_id")
+  sessionId          String    @map("session_id")
+  externalOrderId    String    @map("external_order_id")
+  orderTotal         Float     @map("order_total")
+  currency           String
+  status             String    @default("approved")
+  acceptedOfferId    String?   @map("accepted_offer_id")
+  trackingCode       String?   @map("tracking_code")
+  completedAt        DateTime  @map("completed_at")
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancellationReason String?   @map("cancellation_reason")
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
 
   @@unique([merchantId, sessionId, externalOrderId])
   @@index([merchantId, completedAt])
+  @@index([merchantId, status, completedAt])
   @@map("completed_orders")
 }
 

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Put,
   Query,
   Req,
@@ -27,6 +28,7 @@ import {
   ListOrdersUseCase,
   ListPaymentsUseCase,
 } from "../../application/operations-read.use-cases.js";
+import { CancelOrderUseCase } from "../../application/order-command.use-cases.js";
 import type {
   CustomerDetail,
   CustomerSummary,
@@ -35,6 +37,7 @@ import type {
   PaymentSummary,
 } from "../../domain/ports/operations-read.repository.port.js";
 import { UpdateOrderTrackingDto } from "./order-tracking.dto.js";
+import { CancelOrderDto } from "./order-command.dto.js";
 
 @ApiTags("Orders")
 @ApiBearerAuth("service_api_key")
@@ -46,6 +49,7 @@ export class OrdersController {
     private readonly listOrders: ListOrdersUseCase,
     private readonly getOrder: GetOrderUseCase,
     private readonly updateOrderTracking: UpdateTenantOrderTrackingUseCase,
+    private readonly cancelOrder: CancelOrderUseCase,
   ) {}
 
   @Get()
@@ -72,6 +76,23 @@ export class OrdersController {
     return toOrderDetailResponse(
       await this.getOrder.execute(tenantId(request), orderId),
     );
+  }
+
+  @Post(":orderId/cancel")
+  @Idempotent()
+  @RequireTenantAccess({ serviceScopes: ["orders:write"] })
+  cancel(
+    @Req() request: unknown,
+    @Param("orderId") orderId: string,
+    @Body() body: CancelOrderDto,
+  ) {
+    return this.cancelOrder.execute({
+      merchantId: tenantId(request),
+      orderId,
+      reason: body.reason,
+      notifyCustomer: body.notify_customer,
+      restock: body.restock,
+    });
   }
 
   @Get(":orderId/timeline")
@@ -243,6 +264,8 @@ function toOrderResponse(order: OrderSummary) {
     customer: order.customer,
     cart: order.cart,
     completed_at: order.completedAt,
+    cancelled_at: order.cancelledAt ?? null,
+    cancellation_reason: order.cancellationReason ?? null,
   };
 }
 

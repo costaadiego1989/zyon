@@ -91,13 +91,29 @@ export class PrismaOperationsReadRepository
         status: "approved",
         occurredAt: row.completedAt.toISOString(),
       },
+      ...(row.cancelledAt
+        ? [
+            {
+              id: `cancelled:${row.id}`,
+              type: "order",
+              status: "cancelled",
+              description: row.cancellationReason ?? undefined,
+              occurredAt: row.cancelledAt.toISOString(),
+            },
+          ]
+        : []),
     ].sort((left, right) =>
       left.occurredAt.localeCompare(right.occurredAt),
     );
+    const commercePayment = [...payments]
+      .reverse()
+      .find((payment) => Boolean(payment.commerceOrderId));
 
     return {
       ...toOrderSummary(row),
       timeline,
+      commerceOrderId: commercePayment?.commerceOrderId ?? undefined,
+      paymentStatus: commercePayment?.status,
     };
   }
 
@@ -227,16 +243,19 @@ function toOrderSummary(row: {
   externalOrderId: string;
   orderTotal: number;
   currency: string;
+  status: string;
   acceptedOfferId: string | null;
   trackingCode: string | null;
   completedAt: Date;
+  cancelledAt: Date | null;
+  cancellationReason: string | null;
   session: { customer: unknown; cart: unknown };
 }): OrderSummary {
   return {
     id: row.id,
     sessionId: row.sessionId,
     externalOrderId: row.externalOrderId,
-    status: "approved",
+    status: row.status === "cancelled" ? "cancelled" : "approved",
     totalMinor: toMinor(row.orderTotal),
     currency: row.currency,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
@@ -244,6 +263,8 @@ function toOrderSummary(row: {
     customer: sanitizeCustomer(row.session.customer),
     cart: normalizeObject(row.session.cart),
     completedAt: row.completedAt.toISOString(),
+    cancelledAt: row.cancelledAt?.toISOString(),
+    cancellationReason: row.cancellationReason ?? undefined,
   };
 }
 

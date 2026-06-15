@@ -10,6 +10,7 @@ test("CompletedOrderEntity records order completion and stable idempotency key",
   ).snapshot();
 
   assert.equal(order.externalOrderId, "ord_1");
+  assert.equal(order.status, "approved");
   assert.equal(order.acceptedOfferId, "off_1");
   assert.equal(order.trackingCode, undefined);
   assert.equal(order.completedAt, "2026-05-01T12:00:00.000Z");

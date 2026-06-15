@@ -227,6 +227,50 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }
   }
 
+  async cancelCompletedOrder(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    reason: string;
+    cancelledAt: string;
+  }): Promise<{ order: CompletedOrder; idempotent: boolean } | undefined> {
+    const existing = await this.getCompletedOrder(
+      input.merchantId,
+      input.sessionId,
+      input.externalOrderId,
+    );
+    if (!existing) return undefined;
+    if (existing.status === "cancelled") {
+      return { order: existing, idempotent: true };
+    }
+    try {
+      const result = await this.prisma.completedOrder.updateMany({
+        where: {
+          merchantId: input.merchantId,
+          sessionId: input.sessionId,
+          externalOrderId: input.externalOrderId,
+          status: { not: "cancelled" },
+        },
+        data: {
+          status: "cancelled",
+          cancelledAt: new Date(input.cancelledAt),
+          cancellationReason: input.reason,
+        },
+      });
+      const order = await this.getCompletedOrder(
+        input.merchantId,
+        input.sessionId,
+        input.externalOrderId,
+      );
+      return order
+        ? { order, idempotent: result.count === 0 }
+        : undefined;
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return undefined;
+      throw error;
+    }
+  }
+
   async appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> {
     await this.prisma.outboxMessage.upsert({
       where: { eventId: event.event_id },
@@ -536,9 +580,14 @@ function toCompletedOrderCreate(order: CompletedOrder) {
     externalOrderId: order.externalOrderId,
     orderTotal: order.orderTotal,
     currency: order.currency,
+    status: order.status ?? "approved",
     acceptedOfferId: order.acceptedOfferId,
     trackingCode: order.trackingCode,
-    completedAt: new Date(order.completedAt)
+    completedAt: new Date(order.completedAt),
+    cancelledAt: order.cancelledAt
+      ? new Date(order.cancelledAt)
+      : undefined,
+    cancellationReason: order.cancellationReason,
   };
 }
 
@@ -548,9 +597,12 @@ function toCompletedOrder(row: {
   externalOrderId: string;
   orderTotal: number;
   currency: string;
+  status?: string;
   acceptedOfferId: string | null;
   trackingCode?: string | null;
   completedAt: Date;
+  cancelledAt?: Date | null;
+  cancellationReason?: string | null;
 }): CompletedOrder {
   return {
     merchantId: row.merchantId,
@@ -558,9 +610,12 @@ function toCompletedOrder(row: {
     externalOrderId: row.externalOrderId,
     orderTotal: row.orderTotal,
     currency: row.currency as CurrencyCode,
+    status: row.status === "cancelled" ? "cancelled" : "approved",
     acceptedOfferId: row.acceptedOfferId ?? undefined,
     trackingCode: row.trackingCode ?? undefined,
-    completedAt: row.completedAt.toISOString()
+    completedAt: row.completedAt.toISOString(),
+    cancelledAt: row.cancelledAt?.toISOString(),
+    cancellationReason: row.cancellationReason ?? undefined,
   };
 }
 

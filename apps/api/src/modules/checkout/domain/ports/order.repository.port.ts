@@ -14,4 +14,11 @@ export interface OrderRepository {
     externalOrderId: string;
     trackingCode: string;
   }): MaybePromise<CompletedOrder | undefined>;
+  cancelCompletedOrder(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    reason: string;
+    cancelledAt: string;
+  }): MaybePromise<{ order: CompletedOrder; idempotent: boolean } | undefined>;
 }

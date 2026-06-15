@@ -11,7 +11,7 @@ export interface OrderSummary {
   id: string;
   sessionId: string;
   externalOrderId: string;
-  status: "approved";
+  status: "approved" | "cancelled";
   totalMinor: number;
   currency: string;
   acceptedOfferId?: string;
@@ -19,6 +19,8 @@ export interface OrderSummary {
   customer: Record<string, unknown> | null;
   cart: Record<string, unknown>;
   completedAt: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
 }
 
 export interface OrderTimelineEntry {
@@ -32,6 +34,8 @@ export interface OrderTimelineEntry {
 
 export interface OrderDetail extends OrderSummary {
   timeline: OrderTimelineEntry[];
+  commerceOrderId?: string;
+  paymentStatus?: string;
 }
 
 export interface CustomerSummary {

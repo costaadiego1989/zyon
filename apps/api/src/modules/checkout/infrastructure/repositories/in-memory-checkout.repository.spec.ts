@@ -61,6 +61,25 @@ test("InMemoryCheckoutRepository records events, offers, accepted offers, comple
     })?.trackingCode,
     "BR123456789AA"
   );
+  const cancelled = repository.cancelCompletedOrder({
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    externalOrderId: "ord_1",
+    reason: "Customer request",
+    cancelledAt: "2026-05-01T13:00:00.000Z",
+  });
+  assert.equal(cancelled?.idempotent, false);
+  assert.equal(cancelled?.order.status, "cancelled");
+  assert.equal(
+    repository.cancelCompletedOrder({
+      merchantId: "mrc_1",
+      sessionId: "chk_1",
+      externalOrderId: "ord_1",
+      reason: "Customer request",
+      cancelledAt: "2026-05-01T13:00:00.000Z",
+    })?.idempotent,
+    true,
+  );
 
   repository.appendOutbox(
     createCheckoutEventEnvelope({

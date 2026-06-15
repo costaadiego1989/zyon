@@ -191,6 +191,33 @@ export class InMemoryCheckoutRepository
     return structuredClone(updated);
   }
 
+  cancelCompletedOrder(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    reason: string;
+    cancelledAt: string;
+  }): { order: CompletedOrder; idempotent: boolean } | undefined {
+    const key = this.orderKey(
+      input.merchantId,
+      input.sessionId,
+      input.externalOrderId,
+    );
+    const existing = this.completedOrders.get(key);
+    if (!existing) return undefined;
+    if (existing.status === "cancelled") {
+      return { order: structuredClone(existing), idempotent: true };
+    }
+    const updated: CompletedOrder = {
+      ...existing,
+      status: "cancelled",
+      cancelledAt: input.cancelledAt,
+      cancellationReason: input.reason,
+    };
+    this.completedOrders.set(key, updated);
+    return { order: structuredClone(updated), idempotent: false };
+  }
+
   appendOutbox(event: DomainEventEnvelope): DomainEventEnvelope {
     this.outbox.push(event);
     return event;
