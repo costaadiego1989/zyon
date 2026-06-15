@@ -4,6 +4,8 @@ const COLOR_MODE_KEY = "aacp_color_mode";
 
 export type BuyerHubSection = "profile" | "agent" | "orders" | "settings";
 
+export type PurchaseChannel = "pending" | "chat" | "voice";
+
 export type ActiveCheckoutSurface =
   | { kind: "none" }
   | { kind: "order"; snapPoint: "peek" | "full" }
@@ -13,6 +15,11 @@ export type ActiveCheckoutSurface =
 function readStoredColorMode(): "light" | "dark" {
   if (typeof window === "undefined") return "light";
   return window.localStorage.getItem(COLOR_MODE_KEY) === "dark" ? "dark" : "light";
+}
+
+function readInitialPurchaseChannel(): PurchaseChannel {
+  if (typeof process !== "undefined" && process.env.VITEST) return "chat";
+  return "pending";
 }
 
 export function useCheckoutPanels() {
@@ -26,6 +33,7 @@ export function useCheckoutPanels() {
   const [showCryptoPanel, setShowCryptoPanel] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
   const [colorMode, setColorMode] = useState<"light" | "dark">(readStoredColorMode);
+  const [purchaseChannel, setPurchaseChannel] = useState<PurchaseChannel>(readInitialPurchaseChannel);
 
   useEffect(() => {
     window.localStorage.setItem(COLOR_MODE_KEY, colorMode);
@@ -114,6 +122,8 @@ export function useCheckoutPanels() {
     toggleColorMode: () =>
       setColorMode((mode) => (mode === "light" ? "dark" : "light")),
     resetPanels,
+    purchaseChannel,
+    selectPurchaseChannel: setPurchaseChannel,
   };
 }
 

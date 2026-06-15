@@ -29,7 +29,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const sessionState = useCheckoutSession(config);
   const cartState = useCheckoutCart(sessionState.experience, config, sessionState.updateCart);
   const panels = useCheckoutPanels();
-  const chatState = useCheckoutChat(config, sessionState);
+  const chatState = useCheckoutChat(config, sessionState, {
+    purchaseChannel: panels.purchaseChannel
+  });
   const payment = useCheckoutPayment(config, sessionState, chatState);
   const { activeExperience, session, networkError, track, apiOrigin } = sessionState;
   const { visibleItems, visibleTotals, cartItemCount, handleRemoveCartItem, incrementItem, decrementItem, applyShipping, selectedShippingMethod } = cartState;
@@ -39,6 +41,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const stageNote = stageNarrative(checkoutStage, currentMissingField);
   const showComposer =
     isConversational &&
+    panels.purchaseChannel !== "voice" &&
     Boolean(session) &&
     !networkError &&
     checkoutStage !== "completed" &&
@@ -452,6 +455,13 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     chatState.retryChat();
   }
 
+  function selectPurchaseChannel(channel: "chat" | "voice"): void {
+    panels.selectPurchaseChannel(channel);
+  }
+
+  const showChannelWelcome =
+    isConversational && panels.purchaseChannel === "pending";
+
   return {
     config,
     isConversational,
@@ -498,6 +508,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     hub,
     tapQuick,
     sendMessage: chatState.sendMessage,
+    sendMessageWithOverride: chatState.sendMessageWithOverride,
     applyOffer: chatState.applyOffer,
     continueToPayment: chatState.continueToPayment,
     submitCoupon,
@@ -539,7 +550,10 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     couponInputVisible,
     setCouponInputVisible,
     buyerHub,
-    apiOrigin
+    apiOrigin,
+    purchaseChannel: panels.purchaseChannel,
+    selectPurchaseChannel,
+    showChannelWelcome,
   };
 }
 

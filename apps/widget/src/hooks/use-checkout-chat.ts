@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type {
   ApplyOfferResponse,
   ChatMessageResponse,
@@ -23,6 +23,7 @@ import type { WidgetConfig } from "../lib/widget-types.js";
 import { bubbleKey, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, type QuickReplyChoice } from "./checkout-view-model.js";
 import { disableStreamingByEnv } from "./use-streamed-text.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
+import type { PurchaseChannel } from "./use-checkout-panels.js";
 
 const DEFAULT_QUICK_REPLIES: QuickReplyChoice[] = [
   { label: "Olá!" },
@@ -30,9 +31,41 @@ const DEFAULT_QUICK_REPLIES: QuickReplyChoice[] = [
   { label: "Quero finalizar agora" },
 ];
 
-export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSessionState) {
+type CheckoutChatOptions = {
+  purchaseChannel?: PurchaseChannel;
+};
+
+function applyCheckoutStartTurns(
+  response: NonNullable<CheckoutSessionState["startedEvent"]>["response"],
+  setTurns: Dispatch<SetStateAction<ChatTurn[]>>,
+  setStreamingTurnKey: Dispatch<SetStateAction<string | null>>
+): void {
+  if (Array.isArray(response.turns) && response.turns.length > 0) {
+    setTurns(response.turns);
+    const lastAgentIdx = response.turns.map((t) => t.role).lastIndexOf("agent");
+    if (lastAgentIdx >= 0) {
+      setStreamingTurnKey(bubbleKey(response.turns[lastAgentIdx]!, lastAgentIdx));
+    }
+    return;
+  }
+  const greeting: ChatTurn = {
+    role: "agent",
+    text: response.experience.agent.greeting,
+    occurredAt: new Date().toISOString()
+  };
+  setTurns([greeting]);
+  setStreamingTurnKey(bubbleKey(greeting, 0));
+}
+
+export function useCheckoutChat(
+  config: WidgetConfig,
+  sessionState: CheckoutSessionState,
+  options: CheckoutChatOptions = {}
+) {
   const { session, activeExperience, syncExperience, networkError, apiOrigin, embedOpts } = sessionState;
   const isConversational = config.uiPresentation === "conversational";
+  const purchaseChannel = options.purchaseChannel ?? "chat";
+  const channelReady = !isConversational || purchaseChannel !== "pending";
 
   const [turns, setTurns] = useState<ChatTurn[]>([]);
   const [message, setMessage] = useState("");
@@ -48,6 +81,7 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
   const prevStartTs = useRef(0);
   const registrationBootstrapped = useRef<string | null>(null);
   const shippingBootstrapped = useRef<string | null>(null);
+  const pendingStartEvent = useRef<NonNullable<CheckoutSessionState["startedEvent"]> | null>(null);
   const [catalogResults, setCatalogResults] = useState<SuggestedProduct[]>([]);
 
   const isCartEmpty = activeExperience.items.length === 0;
@@ -153,27 +187,24 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     if (!ev || ev.ts === prevStartTs.current) return;
     prevStartTs.current = ev.ts;
 
-    const response = ev.response;
-    if (Array.isArray(response.turns) && response.turns.length > 0) {
-      setTurns(response.turns);
-      const lastAgentIdx = response.turns.map((t) => t.role).lastIndexOf("agent");
-      if (lastAgentIdx >= 0) {
-        setStreamingTurnKey(bubbleKey(response.turns[lastAgentIdx]!, lastAgentIdx));
-      }
-    } else {
-      const greeting: ChatTurn = {
-        role: "agent",
-        text: response.experience.agent.greeting,
-        occurredAt: new Date().toISOString()
-      };
-      setTurns([greeting]);
-      setStreamingTurnKey(bubbleKey(greeting, 0));
+    if (!channelReady) {
+      pendingStartEvent.current = ev;
+      return;
     }
-    if (response.initial_mode === "open") {
-    }
-  }, [sessionState.startedEvent]);
+
+    applyCheckoutStartTurns(ev.response, setTurns, setStreamingTurnKey);
+  }, [sessionState.startedEvent, channelReady]);
 
   useEffect(() => {
+    if (!channelReady) return;
+    const ev = pendingStartEvent.current;
+    if (!ev) return;
+    pendingStartEvent.current = null;
+    applyCheckoutStartTurns(ev.response, setTurns, setStreamingTurnKey);
+  }, [channelReady]);
+
+  useEffect(() => {
+    if (!channelReady) return;
     if (!sessionState.startErrorTs) return;
     const fallbackTurn: ChatTurn = {
       role: "agent",
@@ -182,9 +213,10 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     };
     setTurns([fallbackTurn]);
     setStreamingTurnKey(bubbleKey(fallbackTurn, 0));
-  }, [sessionState.startErrorTs]);
+  }, [sessionState.startErrorTs, channelReady]);
 
   useEffect(() => {
+    if (!channelReady) return;
     const sessionId = session?.session_id;
     if (!sessionId || !isConversational || isCartEmpty || networkError || busy) return;
 
@@ -216,7 +248,8 @@ export function useCheckoutChat(config: WidgetConfig, sessionState: CheckoutSess
     lastChat,
     networkError,
     session,
-    session?.session_id
+    session?.session_id,
+    channelReady
   ]);
 
   async function runShippingBootstrap(sessionId: string): Promise<void> {
