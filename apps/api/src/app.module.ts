@@ -24,6 +24,7 @@ import { IntegrationsModule } from "./modules/integrations/integrations.module.j
 import { SupportModule } from "./modules/support/support.module.js";
 import { SelfCheckoutModule } from "./modules/self-checkout/self-checkout.module.js";
 import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module.js";
+import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 
 @Module({
   imports: [
@@ -66,6 +67,7 @@ import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module
     SupportModule,
     SelfCheckoutModule,
     BuyerAccountModule,
+    OnboardingModule,
     ...(process.env.E2E_SEED_ENABLED === "true" ? [TestSeedModule] : [])
   ]
 })

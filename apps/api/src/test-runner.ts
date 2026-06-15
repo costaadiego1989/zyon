@@ -32,6 +32,8 @@ import "./modules/payment/application/get-payment-intent-status.use-case.spec.js
 import "./modules/payment/application/handle-asaas-webhook.use-case.spec.js";
 import "./modules/payment/infrastructure/asaas-env.spec.js";
 import "./modules/payment/infrastructure/asaas-payment.adapter.spec.js";
+import "./modules/payment/infrastructure/payment-secret-cipher.spec.js";
+import "./modules/payment/application/payment-platform.use-cases.spec.js";
 import "./modules/payment/infrastructure/evm-crypto-quote.service.spec.js";
 import "./modules/payment/presentation/http/asaas-webhook.controller.spec.js";
 import "./modules/support/application/send-support-message.use-case.spec.js";
@@ -102,6 +104,7 @@ import "./modules/buyer-account/application/use-cases/login-buyer-from-session.u
 import "./modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.spec.js";
 import "./modules/checkout/__tests__/update-order-tracking.use-case.spec.js";
 import "./modules/checkout/application/use-cases/update-cart.use-case.spec.js";
+import "./modules/onboarding/application/onboarding.use-cases.spec.js";
 import "./modules/checkout/presentation/http/checkout.prisma-full-flow.e2e-spec.js";
 import "./shared/tenant/tenant-context.service.spec.js";
 import "./shared/tenant/tenant.guard.spec.js";

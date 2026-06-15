@@ -23,8 +23,20 @@ model Merchant {
   commercePendingOrders CommercePendingOrder[]
   commercePaidEvents  CommercePaidEvent[]
   httpIdempotencyRecords HttpIdempotencyRecord[]
+  onboardingState     MerchantOnboardingState?
 
   @@map("merchants")
+}
+
+model MerchantOnboardingState {
+  merchantId String   @id @map("merchant_id")
+  steps      Json
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("merchant_onboarding_states")
 }
 
 model MerchantCommerceConnection {
