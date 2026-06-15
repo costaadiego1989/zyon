@@ -13,7 +13,12 @@ class StubConnections implements CommerceConnectionPort {
   async getCredentials(merchantId: string): Promise<MerchantCommerceCredentials | undefined> {
     return this.byMerchant[merchantId.trim()];
   }
+  async getConnection(): Promise<undefined> {
+    return undefined;
+  }
   async saveCredentials(_input: SaveMerchantCommerceCredentialsInput): Promise<void> {}
+  async updateHealth(): Promise<void> {}
+  async disconnect(): Promise<void> {}
 }
 
 function jsonResponse(body: unknown, status = 200): Response {

@@ -2,6 +2,7 @@ import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from "@nes
 import { randomUUID } from "node:crypto";
 import { Observable } from "rxjs";
 import type { AacpHttpRequest } from "../http/http-request.js";
+import type { TenantPrincipal } from "../auth/tenant-principal.js";
 import { TenantContextService } from "./tenant-context.service.js";
 import {
   type TenantRequest,
@@ -16,7 +17,9 @@ export class TenantInterceptor implements NestInterceptor {
     const request = context
       .switchToHttp()
       .getRequest<TenantRequest & AacpHttpRequest>();
-    const tenant = validateTenantRequest(request);
+    const tenant =
+      validateTenantRequest(request) ??
+      tenantFromSharedPrincipal(request.tenantPrincipal);
     if (!tenant) return next.handle();
 
     const scoped = { ...tenant, correlationId: correlationIdFrom(request) };
@@ -39,4 +42,25 @@ function correlationIdFrom(request: TenantRequest): string {
   return typeof value === "string" && value.trim().length > 0
     ? value
     : `corr_${randomUUID()}`;
+}
+
+function tenantFromSharedPrincipal(
+  principal: TenantPrincipal | undefined,
+): {
+  merchantId: string;
+  userId: string;
+  role: string;
+} | null {
+  if (!principal) return null;
+  return principal.kind === "human"
+    ? {
+        merchantId: principal.tenantId,
+        userId: principal.userId,
+        role: principal.role,
+      }
+    : {
+        merchantId: principal.tenantId,
+        userId: principal.credentialId,
+        role: "service",
+      };
 }

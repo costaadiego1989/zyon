@@ -30,7 +30,10 @@ export class AddStorefrontItemUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
 
     const sku = input.sku.trim();
-    const catalogProduct = await this.catalog.findBySku(sku);
+    const catalogProduct = await this.catalog.findBySku(
+      input.merchant_id,
+      sku,
+    );
     if (!catalogProduct && !CROSS_SELL_SKUS.has(sku)) {
       throw new NotFoundException("storefront_product_not_found");
     }

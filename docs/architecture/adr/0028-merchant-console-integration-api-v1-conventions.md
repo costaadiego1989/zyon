@@ -106,6 +106,20 @@ cliente e propagado; valores ausentes ou invalidos sao substituidos por um
 identificador gerado pela API. O mesmo valor aparece em logs e em
 `correlation_id` nos erros RFC 7807.
 
+## Comercio e catalogo
+
+- A V1 permite uma conexao Shopify ou WooCommerce por tenant.
+- Credenciais sao criptografadas em envelope versionado e nunca retornam pela API.
+- Shopify usa Admin GraphQL para health e catalogo, Storefront GraphQL para
+  validar o cart real e a versao padrao `2026-04`.
+- WooCommerce usa REST `wc/v3` com Basic Auth sobre HTTPS.
+- URLs WooCommerce locais, IP literals e hosts `.local` sao rejeitados.
+- A conexao registra `pending`, `healthy` ou `degraded`, ultimo teste,
+  ultima sincronizacao e codigo de erro sanitizado.
+- `/v1/catalog` retorna produto, variantes, preco em minor units e estoque do
+  provedor; o widget consome a mesma fonte tenant-scoped.
+- O adapter fake deixou de participar da composicao do `CatalogModule`.
+
 ## Rate limit
 
 Respostas incluem:
@@ -131,3 +145,10 @@ incompativeis exigem nova versao principal, changelog e janela de sobreposicao.
 - Producao: `https://api.aacp.dev/v1`
 
 Somente operacoes explicitamente aprovadas entram no OpenAPI publico.
+
+Referencias de provider:
+
+- https://shopify.dev/docs/api/admin-graphql/latest
+- https://shopify.dev/docs/api/storefront/latest/queries/cart
+- https://developer.woocommerce.com/docs/apis/rest-api/
+- https://woocommerce.github.io/woocommerce-rest-api-docs/

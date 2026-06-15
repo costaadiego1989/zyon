@@ -6,6 +6,11 @@ export {
   type ShopifyCommerceAdapterConfig,
   type ShopifyFetchFn
 } from "./shopify/shopify-commerce.adapter.js";
+export {
+  WooCommerceCommerceAdapter,
+  type WooCommerceAdapterConfig,
+  type WooCommerceFetchFn,
+} from "./woocommerce/woocommerce-commerce.adapter.js";
 
 export interface ShopifyConfig {
   shopDomain?: string;
@@ -37,7 +42,7 @@ export async function applyShopifyOffer(
     };
   }
 
-  const apiVersion = config.apiVersion ?? "2025-10";
+  const apiVersion = config.apiVersion ?? "2026-04";
   const priceRule = await createPriceRule(offer, discountCode, {
     shopDomain,
     adminAccessToken: config.adminAccessToken,

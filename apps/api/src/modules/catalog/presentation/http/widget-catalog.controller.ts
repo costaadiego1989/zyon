@@ -17,7 +17,11 @@ export class WidgetCatalogController {
   async search(@Req() request: EmbedHttpRequest, @Query("q") query = "", @Query("limit") limitRaw?: string) {
     const limit = Number(limitRaw ?? "8");
     const embed = request.embedClaims!;
-    const products = await this.searchProducts.execute(query, Number.isFinite(limit) ? limit : 8);
+    const products = await this.searchProducts.execute(
+      embed.merchantId,
+      query,
+      Number.isFinite(limit) ? limit : 8,
+    );
     return { merchant_id: embed.merchantId, query, products };
   }
 

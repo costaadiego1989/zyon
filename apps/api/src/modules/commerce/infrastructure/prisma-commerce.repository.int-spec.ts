@@ -66,6 +66,7 @@ test(
       // Per-tenant Shopify credentials: ciphered at rest, decrypted on read.
       await connections.saveCredentials({
         merchantId,
+        provider: "shopify",
         shopDomain: "tenant-one.myshopify.com",
         adminAccessToken: "shpat_secret_token",
         apiVersion: "2025-10"
@@ -75,6 +76,10 @@ test(
       assert.notEqual(stored?.adminTokenCipher, "shpat_secret_token");
 
       const creds = await connections.getCredentials(merchantId);
+      assert.equal(creds?.provider, "shopify");
+      if (creds?.provider !== "shopify") {
+        throw new Error("expected_shopify_credentials");
+      }
       assert.equal(creds?.shopDomain, "tenant-one.myshopify.com");
       assert.equal(creds?.adminAccessToken, "shpat_secret_token");
       assert.equal(await connections.getCredentials(otherMerchantId), undefined);

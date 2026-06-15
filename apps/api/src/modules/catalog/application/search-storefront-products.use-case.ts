@@ -6,7 +6,11 @@ import { STOREFRONT_CATALOG_PORT, type StorefrontCatalogPort } from "../domain/p
 export class SearchStorefrontProductsUseCase {
   constructor(@Inject(STOREFRONT_CATALOG_PORT) private readonly catalog: StorefrontCatalogPort) {}
 
-  execute(query: string, limit = 8): Promise<SuggestedProduct[]> {
-    return this.catalog.search(query, limit);
+  execute(
+    merchantId: string,
+    query: string,
+    limit = 8,
+  ): Promise<SuggestedProduct[]> {
+    return this.catalog.search(merchantId, query, limit);
   }
 }

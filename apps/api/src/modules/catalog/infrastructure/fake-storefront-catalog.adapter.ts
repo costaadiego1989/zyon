@@ -18,13 +18,20 @@ function toHit(product: (typeof FAKE_PRODUCTS)[number]): SuggestedProduct {
 
 @Injectable()
 export class FakeStorefrontCatalogAdapter implements StorefrontCatalogPort {
-  async search(query: string, limit = 8): Promise<SuggestedProduct[]> {
+  async search(
+    _merchantId: string,
+    query: string,
+    limit = 8,
+  ): Promise<SuggestedProduct[]> {
     const remote = await this.searchRemote(query, limit);
     if (remote) return remote;
     return searchFakeProducts(query, limit).map(toHit);
   }
 
-  async findBySku(sku: string): Promise<SuggestedProduct | null> {
+  async findBySku(
+    _merchantId: string,
+    sku: string,
+  ): Promise<SuggestedProduct | null> {
     const remote = await this.findRemoteBySku(sku);
     if (remote) return remote;
     const product = FAKE_PRODUCTS.find((item) => item.sku === sku && item.available);

@@ -1,8 +1,16 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { ShopifyCommerceAdapter } from "@aacp/commerce-adapters";
+import {
+  ShopifyCommerceAdapter,
+  WooCommerceCommerceAdapter,
+} from "@aacp/commerce-adapters";
 import type {
+  CommerceCatalogPage,
+  CommerceCatalogPort,
+  CommerceCatalogProduct,
   CommerceCartPort,
+  CommerceConnectionHealth,
   CommerceOrderPort,
+  CommerceProviderPort,
   TrustedCartSnapshot
 } from "@aacp/commerce-adapters";
 import { HttpClientService } from "../../../shared/http/http-client.service.js";
@@ -13,31 +21,55 @@ import {
 } from "../domain/ports/commerce-connection.port.js";
 import { retryWithBackoff } from "./commerce-retry.js";
 
-function globalEnvCredentials(): { shopDomain: string; adminAccessToken: string; apiVersion?: string } | undefined {
+function globalEnvCredentials(): {
+  shopDomain: string;
+  adminAccessToken: string;
+  storefrontAccessToken?: string;
+  apiVersion?: string;
+} | undefined {
   const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
   const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
   if (!shopDomain || !adminAccessToken) return undefined;
-  return { shopDomain, adminAccessToken, apiVersion: process.env.SHOPIFY_API_VERSION?.trim() || undefined };
+  return {
+    shopDomain,
+    adminAccessToken,
+    storefrontAccessToken:
+      process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN?.trim() || undefined,
+    apiVersion: process.env.SHOPIFY_API_VERSION?.trim() || undefined,
+  };
 }
 
 @Injectable()
-export class TenantCommerceAdapterFactory implements CommerceCartPort, CommerceOrderPort {
+export class TenantCommerceAdapterFactory
+  implements CommerceCartPort, CommerceOrderPort, CommerceCatalogPort
+{
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
     private readonly connections: CommerceConnectionPort,
     private readonly http: HttpClientService
   ) {}
 
-  private async resolve(merchantId: string): Promise<ShopifyCommerceAdapter> {
+  private async resolve(merchantId: string): Promise<CommerceProviderPort> {
     const tenant = await this.connections.getCredentials(merchantId.trim());
-    if (tenant) {
+    if (tenant?.provider === "shopify") {
       return new ShopifyCommerceAdapter(
         {
           shopDomain: tenant.shopDomain,
           adminAccessToken: tenant.adminAccessToken,
+          storefrontAccessToken: tenant.storefrontAccessToken,
           apiVersion: tenant.apiVersion
         },
         this.http.toFetch()
+      );
+    }
+    if (tenant?.provider === "woocommerce") {
+      return new WooCommerceCommerceAdapter(
+        {
+          storeUrl: tenant.storeUrl,
+          consumerKey: tenant.consumerKey,
+          consumerSecret: tenant.consumerSecret,
+        },
+        this.http.toFetch(),
       );
     }
 
@@ -73,5 +105,28 @@ export class TenantCommerceAdapterFactory implements CommerceCartPort, CommerceO
   }): Promise<void> {
     const adapter = await this.resolve(input.merchantId);
     await retryWithBackoff(() => adapter.markOrderPaid(input));
+  }
+
+  async testConnection(merchantId: string): Promise<CommerceConnectionHealth> {
+    const adapter = await this.resolve(merchantId);
+    return retryWithBackoff(() => adapter.testConnection());
+  }
+
+  async searchCatalog(input: {
+    merchantId: string;
+    query?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<CommerceCatalogPage> {
+    const adapter = await this.resolve(input.merchantId);
+    return retryWithBackoff(() => adapter.searchCatalog(input));
+  }
+
+  async findCatalogProductBySku(input: {
+    merchantId: string;
+    sku: string;
+  }): Promise<CommerceCatalogProduct | null> {
+    const adapter = await this.resolve(input.merchantId);
+    return retryWithBackoff(() => adapter.findCatalogProductBySku(input));
   }
 }

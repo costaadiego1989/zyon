@@ -32,3 +32,59 @@ export interface CommerceOrderPort {
 export interface CommerceOfferPort {
   buildOfferMetadata(input: { authorizedOfferId: string; discountCents: number }): Promise<Record<string, unknown>>;
 }
+
+export type CommerceCatalogVariant = {
+  id: string;
+  sku: string;
+  title: string;
+  unitPriceCents: number;
+  currency: string;
+  inventoryQuantity: number | null;
+  availableForSale: boolean;
+  imageUrl?: string;
+};
+
+export type CommerceCatalogProduct = {
+  id: string;
+  title: string;
+  description?: string;
+  productUrl?: string;
+  imageUrl?: string;
+  category?: string;
+  variants: CommerceCatalogVariant[];
+};
+
+export type CommerceCatalogPage = {
+  products: CommerceCatalogProduct[];
+  nextCursor: string | null;
+};
+
+export interface CommerceCatalogPort {
+  searchCatalog(input: {
+    merchantId: string;
+    query?: string;
+    limit?: number;
+    cursor?: string;
+  }): Promise<CommerceCatalogPage>;
+  findCatalogProductBySku(input: {
+    merchantId: string;
+    sku: string;
+  }): Promise<CommerceCatalogProduct | null>;
+}
+
+export type CommerceConnectionHealth = {
+  provider: "shopify" | "woocommerce";
+  storeName: string;
+  storeUrl: string;
+  currency: string;
+};
+
+export interface CommerceConnectionTestPort {
+  testConnection(): Promise<CommerceConnectionHealth>;
+}
+
+export interface CommerceProviderPort
+  extends CommerceCartPort,
+    CommerceOrderPort,
+    CommerceCatalogPort,
+    CommerceConnectionTestPort {}

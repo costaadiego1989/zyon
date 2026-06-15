@@ -33,11 +33,16 @@ model MerchantCommerceConnection {
   shopDomain       String   @map("shop_domain")
   adminTokenCipher String   @map("admin_token_cipher")
   apiVersion       String?  @map("api_version")
+  status           String   @default("pending")
+  lastTestedAt     DateTime? @map("last_tested_at")
+  lastSyncedAt     DateTime? @map("last_synced_at")
+  lastErrorCode    String?  @map("last_error_code")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   merchant         Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
 
+  @@index([provider, status])
   @@map("merchant_commerce_connections")
 }
 

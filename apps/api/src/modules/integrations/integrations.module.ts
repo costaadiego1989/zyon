@@ -30,6 +30,8 @@ import { MerchantApiKeyGuard } from "./presentation/http/merchant-api-key.guard.
 import { ApiKeyScopeGuard } from "./presentation/http/api-key-scope.guard.js";
 import { TenantTrackingController } from "./presentation/http/tenant-tracking.controller.js";
 import { AuthenticateMerchantApiKeyService } from "./application/authenticate-merchant-api-key.service.js";
+import { TenantCredentialGuard } from "./presentation/http/tenant-credential.guard.js";
+import { TenantAccessGuard } from "./presentation/http/tenant-access.guard.js";
 
 @Module({
   imports: [AuthModule, CheckoutModule],
@@ -61,12 +63,16 @@ import { AuthenticateMerchantApiKeyService } from "./application/authenticate-me
     TenantWebhooksOnCheckoutHandler,
     MerchantApiKeyGuard,
     ApiKeyScopeGuard,
+    TenantCredentialGuard,
+    TenantAccessGuard,
   ],
   exports: [
     INTEGRATIONS_REPOSITORY,
     ApiKeyService,
     ApiKeyAccessPolicy,
     AuthenticateMerchantApiKeyService,
+    TenantCredentialGuard,
+    TenantAccessGuard,
     TenantWebhookPublisher,
   ]
 })

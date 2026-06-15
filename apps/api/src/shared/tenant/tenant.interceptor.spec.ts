@@ -9,6 +9,7 @@ import { describe, it } from "node:test";
 import { TenantContextService } from "./tenant-context.service.js";
 import { TenantInterceptor } from "./tenant.interceptor.js";
 import type { TenantRequest } from "./tenant.guard.js";
+import type { TenantPrincipalRequest } from "../auth/tenant-principal.js";
 
 const merchantPrincipal = {
   merchantId: "mrc_1",
@@ -16,7 +17,9 @@ const merchantPrincipal = {
   role: "admin",
 };
 
-function makeContext(request: TenantRequest): ExecutionContext {
+function makeContext(
+  request: TenantRequest & TenantPrincipalRequest,
+): ExecutionContext {
   return {
     switchToHttp: () => ({ getRequest: () => request }),
   } as ExecutionContext;
@@ -77,6 +80,37 @@ describe("TenantInterceptor", () => {
     );
 
     assert.equal(observed?.correlationId, "corr-fixed-123");
+  });
+
+  it("creates tenant ALS context for service principals", async () => {
+    const tenantCtx = new TenantContextService();
+    const interceptor = new TenantInterceptor(tenantCtx);
+    let observed = tenantCtx.get();
+
+    await firstValueFrom(
+      interceptor.intercept(
+        makeContext({
+          tenantPrincipal: {
+            kind: "service",
+            tenantId: "mrc_service",
+            credentialId: "key_1",
+            environment: "test",
+            scopes: ["catalog:read"],
+          },
+        }),
+        {
+          handle: () =>
+            defer(() => {
+              observed = tenantCtx.get();
+              return of("ok");
+            }),
+        },
+      ),
+    );
+
+    assert.equal(observed?.merchantId, "mrc_service");
+    assert.equal(observed?.userId, "key_1");
+    assert.equal(observed?.role, "service");
   });
 
   it("rejects a tenant mismatch after controller guards populate user", () => {
