@@ -56,7 +56,7 @@ Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 |---|---|---|---|
 | **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
 | **P1** | Caminho transacional do piloto | `[#########-]` 95% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
-| **P2** | Identidade e operação do merchant | `[#---------]` 12% | 0015(parte), 0016, 0017, 0018, 0019, 0023, 0024(parte) |
+| **P2** | Identidade e operação do merchant | `[##--------]` 17% | 0015(parte), 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
 | **P4** | Expansão pós-piloto | `[----------]` 0% | 0021 |
 | **Transversal** | Packages/engines/SDK | `[----------]` 0% | 0025 |
@@ -98,7 +98,7 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | [0018](./0018-buyer-identity-and-history.md) | Buyer-account/history | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0019](./0019-negotiation-and-support.md) | Negotiation/support | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0023](./0023-widget-shell-identity-experience.md) | Widget shell/identidade | P2 | L3 | ⬜ | `[----------]` 0% |
-| [0024](./0024-dashboard-config-preview-onboarding.md) | Dashboard config/preview/onboarding | P1–P2 | L3 | 🟡 | `[###-------]` 33% |
+| [0024](./0024-dashboard-config-preview-onboarding.md) | Dashboard config/preview/onboarding | P1–P2 | L3 | 🟡 | `[#######---]` 67% |
 | [0020](./0020-growth-cross-sell-coupons-fulfillment.md) | Cross-sell/coupons/fulfillment | P3 | L3 | ⬜ | `[----------]` 0% |
 | [0021](./0021-post-pilot-self-checkout-scraping.md) | Self-checkout/scraping | P4 | L2→L3 | ⬜ | `[----------]` 0% |
 | [0025](./0025-packages-engines-sdk-hardening.md) | Packages/engines/SDK | transversal | L3 | ⬜ | `[----------]` 0% |
@@ -167,7 +167,7 @@ de cada bloco move o ADR para `✅`.
 
 **0024 Dashboard (config/preview/onboarding)**
 - [ ] Painel de configuração do checkout coeso (P1–P2).
-- [ ] **Live preview do checkout real** no dashboard.
+- [x] **Live preview do checkout real** no dashboard — aba Preview renderiza o custom element `aacp-checkout-agent` real em iframe sandbox, servido por `GET /widget/aacp.js` (API), com token de embed de preview tenant-scoped (origin + expiração, scopes read-only); reflete tema/agente/copy salvos sem afetar produção.
 - [x] UX de onboarding self-serve guiada — wizard retomável no dashboard consumindo `/onboarding` (auto-roteia ao logar quando incompleto; passos conta → checkout → embed → publicar).
 
 ### P3 — Growth e logística
