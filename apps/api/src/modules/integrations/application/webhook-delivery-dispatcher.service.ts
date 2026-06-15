@@ -1,7 +1,18 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+  Optional,
+} from "@nestjs/common";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../domain/ports/integrations.repository.port.js";
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
+import {
+  WEBHOOK_TARGET_POLICY,
+  type WebhookTargetPolicy,
+} from "../domain/ports/webhook-target-policy.port.js";
 
 const DEFAULT_DISPATCH_INTERVAL_MS = 10_000;
 const MAX_ATTEMPTS = 5;
@@ -13,7 +24,10 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
 
   constructor(
     @Inject(INTEGRATIONS_REPOSITORY) private readonly repo: IntegrationsRepository,
-    private readonly signatures: WebhookSignatureService
+    private readonly signatures: WebhookSignatureService,
+    @Optional()
+    @Inject(WEBHOOK_TARGET_POLICY)
+    private readonly targetPolicy?: WebhookTargetPolicy,
   ) {}
 
   onModuleInit(): void {
@@ -55,9 +69,25 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
     const body = JSON.stringify(delivery.envelope);
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const signature = this.signatures.sign({ secret: delivery.signingSecret, timestamp, body });
+    let endpointUrl = delivery.endpointUrl;
+    if (this.targetPolicy) {
+      try {
+        endpointUrl = await this.targetPolicy.assertAllowed(endpointUrl);
+      } catch {
+        await this.repo.updateWebhookDelivery({
+          ...delivery,
+          status: "failed",
+          attempts: delivery.attempts + 1,
+          error: "webhook_target_blocked",
+          nextAttemptAt: undefined,
+          updatedAt: new Date().toISOString(),
+        });
+        return;
+      }
+    }
 
     try {
-      const response = await fetch(delivery.endpointUrl, {
+      const response = await fetch(endpointUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

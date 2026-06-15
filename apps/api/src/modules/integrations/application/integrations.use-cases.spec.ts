@@ -8,6 +8,7 @@ import {
   CreateMerchantApiKeyUseCase,
   ListWebhookDeliveriesUseCase,
   ReplayWebhookDeliveryUseCase,
+  RotateWebhookSigningSecretUseCase,
   RotateMerchantApiKeyUseCase,
   TenantWebhookPublisher,
   UpdateTenantOrderTrackingUseCase,
@@ -18,6 +19,7 @@ import { ApiKeyAccessPolicy } from "../domain/api-key-access-policy.js";
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
 import { WebhookDeliveryDispatcher } from "./webhook-delivery-dispatcher.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
+import { DnsWebhookTargetPolicy } from "../infrastructure/dns-webhook-target-policy.js";
 
 test("CreateMerchantApiKeyUseCase returns the raw secret once and stores only hashed metadata", async () => {
   const repo = new InMemoryIntegrationsRepository();
@@ -181,6 +183,23 @@ test("ReplayWebhookDeliveryUseCase resets failed delivery for immediate retry", 
   assert.equal(stored?.deliveredAt, undefined);
 });
 
+test("RotateWebhookSigningSecretUseCase exposes the new secret once", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const endpoint = await new UpsertWebhookEndpointUseCase(repo).execute({
+    merchantId: "mrc_1",
+    url: "https://example.com/aacp/webhooks",
+    events: ["order.created"],
+  });
+
+  const rotated = await new RotateWebhookSigningSecretUseCase(repo).execute(
+    "mrc_1",
+    endpoint.id,
+  );
+
+  assert.match(rotated.signingSecret ?? "", /^whsec_/);
+  assert.notEqual(rotated.signingSecret, endpoint.signingSecret);
+});
+
 test("WebhookDeliveryDispatcher signs and marks successful deliveries", async () => {
   const repo = new InMemoryIntegrationsRepository();
   const signatures = new WebhookSignatureService();
@@ -255,6 +274,29 @@ test("WebhookDeliveryDispatcher schedules retry on HTTP failure and fails after 
   assert.equal(finalStored?.responseStatus, 503);
   assert.equal(finalStored?.error, "http_503");
   assert.equal(finalStored?.nextAttemptAt, undefined);
+});
+
+test("WebhookDeliveryDispatcher blocks private targets before fetch", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const delivery = await repo.saveWebhookDelivery(
+    webhookDeliveryFixture({
+      endpointUrl: "https://127.0.0.1/webhooks",
+    }),
+  );
+
+  await new WebhookDeliveryDispatcher(
+    repo,
+    new WebhookSignatureService(),
+    new DnsWebhookTargetPolicy(),
+  ).dispatchOnce();
+
+  const stored = await repo.getWebhookDelivery(
+    delivery.merchantId,
+    delivery.id,
+  );
+  assert.equal(stored?.status, "failed");
+  assert.equal(stored?.error, "webhook_target_blocked");
+  assert.equal(stored?.nextAttemptAt, undefined);
 });
 
 test("WebhookDeliveryDispatcher logs repository failures without crashing the API", async () => {

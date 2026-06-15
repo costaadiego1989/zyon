@@ -5,6 +5,7 @@ import { ListSupportTicketsUseCase } from "../../application/list-support-ticket
 import { SendSupportMessageUseCase } from "../../application/send-support-message.use-case.js";
 import { UpdateSupportSettingsUseCase } from "../../application/update-support-settings.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "../../application/update-support-ticket-status.use-case.js";
+import { CreateSupportTicketUseCase } from "../../application/create-support-ticket.use-case.js";
 import { InMemorySupportSettingsRepository } from "../../infrastructure/in-memory-support-settings.repository.js";
 import { InMemorySupportTicketRepository } from "../../infrastructure/in-memory-support-ticket.repository.js";
 import { SupportController } from "./support.controller.js";
@@ -24,7 +25,8 @@ test("SupportController opens handoff ticket and lets merchant update status", a
     new GetSupportSettingsUseCase(settings),
     new UpdateSupportSettingsUseCase(settings),
     new ListSupportTicketsUseCase(tickets),
-    new UpdateSupportTicketStatusUseCase(tickets)
+    new UpdateSupportTicketStatusUseCase(tickets),
+    new CreateSupportTicketUseCase(tickets),
   );
 
   const chat = await controller.chat({
@@ -33,19 +35,25 @@ test("SupportController opens handoff ticket and lets merchant update status", a
     message: "Meu pedido precisa de atendimento humano"
   });
   const request = {
-    user: {
+    tenantPrincipal: {
+      kind: "human" as const,
       userId: "usr_1",
-      merchantId: "mrc_1",
+      tenantId: "mrc_1",
       email: "ops@example.com",
       role: "owner" as const
     }
   };
   const listed = await controller.getTickets(request);
-  const updated = await controller.updateTicket(request, listed[0]!.id, { status: "resolved" });
+  const updated = await controller.updateTicket(request, listed.data[0]!.id, { status: "resolved" });
+  const created = await controller.createTicket_(request, {
+    message: "Contato iniciado pelo painel",
+  });
 
-  assert.equal(chat.handoff?.ticketId, listed[0]?.id);
-  assert.equal(listed.length, 1);
-  assert.equal(listed[0]?.sessionId, "chk_1");
+  assert.equal(chat.handoff?.ticketId, listed.data[0]?.id);
+  assert.equal(listed.data.length, 1);
+  assert.equal(listed.data[0]?.sessionId, "chk_1");
   assert.equal(updated.status, "resolved");
   assert.ok(updated.resolvedAt);
+  assert.equal(created.source, "dashboard");
+  assert.equal(created.merchantId, "mrc_1");
 });

@@ -39,6 +39,7 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get"], path: /^\/customers(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/payments(?:\/(?!connections(?:\/|$))[^/]+)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/audit-events$/, security: "tenant" },
+  { methods: ["get", "post", "put"], path: /^\/webhook-endpoints(?:\/.*)?$/, security: "tenant" },
   { methods: ["put"], path: /^\/integrations\/orders\/[^/]+\/tracking$/, security: "service" },
   { methods: ["get"], path: /^\/integrations\/tracking\/[^/]+$/, security: "service" },
   { methods: ["get", "post", "put", "delete"], path: /^\/integrations(?:\/.*)?$/, security: "session" },
@@ -46,8 +47,8 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get"], path: /^\/catalog(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/payments\/connections(?:\/.*)?$/, security: "human" },
   { methods: ["get", "post"], path: /^\/billing(?:\/.*)?$/, security: "human" },
-  { methods: ["get", "put"], path: /^\/support\/settings$/, security: "session" },
-  { methods: ["get", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "session" },
+  { methods: ["get", "put"], path: /^\/support\/settings$/, security: "tenant" },
+  { methods: ["get", "post", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "tenant" },
 ];
 
 const SCALAR_CSS = `
@@ -302,7 +303,10 @@ function withPublicHttpContract(
     },
   };
 
-  if (path.startsWith("/checkout-settings")) {
+  if (
+    path.startsWith("/checkout-settings") ||
+    path.startsWith("/webhook-endpoints")
+  ) {
     for (const response of Object.values(responses)) {
       if (!response || "$ref" in response) continue;
       response.headers = {
@@ -348,6 +352,9 @@ function requiresIdempotency(method: HttpMethod, path: string): boolean {
       path.startsWith("/payments/connections") ||
       path.startsWith("/billing") ||
       path.startsWith("/installations") ||
+      path.startsWith("/webhook-endpoints") ||
+      path === "/support/settings" ||
+      path.startsWith("/support/tickets") ||
       path === "/embed-sessions" ||
       path === "/checkout-settings" ||
       path === "/checkout-settings/reset")
@@ -358,7 +365,8 @@ function requiresIfMatch(method: HttpMethod, path: string): boolean {
   return (
     (method === "put" && path === "/checkout-settings") ||
     (method === "post" && path === "/checkout-settings/reset") ||
-    (method === "put" && /^\/installations\/[^/]+$/.test(path))
+    (method === "put" && /^\/installations\/[^/]+$/.test(path)) ||
+    (method === "put" && /^\/webhook-endpoints\/[^/]+$/.test(path))
   );
 }
 

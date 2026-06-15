@@ -7,6 +7,7 @@ import {
   SUPPORT_TICKET_REPOSITORY,
   type SupportTicketRepository
 } from "../domain/ports/support-ticket-repository.port.js";
+import { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -112,6 +113,7 @@ export class SendSupportMessageUseCase {
     @Inject(SUPPORT_TICKET_REPOSITORY)
     private readonly tickets: SupportTicketRepository,
     @Optional() private readonly http?: HttpClientService,
+    @Optional() private readonly webhooks?: TenantWebhookPublisher,
   ) {}
 
   async execute(
@@ -184,6 +186,21 @@ export class SendSupportMessageUseCase {
         source: "widget",
       }).snapshot(),
     );
+    if (this.webhooks) {
+      await this.webhooks.publish({
+        merchantId: ticket.merchantId,
+        eventType: "support.ticket.created",
+        occurredAt: ticket.createdAt,
+        data: {
+          ticket: {
+            id: ticket.id,
+            session_id: ticket.sessionId ?? null,
+            status: ticket.status,
+            source: ticket.source,
+          },
+        },
+      });
+    }
     return {
       reply: formatHandoffReply(ticket, contextReply),
       safe,

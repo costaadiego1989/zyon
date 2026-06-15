@@ -52,20 +52,36 @@ export interface MerchantApiKeyContext {
 }
 
 export type TenantWebhookEventType =
+  | "checkout.started"
+  | "checkout.abandoned"
+  | "order.created"
   | "order.approved"
+  | "order.cancelled"
+  | "payment.pending"
+  | "payment.approved"
   | "customer.upserted"
+  | "tracking.updated"
   | "order.tracking.updated"
   | "payment.failed"
+  | "payment.refunded"
   | "support.ticket.created"
-  | "checkout.abandoned";
+  | "commerce.connection.degraded";
 
 export const TENANT_WEBHOOK_EVENTS: TenantWebhookEventType[] = [
+  "checkout.started",
+  "checkout.abandoned",
+  "order.created",
   "order.approved",
-  "customer.upserted",
-  "order.tracking.updated",
+  "order.cancelled",
+  "payment.pending",
+  "payment.approved",
   "payment.failed",
+  "payment.refunded",
+  "customer.upserted",
+  "tracking.updated",
+  "order.tracking.updated",
   "support.ticket.created",
-  "checkout.abandoned"
+  "commerce.connection.degraded",
 ];
 
 export interface MerchantWebhookEndpoint {

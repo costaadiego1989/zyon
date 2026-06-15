@@ -1,6 +1,25 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from "@nestjs/common";
-import type { SupportSettingsPatch, SupportTicketStatusPatch } from "@aacp/shared-types";
-import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiTags,
+} from "@nestjs/swagger";
+import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
+import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
+import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
+import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
 import {
   SendSupportMessageUseCase,
   type SupportMessageInput,
@@ -9,7 +28,14 @@ import { GetSupportSettingsUseCase } from "../../application/get-support-setting
 import { ListSupportTicketsUseCase } from "../../application/list-support-tickets.use-case.js";
 import { UpdateSupportSettingsUseCase } from "../../application/update-support-settings.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "../../application/update-support-ticket-status.use-case.js";
+import { CreateSupportTicketUseCase } from "../../application/create-support-ticket.use-case.js";
+import {
+  CreateSupportTicketDto,
+  UpdateSupportSettingsDto,
+  UpdateSupportTicketDto,
+} from "./support.dto.js";
 
+@ApiTags("Support")
 @Controller("support")
 export class SupportController {
   constructor(
@@ -18,6 +44,7 @@ export class SupportController {
     private readonly updateSettings: UpdateSupportSettingsUseCase,
     private readonly listTickets: ListSupportTicketsUseCase,
     private readonly updateTicketStatus: UpdateSupportTicketStatusUseCase,
+    private readonly createTicket: CreateSupportTicketUseCase,
   ) {}
 
   @Post("chat")
@@ -34,38 +61,85 @@ export class SupportController {
     return { faqItems: settings.faqItems };
   }
 
-  @UseGuards(AuthGuard)
+  @ApiBearerAuth("service_api_key")
+  @ApiCookieAuth("console_session")
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ serviceScopes: ["support:read"] })
   @Get("settings")
   getSettings_(@Req() request: unknown) {
-    return this.getSettings.execute(currentUser(request as { user?: unknown }).merchantId);
+    return this.getSettings.execute(tenantId(request));
   }
 
-  @UseGuards(AuthGuard)
+  @ApiBearerAuth("service_api_key")
+  @ApiCookieAuth("console_session")
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Put("settings")
-  updateSettings_(@Req() request: unknown, @Body() body: SupportSettingsPatch) {
+  @Idempotent()
+  updateSettings_(
+    @Req() request: unknown,
+    @Body() body: UpdateSupportSettingsDto,
+  ) {
     return this.updateSettings.execute(
-      currentUser(request as { user?: unknown }).merchantId,
+      tenantId(request),
       body,
     );
   }
 
-  @UseGuards(AuthGuard)
+  @ApiBearerAuth("service_api_key")
+  @ApiCookieAuth("console_session")
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ serviceScopes: ["support:read"] })
   @Get("tickets")
-  getTickets(@Req() request: unknown, @Query("status") status?: string) {
-    return this.listTickets.execute(currentUser(request as { user?: unknown }).merchantId, status);
+  async getTickets(
+    @Req() request: unknown,
+    @Query("status") status?: string,
+  ) {
+    return {
+      data: await this.listTickets.execute(tenantId(request), status),
+      next_cursor: null,
+      has_more: false,
+    };
   }
 
-  @UseGuards(AuthGuard)
+  @ApiBearerAuth("service_api_key")
+  @ApiCookieAuth("console_session")
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ serviceScopes: ["support:write"] })
+  @Post("tickets")
+  @Idempotent()
+  createTicket_(
+    @Req() request: unknown,
+    @Body() body: CreateSupportTicketDto,
+  ) {
+    return this.createTicket.execute({
+      merchantId: tenantId(request),
+      sessionId: body.session_id,
+      message: body.message,
+    });
+  }
+
+  @ApiBearerAuth("service_api_key")
+  @ApiCookieAuth("console_session")
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Patch("tickets/:ticketId")
+  @Idempotent()
   updateTicket(
     @Req() request: unknown,
     @Param("ticketId") ticketId: string,
-    @Body() body: SupportTicketStatusPatch,
+    @Body() body: UpdateSupportTicketDto,
   ) {
     return this.updateTicketStatus.execute(
-      currentUser(request as { user?: unknown }).merchantId,
+      tenantId(request),
       ticketId,
       body.status,
     );
   }
+}
+
+function tenantId(request: unknown): string {
+  return currentTenantPrincipal(
+    request as Parameters<typeof currentTenantPrincipal>[0],
+  ).tenantId;
 }

@@ -43,6 +43,14 @@ describe("public OpenAPI document", () => {
         "/audit-events": {
           get: { operationId: "listAuditEvents", responses: {} },
         },
+        "/webhook-endpoints/{endpointId}": {
+          get: { operationId: "getWebhookEndpoint", responses: {} },
+          put: { operationId: "updateWebhookEndpoint", responses: {} },
+        },
+        "/support/tickets": {
+          get: { operationId: "listSupportTickets", responses: {} },
+          post: { operationId: "createSupportTicket", responses: {} },
+        },
         "/webhooks/stripe": {
           post: { operationId: "stripeCallback", responses: {} },
         },
@@ -64,6 +72,8 @@ describe("public OpenAPI document", () => {
       "/v1/customers",
       "/v1/payments",
       "/v1/audit-events",
+      "/v1/webhook-endpoints/{endpointId}",
+      "/v1/support/tickets",
     ]);
     assert.deepEqual(document.paths["/v1/auth/login"]?.post?.security, []);
     assert.deepEqual(
@@ -108,6 +118,18 @@ describe("public OpenAPI document", () => {
             "name" in parameter && parameter.name === "If-Match",
         ),
       true,
+    );
+    assert.equal(
+      document.paths["/v1/webhook-endpoints/{endpointId}"]?.put?.parameters
+        ?.some(
+          (parameter) =>
+            "name" in parameter && parameter.name === "If-Match",
+        ),
+      true,
+    );
+    assert.equal(
+      document.paths["/v1/support/tickets"]?.post?.security?.length,
+      3,
     );
   });
 });

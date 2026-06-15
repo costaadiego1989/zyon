@@ -98,6 +98,7 @@ import "./modules/embed/presentation/http/embed-payment-intents.e2e-spec.js";
 import "./modules/installations/application/installation.use-cases.spec.js";
 import "./modules/audit/application/audit.use-cases.spec.js";
 import "./modules/operations/application/operations-read.use-cases.spec.js";
+import "./modules/integrations/infrastructure/dns-webhook-target-policy.spec.js";
 import "./modules/buyer-purchase-history/domain/entities/buyer-purchase-history.entity.spec.js";
 import "./modules/buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.spec.js";
 import "./modules/buyer-purchase-history/application/buyer-purchase-history.use-cases.spec.js";

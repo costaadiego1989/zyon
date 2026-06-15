@@ -1,0 +1,66 @@
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+} from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from "class-validator";
+
+class SupportFaqItemDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  id!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(240)
+  question!: string;
+
+  @ApiProperty()
+  @IsString()
+  @MinLength(3)
+  @MaxLength(2000)
+  answer!: string;
+}
+
+export class UpdateSupportSettingsDto {
+  @ApiProperty({ type: [SupportFaqItemDto] })
+  @IsArray()
+  @ArrayMaxSize(50)
+  @ValidateNested({ each: true })
+  @Type(() => SupportFaqItemDto)
+  faqItems!: SupportFaqItemDto[];
+}
+
+export class CreateSupportTicketDto {
+  @ApiProperty()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(4000)
+  message!: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  session_id?: string;
+}
+
+export class UpdateSupportTicketDto {
+  @ApiProperty({
+    enum: ["open", "in_progress", "resolved", "closed"],
+  })
+  @IsIn(["open", "in_progress", "resolved", "closed"])
+  status!: "open" | "in_progress" | "resolved" | "closed";
+}

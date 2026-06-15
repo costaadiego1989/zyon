@@ -1,4 +1,11 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from "@nestjs/common";
 import { randomBytes, randomUUID } from "node:crypto";
 import {
   TENANT_API_SCOPES,
@@ -27,6 +34,10 @@ import {
   type TrackingEventRecord
 } from "../domain/integrations.types.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../domain/ports/integrations.repository.port.js";
+import {
+  WEBHOOK_TARGET_POLICY,
+  type WebhookTargetPolicy,
+} from "../domain/ports/webhook-target-policy.port.js";
 
 const ALLOWED_SHIPMENT_STATUSES: ShipmentStatus[] = [
   "pending",
@@ -168,7 +179,13 @@ export class RotateMerchantApiKeyUseCase {
 
 @Injectable()
 export class UpsertWebhookEndpointUseCase {
-  constructor(@Inject(INTEGRATIONS_REPOSITORY) private readonly repo: IntegrationsRepository) {}
+  constructor(
+    @Inject(INTEGRATIONS_REPOSITORY)
+    private readonly repo: IntegrationsRepository,
+    @Optional()
+    @Inject(WEBHOOK_TARGET_POLICY)
+    private readonly targetPolicy?: WebhookTargetPolicy,
+  ) {}
 
   async execute(input: {
     merchantId: string;
@@ -181,10 +198,13 @@ export class UpsertWebhookEndpointUseCase {
     const now = new Date().toISOString();
     const existing = input.endpointId ? await this.repo.getWebhookEndpoint(input.merchantId, input.endpointId) : undefined;
     if (input.endpointId && !existing) throw new NotFoundException("webhook_endpoint_not_found");
+    const endpointUrl = this.targetPolicy
+      ? await this.targetPolicy.assertAllowed(input.url)
+      : validateEndpointUrl(input.url);
     const endpoint: MerchantWebhookEndpoint = {
       id: existing?.id ?? `wh_${randomUUID()}`,
       merchantId: input.merchantId,
-      url: validateEndpointUrl(input.url),
+      url: endpointUrl,
       enabled: input.enabled ?? existing?.enabled ?? true,
       events: sanitizeWebhookEvents(input.events ?? existing?.events ?? ["order.approved", "customer.upserted", "order.tracking.updated"]),
       signingSecret: existing?.signingSecret ?? `whsec_${randomBytes(24).toString("base64url")}`,
@@ -193,6 +213,45 @@ export class UpsertWebhookEndpointUseCase {
       updatedAt: now
     };
     return toEndpointPublic(await this.repo.upsertWebhookEndpoint(endpoint), { includeSecret: !existing });
+  }
+}
+
+@Injectable()
+export class GetWebhookEndpointUseCase {
+  constructor(
+    @Inject(INTEGRATIONS_REPOSITORY)
+    private readonly repo: IntegrationsRepository,
+  ) {}
+
+  async execute(merchantId: string, endpointId: string) {
+    const endpoint = await this.repo.getWebhookEndpoint(
+      merchantId,
+      endpointId,
+    );
+    if (!endpoint) throw new NotFoundException("webhook_endpoint_not_found");
+    return toEndpointPublic(endpoint);
+  }
+}
+
+@Injectable()
+export class RotateWebhookSigningSecretUseCase {
+  constructor(
+    @Inject(INTEGRATIONS_REPOSITORY)
+    private readonly repo: IntegrationsRepository,
+  ) {}
+
+  async execute(merchantId: string, endpointId: string) {
+    const endpoint = await this.repo.getWebhookEndpoint(
+      merchantId,
+      endpointId,
+    );
+    if (!endpoint) throw new NotFoundException("webhook_endpoint_not_found");
+    const rotated = await this.repo.upsertWebhookEndpoint({
+      ...endpoint,
+      signingSecret: `whsec_${randomBytes(24).toString("base64url")}`,
+      updatedAt: new Date().toISOString(),
+    });
+    return toEndpointPublic(rotated, { includeSecret: true });
   }
 }
 
@@ -257,6 +316,23 @@ export class ListWebhookDeliveriesUseCase {
 
   async execute(merchantId: string, limit?: number): Promise<MerchantWebhookDeliveryPublic[]> {
     return (await this.repo.listWebhookDeliveries(merchantId, limit)).map(toDeliveryPublic);
+  }
+}
+
+@Injectable()
+export class GetWebhookDeliveryUseCase {
+  constructor(
+    @Inject(INTEGRATIONS_REPOSITORY)
+    private readonly repo: IntegrationsRepository,
+  ) {}
+
+  async execute(merchantId: string, deliveryId: string) {
+    const delivery = await this.repo.getWebhookDelivery(
+      merchantId,
+      deliveryId,
+    );
+    if (!delivery) throw new NotFoundException("webhook_delivery_not_found");
+    return toDeliveryPublic(delivery);
   }
 }
 

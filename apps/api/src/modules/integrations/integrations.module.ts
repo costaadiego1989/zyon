@@ -5,6 +5,8 @@ import { WebhookSignatureService } from "./domain/webhook-signature.service.js";
 import {
   CreateMerchantApiKeyUseCase,
   GetTrackingTimelineUseCase,
+  GetWebhookDeliveryUseCase,
+  GetWebhookEndpointUseCase,
   ListMerchantApiKeysUseCase,
   ListTenantShipmentsUseCase,
   ListWebhookDeliveriesUseCase,
@@ -12,6 +14,7 @@ import {
   ReplayWebhookDeliveryUseCase,
   RevokeMerchantApiKeyUseCase,
   RotateMerchantApiKeyUseCase,
+  RotateWebhookSigningSecretUseCase,
   TenantWebhookPublisher,
   TestWebhookEndpointUseCase,
   UpdateTenantOrderTrackingUseCase,
@@ -24,20 +27,34 @@ import { MerchantApiKeyGuard } from "./presentation/http/merchant-api-key.guard.
 import { ApiKeyScopeGuard } from "./presentation/http/api-key-scope.guard.js";
 import { TenantTrackingController } from "./presentation/http/tenant-tracking.controller.js";
 import { TenantAccessModule } from "./tenant-access.module.js";
+import { WebhookEndpointsController } from "./presentation/http/webhook-endpoints.controller.js";
+import { WEBHOOK_TARGET_POLICY } from "./domain/ports/webhook-target-policy.port.js";
+import { DnsWebhookTargetPolicy } from "./infrastructure/dns-webhook-target-policy.js";
 
 @Module({
   imports: [AuthModule, CheckoutModule, TenantAccessModule],
-  controllers: [IntegrationsController, TenantTrackingController],
+  controllers: [
+    IntegrationsController,
+    TenantTrackingController,
+    WebhookEndpointsController,
+  ],
   providers: [
     WebhookSignatureService,
+    {
+      provide: WEBHOOK_TARGET_POLICY,
+      useClass: DnsWebhookTargetPolicy,
+    },
     CreateMerchantApiKeyUseCase,
     ListMerchantApiKeysUseCase,
     RevokeMerchantApiKeyUseCase,
     RotateMerchantApiKeyUseCase,
     UpsertWebhookEndpointUseCase,
     ListWebhookEndpointsUseCase,
+    GetWebhookEndpointUseCase,
+    RotateWebhookSigningSecretUseCase,
     TenantWebhookPublisher,
     ListWebhookDeliveriesUseCase,
+    GetWebhookDeliveryUseCase,
     ReplayWebhookDeliveryUseCase,
     TestWebhookEndpointUseCase,
     UpdateTenantOrderTrackingUseCase,

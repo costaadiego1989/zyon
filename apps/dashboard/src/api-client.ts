@@ -151,6 +151,14 @@ export async function dashboardFetch(
     headers.set("Content-Type", "application/json");
     finalBody = JSON.stringify(jsonBody);
   }
+  const method = (rest.method ?? "GET").toUpperCase();
+  if (
+    ["POST", "PUT", "PATCH", "DELETE"].includes(method) &&
+    !path.includes("/auth/") &&
+    !headers.has("Idempotency-Key")
+  ) {
+    headers.set("Idempotency-Key", createIdempotencyKey());
+  }
 
   const doFetch = () =>
     fetchImpl(mergeUrl(apiBaseUrl, path), {
@@ -320,9 +328,12 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/support/settings", { method: "PUT", jsonBody: patch }, f);
     },
 
-    getSupportTickets(status?: SupportTicketStatus): Promise<SupportTicket[]> {
+    async getSupportTickets(status?: SupportTicketStatus): Promise<SupportTicket[]> {
       const query = status ? `?status=${encodeURIComponent(status)}` : "";
-      return dashboardJson(base, `/support/tickets${query}`, { method: "GET" }, f);
+      const response = await dashboardJson<
+        SupportTicket[] | { data: SupportTicket[] }
+      >(base, `/support/tickets${query}`, { method: "GET" }, f);
+      return Array.isArray(response) ? response : response.data;
     },
 
     patchSupportTicketStatus(
@@ -402,4 +413,12 @@ export function createDashboardApi(options: {
       );
     },
   };
+}
+
+function createIdempotencyKey(): string {
+  const random =
+    typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  return `dashboard_${random}`;
 }
