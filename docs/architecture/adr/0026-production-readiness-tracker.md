@@ -55,7 +55,7 @@ Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 | Fase | Escopo | Progresso | ADRs |
 |---|---|---|---|
 | **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
-| **P1** | Caminho transacional do piloto | `[########--]` 85% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
+| **P1** | Caminho transacional do piloto | `[#########-]` 95% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
 | **P2** | Identidade e operação do merchant | `[----------]` 0% | 0015, 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
 | **P4** | Expansão pós-piloto | `[----------]` 0% | 0021 |
@@ -91,7 +91,7 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | [0012](./0012-embed-security-hardening.md) | Embed | P1 | L3 | ✅ | `[##########]` 100% |
 | [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ✅ | `[##########]` 100% |
 | [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ✅ | `[##########]` 100% |
-| [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | 🟨 | `[########--]` 75% |
+| [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | ✅ | `[##########]` 100% |
 | [0015](./0015-auth-and-tenant-onboarding.md) | Auth + onboarding | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0016](./0016-merchant-config-surface-hardening.md) | Merchant/agent-rules/settings | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0017](./0017-integrations-api-keys-webhooks.md) | Integrations | P2 | L3 | ⬜ | `[----------]` 0% |
@@ -139,7 +139,7 @@ de cada bloco move o ADR para `✅`.
 - [x] Carrinho com mutação server-side (`PATCH /cart` + `POST /embed/cart`, preço autoritativo no servidor; widget sincroniza experiência da resposta; frete obsoleto limpo na mudança).
 - [x] `CardForm` substituído por tokenização provider-side (Stripe Elements, sem PAN/CVV ao backend); confirmação por webhook (não otimista).
 - [x] PIX com estado pendente/expiração/polling; confirmação não otimista (poll do status autoritativo).
-- [ ] Frete confirmado na API; confirmação usa `order_id`/recibo/status reais.
+- [x] Frete confirmado na API (seleção persistida na sessão via chat→`evaluate-shipping`; pagamento usa `session.shipping`); confirmação usa `order_id`/recibo/status reais do status autoritativo.
 
 ### P2 — Identidade e operação
 **0015 Auth + onboarding**
@@ -192,7 +192,7 @@ Gate  [#---------]  1/8   BLOQUEADO
 ```
 
 - [x] P0 concluído (ADR 0009).
-- [ ] Todo o caminho P1 em `L3` (0010, 0011, 0012, 0013, 0014, 0022).
+- [x] Todo o caminho P1 em `L3` (0010, 0011, 0012, 0013, 0014, 0022).
 - [ ] Nenhuma rota externa sem auth deliberada/documentada.
 - [ ] Nenhum estado crítico de compra só em memória.
 - [ ] Migration/restart/retry aprovados em banco real.
