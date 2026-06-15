@@ -21,7 +21,15 @@ function intent(overrides: Partial<PaymentIntentSnapshot> = {}): PaymentIntentEn
 
 test("GetPaymentIntentStatusUseCase returns persisted status for the owning tenant/session", async () => {
   const repo = new InMemoryPaymentRepository();
-  await repo.saveIntent({ intent: intent({ status: "approved", approvedAmountCents: 15000 }) });
+  await repo.saveIntent({
+    intent: intent({
+      status: "approved",
+      approvedAmountCents: 15000,
+      providerPaymentId: "pay_asaas_99",
+      commerceOrderId: "ord_777",
+      buyerFacing: { invoiceUrl: "https://pay.example/receipt/777" }
+    })
+  });
   const useCase = new GetPaymentIntentStatusUseCase(repo);
 
   const result = await useCase.execute({ merchant_id: "mrc_1", session_id: "sess_1", intent_id: "pay_int_1" });
@@ -31,6 +39,9 @@ test("GetPaymentIntentStatusUseCase returns persisted status for the owning tena
   assert.equal(result.amount_cents, 15000);
   assert.equal(result.currency, "BRL");
   assert.equal(result.method, "pix");
+  assert.equal(result.order_id, "ord_777");
+  assert.equal(result.provider_payment_id, "pay_asaas_99");
+  assert.equal(result.receipt_url, "https://pay.example/receipt/777");
 });
 
 test("GetPaymentIntentStatusUseCase hides intents from another merchant", async () => {

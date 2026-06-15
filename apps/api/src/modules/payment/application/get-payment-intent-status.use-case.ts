@@ -14,6 +14,9 @@ export type GetPaymentIntentStatusResponse = {
   approved_amount_cents?: number;
   currency: string;
   method: string;
+  order_id?: string;
+  provider_payment_id?: string;
+  receipt_url?: string;
 };
 
 /**
@@ -42,13 +45,18 @@ export class GetPaymentIntentStatusUseCase {
       throw new NotFoundException("payment_intent_not_found");
     }
 
+    // Order/receipt are real references the buyer can trust at confirmation:
+    // the linked commerce order (or provider charge) and the provider invoice URL.
     return {
       intent_id: intentId,
       status: snap.status,
       amount_cents: snap.amountCents,
       approved_amount_cents: snap.approvedAmountCents,
       currency: snap.currency,
-      method: snap.method
+      method: snap.method,
+      order_id: snap.commerceOrderId ?? snap.providerPaymentId,
+      provider_payment_id: snap.providerPaymentId,
+      receipt_url: snap.buyerFacing?.invoiceUrl
     };
   }
 }
