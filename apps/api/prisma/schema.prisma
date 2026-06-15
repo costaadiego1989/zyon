@@ -23,6 +23,8 @@ model Merchant {
   commercePendingOrders CommercePendingOrder[]
   commercePaidEvents  CommercePaidEvent[]
   httpIdempotencyRecords HttpIdempotencyRecord[]
+  paymentConnections MerchantPaymentConnection[]
+  billingSubscription MerchantBillingSubscription?
   onboardingState     MerchantOnboardingState?
 
   @@map("merchants")
@@ -56,6 +58,47 @@ model MerchantCommerceConnection {
 
   @@index([provider, status])
   @@map("merchant_commerce_connections")
+}
+
+model MerchantPaymentConnection {
+  merchantId         String   @map("merchant_id")
+  provider           String
+  environment        String
+  status             String   @default("pending")
+  externalAccountId  String?  @map("external_account_id")
+  secretCipher       String?  @map("secret_cipher")
+  walletId           String?  @map("wallet_id")
+  chargesEnabled     Boolean  @default(false) @map("charges_enabled")
+  payoutsEnabled     Boolean  @default(false) @map("payouts_enabled")
+  requirements       Json?
+  lastSyncedAt       DateTime? @map("last_synced_at")
+  lastErrorCode      String?  @map("last_error_code")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  merchant           Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, provider])
+  @@index([provider, status])
+  @@map("merchant_payment_connections")
+}
+
+model MerchantBillingSubscription {
+  merchantId             String   @id @map("merchant_id")
+  stripeCustomerId       String?  @unique @map("stripe_customer_id")
+  stripeSubscriptionId   String?  @unique @map("stripe_subscription_id")
+  stripePriceId          String?  @map("stripe_price_id")
+  status                 String   @default("trialing")
+  trialEndsAt            DateTime? @map("trial_ends_at")
+  currentPeriodEnd       DateTime? @map("current_period_end")
+  cancelAtPeriodEnd      Boolean  @default(false) @map("cancel_at_period_end")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  merchant               Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([status, trialEndsAt])
+  @@map("merchant_billing_subscriptions")
 }
 
 model CommercePendingOrder {
