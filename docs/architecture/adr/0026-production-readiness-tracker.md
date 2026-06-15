@@ -56,7 +56,7 @@ Gate piloto: BLOQUEADO (P1 aberto; P0 fechado)
 |---|---|---|---|
 | **P0** | Baseline + segurança financeira | `[##########]` 100% | 0009 |
 | **P1** | Caminho transacional do piloto | `[#########-]` 95% | 0010, 0011, 0012, 0013, 0014, 0022, 0024(parte) |
-| **P2** | Identidade e operação do merchant | `[----------]` 0% | 0015, 0016, 0017, 0018, 0019, 0023, 0024(parte) |
+| **P2** | Identidade e operação do merchant | `[#---------]` 12% | 0015(parte), 0016, 0017, 0018, 0019, 0023, 0024(parte) |
 | **P3** | Growth e logística | `[----------]` 0% | 0020 |
 | **P4** | Expansão pós-piloto | `[----------]` 0% | 0021 |
 | **Transversal** | Packages/engines/SDK | `[----------]` 0% | 0025 |
@@ -92,13 +92,13 @@ Legenda: `⬜` não iniciado · `🟨` em progresso · `✅` concluído.
 | [0013](./0013-commerce-shopify-sync-hardening.md) | Commerce | P1 | L3 | ✅ | `[##########]` 100% |
 | [0014](./0014-shipping-engine-hardening.md) | Shipping | P1 | L3 | ✅ | `[##########]` 100% |
 | [0022](./0022-widget-transactional-path.md) | Widget transacional | P1 | L3 | ✅ | `[##########]` 100% |
-| [0015](./0015-auth-and-tenant-onboarding.md) | Auth + onboarding | P2 | L3 | ⬜ | `[----------]` 0% |
+| [0015](./0015-auth-and-tenant-onboarding.md) | Auth + onboarding | P2 | L3 | 🟡 | `[#####-----]` 50% |
 | [0016](./0016-merchant-config-surface-hardening.md) | Merchant/agent-rules/settings | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0017](./0017-integrations-api-keys-webhooks.md) | Integrations | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0018](./0018-buyer-identity-and-history.md) | Buyer-account/history | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0019](./0019-negotiation-and-support.md) | Negotiation/support | P2 | L3 | ⬜ | `[----------]` 0% |
 | [0023](./0023-widget-shell-identity-experience.md) | Widget shell/identidade | P2 | L3 | ⬜ | `[----------]` 0% |
-| [0024](./0024-dashboard-config-preview-onboarding.md) | Dashboard config/preview/onboarding | P1–P2 | L3 | ⬜ | `[----------]` 0% |
+| [0024](./0024-dashboard-config-preview-onboarding.md) | Dashboard config/preview/onboarding | P1–P2 | L3 | 🟡 | `[###-------]` 33% |
 | [0020](./0020-growth-cross-sell-coupons-fulfillment.md) | Cross-sell/coupons/fulfillment | P3 | L3 | ⬜ | `[----------]` 0% |
 | [0021](./0021-post-pilot-self-checkout-scraping.md) | Self-checkout/scraping | P4 | L2→L3 | ⬜ | `[----------]` 0% |
 | [0025](./0025-packages-engines-sdk-hardening.md) | Packages/engines/SDK | transversal | L3 | ⬜ | `[----------]` 0% |
@@ -144,7 +144,7 @@ de cada bloco move o ADR para `✅`.
 ### P2 — Identidade e operação
 **0015 Auth + onboarding**
 - [ ] Secret default fora de dev removido; refresh rotativo/revogável; rate limit.
-- [ ] Fluxo de onboarding self-serve (merchant → checkout → embed → publicar).
+- [x] Fluxo de onboarding self-serve (merchant → checkout → embed → publicar) — orquestração de backend retomável e idempotente (estado Prisma `merchant_onboarding_states`, eventos `merchant.onboarding.step.completed`/`.completed` via outbox).
 
 **0016 Merchant/agent-rules/checkout-settings**
 - [ ] Fonte única de config; rotas paralelas abertas eliminadas; auditoria + authz por papel.
@@ -167,7 +167,7 @@ de cada bloco move o ADR para `✅`.
 **0024 Dashboard (config/preview/onboarding)**
 - [ ] Painel de configuração do checkout coeso (P1–P2).
 - [ ] **Live preview do checkout real** no dashboard.
-- [ ] UX de onboarding self-serve guiada.
+- [x] UX de onboarding self-serve guiada — wizard retomável no dashboard consumindo `/onboarding` (auto-roteia ao logar quando incompleto; passos conta → checkout → embed → publicar).
 
 ### P3 — Growth e logística
 **0020 Cross-sell + coupons + fulfillment**
