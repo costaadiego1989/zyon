@@ -17,7 +17,8 @@ import type {
   ApplyOfferResponse,
   ChatMessageRequest,
   StartCheckoutRequest,
-  TrackEventRequest
+  TrackEventRequest,
+  UpdateCartRequest
 } from "@aacp/shared-types";
 import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply-offer.use-case.js";
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
@@ -27,6 +28,7 @@ import { CreatePaymentIntentUseCase } from "../../../payment/application/create-
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
+import { UpdateCartUseCase } from "../../../checkout/application/use-cases/update-cart.use-case.js";
 import {
   CHECKOUT_REPOSITORY,
   type CheckoutRepository
@@ -65,7 +67,8 @@ export class EmbedCheckoutController {
     private readonly createPaymentIntent: CreatePaymentIntentUseCase,
     private readonly confirmCryptoPayment: ConfirmCryptoPaymentUseCase,
     private readonly confirmStripePayment: ConfirmStripePaymentUseCase,
-    private readonly getPaymentIntentStatus: GetPaymentIntentStatusUseCase
+    private readonly getPaymentIntentStatus: GetPaymentIntentStatusUseCase,
+    private readonly updateCart: UpdateCartUseCase
   ) {}
 
   @Post("start")
@@ -122,6 +125,21 @@ export class EmbedCheckoutController {
     const { merchant_id: _m, ...rest } = body;
     return this.applyOfferUseCase.execute({
       ...(rest as Omit<ApplyOfferRequest, "merchant_id">),
+      merchant_id: embed.merchantId
+    });
+  }
+
+  @Post("cart")
+  @RequireEmbedScope("checkout:track")
+  async cart(@Req() request: EmbedHttpRequest, @Body() body: UpdateCartRequest) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") {
+      throw new BadRequestException("session_id_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    const { merchant_id: _m, ...rest } = body;
+    return this.updateCart.execute({
+      ...(rest as Omit<UpdateCartRequest, "merchant_id">),
       merchant_id: embed.merchantId
     });
   }

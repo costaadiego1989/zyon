@@ -147,6 +147,52 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   assert.ok(checkout.getCompletedOrder(merchantId, sessionId, intentSnap.providerPaymentId!));
 });
 
+test("checkout payment: webhook PAYMENT_RECEIVED duplicado completa pedido uma única vez (idempotente)", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  const payments = new InMemoryPaymentRepository();
+  const merchantId = `m_dup_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+  const sessionId = `chk_dup_${crypto.randomUUID().slice(0, 12)}`;
+
+  await new StartCheckoutUseCase(checkout, checkout, checkout).execute({
+    merchant_id: merchantId,
+    session_id: sessionId,
+    cart: {
+      currency: "BRL",
+      total: 300,
+      items: [{ sku: "sku1", name: "Item", price: 300, quantity: 1 }]
+    },
+    customer: { email: "buyer@test.com", phone: "11999998888", asaasCustomerId: "cus_dup_fixture" },
+    shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
+  });
+
+  const intentSnap = await new CreatePaymentIntentUseCase(checkout, checkout, payments, new FakePaymentProvider()).execute({
+    merchant_id: merchantId,
+    session_id: sessionId,
+    idempotency_key: `idem_dup_${crypto.randomUUID()}`
+  });
+
+  const providerPaymentId = intentSnap.providerPaymentId!;
+  const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
+  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+
+  const payload = {
+    event: "PAYMENT_RECEIVED" as const,
+    payment: { id: providerPaymentId, value: 300, externalReference: intentSnap.id }
+  };
+
+  const first = await webhook.execute(undefined, { id: `evt_dup_1_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`, ...payload });
+  const second = await webhook.execute(undefined, { id: `evt_dup_2_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`, ...payload });
+
+  assert.equal(first.outcome, "processed");
+  assert.equal(second.outcome, "processed");
+  assert.equal(second.outcome === "processed" ? second.effect : "", "already_approved");
+
+  // Single completed order, single order.completed event despite duplicate delivery.
+  assert.ok(checkout.getCompletedOrder(merchantId, sessionId, providerPaymentId));
+  const completedEvents = checkout.listOutbox(merchantId).filter((event) => event.event_type === "order.completed");
+  assert.equal(completedEvents.length, 1, "order.completed emitted exactly once");
+});
+
 test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação", async () => {
   const checkout = new InMemoryCheckoutRepository();
   const payments = new InMemoryPaymentRepository();

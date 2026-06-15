@@ -22,6 +22,7 @@ import { SendChatMessageUseCase } from "./application/use-cases/send-chat-messag
 import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
+import { UpdateCartUseCase } from "./application/use-cases/update-cart.use-case.js";
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
@@ -78,6 +79,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     ApplyOfferUseCase,
     CompleteOrderUseCase,
     UpdateOrderTrackingUseCase,
+    UpdateCartUseCase,
     GetDashboardOverviewUseCase,
     GetMerchantRulesUseCase,
     UpdateMerchantRulesUseCase,
@@ -111,6 +113,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     DASHBOARD_READ_MODEL,
     CompleteOrderUseCase,
     UpdateOrderTrackingUseCase,
+    UpdateCartUseCase,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     SendChatMessageUseCase,

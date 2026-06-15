@@ -33,7 +33,7 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
   const helper = new EmbedCheckoutGuardHelper(repo);
   const createIntent = new CreatePaymentIntentUseCase(repo, repo, payments, provider);
 
-  const c = new EmbedCheckoutController(start, track, {} as never, helper, {} as never, createIntent, {} as never, {} as never, {} as never);
+  const c = new EmbedCheckoutController(start, track, {} as never, helper, {} as never, createIntent, {} as never, {} as never, {} as never, {} as never);
 
   const started = await c.start({ embedClaims }, {
     merchant_id: "evil_body_merchant",
