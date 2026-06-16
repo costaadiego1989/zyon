@@ -1,42 +1,30 @@
 import { X } from "lucide-react";
-import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { brandInitials, CART_JOURNEY, resolveCartJourneyIndex } from "../../hooks/checkout-presentation.js";
+import type { CartHeaderModel } from "../../presentation/models/cart-panel.model.js";
 
-export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
-  const experience = vm.activeExperience;
-  const orderRef = vm.session?.session_id?.slice(-6).toUpperCase() ?? "3EE8A6";
-  const itemCount = vm.visibleItems.reduce((sum, item) => sum + item.quantity, 0);
-  const journeyIndex = resolveCartJourneyIndex(vm.checkoutStage, itemCount);
-  const journeyStep = CART_JOURNEY[journeyIndex] ?? CART_JOURNEY[0];
-  const merchantInitials = brandInitials(experience.brand.name);
-  const isDev = Boolean((import.meta as ImportMeta & { env?: { DEV?: boolean } }).env?.DEV);
-
+export function CartHeader({ model }: { model: CartHeaderModel }) {
   return (
     <header className="aacp-cart-header">
       <div className="aacp-cart-header-bar">
         <div className="aacp-cart-brand aacp-cart-brand-lockup">
           <div className="aacp-cart-brand-mark" aria-hidden>
-            {vm.theme.logoUrl ? (
-              <img src={vm.theme.logoUrl} alt="" className="aacp-cart-logo aacp-cart-brand-img" />
+            {model.logoUrl ? (
+              <img src={model.logoUrl} alt="" className="aacp-cart-logo aacp-cart-brand-img" />
             ) : (
-              merchantInitials
+              model.merchantInitials
             )}
           </div>
           <div className="aacp-cart-brand-copy">
-            <strong className="aacp-cart-store">{experience.brand.name}</strong>
-            <span className="aacp-cart-order-badge">Sessão {orderRef}</span>
+            <strong className="aacp-cart-store">{model.merchantName}</strong>
+            <span className="aacp-cart-order-badge">Sessão {model.orderRef}</span>
           </div>
         </div>
 
         <div className="aacp-cart-header-actions">
-          {isDev ? (
+          {model.showDevReset ? (
             <button
               type="button"
               className="aacp-debug-reset"
-              onClick={() => {
-                window.localStorage.removeItem("aacp_session_id");
-                window.location.reload();
-              }}
+              onClick={model.onDevReset}
               title="Resetar sessão (dev)"
               aria-label="Resetar sessão de desenvolvimento"
             >
@@ -45,7 +33,7 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
           ) : null}
           <button
             className="aacp-cart-close lg:hidden"
-            onClick={() => vm.setCartOpen(false)}
+            onClick={model.onClose}
             aria-label="Fechar"
             type="button"
           >
@@ -56,8 +44,8 @@ export function CartHeader({ vm }: { vm: CheckoutAgentViewModel }) {
 
       <div className="aacp-cart-header-status">
         <span className="aacp-cart-title aacp-cart-status-kicker">Em andamento</span>
-        <span className="aacp-cart-status-label">{journeyStep.label}</span>
-        <span className="aacp-cart-status-hint">{journeyStep.hint}</span>
+        <span className="aacp-cart-status-label">{model.journeyLabel}</span>
+        <span className="aacp-cart-status-hint">{model.journeyHint}</span>
       </div>
     </header>
   );

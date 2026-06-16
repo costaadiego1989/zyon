@@ -16,17 +16,14 @@ import {
   agentTypingLine,
   bubbleKey,
   cn,
-  formatCurrency,
   stripAgentMessagePrefix,
 } from "../../hooks/checkout-presentation.js";
 import {
   selectCheckoutPanels,
-  selectCouponBoxModel,
-  selectNetworkErrorModel,
-  selectOfferBannerModel,
-  selectPendingOfferBannerModel,
 } from "../../presentation/selectors/checkout-panels.selector.js";
 import { selectComposerModel } from "../../presentation/selectors/composer.selector.js";
+import { selectOrderConfirmationModel } from "../../presentation/selectors/order-confirmation.selector.js";
+import type { OrderConfirmationModel } from "../../presentation/models/order-confirmation.model.js";
 import {
   CouponBoxView,
   NetworkErrorView,
@@ -159,24 +156,13 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       ) : null}
 
       {vm.checkoutStage === "completed" ? (
-        <OrderConfirmation vm={vm} />
+        <OrderConfirmationView model={selectOrderConfirmationModel(vm)} />
       ) : null}
     </div>
   );
 }
 
-function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
-  const sessionRef = vm.session?.session_id?.slice(-6)?.toUpperCase() ?? "------";
-  const summaryItems = vm.completedOrderSnapshot?.items ?? vm.visibleItems;
-  const summaryTotals = vm.completedOrderSnapshot?.totals ?? vm.visibleTotals;
-  const fallbackReturnUrl = typeof window !== "undefined" ? window.location.origin : undefined;
-  const redirectUrl =
-    vm.config.successRedirectUrl ||
-    vm.config.storeUrl ||
-    vm.config.emptyCartRedirectUrl ||
-    fallbackReturnUrl;
-  const redirectLabel = vm.config.successRedirectLabel || "Voltar para a loja";
-
+export function OrderConfirmationView({ model }: { model: OrderConfirmationModel }) {
   return (
     <section className="aacp-order-confirmation" aria-labelledby="aacp-order-confirmation-title">
       <div className="aacp-order-confirmation-head">
@@ -187,49 +173,42 @@ function OrderConfirmation({ vm }: { vm: CheckoutAgentViewModel }) {
           <span className="aacp-order-confirmation-kicker">Pagamento aprovado</span>
           <h3 id="aacp-order-confirmation-title">Pedido confirmado</h3>
           <p>Enviaremos as atualizações de entrega e rastreio para sua conta.</p>
-          <span className="aacp-order-confirmation-reference">Referência da sessão {sessionRef}</span>
+          <span className="aacp-order-confirmation-reference">Referência da sessão {model.sessionRef}</span>
         </div>
       </div>
 
       <div className="aacp-order-confirmation-summary">
         <h4>Resumo do pedido</h4>
         <div className="aacp-order-confirmation-lines">
-          {summaryItems.map((item) => (
-            <div key={item.sku}>
-              <span>{item.quantity}x {item.name}</span>
-              <strong>{formatCurrency(item.line_total, summaryTotals.currency)}</strong>
+          {model.lines.map((line) => (
+            <div
+              key={line.key}
+              className={
+                line.variant === "discount"
+                  ? "is-discount"
+                  : line.variant === "total"
+                    ? "aacp-order-confirmation-total"
+                    : undefined
+              }
+            >
+              <span>{line.label}</span>
+              <strong>{line.amountLabel}</strong>
             </div>
           ))}
-          {summaryTotals.shipping > 0 && (
-            <div>
-              <span>Frete</span>
-              <strong>{formatCurrency(summaryTotals.shipping, summaryTotals.currency)}</strong>
-            </div>
-          )}
-          {summaryTotals.discount > 0 && (
-            <div className="is-discount">
-              <span>Desconto</span>
-              <strong>-{formatCurrency(summaryTotals.discount, summaryTotals.currency)}</strong>
-            </div>
-          )}
-          <div className="aacp-order-confirmation-total">
-            <span>Total</span>
-            <strong>{formatCurrency(summaryTotals.total, summaryTotals.currency)}</strong>
-          </div>
         </div>
       </div>
 
-      {redirectUrl && (
+      {model.redirectUrl ? (
         <a
-          href={redirectUrl}
+          href={model.redirectUrl}
           target="_top"
           className="aacp-cta aacp-order-confirmation-action"
           data-testid="return-to-store"
         >
-          {redirectLabel}
+          {model.redirectLabel}
           <ExternalLink size={14} />
         </a>
-      )}
+      ) : null}
     </section>
   );
 }
@@ -360,28 +339,4 @@ function PixCopyButton({ pixCode }: { pixCode: string }) {
       {copied ? "Copiado!" : "Copiar código PIX"}
     </button>
   );
-}
-
-export function NetworkError({ vm }: { vm: CheckoutAgentViewModel }) {
-  const model = selectNetworkErrorModel(vm);
-  if (!model) return null;
-  return <NetworkErrorView model={model} />;
-}
-
-export function CouponBox({ vm }: { vm: CheckoutAgentViewModel }) {
-  const model = selectCouponBoxModel(vm);
-  if (!model) return null;
-  return <CouponBoxView model={model} />;
-}
-
-export function OfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
-  const model = selectOfferBannerModel(vm);
-  if (!model) return null;
-  return <OfferBannerView model={model} />;
-}
-
-export function PendingOfferBanner({ vm }: { vm: CheckoutAgentViewModel }) {
-  const model = selectPendingOfferBannerModel(vm);
-  if (!model) return null;
-  return <PendingOfferBannerView model={model} />;
 }

@@ -4,6 +4,8 @@ import type { SupportFaqItem } from "@aacp/shared-types";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { useSupportChat } from "../../hooks/use-support-chat.js";
 import { useSupportFaq } from "../../hooks/use-support-faq.js";
+import { selectSupportPanelModel } from "../../presentation/selectors/support-panel.selector.js";
+import type { SupportPanelModel } from "../../presentation/models/support-panel.model.js";
 
 const DEFAULT_SUGGESTIONS = [
   { icon: <Truck size={14} />, label: "Qual o prazo de entrega?" },
@@ -14,6 +16,11 @@ const DEFAULT_SUGGESTIONS = [
 ];
 
 export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
+  const model = selectSupportPanelModel(vm);
+  return <SupportPanelView model={model} />;
+}
+
+function SupportPanelView({ model }: { model: SupportPanelModel }) {
   const [input, setInput] = useState("");
   const [inputReady, setInputReady] = useState(true);
   const [selectedFaq, setSelectedFaq] = useState<SupportFaqItem | null>(null);
@@ -21,12 +28,12 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const chat = useSupportChat({
-    apiBaseUrl: vm.apiOrigin,
-    merchantId: vm.config.merchantId,
-    sessionId: vm.session?.session_id,
+    apiBaseUrl: model.apiOrigin,
+    merchantId: model.merchantId,
+    sessionId: model.sessionId,
   });
 
-  const faq = useSupportFaq(vm.apiOrigin, vm.config.merchantId, vm.supportOpen);
+  const faq = useSupportFaq(model.apiOrigin, model.merchantId, model.open);
 
   useEffect(() => {
     if (threadRef.current) {
@@ -47,12 +54,12 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   }, [chat.loading]);
 
   useEffect(() => {
-    if (!vm.supportOpen) {
+    if (!model.open) {
       setInput("");
       setSelectedFaq(null);
       chat.reset();
     }
-  }, [vm.supportOpen]);
+  }, [model.open]);
 
   const handleSend = (text: string) => {
     if (!text.trim() || chat.loading) return;
@@ -76,7 +83,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
     }
   };
 
-  const brandName = vm.activeExperience?.brand?.name || "a loja";
+  const brandName = model.brandName;
   const hasMessages = chat.messages.length > 0;
   const hasMerchantFaq = faq.items.length > 0;
 
@@ -91,14 +98,14 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
     <>
       <div
-        className={vm.supportOpen ? "aacp-support-backdrop open" : "aacp-support-backdrop"}
-        onClick={() => vm.setSupportOpen(false)}
+        className={model.open ? "aacp-support-backdrop open" : "aacp-support-backdrop"}
+        onClick={model.onClose}
       />
       <aside
         id="aacp-support-panel"
-        className={`aacp-ai-panel ${vm.supportOpen ? "open" : ""}`}
+        className={`aacp-ai-panel ${model.open ? "open" : ""}`}
         aria-label="Central de ajuda"
-        aria-hidden={!vm.supportOpen}
+        aria-hidden={!model.open}
       >
         {/* Header */}
         <div className="aacp-ai-head">
@@ -125,7 +132,7 @@ export function SupportPanel({ vm }: { vm: CheckoutAgentViewModel }) {
           </div>
           <button
             className="aacp-ai-close"
-            onClick={() => vm.setSupportOpen(false)}
+            onClick={model.onClose}
             aria-label="Fechar suporte"
           >
             <X size={18} />

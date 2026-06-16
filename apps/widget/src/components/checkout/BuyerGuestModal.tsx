@@ -1,20 +1,18 @@
 import { LogIn, User, X } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
+import { selectBuyerGuestModalModel } from "../../presentation/selectors/buyer-guest-modal.selector.js";
+import type { BuyerGuestModalModel } from "../../presentation/models/buyer-guest-modal.model.js";
 
 export function BuyerGuestModal({ vm }: { vm: CheckoutAgentViewModel }) {
-  if (!vm.buyerGuestModalOpen) return null;
+  const model = selectBuyerGuestModalModel(vm);
+  if (!model.open) return null;
+  return <BuyerGuestModalView model={model} />;
+}
 
-  const firstName = vm.activeExperience?.customer?.fullName?.split(" ")[0];
-  const checkoutEmail = vm.activeExperience?.customer?.email;
-  const emailConfirmed = vm.activeExperience?.customer?.email_verified === true;
-
+export function BuyerGuestModalView({ model }: { model: BuyerGuestModalModel }) {
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center p-4 sm:p-6" role="presentation">
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-md"
-        onClick={() => vm.setBuyerGuestModalOpen(false)}
-        aria-hidden
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={model.onClose} aria-hidden />
       <section
         className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-2xl"
         role="dialog"
@@ -33,7 +31,7 @@ export function BuyerGuestModal({ vm }: { vm: CheckoutAgentViewModel }) {
           <button
             type="button"
             className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface-2)] transition-colors hover:bg-[var(--aacp-surface-3)]"
-            onClick={() => vm.setBuyerGuestModalOpen(false)}
+            onClick={model.onClose}
             aria-label="Fechar"
           >
             <X size={20} />
@@ -46,14 +44,14 @@ export function BuyerGuestModal({ vm }: { vm: CheckoutAgentViewModel }) {
           </div>
           <h3 className="mb-2 text-base font-bold">Entre para acessar sua conta</h3>
           <p className="mb-3 max-w-xs text-sm leading-relaxed text-[var(--aacp-muted)]">
-            {firstName
-              ? `${firstName}, faça login para ver pedidos anteriores e gerenciar seu perfil.`
+            {model.firstName
+              ? `${model.firstName}, faça login para ver pedidos anteriores e gerenciar seu perfil.`
               : "Faça login para ver pedidos anteriores e gerenciar seu perfil."}
           </p>
-          {emailConfirmed && checkoutEmail ? (
+          {model.emailConfirmed && model.checkoutEmail ? (
             <p className="mb-6 max-w-xs text-xs leading-relaxed text-[var(--aacp-muted)]">
-              Seu e-mail <strong className="text-[var(--aacp-fg)]">{checkoutEmail}</strong> foi confirmado neste
-              pedido, mas ainda não há sessão ativa.
+              Seu e-mail <strong className="text-[var(--aacp-fg)]">{model.checkoutEmail}</strong> foi
+              confirmado neste pedido, mas ainda não há sessão ativa.
             </p>
           ) : (
             <div className="mb-6" />
@@ -61,10 +59,7 @@ export function BuyerGuestModal({ vm }: { vm: CheckoutAgentViewModel }) {
           <button
             type="button"
             className="aacp-cta inline-flex items-center gap-2 px-5 py-2.5 text-sm"
-            onClick={() => {
-              vm.setBuyerGuestModalOpen(false);
-              vm.auth.openLogin();
-            }}
+            onClick={model.onLogin}
           >
             <LogIn size={16} />
             Entrar

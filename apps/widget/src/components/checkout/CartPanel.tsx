@@ -1,43 +1,44 @@
 import { Minus, Package, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
-import { cn, formatCurrency } from "../../hooks/checkout-presentation.js";
+import { cn } from "../../hooks/checkout-presentation.js";
+import { selectCartPanelModel } from "../../presentation/selectors/cart-panel.selector.js";
+import type { CartPanelModel } from "../../presentation/models/cart-panel.model.js";
 import { CartHeader } from "./CartHeader.js";
 
 export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
-  const itemCount = vm.visibleItems.reduce((sum, item) => sum + item.quantity, 0);
+  const model = selectCartPanelModel(vm);
+  return <CartPanelView model={model} />;
+}
 
+export function CartPanelView({ model }: { model: CartPanelModel }) {
   return (
     <aside
       id="aacp-cart-panel"
-      className={cn("aacp-cart", vm.cartOpen ? "open" : "")}
+      className={cn("aacp-cart", model.open ? "open" : "")}
       aria-label="Resumo do pedido"
     >
-      <CartHeader vm={vm} />
+      <CartHeader model={model.header} />
 
       <section className="aacp-cart-items-block">
         <header className="aacp-cart-items-head">
           <h3 className="aacp-cart-items-title">Seu pedido</h3>
           <span className="aacp-cart-items-count">
-            {itemCount} {itemCount === 1 ? "item" : "itens"}
+            {model.itemCount} {model.itemCount === 1 ? "item" : "itens"}
           </span>
         </header>
 
         <div className="aacp-items">
-          {vm.visibleItems.length > 0 ? (
-            vm.visibleItems.map((item) => (
+          {model.items.length > 0 ? (
+            model.items.map((item) => (
               <article key={item.sku} className="aacp-item aacp-cart-item">
                 <div className="aacp-item-thumb">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt="" />
-                  ) : (
-                    <Package size={22} />
-                  )}
+                  {item.imageUrl ? <img src={item.imageUrl} alt="" /> : <Package size={22} />}
                 </div>
 
                 <div className="aacp-item-body">
                   <div className="aacp-item-top">
                     <h4 className="aacp-item-name">{item.name}</h4>
-                    <div className="aacp-item-price">{formatCurrency(item.line_total, vm.visibleTotals.currency)}</div>
+                    <div className="aacp-item-price">{item.lineTotalLabel}</div>
                   </div>
 
                   {item.description ? <p className="aacp-item-desc">{item.description}</p> : null}
@@ -48,9 +49,9 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                       <button
                         type="button"
                         className="aacp-qty-btn"
-                        onClick={() => vm.decrementItem(item.sku)}
+                        onClick={item.onDecrement}
                         aria-label={`Diminuir quantidade de ${item.name}`}
-                        disabled={vm.busy}
+                        disabled={model.busy}
                       >
                         <Minus size={14} />
                       </button>
@@ -58,9 +59,9 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                       <button
                         type="button"
                         className="aacp-qty-btn"
-                        onClick={() => vm.incrementItem(item.sku)}
+                        onClick={item.onIncrement}
                         aria-label={`Aumentar quantidade de ${item.name}`}
-                        disabled={vm.busy}
+                        disabled={model.busy}
                       >
                         <Plus size={14} />
                       </button>
@@ -69,8 +70,8 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
                     <button
                       type="button"
                       className="aacp-item-remove"
-                      onClick={() => vm.handleRemoveCartItem(item.sku)}
-                      disabled={vm.busy}
+                      onClick={item.onRemove}
+                      disabled={model.busy}
                       aria-label={`Remover ${item.name}`}
                     >
                       <Trash2 size={12} />
@@ -89,10 +90,10 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
               <p className="aacp-cart-empty-copy">
                 No chat, diga o que você procura. Eu busco na loja parceira e adiciono aqui para você.
               </p>
-              {vm.config.emptyCartRedirectUrl ? (
+              {model.emptyCartRedirectUrl ? (
                 <a
                   id="aacp-empty-cart-redirect-btn"
-                  href={vm.config.emptyCartRedirectUrl}
+                  href={model.emptyCartRedirectUrl}
                   className="aacp-cart-empty-link"
                 >
                   Voltar para a loja
@@ -103,37 +104,28 @@ export function CartPanel({ vm }: { vm: CheckoutAgentViewModel }) {
         </div>
       </section>
 
-      {vm.visibleItems.length > 0 ? (
+      {model.items.length > 0 ? (
         <footer className="aacp-ledger-footer">
           <dl className="aacp-totals">
             <dt>Subtotal</dt>
-            <dd>{formatCurrency(vm.visibleTotals.subtotal, vm.visibleTotals.currency)}</dd>
+            <dd>{model.totals.subtotalLabel}</dd>
             <dt>Frete</dt>
-            <dd className="aacp-shipping-total">
-              {vm.selectedShippingMethod || vm.activeExperience.shipping
-                ? formatCurrency(vm.visibleTotals.shipping, vm.visibleTotals.currency)
-                : "A calcular"}
-            </dd>
-            {vm.visibleTotals.discount > 0 && (
+            <dd className="aacp-shipping-total">{model.totals.shippingLabel}</dd>
+            {model.totals.discountLabel ? (
               <>
                 <dt className="aacp-totals-discount">Desconto</dt>
-                <dd className="aacp-totals-discount">-{formatCurrency(vm.visibleTotals.discount, vm.visibleTotals.currency)}</dd>
+                <dd className="aacp-totals-discount">-{model.totals.discountLabel}</dd>
               </>
-            )}
-            {vm.checkoutStage === "payment" && (vm.visibleTotals.service_fee ?? 0) > 0 && (
+            ) : null}
+            {model.totals.serviceFeeLabel ? (
               <>
                 <dt>Taxa de serviço</dt>
-                <dd>{formatCurrency(vm.visibleTotals.service_fee ?? 0, vm.visibleTotals.currency)}</dd>
+                <dd>{model.totals.serviceFeeLabel}</dd>
               </>
-            )}
+            ) : null}
             <div className="aacp-cart-total">
               <dt className="total-row">Total</dt>
-              <dd className="total-row value">
-                {formatCurrency(
-                  vm.visibleTotals.total + (vm.checkoutStage === "payment" ? (vm.visibleTotals.service_fee ?? 0) : 0),
-                  vm.visibleTotals.currency
-                )}
-              </dd>
+              <dd className="total-row value">{model.totals.totalLabel}</dd>
             </div>
           </dl>
 
