@@ -276,7 +276,8 @@ describe("useCheckoutPayment", () => {
 
     expect(result.current.stripeIntent).toBeNull();
     const [msg] = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(msg).toContain("Nao foi possivel gerar");
+    expect(msg).toContain("Nao foi possivel iniciar o pagamento por cartao");
+    expect(msg).toContain("tente PIX");
   });
 
   it("createPaymentIntent sem sessão ativa → noop", async () => {
@@ -292,6 +293,59 @@ describe("useCheckoutPayment", () => {
 
     expect(fetchMock).not.toHaveBeenCalled();
     expect(chat.appendAgentTurn).not.toHaveBeenCalled();
+  });
+
+  it("createPaymentIntent('card') com Stripe ausente orienta PIX/suporte", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        type: "https://docs.aacp.dev/problems/stripe_provider_not_configured",
+        title: "Conflict",
+        status: 409,
+        code: "stripe_provider_not_configured",
+        detail: "stripe_provider_not_configured",
+        correlation_id: "corr_card"
+      }, 409)
+    );
+
+    const chat = buildChatState();
+    const { result } = renderHook(() =>
+      useCheckoutPayment(buildConfig(), buildSessionState(), chat)
+    );
+
+    await act(async () => {
+      await result.current.createPaymentIntent("card");
+    });
+
+    expect(result.current.stripeIntent).toBeNull();
+    const [msg] = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(msg).toContain("cartao ainda nao esta habilitado");
+    expect(msg).toContain("Tente PIX");
+  });
+
+  it("createPaymentIntent('pix') com provedor ausente explica configuracao da loja", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        type: "https://docs.aacp.dev/problems/payment_provider_not_configured",
+        title: "Conflict",
+        status: 409,
+        code: "payment_provider_not_configured",
+        detail: "payment_provider_not_configured",
+        correlation_id: "corr_pix"
+      }, 409)
+    );
+
+    const chat = buildChatState();
+    const { result } = renderHook(() =>
+      useCheckoutPayment(buildConfig(), buildSessionState(), chat)
+    );
+
+    await act(async () => {
+      await result.current.createPaymentIntent("pix");
+    });
+
+    const [msg] = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(msg).toContain("loja ainda nao configurou");
+    expect(msg).toContain("provedor de cobranca");
   });
 
   it("onStripePaymentConfirmed → fica PENDENTE aguardando webhook (sem confirmação otimista)", async () => {

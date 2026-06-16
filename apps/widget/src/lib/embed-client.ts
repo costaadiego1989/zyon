@@ -37,6 +37,57 @@ export const CHECKOUT_LEGACY_PATHS = {
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
 
+export class CheckoutHttpError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly payload: unknown
+  ) {
+    const code = checkoutErrorCodeFromPayload(payload);
+    const detail = checkoutErrorDetailFromPayload(payload);
+    super(detail || code || `Request failed: ${status}`);
+    this.name = "CheckoutHttpError";
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function checkoutErrorCodeFromPayload(payload: unknown): string | undefined {
+  if (!isRecord(payload)) return undefined;
+  if (typeof payload.code === "string" && payload.code.trim()) return payload.code.trim();
+  if (typeof payload.message === "string" && payload.message.trim()) return payload.message.trim();
+  if (Array.isArray(payload.message)) return "validation_failed";
+  return undefined;
+}
+
+function checkoutErrorDetailFromPayload(payload: unknown): string | undefined {
+  if (typeof payload === "string" && payload.trim()) return payload.trim();
+  if (!isRecord(payload)) return undefined;
+  if (typeof payload.detail === "string" && payload.detail.trim()) return payload.detail.trim();
+  if (typeof payload.message === "string" && payload.message.trim()) return payload.message.trim();
+  return undefined;
+}
+
+export function checkoutErrorCode(error: unknown): string | undefined {
+  if (error instanceof CheckoutHttpError) return checkoutErrorCodeFromPayload(error.payload);
+  return undefined;
+}
+
+export function checkoutErrorStatus(error: unknown): number | undefined {
+  return error instanceof CheckoutHttpError ? error.status : undefined;
+}
+
+async function readErrorPayload(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("content-type") ?? "";
+  try {
+    if (contentType.includes("json")) return await response.json();
+    return await response.text();
+  } catch {
+    return undefined;
+  }
+}
+
 export async function checkoutJson<T>(
   origin: string,
   path: string,
@@ -57,7 +108,7 @@ export async function checkoutJson<T>(
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new CheckoutHttpError(response.status, await readErrorPayload(response));
   }
 
   const payload = await response.json();
@@ -77,7 +128,7 @@ export async function checkoutGet<T>(
 
   const response = await fetch(url, { method: "GET", headers });
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    throw new CheckoutHttpError(response.status, await readErrorPayload(response));
   }
 
   const payload = await response.json();

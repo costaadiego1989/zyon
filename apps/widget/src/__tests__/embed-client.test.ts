@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { checkoutJson, CHECKOUT_EMBED_PATHS } from "../lib/embed-client.js";
+import {
+  checkoutErrorCode,
+  checkoutErrorStatus,
+  checkoutJson,
+  CheckoutHttpError,
+  CHECKOUT_EMBED_PATHS
+} from "../lib/embed-client.js";
 
 describe("checkoutJson", () => {
   const origin = "http://localhost:3001";
@@ -153,5 +159,34 @@ describe("checkoutJson", () => {
         }
       })
     ).rejects.toThrow("invalid_payload");
+  });
+
+  it("preserva problem+json em erro HTTP", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          type: "https://docs.aacp.dev/problems/stripe_provider_not_configured",
+          title: "Conflict",
+          status: 409,
+          code: "stripe_provider_not_configured",
+          detail: "stripe_provider_not_configured",
+          correlation_id: "corr_test"
+        }),
+        { status: 409, headers: { "content-type": "application/problem+json" } }
+      )
+    );
+
+    let captured: unknown;
+    try {
+      await checkoutJson(origin, CHECKOUT_EMBED_PATHS.paymentIntents, {
+        body: { session_id: "sess_1", idempotency_key: "idem_abc", method: "card" }
+      });
+    } catch (error) {
+      captured = error;
+    }
+
+    expect(captured).toBeInstanceOf(CheckoutHttpError);
+    expect(checkoutErrorStatus(captured)).toBe(409);
+    expect(checkoutErrorCode(captured)).toBe("stripe_provider_not_configured");
   });
 });

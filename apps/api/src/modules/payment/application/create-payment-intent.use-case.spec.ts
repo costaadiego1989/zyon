@@ -1,4 +1,4 @@
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ConflictException } from "@nestjs/common";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CreatePaymentIntentUseCase } from "./create-payment-intent.use-case.js";
@@ -119,6 +119,55 @@ test("CreatePaymentIntentUseCase rejects payment before selected shipping exists
       }),
     /shipping_method_required_before_payment/
   );
+});
+
+test("CreatePaymentIntentUseCase rejects card when Stripe is not configured", async () => {
+  const keys = [
+    "STRIPE_SECRET_KEY_TEST",
+    "STRIPE_PUBLISHABLE_KEY_TEST",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PUBLISHABLE_KEY"
+  ] as const;
+  const backup: Partial<Record<(typeof keys)[number], string | undefined>> = {};
+  for (const k of keys) backup[k] = process.env[k];
+  try {
+    for (const k of keys) delete process.env[k];
+
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(
+      checkoutSession({
+        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+      })
+    );
+
+    const provider = new CapturingPaymentProvider();
+    const uc = new CreatePaymentIntentUseCase(
+      checkout,
+      checkout,
+      new InMemoryPaymentRepository(checkout),
+      provider
+    );
+
+    await assert.rejects(
+      () =>
+        uc.execute({
+          merchant_id: "mrc_1",
+          session_id: "chk_1",
+          idempotency_key: "idem_card_no_stripe",
+          method: "card"
+        }),
+      (err: unknown) =>
+        err instanceof ConflictException &&
+        err.message.includes("stripe_provider_not_configured")
+    );
+    assert.equal(provider.inputs.length, 0);
+  } finally {
+    for (const k of keys) {
+      const v = backup[k];
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
 });
 
 test("CreatePaymentIntentUseCase allows zero-price selected shipping", async () => {

@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { WidgetConfig } from "../lib/widget-types.js";
-import { checkoutGet, checkoutJson, CHECKOUT_EMBED_PATHS, CHECKOUT_LEGACY_PATHS } from "../lib/embed-client.js";
+import {
+  checkoutErrorCode,
+  checkoutErrorStatus,
+  checkoutGet,
+  checkoutJson,
+  CHECKOUT_EMBED_PATHS,
+  CHECKOUT_LEGACY_PATHS
+} from "../lib/embed-client.js";
 import { paymentIntentSnapshotSchema } from "../lib/widget-schemas.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { CheckoutChatState } from "./use-checkout-chat.js";
@@ -13,6 +20,49 @@ export interface StripeIntent {
   publishableKey: string;
   amountCents: number;
   currency: string;
+}
+
+function paymentIntentErrorMessage(error: unknown, method: "pix" | "card" | "crypto"): string {
+  const code = checkoutErrorCode(error);
+  switch (code) {
+    case "shipping_method_required_before_payment":
+      return "Antes do pagamento, escolha uma opcao de entrega. Vou te mostrar as alternativas de frete para continuar.";
+    case "checkout_session_not_found":
+      return "Sua sessao expirou. Recarregue o checkout e tente novamente.";
+    case "payment_intent_amount_invalid":
+      return "O valor do pedido ficou invalido. Revise o carrinho antes de pagar.";
+    case "asaas_customer_data_incomplete":
+    case "asaas_customer_id_missing_on_buyer_session":
+      return "Preciso concluir seus dados fiscais antes de gerar a cobranca: nome completo, e-mail e CPF.";
+    case "stripe_provider_not_configured":
+      return "Pagamento por cartao ainda nao esta habilitado nesta loja. Tente PIX agora ou avise o suporte para conectar o Stripe.";
+    case "stripe_connect_not_configured":
+      return "Pagamento por cartao ainda nao esta conectado para esta loja. Tente PIX ou fale com o suporte da loja.";
+    case "stripe_connect_not_active":
+      return "O cartao ainda esta em ativacao pelo provedor. Tente PIX por enquanto ou fale com o suporte.";
+    case "asaas_provider_not_configured":
+    case "payment_provider_not_configured":
+    case "payment_provider_not_configured_for_customer_creation":
+      return "A loja ainda nao configurou o provedor de cobranca. O suporte precisa ativar os pagamentos antes de concluir.";
+    case "asaas_connection_not_active":
+      return "A conta de pagamentos da loja ainda nao esta ativa. Fale com o suporte para finalizar a compra.";
+    case "asaas_customer_create_failed":
+    case "asaas_payment_create_failed":
+    case "asaas_tokenize_failed":
+    case "payment_provider_request_failed":
+      return "O provedor de pagamento nao conseguiu criar a cobranca agora. Revise os dados e tente novamente em instantes.";
+    default:
+      break;
+  }
+
+  const status = checkoutErrorStatus(error);
+  if (status && status >= 500) {
+    return "O pagamento falhou por instabilidade do provedor/API. Tente novamente em instantes.";
+  }
+
+  return method === "card"
+    ? "Nao foi possivel iniciar o pagamento por cartao. Verifique os dados ou tente PIX."
+    : "Nao foi possivel gerar a cobranca. Verifique os dados de pagamento.";
 }
 
 export function useCheckoutPayment(
@@ -287,9 +337,9 @@ export function useCheckoutPayment(
       if (snap.id) {
         void pollPaymentStatus(snap.id);
       }
-    } catch {
+    } catch (error) {
       appendAgentTurn(
-        "Nao foi possivel gerar a cobranca. Verifique os dados de pagamento.",
+        paymentIntentErrorMessage(error, method),
         { stream: true }
       );
     }
@@ -382,9 +432,9 @@ export function useCheckoutPayment(
             ? ` Copia e cola PIX: ${bf.qrCodeCopyPaste.slice(0, 80)}${bf.qrCodeCopyPaste.length > 80 ? "..." : ""}.`
             : "";
       appendAgentTurn(total ? `Cobranca gerada (${total}).${pixLine}` : `Cobranca criada.${pixLine}`, { stream: true });
-    } catch {
+    } catch (error) {
       appendAgentTurn(
-        "Nao foi possivel gerar a cobranca. Verifique o token embed e os dados do pagador na API.",
+        paymentIntentErrorMessage(error, "pix"),
         { stream: true }
       );
     }

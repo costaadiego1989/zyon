@@ -1,4 +1,12 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import {
+  BadGatewayException,
+  BadRequestException,
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional
+} from "@nestjs/common";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
@@ -6,7 +14,7 @@ import {
   PAYMENT_REPOSITORY,
   type PaymentRepository
 } from "../domain/ports/payment-repository.port.js";
-import type { PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
+import type { CreateProviderPaymentOutput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession, CurrencyCode } from "@aacp/shared-types";
 import { isStripeConfigured, readPlatformFeeCents } from "../infrastructure/stripe-env.js";
@@ -65,6 +73,33 @@ function paymentDescription(merchantId: string, sessionId: string, commerceOrder
   return commerceOrderId ? `${base}:commerce_order:${commerceOrderId}` : base;
 }
 
+function providerErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.split(":")[0]?.trim() || "payment_provider_request_failed";
+}
+
+function normalizeProviderException(error: unknown): Error {
+  const code = providerErrorCode(error);
+  switch (code) {
+    case "payment_provider_not_configured":
+    case "payment_provider_not_configured_for_customer_creation":
+    case "asaas_connection_not_active":
+      return new ConflictException(code);
+    case "stripe_raw_card_forbidden":
+    case "stripe_client_secret_missing":
+    case "asaas_payment_missing_id":
+    case "asaas_customer_missing_id":
+    case "asaas_tokenize_missing_token":
+      return new BadGatewayException(code);
+    case "asaas_customer_create_failed":
+    case "asaas_payment_create_failed":
+    case "asaas_tokenize_failed":
+      return new BadGatewayException(code);
+    default:
+      return new BadGatewayException("payment_provider_request_failed");
+  }
+}
+
 @Injectable()
 export class CreatePaymentIntentUseCase {
   constructor(
@@ -92,6 +127,11 @@ export class CreatePaymentIntentUseCase {
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) return existing.snapshot();
 
+    const method: PaymentMethod = body.method ?? "pix";
+    if (method === "card" && !isStripeConfigured()) {
+      throw new ConflictException("stripe_provider_not_configured");
+    }
+
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
 
     const orderAmountMajorUnits = Math.max(
@@ -101,9 +141,8 @@ export class CreatePaymentIntentUseCase {
     const orderAmountCents = Math.round(orderAmountMajorUnits * 100);
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
 
-    const method: PaymentMethod = body.method ?? "pix";
-    const isStripeCard = method === "card" && isStripeConfigured();
-    const usesAsaas = method !== "crypto" && !isStripeCard;
+    const isStripeCard = method === "card";
+    const usesAsaas = method !== "crypto" && method !== "card";
     let stripeConnectAccountId: string | undefined;
     let platformFeeCents = 0;
 
@@ -139,13 +178,17 @@ export class CreatePaymentIntentUseCase {
       if (!this.provider.createCustomer) {
         throw new BadRequestException("asaas_customer_id_missing_on_buyer_session");
       }
-      asaasCustomer = await this.provider.createCustomer({
-        merchantId,
-        name: customer.fullName,
-        email: customer.email,
-        cpfCnpj: customer.cpf,
-        phone: customer.phone ?? undefined
-      });
+      try {
+        asaasCustomer = await this.provider.createCustomer({
+          merchantId,
+          name: customer.fullName,
+          email: customer.email,
+          cpfCnpj: customer.cpf,
+          phone: customer.phone ?? undefined
+        });
+      } catch (error) {
+        throw normalizeProviderException(error);
+      }
       const updatedSession: CheckoutSession = {
         ...session,
         customer: { ...session.customer!, asaasCustomerId: asaasCustomer },
@@ -177,25 +220,30 @@ export class CreatePaymentIntentUseCase {
       };
     }
 
-    const created = await this.provider.createPayment({
-      merchantId,
-      sessionId,
-      intentId: intent.id,
-      amountCents,
-      currency: intent.snapshot().currency,
-      method,
-      description: paymentDescription(merchantId, sessionId, commerceOrderId),
-      ...(isStripeCard
-        ? { stripeConnectAccountId, platformFeeCents }
-        : usesAsaas
-          ? {
-            asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
-            creditCard: body.credit_card,
-            creditCardHolderInfo,
-            remoteIp: body.remote_ip
-          }
-          : {})
-    });
+    let created: CreateProviderPaymentOutput;
+    try {
+      created = await this.provider.createPayment({
+        merchantId,
+        sessionId,
+        intentId: intent.id,
+        amountCents,
+        currency: intent.snapshot().currency,
+        method,
+        description: paymentDescription(merchantId, sessionId, commerceOrderId),
+        ...(isStripeCard
+          ? { stripeConnectAccountId, platformFeeCents }
+          : usesAsaas
+            ? {
+              asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
+              creditCard: body.credit_card,
+              creditCardHolderInfo,
+              remoteIp: body.remote_ip
+            }
+            : {})
+      });
+    } catch (error) {
+      throw normalizeProviderException(error);
+    }
 
     intent.markRequiresAction({ providerPaymentId: created.providerPaymentId });
     intent.setBuyerFacingPayload({
@@ -256,4 +304,5 @@ export class CreatePaymentIntentUseCase {
     });
     return commerceOrderId;
   }
+
 }
