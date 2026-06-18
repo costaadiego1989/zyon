@@ -20,15 +20,14 @@ export class BuyerAgentNegotiationPreferencesController {
     @Query("global_user_id") globalUserId?: string
   ) {
     const user = currentUser(request as { user?: unknown });
-    const resolved = await this.getPrefs.executeResolved({
+    // Bug 8 fix: fetch the stored row once; derive both has_custom_preferences and
+    // resolved (fallback to default) from that single value — one DB round-trip.
+    const { stored } = await this.getPrefs.executeStored({
       merchantId: user.merchantId,
       globalUserId: globalUserId ?? undefined
     });
-    const hasCustom =
-      !!globalUserId?.trim() &&
-      (await this.getPrefs.hasStoredPreferences(user.merchantId, globalUserId.trim()));
-
-    return { has_custom_preferences: hasCustom, preferences: resolved };
+    const resolved = this.getPrefs.resolvedFromStored(stored);
+    return { has_custom_preferences: stored !== null, preferences: resolved };
   }
 
   @Put("preferences")

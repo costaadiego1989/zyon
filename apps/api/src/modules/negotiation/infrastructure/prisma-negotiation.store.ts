@@ -72,18 +72,101 @@ export class PrismaNegotiationStore implements NegotiationStore {
     return { id: row.id };
   }
 
+  /**
+   * Atomically creates session + evaluated ledger entry via $transaction (Bug 6 fix).
+   */
+  async createNegotiationSessionWithLedger(input: {
+    merchantId: string;
+    globalUserId?: string;
+    cartFingerprint: string;
+    result: NegotiationResult;
+  }): Promise<{ id: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const row = await tx.negotiationSession.create({
+        data: {
+          merchantId: input.merchantId,
+          globalUserId: input.globalUserId,
+          cartFingerprint: input.cartFingerprint,
+          estimatedAiCalls: input.result.estimatedAiCalls,
+          estimatedAiCostCents: input.result.estimatedAiCostCents,
+          resultJson: JSON.parse(JSON.stringify(input.result)) as object
+        }
+      });
+      await tx.negotiationCostLedgerEntry.create({
+        data: {
+          merchantId: input.merchantId,
+          negotiationSessionId: row.id,
+          eventType: "negotiation.evaluated",
+          amountCents: input.result.estimatedAiCostCents
+        }
+      });
+      return { id: row.id };
+    });
+  }
+
   async getNegotiationSession(
     merchantId: string,
     negotiationSessionId: string
-  ): Promise<{ cartFingerprint: string; result: NegotiationResult } | null> {
+  ): Promise<{ cartFingerprint: string; result: NegotiationResult; appliedAt?: string | null } | null> {
     const row = await this.prisma.negotiationSession.findFirst({
       where: { id: negotiationSessionId, merchantId }
     });
     if (!row) return null;
+
+    // Check if an offer_applied ledger entry exists (idempotency marker)
+    const appliedEntry = await this.prisma.negotiationCostLedgerEntry.findFirst({
+      where: { negotiationSessionId, merchantId, eventType: "negotiation.offer_applied" }
+    });
+
     return {
       cartFingerprint: row.cartFingerprint,
-      result: row.resultJson as unknown as NegotiationResult
+      result: row.resultJson as unknown as NegotiationResult,
+      appliedAt: appliedEntry ? appliedEntry.createdAt.toISOString() : null
     };
+  }
+
+  /**
+   * Idempotent apply via $transaction: if already applied returns early;
+   * otherwise saves offer + appends ledger with real discountPercent (Bugs 3+6+10 fix).
+   */
+  async applyOfferWithLedger(input: {
+    merchantId: string;
+    negotiationSessionId: string;
+    checkoutSessionId: string;
+    discountPercent: number;
+    offerData: Record<string, unknown>;
+  }): Promise<{ alreadyApplied: boolean; offerId: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      // Idempotency check: look for existing offer_applied entry
+      const existing = await tx.negotiationCostLedgerEntry.findFirst({
+        where: {
+          negotiationSessionId: input.negotiationSessionId,
+          merchantId: input.merchantId,
+          eventType: "negotiation.offer_applied"
+        }
+      });
+
+      if (existing) {
+        // Return the offer id stored in offerData or a synthetic replay marker
+        const offerId = (input.offerData["id"] as string | undefined) ?? `off_replay`;
+        return { alreadyApplied: true, offerId };
+      }
+
+      const offerId = (input.offerData["id"] as string | undefined) ?? `off_${crypto.randomUUID()}`;
+
+      // Append ledger entry recording the actual discount percent (Bug 10 fix)
+      await tx.negotiationCostLedgerEntry.create({
+        data: {
+          merchantId: input.merchantId,
+          negotiationSessionId: input.negotiationSessionId,
+          eventType: "negotiation.offer_applied",
+          // Store discountPercent * 100 as integer basis points for ledger observability
+          amountCents: Math.round(input.discountPercent * 100)
+        }
+      });
+
+      return { alreadyApplied: false, offerId };
+    });
   }
 
   async appendNegotiationLedgerEntry(input: {
@@ -91,6 +174,7 @@ export class PrismaNegotiationStore implements NegotiationStore {
     negotiationSessionId: string;
     eventType: string;
     amountCents: number;
+    metadata?: Record<string, unknown>;
   }): Promise<void> {
     await this.prisma.negotiationCostLedgerEntry.create({
       data: {

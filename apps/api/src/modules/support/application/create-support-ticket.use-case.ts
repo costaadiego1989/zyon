@@ -35,7 +35,9 @@ export class CreateSupportTicketUseCase {
 
   private async publishCreated(ticket: SupportTicket): Promise<void> {
     if (!this.webhooks) return;
-    await this.webhooks.publish({
+    // Bug P2 fix: ticket is already persisted — webhook failure must not break
+    // the caller's response. Fire-and-forget; errors are swallowed here.
+    this.webhooks.publish({
       merchantId: ticket.merchantId,
       eventType: "support.ticket.created",
       occurredAt: ticket.createdAt,
@@ -47,6 +49,6 @@ export class CreateSupportTicketUseCase {
           source: ticket.source,
         },
       },
-    });
+    }).catch(() => undefined);
   }
 }

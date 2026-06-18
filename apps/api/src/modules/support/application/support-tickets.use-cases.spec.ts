@@ -34,10 +34,10 @@ test("support ticket list is tenant-scoped and can filter by status", async () =
   const all = await list.execute("mrc_1");
   const filtered = await list.execute("mrc_1", "in_progress");
 
-  assert.equal(all.length, 1);
-  assert.equal(all[0]?.merchantId, "mrc_1");
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0]?.status, "in_progress");
+  assert.equal(all.data.length, 1);
+  assert.equal(all.data[0]?.merchantId, "mrc_1");
+  assert.equal(filtered.data.length, 1);
+  assert.equal(filtered.data[0]?.status, "in_progress");
 });
 
 test("support ticket status update rejects invalid status and missing tickets", async () => {

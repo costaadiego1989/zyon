@@ -18,6 +18,14 @@ export class GetMerchantNegotiationPolicyUseCase {
     const row = await this.store.getMerchantPolicy(merchantId);
     return { stored: row ?? null };
   }
+
+  /**
+   * Bug 8 fix: derive resolved policy from an already-fetched stored value,
+   * eliminating the duplicate DB read in GET endpoints.
+   */
+  resolvedFromStored(stored: MerchantNegotiationPolicy | null): MerchantNegotiationPolicy {
+    return stored ?? DEFAULT_MERCHANT_NEGOTIATION_POLICY;
+  }
 }
 
 @Injectable()

@@ -64,3 +64,22 @@ export class UpdateSupportTicketDto {
   @IsIn(["open", "in_progress", "resolved", "closed"])
   status!: "open" | "in_progress" | "resolved" | "closed";
 }
+
+/**
+ * P0+P1 fix: validated DTO for the widget chat endpoint.
+ * `merchant_id` is intentionally absent — it is derived from the verified embed
+ * token by the controller, never trusted from the request body.
+ */
+export class SupportChatDto {
+  @ApiProperty({ description: "Buyer message to the support assistant", maxLength: 4000 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(4000)
+  message!: string;
+
+  @ApiPropertyOptional({ description: "Checkout or browse session id", maxLength: 120 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  session_id?: string;
+}

@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { EmbedModule } from "../embed/embed.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { HttpModule } from "../../shared/http/http.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -16,7 +17,8 @@ import { PrismaSupportTicketRepository } from "./infrastructure/prisma-support-t
 import { SupportController } from "./presentation/http/support.controller.js";
 
 @Module({
-  imports: [IntegrationsModule, HttpModule],
+  // EmbedModule provides EmbedAuthGuard used by chat/faq endpoints (P0 fix)
+  imports: [EmbedModule, IntegrationsModule, HttpModule],
   controllers: [SupportController],
   providers: [
     SendSupportMessageUseCase,

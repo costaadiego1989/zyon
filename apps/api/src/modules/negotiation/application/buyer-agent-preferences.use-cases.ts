@@ -19,6 +19,26 @@ export class GetBuyerAgentPreferencesUseCase {
     return stored ?? DEFAULT_BUYER_NEGOTIATION_PREFERENCES;
   }
 
+  /** Raw stored row or null — useful for dashboard to know whether user has custom prefs. */
+  async executeStored(input: {
+    merchantId: string;
+    globalUserId?: string;
+  }): Promise<{ stored: BuyerNegotiationPreferences | null }> {
+    if (!input.globalUserId?.trim()) {
+      return { stored: null };
+    }
+    const row = await this.store.getBuyerPreferences(input.merchantId, input.globalUserId.trim());
+    return { stored: row ?? null };
+  }
+
+  /**
+   * Bug 8 fix: derive resolved preferences from an already-fetched stored value,
+   * eliminating the duplicate DB read in GET endpoints.
+   */
+  resolvedFromStored(stored: BuyerNegotiationPreferences | null): BuyerNegotiationPreferences {
+    return stored ?? DEFAULT_BUYER_NEGOTIATION_PREFERENCES;
+  }
+
   async hasStoredPreferences(merchantId: string, globalUserId: string): Promise<boolean> {
     const stored = await this.store.getBuyerPreferences(merchantId, globalUserId);
     return stored !== null;

@@ -20,10 +20,9 @@ import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decor
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
-import {
-  SendSupportMessageUseCase,
-  type SupportMessageInput,
-} from "../../application/send-support-message.use-case.js";
+import { EmbedAuthGuard } from "../../../embed/presentation/http/embed-auth.guard.js";
+import type { EmbedTokenClaims } from "../../../embed/domain/embed-token.service.js";
+import { SendSupportMessageUseCase } from "../../application/send-support-message.use-case.js";
 import { GetSupportSettingsUseCase } from "../../application/get-support-settings.use-case.js";
 import { ListSupportTicketsUseCase } from "../../application/list-support-tickets.use-case.js";
 import { UpdateSupportSettingsUseCase } from "../../application/update-support-settings.use-case.js";
@@ -31,9 +30,12 @@ import { UpdateSupportTicketStatusUseCase } from "../../application/update-suppo
 import { CreateSupportTicketUseCase } from "../../application/create-support-ticket.use-case.js";
 import {
   CreateSupportTicketDto,
+  SupportChatDto,
   UpdateSupportSettingsDto,
   UpdateSupportTicketDto,
 } from "./support.dto.js";
+
+type EmbedRequest = { embedClaims?: EmbedTokenClaims };
 
 @ApiTags("Support")
 @Controller("support")
@@ -47,16 +49,30 @@ export class SupportController {
     private readonly createTicket: CreateSupportTicketUseCase,
   ) {}
 
+  /**
+   * P0 fix: chat now requires a verified embed token. `merchant_id` is derived
+   * from the token — it is never trusted from the request body.
+   * P1 fix: body is a validated DTO (`SupportChatDto`) — no interface pass-through.
+   */
+  @UseGuards(EmbedAuthGuard)
   @Post("chat")
-  async chat(@Body() body: SupportMessageInput) {
-    const settings = await this.getSettings.execute(body.merchant_id);
-    return this.sendSupportMessage.execute(body, {
-      faqItems: settings.faqItems,
-    });
+  async chat(@Req() request: EmbedRequest, @Body() body: SupportChatDto) {
+    const merchantId = request.embedClaims!.merchantId;
+    const settings = await this.getSettings.execute(merchantId);
+    return this.sendSupportMessage.execute(
+      { merchant_id: merchantId, session_id: body.session_id, message: body.message },
+      { faqItems: settings.faqItems },
+    );
   }
 
+  /**
+   * P0 fix: FAQ now requires a verified embed token. `merchant_id` query param
+   * is ignored — tenant is derived from the token.
+   */
+  @UseGuards(EmbedAuthGuard)
   @Get("faq")
-  async getFaq(@Query("merchant_id") merchantId: string) {
+  async getFaq(@Req() request: EmbedRequest) {
+    const merchantId = request.embedClaims!.merchantId;
     const settings = await this.getSettings.execute(merchantId);
     return { faqItems: settings.faqItems };
   }
@@ -86,6 +102,10 @@ export class SupportController {
     );
   }
 
+  /**
+   * P2 fix: real keyset pagination — `has_more` and `next_cursor` are now
+   * computed from actual query results, not hardcoded to false/null.
+   */
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
@@ -94,12 +114,16 @@ export class SupportController {
   async getTickets(
     @Req() request: unknown,
     @Query("status") status?: string,
+    @Query("limit") limitRaw?: string,
+    @Query("cursor") cursor?: string,
   ) {
-    return {
-      data: await this.listTickets.execute(tenantId(request), status),
-      next_cursor: null,
-      has_more: false,
-    };
+    const limit = limitRaw ? parseInt(limitRaw, 10) : undefined;
+    return this.listTickets.execute(
+      tenantId(request),
+      status,
+      Number.isFinite(limit) ? limit : undefined,
+      cursor,
+    );
   }
 
   @ApiBearerAuth("service_api_key")

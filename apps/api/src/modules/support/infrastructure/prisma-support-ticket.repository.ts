@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import type { SupportTicketRepository } from "../domain/ports/support-ticket-repository.port.js";
+import { decodeSupportTicketCursor } from "../domain/ports/support-ticket-repository.port.js";
 
 type SupportTicketRow = {
   id: string;
@@ -76,10 +77,28 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
     return rows[0] ? mapTicket(rows[0]) : null;
   }
 
-  async list(merchantId: string, status?: SupportTicketStatus): Promise<SupportTicket[]> {
-    const where = status
-      ? Prisma.sql`WHERE "merchant_id" = ${merchantId} AND "status" = ${status}`
-      : Prisma.sql`WHERE "merchant_id" = ${merchantId}`;
+  async list(
+    merchantId: string,
+    status?: SupportTicketStatus,
+    limit = 50,
+    cursor?: string
+  ): Promise<SupportTicket[]> {
+    // P2 fix: real keyset pagination on (created_at DESC, id DESC).
+    // Fetches limit+1 rows so the caller can detect has_more.
+    const effectiveLimit = limit + 1;
+    const cursorParsed = cursor ? decodeSupportTicketCursor(cursor) : null;
+
+    const statusClause = status
+      ? Prisma.sql`AND "status" = ${status}`
+      : Prisma.sql``;
+
+    const cursorClause = cursorParsed
+      ? Prisma.sql`AND (
+          "created_at" < ${new Date(cursorParsed.createdAt)}
+          OR ("created_at" = ${new Date(cursorParsed.createdAt)} AND "id" < ${cursorParsed.id})
+        )`
+      : Prisma.sql``;
+
     const rows = await this.prisma.$queryRaw<SupportTicketRow[]>(Prisma.sql`
       SELECT
         "id",
@@ -92,9 +111,11 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         "updated_at",
         "resolved_at"
       FROM "support_tickets"
-      ${where}
-      ORDER BY "created_at" DESC
-      LIMIT 100
+      WHERE "merchant_id" = ${merchantId}
+      ${statusClause}
+      ${cursorClause}
+      ORDER BY "created_at" DESC, "id" DESC
+      LIMIT ${effectiveLimit}
     `);
     return rows.map(mapTicket);
   }

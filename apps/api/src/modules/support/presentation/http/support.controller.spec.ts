@@ -29,11 +29,13 @@ test("SupportController opens handoff ticket and lets merchant update status", a
     new CreateSupportTicketUseCase(tickets),
   );
 
-  const chat = await controller.chat({
-    merchant_id: "mrc_1",
-    session_id: "chk_1",
-    message: "Meu pedido precisa de atendimento humano"
-  });
+  const chat = await controller.chat(
+    { embedClaims: { merchantId: "mrc_1" } } as never,
+    {
+      session_id: "chk_1",
+      message: "Meu pedido precisa de atendimento humano"
+    }
+  );
   const request = {
     tenantPrincipal: {
       kind: "human" as const,

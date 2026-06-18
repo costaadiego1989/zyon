@@ -12,18 +12,13 @@ export class RecordNegotiationSessionUseCase {
     cartFingerprint: string;
     result: NegotiationResult;
   }): Promise<{ negotiation_session_id: string }> {
-    const { id } = await this.store.createNegotiationSession({
+    // Bug 6 fix: use atomic createNegotiationSessionWithLedger so session and
+    // ledger entry either both commit or both roll back (no drift).
+    const { id } = await this.store.createNegotiationSessionWithLedger({
       merchantId: input.merchantId,
       globalUserId: input.globalUserId,
       cartFingerprint: input.cartFingerprint,
       result: input.result
-    });
-
-    await this.store.appendNegotiationLedgerEntry({
-      merchantId: input.merchantId,
-      negotiationSessionId: id,
-      eventType: "negotiation.evaluated",
-      amountCents: input.result.estimatedAiCostCents
     });
 
     return { negotiation_session_id: id };

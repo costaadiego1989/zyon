@@ -16,6 +16,9 @@ export class GetSupportSettingsUseCase {
   async execute(merchantId: string): Promise<SupportSettings> {
     const existing = await this.repository.get(merchantId);
     if (existing) return existing;
-    return this.repository.save(SupportSettingsEntity.createDefault(merchantId).snapshot());
+    // Bug P1 fix: return in-memory default WITHOUT persisting it.
+    // Write-on-read was creating garbage rows under attacker-supplied merchant_ids;
+    // settings are only persisted via authenticated PUT /support/settings.
+    return SupportSettingsEntity.createDefault(merchantId).snapshot();
   }
 }

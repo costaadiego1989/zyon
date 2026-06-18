@@ -17,8 +17,10 @@ export class MerchantNegotiationPolicyController {
   @Get()
   async get(@Req() request: unknown) {
     const user = currentUser(request as { user?: unknown });
+    // Bug 8 fix: fetch the stored row once; derive both has_custom_policy and
+    // resolved (fallback to default) from that single value — one DB round-trip.
     const { stored } = await this.getPolicy.executeStored(user.merchantId);
-    const resolved = await this.getPolicy.executeResolved(user.merchantId);
+    const resolved = this.getPolicy.resolvedFromStored(stored);
     return { has_custom_policy: stored !== null, policy: resolved };
   }
 
@@ -26,7 +28,8 @@ export class MerchantNegotiationPolicyController {
   async put(@Req() request: unknown, @Body() body: MerchantNegotiationPolicy & { merchantId?: string }) {
     const user = currentUser(request as { user?: unknown });
     await this.upsertPolicy.execute({ merchantId: user.merchantId, policy: body });
-    const resolved = await this.getPolicy.executeResolved(user.merchantId);
+    const { stored } = await this.getPolicy.executeStored(user.merchantId);
+    const resolved = this.getPolicy.resolvedFromStored(stored);
     return { policy: resolved };
   }
 }

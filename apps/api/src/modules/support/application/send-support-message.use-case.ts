@@ -186,8 +186,11 @@ export class SendSupportMessageUseCase {
         source: "widget",
       }).snapshot(),
     );
+    // Bug P2 fix: webhook publish must not break the chat response.
+    // Ticket is already persisted — a transient webhook failure must not surface
+    // as 500 to the buyer. Fire-and-forget with error swallowed.
     if (this.webhooks) {
-      await this.webhooks.publish({
+      this.webhooks.publish({
         merchantId: ticket.merchantId,
         eventType: "support.ticket.created",
         occurredAt: ticket.createdAt,
@@ -199,7 +202,7 @@ export class SendSupportMessageUseCase {
             source: ticket.source,
           },
         },
-      });
+      }).catch(() => undefined);
     }
     return {
       reply: formatHandoffReply(ticket, contextReply),
