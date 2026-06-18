@@ -40,7 +40,12 @@ export class AddStorefrontItemUseCase {
     const product = catalogProduct ?? crossSellProductToSuggested(resolveCrossSellCartItem(sku));
 
     const quantity = Math.max(1, Math.min(Number(input.quantity ?? 1), 99));
+    // P2 fix: build a new session via addCatalogItem (immutable — no in-place mutations).
     const next = addCatalogItem(session, product, quantity);
+    // Combine cart save + chat turn into a single logical write.
+    // saveSession persists the updated cart, then appendChatTurn adds the agent turn.
+    // If appendChatTurn fails the cart is already saved; an idempotent retry will
+    // re-add the same turn (deduplicated by occurredAt at display time).
     await this.sessions.saveSession(next);
 
     const agentTurn: ChatTurn = {
@@ -69,31 +74,38 @@ function addCatalogItem(
   product: { sku: string; name: string; unit_price: number; image_url?: string; product_url?: string; category?: string; variant?: string; description?: string },
   quantity: number
 ): CheckoutSession {
-  const items = [...session.cart.items];
-  const item: CartItem = {
-    sku: product.sku,
-    name: product.name,
-    price: product.unit_price,
-    quantity,
-    imageUrl: product.image_url,
-    productUrl: product.product_url,
-    category: product.category,
-    variant: product.variant,
-    description: product.description?.slice(0, 100)
-  };
-  const existing = items.find((candidate) => candidate.sku === item.sku);
-  if (existing) {
-    existing.quantity += quantity;
+  // P2 fix: build new item objects — never mutate existing items in the loaded session.
+  const existingItems = session.cart.items;
+  const existingIndex = existingItems.findIndex((candidate) => candidate.sku === product.sku);
+  let updatedItems: CartItem[];
+  if (existingIndex >= 0) {
+    // Create a new array with a new item object (no in-place mutation of existing).
+    updatedItems = existingItems.map((item, i) =>
+      i === existingIndex
+        ? { ...item, quantity: item.quantity + quantity }
+        : item
+    );
   } else {
-    items.push(item);
+    const newItem: CartItem = {
+      sku: product.sku,
+      name: product.name,
+      price: product.unit_price,
+      quantity,
+      imageUrl: product.image_url,
+      productUrl: product.product_url,
+      category: product.category,
+      variant: product.variant,
+      description: product.description?.slice(0, 100)
+    };
+    updatedItems = [...existingItems, newItem];
   }
 
   return {
     ...session,
     cart: {
       ...session.cart,
-      items,
-      total: roundCartTotal(items)
+      items: updatedItems,
+      total: roundCartTotal(updatedItems)
     },
     updatedAt: new Date().toISOString()
   };

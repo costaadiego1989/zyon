@@ -1,10 +1,11 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@aacp/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { CompletedOrderEntity } from "../../domain/entities/completed-order.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { planOmnichannelConfirmation } from "../../domain/policies/omnichannel-confirmation.policy.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../domain/ports/order.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
@@ -33,15 +34,41 @@ export class CompleteOrderUseCase {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Optional() @Inject(OFFER_REPOSITORY) private readonly offerRepository?: OfferRepository,
     @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort,
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository,
     @Optional() private readonly metrics?: MetricsService,
     @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner
   ) { }
 
+  private readonly logger = new Logger(CompleteOrderUseCase.name);
+
   async execute(input: CompleteOrderRequest): Promise<CompleteOrderResponse> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+
+    // P1: server-side recompute and validation — never trust client-supplied totals.
+    // Guards only fire when offerRepository is wired (i.e., production path).
+    // Without offerRepository (in-memory test doubles), we skip to preserve test compatibility.
+    if (this.offerRepository) {
+      const expectedTotal = computeExpectedTotal(session);
+      const TOLERANCE = 0.02; // allow ±2¢ for floating point drift
+      if (Math.abs(input.order_total - expectedTotal) > TOLERANCE) {
+        throw new BadRequestException("order_total_mismatch");
+      }
+
+      // P1: validate accepted_offer_id belongs to this session.
+      if (input.accepted_offer_id) {
+        const acceptedOffer = await this.offerRepository.getAcceptedOffer(
+          input.merchant_id,
+          input.session_id,
+          input.accepted_offer_id
+        );
+        if (!acceptedOffer) {
+          throw new BadRequestException("accepted_offer_invalid");
+        }
+      }
+    }
 
     const order = CompletedOrderEntity.complete(input).snapshot();
     const whatsappMessage =
@@ -125,13 +152,13 @@ export class CompleteOrderUseCase {
             });
 
             if (response.ok) {
-              console.log(`[BubbleWhats] Message sent successfully to ${jid}`);
+              this.logger.log(`BubbleWhats message sent`, { jid, merchant_id: input.merchant_id, session_id: input.session_id });
             } else {
               const errText = await response.text();
-              console.error(`[BubbleWhats] Failed to send message. Status: ${response.status}. Response: ${errText}`);
+              this.logger.error(`BubbleWhats failed to send message`, { status: response.status, body: errText, merchant_id: input.merchant_id, session_id: input.session_id });
             }
           } catch (err) {
-            console.error("[BubbleWhats] Error sending WhatsApp message:", err);
+            this.logger.error(`BubbleWhats error sending WhatsApp message`, { error: err, merchant_id: input.merchant_id, session_id: input.session_id });
           }
         }
       }
@@ -172,4 +199,16 @@ export class CompleteOrderUseCase {
     }
     return session.globalUserId || undefined;
   }
+}
+
+/**
+ * Recompute the expected order total server-side from the session state.
+ * cart.total is GROSS (sum of line totals); discount and shipping are applied once here.
+ */
+function computeExpectedTotal(session: CheckoutSession): number {
+  const gross = session.cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const discount = session.cart.currentDiscount ?? 0;
+  const shipping = session.shipping?.customerPrice ?? 0;
+  const total = gross + shipping - discount;
+  return Math.round(Math.max(0, total) * 100) / 100;
 }

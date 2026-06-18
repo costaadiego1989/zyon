@@ -176,6 +176,27 @@ export interface MerchantRules {
   cryptoPayments?: MerchantCryptoPayments;
 }
 
+/**
+ * Single canonical default for MerchantRules used across all paths.
+ * All use-cases and the Prisma repository must reference this constant
+ * instead of inlining their own defaults (P2 — prevents divergence).
+ */
+export const DEFAULT_MERCHANT_RULES: MerchantRules = {
+  maxDiscountPercent: 10,
+  minimumMarginPercent: 38,
+  allowFreeShipping: true,
+  allowShippingDiscount: true,
+  allowBonusItem: false,
+  allowStackDiscountAndFreeShipping: false,
+  freeShippingMinCartValue: 250,
+  maxShippingSubsidy: 45,
+  maxPartialShippingDiscount: 20,
+  offerExpirationMinutes: 15,
+  blockedRegions: [],
+  brandVoice: "consultative",
+  couponBoxEnabled: true
+};
+
 export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
 
 export type PaymentMethod = "pix" | "credit_card" | "crypto";

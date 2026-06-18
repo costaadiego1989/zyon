@@ -20,6 +20,8 @@ export class AcceptCheckoutOfferUseCase {
 
     const offer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!offer) throw new NotFoundException("offer_not_found");
+    // Invariant: reject cross-session reuse of an offer (same merchant, different session).
+    if (offer.sessionId !== input.session_id) throw new NotFoundException("offer_not_found");
 
     const existing = await this.offers.getAcceptedOffer(input.merchant_id, input.session_id, input.offer_id);
     if (existing) return existing;

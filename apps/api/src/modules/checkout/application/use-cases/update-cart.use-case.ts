@@ -13,9 +13,12 @@ function roundCurrency(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
-function recomputeTotal(items: CartItem[], currentDiscount: number): number {
+// cart.total is ALWAYS gross (sum of line totals, before any discount).
+// Discount is applied once at display time in buildCheckoutExperience.
+// Never embed currentDiscount in cart.total to avoid double-subtraction.
+function recomputeTotal(items: CartItem[]): number {
   const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  return Math.max(0, roundCurrency(subtotal - currentDiscount));
+  return roundCurrency(subtotal);
 }
 
 @Injectable()
@@ -59,11 +62,10 @@ export class UpdateCartUseCase {
     }
 
     const items = Array.from(bySku.values());
-    const currentDiscount = session.cart.currentDiscount ?? 0;
     const nextCart: Cart = {
       ...session.cart,
       items,
-      total: recomputeTotal(items, currentDiscount)
+      total: recomputeTotal(items)
     };
 
     const cartChanged = JSON.stringify(nextCart.items) !== JSON.stringify(session.cart.items);

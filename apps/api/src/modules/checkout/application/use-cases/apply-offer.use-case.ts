@@ -28,6 +28,9 @@ export class ApplyOfferUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const offer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!offer || !offer.approved) return { success: false, reason: "offer_not_found_or_not_approved" };
+    // Invariant: an offer is scoped to the session it was authorized for.
+    // Reject cross-session reuse even within the same merchant.
+    if (offer.sessionId !== input.session_id) return { success: false, reason: "offer_not_found_or_not_approved" };
     if (Date.parse(offer.expiresAt) <= Date.now()) return { success: false, reason: "offer_expired" };
 
     const applied = await this.commerce.apply(offer);
@@ -56,9 +59,11 @@ export class ApplyOfferUseCase {
 
     const subtotal = experience.totals.subtotal;
     const discount = experience.totals.discount;
+    // new_total is the full computed total (subtotal + shipping - discount), not
+    // subtotal minus discount — that would omit shipping.
     return {
       ...applied,
-      new_total: roundMoney(Math.max(0, subtotal - discount)),
+      new_total: experience.totals.total,
       expires_at: offer.expiresAt,
       experience,
       agent_turn: followUp

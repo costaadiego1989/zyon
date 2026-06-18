@@ -50,9 +50,10 @@ test("CompleteOrderUseCase commits order and outbox through the transaction boun
     repository,
     repository,
     repository,
-    undefined,
-    undefined,
-    undefined,
+    undefined, // offerRepository
+    undefined, // purchaseHistory
+    undefined, // buyerAccounts
+    undefined, // metrics
     txRunner as never
   );
 
@@ -99,7 +100,7 @@ test("CompleteOrderUseCase records completed checkout into buyer purchase histor
     })
   );
   const purchaseHistory = new RecordingPurchaseHistoryPort();
-  const useCase = new CompleteOrderUseCase(repository, repository, repository, purchaseHistory);
+  const useCase = new CompleteOrderUseCase(repository, repository, repository, undefined, purchaseHistory);
 
   await useCase.execute(completeOrderRequest({ order_total: 180, accepted_offer_id: "offer_1" }));
   await useCase.execute(completeOrderRequest({ order_total: 180, accepted_offer_id: "offer_1" }));
@@ -129,7 +130,7 @@ test("CompleteOrderUseCase feeds buyer purchase history so IA can read ticket m√
   const purchaseHistoryRepository = new InMemoryBuyerPurchaseHistoryRepository();
   const recordPurchase = new RecordCompletedPurchaseUseCase(purchaseHistoryRepository);
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(recordPurchase);
-  const completeOrder = new CompleteOrderUseCase(checkoutRepository, checkoutRepository, checkoutRepository, purchaseHistoryPort);
+  const completeOrder = new CompleteOrderUseCase(checkoutRepository, checkoutRepository, checkoutRepository, undefined, purchaseHistoryPort);
   const getContext = new GetBuyerPurchaseContextUseCase(purchaseHistoryRepository);
 
   await completeOrder.execute(

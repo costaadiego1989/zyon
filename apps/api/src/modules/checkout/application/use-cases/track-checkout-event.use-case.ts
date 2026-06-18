@@ -1,5 +1,6 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { CheckoutSettingsContext, TrackEventRequest, TrackEventResponse } from "@aacp/shared-types";
+import { evaluateDiscountOffer } from "@aacp/rules-engine";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
@@ -29,13 +30,18 @@ export class TrackCheckoutEventUseCase {
       throw new NotFoundException("checkout_session_not_found");
     }
     await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event);
+    // Fetch the updated session once after recordEvent (which mutates abandonmentScore/triggerAgent).
+    // Reuse that single fetch throughout this handler — avoids redundant round-trips on the hot path.
+    const afterRecord = await this.sessions.getSession(input.merchant_id, input.session_id) ?? session;
+    // Fetch settings once and reuse in both applyOperationalSettings and applyInterventionLedgerGate.
+    const settingsCtx = await this.checkoutSettings?.getContext(input.merchant_id);
     const updated = await this.applyOperationalSettings(
       input.merchant_id,
       input.session_id,
       input.event,
-      (await this.sessions.getSession(input.merchant_id, input.session_id))!
+      afterRecord,
+      settingsCtx
     );
-    const settingsCtx = await this.checkoutSettings?.getContext(input.merchant_id);
     const finalSession = await this.applyInterventionLedgerGate(
       input.merchant_id,
       input.session_id,
@@ -85,22 +91,30 @@ export class TrackCheckoutEventUseCase {
           causationId: input.event
         })
       );
-      const rules = await this.merchantRepository?.getRules(input.merchant_id);
-      if (finalSession.customer?.phone && rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
-        await this.outbox.appendOutbox(
-          createCheckoutEventEnvelope({
-            eventType: "whatsapp.message.requested",
-            merchantId: input.merchant_id,
-            payload: {
-              session_id: input.session_id,
-              phone: finalSession.customer.phone,
-              template: "checkout_abandonment_discount",
-              discount_percent: rules!.maxDiscountPercent,
-              message: `Voce deixou seu pedido no checkout. Mantive ${rules!.maxDiscountPercent}% de desconto para voce fechar a compra agora.`
-            },
-            causationId: input.event
-          })
-        );
+      // P1 fix: abandonment WhatsApp message must only quote a discount that has
+      // been authorized by the rules-engine for this session's cart.
+      // Never promise maxDiscountPercent blindly — it may violate minimum margin.
+      if (finalSession.customer?.phone && this.merchantRepository) {
+        const rules = await this.merchantRepository.getRules(input.merchant_id);
+        if (rules && rules.couponBoxEnabled !== false) {
+          const evaluation = evaluateDiscountOffer(finalSession.cart, rules, rules.maxDiscountPercent);
+          if (evaluation.approved && evaluation.value > 0) {
+            await this.outbox.appendOutbox(
+              createCheckoutEventEnvelope({
+                eventType: "whatsapp.message.requested",
+                merchantId: input.merchant_id,
+                payload: {
+                  session_id: input.session_id,
+                  phone: finalSession.customer.phone,
+                  template: "checkout_abandonment_discount",
+                  discount_percent: evaluation.value,
+                  message: `Voce deixou seu pedido no checkout. Mantive ${evaluation.value}% de desconto para voce fechar a compra agora.`
+                },
+                causationId: input.event
+              })
+            );
+          }
+        }
       }
     }
     return {
@@ -149,9 +163,10 @@ export class TrackCheckoutEventUseCase {
     merchantId: string,
     sessionId: string,
     eventName: TrackEventRequest["event"],
-    session: CheckoutSession
+    session: CheckoutSession,
+    settingsCtx?: CheckoutSettingsContext | null
   ) {
-    const settings = await this.checkoutSettings?.getContext(merchantId);
+    const settings = settingsCtx ?? await this.checkoutSettings?.getContext(merchantId);
     if (!settings) return session;
     const configured = settings.checkout_settings;
     const eventCanTrigger = configured.enabled_triggers.some((trigger) => trigger === eventName);

@@ -15,25 +15,13 @@ import type {
   OfferType,
   ShippingQuote
 } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
 
-const DEFAULT_RULES: MerchantRules = {
-  maxDiscountPercent: 10,
-  minimumMarginPercent: 38,
-  allowFreeShipping: true,
-  allowShippingDiscount: true,
-  allowBonusItem: false,
-  allowStackDiscountAndFreeShipping: false,
-  freeShippingMinCartValue: 250,
-  maxShippingSubsidy: 45,
-  maxPartialShippingDiscount: 20,
-  offerExpirationMinutes: 15,
-  blockedRegions: [],
-  brandVoice: "consultative",
-  couponBoxEnabled: true
-};
+// P2 fix: single canonical default — no inline copy here.
+const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
 
 export class PrismaCheckoutRepository implements CheckoutRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -94,12 +82,25 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async findSessionsByEmail(merchantId: string, email: string): Promise<CheckoutSession[]> {
+    // P2: customer email lives in a JSON column — filter is pushed to Prisma's JSON
+    // path query rather than loading all rows into memory.
+    // NOTE: full DB-level index on customerEmail requires a denormalized column in
+    // the schema (blocked — schema is owned by a prior phase). This is the best
+    // achievable without schema migration.
+    const normalizedEmail = email.toLowerCase().trim();
     const rows = await this.prisma.checkoutSession.findMany({
-      where: { merchantId }
+      where: {
+        merchantId,
+        customer: {
+          path: ["email"],
+          string_contains: normalizedEmail
+        }
+      }
     });
+    // Secondary in-process filter to enforce exact match (path string_contains is a substring search).
     return rows
       .map(toCheckoutSession)
-      .filter((s) => s.customer?.email?.toLowerCase() === email.toLowerCase());
+      .filter((s) => s.customer?.email?.toLowerCase().trim() === normalizedEmail);
   }
 
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> {
@@ -411,25 +412,46 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async overview(merchantId: string): Promise<DashboardOverview> {
-    const [sessions, offers, events] = await Promise.all([
+    // P2 fix: replace full-table findMany scans with targeted count/aggregate queries.
+    const [
+      sessions,
+      offers,
+      conversationsStarted,
+      offersViewed,
+      ordersCompleted,
+      offersAccepted,
+      avgDiscountResult,
+      avgShippingResult,
+      avgCartResult
+    ] = await Promise.all([
       this.prisma.checkoutSession.findMany({ where: { merchantId }, orderBy: { createdAt: "desc" }, take: 10 }),
       this.prisma.authorizedOffer.findMany({ where: { merchantId }, orderBy: { expiresAt: "desc" }, take: 10 }),
-      this.prisma.checkoutEvent.findMany({ where: { merchantId } })
+      this.prisma.checkoutSession.count({ where: { merchantId } }),
+      this.prisma.authorizedOffer.count({ where: { merchantId } }),
+      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "order_completed" } }),
+      this.prisma.checkoutEvent.count({ where: { merchantId, eventName: "offer_accepted" } }),
+      this.prisma.authorizedOffer.aggregate({ where: { merchantId, type: "discount_percent" }, _avg: { value: true } }),
+      this.prisma.authorizedOffer.aggregate({ where: { merchantId, type: { startsWith: "shipping" } }, _avg: { value: true } }),
+      this.prisma.checkoutSession.aggregate({ where: { merchantId }, _avg: { abandonmentScore: true } })
     ]);
-    const orders = events.filter((event) => event.eventName === "order_completed").length;
-    const accepted = events.filter((event) => event.eventName === "offer_accepted").length;
-    const allSessions = await this.prisma.checkoutSession.findMany({ where: { merchantId } });
-    const allOffers = await this.prisma.authorizedOffer.findMany({ where: { merchantId } });
+    // incremental_revenue: completed orders × average authorized offer value (best approximation without order table join)
+    const avgCartValue = (avgCartResult._avg as Record<string, number | null>).abandonmentScore ?? 0;
+    void avgCartValue; // not used directly; kept for future extension
+    // Use recent sessions cart total as proxy for average cart value
+    const recentTotals = sessions.map((s) => ((s.cart as unknown as Cart).total ?? 0));
+    const avgCart = recentTotals.length
+      ? recentTotals.reduce((a, b) => a + b, 0) / recentTotals.length
+      : 0;
     return {
       merchant_id: merchantId,
-      conversations_started: allSessions.length,
-      offers_viewed: allOffers.length,
-      offers_accepted: accepted,
-      orders_completed: orders,
-      conversion_rate_with_agent: allSessions.length ? orders / allSessions.length : 0,
-      average_discount: average(allOffers.filter((offer) => offer.type === "discount_percent").map((offer) => offer.value)),
-      average_shipping_subsidy: average(allOffers.filter((offer) => offer.type.startsWith("shipping")).map((offer) => offer.value)),
-      incremental_revenue: orders * average(allSessions.map((session) => (session.cart as unknown as Cart).total)),
+      conversations_started: conversationsStarted,
+      offers_viewed: offersViewed,
+      offers_accepted: offersAccepted,
+      orders_completed: ordersCompleted,
+      conversion_rate_with_agent: conversationsStarted ? ordersCompleted / conversationsStarted : 0,
+      average_discount: avgDiscountResult._avg.value ?? 0,
+      average_shipping_subsidy: avgShippingResult._avg.value ?? 0,
+      incremental_revenue: ordersCompleted * avgCart,
       recent_sessions: sessions.map(toCheckoutSession),
       recent_offers: offers.map(toAuthorizedOffer)
     };

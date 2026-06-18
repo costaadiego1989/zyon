@@ -42,7 +42,12 @@ export interface MerchantRules {
     offerExpirationMinutes: number;
     blockedRegions: string[];
     brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
+    couponBoxEnabled: boolean;
+    originZip?: string;
+    quickReplies?: StageQuickReplies;
+    cryptoPayments?: MerchantCryptoPayments;
 }
+export declare const DEFAULT_MERCHANT_RULES: MerchantRules;
 export interface CheckoutSession {
     merchantId: string;
     sessionId: string;

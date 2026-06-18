@@ -1,6 +1,7 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { evaluateShippingOffer } from "@aacp/shipping-engine";
 import type { ShippingEvaluateRequest, ShippingEvaluateResponse } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
@@ -17,21 +18,8 @@ export class EvaluateShippingUseCase {
   async execute(input: ShippingEvaluateRequest): Promise<ShippingEvaluateResponse> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    const rules = await this.merchantRepository?.getRules(input.merchant_id) ?? {
-      maxDiscountPercent: 0,
-      minimumMarginPercent: 38,
-      allowFreeShipping: false,
-      allowShippingDiscount: false,
-      allowBonusItem: false,
-      allowStackDiscountAndFreeShipping: false,
-      freeShippingMinCartValue: 250,
-      maxShippingSubsidy: 0,
-      maxPartialShippingDiscount: 0,
-      offerExpirationMinutes: 15,
-      blockedRegions: [],
-      brandVoice: "consultative" as const,
-      couponBoxEnabled: true
-    };
+    // P2 fix: use DEFAULT_MERCHANT_RULES — single shared constant, no inline divergence.
+    const rules = await this.merchantRepository?.getRules(input.merchant_id) ?? DEFAULT_MERCHANT_RULES;
     const evaluation = evaluateShippingOffer({
       cart: { ...session.cart, total: input.cart_value ?? session.cart.total },
       shipping: {

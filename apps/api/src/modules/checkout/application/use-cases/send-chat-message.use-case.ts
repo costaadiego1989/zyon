@@ -4,6 +4,7 @@ import type {
   ChatMessageResponse,
   SuggestedProduct
 } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -43,21 +44,7 @@ export class SendChatMessageUseCase {
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    const rules = await this.merchantRepo?.getRules(input.merchant_id) ?? {
-      maxDiscountPercent: 0,
-      minimumMarginPercent: 38,
-      allowFreeShipping: false,
-      allowShippingDiscount: false,
-      allowBonusItem: false,
-      allowStackDiscountAndFreeShipping: false,
-      freeShippingMinCartValue: 250,
-      maxShippingSubsidy: 0,
-      maxPartialShippingDiscount: 0,
-      offerExpirationMinutes: 15,
-      blockedRegions: [] as string[],
-      brandVoice: "consultative" as const,
-      couponBoxEnabled: true
-    };
+    const rules = await this.merchantRepo?.getRules(input.merchant_id) ?? DEFAULT_MERCHANT_RULES;
     const merchant = await this.merchantRepo?.getProfile(input.merchant_id);
 
     const lastAgentTurn = [...session.chatHistory].reverse().find((t) => t.role === "agent")?.text;

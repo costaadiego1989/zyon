@@ -23,6 +23,7 @@ export function createAuthorizedOffer(input: {
     reason: input.evaluation.reason,
     marginAfterOffer: input.evaluation.marginAfterOffer,
     expiresAt,
-    discountCode: input.evaluation.approved ? `AI-${input.sessionId.slice(0, 6).toUpperCase()}` : undefined
+    // Use CSPRNG — code must not be derivable from session id.
+    discountCode: input.evaluation.approved ? `AI-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}` : undefined
   };
 }

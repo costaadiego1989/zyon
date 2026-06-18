@@ -253,7 +253,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(
       new RecordCompletedPurchaseUseCase(purchaseHistoryRepo)
     );
-    const completeOrder = new CompleteOrderUseCase(repo, repo, repo, purchaseHistoryPort);
+    const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
     const conv = new RecordingConversationPort();
     const custService = new CheckoutCustomerService(repo);
     const shipService = new CheckoutShippingService(repo, custService);

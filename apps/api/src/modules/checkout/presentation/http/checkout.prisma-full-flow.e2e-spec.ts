@@ -79,7 +79,7 @@ function buildController(repo: InMemoryCheckoutRepository) {
   const payments = new InMemoryPaymentRepository();
   const purchaseHistoryRepo = new InMemoryBuyerPurchaseHistoryRepository();
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
-  const completeOrder = new CompleteOrderUseCase(repo, repo, repo, purchaseHistoryPort);
+  const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
   const conv = new FakeConv();
   const custService = new CheckoutCustomerService(repo);
   const shipService = new CheckoutShippingService(repo, custService);
