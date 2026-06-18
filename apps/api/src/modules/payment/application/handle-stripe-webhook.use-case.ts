@@ -67,20 +67,44 @@ export class HandleStripeWebhookUseCase {
     const merchantId = await this.resolveMerchantId(event);
     const eventKey: ProviderEventKey = { provider: "stripe", merchantId, eventId: event.id };
 
-    if (await this.payments.hasProcessedProviderEvent(eventKey)) {
+    // Atomic idempotency gate: record BEFORE side effects. A concurrent
+    // duplicate gets `false` and short-circuits (ADR 0001 #1).
+    const reserved = await this.payments.recordProcessedProviderEvent(eventKey);
+    if (!reserved) {
       return { outcome: "duplicate" };
     }
 
-    const effect = await this.dispatch(event);
-    await this.payments.recordProcessedProviderEvent(eventKey);
-    return { outcome: "processed", effect };
+    try {
+      const effect = await this.dispatch(event);
+      return { outcome: "processed", effect };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown_error";
+      if (msg.includes("illegal_transition")) {
+        // Genuine illegal transition, not benign re-delivery. Surface it and
+        // keep the marker consumed so Stripe's re-delivery does not poison-loop
+        // (ADR 0001 #5/#4).
+        this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "illegal_transition" });
+        console.error("[payment][stripe-webhook] illegal_transition", {
+          merchantId,
+          eventId: event.id,
+          eventType: event.type
+        });
+        return { outcome: "ignored", reason: "illegal_transition_alerted" };
+      }
+      // Transient failure: release the marker so re-delivery can retry.
+      await this.payments.deleteProcessedProviderEvent(eventKey);
+      throw e;
+    }
   }
 
   private async resolveMerchantId(event: Stripe.Event): Promise<string | null> {
     const obj = event.data.object as { metadata?: Record<string, string> | null };
     const intentId = obj?.metadata?.intent_id;
-    if (!intentId) return null;
-    const intent = await this.payments.getIntentById(intentId);
+    const metaMerchantId = obj?.metadata?.merchant_id;
+    if (!intentId || !metaMerchantId) return null;
+    // Scoped lookup: trust the metadata merchant only insofar as the intent
+    // actually belongs to it (ADR 0001 #3).
+    const intent = await this.payments.getIntentById(metaMerchantId, intentId);
     return intent ? intent.snapshot().merchantId : null;
   }
 
@@ -114,9 +138,10 @@ export class HandleStripeWebhookUseCase {
 
   private async handleSucceeded(pi: Stripe.PaymentIntent): Promise<string> {
     const intentId = pi.metadata?.intent_id;
-    if (!intentId) return "ignored_missing_intent_id";
+    const metaMerchantId = pi.metadata?.merchant_id;
+    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
 
-    const intentEntity = await this.payments.getIntentById(intentId);
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();
@@ -125,9 +150,32 @@ export class HandleStripeWebhookUseCase {
       return "already_approved";
     }
 
+    // Authoritative amount check BEFORE approval, mirroring the Asaas
+    // PAYMENT_RECEIVED path: a value mismatch is a clean failure + alert, not a
+    // poison event that throws out of dispatch forever (ADR 0001 #5).
+    if (pi.amount_received !== snap.amountCents) {
+      this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "value_mismatch" });
+      intentEntity.markFailed("stripe_value_mismatch");
+      await this.payments.saveIntent({ intent: intentEntity });
+      await this.checkoutPayment.recordPaymentStatusChanged({
+        merchantId: snap.merchantId,
+        sessionId: snap.sessionId,
+        paymentIntentId: snap.id,
+        status: "failed",
+        reason: "stripe_value_mismatch",
+        commerceOrderId: snap.commerceOrderId
+      });
+      await this.checkoutPayment.recordPaymentFailure({
+        merchantId: snap.merchantId,
+        sessionId: snap.sessionId,
+        reason: "stripe_value_mismatch"
+      });
+      return "stripe_value_mismatch";
+    }
+
     intentEntity.markApproved({
       providerPaymentId: pi.id,
-      approvedAmountCents: pi.amount_received
+      approvedAmountCents: snap.amountCents
     });
     await this.payments.saveIntent({ intent: intentEntity });
 
@@ -145,7 +193,7 @@ export class HandleStripeWebhookUseCase {
       merchantId: snap.merchantId,
       sessionId: snap.sessionId,
       externalOrderId: pi.id,
-      orderTotalMajorUnits: pi.amount_received / 100,
+      orderTotalMajorUnits: snap.amountCents / 100,
       currency: snap.currency as CurrencyCode,
       acceptedOfferId: snap.acceptedOfferId
     });
@@ -172,9 +220,10 @@ export class HandleStripeWebhookUseCase {
 
   private async handleFailed(pi: Stripe.PaymentIntent): Promise<string> {
     const intentId = pi.metadata?.intent_id;
-    if (!intentId) return "ignored_missing_intent_id";
+    const metaMerchantId = pi.metadata?.merchant_id;
+    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
 
-    const intentEntity = await this.payments.getIntentById(intentId);
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();

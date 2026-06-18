@@ -75,7 +75,7 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   });
   assert.equal(tracking.order.trackingCode, "BR123456789AA");
 
-  const approved = await payments.getIntentById(intentSnap.id);
+  const approved = await payments.getIntentById(merchantId, intentSnap.id);
   assert.deepEqual(approved?.snapshot().statusHistory.map((entry) => entry.status), [
     "pending",
     "requires_action",
@@ -138,7 +138,7 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
 
   assert.equal(processed.outcome, "processed");
 
-  const approved = await payments.getIntentById(intentSnap.id);
+  const approved = await payments.getIntentById(merchantId, intentSnap.id);
   assert.deepEqual(approved?.snapshot().statusHistory.map((e) => e.status), [
     "pending",
     "requires_action",
@@ -230,7 +230,7 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
     payment: { id: intentSnap.providerPaymentId, value: 200, externalReference: intentSnap.id }
   });
 
-  const approved = await payments.getIntentById(intentSnap.id);
+  const approved = await payments.getIntentById(merchantId, intentSnap.id);
   assert.equal(approved?.snapshot().status, "approved");
 
   // Then refund
@@ -242,7 +242,7 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
 
   assert.equal(refundResult.outcome, "processed");
 
-  const refunded = await payments.getIntentById(intentSnap.id);
+  const refunded = await payments.getIntentById(merchantId, intentSnap.id);
   assert.deepEqual(refunded?.snapshot().statusHistory.map((e) => e.status), [
     "pending",
     "requires_action",
@@ -290,7 +290,7 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
   });
 
   assert.equal(checkout.getCompletedOrder(merchantId, sessionId, providerPaymentId), undefined);
-  const failed = await payments.getIntentById(intentSnap.id);
+  const failed = await payments.getIntentById(merchantId, intentSnap.id);
   assert.deepEqual(failed?.snapshot().statusHistory.map((entry) => entry.status), [
     "pending",
     "requires_action",

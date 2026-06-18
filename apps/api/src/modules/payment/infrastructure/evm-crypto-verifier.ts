@@ -60,6 +60,10 @@ export class EvmCryptoVerifier {
     const expectedValue = BigInt(input.buyerFacing.amountAtomic);
     const wallet = input.walletAddress.toLowerCase();
 
+    // Require exactly one Transfer matching the per-intent discriminant
+    // (treasury + exact dust-bound value + sender). Multiple matches or none
+    // is rejected — no ambiguous settlement (ADR 0001 #2/#13).
+    const matches: VerifyCryptoTransferResult[] = [];
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== token) continue;
       if (log.topics[0]?.toLowerCase() !== ERC20_TRANSFER_TOPIC) continue;
@@ -83,14 +87,20 @@ export class EvmCryptoVerifier {
         const to = String(decoded.args.to).toLowerCase();
         const value = decoded.args.value as bigint;
         if (to === treasury && value === expectedValue && from === wallet) {
-          return { ok: true, from, to, value: value.toString() };
+          matches.push({ ok: true, from, to, value: value.toString() });
         }
       } catch {
         continue;
       }
     }
 
-    throw new Error("crypto_transfer_not_matched");
+    if (matches.length === 0) {
+      throw new Error("crypto_transfer_not_matched");
+    }
+    if (matches.length > 1) {
+      throw new Error("crypto_transfer_ambiguous_match");
+    }
+    return matches[0]!;
   }
 }
 

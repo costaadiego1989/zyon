@@ -693,6 +693,19 @@ model PaymentProviderEvent {
   @@map("payment_provider_events")
 }
 
+model PaymentCryptoTransfer {
+  id         String   @id
+  chain      String
+  txHash     String   @map("tx_hash")
+  merchantId String   @map("merchant_id")
+  intentId   String   @map("intent_id")
+  observedAt DateTime @default(now()) @map("observed_at")
+
+  @@unique([chain, txHash])
+  @@index([merchantId, intentId])
+  @@map("payment_crypto_transfers")
+}
+
 model BuyerAccount {
   globalUserId String   @id @default(cuid()) @map("global_user_id")
   email        String   @unique

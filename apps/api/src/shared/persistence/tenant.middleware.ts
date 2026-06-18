@@ -41,6 +41,7 @@ export const TENANT_SCOPED_MODELS = [
   "CheckoutIntervention",
   "PaymentIntent",
   "PaymentProviderEvent",
+  "PaymentCryptoTransfer",
   "HttpIdempotencyRecord",
   "Coupon",
   "CouponRedemption",

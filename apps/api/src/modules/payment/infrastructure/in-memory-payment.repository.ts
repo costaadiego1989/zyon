@@ -2,6 +2,7 @@ import { Injectable, Optional, Inject } from "@nestjs/common";
 import type { DomainEventEnvelope } from "@aacp/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import type {
+  CryptoTransferKey,
   PaymentRepository,
   ProviderEventKey,
   SavePaymentIntentInput,
@@ -25,12 +26,17 @@ function keyEvent(key: ProviderEventKey): string {
   return `${key.provider}::${key.merchantId ?? ""}::${trim(key.eventId)}`;
 }
 
+function keyCryptoTransfer(chain: string, txHash: string): string {
+  return `${trim(chain).toLowerCase()}::${trim(txHash).toLowerCase()}`;
+}
+
 @Injectable()
 export class InMemoryPaymentRepository implements PaymentRepository {
   private readonly byIdempotency = new Map<string, PaymentIntentEntity>();
   private readonly byProvider = new Map<string, PaymentIntentEntity>();
   private readonly byIntentId = new Map<string, PaymentIntentEntity>();
   private readonly processedEvents = new Set<string>();
+  private readonly cryptoTransfers = new Map<string, string>();
   readonly capturedEvents: DomainEventEnvelope[] = [];
 
   constructor(@Optional() @Inject(OUTBOX_REPOSITORY) private readonly outbox?: OutboxRepository) {}
@@ -75,8 +81,19 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     this.byIntentId.set(snap.id, cloned);
   }
 
-  async getIntentById(intentBusinessId: string): Promise<PaymentIntentEntity | null> {
-    return this.byIntentId.get(trim(intentBusinessId)) ?? null;
+  async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {
+    const entity = this.byIntentId.get(trim(intentBusinessId)) ?? null;
+    if (!entity || entity.snapshot().merchantId !== trim(merchantId)) return null;
+    return entity;
+  }
+
+  async getIntentByExternalReference(
+    externalReference: string
+  ): Promise<{ id: string; merchantId: string } | null> {
+    const entity = this.byIntentId.get(trim(externalReference)) ?? null;
+    if (!entity) return null;
+    const snap = entity.snapshot();
+    return { id: snap.id, merchantId: snap.merchantId };
   }
 
   async getByIdempotency(
@@ -103,5 +120,20 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     if (this.processedEvents.has(k)) return false;
     this.processedEvents.add(k);
     return true;
+  }
+
+  async deleteProcessedProviderEvent(key: ProviderEventKey): Promise<void> {
+    this.processedEvents.delete(keyEvent(key));
+  }
+
+  async recordCryptoTransfer(key: CryptoTransferKey): Promise<boolean> {
+    const k = keyCryptoTransfer(key.chain, key.txHash);
+    if (this.cryptoTransfers.has(k)) return false;
+    this.cryptoTransfers.set(k, `${trim(key.merchantId)}::${trim(key.intentId)}`);
+    return true;
+  }
+
+  async deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void> {
+    this.cryptoTransfers.delete(keyCryptoTransfer(key.chain, key.txHash));
   }
 }

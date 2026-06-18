@@ -4,6 +4,7 @@ import { Prisma } from "@prisma/client";
 import type { DomainEventEnvelope } from "@aacp/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import type {
+  CryptoTransferKey,
   PaymentRepository,
   ProviderEventKey,
   SavePaymentIntentInput,
@@ -195,11 +196,22 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
   }
 
-  async getIntentById(intentBusinessId: string): Promise<PaymentIntentEntity | null> {
+  async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {
     const row = await this.prisma.paymentIntent.findUnique({
       where: { id: intentBusinessId.trim() }
     });
-    return row ? PaymentIntentEntity.rehydrate(snapshotFromRecord(row)) : null;
+    if (!row || row.merchantId !== merchantId.trim()) return null;
+    return PaymentIntentEntity.rehydrate(snapshotFromRecord(row));
+  }
+
+  async getIntentByExternalReference(
+    externalReference: string
+  ): Promise<{ id: string; merchantId: string } | null> {
+    const row = await this.prisma.paymentIntent.findUnique({
+      where: { id: externalReference.trim() },
+      select: { id: true, merchantId: true }
+    });
+    return row ? { id: row.id, merchantId: row.merchantId } : null;
   }
 
   async hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean> {
@@ -229,5 +241,44 @@ export class PrismaPaymentRepository implements PaymentRepository {
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
       throw e;
     }
+  }
+
+  async deleteProcessedProviderEvent(key: ProviderEventKey): Promise<void> {
+    await this.prisma.paymentProviderEvent.deleteMany({
+      where: {
+        provider: key.provider,
+        merchantId: key.merchantId,
+        eventId: key.eventId.trim()
+      }
+    });
+  }
+
+  async recordCryptoTransfer(key: CryptoTransferKey): Promise<boolean> {
+    const chain = key.chain.trim().toLowerCase();
+    const txHash = key.txHash.trim().toLowerCase();
+    try {
+      await this.prisma.paymentCryptoTransfer.create({
+        data: {
+          id: `${chain}:${txHash}`,
+          chain,
+          txHash,
+          merchantId: key.merchantId.trim(),
+          intentId: key.intentId.trim()
+        }
+      });
+      return true;
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return false;
+      throw e;
+    }
+  }
+
+  async deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void> {
+    await this.prisma.paymentCryptoTransfer.deleteMany({
+      where: {
+        chain: key.chain.trim().toLowerCase(),
+        txHash: key.txHash.trim().toLowerCase()
+      }
+    });
   }
 }

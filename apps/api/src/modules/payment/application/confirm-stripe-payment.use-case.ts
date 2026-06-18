@@ -38,11 +38,11 @@ export class ConfirmStripePaymentUseCase {
       throw new BadRequestException("stripe_confirm_fields_required");
     }
 
-    const intentRow = await this.payments.getIntentById(intentId);
+    const intentRow = await this.payments.getIntentById(merchantId, intentId);
     if (!intentRow) throw new NotFoundException("payment_intent_not_found");
 
     const snap = intentRow.snapshot();
-    if (snap.merchantId !== merchantId || snap.sessionId !== sessionId) {
+    if (snap.sessionId !== sessionId) {
       throw new NotFoundException("payment_intent_not_found");
     }
     if (snap.method !== "card") {

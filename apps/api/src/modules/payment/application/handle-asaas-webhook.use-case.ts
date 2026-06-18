@@ -95,46 +95,66 @@ export class HandleAsaasWebhookUseCase {
 
     const extRef = body.payment?.externalReference?.trim() ?? "";
 
-    let intentEntity: PaymentIntentEntity | null = extRef ? await this.payments.getIntentById(extRef) : null;
-    const merchantId = intentEntity ? intentEntity.snapshot().merchantId : null;
+    // Resolve the tenant from the external reference WITHOUT trusting it as a
+    // scoped read: the port returns only { id, merchantId }; the authoritative
+    // entity is re-fetched scoped below (ADR 0001 #3).
+    const ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
+    const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
-    if (await this.payments.hasProcessedProviderEvent(eventKey)) {
+    // Atomic idempotency gate: record the marker BEFORE any side effect. A
+    // losing concurrent delivery gets `false` and short-circuits — never runs
+    // dispatch twice (ADR 0001 #1).
+    const reserved = await this.payments.recordProcessedProviderEvent(eventKey);
+    if (!reserved) {
       return { outcome: "duplicate" };
     }
 
-    if (!intentEntity && extRef === "" && typeof body.payment?.id === "string" && body.payment.id.trim() !== "") {
-      await this.payments.recordProcessedProviderEvent(eventKey);
+    if (!ref && extRef === "" && typeof body.payment?.id === "string" && body.payment.id.trim() !== "") {
       return { outcome: "ignored", reason: "intent_lookup_requires_external_reference" };
     }
 
+    if (!ref) {
+      return { outcome: "ignored", reason: "intent_not_found" };
+    }
+
+    const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
     if (!intentEntity) {
-      await this.payments.recordProcessedProviderEvent(eventKey);
       return { outcome: "ignored", reason: "intent_not_found" };
     }
 
     try {
-      const effect = await this.dispatch(body.event, intentEntity.snapshot().id, body.payment);
-      await this.payments.recordProcessedProviderEvent(eventKey);
+      const effect = await this.dispatch(body.event, intentEntity, body.payment);
       return { outcome: "processed", effect };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "unknown_error";
       if (msg.includes("illegal_transition")) {
-        await this.payments.recordProcessedProviderEvent(eventKey);
-        return { outcome: "ignored", reason: "illegal_transition_swallowed" };
+        // Genuine illegal transition (out-of-order delivery / state corruption),
+        // NOT a benign idempotent re-delivery (those return early without
+        // throwing). Do not swallow silently: emit metric + structured log and
+        // keep the marker consumed to avoid a poison re-delivery loop. The
+        // anomaly is surfaced for dead-letter/alert review (ADR 0001 #4).
+        this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "illegal_transition" });
+        console.error("[payment][asaas-webhook] illegal_transition", {
+          intentId: ref.id,
+          merchantId: ref.merchantId,
+          eventId: body.id,
+          event: body.event
+        });
+        return { outcome: "ignored", reason: "illegal_transition_alerted" };
       }
+      // Transient failure mid-dispatch: release the idempotency marker so the
+      // provider's re-delivery can retry the whole effect (ADR 0001 #1).
+      await this.payments.deleteProcessedProviderEvent(eventKey);
       throw e;
     }
   }
 
   private async dispatch(
     eventName: string,
-    intentBusinessId: string,
+    intentEntity: PaymentIntentEntity,
     paymentSlice: NonNullable<AsaasWebhookInbound["payment"]> | undefined
   ): Promise<string> {
-    const intentEntity = await this.payments.getIntentById(intentBusinessId);
-    if (!intentEntity) return "intent_missing";
-
     switch (eventName) {
       case "PAYMENT_CREATED":
         return "noop_created";

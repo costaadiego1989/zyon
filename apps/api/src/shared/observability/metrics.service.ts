@@ -26,6 +26,13 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly paymentWebhookAnomaly = new Counter({
+    name: "payment_webhook_anomaly_total",
+    help: "Provider webhook events that hit an illegal/unexpected state transition",
+    labelNames: ["provider", "kind"],
+    registers: [this.registry],
+  });
+
   readonly outboxLag = new Histogram({
     name: "outbox_lag_seconds",
     help: "Age of oldest pending outbox event in seconds",

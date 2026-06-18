@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { CurrencyCode } from "@aacp/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
@@ -52,11 +52,11 @@ export class ConfirmCryptoPaymentUseCase {
       throw new BadRequestException("crypto_confirm_fields_required");
     }
 
-    const intentRow = await this.payments.getIntentById(intentId);
+    const intentRow = await this.payments.getIntentById(merchantId, intentId);
     if (!intentRow) throw new NotFoundException("payment_intent_not_found");
 
     const snap = intentRow.snapshot();
-    if (snap.merchantId !== merchantId || snap.sessionId !== sessionId) {
+    if (snap.sessionId !== sessionId) {
       throw new NotFoundException("payment_intent_not_found");
     }
     if (snap.method !== "crypto") {
@@ -74,19 +74,36 @@ export class ConfirmCryptoPaymentUseCase {
       throw new BadRequestException("crypto_quote_missing");
     }
 
-    const verified = await evmCryptoVerifier.verifyTransfer({
-      txHash,
-      walletAddress,
-      buyerFacing
-    });
+    // Global uniqueness gate: reserve (chain, txHash) for THIS intent BEFORE
+    // verifying/approving. A txHash already consumed (by this or any other
+    // intent) is rejected — no replay, no cross-intent reuse (ADR 0001 #2).
+    const transferKey = { chain: buyerFacing.chain, txHash, merchantId, intentId };
+    const reserved = await this.payments.recordCryptoTransfer(transferKey);
+    if (!reserved) {
+      throw new ConflictException("crypto_tx_already_used");
+    }
 
-    const intent = PaymentIntentEntity.rehydrate(snap);
-    intent.markApproved({
-      providerPaymentId: txHash,
-      approvedAmountCents: snap.amountCents
-    });
+    let verified: { from: string };
+    try {
+      verified = await evmCryptoVerifier.verifyTransfer({
+        txHash,
+        walletAddress,
+        buyerFacing
+      });
 
-    await this.payments.saveIntent({ intent });
+      const intent = PaymentIntentEntity.rehydrate(snap);
+      intent.markApproved({
+        providerPaymentId: txHash,
+        approvedAmountCents: snap.amountCents
+      });
+
+      await this.payments.saveIntent({ intent });
+    } catch (e) {
+      // Verification/approval failed — release the reservation so a legitimate
+      // retry (correct tx) is not permanently blocked by this attempt.
+      await this.payments.deleteCryptoTransfer({ chain: buyerFacing.chain, txHash });
+      throw e;
+    }
 
     if (this.outbox) {
       await this.outbox.appendOutbox(

@@ -31,7 +31,7 @@ test(
     try {
       await repository.saveIntent({ intent });
 
-      const later = PaymentIntentEntity.rehydrate((await repository.getIntentById(intent.id))!.snapshot());
+      const later = PaymentIntentEntity.rehydrate((await repository.getIntentById(merchantId, intent.id))!.snapshot());
       later.setBuyerFacingPayload({ invoiceUrl: "https://invoice.test/a" });
       await repository.saveIntent({ intent: later });
 

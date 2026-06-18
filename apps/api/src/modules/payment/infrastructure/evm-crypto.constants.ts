@@ -53,7 +53,10 @@ export function resolveRpcUrl(chain: EvmChain, network: EvmNetwork): string | un
 }
 
 export function minConfirmations(network: EvmNetwork): number {
-  return network === "testnet" ? 1 : 3;
+  // Mainnet uses a finality-safe depth (Polygon/Base reorg window exceeds a few
+  // blocks); 3 confirmations is within reorg range and unsafe for money
+  // (ADR 0001 #13). Testnet stays shallow for fast local/CI feedback.
+  return network === "testnet" ? 1 : 64;
 }
 
 export function walletConnectProjectId(): string | undefined {

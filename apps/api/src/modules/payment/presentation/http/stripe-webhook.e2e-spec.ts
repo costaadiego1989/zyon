@@ -122,7 +122,7 @@ test("Stripe webhook: payment_intent.succeeded → intent aprovado + pedido comp
   assert.equal(result.outcome, "processed");
   assert.equal(result.outcome === "processed" ? result.effect : "", "checkout_completed_after_payment");
 
-  const approved = await payments.getIntentById(intentSnap.id);
+  const approved = await payments.getIntentById(merchantId, intentSnap.id);
   assert.deepEqual(
     approved?.snapshot().statusHistory.map((e) => e.status),
     ["pending", "requires_action", "approved"]
@@ -167,7 +167,7 @@ test("Stripe webhook: payment_intent.payment_failed → intent failed + chat atu
   assert.equal(result.outcome, "processed");
   assert.equal(result.outcome === "processed" ? result.effect : "", "payment_failed");
 
-  const failed = await payments.getIntentById(intentSnap.id);
+  const failed = await payments.getIntentById(merchantId, intentSnap.id);
   assert.deepEqual(
     failed?.snapshot().statusHistory.map((e) => e.status),
     ["pending", "requires_action", "failed"]

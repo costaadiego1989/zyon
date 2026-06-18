@@ -59,7 +59,7 @@ export class StripePaymentAdapter implements PaymentProviderPort {
 
     const paymentIntent = await this.stripe.paymentIntents.create(
       paymentIntentParams,
-      { idempotencyKey: input.intentId }
+      { idempotencyKey: input.providerIdempotencyKey ?? input.intentId }
     );
 
     if (!paymentIntent.client_secret) {

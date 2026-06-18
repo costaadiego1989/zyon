@@ -448,7 +448,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     });
     assert.equal(processed.outcome, "processed");
 
-    const paidIntent = await payments.getIntentById(intent.id);
+    const paidIntent = await payments.getIntentById(MERCHANT, intent.id);
     assert.deepEqual(paidIntent?.snapshot().statusHistory.map((entry) => entry.status), [
       "pending",
       "requires_action",

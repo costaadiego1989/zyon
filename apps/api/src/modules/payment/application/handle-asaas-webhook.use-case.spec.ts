@@ -232,7 +232,7 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
   assert.equal(r.outcome, "processed");
   assert.equal(checkoutPort.failures.length, 1);
 
-  const reload = await payments.getIntentById(ext);
+  const reload = await payments.getIntentById("mrc_1", ext);
   assert.equal(reload?.snapshot().status, "failed");
   assert.ok(reload?.snapshot().statusHistory.some((entry) => entry.status === "failed"));
   assert.ok(checkoutPort.statuses.some((entry) => entry.status === "failed" && entry.reason === "PAYMENT_DELETED"));

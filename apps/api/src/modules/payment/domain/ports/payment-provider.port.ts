@@ -4,6 +4,14 @@ export type CreateProviderPaymentInput = {
   merchantId: string;
   sessionId: string;
   intentId: string;
+  /**
+   * Stable idempotency key derived from `(merchantId, sessionId, idempotencyKey)`.
+   * Unlike `intentId` (random per attempt), this aligns the provider's own
+   * dedupe with the local idempotency tuple so a client retry after a partial
+   * failure reuses the same provider charge instead of creating a second
+   * (ADR 0001 #6).
+   */
+  providerIdempotencyKey?: string;
   amountCents: number;
   currency: string;
   method: string;

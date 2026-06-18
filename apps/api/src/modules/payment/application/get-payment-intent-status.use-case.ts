@@ -36,12 +36,12 @@ export class GetPaymentIntentStatusUseCase {
       throw new BadRequestException("payment_status_fields_required");
     }
 
-    const intentRow = await this.payments.getIntentById(intentId);
+    const intentRow = await this.payments.getIntentById(merchantId, intentId);
     if (!intentRow) throw new NotFoundException("payment_intent_not_found");
 
     const snap = intentRow.snapshot();
-    // Tenant + session boundary: never leak another merchant's/session's intent.
-    if (snap.merchantId !== merchantId || snap.sessionId !== sessionId) {
+    // Session boundary: the tenant boundary is enforced at the port via merchantId.
+    if (snap.sessionId !== sessionId) {
       throw new NotFoundException("payment_intent_not_found");
     }
 

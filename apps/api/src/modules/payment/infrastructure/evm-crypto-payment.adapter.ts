@@ -36,7 +36,7 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
       throw new BadRequestException("crypto_payments_not_enabled_for_merchant");
     }
 
-    const quote = buildCryptoQuote(input.amountCents, config!);
+    const quote = buildCryptoQuote(input.amountCents, config!, input.intentId);
     const providerPaymentId = `crypto_${input.intentId}`;
 
     return {
@@ -47,9 +47,13 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
   }
 }
 
-export function buildCryptoQuote(amountCents: number, config: MerchantCryptoPayments): CryptoBuyerFacing {
+export function buildCryptoQuote(
+  amountCents: number,
+  config: MerchantCryptoPayments,
+  intentId?: string
+): CryptoBuyerFacing {
   const brlPerUsdc = config.brlPerUsdc ?? 0;
-  const { amountAtomic, amountDisplay } = quoteUsdcFromBrlCents(amountCents, brlPerUsdc);
+  const { amountAtomic, amountDisplay } = quoteUsdcFromBrlCents(amountCents, brlPerUsdc, intentId);
   const ttl = config.quoteTtlSeconds ?? 900;
   const chain = config.chain;
   const network = config.network;
