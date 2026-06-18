@@ -154,6 +154,88 @@ export type TenantPayment = {
   updated_at: string;
 };
 
+// ── Billing ──────────────────────────────────────────────────────────────────
+
+export type BillingSubscription = {
+  plan: string;
+  status: string;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  trial_end: string | null;
+};
+
+export type BillingCheckoutSessionResponse = {
+  url: string;
+};
+
+export type BillingPortalSessionResponse = {
+  url: string;
+};
+
+// ── Payment connections ──────────────────────────────────────────────────────
+
+export type PaymentConnection = {
+  id: string;
+  provider: "stripe" | "asaas" | string;
+  status: "active" | "pending" | "error" | string;
+  account_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PaymentOnboardingLinkResponse = {
+  url: string;
+};
+
+// ── Audit events ─────────────────────────────────────────────────────────────
+
+export type AuditEvent = {
+  id: string;
+  merchant_id: string;
+  actor_id: string | null;
+  action: string;
+  resource_type: string;
+  resource_id: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
+// ── Agent rules ──────────────────────────────────────────────────────────────
+
+export type AgentRules = Record<string, unknown> & {
+  enabled?: boolean;
+};
+
+// ── Negotiation policy ───────────────────────────────────────────────────────
+
+export type NegotiationPolicy = Record<string, unknown> & {
+  enabled?: boolean;
+  max_discount_pct?: number;
+};
+
+// ── Commerce connections ──────────────────────────────────────────────────────
+
+export type CommerceConnection = {
+  id: string;
+  platform: string;
+  shop_domain: string | null;
+  status: "active" | "inactive" | "error" | string;
+  created_at: string;
+  updated_at: string;
+};
+
+// ── Installations ─────────────────────────────────────────────────────────────
+
+export type Installation = {
+  id: string;
+  name: string | null;
+  platform: string | null;
+  status: "active" | "inactive" | string;
+  health: "healthy" | "degraded" | "unknown" | string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type CursorPage<T> = {
   data: T[];
   next_cursor: string | null;
@@ -201,8 +283,18 @@ export async function dashboardFetch(
   if (res.status === 401 && !path.includes("/auth/")) {
     const refreshed = await silentRefresh(apiBaseUrl, fetchImpl);
     if (refreshed) {
-      return doFetch();
+      const retryRes = await doFetch();
+      // BUG-AUTH-1 (P1): If the retry after a successful refresh is still 401,
+      // the session is truly gone — emit SESSION_EXPIRED consistently here so
+      // ALL callers (not just dashboardJson) react to it.
+      if (retryRes.status === 401) {
+        emitSessionExpired();
+      }
+      return retryRes;
     }
+    // BUG-AUTH-1 (P1): Refresh itself failed → session expired. Emit here so
+    // direct dashboardFetch callers (non-JSON paths) also trigger the event.
+    emitSessionExpired();
   }
 
   return res;
@@ -315,8 +407,24 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/checkout-settings", { method: "GET" }, f);
     },
 
-    patchCheckoutSettings(patch: CheckoutSettingsPatch): Promise<CheckoutSettings> {
-      return dashboardJson(base, "/checkout-settings", { method: "PUT", jsonBody: patch }, f);
+    async patchCheckoutSettings(patch: CheckoutSettingsPatch): Promise<CheckoutSettings> {
+      // If-Match is REQUIRED by the server (assertIfMatch throws 428 when absent).
+      // Fetch the current ETag first so concurrent writes are detected; fall back
+      // to '*' only if the GET fails to keep the happy-path working.
+      let ifMatchValue = "*";
+      try {
+        const current = await dashboardJson<CheckoutSettings>(base, "/checkout-settings", { method: "GET" }, f);
+        if (current?.updatedAt) {
+          ifMatchValue = `"${current.updatedAt}"`;
+        }
+      } catch {
+        // ignore – proceed with wildcard
+      }
+      return dashboardJson(base, "/checkout-settings", {
+        method: "PUT",
+        headers: { "If-Match": ifMatchValue },
+        jsonBody: patch,
+      }, f);
     },
 
     evaluateNegotiation(
@@ -506,6 +614,125 @@ export function createDashboardApi(options: {
         f
       );
     },
+
+    // ── Billing ────────────────────────────────────────────────────────────
+
+    getBillingSubscription(): Promise<BillingSubscription> {
+      return dashboardJson(base, "/billing/subscription", { method: "GET" }, f);
+    },
+
+    createBillingCheckoutSession(payload: { price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
+      return dashboardJson(base, "/billing/checkout-session", { method: "POST", jsonBody: payload }, f);
+    },
+
+    createBillingPortalSession(payload: { return_url?: string }): Promise<BillingPortalSessionResponse> {
+      return dashboardJson(base, "/billing/portal-session", { method: "POST", jsonBody: payload }, f);
+    },
+
+    // ── Payment connections ────────────────────────────────────────────────
+
+    getPaymentConnections(): Promise<PaymentConnection[]> {
+      return dashboardJson<PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
+    },
+
+    createStripeOnboardingLink(payload: { return_url?: string; refresh_url?: string }): Promise<PaymentOnboardingLinkResponse> {
+      return dashboardJson(base, "/payments/connections/stripe/onboarding-link", { method: "POST", jsonBody: payload }, f);
+    },
+
+    syncStripeConnection(): Promise<PaymentConnection> {
+      return dashboardJson(base, "/payments/connections/stripe/sync", { method: "POST" }, f);
+    },
+
+    connectAsaas(payload: { api_key: string }): Promise<PaymentConnection> {
+      return dashboardJson(base, "/payments/connections/asaas", { method: "POST", jsonBody: payload }, f);
+    },
+
+    createAsaasOnboardingLink(payload: { return_url?: string }): Promise<PaymentOnboardingLinkResponse> {
+      return dashboardJson(base, "/payments/connections/asaas/onboarding-link", { method: "POST", jsonBody: payload }, f);
+    },
+
+    syncAsaasConnection(): Promise<PaymentConnection> {
+      return dashboardJson(base, "/payments/connections/asaas/sync", { method: "POST" }, f);
+    },
+
+    // ── Audit events ───────────────────────────────────────────────────────
+
+    async getAuditEvents(limit?: number): Promise<AuditEvent[]> {
+      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
+      const response = await dashboardJson<AuditEvent[] | CursorPage<AuditEvent>>(
+        base,
+        `/audit-events${query}`,
+        { method: "GET" },
+        f,
+      );
+      return Array.isArray(response) ? response : response.data;
+    },
+
+    // ── Agent rules ─────���──────────────────────────────────────────────────
+
+    getAgentRules(): Promise<AgentRules> {
+      return dashboardJson(base, "/agent-rules", { method: "GET" }, f);
+    },
+
+    putAgentRules(payload: AgentRules): Promise<AgentRules> {
+      return dashboardJson(base, "/agent-rules", { method: "PUT", jsonBody: payload }, f);
+    },
+
+    getAgentRulesContext(): Promise<Record<string, unknown>> {
+      return dashboardJson(base, "/agent-rules/context", { method: "GET" }, f);
+    },
+
+    // ── Negotiation policy ─────────────────────────────────────────────────
+
+    getNegotiationPolicy(): Promise<NegotiationPolicy> {
+      return dashboardJson(base, "/negotiations/policy", { method: "GET" }, f);
+    },
+
+    putNegotiationPolicy(payload: NegotiationPolicy): Promise<NegotiationPolicy> {
+      return dashboardJson(base, "/negotiations/policy", { method: "PUT", jsonBody: payload }, f);
+    },
+
+    // ── Commerce connections ───────────────────────────────────────────────
+
+    getCommerceConnections(): Promise<CommerceConnection[]> {
+      return dashboardJson<CommerceConnection[]>(base, "/commerce/connections", { method: "GET" }, f);
+    },
+
+    createCommerceConnection(payload: { platform: string; shop_domain?: string; credentials?: Record<string, unknown> }): Promise<CommerceConnection> {
+      return dashboardJson(base, "/commerce/connections", { method: "POST", jsonBody: payload }, f);
+    },
+
+    testCommerceConnection(connectionId: string): Promise<{ ok: boolean; message?: string }> {
+      return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}/test`, { method: "POST" }, f);
+    },
+
+    syncCommerceConnection(connectionId: string): Promise<CommerceConnection> {
+      return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}/sync`, { method: "POST" }, f);
+    },
+
+    deleteCommerceConnection(connectionId: string): Promise<Record<string, never>> {
+      return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" }, f);
+    },
+
+    // ── Installations ──────────────────────────────────────────────────────
+
+    async getInstallations(): Promise<Installation[]> {
+      const response = await dashboardJson<Installation[] | CursorPage<Installation>>(
+        base,
+        "/installations",
+        { method: "GET" },
+        f,
+      );
+      return Array.isArray(response) ? response : response.data;
+    },
+
+    getInstallation(installationId: string): Promise<Installation> {
+      return dashboardJson(base, `/installations/${encodeURIComponent(installationId)}`, { method: "GET" }, f);
+    },
+
+    checkInstallationHealth(installationId: string): Promise<{ status: string; checks?: Record<string, unknown> }> {
+      return dashboardJson(base, `/installations/${encodeURIComponent(installationId)}/health`, { method: "GET" }, f);
+    },
   };
 }
 
@@ -515,6 +742,20 @@ function createIdempotencyKey(): string {
       ? globalThis.crypto.randomUUID()
       : `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   return `dashboard_${random}`;
+}
+
+/**
+ * BUG-AUTH-3 (P2): Return a stable idempotency key for a user-initiated action.
+ * Pass this as `headers: { "Idempotency-Key": stableIdempotencyKey(actionId) }`
+ * when calling dashboardFetch/dashboardJson so that manual retries of the same
+ * form submission reuse the same key (deduplicating double-submit on the server).
+ *
+ * @param actionId - A caller-scoped ID stable across retries of the same action.
+ *   Typically generated once per form submission and stored in component state.
+ *   Example: `const [actionId] = useState(() => stableIdempotencyKey(formId))`.
+ */
+export function stableIdempotencyKey(actionId: string): string {
+  return `dashboard_action_${actionId}`;
 }
 
 type WebhookEndpointApi = {

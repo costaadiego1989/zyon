@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { dashboardFetch, DashboardHttpError, dashboardJson, createDashboardApi } from "./api-client";
+import { dashboardFetch, DashboardHttpError, dashboardJson, createDashboardApi, SESSION_EXPIRED_EVENT, stableIdempotencyKey } from "./api-client";
 
 describe("dashboardFetch", () => {
   beforeEach(() => {
@@ -408,5 +408,74 @@ describe("onboarding api", () => {
       "http://api.test/v1/onboarding/steps/checkout_config/complete",
       expect.objectContaining({ credentials: "include", method: "POST" })
     );
+  });
+});
+
+// BUG-AUTH-1 (P1) regression: SESSION_EXPIRED_EVENT must be emitted from
+// dashboardFetch (not only dashboardJson) so all callers — including those
+// that read the Response directly — react to session expiry.
+describe("BUG-AUTH-1: SESSION_EXPIRED_EVENT emitted on failed refresh (P1 regression)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("emits SESSION_EXPIRED when silent refresh fails", async () => {
+    // First call returns 401. Refresh call returns 401 (failed). Should emit.
+    let callCount = 0;
+    const fetchSpy = vi.fn(async (url: RequestInfo | URL): Promise<Response> => {
+      callCount++;
+      if (String(url).includes("/auth/refresh")) {
+        return { ok: false, status: 401, text: async () => "unauthorized" } as Response;
+      }
+      return { ok: false, status: 401, text: async () => "unauthorized" } as Response;
+    });
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+
+    await dashboardFetch("http://api.test", "/merchants/me", {}, fetchSpy as typeof fetch);
+
+    const sessionExpiredEmitted = dispatchSpy.mock.calls.some(
+      (call) => call[0] instanceof CustomEvent && (call[0] as CustomEvent).type === SESSION_EXPIRED_EVENT
+    );
+    expect(sessionExpiredEmitted).toBe(true);
+  });
+
+  it("emits SESSION_EXPIRED when second response after successful refresh is still 401", async () => {
+    let callCount = 0;
+    const fetchSpy = vi.fn(async (url: RequestInfo | URL): Promise<Response> => {
+      callCount++;
+      if (String(url).includes("/auth/refresh")) {
+        // Refresh succeeds
+        return { ok: true, status: 200, text: async () => "{}" } as Response;
+      }
+      // All non-refresh calls return 401 (session still dead after refresh)
+      return { ok: false, status: 401, text: async () => "unauthorized" } as Response;
+    });
+    const dispatchSpy = vi.spyOn(window, "dispatchEvent");
+
+    await dashboardFetch("http://api.test", "/merchants/me", {}, fetchSpy as typeof fetch);
+
+    const sessionExpiredEmitted = dispatchSpy.mock.calls.some(
+      (call) => call[0] instanceof CustomEvent && (call[0] as CustomEvent).type === SESSION_EXPIRED_EVENT
+    );
+    expect(sessionExpiredEmitted).toBe(true);
+  });
+});
+
+// BUG-AUTH-3 (P2) regression: stableIdempotencyKey must return the same key
+// for the same actionId so form retries reuse the key (deduplication).
+describe("BUG-AUTH-3: stableIdempotencyKey is stable per actionId (P2 regression)", () => {
+  it("returns the same key for the same actionId", () => {
+    const id = "form-submit-abc123";
+    expect(stableIdempotencyKey(id)).toBe(stableIdempotencyKey(id));
+  });
+
+  it("returns different keys for different actionIds", () => {
+    expect(stableIdempotencyKey("action-1")).not.toBe(stableIdempotencyKey("action-2"));
+  });
+
+  it("key includes the actionId for traceability", () => {
+    const key = stableIdempotencyKey("my-action");
+    expect(key).toContain("my-action");
   });
 });

@@ -1,25 +1,43 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Save } from "lucide-react";
+import { Bot, Save } from "lucide-react";
 import type { MerchantRules } from "@aacp/shared-types";
-import type { MerchantProfile as MerchantMeProfile } from "../api-client.js";
+import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
 import { createDashboardApi, DashboardHttpError } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
 import { QuickRepliesSection } from "../components/quick-replies-section.js";
+
+function readError(e: unknown): string {
+  return e instanceof DashboardHttpError
+    ? e.responseBody || e.message
+    : e instanceof Error
+      ? e.message
+      : "Erro desconhecido";
+}
 
 export function MerchantRulesAuthenticatedPage(props: {
   apiBaseUrl: string;
   me: MerchantMeProfile | null;
 }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+
+  // merchant-rules state (existing)
   const [rules, setRules] = useState<MerchantRules | null>(null);
   const [saving, setSaving] = useState(false);
   const [gate, setGate] = useState<"idle" | "401" | "error">("idle");
   const [hint, setHint] = useState<string | null>(null);
 
+  // agent-rules state (new)
+  const [agentRules, setAgentRules] = useState<AgentRules | null>(null);
+  const [agentRulesJson, setAgentRulesJson] = useState("");
+  const [agentBusy, setAgentBusy] = useState(false);
+  const [agentMessage, setAgentMessage] = useState<string | null>(null);
+  const [agentLoading, setAgentLoading] = useState(false);
+
   useEffect(() => {
     async function fetchRules() {
       if (!props.me) {
         setRules(null);
+        setAgentRules(null);
         setGate("idle");
         setHint(null);
         return;
@@ -35,14 +53,49 @@ export function MerchantRulesAuthenticatedPage(props: {
         if (e instanceof DashboardHttpError && e.status === 401) setGate("401");
         else {
           setGate("error");
-          setHint(
-            e instanceof DashboardHttpError ? e.responseBody || e.message : e instanceof Error ? e.message : "Erro ao carregar regras"
-          );
+          setHint(readError(e));
         }
       }
     }
     void fetchRules();
   }, [api, props.me]);
+
+  useEffect(() => {
+    if (!props.me) return;
+    void loadAgentRules();
+  }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadAgentRules() {
+    setAgentLoading(true);
+    setAgentMessage(null);
+    try {
+      const ar = await api.getAgentRules();
+      setAgentRules(ar);
+      setAgentRulesJson(JSON.stringify(ar, null, 2));
+    } catch (e) {
+      setAgentMessage(readError(e));
+    } finally {
+      setAgentLoading(false);
+    }
+  }
+
+  async function saveAgentRules() {
+    setAgentBusy(true);
+    setAgentMessage(null);
+    try {
+      const parsed = JSON.parse(agentRulesJson) as AgentRules;
+      const saved = await api.putAgentRules(parsed);
+      setAgentRules(saved);
+      setAgentRulesJson(JSON.stringify(saved, null, 2));
+      setAgentMessage("Regras do agente salvas.");
+    } catch (e) {
+      setAgentMessage(
+        e instanceof SyntaxError ? `JSON invalido: ${e.message}` : readError(e),
+      );
+    } finally {
+      setAgentBusy(false);
+    }
+  }
 
   async function saveRules() {
     if (!rules) return;
@@ -68,6 +121,7 @@ export function MerchantRulesAuthenticatedPage(props: {
 
   return (
     <>
+      {/* Merchant rules section */}
       <header className="page-head">
         <div>
           <h1>Regras do merchant atual</h1>
@@ -93,6 +147,45 @@ export function MerchantRulesAuthenticatedPage(props: {
           </div>
         </>
       ) : gate === "idle" ? <p>Carregando…</p> : null}
+
+      {/* Agent rules section */}
+      <section className="panel stacked" style={{ marginTop: 32 }}>
+        <div className="panel-title">
+          <h2>Motor de regras do agente</h2>
+          <Bot size={18} />
+        </div>
+        <p className="page-lead" style={{ marginBottom: 8 }}>
+          Configuracao avancada: <code>GET/PUT /agent-rules</code>. Edite o JSON e salve.
+        </p>
+        {agentMessage ? <p className="panel panel-info">{agentMessage}</p> : null}
+        {agentLoading ? <p className="panel panel-info">Carregando regras do agente...</p> : null}
+        <textarea
+          spellCheck={false}
+          disabled={agentBusy || agentLoading}
+          className="mono-textarea"
+          value={agentRulesJson}
+          onChange={(e) => setAgentRulesJson(e.target.value)}
+          rows={12}
+          aria-label="JSON das regras do agente"
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <button
+            type="button"
+            disabled={agentBusy || agentLoading || !agentRules}
+            onClick={() => void saveAgentRules()}
+          >
+            <Save size={16} />
+            Salvar regras do agente
+          </button>
+          <button
+            type="button"
+            disabled={agentBusy || agentLoading}
+            onClick={() => void loadAgentRules()}
+          >
+            Recarregar
+          </button>
+        </div>
+      </section>
     </>
   );
 }

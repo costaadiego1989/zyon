@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bot,
   Code2,
+  CreditCard,
   KeyRound,
   Eye,
   LogOut,
@@ -14,9 +15,11 @@ import {
   Settings2,
   ShieldCheck,
   SlidersHorizontal,
+  Store,
   UserPlus,
   UsersRound,
   Webhook,
+  Zap,
   type LucideIcon
 } from "lucide-react";
 import {
@@ -37,6 +40,10 @@ import { EmbedPage } from "./pages/embed-page.js";
 import { ThemePage } from "./pages/theme-page.js";
 import { OnboardingWizard } from "./pages/onboarding-wizard.js";
 import { CheckoutPreviewPage } from "./pages/preview-page.js";
+import { BillingPage } from "./pages/billing-page.js";
+import { PaymentConnectionsPage } from "./pages/payment-connections-page.js";
+import { AuditLogPage } from "./pages/audit-log-page.js";
+import { CommerceConnectionsPage } from "./pages/commerce-connections-page.js";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -54,7 +61,11 @@ type TabKey =
   | "support"
   | "settings"
   | "rules"
-  | "negotiation";
+  | "negotiation"
+  | "billing"
+  | "payment-connections"
+  | "audit-log"
+  | "commerce-connections";
 
 type AuthMode = "login" | "signup";
 
@@ -64,13 +75,17 @@ const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: Luci
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
   { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook },
+  { key: "commerce-connections", label: "Loja / Commerce", section: "Plataforma", icon: Store },
   { key: "embed", label: "Embed", section: "Plataforma", icon: Code2 },
   { key: "preview", label: "Preview", section: "Plataforma", icon: Eye },
   { key: "theme", label: "Tema", section: "Plataforma", icon: Palette },
   { key: "support", label: "Suporte", section: "Atendimento", icon: MessageSquare },
   { key: "settings", label: "Checkout", section: "Atendimento", icon: Settings2 },
   { key: "rules", label: "Agente", section: "Atendimento", icon: Bot },
-  { key: "negotiation", label: "Negociacao", section: "Atendimento", icon: SlidersHorizontal }
+  { key: "negotiation", label: "Negociacao", section: "Atendimento", icon: SlidersHorizontal },
+  { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
+  { key: "payment-connections", label: "Pagamentos", section: "Conta", icon: Zap },
+  { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },
 ];
 
 function friendlyAuthError(error: unknown): string {
@@ -213,8 +228,16 @@ function App() {
       } catch {
         // Onboarding state is best-effort; never block console access.
       }
-    } catch {
-      setMe(null);
+    } catch (err) {
+      // BUG-AUTH-2 (P2): Only force login on 401 (truly unauthenticated).
+      // Network blips (5xx, fetch failures) must NOT log the operator out —
+      // show an "API unavailable" hint and preserve the session instead.
+      if (err instanceof DashboardHttpError && err.status === 401) {
+        setMe(null);
+      } else {
+        // Transient error: keep the session (me) as-is; surface a warning.
+        setAuthHint("API indisponível. Recarregue para tentar novamente.");
+      }
     } finally {
       setCheckingSession(false);
     }
@@ -369,6 +392,10 @@ function App() {
           {tab === "embed" ? <EmbedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "preview" ? <CheckoutPreviewPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+          {tab === "billing" ? <BillingPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+          {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+          {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+          {tab === "commerce-connections" ? <CommerceConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
         </section>
       </main>
     </div>

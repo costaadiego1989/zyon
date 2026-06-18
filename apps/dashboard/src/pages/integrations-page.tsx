@@ -16,6 +16,7 @@ import {
 import {
   createDashboardApi,
   DashboardHttpError,
+  type Installation,
   type MerchantApiKey,
   type MerchantProfile,
   type WebhookDelivery,
@@ -86,6 +87,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
+
+  // installations state
+  const [installations, setInstallations] = useState<Installation[]>([]);
+  const [installationHealth, setInstallationHealth] = useState<Record<string, string>>({});
   const documentationRoot = useMemo(
     () => apiDocumentationRoot(props.apiBaseUrl),
     [props.apiBaseUrl],
@@ -100,6 +105,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       setApiKeys([]);
       setWebhooks([]);
       setDeliveries([]);
+      setInstallations([]);
       return;
     }
     void load();
@@ -110,14 +116,16 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     setApiReachable(null);
     setMessage(null);
     try {
-      const [keys, endpoints, logs] = await Promise.all([
+      const [keys, endpoints, logs, installs] = await Promise.all([
         api.getIntegrationApiKeys(),
         api.getWebhookEndpoints(),
-        api.getWebhookDeliveries(20)
+        api.getWebhookDeliveries(20),
+        api.getInstallations().catch(() => [] as Installation[]),
       ]);
       setApiKeys(keys);
       setWebhooks(endpoints);
       setDeliveries(logs);
+      setInstallations(installs);
       setApiReachable(true);
     } catch (e) {
       setApiReachable(false);
@@ -197,6 +205,20 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       const delivery = await api.replayWebhookDelivery(current.endpointId, deliveryId);
       setDeliveries((prev) => prev.map((item) => (item.id === deliveryId ? delivery : item)));
       setMessage("Replay enfileirado.");
+    } catch (e) {
+      setMessage(readError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function checkHealth(installationId: string) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const result = await api.checkInstallationHealth(installationId);
+      setInstallationHealth((prev) => ({ ...prev, [installationId]: result.status }));
+      setMessage(`Health: ${result.status}`);
     } catch (e) {
       setMessage(readError(e));
     } finally {
@@ -519,6 +541,70 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               {deliveries.length === 0 ? (
                 <tr>
                   <td colSpan={6}>As tentativas de entrega aparecerao aqui apos o primeiro evento.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Installations section */}
+      <section className="panel stacked" style={{ marginTop: 16 }}>
+        <div className="panel-title">
+          <h2>Instalacoes</h2>
+          <Activity size={18} />
+        </div>
+        <p className="page-lead" style={{ marginBottom: 8 }}>
+          Instalacoes do tenant e status de saude (<code>GET /installations</code>).
+        </p>
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Nome</th>
+                <th>Plataforma</th>
+                <th>Status</th>
+                <th>Health</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {installations.map((inst) => (
+                <tr key={inst.id}>
+                  <td><code>{inst.id}</code></td>
+                  <td>{inst.name ?? "—"}</td>
+                  <td>{inst.platform ?? "—"}</td>
+                  <td>
+                    <span className={inst.status === "active" ? "badge ok" : "badge bad"}>
+                      {inst.status}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={
+                      (installationHealth[inst.id] ?? inst.health) === "healthy" ? "badge ok" :
+                      (installationHealth[inst.id] ?? inst.health) === "degraded" ? "badge bad" :
+                      "badge muted"
+                    }>
+                      {installationHealth[inst.id] ?? inst.health ?? "desconhecido"}
+                    </span>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void checkHealth(inst.id)}
+                      title="Verificar health"
+                    >
+                      <Activity size={14} />
+                      Health
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {installations.length === 0 && !loading ? (
+                <tr>
+                  <td colSpan={6}>Nenhuma instalacao encontrada.</td>
                 </tr>
               ) : null}
             </tbody>

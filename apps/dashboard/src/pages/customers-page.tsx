@@ -20,6 +20,10 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // BUG-BPH-1 (P2): Track loading state separately from busy so the empty-state
+  // row is hidden while the initial fetch is in flight. Without this flag,
+  // "Nenhum cliente recente." flashes during load before data arrives.
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!props.me) {
@@ -32,6 +36,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   async function load() {
     if (!props.me) return;
     setBusy(true);
+    setLoading(true);
     setMessage(null);
     try {
       setRows(toCustomerRows(await api.getCustomers(100)));
@@ -39,6 +44,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setLoading(false);
     }
   }
 
@@ -92,9 +98,15 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                   <td>{formatDate(row.lastSeen)}</td>
                 </tr>
               ))}
-              {rows.length === 0 ? (
+              {/* BUG-BPH-1 (P2): Only show empty-state after loading completes. */}
+              {rows.length === 0 && !loading ? (
                 <tr>
                   <td colSpan={5}>Nenhum cliente recente.</td>
+                </tr>
+              ) : null}
+              {loading ? (
+                <tr>
+                  <td colSpan={5}>Carregando…</td>
                 </tr>
               ) : null}
             </tbody>
@@ -119,9 +131,18 @@ function text(value: unknown): string {
   return typeof value === "string" && value ? value : "-";
 }
 
+/**
+ * BUG-BPH-2 (P3): Guard against absent or malformed date values.
+ * `new Date(undefined)` / `new Date("")` produce an Invalid Date that formats
+ * as "Invalid Date". Returning "-" for missing/invalid values is safe and
+ * matches the sentinel used for other optional string fields.
+ */
 function formatDate(value: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(date);
 }
