@@ -86,7 +86,7 @@ test("OTP is stored as hash, not plaintext (B4 P2 regression)", async () => {
   // codeHash must be a hex sha256 (64 chars), not a 6-digit code.
   assert.match(record.codeHash, /^[0-9a-f]{64}$/, "codeHash must be a sha256 hex string");
   // The 6-digit code range is 100000–999999; the hash must not be within that range.
-  assert.notMatch(record.codeHash, /^\d{6}$/, "codeHash must not be a raw 6-digit code");
+  assert.doesNotMatch(record.codeHash, /^\d{6}$/, "codeHash must not be a raw 6-digit code");
 });
 
 // B1 (P0) regression: BuyerJwtService uses BUYER_JWT_SECRET (separate from

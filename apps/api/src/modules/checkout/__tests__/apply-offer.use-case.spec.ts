@@ -31,7 +31,9 @@ test("ApplyOfferUseCase applies approved offers and records checkout acceptance"
   const response = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", offer_id: "off_1" });
 
   assert.equal(response.success, true);
-  assert.equal(response.new_total, 270);
+  // new_total is subtotal (300) + shipping (35) - discount (30) = 305.
+  // It reflects the full amount the customer pays, not subtotal-minus-discount.
+  assert.equal(response.new_total, 305);
   assert.equal(repository.getAcceptedOffer("mrc_1", "chk_1", "off_1")?.offerId, "off_1");
 });
 

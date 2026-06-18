@@ -167,7 +167,7 @@ test("UpdateMerchantRules rejects unknown field via use-case (no-op for extra pr
 
 // --- Regression tests for BUG P3: crypto disabled strips unvalidated fields ---
 
-test("MerchantCryptoValidation: disabled returns {enabled:false} only (strips all other fields)", () => {
+test("MerchantCryptoValidation: disabled strips sensitive fields to neutral defaults", () => {
   const result = normalizeMerchantCryptoPayments({
     enabled: false,
     chain: "polygon",
@@ -176,5 +176,14 @@ test("MerchantCryptoValidation: disabled returns {enabled:false} only (strips al
     token: "USDC",
     quoteTtlSeconds: 60
   } as never);
-  assert.deepEqual(result, { enabled: false });
+  // Disabled must not propagate caller-supplied (possibly invalid/sensitive)
+  // values; treasuryAddress is blanked and fields reset to neutral defaults.
+  assert.deepEqual(result, {
+    enabled: false,
+    chain: "polygon",
+    network: "mainnet",
+    treasuryAddress: "",
+    token: "USDC",
+    quoteTtlSeconds: 900
+  });
 });

@@ -126,3 +126,31 @@ test("negotiation engine requires human confirmation above configured cart value
   assert.equal(result.agreement, true);
   assert.equal(result.requiresHumanConfirmation, true);
 });
+
+// Bug 9 regression: threshold of 0 must mean "always require confirmation",
+// not skip it. Boolean(0) === false was silently disabling the guardrail.
+test("negotiation engine requires human confirmation when threshold is 0 (always confirm)", () => {
+  const result = negotiateDiscount({
+    merchantId: "mrc_1",
+    cart: { total: 1, items: [{ sku: "basic", price: 1, quantity: 1 }] },
+    merchantPolicy,
+    buyerPreferences: { ...buyerPreferences, requireHumanConfirmationAbove: 0 }
+  });
+
+  assert.equal(result.agreement, true);
+  // cart.total (1) > threshold (0) → requiresHumanConfirmation must be true
+  assert.equal(result.requiresHumanConfirmation, true);
+});
+
+test("negotiation engine does NOT require human confirmation when threshold is absent", () => {
+  const { requireHumanConfirmationAbove: _omit, ...prefsWithout } = buyerPreferences;
+  const result = negotiateDiscount({
+    merchantId: "mrc_1",
+    cart: { total: 9999, items: [{ sku: "basic", price: 9999, quantity: 1 }] },
+    merchantPolicy,
+    buyerPreferences: prefsWithout
+  });
+
+  assert.equal(result.agreement, true);
+  assert.equal(result.requiresHumanConfirmation, false);
+});

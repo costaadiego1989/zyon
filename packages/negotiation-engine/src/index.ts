@@ -140,8 +140,8 @@ export function negotiateDiscount(input: NegotiationInput): NegotiationResult {
     agreement: true,
     autoAccept: input.buyerPreferences.autoAccept,
     requiresHumanConfirmation:
-      Boolean(input.buyerPreferences.requireHumanConfirmationAbove) &&
-      input.cart.total > (input.buyerPreferences.requireHumanConfirmationAbove ?? Infinity),
+      typeof input.buyerPreferences.requireHumanConfirmationAbove === "number" &&
+      input.cart.total > input.buyerPreferences.requireHumanConfirmationAbove,
     audit: [...withResolved.audit, `Agreement selected at ${selectedDiscountPercent}%.`]
   };
 }

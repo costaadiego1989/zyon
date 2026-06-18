@@ -7,9 +7,16 @@ export function normalizeMerchantCryptoPayments(
 ): MerchantCryptoPayments | undefined {
   if (!input) return undefined;
   if (!input.enabled) {
-    // When disabled, return a minimal normalized object — do NOT propagate
-    // unvalidated fields that may contain invalid or sensitive data.
-    return { enabled: false };
+    // When disabled, return a normalized object with neutral defaults — do NOT
+    // propagate unvalidated fields that may contain invalid or sensitive data.
+    return {
+      enabled: false,
+      chain: "polygon",
+      network: "mainnet",
+      treasuryAddress: "",
+      token: "USDC",
+      quoteTtlSeconds: 900
+    };
   }
   const treasury = input.treasuryAddress?.trim() ?? "";
   if (!EVM_ADDRESS.test(treasury)) {

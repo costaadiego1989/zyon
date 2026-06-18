@@ -18,8 +18,18 @@ export class EvaluateShippingUseCase {
   async execute(input: ShippingEvaluateRequest): Promise<ShippingEvaluateResponse> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
-    // P2 fix: use DEFAULT_MERCHANT_RULES — single shared constant, no inline divergence.
-    const rules = await this.merchantRepository?.getRules(input.merchant_id) ?? DEFAULT_MERCHANT_RULES;
+    // Safe-deny fallback: when a merchant has no configured rules, premium
+    // authorizations (free shipping / shipping discount) must default OFF.
+    // Granting them implicitly would let an unconfigured tenant lose margin
+    // and bypass the rules-engine authorization boundary. The shared
+    // DEFAULT_MERCHANT_RULES is the seed for configured merchants, not a
+    // permissive fallback for missing config.
+    const rules =
+      (await this.merchantRepository?.getRules(input.merchant_id)) ?? {
+        ...DEFAULT_MERCHANT_RULES,
+        allowFreeShipping: false,
+        allowShippingDiscount: false
+      };
     const evaluation = evaluateShippingOffer({
       cart: { ...session.cart, total: input.cart_value ?? session.cart.total },
       shipping: {

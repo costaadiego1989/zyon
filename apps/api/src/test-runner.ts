@@ -85,6 +85,7 @@ import "./modules/negotiation/domain/buyer-agent-preferences.entity.spec.js";
 import "./modules/negotiation/application/buyer-agent-preferences.use-cases.spec.js";
 import "./modules/negotiation/application/apply-negotiation-agreement-to-checkout.use-case.spec.js";
 import "./modules/negotiation/presentation/http/merchant-negotiation-policy.controller.spec.js";
+import "./modules/negotiation/presentation/http/buyer-agent-negotiation-preferences.controller.spec.js";
 import "./modules/negotiation/presentation/http/negotiation.controller.spec.js";
 import "./modules/negotiation/presentation/http/negotiation.live-m2m.e2e-spec.js";
 import "./modules/embed/domain/embed-token.service.spec.js";
