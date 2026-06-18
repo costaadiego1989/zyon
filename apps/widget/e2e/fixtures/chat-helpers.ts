@@ -1,0 +1,124 @@
+import { expect, type Page } from "@playwright/test";
+import { setupApiMocks, type FlowStep, type MockApiOptions } from "./api-mocks.js";
+
+export const CHAT_BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
+
+export const CHAT_REGISTRATION_SEQUENCE: FlowStep[] = [
+  "ask_name",
+  "ask_email",
+  "ask_cpf",
+  "ask_phone",
+  "ask_cep",
+  "confirm_address",
+  "ask_number",
+  "show_shipping_options",
+  "shipping_selected",
+];
+
+export async function installChatTestInit(page: Page) {
+  await page.addInitScript(() => {
+    (globalThis as { process?: { env: Record<string, string> } }).process = {
+      env: { AACP_DISABLE_STREAMING: "1" },
+    };
+  });
+}
+
+export async function ensureChatChannel(page: Page) {
+  const dialog = page.getByRole("dialog");
+  if (await dialog.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  }
+}
+
+export async function waitForGreeting(page: Page) {
+  await ensureChatChannel(page);
+  const thread = page.locator(".aacp-thread");
+  await expect(thread).toBeVisible({ timeout: 10_000 });
+  await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+}
+
+export async function waitForStreamingDone(page: Page) {
+  await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
+}
+
+export async function sendMessage(page: Page, text: string) {
+  const input = page.locator("input[aria-label='Mensagem para o assistente']");
+  await expect(input).toBeVisible({ timeout: 5_000 });
+  await input.fill(text);
+  const sendButton = page.locator("button[aria-label='Enviar mensagem']").first();
+  await expect(sendButton).toBeEnabled({ timeout: 5_000 });
+  await sendButton.click();
+}
+
+export async function waitForAgentReply(page: Page) {
+  const typing = page.locator(".aacp-typing");
+  await page.waitForTimeout(300);
+  if (await typing.isVisible()) {
+    await expect(typing).toBeHidden({ timeout: 15_000 });
+  }
+  await waitForStreamingDone(page);
+  const bubbles = page.locator(".aacp-bubble-agent");
+  return bubbles.nth((await bubbles.count()) - 1);
+}
+
+export async function tapQuickReply(page: Page, label: RegExp | string) {
+  const btn = page.locator(".aacp-chip, .aacp-quick-replies button").filter({ hasText: label }).first();
+  await expect(btn).toBeVisible({ timeout: 5_000 });
+  await btn.click();
+  await waitForStreamingDone(page);
+}
+
+export async function continueWithoutCoupon(page: Page) {
+  const noCoupon = page
+    .getByRole("button", { name: /^N[aã]o$/i })
+    .or(page.locator(".aacp-chip, .aacp-quick-replies button").filter({ hasText: /N(?:a|ã)o tenho cupom/i }))
+    .first();
+  await expect(noCoupon).toBeVisible({ timeout: 5_000 });
+  await noCoupon.click();
+  await waitForStreamingDone(page);
+}
+
+function resolveMockOptions(options: MockApiOptions | FlowStep[]): MockApiOptions {
+  return Array.isArray(options) ? { chatSequence: options } : options;
+}
+
+export async function openChatCheckout(page: Page, options: MockApiOptions | FlowStep[] = []) {
+  await setupApiMocks(page, resolveMockOptions(options));
+  await page.goto(CHAT_BASE);
+  await waitForGreeting(page);
+  await waitForStreamingDone(page);
+}
+
+export async function openChatFromChannelGate(page: Page, options: MockApiOptions | FlowStep[] = []) {
+  await setupApiMocks(page, resolveMockOptions(options));
+  await page.goto(CHAT_BASE);
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  await waitForGreeting(page);
+  await waitForStreamingDone(page);
+}
+
+export async function completeChatRegistration(page: Page) {
+  await sendMessage(page, "João Silva");
+  await waitForAgentReply(page);
+  await sendMessage(page, "joao@email.com");
+  await waitForAgentReply(page);
+  await sendMessage(page, "123.456.789-00");
+  await waitForAgentReply(page);
+  await sendMessage(page, "(11) 99999-0000");
+  await waitForAgentReply(page);
+  await sendMessage(page, "01310-100");
+  await waitForAgentReply(page);
+  await sendMessage(page, "Sim, está correto");
+  await waitForAgentReply(page);
+  await sendMessage(page, "123, Apto 4B");
+  await waitForAgentReply(page);
+}
+
+export async function selectChatShipping(page: Page, method: RegExp = /PAC/) {
+  const selector = page.locator(".aacp-shipping-selector");
+  await expect(selector).toBeVisible({ timeout: 5_000 });
+  await selector.locator("button", { hasText: method }).first().click();
+  await waitForAgentReply(page);
+  await continueWithoutCoupon(page);
+}

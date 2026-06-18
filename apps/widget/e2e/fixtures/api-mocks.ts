@@ -301,14 +301,80 @@ export function cardPaymentResponse() {
   };
 }
 
-function paymentIntentResponseFor(route: Route) {
+export function approvedPixPaymentResponse() {
+  return {
+    id: "pi_test_approved_001",
+    merchantId: "mrc_demo",
+    sessionId: "sess_test_001",
+    idempotencyKey: "idem_pix_approved_001",
+    amountCents: 91970,
+    approvedAmountCents: 91970,
+    currency: "BRL",
+    method: "pix",
+    status: "approved",
+    buyerFacing: {
+      qrCodeCopyPaste: "00020126580014br.gov.bcb.pix0136a1b2c3d4e5f67890abcdef123456789052040000530398",
+      encodedQrImage: null,
+    },
+    statusHistory: [
+      { status: "pending", at: new Date().toISOString() },
+      { status: "approved", at: new Date().toISOString() },
+    ],
+    order_id: "ord_e2e_12345",
+    receipt_url: "https://pay.example.com/receipt/e2e",
+  };
+}
+
+export function approvedCardPaymentResponse() {
+  return {
+    id: "pi_test_card_approved_001",
+    merchantId: "mrc_demo",
+    sessionId: "sess_test_001",
+    idempotencyKey: "idem_card_approved_001",
+    amountCents: 91970,
+    approvedAmountCents: 91970,
+    currency: "BRL",
+    method: "card",
+    status: "approved",
+    buyerFacing: {
+      clientSecret: "pi_3RCardAacpTest_secret_mockSecret123",
+      stripePublishableKey: "pk_test_aacp_playwright",
+    },
+    statusHistory: [
+      { status: "requires_payment_method", at: new Date().toISOString() },
+      { status: "approved", at: new Date().toISOString() },
+    ],
+    order_id: "ord_e2e_card_12345",
+    receipt_url: "https://pay.example.com/receipt/card-e2e",
+  };
+}
+
+export function paymentStatusApprovedResponse() {
+  return {
+    status: "approved",
+    amount_cents: 91970,
+    approved_amount_cents: 91970,
+    currency: "BRL",
+    order_id: "ord_e2e_12345",
+    receipt_url: "https://pay.example.com/receipt/e2e",
+  };
+}
+
+function paymentIntentResponseFor(
+  route: Route,
+  opts: { pixInstantApproval?: boolean; cardInstantApproval?: boolean } = {},
+) {
   let method: string | undefined;
   try {
     method = (route.request().postDataJSON() as { method?: string } | null)?.method;
   } catch {
     method = undefined;
   }
-  return method === "card" ? cardPaymentResponse() : pixPaymentResponse();
+  if (method === "card") {
+    return opts.cardInstantApproval ? approvedCardPaymentResponse() : cardPaymentResponse();
+  }
+  if (opts.pixInstantApproval && method === "pix") return approvedPixPaymentResponse();
+  return pixPaymentResponse();
 }
 
 export function couponApplyResponse() {
@@ -460,6 +526,16 @@ export interface MockApiOptions {
   startResponse?: ReturnType<typeof startCheckoutResponse>;
   /** Simulate network error on Nth chat call (1-indexed) */
   failOnChatCall?: number;
+  /** PIX intent returns approved immediately (skips polling) */
+  pixInstantApproval?: boolean;
+  /** Card intent returns approved immediately (skips Stripe UI) */
+  cardInstantApproval?: boolean;
+  /** Payment intent POST returns HTTP error */
+  failPaymentIntent?: boolean;
+  /** Coupon apply returns invalid code error */
+  rejectCoupon?: boolean;
+  /** Buyer login-from-session returns 401 (invalid OTP) */
+  rejectBuyerLogin?: boolean;
 }
 
 export async function setupApiMocks(page: Page, options: MockApiOptions): Promise<void> {
@@ -528,22 +604,80 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
   });
 
   await page.route("**/payment/intents", async (route: Route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    if (options.failPaymentIntent) {
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "payment_gateway_unavailable" }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(paymentIntentResponseFor(route)),
+      body: JSON.stringify(
+        paymentIntentResponseFor(route, {
+          pixInstantApproval: options.pixInstantApproval,
+          cardInstantApproval: options.cardInstantApproval,
+        }),
+      ),
     });
   });
 
   await page.route("**/embed/payment/intents", async (route: Route) => {
+    if (route.request().method() !== "POST") {
+      await route.continue();
+      return;
+    }
+    if (options.failPaymentIntent) {
+      await route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "payment_gateway_unavailable" }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(paymentIntentResponseFor(route)),
+      body: JSON.stringify(
+        paymentIntentResponseFor(route, {
+          pixInstantApproval: options.pixInstantApproval,
+          cardInstantApproval: options.cardInstantApproval,
+        }),
+      ),
+    });
+  });
+
+  await page.route("**/payment/intents/*/status**", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(paymentStatusApprovedResponse()),
+    });
+  });
+
+  await page.route("**/embed/payment/intents/*/status**", async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(paymentStatusApprovedResponse()),
     });
   });
 
   await page.route("**/buyer/login-from-session", async (route: Route) => {
+    if (options.rejectBuyerLogin) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "invalid_otp" }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -593,6 +727,14 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
   });
 
   await page.route("**/coupons/apply", async (route: Route) => {
+    if (options.rejectCoupon) {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Cupom inválido ou expirado." }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -601,6 +743,14 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
   });
 
   await page.route("**/embed/coupons/apply", async (route: Route) => {
+    if (options.rejectCoupon) {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "Cupom inválido ou expirado." }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: "application/json",
