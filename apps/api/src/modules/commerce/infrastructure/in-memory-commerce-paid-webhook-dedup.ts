@@ -14,12 +14,27 @@ export class InMemoryCommercePaidWebhookDedup implements CommercePaidWebhookDedu
     return this.processed.has(dedupKey(merchantId, paymentReference));
   }
 
+  /**
+   * Atomically reserves the dedup slot. Returns true when this caller claimed
+   * the slot (safe to proceed), false when another caller already holds it.
+   * In-memory implementation: Set.has + Set.add is effectively atomic
+   * (single-threaded JS event loop).
+   */
+  async tryReserve(merchantId: string, paymentReference: string): Promise<boolean> {
+    const key = dedupKey(merchantId, paymentReference);
+    if (this.processed.has(key)) return false;
+    this.processed.add(key);
+    return true;
+  }
+
   async markProcessed(
     merchantId: string,
     paymentReference: string,
     _commerceOrderId?: string,
     _event?: DomainEventEnvelope
   ): Promise<void> {
+    // Row was already reserved by tryReserve; this call updates the row in
+    // durable impls (Prisma: sets commerceOrderId + appends event in same tx).
     this.processed.add(dedupKey(merchantId, paymentReference));
   }
 }

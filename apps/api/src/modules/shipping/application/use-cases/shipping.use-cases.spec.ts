@@ -13,6 +13,7 @@ import { CreatePaymentIntentUseCase } from "../../../payment/application/create-
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { FlatRateCarrierAdapter } from "../../infrastructure/adapters/flat-rate.carrier.js";
+import { InMemoryMerchantRepository } from "../../../merchant/infrastructure/in-memory-merchant.repository.js";
 
 function makeStubCarrier(key: string, results: ShippingQuoteResult[]): CarrierPort {
   return {
@@ -32,10 +33,27 @@ function makeFailingCarrier(key: string): CarrierPort {
   };
 }
 
+/** Build a use-case with no merchant rules (free-shipping disabled). */
 function makeSetup(carriers: CarrierPort[] = []) {
   const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
   const useCase = new QuoteShippingUseCase(quotesRepo, carriers);
   return { quotesRepo, useCase };
+}
+
+/** Build a use-case wired with merchant rules so free-shipping policy runs. */
+function makeSetupWithRules(
+  carriers: CarrierPort[] = [],
+  merchantId = "mrc_1",
+  ruleOverrides: { freeShippingMinCartValue?: number; allowFreeShipping?: boolean } = {}
+) {
+  const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
+  const merchantRepo = new InMemoryMerchantRepository();
+  merchantRepo.updateRules(merchantId, {
+    allowFreeShipping: ruleOverrides.allowFreeShipping ?? true,
+    freeShippingMinCartValue: ruleOverrides.freeShippingMinCartValue ?? 100
+  });
+  const useCase = new QuoteShippingUseCase(quotesRepo, carriers, merchantRepo);
+  return { quotesRepo, useCase, merchantRepo };
 }
 
 const BASE_INPUT = {
@@ -83,26 +101,42 @@ describe("QuoteShippingUseCase", () => {
     assert.ok(!snap.results.some((r) => r.carrier_key === "unavailable-carrier"), "should not have failed carrier");
   });
 
-  it("marks existing results as free when cart meets free shipping threshold", async () => {
+  // P0 regression: free-shipping threshold must come from merchant rules, not request.
+  it("P0 — marks existing results as free when cart meets merchant free shipping threshold", async () => {
     const carriers = [
       makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
     ];
-    const { useCase } = makeSetup(carriers);
-    const snap = await useCase.execute({ ...BASE_INPUT, free_shipping_threshold: 100 });
+    // Wire merchant rules with threshold = 100; cart_total = 150 → qualifies
+    const { useCase } = makeSetupWithRules(carriers, "mrc_1", { freeShippingMinCartValue: 100, allowFreeShipping: true });
+    const snap = await useCase.execute(BASE_INPUT);
 
     const freeResult = snap.results.find((r) => r.is_free && r.carrier_key === "correios");
-    assert.ok(freeResult, "should have a free shipping option when cart_total >= threshold");
+    assert.ok(freeResult, "should have a free shipping option when cart_total >= threshold from merchant rules");
   });
 
-  it("does not add free shipping when cart total below threshold", async () => {
+  // P0 regression: caller-supplied threshold must be IGNORED.
+  it("P0 — ignores caller-supplied free_shipping_threshold (uses merchant rules only)", async () => {
     const carriers = [
       makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
     ];
+    // No merchant rules wired → free-shipping disabled regardless of what caller sends
     const { useCase } = makeSetup(carriers);
-    const snap = await useCase.execute({ ...BASE_INPUT, cart_total: 50, free_shipping_threshold: 200 });
+    // Even if caller passes a low threshold, no free entry should appear
+    const snap = await useCase.execute({ ...BASE_INPUT, free_shipping_threshold: 10 });
 
     const freeResults = snap.results.filter((r) => r.is_free);
-    assert.equal(freeResults.length, 0, "no free shipping when cart below threshold");
+    assert.equal(freeResults.length, 0, "free_shipping_threshold in request must be ignored");
+  });
+
+  it("does not add free shipping when cart total below merchant threshold", async () => {
+    const carriers = [
+      makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
+    ];
+    const { useCase } = makeSetupWithRules(carriers, "mrc_1", { freeShippingMinCartValue: 200, allowFreeShipping: true });
+    const snap = await useCase.execute({ ...BASE_INPUT, cart_total: 50 });
+
+    const freeResults = snap.results.filter((r) => r.is_free);
+    assert.equal(freeResults.length, 0, "no free shipping when cart below merchant threshold");
   });
 
   it("returns empty results when no carriers configured", async () => {
@@ -134,6 +168,37 @@ describe("QuoteShippingUseCase", () => {
     assert.ok(labels.includes("Correios PAC"));
     assert.ok(labels.includes("Correios Sedex"));
     assert.ok(labels.includes("Transportadora Parceira"));
+  });
+
+  // P2 regression: free-shipping policy must not add duplicate free entries.
+  it("P2 — no duplicate free entries when carrier already has paid result", async () => {
+    const carriers = [
+      makeStubCarrier("correios", [
+        { carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }
+      ]),
+    ];
+    const { useCase } = makeSetupWithRules(carriers, "mrc_1", { freeShippingMinCartValue: 100, allowFreeShipping: true });
+    const snap = await useCase.execute(BASE_INPUT);
+
+    const freeEntries = snap.results.filter((r) => r.carrier_key === "correios" && r.is_free);
+    assert.equal(freeEntries.length, 1, "exactly one free entry per carrier, no duplicates");
+  });
+
+  // P3 regression: reused quote must rebind session_id to the requesting session.
+  it("P3 — reused quote rebinds session_id to requesting session", async () => {
+    const carriers = [
+      makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
+    ];
+    const { useCase } = makeSetup(carriers);
+
+    // First quote: session A
+    const first = await useCase.execute({ ...BASE_INPUT, session_id: "sess_A" });
+    // Second quote: same cart key (same merchant, zip, total), different session
+    const second = await useCase.execute({ ...BASE_INPUT, session_id: "sess_B" });
+
+    // The snapshot returned for sess_B must not carry sess_A's session_id
+    assert.equal(second.session_id, "sess_B",
+      "reused quote must rebind session_id to requesting session to prevent session leak");
   });
 });
 

@@ -1,16 +1,25 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, Optional } from "@nestjs/common";
 import { buildQuoteKey } from "@aacp/shipping-engine";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
 import type { PackageDimensions } from "@aacp/shared-types";
+import {
+  MERCHANT_RULES_REPOSITORY,
+  type MerchantRulesRepository
+} from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 
 export interface QuoteShippingInput {
   session_id: string;
   merchant_id: string;
   destination_zip: string;
   cart_total: number;
+  /**
+   * @deprecated Ignored — the free-shipping threshold is always sourced from
+   * merchant rules (shipping-engine invariant). Kept in the interface for
+   * backward-compat with existing callers; will be removed in a follow-up.
+   */
   free_shipping_threshold?: number;
   origin_zip?: string;
   packages?: PackageDimensions[];
@@ -21,7 +30,13 @@ export interface QuoteShippingInput {
 export class QuoteShippingUseCase {
   constructor(
     @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
-    @Inject(CARRIER_ADAPTERS) private readonly carriers: CarrierPort[]
+    @Inject(CARRIER_ADAPTERS) private readonly carriers: CarrierPort[],
+    // P0 fix: merchant rules are the authoritative source for free-shipping
+    // threshold. @Optional so existing unit tests that don't wire the repo
+    // still compile; when absent, free-shipping policy is effectively disabled
+    // (threshold = Infinity), which is the safe/conservative default.
+    @Optional() @Inject(MERCHANT_RULES_REPOSITORY)
+    private readonly merchantRules?: MerchantRulesRepository
   ) {}
 
   async execute(input: QuoteShippingInput) {
@@ -35,7 +50,13 @@ export class QuoteShippingUseCase {
 
     const reusable = await this.quotes.findValidByKey(quoteKey, input.merchant_id);
     if (reusable) {
-      return reusable.snapshot();
+      // P3 fix (session_id leak): rebind session_id to the requesting session
+      // so that a reused quote snapshot never carries a foreign session_id.
+      const snap = reusable.snapshot();
+      if (snap.session_id !== input.session_id) {
+        return { ...snap, session_id: input.session_id };
+      }
+      return snap;
     }
 
     let quote = ShippingQuoteEntity.create({
@@ -69,19 +90,48 @@ export class QuoteShippingUseCase {
           liveResults.push(...res.value);
         }
       }
+      // P3 fix: log carrier failures (rejected promises) so they are visible
+      // in server logs rather than silently discarded.
+      if (res.status === "rejected") {
+        console.warn(
+          `[shipping] carrier_quote_failed carrier=${carrier.carrierKey} merchant=${input.merchant_id}`,
+          res.reason instanceof Error ? res.reason.message : String(res.reason)
+        );
+      }
     }
 
     const resultsToAdd = dedupeQuoteResults([...liveResults, ...fallbackResults]);
     quote = quote.addResults(resultsToAdd);
 
-    const freeThreshold = input.free_shipping_threshold ?? Infinity;
-    const withFreeShipping = quote.addResults(
-      applyFreeShippingPolicy(
-        quote.snapshot().results,
-        input.cart_total,
-        { enabled: freeThreshold !== Infinity, min_cart_total: freeThreshold }
-      ).filter((r) => r.is_free && !quote.snapshot().results.find((existing) => existing.carrier_key === r.carrier_key && existing.is_free))
-    );
+    // P0 fix: always derive the free-shipping threshold from merchant rules,
+    // never from the caller-supplied input field (which would let a client
+    // bypass the shipping-engine subsidy invariant).
+    const rules = this.merchantRules
+      ? await this.merchantRules.getRules(input.merchant_id)
+      : null;
+
+    const freeShippingEnabled = rules?.allowFreeShipping ?? false;
+    const freeThreshold = rules?.freeShippingMinCartValue ?? Infinity;
+
+    // P2 fix: applyFreeShippingPolicy can add duplicate free entries when the
+    // same carrier already has a paid entry. Filter strictly: only add a free
+    // variant if the carrier_key doesn't already have one in the current results.
+    const currentResults = quote.snapshot().results;
+    const freeEntriesToAdd = freeShippingEnabled
+      ? applyFreeShippingPolicy(currentResults, input.cart_total, {
+          enabled: true,
+          min_cart_total: freeThreshold
+        }).filter(
+          (r) =>
+            r.is_free &&
+            !currentResults.some(
+              (existing) => existing.carrier_key === r.carrier_key && existing.is_free
+            )
+        )
+      : [];
+
+    const withFreeShipping =
+      freeEntriesToAdd.length > 0 ? quote.addResults(freeEntriesToAdd) : quote;
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);

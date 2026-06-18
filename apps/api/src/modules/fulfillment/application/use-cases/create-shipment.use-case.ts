@@ -12,6 +12,15 @@ export class CreateShipmentUseCase {
   ) {}
 
   async execute(input: { merchant_id: string; order_id: string; carrier_key: string }) {
+    // P1 fix: check for an existing shipment for this order before creating.
+    // The fulfillment handler subscribes to `order.completed` on an in-process
+    // DomainEventBus that delivers at-least-once. Without this guard, a
+    // redelivered event creates a duplicate shipment for the same order.
+    const existing = await this.repo.findByOrderId(input.order_id, input.merchant_id);
+    if (existing !== null) {
+      return existing.snapshot();
+    }
+
     const shipment = ShipmentEntity.create(input);
     await this.repo.save(shipment);
 

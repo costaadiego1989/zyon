@@ -6,10 +6,24 @@ import type { DomainEventEnvelope } from "@aacp/shared-types";
  */
 export interface CommercePaidWebhookDedupPort {
   isProcessed(merchantId: string, paymentReference: string): Promise<boolean>;
+
   /**
-   * Records the processed payment reference. When `event` is provided, the
-   * durable repo appends it to the outbox in the SAME transaction as the
-   * dedup row (aggregate write + outbox emit atomic).
+   * Atomically inserts a dedup row for the given payment reference BEFORE
+   * calling the provider. Returns `true` if the row was successfully reserved
+   * (this caller owns the processing), or `false` if another concurrent caller
+   * already holds the row (unique-constraint conflict → already processed).
+   *
+   * This is the preferred entry-point: call it first, and only invoke the
+   * provider when it returns `true`. Afterwards call `markProcessed` with the
+   * resolved `commerceOrderId` and domain event.
+   */
+  tryReserve(merchantId: string, paymentReference: string): Promise<boolean>;
+
+  /**
+   * Updates the dedup row with the resolved commerce order id and appends the
+   * domain event to the outbox in the SAME transaction (atomically).
+   * Safe to call after `tryReserve` returned `true`; idempotent on re-call
+   * (P2002 is swallowed).
    */
   markProcessed(
     merchantId: string,

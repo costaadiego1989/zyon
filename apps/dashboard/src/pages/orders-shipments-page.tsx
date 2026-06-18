@@ -11,11 +11,16 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
   const [orders, setOrders] = useState<TenantOrder[]>([]);
   const [message, setMessage] = useState<string | null>(null);
+  // BUG-COM-1 fix: separate `loading` flag from `busy` so we can distinguish
+  // "first load in progress" (show loading row) from "empty data" (show
+  // empty-state row) and from "error" (show error banner but not empty-state).
   const [busy, setBusy] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
 
   useEffect(() => {
     if (!props.me) {
       setOrders([]);
+      setHasLoaded(false);
       return;
     }
     void load();
@@ -26,6 +31,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
     setMessage(null);
     try {
       setOrders(await api.getOrders(50));
+      setHasLoaded(true);
     } catch (e) {
       setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
     } finally {
@@ -85,7 +91,13 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                   <td>{formatDate(order.completed_at)}</td>
                 </tr>
               ))}
-              {orders.length === 0 ? (
+              {/* BUG-COM-1 fix: show loading row while fetching, empty-state only
+                  after a successful load with zero results, suppress during error. */}
+              {busy ? (
+                <tr>
+                  <td colSpan={6}>Carregando...</td>
+                </tr>
+              ) : hasLoaded && orders.length === 0 && !message ? (
                 <tr>
                   <td colSpan={6}>Nenhum envio encontrado.</td>
                 </tr>
@@ -109,16 +121,38 @@ function customerLabel(customer: Record<string, unknown> | null): string {
       : "-";
 }
 
+/**
+ * BUG-COM-2 fix: Intl.NumberFormat already handles zero-decimal currencies
+ * (JPY, KRW) correctly — it does NOT add fractional digits. However the value
+ * stored server-side is always in the smallest unit (cents for BRL, yen for
+ * JPY). We must NOT divide by 100 for zero-decimal currencies.
+ *
+ * Zero-decimal ISO 4217 codes: JPY, KRW, VND, IDR, CLP, TWD, BIF, GNF, MGA,
+ * PYG, RWF, UGX, VUV, XAF, XOF, XPF.
+ */
+const ZERO_DECIMAL_CURRENCIES = new Set([
+  "JPY", "KRW", "VND", "IDR", "CLP", "TWD", "BIF", "GNF", "MGA",
+  "PYG", "RWF", "UGX", "VUV", "XAF", "XOF", "XPF"
+]);
+
 function formatMinor(value: number, currency: string): string {
+  const divisor = ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 1 : 100;
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",
     currency,
-  }).format(value / 100);
+  }).format(value / divisor);
 }
 
-function formatDate(value: string): string {
+/**
+ * BUG-COM-3 fix: guard against absent or malformed date strings. Return a
+ * locale-safe fallback ("—") instead of "Invalid Date".
+ */
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "—";
   return new Intl.DateTimeFormat("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
-  }).format(new Date(value));
+  }).format(date);
 }

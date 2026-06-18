@@ -16,6 +16,7 @@ export class PrismaShipmentRepository implements ShipmentRepository {
       create: {
         id: snapshot.id,
         merchantId: snapshot.merchant_id,
+        // sessionId is a schema legacy field; use order_id as best proxy.
         sessionId: snapshot.order_id,
         externalOrderId: snapshot.order_id,
         carrier: snapshot.carrier_key,
@@ -59,12 +60,14 @@ export class PrismaShipmentRepository implements ShipmentRepository {
     return row ? ShipmentEntity.rehydrate(toSnapshot(row)) : null;
   }
 
+  // P2 fix: scoped by merchantId to enforce tenant boundary invariant.
   async findByTrackingCode(
     trackingCode: string,
+    merchantId: string,
   ): Promise<ShipmentEntity | null> {
     if (!trackingCode || trackingCode.startsWith("pending:")) return null;
     const row = await this.prisma.shipment.findFirst({
-      where: { trackingCode },
+      where: { trackingCode, merchantId },
     });
     return row ? ShipmentEntity.rehydrate(toSnapshot(row)) : null;
   }
@@ -95,6 +98,8 @@ function toSnapshot(row: ShipmentRow): ShipmentSnapshot {
       : row.trackingCode,
     status: row.status as ShipmentStatus,
     label_url: row.trackingUrl,
+    // P3 deferred: dispatched_at column not present in schema.prisma (frozen).
+    // Cannot persist dispatched_at until schema migration is unblocked.
     dispatched_at: null,
     delivered_at: row.deliveredAt?.toISOString() ?? null,
     estimated_eta: row.estimatedEta?.toISOString() ?? null,

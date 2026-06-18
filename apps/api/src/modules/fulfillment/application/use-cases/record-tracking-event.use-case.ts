@@ -27,8 +27,17 @@ export class RecordTrackingEventUseCase {
     if (!shipment) throw new NotFoundException("shipment_not_found");
 
     const oldStatus = shipment.status;
-    const updated = shipment.transition(input.new_status);
-    await this.shipments.save(updated);
+
+    // P2 fix: if the incoming status equals the current status, the webhook is
+    // a resend of an already-applied transition (at-least-once delivery).
+    // Accept it idempotently: record the tracking event for observability but
+    // skip the entity transition (which would throw INVALID_TRANSITION).
+    const isSameStatus = oldStatus === input.new_status;
+    const updated = isSameStatus ? shipment : shipment.transition(input.new_status);
+
+    if (!isSameStatus) {
+      await this.shipments.save(updated);
+    }
 
     const trackingEvent = TrackingEventEntity.create({
       shipment_id: input.shipment_id,
@@ -40,30 +49,32 @@ export class RecordTrackingEventUseCase {
     });
     await this.trackingEvents.save(trackingEvent);
 
-    await this.outbox.appendOutbox(
-      createFulfillmentEventEnvelope({
-        eventType: "shipment.status-updated",
-        merchantId: input.merchant_id,
-        payload: {
-          shipment_id: input.shipment_id,
-          old_status: oldStatus,
-          new_status: input.new_status,
-          occurred_at: input.occurred_at.toISOString()
-        }
-      })
-    );
-
-    if (input.new_status === "delivered") {
+    if (!isSameStatus) {
       await this.outbox.appendOutbox(
         createFulfillmentEventEnvelope({
-          eventType: "shipment.delivered",
+          eventType: "shipment.status-updated",
           merchantId: input.merchant_id,
           payload: {
             shipment_id: input.shipment_id,
-            delivered_at: input.occurred_at.toISOString()
+            old_status: oldStatus,
+            new_status: input.new_status,
+            occurred_at: input.occurred_at.toISOString()
           }
         })
       );
+
+      if (input.new_status === "delivered") {
+        await this.outbox.appendOutbox(
+          createFulfillmentEventEnvelope({
+            eventType: "shipment.delivered",
+            merchantId: input.merchant_id,
+            payload: {
+              shipment_id: input.shipment_id,
+              delivered_at: input.occurred_at.toISOString()
+            }
+          })
+        );
+      }
     }
 
     return updated.snapshot();

@@ -31,7 +31,11 @@ export class MarkCommerceOrderPaidUseCase {
     const paymentReference = input.paymentReference.trim();
     const commerceOrderId = input.commerceOrderId.trim();
 
-    if (await this.dedup.isProcessed(merchantId, paymentReference)) {
+    // P1 fix: reserve the dedup row BEFORE calling the provider.
+    // tryReserve performs an atomic insert; concurrent duplicates collide on the
+    // unique constraint and return false, preventing double payment marking.
+    const reserved = await this.dedup.tryReserve(merchantId, paymentReference);
+    if (!reserved) {
       return { invokedCommerceSync: false };
     }
 
@@ -40,6 +44,7 @@ export class MarkCommerceOrderPaidUseCase {
       commerceOrderId,
       paymentReference
     });
+
     const event = createCommerceEventEnvelope({
       eventType: "commerce.order.paid",
       merchantId,
@@ -48,6 +53,8 @@ export class MarkCommerceOrderPaidUseCase {
         payment_reference: paymentReference
       }
     });
+    // Persist final commerceOrderId + outbox event atomically now that the
+    // provider call succeeded.
     await this.dedup.markProcessed(merchantId, paymentReference, commerceOrderId, event);
     return { invokedCommerceSync: true };
   }

@@ -105,3 +105,89 @@ test("distinct merchants never share credentials", async () => {
   assert.ok(seen[0].includes("shop-a.myshopify.com"));
   assert.ok(seen[1].includes("shop-b.myshopify.com"));
 });
+
+// P2 regression: global-env fallback must be scoped to the explicit demo
+// merchant and must never serve other merchants.
+test("P2 — global-env fallback only serves the declared demo merchant", async () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+  const prevToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  const prevDemo = process.env.SHOPIFY_DEMO_MERCHANT_ID;
+
+  process.env.NODE_ENV = "development";
+  process.env.SHOPIFY_SHOP_DOMAIN = "demo-shop.myshopify.com";
+  process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = "shpat_demo";
+  process.env.SHOPIFY_DEMO_MERCHANT_ID = "demo_merchant";
+
+  try {
+    const seen: string[] = [];
+    const http = new HttpClientService({
+      fetchFn: async (input) => {
+        seen.push(typeof input === "string" ? input : (input as URL).href);
+        return jsonResponse({ draft_order: { id: 1 } });
+      }
+    });
+    const factory = new TenantCommerceAdapterFactory(new StubConnections({}), http);
+
+    // Demo merchant → fallback resolves
+    await factory.createPendingOrder({
+      merchantId: "demo_merchant",
+      sessionId: "s",
+      cart: { currency: "BRL", totalCents: 1, lines: [], commerceCartRef: "c" }
+    });
+    assert.ok(seen.length === 1 && seen[0].includes("demo-shop.myshopify.com"),
+      "demo merchant should use the demo-shop domain");
+
+    // Non-demo merchant → must fail even though env vars are set
+    await assert.rejects(
+      () => factory.createPendingOrder({
+        merchantId: "other_merchant",
+        sessionId: "s",
+        cart: { currency: "BRL", totalCents: 1, lines: [], commerceCartRef: "c" }
+      }),
+      /commerce_adapter_not_configured/,
+      "non-demo merchant must not receive the global-env credentials"
+    );
+  } finally {
+    process.env.NODE_ENV = prevNodeEnv;
+    if (prevDomain === undefined) delete process.env.SHOPIFY_SHOP_DOMAIN;
+    else process.env.SHOPIFY_SHOP_DOMAIN = prevDomain;
+    if (prevToken === undefined) delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    else process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = prevToken;
+    if (prevDemo === undefined) delete process.env.SHOPIFY_DEMO_MERCHANT_ID;
+    else process.env.SHOPIFY_DEMO_MERCHANT_ID = prevDemo;
+  }
+});
+
+// P2 regression: global-env fallback must be disabled when SHOPIFY_DEMO_MERCHANT_ID
+// is not set, even in development.
+test("P2 — global-env fallback disabled when no demo merchant opt-in configured", async () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevDomain = process.env.SHOPIFY_SHOP_DOMAIN;
+  const prevToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  const prevDemo = process.env.SHOPIFY_DEMO_MERCHANT_ID;
+
+  process.env.NODE_ENV = "development";
+  process.env.SHOPIFY_SHOP_DOMAIN = "some-shop.myshopify.com";
+  process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = "shpat_some";
+  delete process.env.SHOPIFY_DEMO_MERCHANT_ID;
+
+  try {
+    const http = new HttpClientService({ fetchFn: async () => jsonResponse({}) });
+    const factory = new TenantCommerceAdapterFactory(new StubConnections({}), http);
+
+    await assert.rejects(
+      () => factory.validateCart({ merchantId: "any_merchant", commerceCartRef: "c" }),
+      /commerce_adapter_not_configured/,
+      "fallback must be fail-closed when no demo merchant opt-in is set"
+    );
+  } finally {
+    process.env.NODE_ENV = prevNodeEnv;
+    if (prevDomain === undefined) delete process.env.SHOPIFY_SHOP_DOMAIN;
+    else process.env.SHOPIFY_SHOP_DOMAIN = prevDomain;
+    if (prevToken === undefined) delete process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    else process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = prevToken;
+    if (prevDemo === undefined) delete process.env.SHOPIFY_DEMO_MERCHANT_ID;
+    else process.env.SHOPIFY_DEMO_MERCHANT_ID = prevDemo;
+  }
+});

@@ -23,9 +23,10 @@ export class InMemoryShipmentRepository implements ShipmentRepository {
     return null;
   }
 
-  async findByTrackingCode(trackingCode: string): Promise<ShipmentEntity | null> {
+  // P2 fix: scoped by merchantId to enforce tenant boundary invariant.
+  async findByTrackingCode(trackingCode: string, merchantId: string): Promise<ShipmentEntity | null> {
     for (const s of this.store.values()) {
-      if (s.snapshot().tracking_code === trackingCode) return s;
+      if (s.snapshot().tracking_code === trackingCode && s.merchant_id === merchantId) return s;
     }
     return null;
   }

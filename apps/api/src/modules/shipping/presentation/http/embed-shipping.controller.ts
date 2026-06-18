@@ -52,7 +52,10 @@ export class EmbedShippingController {
       merchant_id: merchantId,
       destination_zip: destinationZip,
       cart_total: typeof body.cart_total === "number" ? body.cart_total : session?.cart.total ?? 0,
-      free_shipping_threshold: body.free_shipping_threshold,
+      // P0 fix: free_shipping_threshold is intentionally NOT forwarded from the
+      // request body. The use-case derives it from merchant rules via its own
+      // MERCHANT_RULES_REPOSITORY injection, preventing client-side bypass of
+      // the shipping-engine subsidy invariant.
       origin_zip: rules?.originZip ?? "",
       packages: body.packages,
       items: session?.cart.items.map((item) => ({ sku: item.sku, quantity: item.quantity }))

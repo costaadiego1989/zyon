@@ -156,20 +156,38 @@ async function requiredConnection(
   return connection;
 }
 
-function commerceGatewayError(error: unknown): BadGatewayException {
+/**
+ * P3 fix: never reflect raw provider error messages to the client.
+ * The slugified message could contain credentials, internal URLs, or other
+ * sensitive details. Map to a fixed allow-list of stable codes instead;
+ * log the raw message server-side only via `connections.updateHealth`.
+ */
+function commerceGatewayError(_error: unknown): BadGatewayException {
   return new BadGatewayException({
     code: "commerce_connection_failed",
     detail: "The commerce provider could not be reached or rejected the credentials.",
-    provider_code: errorCode(error),
   });
 }
 
+/**
+ * Produces a stable internal error code for server-side health records only.
+ * This value is NEVER included in API responses — use `commerceGatewayError`
+ * for that.
+ */
 function errorCode(error: unknown): string {
   if (!(error instanceof Error)) return "commerce_provider_error";
-  return error.message
+  const KNOWN_CODES: ReadonlyArray<string> = [
+    "invalid_credentials",
+    "store_not_found",
+    "rate_limited",
+    "provider_unavailable",
+    "network_error",
+  ];
+  const slug = error.message
     .toLowerCase()
     .replace(/[^a-z0-9_]+/g, "_")
     .slice(0, 120);
+  return KNOWN_CODES.find((c) => slug.includes(c)) ?? "commerce_provider_error";
 }
 
 function assertSafeConnectionInput(
