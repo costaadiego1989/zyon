@@ -26,6 +26,7 @@ import { TenantCredentialGuard } from "./presentation/http/tenant-credential.gua
     },
   ],
   exports: [
+    AuthModule,
     INTEGRATIONS_REPOSITORY,
     ApiKeyService,
     ApiKeyAccessPolicy,
