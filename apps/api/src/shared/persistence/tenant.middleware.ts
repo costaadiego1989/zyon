@@ -42,6 +42,13 @@ export const TENANT_SCOPED_MODELS = [
   "PaymentIntent",
   "PaymentProviderEvent",
   "HttpIdempotencyRecord",
+  "Coupon",
+  "CouponRedemption",
+  "CrossSellPromotion",
+  "CrossSellSuggestion",
+  "PriceQuoteJob",
+  "SelfCheckoutBuyerUser",
+  "SelfCheckoutTemplate",
 ] as const;
 
 export const TENANT_SCOPED_READ_OPERATIONS = [

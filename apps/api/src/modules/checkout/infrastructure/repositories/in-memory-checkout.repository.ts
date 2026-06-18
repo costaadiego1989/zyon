@@ -251,6 +251,12 @@ export class InMemoryCheckoutRepository
     return false;
   }
 
+  isHandlerProcessed(_eventId: string, _handlerId: string): boolean {
+    return false;
+  }
+
+  markHandlerProcessed(_eventId: string, _handlerId: string): void {}
+
   overview(merchantId: string): DashboardOverview {
     const sessions = [...this.sessions.values()].filter((session) => session.merchantId === merchantId);
     const offers = [...this.offers.values()].filter((offer) => offer.merchantId === merchantId);

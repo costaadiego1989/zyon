@@ -3,7 +3,9 @@ import type { DomainEventEnvelope } from "@aacp/shared-types";
 import type {
   OutboxClaim,
   OutboxRepository,
-  OutboxStatus
+  OutboxStatus,
+  OutboxTransaction,
+  TransactionalOutbox
 } from "../ports/outbox.repository.port.js";
 
 interface OutboxRecord {
@@ -15,9 +17,10 @@ interface OutboxRecord {
 }
 
 @Injectable()
-export class InMemoryOutboxRepository implements OutboxRepository {
+export class InMemoryOutboxRepository implements OutboxRepository, TransactionalOutbox {
   private readonly records = new Map<string, OutboxRecord>();
   private readonly order: string[] = [];
+  private readonly processedHandlers = new Set<string>();
 
   appendOutbox(event: DomainEventEnvelope): DomainEventEnvelope {
     if (!this.records.has(event.event_id)) {
@@ -81,9 +84,29 @@ export class InMemoryOutboxRepository implements OutboxRepository {
     return this.records.get(eventId)?.status === "delivered";
   }
 
+  isHandlerProcessed(eventId: string, handlerId: string): boolean {
+    return this.processedHandlers.has(handlerKey(eventId, handlerId));
+  }
+
+  markHandlerProcessed(eventId: string, handlerId: string): void {
+    this.processedHandlers.add(handlerKey(eventId, handlerId));
+  }
+
+  async saveWithOutbox<T>(
+    work: (tx: OutboxTransaction) => Promise<T>
+  ): Promise<T> {
+    return work({
+      appendOutbox: async (event) => this.appendOutbox(event)
+    });
+  }
+
   private orderedRecords(): OutboxRecord[] {
     return this.order
       .map((id) => this.records.get(id))
       .filter((r): r is OutboxRecord => r !== undefined);
   }
+}
+
+function handlerKey(eventId: string, handlerId: string): string {
+  return `${eventId}::${handlerId}`;
 }

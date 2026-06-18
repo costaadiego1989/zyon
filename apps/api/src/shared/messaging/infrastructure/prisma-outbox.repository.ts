@@ -4,7 +4,9 @@ import type { DomainEventEnvelope } from "@aacp/shared-types";
 import { PRISMA_CLIENT } from "../../persistence/persistence.module.js";
 import type {
   OutboxClaim,
-  OutboxRepository
+  OutboxRepository,
+  OutboxTransaction,
+  TransactionalOutbox
 } from "../ports/outbox.repository.port.js";
 
 interface OutboxRow {
@@ -21,25 +23,11 @@ interface OutboxRow {
 }
 
 @Injectable()
-export class PrismaOutboxRepository implements OutboxRepository {
+export class PrismaOutboxRepository implements OutboxRepository, TransactionalOutbox {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> {
-    await this.prisma.outboxMessage.upsert({
-      where: { eventId: event.event_id },
-      create: {
-        eventId: event.event_id,
-        eventType: event.event_type,
-        schemaVersion: event.schema_version,
-        merchantId: event.merchant_id,
-        occurredAt: new Date(event.occurred_at),
-        correlationId: event.correlation_id,
-        causationId: event.causation_id,
-        producer: event.producer,
-        payload: event.payload as Prisma.InputJsonValue
-      },
-      update: {}
-    });
+    await appendOutboxOn(this.prisma, event);
     return event;
   }
 
@@ -56,12 +44,6 @@ export class PrismaOutboxRepository implements OutboxRepository {
     return claims.map((c) => c.envelope);
   }
 
-  /**
-   * Claims due pending rows with `FOR UPDATE SKIP LOCKED` so multiple dispatcher
-   * instances never pick the same message. Runs in the same transaction the
-   * raw query opens; the in-process dispatcher lock further serializes a single
-   * instance.
-   */
   async claimBatch(batchSize = 50): Promise<OutboxClaim[]> {
     const rows = await this.prisma.$queryRaw<OutboxRow[]>`
       SELECT
@@ -132,6 +114,58 @@ export class PrismaOutboxRepository implements OutboxRepository {
     });
     return row?.status === "delivered";
   }
+
+  async isHandlerProcessed(eventId: string, handlerId: string): Promise<boolean> {
+    const row = await this.prisma.outboxHandlerExecution.findUnique({
+      where: { eventId_handlerId: { eventId, handlerId } },
+      select: { eventId: true }
+    });
+    return row !== null;
+  }
+
+  async markHandlerProcessed(eventId: string, handlerId: string): Promise<void> {
+    await this.prisma.outboxHandlerExecution.upsert({
+      where: { eventId_handlerId: { eventId, handlerId } },
+      create: { eventId, handlerId },
+      update: {}
+    });
+  }
+
+  async saveWithOutbox<T>(
+    work: (tx: OutboxTransaction) => Promise<T>
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) =>
+      work({
+        appendOutbox: async (event) => {
+          await appendOutboxOn(tx, event);
+          return event;
+        }
+      })
+    );
+  }
+}
+
+type OutboxWriteClient = Prisma.TransactionClient;
+
+async function appendOutboxOn(
+  client: OutboxWriteClient,
+  event: DomainEventEnvelope
+): Promise<void> {
+  await client.outboxMessage.upsert({
+    where: { eventId: event.event_id },
+    create: {
+      eventId: event.event_id,
+      eventType: event.event_type,
+      schemaVersion: event.schema_version,
+      merchantId: event.merchant_id,
+      occurredAt: new Date(event.occurred_at),
+      correlationId: event.correlation_id,
+      causationId: event.causation_id,
+      producer: event.producer,
+      payload: event.payload as Prisma.InputJsonValue
+    },
+    update: {}
+  });
 }
 
 function toEnvelope(row: OutboxRow): DomainEventEnvelope {

@@ -89,6 +89,71 @@ describe("OutboxDispatcher", () => {
     assert.equal(received.length, 2);
   });
 
+  it("does not re-run a succeeded handler when another handler fails", async () => {
+    const envelope = makeEnvelope();
+    const okCalls: string[] = [];
+    let failCalls = 0;
+    eventBus.subscribe(
+      TEST_EVENT_TYPE,
+      async () => {
+        okCalls.push(envelope.event_id);
+      },
+      "handler.ok"
+    );
+    eventBus.subscribe(
+      TEST_EVENT_TYPE,
+      async () => {
+        failCalls += 1;
+        throw new Error("downstream down");
+      },
+      "handler.fails"
+    );
+    outbox.appendOutbox(envelope);
+
+    // First tick: the ok handler succeeds, the failing one throws, event stays
+    // pending. Force it immediately claimable again, then re-dispatch.
+    await dispatcher.dispatch();
+    outbox.recordFailure(envelope.event_id, "noop", {
+      maxAttempts: 99,
+      nextAttemptAt: new Date(0)
+    });
+    await dispatcher.dispatch();
+
+    // The previously-subscribed default handler also counts, so filter by id.
+    assert.equal(
+      okCalls.filter((id) => id === envelope.event_id).length,
+      1,
+      "succeeded handler must run exactly once across retries"
+    );
+    assert.equal(failCalls, 2, "failing handler is retried");
+    assert.equal(outbox.isProcessed(envelope.event_id), false);
+  });
+
+  it("marks the event delivered once every handler has succeeded", async () => {
+    const envelope = makeEnvelope();
+    let attempt = 0;
+    eventBus.subscribe(
+      TEST_EVENT_TYPE,
+      async () => {
+        attempt += 1;
+        if (attempt === 1) throw new Error("transient");
+      },
+      "handler.flaky"
+    );
+    outbox.appendOutbox(envelope);
+
+    await dispatcher.dispatch();
+    assert.equal(outbox.isProcessed(envelope.event_id), false);
+
+    outbox.recordFailure(envelope.event_id, "noop", {
+      maxAttempts: 99,
+      nextAttemptAt: new Date(0)
+    });
+    await dispatcher.dispatch();
+
+    assert.equal(outbox.isProcessed(envelope.event_id), true);
+  });
+
   it("skips overlapping dispatch ticks via in-process lock", async () => {
     outbox.appendOutbox(makeEnvelope());
     let inFlight = 0;

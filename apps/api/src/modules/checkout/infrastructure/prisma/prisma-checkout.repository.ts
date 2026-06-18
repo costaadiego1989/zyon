@@ -394,6 +394,22 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row?.status === "delivered";
   }
 
+  async isHandlerProcessed(eventId: string, handlerId: string): Promise<boolean> {
+    const row = await this.prisma.outboxHandlerExecution.findUnique({
+      where: { eventId_handlerId: { eventId, handlerId } },
+      select: { eventId: true }
+    });
+    return row !== null;
+  }
+
+  async markHandlerProcessed(eventId: string, handlerId: string): Promise<void> {
+    await this.prisma.outboxHandlerExecution.upsert({
+      where: { eventId_handlerId: { eventId, handlerId } },
+      create: { eventId, handlerId },
+      update: {}
+    });
+  }
+
   async overview(merchantId: string): Promise<DashboardOverview> {
     const [sessions, offers, events] = await Promise.all([
       this.prisma.checkoutSession.findMany({ where: { merchantId }, orderBy: { createdAt: "desc" }, take: 10 }),

@@ -239,6 +239,7 @@ model CheckoutSession {
   abandonmentScore Float    @default(0) @map("abandonment_score")
   triggerAgent     Boolean  @default(false) @map("trigger_agent")
   chatHistory      Json     @default("[]") @map("chat_history")
+  version          Int      @default(0)
   createdAt        DateTime @map("created_at")
   updatedAt        DateTime @map("updated_at")
 
@@ -617,6 +618,16 @@ model OutboxMessage {
   @@map("outbox_messages")
 }
 
+model OutboxHandlerExecution {
+  eventId     String   @map("event_id")
+  handlerId   String   @map("handler_id")
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@id([eventId, handlerId])
+  @@index([eventId])
+  @@map("outbox_handler_executions")
+}
+
 model CheckoutIntervention {
   id         String   @id @default(cuid())
   merchantId String   @map("merchant_id")
@@ -717,3 +728,246 @@ model BuyerAgentProfile {
 
   @@map("buyer_agent_profiles")
 }
+
+// --- Foundations: shared persistence for buyer OTP and login abuse counters ---
+
+/// Persistent buyer phone OTP store. Replaces the in-process Map so codes are
+/// verifiable across instances and survive restarts. The code is stored hashed
+/// (never in clear). `attempts` + `expiresAt` back throttling/lockout so a
+/// 6-digit code is not brute-forceable (buyer-account ADR B2/B3).
+model BuyerPhoneOtp {
+  id          String    @id @default(cuid())
+  phone       String    @unique
+  codeHash    String    @map("code_hash")
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(5) @map("max_attempts")
+  consumedAt  DateTime? @map("consumed_at")
+  lastSentAt  DateTime  @default(now()) @map("last_sent_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  expiresAt   DateTime  @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("buyer_phone_otps")
+}
+
+/// Persistent, shared login-abuse counter. Replaces the per-instance Map so the
+/// rate limit is global across horizontally-scaled instances (auth ADR B2,
+/// buyer-account ADR B3). Keyed by a trusted identifier (resolved client IP
+/// and/or normalized email), never by a client-controlled header.
+model LoginAttemptCounter {
+  id          String   @id @default(cuid())
+  scopeKey    String   @unique @map("scope_key")
+  count       Int      @default(0)
+  windowEndsAt DateTime @map("window_ends_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([windowEndsAt])
+  @@map("login_attempt_counters")
+}
+
+// --- Growth context: coupons (coupons ADR) ---
+
+model Coupon {
+  id             String    @id
+  merchantId     String    @map("merchant_id")
+  code           String
+  discountType   String    @map("discount_type")
+  discountValue  Float     @map("discount_value")
+  minCartTotal   Float?    @map("min_cart_total")
+  maxUsages      Int?      @map("max_usages")
+  maxPerBuyer    Int?      @map("max_per_buyer")
+  usagesCount    Int       @default(0) @map("usages_count")
+  allowedSkus    String[]  @default([]) @map("allowed_skus")
+  blockedSkus    String[]  @default([]) @map("blocked_skus")
+  allowedRegions String[]  @default([]) @map("allowed_regions")
+  blockedRegions String[]  @default([]) @map("blocked_regions")
+  status         String    @default("active")
+  startsAt       DateTime  @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  redemptions CouponRedemption[]
+
+  @@unique([merchantId, code])
+  @@index([merchantId, status])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id                 String    @id
+  couponId           String    @map("coupon_id")
+  merchantId         String    @map("merchant_id")
+  sessionId          String    @map("session_id")
+  buyerGlobalUserId  String?   @map("buyer_global_user_id")
+  discountApplied    Float     @map("discount_applied")
+  source             String
+  status             String    @default("applied")
+  orderId            String?   @map("order_id")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  // One live application per (session, coupon): enforces apply idempotency and
+  // makes the global usage reservation race-free (coupons ADR P1 TOCTOU).
+  @@unique([merchantId, sessionId, couponId])
+  @@index([merchantId, couponId, status])
+  @@index([merchantId, buyerGlobalUserId, couponId, status])
+  @@map("coupon_redemptions")
+}
+
+// --- Growth context: cross-sell (cross-sell ADR) ---
+
+model CrossSellPromotion {
+  id                 String    @id
+  merchantId         String    @map("merchant_id")
+  name               String
+  trigger            Json
+  recommendedSkus    String[]  @default([]) @map("recommended_skus")
+  discountPercent    Float     @map("discount_percent")
+  maxDiscountPercent Float     @map("max_discount_percent")
+  status             String    @default("active")
+  startsAt           DateTime  @map("starts_at")
+  endsAt             DateTime? @map("ends_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  suggestions CrossSellSuggestion[]
+
+  @@index([merchantId, status])
+  @@map("cross_sell_promotions")
+}
+
+model CrossSellSuggestion {
+  id               String    @id
+  merchantId       String    @map("merchant_id")
+  sessionId        String    @map("session_id")
+  promoId          String    @map("promo_id")
+  rankedItems      String[]  @default([]) @map("ranked_items")
+  agentCopy        String    @map("agent_copy")
+  computedDiscount Float     @map("computed_discount")
+  status           String    @default("pending")
+  suggestedAt      DateTime  @map("suggested_at")
+  resolvedAt       DateTime? @map("resolved_at")
+
+  promotion CrossSellPromotion @relation(fields: [promoId], references: [id], onDelete: Cascade)
+
+  // Dedup pending suggestions per (session, promo) (cross-sell ADR P2).
+  @@index([merchantId, sessionId, promoId, status])
+  @@index([merchantId, status])
+  @@map("cross_sell_suggestions")
+}
+
+// --- Growth context: scraping-agent price-quote jobs (scraping-agent ADR) ---
+
+model PriceQuoteJob {
+  id                String    @id
+  merchantId        String    @map("merchant_id")
+  sessionId         String    @map("session_id")
+  buyerGlobalUserId String?   @map("buyer_global_user_id")
+  rawQuery          String    @map("raw_query")
+  normalizedQuery   Json?     @map("normalized_query")
+  requestedSources  String[]  @default([]) @map("requested_sources")
+  status            String    @default("pending")
+  results           Json      @default("[]")
+  rankedResults     String[]  @default([]) @map("ranked_results")
+  routingDecision   String?   @map("routing_decision")
+  startedAt         DateTime? @map("started_at")
+  completedAt       DateTime? @map("completed_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId, status, createdAt])
+  @@index([merchantId, sessionId])
+  @@map("price_quote_jobs")
+}
+
+// --- Growth context: self-checkout buyer wallet & templates (self-checkout ADR) ---
+
+model SelfCheckoutBuyerUser {
+  id               String   @id
+  merchantId       String   @map("merchant_id")
+  email            String   @map("email")
+  passwordHash     String   @map("password_hash")
+  displayName      String?  @map("display_name")
+  consentVersion   String   @map("consent_version")
+  consentUpdatedAt DateTime @map("consent_updated_at")
+  marketingOptIn   Boolean  @default(false) @map("marketing_opt_in")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  wallet    SelfCheckoutWallet?
+  templates SelfCheckoutTemplate[]
+
+  // Email is normalized to lowercase before write/lookup (self-checkout ADR P2).
+  @@unique([merchantId, email])
+  @@map("self_checkout_buyer_users")
+}
+
+model SelfCheckoutWallet {
+  id          String   @id
+  buyerUserId String   @unique @map("buyer_user_id")
+  // Optimistic-lock version: a stale save (read version != stored) is rejected
+  // instead of overwriting concurrent wallet mutations (self-checkout ADR P2).
+  version     Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  buyerUser      SelfCheckoutBuyerUser         @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  addresses      SelfCheckoutSavedAddress[]
+  paymentMethods SelfCheckoutSavedPaymentMethod[]
+
+  @@map("self_checkout_wallets")
+}
+
+model SelfCheckoutSavedAddress {
+  id        String  @id
+  walletId  String  @map("wallet_id")
+  label     String
+  zipCode   String  @map("zip_code")
+  street    String
+  city      String
+  state     String
+  country   String
+  isDefault Boolean @default(false) @map("is_default")
+
+  wallet SelfCheckoutWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@map("self_checkout_saved_addresses")
+}
+
+model SelfCheckoutSavedPaymentMethod {
+  id           String   @id
+  walletId     String   @map("wallet_id")
+  label        String
+  gateway      String
+  gatewayToken String   @map("gateway_token")
+  lastFour     String   @map("last_four")
+  brand        String
+  expiresAt    DateTime @map("expires_at")
+  isDefault    Boolean  @default(false) @map("is_default")
+
+  wallet SelfCheckoutWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@map("self_checkout_saved_payment_methods")
+}
+
+model SelfCheckoutTemplate {
+  id                       String   @id
+  buyerUserId              String   @map("buyer_user_id")
+  merchantId               String   @map("merchant_id")
+  name                     String
+  savedAddressId           String   @map("saved_address_id")
+  savedPaymentMethodId     String   @map("saved_payment_method_id")
+  preferredShippingMethodId String? @map("preferred_shipping_method_id")
+  isActive                 Boolean  @default(true) @map("is_active")
+  createdAt                DateTime @default(now()) @map("created_at")
+
+  buyerUser SelfCheckoutBuyerUser @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+
+  @@index([buyerUserId])
+  @@index([merchantId, buyerUserId])
+  @@map("self_checkout_templates")
+}
+

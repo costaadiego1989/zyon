@@ -45,12 +45,21 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
 
     if (await this.outbox.isProcessed(envelope.event_id)) return;
 
+    const handlers = this.eventBus.handlersFor(envelope.event_type);
+    const event = {
+      eventType: envelope.event_type,
+      merchantId: envelope.merchant_id,
+      payload: envelope.payload
+    };
+
     try {
-      await this.eventBus.publish({
-        eventType: envelope.event_type,
-        merchantId: envelope.merchant_id,
-        payload: envelope.payload
-      });
+      for (const handler of handlers) {
+        if (await this.outbox.isHandlerProcessed(envelope.event_id, handler.handlerId)) {
+          continue;
+        }
+        await handler.handle(event);
+        await this.outbox.markHandlerProcessed(envelope.event_id, handler.handlerId);
+      }
       await this.outbox.markDelivered(envelope.event_id);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

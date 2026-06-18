@@ -10,7 +10,11 @@ export class CouponsOnOrderCompletedHandler implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe("order.completed", (event) => this.handle(event));
+    this.eventBus.subscribe(
+      "order.completed",
+      (event) => this.handle(event),
+      "coupons.CouponsOnOrderCompletedHandler"
+    );
   }
 
   private async handle(event: DomainEvent): Promise<void> {

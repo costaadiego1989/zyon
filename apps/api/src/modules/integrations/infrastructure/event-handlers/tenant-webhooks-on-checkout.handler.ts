@@ -16,7 +16,11 @@ export class TenantWebhooksOnCheckoutHandler implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe("order.completed", (event) => this.handleOrderCompleted(event));
+    this.eventBus.subscribe(
+      "order.completed",
+      (event) => this.handleOrderCompleted(event),
+      "integrations.TenantWebhooksOnCheckoutHandler"
+    );
   }
 
   private async handleOrderCompleted(event: DomainEvent): Promise<void> {

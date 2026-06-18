@@ -12,8 +12,10 @@ export class PaymentApprovedHandler implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe(PAYMENT_APPROVED_EVENT, (event) =>
-      this.handle(event as PaymentApprovedEvent)
+    this.eventBus.subscribe(
+      PAYMENT_APPROVED_EVENT,
+      (event) => this.handle(event as PaymentApprovedEvent),
+      "checkout.PaymentApprovedHandler"
     );
   }
 

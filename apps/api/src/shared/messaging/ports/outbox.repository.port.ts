@@ -35,6 +35,17 @@ export interface OutboxRepository {
     backoff: { maxAttempts: number; nextAttemptAt: Date }
   ): MaybePromise<{ attempts: number; dead: boolean }>;
 
-  /** Idempotency guard: true when the event was already delivered. */
   isProcessed(eventId: string): MaybePromise<boolean>;
+  isHandlerProcessed(eventId: string, handlerId: string): MaybePromise<boolean>;
+  markHandlerProcessed(eventId: string, handlerId: string): MaybePromise<void>;
+}
+
+export interface TransactionalOutbox {
+  saveWithOutbox<T>(
+    work: (tx: OutboxTransaction) => Promise<T>
+  ): Promise<T>;
+}
+
+export interface OutboxTransaction {
+  appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope>;
 }

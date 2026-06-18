@@ -10,7 +10,11 @@ export class FulfillmentOnOrderCompletedHandler implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
-    this.eventBus.subscribe("order.completed", (event) => this.handle(event));
+    this.eventBus.subscribe(
+      "order.completed",
+      (event) => this.handle(event),
+      "fulfillment.FulfillmentOnOrderCompletedHandler"
+    );
   }
 
   private async handle(event: DomainEvent): Promise<void> {
