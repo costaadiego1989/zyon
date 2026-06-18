@@ -120,6 +120,42 @@ identificador gerado pela API. O mesmo valor aparece em logs e em
   provedor; o widget consome a mesma fonte tenant-scoped.
 - O adapter fake deixou de participar da composicao do `CatalogModule`.
 
+## Pagamentos e billing
+
+- Signup cria somente o tenant, owner e trial local de 14 dias na mesma
+  transacao. Nenhuma chamada externa Stripe ou Asaas ocorre durante cadastro.
+- Stripe Connect usa conta Express e Account Link hospedado, curto e recriavel.
+  O checkout com cartao exige conexao tenant `active`; a plataforma nao absorve
+  silenciosamente uma cobranca de merchant sem onboarding concluido.
+- Asaas cria uma subconta por tenant. A `apiKey` retornada uma unica vez pelo
+  provider e criptografada em repouso e nunca aparece em respostas HTTP.
+- O link documental Asaas e obtido por `/v3/myAccount/documents` somente apos a
+  janela minima de disponibilidade indicada pelo provider.
+- PIX, boleto e cartao Asaas resolvem a credencial da subconta do tenant. Nao ha
+  compartilhamento de chave entre merchants.
+- Stripe Billing e separado do fluxo de pagamento do comprador. Planos publicos
+  usam nomes estaveis; os `price_id` permanecem exclusivamente no servidor.
+- Eventos `account.updated`, `checkout.session.completed` e
+  `customer.subscription.*` atualizam read models de conexao e assinatura.
+- Operacoes de onboarding financeiro e billing exigem sessao humana `OWNER` ou
+  `ADMIN`; API keys de servico recebem `403 human_session_required`.
+- Provider fake e recusado em producao, inclusive quando habilitado por variavel
+  de ambiente ou seed E2E.
+
+Endpoints:
+
+```text
+GET  /v1/payments/connections
+POST /v1/payments/connections/stripe/onboarding-link
+POST /v1/payments/connections/stripe/sync
+POST /v1/payments/connections/asaas
+POST /v1/payments/connections/asaas/onboarding-link
+POST /v1/payments/connections/asaas/sync
+GET  /v1/billing/subscription
+POST /v1/billing/checkout-session
+POST /v1/billing/portal-session
+```
+
 ## Rate limit
 
 Respostas incluem:
@@ -152,3 +188,7 @@ Referencias de provider:
 - https://shopify.dev/docs/api/storefront/latest/queries/cart
 - https://developer.woocommerce.com/docs/apis/rest-api/
 - https://woocommerce.github.io/woocommerce-rest-api-docs/
+- https://docs.stripe.com/connect/marketplace/tasks/onboard
+- https://docs.stripe.com/billing/subscriptions/build-subscriptions
+- https://docs.asaas.com/docs/criacao-de-subcontas
+- https://docs.asaas.com/docs/onboarding-and-sending-documents-via-link
