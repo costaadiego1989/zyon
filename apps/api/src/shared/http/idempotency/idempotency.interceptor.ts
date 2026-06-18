@@ -119,7 +119,7 @@ export class IdempotencyInterceptor implements NestInterceptor {
                 requestFingerprint,
                 {
                   statusCode: response.statusCode,
-                  responseBody: body,
+                  responseBody: persistableBody(body, options),
                   responseHeaders: replayableHeaders(response),
                 },
               ),
@@ -145,6 +145,28 @@ function parseIdempotencyKey(value: string | undefined): string {
 
 function fingerprint(value: unknown): string {
   return createHash("sha256").update(canonicalJson(value)).digest("hex");
+}
+
+function persistableBody(body: unknown, options: IdempotencyOptions): unknown {
+  if (options.doNotPersistBody) return null;
+  if (options.redactResponseFields && options.redactResponseFields.length > 0) {
+    return redactFields(body, new Set(options.redactResponseFields));
+  }
+  return body;
+}
+
+function redactFields(value: unknown, fields: Set<string>): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactFields(item, fields));
+  }
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, nested] of Object.entries(value)) {
+      result[key] = fields.has(key) ? "[redacted]" : redactFields(nested, fields);
+    }
+    return result;
+  }
+  return value;
 }
 
 function replayableHeaders(response: Response): Record<string, string> {

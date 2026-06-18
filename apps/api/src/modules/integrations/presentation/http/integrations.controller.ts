@@ -47,7 +47,7 @@ export class IntegrationsController {
   }
 
   @Post("api-keys")
-  @Idempotent()
+  @Idempotent({ redactResponseFields: ["secret_key"] })
   createKey(@Req() request: unknown, @Body() body: CreateMerchantApiKeyDto) {
     return this.createApiKey.execute({
       merchantId: currentUser(request as { user?: unknown }).merchantId,
@@ -66,7 +66,7 @@ export class IntegrationsController {
   }
 
   @Post("api-keys/:apiKeyId/rotate")
-  @Idempotent()
+  @Idempotent({ redactResponseFields: ["secret_key"] })
   rotateKey(
     @Req() request: unknown,
     @Param("apiKeyId") apiKeyId: string,
@@ -85,7 +85,7 @@ export class IntegrationsController {
   }
 
   @Post("webhooks")
-  @Idempotent()
+  @Idempotent({ redactResponseFields: ["signingSecret"] })
   createWebhook(@Req() request: unknown, @Body() body: { url: string; events?: TenantWebhookEventType[]; enabled?: boolean; description?: string }) {
     return this.upsertWebhookEndpoint.execute({
       merchantId: currentUser(request as { user?: unknown }).merchantId,

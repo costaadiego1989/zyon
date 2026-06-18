@@ -4,6 +4,8 @@ export const IDEMPOTENCY_OPTIONS = "aacp:idempotency-options";
 
 export interface IdempotencyOptions {
   ttlSeconds?: number;
+  doNotPersistBody?: boolean;
+  redactResponseFields?: string[];
 }
 
 export function Idempotent(

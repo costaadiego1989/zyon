@@ -90,6 +90,50 @@ describe("IdempotencyInterceptor", () => {
     );
     assert.equal(repository.releaseCount, 0);
   });
+
+  it("redacts configured secret fields from the persisted body but returns them live", async () => {
+    const repository = new MemoryIdempotencyRepository();
+    const interceptor = new IdempotencyInterceptor(new Reflector(), repository);
+    const fixture = httpFixture("idem_apikey_1", {
+      redactResponseFields: ["secret_key", "signingSecret"],
+    });
+
+    const result = await firstValueFrom(
+      interceptor.intercept(fixture.context, {
+        handle: () =>
+          of({
+            api_key: { id: "mak_1", key_prefix: "ak_live_" },
+            secret_key: "ak_live_super_secret_value",
+          }),
+      }),
+    );
+
+    // Caller still receives the real secret exactly once.
+    assert.equal(
+      (result as { secret_key: string }).secret_key,
+      "ak_live_super_secret_value",
+    );
+    // The persisted replay body must never contain the raw secret.
+    assert.deepEqual(repository.completed?.responseBody, {
+      api_key: { id: "mak_1", key_prefix: "ak_live_" },
+      secret_key: "[redacted]",
+    });
+  });
+
+  it("does not persist any body when doNotPersistBody is set", async () => {
+    const repository = new MemoryIdempotencyRepository();
+    const interceptor = new IdempotencyInterceptor(new Reflector(), repository);
+    const fixture = httpFixture("idem_secret_2", { doNotPersistBody: true });
+
+    const result = await firstValueFrom(
+      interceptor.intercept(fixture.context, {
+        handle: () => of({ signing_secret: "whsec_value" }),
+      }),
+    );
+
+    assert.deepEqual(result, { signing_secret: "whsec_value" });
+    assert.equal(repository.completed?.responseBody, null);
+  });
 });
 
 class MemoryIdempotencyRepository implements IdempotencyRepository {
@@ -122,12 +166,12 @@ class MemoryIdempotencyRepository implements IdempotencyRepository {
   }
 }
 
-function httpFixture(idempotencyKey: string): {
+function httpFixture(idempotencyKey: string, options: Record<string, unknown> = {}): {
   context: ExecutionContext;
   headers: Record<string, string>;
 } {
   const handler = () => undefined;
-  Reflect.defineMetadata(IDEMPOTENCY_OPTIONS, {}, handler);
+  Reflect.defineMetadata(IDEMPOTENCY_OPTIONS, options, handler);
   const request = {
     tenantPrincipal: {
       kind: "human",

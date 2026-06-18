@@ -67,7 +67,7 @@ export class WebhookEndpointsController {
   }
 
   @Post()
-  @Idempotent()
+  @Idempotent({ redactResponseFields: ["signing_secret"] })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async create(
     @Req() request: unknown,
@@ -117,7 +117,7 @@ export class WebhookEndpointsController {
   }
 
   @Post(":endpointId/rotate-secret")
-  @Idempotent()
+  @Idempotent({ redactResponseFields: ["signing_secret"] })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async rotate(
     @Req() request: unknown,
