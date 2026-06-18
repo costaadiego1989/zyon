@@ -22,9 +22,12 @@ test("register and login return JWTs for the merchant owner", async () => {
   });
   const logged = await login.execute({ email: "owner@example.com", password: "secret" });
 
-  assert.equal(registered.merchant_id, "mrc_1");
+  // B4 (P2): merchant_id is always server-generated (mrc_uuid prefix), so the
+  // client-supplied "mrc_1" must be ignored.
+  assert.ok(registered.merchant_id.startsWith("mrc_"), "merchant_id must start with mrc_");
+  assert.notEqual(registered.merchant_id, "mrc_1", "client-supplied merchant_id must not be honored");
   assert.equal(registered.email, "owner@example.com");
-  assert.equal(logged.merchant_id, "mrc_1");
+  assert.equal(logged.merchant_id, registered.merchant_id);
   assert.ok(logged.access_token);
 });
 
@@ -49,4 +52,32 @@ test("auth rejects duplicate email and invalid credentials", async () => {
     () => login.execute({ email: "owner@example.com", password: "wrong" }),
     UnauthorizedException
   );
+});
+
+// B4 (P2) regression: merchant_id from request body must be ignored; server
+// always generates it. Two registrations with the same requested merchant_id
+// must produce two different server-assigned IDs.
+test("RegisterMerchantUseCase ignores client-supplied merchant_id (B4 P2 regression)", async () => {
+  const repository = new InMemoryAuthRepository();
+  const hasher = new PasswordHasher();
+  const jwt = new JwtService("test-secret", 3600);
+  const register = new RegisterMerchantUseCase(repository, hasher, jwt);
+
+  const r1 = await register.execute({
+    merchant_id: "mrc_squatted",
+    merchant_name: "Store A",
+    email: "a@example.com",
+    password: "pass"
+  });
+  const r2 = await register.execute({
+    merchant_id: "mrc_squatted",
+    merchant_name: "Store B",
+    email: "b@example.com",
+    password: "pass"
+  });
+
+  // Both must succeed and receive unique server-generated IDs.
+  assert.notEqual(r1.merchant_id, "mrc_squatted");
+  assert.notEqual(r2.merchant_id, "mrc_squatted");
+  assert.notEqual(r1.merchant_id, r2.merchant_id, "each registration gets a unique merchant_id");
 });

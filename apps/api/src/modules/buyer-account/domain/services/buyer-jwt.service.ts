@@ -17,7 +17,10 @@ export interface BuyerPrincipal {
 
 export class BuyerJwtService {
   constructor(
-    private readonly secret = requireSecret("JWT_SECRET", "dev-secret-change-me"),
+    // B1 (P0): Use dedicated BUYER_JWT_SECRET so buyer tokens cannot be accepted
+    // by the merchant AuthGuard (which uses JWT_SECRET). The two secrets are
+    // cryptographically independent, preventing audience confusion attacks.
+    private readonly secret = requireSecret("BUYER_JWT_SECRET", "buyer-dev-secret-change-me"),
     private readonly ttlSeconds = Number(process.env.JWT_EXPIRES_IN_SECONDS ?? 3600)
   ) {}
 

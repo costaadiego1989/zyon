@@ -39,8 +39,16 @@ export class JwtService {
     const [header, payload, signature] = parts;
     const expected = sign(`${header}.${payload}`, this.secret);
     if (!safeEqual(signature, expected)) throw new Error("jwt_invalid_signature");
-    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload;
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload & { aud?: string };
     if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
+    // B1 (P0): Reject buyer tokens that share the same signing secret.
+    // A buyer JWT has aud:"buyer" or role:"buyer" — both must be absent here.
+    if ((decoded as { aud?: string }).aud === "buyer" || decoded.role === "buyer") {
+      throw new Error("jwt_wrong_audience");
+    }
+    // B1 (P0): Guarantee merchant_id is present and non-empty so the tenant
+    // boundary can never be undefined.
+    if (!decoded.merchant_id) throw new Error("jwt_missing_merchant_id");
     return {
       userId: decoded.sub,
       merchantId: decoded.merchant_id,
@@ -59,7 +67,10 @@ export class JwtService {
     const [header, payload, signature] = parts;
     const expected = sign(`${header}.${payload}`, this.secret);
     if (!safeEqual(signature, expected)) throw new Error("jwt_invalid_signature");
-    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload;
+    const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload & { aud?: string };
+    // B1 (P0): Same audience guard on refresh path.
+    if (decoded.aud === "buyer" || decoded.role === "buyer") throw new Error("jwt_wrong_audience");
+    if (!decoded.merchant_id) throw new Error("jwt_missing_merchant_id");
     // Rejeita se expirou há mais tempo que a janela de graça
     if (decoded.exp + graceSeconds <= nowSeconds) throw new Error("jwt_refresh_window_expired");
     return {

@@ -32,12 +32,27 @@ export class RegisterMerchantUseCase {
     const existing = await this.repository.findUserByEmail(email);
     if (existing) throw new ConflictException("email_already_registered");
     const passwordHash = await this.passwordHasher.hash(input.password);
-    const created = await this.repository.createMerchantWithOwner({
-      merchantId: input.merchant_id ?? `mrc_${crypto.randomUUID()}`,
-      merchantName: input.merchant_name,
-      email,
-      passwordHash
-    });
+    // B4 (P2): Always generate merchant_id server-side. Accepting it from the
+    // client allows squatting / pre-registering predictable IDs. The
+    // findUserByEmail → create sequence was also a TOCTOU race; we rely on the
+    // database unique constraint as the final arbiter and map violations to 409.
+    const merchantId = `mrc_${crypto.randomUUID()}`;
+    let created: { merchant: { id: string; name: string }; user: { id: string; merchantId: string; email: string; role: "owner" | "admin" } };
+    try {
+      created = await this.repository.createMerchantWithOwner({
+        merchantId,
+        merchantName: input.merchant_name,
+        email,
+        passwordHash
+      });
+    } catch (err: unknown) {
+      // Map unique-constraint violations to 409 instead of 500.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("Unique constraint") || msg.includes("unique constraint") || msg.includes("P2002")) {
+        throw new ConflictException("email_already_registered");
+      }
+      throw err;
+    }
     return toAuthResponse(created.user, this.jwt);
   }
 }

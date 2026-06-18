@@ -1,8 +1,16 @@
 import { HttpException, HttpStatus } from "@nestjs/common";
 
+/**
+ * B2 (P1): The scope key is built from trusted identifiers only.
+ * `email` is the normalized credential being tested (attacker-known, not
+ * attacker-controlled as a header). `ip` is the resolved client address.
+ * `deviceId` is NOT included — it was a client-controlled header that made
+ * the limit trivially bypassable by rotating the header value.
+ */
 export interface LoginAttemptScope {
   ip: string;
-  deviceId: string;
+  /** Normalized (lower-cased, trimmed) email being attempted. */
+  email: string;
 }
 
 interface AttemptBucket {
@@ -51,6 +59,8 @@ export class LoginRateLimiter {
   }
 
   private key(scope: LoginAttemptScope): string {
-    return `${scope.ip}:${scope.deviceId}`;
+    // Key on IP + normalized email. Both are trusted — IP from server-resolved
+    // request address, email from request body (same value being checked).
+    return `${scope.ip}:${scope.email.toLowerCase().trim()}`;
   }
 }

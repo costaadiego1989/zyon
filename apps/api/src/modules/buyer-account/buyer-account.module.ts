@@ -22,6 +22,8 @@ import { BuyerAccountRepositoryModule } from "./buyer-account-repository.module.
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { OTP_STORE } from "./domain/ports/otp-store.port.js";
+import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
@@ -44,6 +46,10 @@ import { IntegrationsModule } from "../integrations/integrations.module.js";
     BuyerJwtAuthGuard,
     M2mTokenService,
     PasswordHasher,
+    // B3 (P1): OTP store bound to the port token.
+    // TODO: swap for PrismaOtpStore (backed by buyer_phone_otps table) in
+    // the Prisma repository module once a Prisma client is available here.
+    { provide: OTP_STORE, useClass: InMemoryOtpStore },
   ],
   exports: [BuyerJwtService, BuyerJwtAuthGuard, BuyerAccountRepositoryModule],
 })

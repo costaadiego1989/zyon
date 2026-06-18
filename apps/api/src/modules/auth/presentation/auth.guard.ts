@@ -24,6 +24,12 @@ export class AuthGuard implements CanActivate {
     }
     try {
       const user = this.jwt.verify(token);
+      // B1 (P0): Guarantee tenantId is a non-empty string before any query.
+      // jwt.verify already throws jwt_missing_merchant_id when empty, but we
+      // assert here too so the guard never sets an undefined tenant boundary.
+      if (!user.merchantId) {
+        throw new UnauthorizedException("invalid_bearer_token");
+      }
       request.user = user;
       setTenantPrincipal(request as TenantPrincipalRequest, {
         kind: "human",

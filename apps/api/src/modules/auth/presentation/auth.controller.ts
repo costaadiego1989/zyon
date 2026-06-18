@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
 import { LoginUseCase } from "../application/login.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
@@ -26,10 +26,11 @@ export class AuthController {
   async loginWithPassword(
     @Body() body: { email: string; password: string },
     @Ip() ip: string,
-    @Headers("x-device-id") deviceId: string | undefined,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    const scope = { ip: ip || "unknown", deviceId: deviceId || "unknown-device" };
+    // B2 (P1): Key by IP + normalized email. x-device-id header is NOT used
+    // because it is client-controlled and was trivially rotatable to bypass limits.
+    const scope = { ip: ip || "unknown", email: body.email ?? "" };
     this.rateLimiter.assertAllowed(scope);
     try {
       const auth = await this.login.execute(body);

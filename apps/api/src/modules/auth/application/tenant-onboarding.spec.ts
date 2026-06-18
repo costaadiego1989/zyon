@@ -22,6 +22,7 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
   const issueEmbed = new IssueEmbedSessionUseCase(embedTokens);
 
   // 1. Register tenant
+  // B4 (P2): client-supplied merchant_id is ignored; server generates it.
   const registered = await register.execute({
     merchant_id: "mrc_athom_tech",
     merchant_name: "Athom Tech",
@@ -29,7 +30,8 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
     password: "athom2026!",
   });
 
-  assert.equal(registered.merchant_id, "mrc_athom_tech");
+  // B4: server-generated ID starts with mrc_ but is NOT the client-supplied one.
+  assert.ok(registered.merchant_id.startsWith("mrc_"), "merchant_id must start with mrc_");
   assert.equal(registered.email, "costaadiego1989@gmail.com");
   assert.ok(registered.access_token, "must return JWT");
 
@@ -39,11 +41,11 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
     password: "athom2026!",
   });
 
-  assert.equal(logged.merchant_id, "mrc_athom_tech");
+  assert.equal(logged.merchant_id, registered.merchant_id);
 
   // 3. Verify JWT claims
   const claims = jwt.verify(logged.access_token);
-  assert.equal(claims.merchantId, "mrc_athom_tech");
+  assert.equal(claims.merchantId, registered.merchant_id);
   assert.equal(claims.role, "owner");
 
   // 4. Issue embed session using authenticated merchantId
@@ -57,7 +59,7 @@ test("tenant onboarding: register Athom Tech → login → issue embed session",
 
   // 5. Verify embed token binds to correct merchant
   const embedClaims = embedTokens.verify(embedSession.embed_session_token);
-  assert.equal(embedClaims.merchantId, "mrc_athom_tech");
+  assert.equal(embedClaims.merchantId, registered.merchant_id);
   assert.equal(embedClaims.typ, "aacp_embed_v1");
 });
 
@@ -68,7 +70,6 @@ test("tenant onboarding: duplicate email rejected", async () => {
   const register = new RegisterMerchantUseCase(repository, hasher, jwt);
 
   await register.execute({
-    merchant_id: "mrc_athom_tech",
     merchant_name: "Athom Tech",
     email: "costaadiego1989@gmail.com",
     password: "athom2026!",
