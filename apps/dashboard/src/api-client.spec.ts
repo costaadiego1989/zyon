@@ -1,3 +1,6 @@
+/**
+ * @vitest-environment jsdom
+ */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { dashboardFetch, DashboardHttpError, dashboardJson, createDashboardApi, SESSION_EXPIRED_EVENT, stableIdempotencyKey } from "./api-client";
 
