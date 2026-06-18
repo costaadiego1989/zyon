@@ -128,6 +128,17 @@ export class PrismaIntegrationsRepository implements IntegrationsRepository {
     return toDelivery(row);
   }
 
+  async claimWebhookDelivery(deliveryId: string, now: string): Promise<MerchantWebhookDelivery | undefined> {
+    // Atomic claim: only flips pending → sending; count===0 means another worker beat us.
+    const result = await (this.prisma as any).merchantWebhookDelivery.updateMany({
+      where: { id: deliveryId, status: "pending" },
+      data: { status: "sending", updatedAt: new Date(now) },
+    });
+    if (result.count !== 1) return undefined;
+    const row = await (this.prisma as any).merchantWebhookDelivery.findUnique({ where: { id: deliveryId } });
+    return row ? toDelivery(row) : undefined;
+  }
+
   async getWebhookDelivery(merchantId: string, deliveryId: string): Promise<MerchantWebhookDelivery | undefined> {
     const row = await (this.prisma as any).merchantWebhookDelivery.findFirst({
       where: { id: deliveryId, merchantId }

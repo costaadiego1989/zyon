@@ -10,6 +10,7 @@ import {
   type InstallationEnvironment,
   type InstallationRepository,
   type InstallationStatus,
+  type ListInstallationsResult,
   type MerchantInstallation,
   type ReportInstallationHealthInput,
   type UpdateInstallationInput,
@@ -22,8 +23,12 @@ export class ListInstallationsUseCase {
     private readonly repository: InstallationRepository,
   ) {}
 
-  execute(merchantId: string): Promise<MerchantInstallation[]> {
-    return this.repository.list(requireValue(merchantId, "merchant_id"));
+  execute(merchantId: string, limit?: number, cursor?: string): Promise<ListInstallationsResult> {
+    return this.repository.list({
+      merchantId: requireValue(merchantId, "merchant_id"),
+      limit,
+      cursor,
+    });
   }
 }
 

@@ -69,6 +69,28 @@ describe("CancelOrderUseCase", () => {
     );
     assert.equal(commerce.cancelled.length, 0);
   });
+
+  it("P1 — persists local cancellation BEFORE calling the commerce provider", async () => {
+    // The provider call should only happen after the local DB commit.
+    // We track the order's persisted status at the moment the provider is called.
+    const checkout = completedOrderRepository();
+    const commerce = new OrderStatusCapturingPort(checkout);
+    const useCase = new CancelOrderUseCase(
+      new StubOperationsRepository(),
+      checkout,
+      commerce,
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+    );
+
+    await useCase.execute({
+      merchantId: "mrc_a",
+      orderId: "ord_1",
+      reason: "Merchant requested",
+    });
+
+    // Local status must have been "cancelled" when the provider was invoked.
+    assert.equal(commerce.statusAtProviderCall, "cancelled");
+  });
 });
 
 describe("CreateOrderFromPaymentUseCase", () => {
@@ -133,6 +155,29 @@ class FakeCommerceOrderPort implements CommerceOrderPort {
     restock?: boolean;
   }) {
     this.cancelled.push(input);
+  }
+}
+
+/**
+ * A fake commerce port that records the local order status at the time the
+ * provider cancellation is called — used to assert that the local commit
+ * happens before the provider call (P1 fix regression).
+ */
+class OrderStatusCapturingPort implements CommerceOrderPort {
+  statusAtProviderCall: string | undefined;
+
+  constructor(private readonly checkout: InMemoryCheckoutRepository) {}
+
+  async createPendingOrder() {
+    return { commerceOrderId: "draft_1" };
+  }
+
+  async markOrderPaid() {}
+
+  async cancelOrder(input: { merchantId: string; commerceOrderId: string }) {
+    // Capture the locally-stored status at the moment we are called.
+    const order = this.checkout.getCompletedOrder("mrc_a", "session_1", "external_1");
+    this.statusAtProviderCall = order?.status;
   }
 }
 

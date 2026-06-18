@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { EmbedTokenService, type EmbedScope, type EmbedTokenClaims } from "../domain/embed-token.service.js";
 
 const EMBED_SCOPES: readonly EmbedScope[] = [
@@ -7,8 +7,23 @@ const EMBED_SCOPES: readonly EmbedScope[] = [
   "checkout:chat",
   "offers:apply",
   "coupons:apply",
-  "payment:intents:create"
+  "payment:intents:create",
+  "payment:intents:confirm",
+  "payment:intents:read",
 ];
+
+/**
+ * Scopes that handle real monetary operations: an `allowedOrigin` is required
+ * for these when the environment is `live`, so that a leaked token cannot be
+ * replayed from an arbitrary origin.
+ */
+const TRANSACTIONAL_SCOPES = new Set<EmbedScope>([
+  "payment:intents:create",
+  "payment:intents:confirm",
+  "payment:intents:read",
+  "offers:apply",
+  "coupons:apply",
+]);
 
 @Injectable()
 export class IssueEmbedSessionUseCase {
@@ -33,6 +48,14 @@ export class IssueEmbedSessionUseCase {
     const now = Math.floor(Date.now() / 1000);
     const expiresAtUnix = now + Math.min(Math.max(input.ttlSeconds, 60), 86400);
 
+    const allowedOrigin = validateAllowedOrigin(input.allowedOrigin);
+    const scopes = sanitizeScopes(input.scopes);
+
+    // B2 fix: in `live` mode, transactional scopes require an origin binding.
+    if (input.environment === "live" && !allowedOrigin && scopes?.some((s) => TRANSACTIONAL_SCOPES.has(s))) {
+      throw new BadRequestException("embed_allowed_origin_required_for_live_transactional_scopes");
+    }
+
     const claims: EmbedTokenClaims = {
       typ: "aacp_embed_v1",
       merchantId: input.merchantId,
@@ -42,8 +65,8 @@ export class IssueEmbedSessionUseCase {
       issuedAtUnix: now,
       expiresAtUnix,
       nonce: crypto.randomUUID(),
-      allowedOrigin: validateAllowedOrigin(input.allowedOrigin),
-      scopes: sanitizeScopes(input.scopes),
+      allowedOrigin,
+      scopes,
       cartRef: sanitizeCartRef(input.cartRef)
     };
 
@@ -60,10 +83,17 @@ export class IssueEmbedSessionUseCase {
 function validateAllowedOrigin(origin: string | undefined): string | undefined {
   const trimmed = origin?.trim();
   if (!trimmed) return undefined;
-  const url = new URL(trimmed);
-  if (!["https:", "http:"].includes(url.protocol)) throw new Error("embed_allowed_origin_invalid");
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    throw new BadRequestException("embed_allowed_origin_invalid");
+  }
+  if (!["https:", "http:"].includes(url.protocol)) {
+    throw new BadRequestException("embed_allowed_origin_invalid");
+  }
   if (url.protocol === "http:" && !["localhost", "127.0.0.1"].includes(url.hostname)) {
-    throw new Error("embed_allowed_origin_must_be_https");
+    throw new BadRequestException("embed_allowed_origin_must_be_https");
   }
   return url.origin;
 }

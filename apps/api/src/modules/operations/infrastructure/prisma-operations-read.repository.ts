@@ -149,25 +149,25 @@ export class PrismaOperationsReadRepository
     const cursorFilter =
       cursorAt && input.cursor
         ? Prisma.sql`AND (
-            "updated_at" < ${cursorAt}
-            OR ("updated_at" = ${cursorAt} AND "global_user_id" < ${input.cursor.id})
+            "last_seen_at" < ${cursorAt}
+            OR ("last_seen_at" = ${cursorAt} AND "global_user_id" < ${input.cursor.id})
           )`
         : Prisma.empty;
+
+    // P2 fix: compute MIN(created_at) as first_seen_at and MAX(updated_at) as
+    // last_seen_at per global_user_id — consistent with getCustomer's detail view.
     const rows = await this.prisma.$queryRaw<CustomerRow[]>(Prisma.sql`
-      SELECT *
-      FROM (
-        SELECT DISTINCT ON ("global_user_id")
-          "global_user_id",
-          "customer",
-          "created_at",
-          "updated_at"
-        FROM "checkout_sessions"
-        WHERE "merchant_id" = ${input.merchantId}
-        ORDER BY "global_user_id", "updated_at" DESC
-      ) AS "latest_customers"
-      WHERE TRUE
+      SELECT
+        "global_user_id",
+        "customer",
+        MIN("created_at") AS "first_seen_at",
+        MAX("updated_at") AS "last_seen_at"
+      FROM "checkout_sessions"
+      WHERE "merchant_id" = ${input.merchantId}
+      GROUP BY "global_user_id", "customer"
+      HAVING TRUE
       ${cursorFilter}
-      ORDER BY "updated_at" DESC, "global_user_id" DESC
+      ORDER BY "last_seen_at" DESC, "global_user_id" DESC
       LIMIT ${input.limit}
     `);
     return rows.map(toCustomerSummary);
@@ -240,8 +240,8 @@ export class PrismaOperationsReadRepository
 type CustomerRow = {
   global_user_id: string;
   customer: unknown;
-  created_at: Date;
-  updated_at: Date;
+  first_seen_at: Date;
+  last_seen_at: Date;
 };
 
 function cursorWhere(
@@ -293,8 +293,8 @@ function toCustomerSummary(row: CustomerRow): CustomerSummary {
   return {
     id: row.global_user_id,
     profile: sanitizeCustomer(row.customer),
-    firstSeenAt: row.created_at.toISOString(),
-    lastSeenAt: row.updated_at.toISOString(),
+    firstSeenAt: row.first_seen_at.toISOString(),
+    lastSeenAt: row.last_seen_at.toISOString(),
   };
 }
 

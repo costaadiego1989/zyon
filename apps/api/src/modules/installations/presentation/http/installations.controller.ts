@@ -6,6 +6,7 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -54,12 +55,17 @@ export class InstallationsController {
 
   @Get()
   @RequireTenantAccess({ serviceScopes: ["configuration:read"] })
-  async list(@Req() request: unknown) {
-    const data = await this.listInstallations.execute(tenantId(request));
+  async list(
+    @Req() request: unknown,
+    @Query("limit") limitStr?: string,
+    @Query("cursor") cursor?: string,
+  ) {
+    const limit = parsePageSize(limitStr);
+    const result = await this.listInstallations.execute(tenantId(request), limit, cursor);
     return {
-      data: data.map(toResponse),
-      next_cursor: null,
-      has_more: false,
+      data: result.data.map(toResponse),
+      next_cursor: result.nextCursor,
+      has_more: result.hasMore,
     };
   }
 
@@ -170,6 +176,12 @@ function tenantId(request: unknown): string {
   return currentTenantPrincipal(
     request as Parameters<typeof currentTenantPrincipal>[0],
   ).tenantId;
+}
+
+function parsePageSize(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(Math.floor(parsed), 200) : undefined;
 }
 
 function toResponse(installation: {

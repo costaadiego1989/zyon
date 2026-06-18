@@ -188,6 +188,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("payment/intents/:intentId/crypto/confirm")
+  @RequireEmbedScope("payment:intents:confirm")
   async confirmCryptoFromEmbed(
     @Req() request: EmbedHttpRequest,
     @Param("intentId") intentId: string,
@@ -213,6 +214,7 @@ export class EmbedCheckoutController {
   }
 
   @Post("payment/intents/:intentId/stripe/confirm")
+  @RequireEmbedScope("payment:intents:confirm")
   async confirmStripeFromEmbed(
     @Req() request: EmbedHttpRequest,
     @Param("intentId") intentId: string,
@@ -231,6 +233,7 @@ export class EmbedCheckoutController {
   }
 
   @Get("payment/intents/:intentId/status")
+  @RequireEmbedScope("payment:intents:read")
   async paymentStatusFromEmbed(
     @Req() request: EmbedHttpRequest,
     @Param("intentId") intentId: string,

@@ -9,7 +9,9 @@ export type EmbedScope =
   | "checkout:chat"
   | "offers:apply"
   | "coupons:apply"
-  | "payment:intents:create";
+  | "payment:intents:create"
+  | "payment:intents:confirm"
+  | "payment:intents:read";
 
 export type EmbedTokenClaims = {
   typ: "aacp_embed_v1";

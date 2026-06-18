@@ -4,21 +4,46 @@ import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.e
 import type {
   CreateInstallationInput,
   InstallationRepository,
+  ListInstallationsInput,
+  ListInstallationsResult,
   MerchantInstallation,
   ReportInstallationHealthInput,
   UpdateInstallationInput,
 } from "../domain/ports/installation-repository.port.js";
 
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
+
 @Injectable()
 export class PrismaInstallationRepository implements InstallationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async list(merchantId: string): Promise<MerchantInstallation[]> {
+  async list(input: ListInstallationsInput): Promise<ListInstallationsResult> {
+    const limit = Math.min(input.limit ?? DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE);
+    const cursor = decodeCursor(input.cursor);
+
     const rows = await this.prisma.merchantInstallation.findMany({
-      where: { merchantId },
-      orderBy: [{ environment: "asc" }, { createdAt: "asc" }],
+      where: {
+        merchantId: input.merchantId,
+        ...(cursor
+          ? {
+              OR: [
+                { createdAt: { gt: cursor.createdAt } },
+                { createdAt: cursor.createdAt, id: { gt: cursor.id } },
+              ],
+            }
+          : {}),
+      },
+      orderBy: [{ environment: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      take: limit + 1,
     });
-    return rows.map(toInstallation);
+
+    const hasMore = rows.length > limit;
+    const data = rows.slice(0, limit).map(toInstallation);
+    const last = data.at(-1);
+    const nextCursor = hasMore && last ? encodeCursor({ createdAt: last.createdAt, id: last.id }) : null;
+
+    return { data, nextCursor, hasMore };
   }
 
   async get(
@@ -128,4 +153,21 @@ function toInstallation(row: {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
+}
+
+type InstallationCursor = { createdAt: string; id: string };
+
+function encodeCursor(cursor: InstallationCursor): string {
+  return Buffer.from(JSON.stringify(cursor), "utf8").toString("base64url");
+}
+
+function decodeCursor(value: string | undefined): InstallationCursor | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")) as Partial<InstallationCursor>;
+    if (typeof parsed.createdAt !== "string" || typeof parsed.id !== "string") return undefined;
+    return { createdAt: parsed.createdAt, id: parsed.id };
+  } catch {
+    return undefined;
+  }
 }

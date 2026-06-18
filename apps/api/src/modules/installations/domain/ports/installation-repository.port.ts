@@ -43,8 +43,21 @@ export interface ReportInstallationHealthInput {
   errorCode?: string;
 }
 
+export interface ListInstallationsInput {
+  merchantId: string;
+  limit?: number;
+  /** Opaque cursor from a previous `list` call. */
+  cursor?: string;
+}
+
+export interface ListInstallationsResult {
+  data: MerchantInstallation[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
 export interface InstallationRepository {
-  list(merchantId: string): Promise<MerchantInstallation[]>;
+  list(input: ListInstallationsInput): Promise<ListInstallationsResult>;
   get(
     merchantId: string,
     installationId: string,

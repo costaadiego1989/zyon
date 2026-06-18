@@ -95,6 +95,14 @@ export class InMemoryIntegrationsRepository implements IntegrationsRepository {
     return clone(next);
   }
 
+  async claimWebhookDelivery(deliveryId: string, now: string): Promise<MerchantWebhookDelivery | undefined> {
+    const delivery = this.deliveries.get(deliveryId);
+    if (!delivery || delivery.status !== "pending") return undefined;
+    const claimed: MerchantWebhookDelivery = { ...delivery, status: "sending", updatedAt: now };
+    this.deliveries.set(deliveryId, clone(claimed));
+    return clone(claimed);
+  }
+
   async updateWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery> {
     this.deliveries.set(delivery.id, clone(delivery));
     return clone(delivery);

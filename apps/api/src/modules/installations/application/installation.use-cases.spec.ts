@@ -3,12 +3,15 @@ import { describe, it } from "node:test";
 import {
   CreateInstallationUseCase,
   GetInstallationUseCase,
+  ListInstallationsUseCase,
   ReportInstallationHealthUseCase,
   ResolveInstallationForEmbedUseCase,
 } from "./installation.use-cases.js";
 import type {
   CreateInstallationInput,
   InstallationRepository,
+  ListInstallationsInput,
+  ListInstallationsResult,
   MerchantInstallation,
   ReportInstallationHealthInput,
   UpdateInstallationInput,
@@ -130,16 +133,82 @@ describe("merchant installations", () => {
       /installation_origin_not_allowed/,
     );
   });
+
+  it("list returns real cursor pagination — next_cursor is null when all rows fit, non-null when truncated", async () => {
+    const repository = new InMemoryInstallationRepository();
+    const create = new CreateInstallationUseCase(repository);
+    const list = new ListInstallationsUseCase(repository);
+
+    for (let i = 0; i < 5; i++) {
+      await create.execute({
+        merchantId: "mrc_a",
+        name: `Installation ${i}`,
+        environment: "test",
+        widgetVersion: "1.0.0",
+        allowedOrigins: ["https://shop.example"],
+      });
+    }
+
+    // Full fetch: limit larger than total → no next cursor
+    const full = await list.execute("mrc_a");
+    assert.equal(full.hasMore, false);
+    assert.equal(full.nextCursor, null);
+    assert.equal(full.data.length, 5);
+
+    // Page 1: limit=2 → hasMore, nextCursor present
+    const page1 = await list.execute("mrc_a", 2);
+    assert.equal(page1.hasMore, true);
+    assert.ok(page1.nextCursor, "expected a next cursor");
+    assert.equal(page1.data.length, 2);
+
+    // Page 2: use cursor from page 1
+    const page2 = await list.execute("mrc_a", 2, page1.nextCursor!);
+    assert.equal(page2.data.length, 2);
+    assert.ok(page2.nextCursor, "expected a next cursor on page 2");
+
+    // Page 3: last page
+    const page3 = await list.execute("mrc_a", 2, page2.nextCursor!);
+    assert.equal(page3.data.length, 1);
+    assert.equal(page3.hasMore, false);
+    assert.equal(page3.nextCursor, null);
+
+    // No cross-tenant leakage
+    const other = await list.execute("mrc_b");
+    assert.equal(other.data.length, 0);
+  });
 });
 
 class InMemoryInstallationRepository implements InstallationRepository {
   private readonly rows = new Map<string, MerchantInstallation>();
   private sequence = 0;
 
-  async list(merchantId: string): Promise<MerchantInstallation[]> {
-    return Array.from(this.rows.values()).filter(
-      (row) => row.merchantId === merchantId,
-    );
+  async list(input: ListInstallationsInput): Promise<ListInstallationsResult> {
+    const pageSize = Math.min(input.limit ?? 50, 200);
+    const cursor = input.cursor ? decodeCursor(input.cursor) : undefined;
+
+    const all = Array.from(this.rows.values())
+      .filter((row) => row.merchantId === input.merchantId)
+      .sort((a, b) => {
+        const envCmp = a.environment.localeCompare(b.environment);
+        if (envCmp !== 0) return envCmp;
+        const cCmp = a.createdAt.localeCompare(b.createdAt);
+        if (cCmp !== 0) return cCmp;
+        return a.id.localeCompare(b.id);
+      });
+
+    const startIdx = cursor
+      ? all.findIndex(
+          (r) =>
+            r.createdAt > cursor.createdAt ||
+            (r.createdAt === cursor.createdAt && r.id > cursor.id),
+        )
+      : 0;
+    const paged = startIdx === -1 ? [] : all.slice(startIdx, startIdx + pageSize + 1);
+    const hasMore = paged.length > pageSize;
+    const data = paged.slice(0, pageSize).map((r) => structuredClone(r) as MerchantInstallation);
+    const last = data.at(-1);
+    const nextCursor = hasMore && last ? encodeCursor({ createdAt: last.createdAt as string, id: last.id as string }) : null;
+    return { data, nextCursor, hasMore };
   }
 
   async get(
@@ -206,4 +275,14 @@ class InMemoryInstallationRepository implements InstallationRepository {
     this.rows.set(updated.id, updated);
     return structuredClone(updated);
   }
+}
+
+type CursorRecord = { createdAt: string; id: string };
+
+function encodeCursor(c: CursorRecord): string {
+  return Buffer.from(JSON.stringify(c)).toString("base64url");
+}
+
+function decodeCursor(value: string): CursorRecord {
+  return JSON.parse(Buffer.from(value, "base64url").toString()) as CursorRecord;
 }

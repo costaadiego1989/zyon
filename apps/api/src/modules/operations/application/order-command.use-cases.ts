@@ -48,6 +48,21 @@ export class CancelOrderUseCase {
       return cancellationResponse(order, true, false);
     }
 
+    // P1 fix: commit the local status change FIRST so the system stays
+    // consistent even if the provider call fails or the process crashes
+    // between the two operations.
+    const cancelledAt = new Date().toISOString();
+    const cancelled = await this.orders.cancelCompletedOrder({
+      merchantId,
+      sessionId: order.sessionId,
+      externalOrderId: order.externalOrderId,
+      reason,
+      cancelledAt,
+    });
+    if (!cancelled) throw new NotFoundException("order_not_found");
+
+    // Then call the provider.  If this call fails, the local record is
+    // already cancelled and ops can retry the provider side manually.
     let providerCancellationRequested = false;
     if (order.commerceOrderId) {
       if (!this.commerce.cancelOrder) {
@@ -64,16 +79,6 @@ export class CancelOrderUseCase {
       });
       providerCancellationRequested = true;
     }
-
-    const cancelledAt = new Date().toISOString();
-    const cancelled = await this.orders.cancelCompletedOrder({
-      merchantId,
-      sessionId: order.sessionId,
-      externalOrderId: order.externalOrderId,
-      reason,
-      cancelledAt,
-    });
-    if (!cancelled) throw new NotFoundException("order_not_found");
 
     if (!cancelled.idempotent) {
       await this.webhooks.publish({

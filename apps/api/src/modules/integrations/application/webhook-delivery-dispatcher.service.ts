@@ -44,13 +44,15 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
   }
 
   async dispatchDelivery(delivery: MerchantWebhookDelivery): Promise<void> {
+    // Use the same claim path as the poller to prevent double-dispatch races.
     await this.process(delivery);
   }
 
   async dispatchOnce(): Promise<void> {
     let due: MerchantWebhookDelivery[];
     try {
-      due = await this.repo.listDueWebhookDeliveries(["pending"], new Date().toISOString(), 25);
+      // Include "sending" to recover deliveries that crashed mid-flight.
+      due = await this.repo.listDueWebhookDeliveries(["pending", "sending"], new Date().toISOString(), 25);
     } catch (error) {
       this.logger.error(`Webhook dispatcher failed to list due deliveries: ${errorMessage(error)}`, errorStack(error));
       return;
@@ -66,18 +68,33 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
   }
 
   private async process(delivery: MerchantWebhookDelivery): Promise<void> {
-    const body = JSON.stringify(delivery.envelope);
+    // Atomically claim the row: pending → sending.  If another worker (or
+    // the inline dispatch from the event handler) already picked it up the
+    // claim returns undefined and we skip this delivery — single-flight
+    // guarantee.
+    const now = new Date().toISOString();
+    let claimed: MerchantWebhookDelivery;
+    if (delivery.status === "pending") {
+      const result = await this.repo.claimWebhookDelivery(delivery.id, now);
+      if (!result) return; // another worker claimed it
+      claimed = result;
+    } else {
+      // Already "sending" (recovered from a prior crash) — re-use as-is.
+      claimed = delivery;
+    }
+
+    const body = JSON.stringify(claimed.envelope);
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = this.signatures.sign({ secret: delivery.signingSecret, timestamp, body });
-    let endpointUrl = delivery.endpointUrl;
+    const signature = this.signatures.sign({ secret: claimed.signingSecret, timestamp, body });
+    let endpointUrl = claimed.endpointUrl;
     if (this.targetPolicy) {
       try {
         endpointUrl = await this.targetPolicy.assertAllowed(endpointUrl);
       } catch {
         await this.repo.updateWebhookDelivery({
-          ...delivery,
+          ...claimed,
           status: "failed",
-          attempts: delivery.attempts + 1,
+          attempts: claimed.attempts + 1,
           error: "webhook_target_blocked",
           nextAttemptAt: undefined,
           updatedAt: new Date().toISOString(),
@@ -92,8 +109,8 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
         headers: {
           "Content-Type": "application/json",
           "User-Agent": "AACP-Webhooks/1.0",
-          "X-AACP-Event-Id": delivery.eventId,
-          "X-AACP-Event-Type": delivery.eventType,
+          "X-AACP-Event-Id": claimed.eventId,
+          "X-AACP-Event-Type": claimed.eventType,
           "X-AACP-Timestamp": timestamp,
           "X-AACP-Signature": signature
         },
@@ -101,24 +118,24 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
       });
       const responseBody = await response.text().catch(() => "");
       if (response.ok) {
-        const now = new Date().toISOString();
+        const completedAt = new Date().toISOString();
         await this.repo.updateWebhookDelivery({
-          ...delivery,
+          ...claimed,
           status: "delivered",
-          attempts: delivery.attempts + 1,
+          attempts: claimed.attempts + 1,
           responseStatus: response.status,
           responseBody: responseBody.slice(0, 2000),
           error: undefined,
           nextAttemptAt: undefined,
-          deliveredAt: now,
-          updatedAt: now
+          deliveredAt: completedAt,
+          updatedAt: completedAt
         });
         return;
       }
-      await this.retryOrFail(delivery, `http_${response.status}`, response.status, responseBody);
+      await this.retryOrFail(claimed, `http_${response.status}`, response.status, responseBody);
     } catch (error) {
-      this.logger.warn(`Webhook delivery ${delivery.id} failed: ${String(error)}`);
-      await this.retryOrFail(delivery, "network_error");
+      this.logger.warn(`Webhook delivery ${claimed.id} failed: ${String(error)}`);
+      await this.retryOrFail(claimed, "network_error");
     }
   }
 

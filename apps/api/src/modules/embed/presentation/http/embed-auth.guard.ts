@@ -3,10 +3,12 @@ import { Reflector } from "@nestjs/core";
 import type { EmbedScope, EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { EMBED_REQUIRED_SCOPE_KEY } from "./embed-scope.decorator.js";
+import { setTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 
 type EmbedRequest = {
   headers?: Record<string, string | string[] | undefined>;
   embedClaims?: EmbedTokenClaims;
+  tenantPrincipal?: unknown;
 };
 
 function firstHeader(value: string | string[] | undefined): string | undefined {
@@ -70,6 +72,18 @@ export class EmbedAuthGuard implements CanActivate {
     this.enforceScope(claims, context);
 
     request.embedClaims = claims;
+
+    // B3 fix: expose a service-type tenantPrincipal so the IdempotencyInterceptor
+    // (and any other global interceptor that calls currentTenantPrincipal) can
+    // resolve the tenant without throwing missing_tenant_principal.
+    setTenantPrincipal(request as Parameters<typeof setTenantPrincipal>[0], {
+      kind: "service",
+      tenantId: claims.merchantId,
+      credentialId: "embed_session",
+      environment: claims.environment ?? "test",
+      scopes: claims.scopes ?? [],
+    });
+
     return true;
   }
 

@@ -327,6 +327,59 @@ test("WebhookDeliveryDispatcher does not start background interval in developmen
   assert.equal(scheduled, false);
 });
 
+test("WebhookDeliveryDispatcher does not dispatch twice when inline and poller race — atomic claim", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const delivery = await repo.saveWebhookDelivery(webhookDeliveryFixture());
+  let fetchCount = 0;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    fetchCount++;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    // Simulate two concurrent dispatches for the same delivery.
+    // The first claim will succeed; the second must be skipped.
+    const dispatcher = new WebhookDeliveryDispatcher(repo, new WebhookSignatureService());
+    await Promise.all([
+      dispatcher.dispatchDelivery(delivery),
+      dispatcher.dispatchDelivery(delivery),
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  // Only one fetch should have reached the endpoint.
+  assert.equal(fetchCount, 1);
+  const stored = await repo.getWebhookDelivery(delivery.merchantId, delivery.id);
+  assert.equal(stored?.status, "delivered");
+});
+
+test("WebhookDeliveryDispatcher marks delivery as 'sending' before HTTP call and finalizes on success", async () => {
+  const repo = new InMemoryIntegrationsRepository();
+  const delivery = await repo.saveWebhookDelivery(webhookDeliveryFixture({ id: "whd_claim_test", eventId: "evt_claim_test" }));
+  let statusDuringFetch: string | undefined;
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    const mid = await repo.getWebhookDelivery(delivery.merchantId, delivery.id);
+    statusDuringFetch = mid?.status;
+    return new Response(null, { status: 200 });
+  }) as typeof fetch;
+
+  try {
+    await new WebhookDeliveryDispatcher(repo, new WebhookSignatureService()).dispatchDelivery(delivery);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
+  assert.equal(statusDuringFetch, "sending");
+  const after = await repo.getWebhookDelivery(delivery.merchantId, delivery.id);
+  assert.equal(after?.status, "delivered");
+});
+
+
 function webhookDeliveryFixture(overrides: Partial<MerchantWebhookDelivery> = {}): MerchantWebhookDelivery {
   const now = "2026-05-21T12:00:00.000Z";
   const eventId = overrides.eventId ?? "evt_delivery";

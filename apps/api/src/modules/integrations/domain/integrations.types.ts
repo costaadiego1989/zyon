@@ -96,7 +96,7 @@ export interface MerchantWebhookEndpoint {
   updatedAt: string;
 }
 
-export type WebhookDeliveryStatus = "pending" | "delivered" | "failed";
+export type WebhookDeliveryStatus = "pending" | "sending" | "delivered" | "failed";
 
 export interface TenantWebhookEnvelope<TData = Record<string, unknown>> {
   event_id: string;

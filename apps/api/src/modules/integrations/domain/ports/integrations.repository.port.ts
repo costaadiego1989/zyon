@@ -24,6 +24,12 @@ export interface IntegrationsRepository {
 
   saveWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery>;
   updateWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery>;
+  /**
+   * Atomically flip a single `pending` delivery to `sending`.
+   * Returns the updated delivery if the claim succeeded, or `undefined` if
+   * another worker already claimed it (status was no longer `pending`).
+   */
+  claimWebhookDelivery(deliveryId: string, now: string): Promise<MerchantWebhookDelivery | undefined>;
   getWebhookDelivery(merchantId: string, deliveryId: string): Promise<MerchantWebhookDelivery | undefined>;
   listWebhookDeliveries(merchantId: string, limit?: number): Promise<MerchantWebhookDelivery[]>;
   listDueWebhookDeliveries(statuses: WebhookDeliveryStatus[], now: string, limit?: number): Promise<MerchantWebhookDelivery[]>;
