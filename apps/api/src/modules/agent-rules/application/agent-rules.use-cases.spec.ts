@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { BadRequestException } from "@nestjs/common";
 import { InMemoryAgentRulesRepository } from "../infrastructure/in-memory-agent-rules.repository.js";
 import type { CheckoutSettingsContextPort } from "../domain/ports/checkout-settings-context.port.js";
 import {
@@ -85,4 +86,60 @@ test("agent rules context composes checkout-settings operational context", async
   assert.equal(context.checkout_settings.openWidgetOnTrigger, false);
   assert.equal(context.checkout_context?.checkout_settings.minimum_abandonment_score, 0.8);
   assert.equal(context.copy_constraints.includes("Respect checkout-settings operational context."), true);
+});
+
+// --- Regression tests for BUG P2: guardrail safety toggle enforcement ---
+
+test("UpdateAgentRules rejects disabling forbidUnauthorizedDiscounts", async () => {
+  const repository = new InMemoryAgentRulesRepository();
+  const updateRules = new UpdateAgentRulesUseCase(repository);
+  const principal = { merchantId: "mrc_1", userId: "usr_1" };
+  await assert.rejects(
+    () => updateRules.execute(principal, { guardrails: { forbidUnauthorizedDiscounts: false } }),
+    (err: unknown) => {
+      assert.ok(err instanceof BadRequestException);
+      assert.equal((err as BadRequestException).message, "guardrail_safety_toggle_forbidden");
+      return true;
+    }
+  );
+});
+
+test("UpdateAgentRules rejects disabling forbidUnauthorizedFreeShipping", async () => {
+  const repository = new InMemoryAgentRulesRepository();
+  const updateRules = new UpdateAgentRulesUseCase(repository);
+  const principal = { merchantId: "mrc_1", userId: "usr_1" };
+  await assert.rejects(
+    () => updateRules.execute(principal, { guardrails: { forbidUnauthorizedFreeShipping: false } }),
+    (err: unknown) => {
+      assert.ok(err instanceof BadRequestException);
+      assert.equal((err as BadRequestException).message, "guardrail_safety_toggle_forbidden");
+      return true;
+    }
+  );
+});
+
+// --- Regression tests for BUG P3: GET read path must NOT persist ---
+
+test("GetAgentRules does NOT persist on read (side-effect-free)", async () => {
+  const repository = new InMemoryAgentRulesRepository();
+  const getRules = new GetAgentRulesUseCase(repository);
+  const principal = { merchantId: "mrc_new", userId: "usr_new" };
+
+  await getRules.execute(principal);
+
+  // Nothing should have been saved — getDefault returns undefined
+  const saved = await repository.getDefault("mrc_new", "usr_new");
+  assert.equal(saved, undefined);
+});
+
+test("GetAgentContext does NOT persist on read (side-effect-free)", async () => {
+  const repository = new InMemoryAgentRulesRepository();
+  const getContext = new GetAgentContextUseCase(repository);
+  const principal = { merchantId: "mrc_new2", userId: "usr_new2" };
+
+  await getContext.execute(principal);
+
+  // Nothing should have been saved — getDefault returns undefined
+  const saved = await repository.getDefault("mrc_new2", "usr_new2");
+  assert.equal(saved, undefined);
 });

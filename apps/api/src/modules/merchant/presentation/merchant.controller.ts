@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Put, Req, UseGuards } from "@nestjs/common";
-import type { MerchantRules, MerchantTheme } from "@aacp/shared-types";
+import { Body, Controller, Get, Put, Req, UseGuards, ValidationPipe } from "@nestjs/common";
+import type { MerchantTheme } from "@aacp/shared-types";
 import { AuthGuard, currentUser } from "../../auth/presentation/auth.guard.js";
 import {
   GetMerchantProfileUseCase,
@@ -8,6 +8,7 @@ import {
 } from "../application/merchant.use-cases.js";
 import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";
+import { UpdateMerchantRulesDto } from "./dto/update-merchant-rules.dto.js";
 
 @UseGuards(AuthGuard)
 @Controller("merchants/me")
@@ -31,7 +32,11 @@ export class MerchantController {
   }
 
   @Put("rules")
-  update(@Req() request: unknown, @Body() body: Partial<MerchantRules>) {
+  update(
+    @Req() request: unknown,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+    body: UpdateMerchantRulesDto
+  ) {
     return this.updateRules.execute(currentUser(request as { user?: unknown }).merchantId, body);
   }
 

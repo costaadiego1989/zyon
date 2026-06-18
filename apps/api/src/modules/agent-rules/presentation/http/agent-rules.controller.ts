@@ -1,11 +1,11 @@
-import { Body, Controller, Get, Param, Put, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Put, Req, UseGuards, ValidationPipe } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
-import type { AgentRulesPatch } from "../../domain/agent-rules.types.js";
 import {
   GetAgentContextUseCase,
   GetAgentRulesUseCase,
   UpdateAgentRulesUseCase
 } from "../../application/agent-rules.use-cases.js";
+import { AgentRulesPatchDto } from "./dto/agent-rules-patch.dto.js";
 
 @UseGuards(AuthGuard)
 @Controller("agent-rules")
@@ -23,7 +23,11 @@ export class AgentRulesController {
   }
 
   @Put()
-  updateDefault(@Req() request: unknown, @Body() body: AgentRulesPatch) {
+  updateDefault(
+    @Req() request: unknown,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+    body: AgentRulesPatchDto
+  ) {
     const user = currentUser(request as { user?: unknown });
     return this.updateRules.execute({ merchantId: user.merchantId, userId: user.userId }, body);
   }
@@ -41,7 +45,12 @@ export class AgentRulesController {
   }
 
   @Put(":agentId")
-  updateAgent(@Req() request: unknown, @Param("agentId") agentId: string, @Body() body: AgentRulesPatch) {
+  updateAgent(
+    @Req() request: unknown,
+    @Param("agentId") agentId: string,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+    body: AgentRulesPatchDto
+  ) {
     const user = currentUser(request as { user?: unknown });
     return this.updateRules.execute({ merchantId: user.merchantId, userId: user.userId }, body, agentId);
   }

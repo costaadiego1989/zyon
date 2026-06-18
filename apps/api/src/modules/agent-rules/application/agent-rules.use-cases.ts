@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { AgentRulesEntity } from "../domain/entities/agent-rules.entity.js";
 import type { AgentContext, AgentRules, AgentRulesPatch } from "../domain/agent-rules.types.js";
 import {
@@ -24,12 +24,12 @@ export class GetAgentRulesUseCase {
       ? await this.repository.getByAgentId(principal.merchantId, agentId)
       : await this.repository.getDefault(principal.merchantId, principal.userId);
     if (existing) return existing;
-    const created = AgentRulesEntity.createDefault({
+    // Return computed default in-memory — do NOT persist on read (side-effect-free GET).
+    return AgentRulesEntity.createDefault({
       merchantId: principal.merchantId,
       userId: agentId ? undefined : principal.userId,
       agentId
     }).snapshot();
-    return this.repository.save(created);
   }
 }
 
@@ -38,6 +38,14 @@ export class UpdateAgentRulesUseCase {
   constructor(@Inject(AGENT_RULES_REPOSITORY) private readonly repository: AgentRulesRepository) {}
 
   async execute(principal: AgentRulesPrincipal, patch: AgentRulesPatch, agentId?: string): Promise<AgentRules> {
+    // Domain guardrail: safety toggles cannot be disabled.
+    if (patch.guardrails?.forbidUnauthorizedDiscounts === false) {
+      throw new BadRequestException("guardrail_safety_toggle_forbidden");
+    }
+    if (patch.guardrails?.forbidUnauthorizedFreeShipping === false) {
+      throw new BadRequestException("guardrail_safety_toggle_forbidden");
+    }
+
     const current = agentId
       ? await this.repository.getByAgentId(principal.merchantId, agentId)
       : await this.repository.getDefault(principal.merchantId, principal.userId);
@@ -67,13 +75,12 @@ export class GetAgentContextUseCase {
       : await this.repository.getDefault(principal.merchantId, principal.userId);
     if (!rules) {
       if (agentId) throw new NotFoundException("agent_rules_not_found");
-      const created = await this.repository.save(
-        AgentRulesEntity.createDefault({
-          merchantId: principal.merchantId,
-          userId: principal.userId
-        }).snapshot()
-      );
-      return this.withCheckoutContext(AgentRulesEntity.rehydrate(created).toContext(), principal.merchantId);
+      // Return computed default in-memory — do NOT persist on read (side-effect-free GET).
+      const defaultRules = AgentRulesEntity.createDefault({
+        merchantId: principal.merchantId,
+        userId: principal.userId
+      }).snapshot();
+      return this.withCheckoutContext(AgentRulesEntity.rehydrate(defaultRules).toContext(), principal.merchantId);
     }
     return this.withCheckoutContext(AgentRulesEntity.rehydrate(rules).toContext(), principal.merchantId);
   }

@@ -7,6 +7,7 @@ import {
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import {
   OnboardingStateEntity,
+  ONBOARDING_STEP_ORDER,
   isOnboardingStepId
 } from "../domain/entities/onboarding-state.entity.js";
 
@@ -48,6 +49,17 @@ export class CompleteOnboardingStepUseCase {
 
     const state =
       (await this.repository.findByMerchant(merchantId)) ?? withAccount(OnboardingStateEntity.create(merchantId));
+
+    // Enforce canonical step order: all predecessors must be completed first.
+    const currentIndex = ONBOARDING_STEP_ORDER.indexOf(step as OnboardingStepId);
+    const response = state.toResponse();
+    for (let i = 0; i < currentIndex; i++) {
+      const predecessor = ONBOARDING_STEP_ORDER[i];
+      const predecessorState = response.steps.find((s) => s.id === predecessor);
+      if (predecessorState?.status !== "completed") {
+        throw new BadRequestException("onboarding_step_out_of_order");
+      }
+    }
 
     const changed = state.completeStep(step as OnboardingStepId);
 

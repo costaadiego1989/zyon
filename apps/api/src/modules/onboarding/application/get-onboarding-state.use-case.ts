@@ -20,10 +20,10 @@ export class GetOnboardingStateUseCase {
     if (existing) return existing.toResponse();
 
     // First read: the merchant already exists (authenticated), so the account
-    // step is satisfied. Persist so progress is resumable from now on.
+    // step is satisfied. Return computed default in-memory — do NOT persist on
+    // read (lazy-persist on first write is intentional, keeps GET side-effect-free).
     const created = OnboardingStateEntity.create(id);
     created.completeStep("account");
-    await this.repository.save(created);
     return created.toResponse();
   }
 }

@@ -29,6 +29,15 @@ export class UpdateMerchantRulesUseCase {
 
   async execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
     const patch = { ...rules };
+
+    // Domain-level bounds guard (belt-and-suspenders below DTO validation).
+    if (patch.minimumMarginPercent !== undefined && patch.minimumMarginPercent < 5) {
+      throw new BadRequestException("minimum_margin_percent_below_floor");
+    }
+    if (patch.maxDiscountPercent !== undefined && patch.maxDiscountPercent > 50) {
+      throw new BadRequestException("max_discount_percent_exceeds_ceiling");
+    }
+
     if (patch.cryptoPayments !== undefined) {
       try {
         patch.cryptoPayments = normalizeMerchantCryptoPayments(patch.cryptoPayments);

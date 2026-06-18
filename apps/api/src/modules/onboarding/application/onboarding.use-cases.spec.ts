@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { BadRequestException } from "@nestjs/common";
 import { GetOnboardingStateUseCase } from "./get-onboarding-state.use-case.js";
 import { CompleteOnboardingStepUseCase } from "./complete-onboarding-step.use-case.js";
 import { InMemoryOnboardingStateRepository } from "../infrastructure/in-memory-onboarding-state.repository.js";
@@ -16,7 +17,7 @@ function setup() {
   };
 }
 
-test("GetOnboardingState seeds account step as completed and persists", async () => {
+test("GetOnboardingState seeds account step as completed (returns in-memory default, does not persist)", async () => {
   const { get, repo } = setup();
 
   const state = await get.execute("mrc_1");
@@ -26,8 +27,8 @@ test("GetOnboardingState seeds account step as completed and persists", async ()
   assert.equal(state.next_step, "checkout_config");
   const account = state.steps.find((s) => s.id === "account");
   assert.equal(account?.status, "completed");
-  // Persisted so a second read returns the same progress.
-  assert.ok(await repo.findByMerchant("mrc_1"));
+  // GET is side-effect-free: no row is persisted (lazy-persist on first write).
+  assert.equal(repo.findByMerchant("mrc_1"), null);
 });
 
 test("GetOnboardingState rejects empty merchant", async () => {
@@ -84,4 +85,40 @@ test("onboarding state is tenant-scoped", async () => {
   const b = await get.execute("mrc_b");
   assert.equal(a.merchant_id, "mrc_a");
   assert.equal(b.merchant_id, "mrc_b");
+});
+
+// --- Regression tests for BUG P3: GET does not persist ---
+
+test("GetOnboardingState does NOT persist on first read", async () => {
+  const repo = new InMemoryOnboardingStateRepository();
+  const get = new GetOnboardingStateUseCase(repo);
+
+  await get.execute("mrc_new");
+
+  // Verify no row was written — lazy-persist on first write is intentional.
+  assert.equal(repo.findByMerchant("mrc_new"), null);
+});
+
+// --- Regression tests for BUG P3: step order enforcement ---
+
+test("CompleteOnboardingStep rejects out-of-order step (embed before checkout_config)", async () => {
+  const { complete } = setup();
+  await assert.rejects(
+    () => complete.execute({ merchantId: "mrc_1", step: "embed" }),
+    (err: unknown) => {
+      assert.ok(err instanceof BadRequestException);
+      assert.equal((err as BadRequestException).message, "onboarding_step_out_of_order");
+      return true;
+    }
+  );
+});
+
+test("CompleteOnboardingStep allows steps completed in canonical order", async () => {
+  const { complete } = setup();
+  // checkout_config first (account is pre-completed by withAccount)
+  const s1 = await complete.execute({ merchantId: "mrc_1", step: "checkout_config" });
+  assert.equal(s1.steps.find((s) => s.id === "checkout_config")?.status, "completed");
+  // embed second — predecessors satisfied
+  const s2 = await complete.execute({ merchantId: "mrc_1", step: "embed" });
+  assert.equal(s2.steps.find((s) => s.id === "embed")?.status, "completed");
 });
