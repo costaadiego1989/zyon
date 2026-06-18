@@ -32,19 +32,27 @@ export class WidgetCouponsController {
       throw new BadRequestException("session_id_and_coupon_code_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+
+    // P3 fix: derive merchant_id from embed claims; fetch rules before use-case
+    // so the rules-engine can authorize the discount (P0 fix).
+    const [session, merchant, rules] = await Promise.all([
+      this.sessions.getSession(embed.merchantId, body.session_id.trim()),
+      this.merchants.getProfile(embed.merchantId),
+      this.merchants.getRules(embed.merchantId),
+    ]);
+    if (!session) throw new NotFoundException("checkout_session_not_found");
+
     const result = await this.applyCoupon.execute({
       session_id: body.session_id.trim(),
-      merchant_id: embed.merchantId,
+      merchant_id: embed.merchantId, // derived from claims, never body
       code: body.code.trim(),
       cart: body.cart,
+      merchantRules: rules, // P0: pass rules so engine can cap/reject discount
       buyer_global_user_id:
         typeof body.buyer_global_user_id === "string" ? body.buyer_global_user_id.trim() : undefined,
       buyer_region: typeof body.buyer_region === "string" ? body.buyer_region.trim() : undefined,
       source: "manual"
     });
-
-    const session = await this.sessions.getSession(embed.merchantId, body.session_id.trim());
-    if (!session) throw new NotFoundException("checkout_session_not_found");
 
     const next = {
       ...session,
@@ -55,9 +63,6 @@ export class WidgetCouponsController {
       updatedAt: new Date().toISOString()
     };
     await this.sessions.saveSession(next);
-
-    const merchant = await this.merchants.getProfile(embed.merchantId);
-    const rules = await this.merchants.getRules(embed.merchantId);
     return {
       ...result,
       experience: buildExperienceFromSession(next, {

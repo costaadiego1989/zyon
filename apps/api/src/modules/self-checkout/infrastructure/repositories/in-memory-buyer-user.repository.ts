@@ -11,9 +11,11 @@ export class InMemoryBuyerUserRepository implements BuyerUserRepository {
     return data ? BuyerUserEntity.rehydrate(data) : null;
   }
 
+  /** P2 fix: case-insensitive lookup — normalise to lowercase before comparing. */
   async findByEmail(email: string) {
+    const normalised = email.trim().toLowerCase();
     for (const data of this.store.values()) {
-      if (data.email === email) return BuyerUserEntity.rehydrate(data);
+      if (data.email.toLowerCase() === normalised) return BuyerUserEntity.rehydrate(data);
     }
     return null;
   }

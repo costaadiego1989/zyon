@@ -90,6 +90,21 @@ export class PriceQuoteJobEntity {
     return new PriceQuoteJobEntity({ ...this.s, results: [...this.s.results, result] });
   }
 
+  /**
+   * P2 fix: idempotent upsert — if a result with the same id already exists it is replaced
+   * (not appended), preventing duplicate entries from redelivered callbacks that distort ranking.
+   * Throws "illegal_transition" if the job is not in "running" status.
+   */
+  upsertResult(result: PriceQuoteResult): PriceQuoteJobEntity {
+    if (this.s.status !== "running") throw new Error("illegal_transition");
+    const existing = this.s.results.findIndex((r) => r.id === result.id);
+    const results =
+      existing >= 0
+        ? [...this.s.results.slice(0, existing), result, ...this.s.results.slice(existing + 1)]
+        : [...this.s.results, result];
+    return new PriceQuoteJobEntity({ ...this.s, results });
+  }
+
   complete(rankedIds: string[], routingDecision: "integrated" | "external"): PriceQuoteJobEntity {
     if (this.s.status !== "running") throw new Error("illegal_transition");
     return new PriceQuoteJobEntity({

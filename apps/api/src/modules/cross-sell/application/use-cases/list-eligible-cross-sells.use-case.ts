@@ -26,8 +26,31 @@ export class ListEligibleCrossSellsUseCase {
     const active = await this.promotions.findActiveByMerchant(input.merchant_id);
     const ranked = rankEligiblePromotions(active, input.cart);
 
-    const created: CrossSellSuggestionEntity[] = [];
+    // P2 fix: load existing pending suggestions for this session so we can
+    // skip promo_ids that already have a pending suggestion (no duplicates).
+    const existingSuggestions = await this.suggestions.findBySession(
+      input.session_id,
+      input.merchant_id
+    );
+    const pendingPromoIds = new Set(
+      existingSuggestions
+        .filter((s) => s.snapshot().status === "pending")
+        .map((s) => s.snapshot().promo_id)
+    );
+
+    const result: CrossSellSuggestionEntity[] = [];
     for (const r of ranked) {
+      // P2 fix: skip if a pending suggestion for this promo already exists
+      if (pendingPromoIds.has(r.promo_id)) {
+        const existing = existingSuggestions.find(
+          (s) => s.snapshot().promo_id === r.promo_id && s.snapshot().status === "pending"
+        );
+        if (existing) {
+          result.push(existing);
+          continue;
+        }
+      }
+
       const suggestion = CrossSellSuggestionEntity.create({
         session_id: input.session_id,
         merchant_id: input.merchant_id,
@@ -50,9 +73,9 @@ export class ListEligibleCrossSellsUseCase {
           }
         })
       );
-      created.push(suggestion);
+      result.push(suggestion);
     }
 
-    return created.map((s) => s.snapshot());
+    return result.map((s) => s.snapshot());
   }
 }

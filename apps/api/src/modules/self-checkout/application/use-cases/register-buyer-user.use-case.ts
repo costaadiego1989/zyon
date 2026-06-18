@@ -23,11 +23,14 @@ export class RegisterBuyerUserUseCase {
   ) {}
 
   async execute(input: RegisterBuyerUserInput): Promise<{ user_id: string }> {
-    const existing = await this.users.findByEmail(input.email);
+    // P2 fix: normalise email to lowercase to prevent case-variation duplicates.
+    const normalizedEmail = input.email.trim().toLowerCase();
+
+    const existing = await this.users.findByEmail(normalizedEmail);
     if (existing) throw new ConflictException("EMAIL_ALREADY_REGISTERED");
 
     const user = BuyerUserEntity.create({
-      email: input.email,
+      email: normalizedEmail,
       password_hash: input.password,
       display_name: input.display_name,
       consent_version: CURRENT_CONSENT_VERSION,

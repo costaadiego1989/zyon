@@ -10,8 +10,11 @@ export class InMemoryCouponRedemptionRepository implements CouponRedemptionRepos
     this.store.set(redemption.id, redemption);
   }
 
-  async findById(id: string): Promise<CouponRedemptionEntity | null> {
-    return this.store.get(id) ?? null;
+  async findById(id: string, merchantId: string): Promise<CouponRedemptionEntity | null> {
+    const r = this.store.get(id);
+    // P2 fix: scope by merchantId so cross-tenant reads are impossible
+    if (!r || r.merchant_id !== merchantId) return null;
+    return r;
   }
 
   async findBySession(sessionId: string, merchantId: string): Promise<CouponRedemptionEntity[]> {
@@ -25,8 +28,9 @@ export class InMemoryCouponRedemptionRepository implements CouponRedemptionRepos
   }
 
   async countByCoupon(couponId: string): Promise<number> {
+    // P1 fix: count "applied" + "redeemed" so in-flight applies eat into max_usages
     return [...this.store.values()].filter(
-      (r) => r.coupon_id === couponId && r.status === "redeemed"
+      (r) => r.coupon_id === couponId && r.status !== "cancelled"
     ).length;
   }
 }

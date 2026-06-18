@@ -46,6 +46,12 @@ export class CrossSellSuggestionEntity {
 
   accept(acceptedSkus: string[]): CrossSellSuggestionEntity {
     if (this.s.status !== "pending") throw new Error("illegal_transition");
+    // P1 fix: validate that every accepted SKU belongs to this suggestion's ranked_items
+    const allowedSet = new Set(this.s.ranked_items);
+    const invalidSkus = acceptedSkus.filter((sku) => !allowedSet.has(sku));
+    if (invalidSkus.length > 0) {
+      throw new Error(`accepted_skus_not_in_suggestion:${invalidSkus.join(",")}`);
+    }
     return new CrossSellSuggestionEntity({
       ...this.s,
       status: "accepted",
@@ -67,4 +73,6 @@ export class CrossSellSuggestionEntity {
   get id(): string { return this.s.id; }
   get merchant_id(): string { return this.s.merchant_id; }
   get session_id(): string { return this.s.session_id; }
+  get promo_id(): string { return this.s.promo_id; }
+  get status(): SuggestionStatus { return this.s.status; }
 }

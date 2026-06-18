@@ -22,7 +22,8 @@ export class ExecuteCheckoutTemplateUseCase {
   ) {}
 
   async execute(input: ExecuteCheckoutTemplateInput) {
-    const template = await this.templates.findById(input.template_id);
+    // P0 fix: findById now scoped by buyer_user_id → IDOR impossible; returns null for cross-account.
+    const template = await this.templates.findById(input.template_id, input.buyer_user_id);
     if (!template) throw new NotFoundException("TEMPLATE_NOT_FOUND");
 
     const wallet = await this.wallets.findByBuyerUserId(input.buyer_user_id);
