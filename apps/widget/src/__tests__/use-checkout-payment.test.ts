@@ -85,9 +85,10 @@ describe("useCheckoutPayment", () => {
     );
   }
 
-  it("createPaymentIntent('card') com clientSecret → seta stripeIntent, NÃO adiciona agent turn", async () => {
+  it("createPaymentIntent('card') com clientSecret e id → seta stripeIntent, NÃO adiciona agent turn", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
+        id: "pi_intent_1",
         amountCents: 30000,
         currency: "BRL",
         buyerFacing: { clientSecret: "pi_xxx_secret", stripePublishableKey: "pk_test_abc" }
@@ -105,13 +106,75 @@ describe("useCheckoutPayment", () => {
     });
 
     expect(result.current.stripeIntent).toEqual({
-      intentId: "",
+      intentId: "pi_intent_1",
       clientSecret: "pi_xxx_secret",
       publishableKey: "pk_test_abc",
       amountCents: 30000,
       currency: "BRL"
     });
     expect(chat.appendAgentTurn).not.toHaveBeenCalled();
+  });
+
+  it("P2 regression: createPaymentIntent('card') com clientSecret mas sem id → aborta com mensagem clara, stripeIntent permanece null", async () => {
+    // API retornou clientSecret mas omitiu o intent id — comportamento inválido
+    // que antes persistia intentId="" causando confirmação que nunca resolvia.
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        amountCents: 30000,
+        currency: "BRL",
+        buyerFacing: { clientSecret: "pi_xxx_secret", stripePublishableKey: "pk_test_abc" }
+        // id: ausente propositalmente
+      })
+    );
+
+    const session = buildSessionState();
+    const chat = buildChatState();
+    const { result } = renderHook(() =>
+      useCheckoutPayment(buildConfig(), session, chat)
+    );
+
+    await act(async () => {
+      await result.current.createPaymentIntent("card");
+    });
+
+    // P2: stripeIntent deve permanecer null (não seta intentId vazio).
+    expect(result.current.stripeIntent).toBeNull();
+    // Deve emitir mensagem de erro clara ao invés de silenciosamente abrir o form.
+    expect(chat.appendAgentTurn).toHaveBeenCalledOnce();
+    const [msg] = (chat.appendAgentTurn as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(msg).toContain("referência do intent ausente");
+  });
+
+  it("P1 regression: createPaymentIntent dupla chamada rápida → só uma requisição é enviada (lock in-flight)", async () => {
+    // Simula dois cliques simultâneos. Apenas o primeiro deve fazer a requisição;
+    // o segundo deve ser ignorado pelo in-flight lock.
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        id: "pi_intent_only",
+        amountCents: 15000,
+        currency: "BRL",
+        buyerFacing: { qrCodeCopyPaste: "00020126" }
+      })
+    );
+
+    const session = buildSessionState();
+    const chat = buildChatState();
+    const { result } = renderHook(() =>
+      useCheckoutPayment(buildConfig(), session, chat)
+    );
+
+    await act(async () => {
+      // Dispara dois calls concorrentes sem aguardar o primeiro
+      const p1 = result.current.createPaymentIntent("pix");
+      const p2 = result.current.createPaymentIntent("pix");
+      await Promise.all([p1, p2]);
+    });
+
+    // Apenas uma requisição deve ter sido feita ao endpoint de intents.
+    const intentCalls = fetchMock.mock.calls.filter(([url]) =>
+      String(url).includes("/payment/intents")
+    );
+    expect(intentCalls).toHaveLength(1);
   });
 
   it("createPaymentIntent('pix') com qrCodeCopyPaste → adiciona agent turn com snippet PIX", async () => {

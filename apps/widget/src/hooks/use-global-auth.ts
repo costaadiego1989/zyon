@@ -19,8 +19,14 @@ function safeReadSession(): GlobalAuthSession | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
-    const session = globalAuthSessionSchema.safeParse(parsed);
-    return session.success ? session.data : null;
+    const result = globalAuthSessionSchema.safeParse(parsed);
+    if (!result.success) return null;
+    const s = result.data;
+    // P2: treat tokens as absent when they are expired or have no expiry
+    // timestamp (legacy sessions). This triggers proactive re-auth instead of
+    // a guaranteed 401 on the next API call.
+    if (!s.expires_at || Date.now() >= s.expires_at) return null;
+    return s;
   } catch {
     return null;
   }
@@ -107,6 +113,7 @@ export interface GlobalAuthController {
 
 export function useGlobalAuth(options: {
   apiBaseUrl: string;
+  merchantId?: string;
   defaultMerchantName?: string;
   defaultEmail?: string;
 }): GlobalAuthController {
@@ -140,9 +147,14 @@ export function useGlobalAuth(options: {
   const deviceId = useMemo(() => stableDeviceId(), []);
 
   function persist(next: GlobalAuthSession): void {
-    setSession(next);
+    // P2: stamp an absolute expiry timestamp so safeReadSession can reject
+    // stale tokens without a round-trip. 60-second buffer prevents edge-case
+    // races where the token expires between persist and the first use.
+    const expiresAt = Date.now() + (next.expires_in - 60) * 1000;
+    const stamped: GlobalAuthSession = { ...next, expires_at: expiresAt };
+    setSession(stamped);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(next));
+      window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stamped));
     }
   }
 
@@ -276,6 +288,10 @@ export function useGlobalAuth(options: {
       setStatus("Conta global criada com sucesso.");
       setOpen(false);
       setPassword("");
+    } catch {
+      // P2: network errors were previously swallowed by try/finally without a
+      // catch, producing a silent failure. Surface them to the user.
+      setError("Erro de rede ao autenticar.");
     } finally {
       setLoading(false);
     }
@@ -328,7 +344,9 @@ export function useGlobalAuth(options: {
         setError(reason);
         return false;
       }
-      const buyerSession = parseBuyerAuthPayload(payload);
+      // P1: pass the active merchantId so the persisted GlobalAuthSession carries
+      // merchant_id. Without it the account hub never loads (it checks for merchant_id).
+      const buyerSession = parseBuyerAuthPayload(payload, options.merchantId);
       if (buyerSession) {
         persist(buyerSession);
         setStatus("Login realizado com sucesso.");
@@ -364,7 +382,11 @@ export function useGlobalAuth(options: {
   }
 
   async function loginFromCheckoutSession(sessionId: string, merchantId: string): Promise<boolean> {
-    if (session?.global_user_id && session.access_token) return true;
+    // P2: treat expired tokens as absent to avoid guaranteed 401s on next hub call.
+    const hasValidSession =
+      Boolean(session?.global_user_id && session.access_token) &&
+      (session?.expires_at ? Date.now() < session.expires_at : false);
+    if (hasValidSession) return true;
     return refreshBuyerFromCheckoutSession(sessionId, merchantId);
   }
 

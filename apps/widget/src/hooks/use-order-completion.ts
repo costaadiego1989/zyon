@@ -8,6 +8,9 @@ type UseOrderCompletionInput = {
   checkoutStage: string;
   sessionId?: string;
   merchantId: string;
+  /** P2: storeUrl is used as postMessage targetOrigin to prevent leaking
+   *  session/tenant identifiers to arbitrary frames. */
+  storeUrl?: string;
   activeExperience: CheckoutExperienceSnapshot;
   currency: CurrencyCode;
   visibleItems: VisibleCartState["items"];
@@ -28,6 +31,7 @@ export function useOrderCompletion({
   checkoutStage,
   sessionId,
   merchantId,
+  storeUrl,
   activeExperience,
   currency,
   visibleItems,
@@ -45,6 +49,14 @@ export function useOrderCompletion({
 }: UseOrderCompletionInput) {
   const [completedOrderSnapshot, setCompletedOrderSnapshot] = useState<VisibleCartState | null>(null);
   const orderCompletionHandled = useRef(false);
+
+  // P2: re-arm the completion guard when checkout stage leaves "completed"
+  // (e.g. after session/cart reset for a subsequent order in the same mount).
+  useEffect(() => {
+    if (checkoutStage !== "completed") {
+      orderCompletionHandled.current = false;
+    }
+  }, [checkoutStage]);
 
   useEffect(() => {
     if (checkoutStage !== "completed" || orderCompletionHandled.current) return;
@@ -64,13 +76,27 @@ export function useOrderCompletion({
 
     emitCheckoutEvent("order_completed");
     if (typeof window !== "undefined") {
+      // P2: restrict targetOrigin to the known storefront origin so session_id
+      // and merchant_id are never delivered to arbitrary parent frames.
+      // Falls back to the current origin when storeUrl is not configured.
+      let targetOrigin = "*";
+      if (storeUrl) {
+        try {
+          targetOrigin = new URL(storeUrl).origin;
+        } catch {
+          // malformed storeUrl — fall back to wildcard (logged to ease debugging)
+          if (typeof console !== "undefined") {
+            console.warn("[aacp] use-order-completion: invalid storeUrl for postMessage targetOrigin:", storeUrl);
+          }
+        }
+      }
       window.parent?.postMessage(
         {
           type: "aacp:order-completed",
           merchant_id: merchantId,
           session_id: sessionId ?? null,
         },
-        "*",
+        targetOrigin,
       );
     }
 
@@ -96,6 +122,7 @@ export function useOrderCompletion({
     resetPanels,
     resetPrePayment,
     sessionId,
+    storeUrl,
     syncExperience,
     visibleItems,
     visibleTotals,

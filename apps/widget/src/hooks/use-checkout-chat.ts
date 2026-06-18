@@ -475,11 +475,18 @@ export function useCheckoutChat(
 
   async function applyOfferById(offerId?: string): Promise<void> {
     if (!session) return;
-    const targetOffer =
-      offerId && lastChat?.authorized_offer?.id === offerId
-        ? lastChat.authorized_offer
-        : lastChat?.authorized_offer;
-    if (!targetOffer) return;
+    // P3: the previous ternary resolved to lastChat.authorized_offer on BOTH
+    // branches, so an offerId that didn't match was silently applied anyway.
+    // Now we validate and abort if the id doesn't match the current authorized
+    // offer — discounts are only applied as returned by the API, never client-picked.
+    const currentOffer = lastChat?.authorized_offer;
+    if (!currentOffer) return;
+    if (offerId && currentOffer.id !== offerId) {
+      // offerId requested is not the currently authorized offer — refuse silently
+      // rather than applying the wrong discount.
+      return;
+    }
+    const targetOffer = currentOffer;
     setBusy(true);
     try {
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   Cart,
   CheckoutEventName,
@@ -23,6 +23,36 @@ export interface SessionStartedEvent {
   ts: number;
 }
 
+/**
+ * P1 (ADR 0002): localStorage keys are namespaced by merchantId so two
+ * merchants embedded on the same origin cannot share session/identity state.
+ * Legacy global keys are migrated on first access and then discarded.
+ */
+function sessionStorageKey(merchantId: string): string {
+  return `aacp_session_id:${merchantId}`;
+}
+function globalUserStorageKey(merchantId: string): string {
+  return `aacp_global_user_id:${merchantId}`;
+}
+
+/**
+ * Reads a namespaced session id, falling back to the legacy global key once
+ * for backward-compat and rewriting to the namespaced form.
+ */
+function readPersistedSessionId(merchantId: string): string | null {
+  if (typeof window === "undefined") return null;
+  const nsKey = sessionStorageKey(merchantId);
+  const existing = window.localStorage.getItem(nsKey);
+  if (existing) return existing;
+  // One-time migration from the global key.
+  const legacy = window.localStorage.getItem("aacp_session_id");
+  if (legacy) {
+    window.localStorage.setItem(nsKey, legacy);
+    window.localStorage.removeItem("aacp_session_id");
+  }
+  return legacy;
+}
+
 export function useCheckoutSession(config: WidgetConfig) {
   const [session, setSession] = useState<StartCheckoutResponse | null>(null);
   const [experience, setExperience] = useState<CheckoutExperienceSnapshot | null>(null);
@@ -36,7 +66,25 @@ export function useCheckoutSession(config: WidgetConfig) {
     () => (config.productApiBaseUrl ? normalizeApiBase(config.productApiBaseUrl) : null),
     [config.productApiBaseUrl]
   );
-  const embedOpts = config.mode === "embed" ? { embedToken: config.embedSessionToken! } : {};
+
+  // P3 (ADR 0002): validate embedSessionToken presence for embed mode instead
+  // of using non-null assertion (!). This surfaces a clear setup error rather
+  // than an opaque 401 downstream when the token is missing.
+  const embedOpts = useMemo(() => {
+    if (config.mode !== "embed") return {};
+    if (!config.embedSessionToken) {
+      // Emit a setup warning; the missing token will cause API calls to fail
+      // with a 401, but the error message will now point at configuration.
+      if (typeof console !== "undefined") {
+        console.error(
+          "[aacp] useCheckoutSession: mode=embed but embedSessionToken is missing. " +
+          "Configure data-embed-session-token on the embed element."
+        );
+      }
+      return {};
+    }
+    return { embedToken: config.embedSessionToken };
+  }, [config.mode, config.embedSessionToken]);
 
   function syncExperience(next: CheckoutExperienceSnapshot): void {
     setExperience(next);
@@ -58,6 +106,8 @@ export function useCheckoutSession(config: WidgetConfig) {
 
   function clearPersistedSession(): void {
     if (typeof window === "undefined") return;
+    // P1: clear the namespaced key (and legacy key if still present).
+    window.localStorage.removeItem(sessionStorageKey(config.merchantId));
     window.localStorage.removeItem("aacp_session_id");
   }
 
@@ -69,7 +119,8 @@ export function useCheckoutSession(config: WidgetConfig) {
   async function startCheckout(): Promise<void> {
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
     try {
-      const savedSessionId = window.localStorage.getItem("aacp_session_id");
+      // P1: read the namespaced session id (with legacy migration).
+      const savedSessionId = readPersistedSessionId(config.merchantId);
       const cart = await resolveCheckoutCart();
       const body =
         config.mode === "embed"
@@ -88,8 +139,9 @@ export function useCheckoutSession(config: WidgetConfig) {
       });
       setSession(response);
       syncExperience(response.experience);
-      window.localStorage.setItem("aacp_global_user_id", response.global_user_id);
-      window.localStorage.setItem("aacp_session_id", response.session_id);
+      // P1: persist under namespaced keys to isolate tenants on the same origin.
+      window.localStorage.setItem(globalUserStorageKey(config.merchantId), response.global_user_id);
+      window.localStorage.setItem(sessionStorageKey(config.merchantId), response.session_id);
       setStartedEvent({ response, ts: Date.now() });
     } catch {
       setNetworkError(

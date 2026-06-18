@@ -248,3 +248,80 @@ describe("useCheckoutChat", () => {
     expect(result.current.composerLocked).toBe(false);
   });
 });
+
+// ── ADR 0005 P3 regression: applyOfferById ──────────────────────────────────
+
+describe("applyOfferById — ADR 0005 P3 regressions", () => {
+  beforeEach(() => {
+    mockCheckoutJson.mockReset();
+  });
+
+  it("P3 regression: applyOfferById com offerId divergente → NÃO chama endpoint (oferta errada nunca aplicada silenciosamente)", async () => {
+    // Simulate a chat state with authorized_offer id = "offer_current"
+    mockCheckoutJson
+      // First call: chat message that returns an authorized offer
+      .mockResolvedValueOnce({
+        ...buildChatResponse(),
+        authorized_offer: { id: "offer_current", type: "discount_percent", value: 10, approved: true },
+        stage: "payment"
+      })
+      // If applyOffer is incorrectly called, a second call would happen.
+      .mockResolvedValueOnce({ success: true });
+
+    const { result } = renderHook(() =>
+      useCheckoutChat(buildConfig(), buildSessionState())
+    );
+
+    // Trigger a chat turn to load authorized_offer.
+    await act(async () => {
+      await result.current.sendMessageWithOverride("Quero pagar");
+    });
+
+    // Now lastChat has authorized_offer.id = "offer_current"
+    expect(result.current.lastChat?.authorized_offer?.id).toBe("offer_current");
+
+    mockCheckoutJson.mockReset();
+    mockCheckoutJson.mockResolvedValue({ success: true });
+
+    // Attempt to apply a DIFFERENT offer id via tapQuick.
+    await act(async () => {
+      await result.current.tapQuick({
+        label: "Desconto especial",
+        type: "apply_offer",
+        offerId: "offer_different"
+      });
+    });
+
+    // P3 fix: the apply endpoint must NOT have been called with the wrong offer.
+    expect(mockCheckoutJson).not.toHaveBeenCalled();
+  });
+
+  it("P3: applyOffer (id correto) → chama endpoint normalmente", async () => {
+    mockCheckoutJson
+      .mockResolvedValueOnce({
+        ...buildChatResponse(),
+        authorized_offer: { id: "offer_abc", type: "discount_percent", value: 10, approved: true },
+        stage: "payment"
+      })
+      .mockResolvedValue({ success: true, experience: buildActiveExperience() });
+
+    const { result } = renderHook(() =>
+      useCheckoutChat(buildConfig(), buildSessionState())
+    );
+
+    await act(async () => {
+      await result.current.sendMessageWithOverride("Quero desconto");
+    });
+
+    expect(result.current.lastChat?.authorized_offer?.id).toBe("offer_abc");
+    mockCheckoutJson.mockReset();
+    mockCheckoutJson.mockResolvedValue({ success: true, experience: buildActiveExperience() });
+
+    await act(async () => {
+      await result.current.applyOffer();
+    });
+
+    // The apply endpoint was called with the correct offer.
+    expect(mockCheckoutJson).toHaveBeenCalled();
+  });
+});

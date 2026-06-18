@@ -11,20 +11,47 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
   const wallet = useCryptoWallet();
   const [paying, setPaying] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  // P1 (ADR 0001 components): retain txHash + walletAddress after a successful
+  // broadcast so a confirmation-failure can retry without re-broadcasting.
+  // Before this fix, txHash was a const local to handlePay and was discarded on
+  // throw — leaving the buyer's USDC sent but the order unconfirmed with no
+  // recovery path.
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    txHash: string;
+    account: string;
+  } | null>(null);
   const quote = model.quote;
+
+  async function handleConfirm(intentId: string, txHash: string, account: string): Promise<void> {
+    setStatus("Confirmando na blockchain...");
+    try {
+      await model.onConfirmPayment(intentId, txHash, account);
+      setPendingConfirm(null);
+      model.onClose();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Confirmação falhou. Clique em 'Retentar confirmação' para tentar novamente.";
+      wallet.setError(message);
+      setStatus(null);
+      // P1: keep pendingConfirm so the retry button is shown.
+    }
+  }
 
   async function handlePay() {
     if (model.expired || paying) return;
     setPaying(true);
     setStatus(null);
+    wallet.setError(null);
     try {
       const account = wallet.address ?? (await wallet.connectMetaMask());
       setStatus("Enviando USDC...");
       const txHash = await wallet.sendUsdcTransfer(quote, account);
-      setStatus("Confirmando na blockchain...");
-      await model.onConfirmPayment(model.intentId, txHash, account);
-      model.onClose();
+      // P1: persist txHash immediately after broadcast — before the async
+      // confirmation call — so a confirmation failure retains it for retry.
+      setPendingConfirm({ txHash, account });
+      await handleConfirm(model.intentId, txHash, account);
     } catch (err) {
+      // Only reached if broadcast itself failed (pendingConfirm still null).
       const message =
         err instanceof Error ? err.message : "Não foi possível concluir o pagamento crypto.";
       wallet.setError(message);
@@ -74,6 +101,13 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
         </p>
       ) : null}
 
+      {pendingConfirm ? (
+        <p className="aacp-crypto-status" role="status">
+          Transação enviada:{" "}
+          <span className="aacp-crypto-mono">{truncateAddress(pendingConfirm.txHash)}</span>
+        </p>
+      ) : null}
+
       {wallet.address ? (
         <p className="aacp-crypto-wallet">
           Carteira conectada:{" "}
@@ -82,7 +116,18 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
       ) : null}
 
       <div className="aacp-crypto-actions">
-        {!wallet.address ? (
+        {pendingConfirm ? (
+          // P1: retry confirmation without re-broadcasting. The txHash is
+          // retained so the same on-chain transaction can be reconciled.
+          <button
+            type="button"
+            className="aacp-cta aacp-crypto-pay"
+            disabled={paying}
+            onClick={() => void handleConfirm(model.intentId, pendingConfirm.txHash, pendingConfirm.account)}
+          >
+            Retentar confirmação
+          </button>
+        ) : !wallet.address ? (
           <>
             <button
               type="button"

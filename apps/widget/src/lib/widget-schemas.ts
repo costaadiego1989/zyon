@@ -322,6 +322,10 @@ export const globalAuthSessionSchema = z.object({
   access_token: z.string().min(1),
   token_type: z.literal("Bearer"),
   expires_in: z.number().int().positive(),
+  // P2 (use-global-auth): absolute expiry timestamp (ms since epoch) persisted
+  // alongside expires_in so safeReadSession can reject stale tokens without an
+  // API round-trip. Legacy sessions without this field are treated as expired.
+  expires_at: z.number().int().positive().optional(),
   merchant_name: z.string().min(1).optional(),
   provider: z.enum(["password", "phone"]).default("password")
 });

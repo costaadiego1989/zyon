@@ -14,6 +14,18 @@ import type { CheckoutChatState } from "./use-checkout-chat.js";
 
 import type { CryptoPaymentState } from "./crypto-payment.types.js";
 
+/**
+ * Derives a stable idempotency key per payment attempt from immutable inputs
+ * (session, method, offer) rather than generating a new UUID on every call.
+ * This prevents duplicate charges when the user taps the payment button twice.
+ *
+ * The key is stable for the lifetime of a session+method+offer combination, so
+ * a re-submission sends the same key and the backend treats it as idempotent.
+ */
+function stableIdempotencyKey(sessionId: string, method: string, offerId?: string): string {
+  return `${sessionId}::${method}::${offerId ?? "none"}`;
+}
+
 export interface StripeIntent {
   intentId: string;
   clientSecret: string;
@@ -76,6 +88,14 @@ export function useCheckoutPayment(
   const [cryptoPayment, setCryptoPayment] = useState<CryptoPaymentState | null>(null);
   const [pixPolling, setPixPolling] = useState(false);
   const pollRef = useRef<{ active: boolean } | null>(null);
+  // P1: in-flight lock prevents duplicate intent creation from rapid re-taps.
+  const intentInFlightRef = useRef(false);
+  // P3: ref always reflects the latest activeExperience so the long-running
+  // PIX poll closure never spreads a stale snapshot into syncExperience.
+  const activeExperienceRef = useRef(sessionState.activeExperience);
+  useEffect(() => {
+    activeExperienceRef.current = sessionState.activeExperience;
+  }, [sessionState.activeExperience]);
 
   function cancelPoll(): void {
     if (pollRef.current) pollRef.current.active = false;
@@ -236,11 +256,14 @@ export function useCheckoutPayment(
         `${orderLine}${receiptLine} Separei o resumo e o link de retorno logo abaixo.`,
       { stream: true }
     );
+    // P3: read the freshest activeExperience from the ref rather than the
+    // closure snapshot, avoiding overwrites of updates made during a long poll.
+    const freshExperience = activeExperienceRef.current;
     sessionState.syncExperience({
-      ...sessionState.activeExperience,
+      ...freshExperience,
       stage: "completed",
       copy: {
-        ...sessionState.activeExperience.copy,
+        ...freshExperience.copy,
         quick_replies: [],
         focus_input: false
       }
@@ -249,11 +272,16 @@ export function useCheckoutPayment(
 
   async function createPaymentIntent(method: "pix" | "card" | "crypto"): Promise<void> {
     if (!session) return;
+    // P1: ignore re-entrant calls while a request is in flight.
+    if (intentInFlightRef.current) return;
+    intentInFlightRef.current = true;
     const offerNow = lastChat?.authorized_offer;
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    // P1: derive a stable key per (session, method, offer) so rapid double-taps
+    // produce the same idempotency_key and the backend de-duplicates them.
     const body: Record<string, unknown> = {
       session_id: session.session_id,
-      idempotency_key: crypto.randomUUID(),
+      idempotency_key: stableIdempotencyKey(session.session_id, method, offerNow?.id),
       method,
       ...(config.mode !== "embed" && { merchant_id: config.merchantId }),
       ...(offerNow?.approved && offerNow.id ? { accepted_offer_id: offerNow.id } : {})
@@ -276,9 +304,18 @@ export function useCheckoutPayment(
       }
 
       if (method === "card" && bf?.clientSecret && bf?.stripePublishableKey) {
+        // P2: abort early if the API did not return a usable intent id.
+        // An empty intentId would cause confirmStripePayment to silently hang.
+        if (!snap.id) {
+          appendAgentTurn(
+            "Não foi possível iniciar o pagamento por cartão: referência do intent ausente. Tente novamente ou use PIX.",
+            { stream: true }
+          );
+          return;
+        }
         setCryptoPayment(null);
         setStripeIntent({
-          intentId: snap.id ?? "",
+          intentId: snap.id,
           clientSecret: bf.clientSecret,
           publishableKey: bf.stripePublishableKey,
           amountCents: snap.amountCents ?? 0,
@@ -342,6 +379,8 @@ export function useCheckoutPayment(
         paymentIntentErrorMessage(error, method),
         { stream: true }
       );
+    } finally {
+      intentInFlightRef.current = false;
     }
   }
 
@@ -399,7 +438,7 @@ export function useCheckoutPayment(
     const offerNow = lastChat?.authorized_offer;
     const body = {
       session_id: session.session_id,
-      idempotency_key: crypto.randomUUID(),
+      idempotency_key: stableIdempotencyKey(session.session_id, "pix", offerNow?.id),
       method: "pix" as const,
       ...(offerNow?.approved && offerNow.id ? { accepted_offer_id: offerNow.id } : {})
     };

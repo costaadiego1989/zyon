@@ -89,6 +89,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
   const auth = useGlobalAuth({
     apiBaseUrl: sessionState.apiOrigin,
+    merchantId: config.merchantId,
     defaultMerchantName: activeExperience.brand.name,
     defaultEmail: activeExperience.customer?.email ?? config.customer?.email,
   });
@@ -174,6 +175,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     checkoutStage,
     sessionId: session?.session_id,
     merchantId: config.merchantId,
+    storeUrl: config.storeUrl,
     activeExperience,
     currency: activeExperience.totals.currency ?? config.cart.currency ?? "BRL",
     visibleItems: cartState.visibleItems,

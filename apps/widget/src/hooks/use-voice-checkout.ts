@@ -124,6 +124,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     enabled,
     busy,
     composerLocked,
+    awaitingAgentPlayback,
     agentPlaybackKey,
     latestAgentText,
     buildPendingTurn,
@@ -142,6 +143,11 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   const buildPendingTurnRef = useRef(buildPendingTurn);
   const onConfirmTranscriptRef = useRef(onConfirmTranscript);
   const onAgentPlaybackDoneRef = useRef(onAgentPlaybackDone);
+  // P2: refs that are always current so async handlers (utterance.onend) never
+  // read stale busy/composerLocked/awaitingAgentPlayback values from a closure.
+  const busyRef = useRef(busy);
+  const composerLockedRef = useRef(composerLocked);
+  const awaitingAgentPlaybackRef = useRef(awaitingAgentPlayback);
 
   useEffect(() => {
     buildPendingTurnRef.current = buildPendingTurn;
@@ -154,6 +160,13 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   useEffect(() => {
     onAgentPlaybackDoneRef.current = onAgentPlaybackDone;
   }, [onAgentPlaybackDone]);
+
+  // P2: keep refs in sync with latest prop values on every render.
+  useEffect(() => { busyRef.current = busy; }, [busy]);
+  useEffect(() => { composerLockedRef.current = composerLocked; }, [composerLocked]);
+  // P3: consume awaitingAgentPlayback by tracking it in a ref so the onend
+  // handler can gate auto-listen on it; removes the dead-parameter smell.
+  useEffect(() => { awaitingAgentPlaybackRef.current = awaitingAgentPlayback; }, [awaitingAgentPlayback]);
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
@@ -302,7 +315,18 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
         setSpeaking(false);
         markPlaybackDone();
         setHint("Toque no microfone quando quiser responder.");
-        if (autoListenRef.current && !busy && !composerLocked) {
+        // P2: read current values from refs instead of the stale closure
+        // values of busy/composerLocked/awaitingAgentPlayback. The onend
+        // callback fires asynchronously (seconds later); without refs it would
+        // re-open the mic even when the app has since become busy/locked.
+        // P3: also gate on awaitingAgentPlayback so callers can suppress
+        // auto-listen when another agent line is already queued.
+        if (
+          autoListenRef.current &&
+          !busyRef.current &&
+          !composerLockedRef.current &&
+          !awaitingAgentPlaybackRef.current
+        ) {
           void startListening();
         }
       };
@@ -315,7 +339,9 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     },
-    [busy, composerLocked, enabled, startListening, stopListening],
+    // P2: remove busy/composerLocked from deps — they are now read via refs
+    // inside the callback so there is no closure capture to invalidate.
+    [enabled, startListening, stopListening],
   );
 
   useEffect(() => {

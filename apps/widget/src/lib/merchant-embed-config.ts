@@ -66,6 +66,37 @@ function optionalQueryJson<T>(params: URLSearchParams | null, names: string[]): 
   return parseOptionalJsonAttr<T>(firstQueryValue(params, names));
 }
 
+/**
+ * P3 (ADR 0001 lib): removes security-sensitive query parameters from the
+ * visible URL after reading them. Tokens that remain in the URL leak through
+ * Referer headers, browser history, and server access logs.
+ *
+ * Parameters removed:
+ *  - embedToken / embedSessionToken / embed_session_token
+ *  - merchantId / merchant_id  (tenant id; should come from dataset instead)
+ */
+function stripSensitiveQueryParams(params: URLSearchParams): void {
+  if (typeof window === "undefined" || !window.history?.replaceState) return;
+  const sensitive = [
+    "embedToken", "embedSessionToken", "embed_session_token",
+    "merchantId", "merchant_id"
+  ];
+  let changed = false;
+  for (const key of sensitive) {
+    if (params.has(key)) {
+      params.delete(key);
+      changed = true;
+    }
+  }
+  if (!changed) return;
+  const newSearch = params.toString();
+  const newUrl =
+    window.location.pathname +
+    (newSearch ? `?${newSearch}` : "") +
+    window.location.hash;
+  window.history.replaceState(null, "", newUrl);
+}
+
 export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions {
   const ds = el.dataset;
   const params = queryParams();
@@ -76,9 +107,12 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
     isReturning: true
   };
 
-  return {
+  const options: HybridCheckoutOptions = {
     brandTitle: ds.brandTitle?.trim() || "Athom Tech",
     brandSubtitle: ds.brandSubtitle?.trim() || "Checkout inteligente com IA para sua loja",
+    // P3: prefer dataset attributes over query string for merchantId so the
+    // tenant boundary value is not exposed in the URL. Query string is still
+    // accepted for dev/demo convenience but is stripped below.
     merchantId: firstQueryValue(params, ["merchantId", "merchant_id"]) || ds.merchantId?.trim() || "mrc_athom_tech",
     apiBaseUrl: firstQueryValue(params, ["apiBaseUrl", "api_base_url"]) || ds.apiBaseUrl?.trim() || DEFAULT_WIDGET_API_BASE_URL,
     productApiBaseUrl:
@@ -89,6 +123,8 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
       optionalQueryJson<CustomerHints>(params, ["customerJson", "customer_json"]) ??
       parseJsonAttr<CustomerHints>(ds.customerJson, fallbackCustomer),
     shipping: parseOptionalJsonAttr<ShippingQuote>(ds.shippingJson),
+    // P3: prefer dataset for embedSessionToken (not in URL at all is best;
+    // query-string fallback is supported but stripped from URL after read).
     embedSessionToken: firstQueryValue(params, ["embedToken", "embedSessionToken", "embed_session_token"]) || ds.embedSessionToken?.trim() || undefined,
     storeUrl:
       firstQueryValue(params, ["storeUrl", "store_url"]) ||
@@ -96,4 +132,9 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
       ds.store_url?.trim() ||
       undefined
   };
+
+  // P3: remove sensitive tokens from the URL after they have been read.
+  if (params) stripSensitiveQueryParams(params);
+
+  return options;
 }

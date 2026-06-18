@@ -860,7 +860,9 @@ describe("CheckoutAgent (conversational)", () => {
         email: "global@example.com",
         access_token: "token_123",
         token_type: "Bearer",
-        expires_in: 3600
+        expires_in: 3600,
+        // expires_at required by safeReadSession since ADR 0003 P2 fix.
+        expires_at: Date.now() + 3600 * 1000
       })
     );
 
@@ -1186,6 +1188,7 @@ describe("CheckoutAgent (conversational)", () => {
       if (url.endsWith("/embed/payment/intents")) {
         return new Response(
           JSON.stringify({
+            id: "pi_test_1",
             amountCents: 92970,
             currency: "BRL",
             status: "pending",
@@ -1614,6 +1617,7 @@ describe("CheckoutAgent (conversational)", () => {
       if (url.endsWith("/embed/payment/intents")) {
         return new Response(
           JSON.stringify({
+            id: "pi_test_2",
             amountCents: 92970,
             currency: "BRL",
             status: "pending",

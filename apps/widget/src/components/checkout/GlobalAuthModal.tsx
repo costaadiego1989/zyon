@@ -10,7 +10,7 @@ import {
   UserRound,
   X
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AccountHubSection, AccountHubState } from "../../hooks/use-account-hub.js";
 import type { GlobalAuthController } from "../../hooks/use-global-auth.js";
 import { cn } from "../../hooks/checkout-presentation.js";
@@ -28,10 +28,88 @@ const HUB_NAV: Array<{ key: AccountHubSection; label: string; icon: typeof Clipb
   { key: "agent", label: "Agente", icon: Bot }
 ];
 
+/**
+ * FOCUSABLE_SELECTOR — matches all interactive elements that should receive
+ * keyboard focus within a dialog. Excludes disabled elements and hidden inputs.
+ */
+const FOCUSABLE_SELECTOR =
+  'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * useFocusTrap — moves focus into the dialog on open, traps Tab/Shift+Tab
+ * within it, and restores focus to the previously-focused element on close.
+ * Pressing Escape calls onClose.
+ *
+ * P2 (ADR 0002 components): fixes WCAG 2.1.2 / 2.4.3 violations where
+ * keyboard users could tab behind the modal and no Escape dismiss existed.
+ */
+function useFocusTrap(
+  active: boolean,
+  dialogRef: React.RefObject<HTMLElement | null>,
+  onClose: () => void,
+) {
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!active) return;
+
+    // Remember the element that had focus before the dialog opened.
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    // Move focus to the first focusable element in the dialog.
+    const dialog = dialogRef.current;
+    if (dialog) {
+      const firstFocusable = dialog.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      firstFocusable?.focus();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const dlg = dialogRef.current;
+      if (!dlg) return;
+      const focusable = Array.from(dlg.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+      if (focusable.length === 0) return;
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+
+      if (event.shiftKey) {
+        if (document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      // Restore focus to the previously focused element when dialog closes.
+      previousFocusRef.current?.focus();
+    };
+  }, [active, dialogRef, onClose]);
+}
+
 export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
   const [phone, setPhone] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [phoneCode, setPhoneCode] = useState("");
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  // P2: focus trap + Escape dismiss (WCAG 2.1.2, 2.4.3).
+  useFocusTrap(auth.open, dialogRef, auth.close);
 
   if (!auth.open) return null;
 
@@ -57,6 +135,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
     <div className="aacp-auth-layer" role="presentation">
       <div className="aacp-auth-backdrop" onClick={auth.close} aria-hidden />
       <section
+        ref={(el) => { dialogRef.current = el; }}
         className="aacp-auth-dialog aacp-login-panel"
         role="dialog"
         aria-modal="true"
@@ -176,11 +255,16 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
   const theme = hub.data.merchantTheme;
   const agentContext = hub.data.agentContext;
   const currentLabel = HUB_NAV.find((item) => item.key === hub.section)?.label ?? "Resumo";
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  // P2: same focus trap for the hub panel.
+  useFocusTrap(auth.open, dialogRef, auth.close);
 
   return (
     <div className="aacp-auth-layer" role="presentation">
       <div className="aacp-auth-backdrop" onClick={auth.close} aria-hidden />
       <section
+        ref={(el) => { dialogRef.current = el; }}
         className="aacp-auth-dialog aacp-hub-sheet aacp-hub-panel"
         role="dialog"
         aria-modal="true"
