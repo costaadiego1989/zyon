@@ -520,8 +520,8 @@ export function getFlowResponse(step: FlowStep) {
 // ─── Route interceptor ───────────────────────────────────────────────────────
 
 export interface MockApiOptions {
-  /** Sequence of chat responses to return in order. Each call to /chat/message pops the next. */
-  chatSequence: FlowStep[];
+  /** Sequence of chat responses to return in order. Each call to /chat/message pops the next. Defaults to [] (greeting). */
+  chatSequence?: FlowStep[];
   /** Override start-checkout response */
   startResponse?: ReturnType<typeof startCheckoutResponse>;
   /** Simulate network error on Nth chat call (1-indexed) */
@@ -536,11 +536,29 @@ export interface MockApiOptions {
   rejectCoupon?: boolean;
   /** Buyer login-from-session returns 401 (invalid OTP) */
   rejectBuyerLogin?: boolean;
+  /**
+   * Wire up phone OTP routes. When true:
+   *   POST /buyer/phone/send  -> 200 { ok: true }
+   *   POST /buyer/phone/verify -> 200 buyer auth payload (valid session)
+   * Uses buyerEmail (default "buyer@e2e.test") and a stable global_user_id.
+   */
+  authenticateViaPhone?: boolean;
+  /** Email returned in the phone/verify success payload (default "buyer@e2e.test") */
+  buyerEmail?: string;
+  /**
+   * phone/verify returns 401 { message: "invalid_otp" } instead of success.
+   * phone/send still succeeds so the code-entry step is reachable.
+   */
+  rejectPhoneCode?: boolean;
+  /**
+   * phone/send returns 429 { message: "rate_limit_exceeded" } to simulate send failure.
+   */
+  phoneSendFails?: boolean;
 }
 
 export async function setupApiMocks(page: Page, options: MockApiOptions): Promise<void> {
   let chatCallIndex = 0;
-  const chatSequence = [...options.chatSequence];
+  const chatSequence = [...(options.chatSequence ?? [])];
 
   // Intercept all API calls to localhost:3009
   await page.route("**/start-checkout", async (route: Route) => {
@@ -757,4 +775,60 @@ export async function setupApiMocks(page: Page, options: MockApiOptions): Promis
       body: JSON.stringify(couponApplyResponse()),
     });
   });
+
+  // ─── Phone OTP routes ────────────────────────────────────────────────────────
+  // Registered unconditionally so the widget never hits a real network when
+  // authenticateViaPhone is set.  When the flag is false the routes still
+  // intercept but return a 404 so any accidental call is surfaced quickly.
+
+  const phoneEmail = options.buyerEmail ?? "buyer@e2e.test";
+
+  const handlePhoneSend = async (route: Route) => {
+    if (!options.authenticateViaPhone) {
+      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message: "not_found" }) });
+      return;
+    }
+    if (options.phoneSendFails) {
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "rate_limit_exceeded" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  };
+
+  const handlePhoneVerify = async (route: Route) => {
+    if (!options.authenticateViaPhone) {
+      await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ message: "not_found" }) });
+      return;
+    }
+    if (options.rejectPhoneCode) {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ message: "invalid_otp" }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        global_user_id: "buyer_phone_e2e_001",
+        email: phoneEmail,
+        access_token: "tok_phone_buyer_e2e",
+        token_type: "Bearer",
+        expires_in: 3600,
+      }),
+    });
+  };
+
+  await page.route("**/buyer/phone/send", handlePhoneSend);
+  await page.route("**/buyer/phone/verify", handlePhoneVerify);
 }
