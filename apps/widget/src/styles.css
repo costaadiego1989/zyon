@@ -1747,6 +1747,31 @@ textarea {
   box-shadow: 0 16px 32px var(--aacp-accent-shadow-strong);
 }
 
+/* Cross-sell card reflows to a stacked layout on narrow phones so the
+   "Adicionar" CTA never collides with the truncated product name. Applies in
+   both chat and voice (shared component). */
+@media (max-width: 420px) {
+  .aacp-cross-sell-card {
+    flex-wrap: wrap;
+  }
+
+  .aacp-cross-sell-body {
+    flex: 1 1 100%;
+    order: 2;
+  }
+
+  .aacp-cross-sell-thumb {
+    order: 1;
+  }
+
+  .aacp-cross-sell-add {
+    order: 3;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+  }
+}
+
 /* Composer */
 .aacp-composer-wrap {
   position: relative;
@@ -2814,6 +2839,16 @@ textarea {
 
   .aacp-cart-close {
     display: flex;
+  }
+
+  /* Touch targets: cart quantity + remove controls reach ≥44px on mobile. */
+  .aacp-qty-btn {
+    width: 40px;
+    height: 40px;
+  }
+
+  .aacp-item-remove {
+    min-height: 40px;
   }
 }
 

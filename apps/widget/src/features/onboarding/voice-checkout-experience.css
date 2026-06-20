@@ -1112,21 +1112,173 @@
   background: color-mix(in oklch, var(--pix-tone) 18%, transparent);
 }
 
-/* ---- Cart overlay (voice) ---------------------------------------------- */
+/* ========================================================================
+   Cart drawer (voice) — parity with the chat bottom-sheet.
+
+   The voice channel mounts the SAME CartPanel / CartFAB / overlay components
+   as chat (`.aacp-widget--voice` only changes dressing). Base styles.css gives
+   `.aacp-cart` `position: relative`, which would dump the panel inline inside
+   the single-column voice shell. So voice — like conversational — promotes the
+   cart to an off-canvas drawer: right-side rail ≥861px, bottom sheet ≤860px.
+   Selector contract untouched (.aacp-cart / .aacp-cart-overlay / .aacp-cart-fab).
+   ======================================================================== */
+.aacp-widget--voice .aacp-cart {
+  position: fixed;
+  z-index: 55;
+  top: max(12px, env(safe-area-inset-top));
+  right: max(12px, env(safe-area-inset-right));
+  bottom: max(12px, env(safe-area-inset-bottom));
+  left: auto;
+  width: min(380px, calc(100vw - 24px));
+  max-width: none;
+  border: 1px solid color-mix(in oklch, var(--voice-line) 82%, transparent);
+  border-radius: var(--voice-radius);
+  background: var(--voice-surface);
+  box-shadow: var(--voice-shadow);
+  transform: translateX(calc(100% + 24px));
+  transition: transform 280ms var(--continuum-ease-out);
+  will-change: transform;
+}
+
+.aacp-widget--voice .aacp-cart.open {
+  transform: translateX(0);
+}
+
 .aacp-widget--voice .aacp-cart-overlay {
   position: fixed;
   z-index: 50;
   inset: 0;
   display: block;
   background: color-mix(in oklch, var(--voice-ink) 42%, transparent);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 180ms ease;
+  transition: opacity 200ms var(--continuum-ease-out);
 }
 
 .aacp-widget--voice .aacp-cart-overlay.open {
   opacity: 1;
   pointer-events: auto;
+}
+
+/* The close affordance is hidden by default (base) — surface it in the drawer. */
+.aacp-widget--voice .aacp-cart-close {
+  display: inline-flex;
+}
+
+/* The inline order strip is redundant once a FAB anchors the cart on small
+   screens; keep it on the wide reading column only. */
+.aacp-widget--voice .aacp-cart-fab {
+  display: none;
+}
+
+/* Tablet (861–1024px): the unscoped base block forces the round base FAB on.
+   Voice keeps the in-column order strip there, so suppress that base FAB. */
+@media (min-width: 861px) and (max-width: 1024px) {
+  .aacp-widget--voice .aacp-cart-fab {
+    display: none !important;
+  }
+}
+
+/* ---- Cart drawer → bottom sheet on phones ------------------------------ */
+@media (max-width: 860px) {
+  .aacp-widget--voice .aacp-cart {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: min(86dvh, 720px);
+    border-bottom: 0;
+    border-radius: 22px 22px 0 0;
+    box-shadow: 0 -22px 60px color-mix(in oklch, var(--voice-ink) 22%, transparent);
+    transform: translateY(calc(100% + 24px));
+    transition: transform 260ms var(--continuum-ease-out);
+  }
+
+  .aacp-widget--voice .aacp-cart.open {
+    transform: translateY(0);
+  }
+
+  /* Floating total bar — same role as chat's FAB, voice-toned.
+     `!important` mirrors the conversational FAB: it must beat the unscoped
+     `@media (max-width:1024px) .aacp-cart-fab { ... !important }` base block. */
+  .aacp-widget--voice .aacp-cart-fab {
+    position: fixed !important;
+    z-index: 42;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    left: max(12px, env(safe-area-inset-left)) !important;
+    display: flex !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 56px !important;
+    align-items: center;
+    justify-content: space-between !important;
+    gap: 14px;
+    margin: 0 !important;
+    padding: 8px 10px 8px 16px !important;
+    border: 1px solid color-mix(in oklch, var(--voice-accent) 30%, var(--voice-line)) !important;
+    border-radius: 16px !important;
+    background: var(--voice-surface) !important;
+    background-image: none !important;
+    color: var(--voice-ink) !important;
+    box-shadow: 0 16px 40px color-mix(in oklch, var(--voice-ink) 20%, transparent);
+    transform: none;
+  }
+
+  .aacp-widget--voice .aacp-cart-fab-total {
+    display: grid;
+    gap: 1px;
+    text-align: left;
+  }
+
+  .aacp-widget--voice .aacp-cart-fab-total small {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--voice-muted);
+  }
+
+  .aacp-widget--voice .aacp-cart-fab-total strong {
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .aacp-widget--voice .aacp-cart-fab-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 12px;
+    border-radius: 11px;
+    background: linear-gradient(180deg, color-mix(in oklch, var(--voice-accent) 92%, white), var(--voice-accent));
+    color: var(--voice-on-accent);
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+
+  .aacp-widget--voice .aacp-cart-fab-badge {
+    position: static !important;
+    display: grid;
+    min-width: 20px;
+    height: 20px;
+    place-items: center;
+    padding: 0 5px;
+    border: 0;
+    border-radius: 7px !important;
+    background: var(--voice-on-accent);
+    color: var(--voice-accent);
+    font-size: 0.66rem;
+    font-weight: 800;
+  }
+
+  /* The inline order strip duplicates the FAB on mobile — drop it. */
+  .aacp-widget--voice .aacp-voice-order-strip {
+    display: none;
+  }
 }
 
 /* ---- Keyframes --------------------------------------------------------- */
@@ -1168,16 +1320,35 @@
 }
 
 /* ---- Responsive -------------------------------------------------------- */
+@media (max-width: 860px) {
+  /* Reading column breathes less and clears the floating FAB. */
+  .aacp-voice-main {
+    gap: 18px;
+    padding: 18px clamp(14px, 4.5vw, 24px) calc(96px + env(safe-area-inset-bottom));
+  }
+}
+
 @media (max-width: 640px) {
+  .aacp-widget--voice.aacp-page {
+    padding:
+      max(10px, env(safe-area-inset-top))
+      max(10px, env(safe-area-inset-right))
+      max(10px, env(safe-area-inset-bottom))
+      max(10px, env(safe-area-inset-left));
+  }
+
   .aacp-voice-shell {
-    min-height: calc(100dvh - 32px);
+    min-height: calc(100dvh - 20px);
     border-radius: 20px;
   }
 
   .aacp-voice-bar {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    padding: 12px 14px;
   }
 
+  /* The agent-state pill wraps to its own full-width row below the brand. */
   .aacp-voice-bar__state {
     order: 3;
     grid-column: 1 / -1;
@@ -1185,18 +1356,54 @@
     justify-content: center;
   }
 
-  .aacp-voice-bar__order span {
+  .aacp-voice-bar__actions {
+    gap: 6px;
+  }
+
+  .aacp-voice-bar__order span,
+  .aacp-voice-bar__switch span {
     display: none;
   }
 
+  /* Keep the channel-switch label — it is the only way back to chat. */
+  .aacp-voice-bar__switch {
+    padding: 0 10px;
+  }
+
   .aacp-voice-orb {
-    width: 144px;
-    height: 144px;
+    width: 132px;
+    height: 132px;
   }
 
   .aacp-voice-orb__core {
-    width: 84px;
-    height: 84px;
+    width: 80px;
+    height: 80px;
+  }
+
+  .aacp-voice-caption,
+  .aacp-voice-chips,
+  .aacp-voice-confirmation {
+    width: 100%;
+  }
+
+  .aacp-voice-caption {
+    padding: 16px 16px;
+  }
+
+  .aacp-voice-caption__foot {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .aacp-voice-caption__replay {
+    margin-left: 0;
+    justify-content: center;
+  }
+
+  .aacp-voice-mic {
+    width: 72px;
+    height: 72px;
   }
 
   .aacp-pix-waiting__body {
