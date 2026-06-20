@@ -182,6 +182,71 @@ describe("QuoteShippingUseCase", () => {
 
     const freeEntries = snap.results.filter((r) => r.carrier_key === "correios" && r.is_free);
     assert.equal(freeEntries.length, 1, "exactly one free entry per carrier, no duplicates");
+
+    // BUG 1: the free entry must REPLACE the paid one — never both for the same
+    // carrier. Assert exactly one entry total for the carrier and that it is free.
+    const correiosEntries = snap.results.filter((r) => r.carrier_key === "correios");
+    assert.equal(correiosEntries.length, 1, "exactly one entry per carrier (free replaces paid)");
+    assert.equal(correiosEntries[0]!.is_free, true, "the surviving entry must be the free variant");
+    assert.equal(correiosEntries[0]!.price, 0, "the surviving entry must be priced at zero");
+  });
+
+  // BUG 1 regression: each carrier collapses to a single entry under free
+  // shipping (one-per-carrier dedup preserved).
+  it("BUG 1 — multiple carriers each collapse to a single entry under free shipping", async () => {
+    const carriers = [
+      makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
+      makeStubCarrier("loggi", [{ carrier_key: "loggi", label: "Loggi Express", price: 2500, eta_days: 2, is_free: false }]),
+    ];
+    const { useCase } = makeSetupWithRules(carriers, "mrc_1", { freeShippingMinCartValue: 100, allowFreeShipping: true });
+    const snap = await useCase.execute(BASE_INPUT);
+
+    const byCarrier = new Map<string, number>();
+    for (const r of snap.results) byCarrier.set(r.carrier_key, (byCarrier.get(r.carrier_key) ?? 0) + 1);
+    for (const [key, count] of byCarrier) {
+      assert.equal(count, 1, `carrier ${key} must appear exactly once`);
+    }
+  });
+
+  // ADR §6.2 regression: when free shipping qualifies with MULTIPLE carriers,
+  // EXACTLY ONE result is free (price 0) — the cheapest eligible standard
+  // carrier — and the others REMAIN PAID as explicitly-labeled alternatives.
+  // We must NEVER render every carrier at R$0,00.
+  it("ADR §6.2 — free shipping makes exactly ONE carrier free (cheapest), others stay paid", async () => {
+    const carriers = [
+      // correios is the cheapest paid (1200) → becomes the free/recommended option.
+      makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
+      makeStubCarrier("loggi", [{ carrier_key: "loggi", label: "Loggi Express", price: 2500, eta_days: 2, is_free: false }]),
+      makeStubCarrier("jadlog", [{ carrier_key: "jadlog", label: "Jadlog", price: 1800, eta_days: 3, is_free: false }]),
+    ];
+    const { useCase } = makeSetupWithRules(carriers, "mrc_1", { freeShippingMinCartValue: 100, allowFreeShipping: true });
+    const snap = await useCase.execute(BASE_INPUT);
+
+    const freeResults = snap.results.filter((r) => r.is_free && r.price === 0);
+    assert.equal(freeResults.length, 1, "exactly ONE option may be free when free shipping qualifies");
+    assert.equal(freeResults[0]!.carrier_key, "correios", "the cheapest eligible carrier becomes the free/recommended option");
+
+    const paidResults = snap.results.filter((r) => !r.is_free);
+    assert.ok(paidResults.length >= 1, "other carriers must remain as paid alternatives");
+    assert.ok(paidResults.every((r) => r.price > 0), "non-free alternatives keep their real (paid) prices");
+
+    // Free entry sorts first (price 0), paid alternatives follow.
+    assert.equal(snap.results[0]!.is_free, true, "free/recommended option sorts first");
+    assert.ok(snap.results[snap.results.length - 1]!.price > 0, "paid alternatives sort after the free option");
+  });
+
+  // ADR §6.2 edge case: with a SINGLE carrier and free shipping qualifying,
+  // that one carrier becomes free (no paid alternative exists — acceptable).
+  it("ADR §6.2 — single carrier becomes free when free shipping qualifies", async () => {
+    const carriers = [
+      makeStubCarrier("correios", [{ carrier_key: "correios", label: "PAC", price: 1200, eta_days: 5, is_free: false }]),
+    ];
+    const { useCase } = makeSetupWithRules(carriers, "mrc_1", { freeShippingMinCartValue: 100, allowFreeShipping: true });
+    const snap = await useCase.execute(BASE_INPUT);
+
+    assert.equal(snap.results.length, 1, "single carrier stays single");
+    assert.equal(snap.results[0]!.is_free, true, "the only carrier becomes free");
+    assert.equal(snap.results[0]!.price, 0, "the only carrier is priced at zero");
   });
 
   // P3 regression: reused quote must rebind session_id to the requesting session.

@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { setupApiMocks, SHIPPING_OPTIONS, type FlowStep } from "./fixtures/api-mocks.js";
+import {
+  setupApiMocks,
+  SHIPPING_OPTIONS,
+  startCheckoutResponse,
+  noBootstrapDataCollectionExperience,
+  type FlowStep,
+} from "./fixtures/api-mocks.js";
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
@@ -13,6 +19,13 @@ test.beforeEach(async ({ page }) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function waitForGreeting(page: import("@playwright/test").Page) {
+  // Dismiss the channel gate (AgentChannelWelcome) if present. On a fresh origin
+  // the widget asks the buyer to pick chat vs voice before rendering the thread;
+  // without choosing, the greeting turns are deferred and never appear.
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  }
   const thread = page.locator(".aacp-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
   const firstBubble = thread.locator(".aacp-bubble-agent").first();
@@ -56,7 +69,7 @@ async function waitForComposer(page: import("@playwright/test").Page) {
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  const noCoupon = page.locator(".aacp-chip", { hasText: /N(?:a|ã)o tenho cupom/i }).first();
+  const noCoupon = page.locator(".aacp-chip", { hasText: /^N(?:a|ã)o$/i }).first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
   await waitForStreamingDone(page);
@@ -203,7 +216,10 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
   });
 
   test("usuário seleciona frete → transição para payment", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options", "shipping_selected"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options", "shipping_selected"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -222,7 +238,10 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
   });
 
   test("totais do carrinho atualizam com valor do frete", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options", "shipping_selected"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options", "shipping_selected"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -243,7 +262,10 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
 
 test.describe("3. Fluxo de Pagamento (payment)", () => {
   test("quick replies de pagamento aparecem apos pular cupom", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -257,7 +279,10 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
   });
 
   test("clicar Cartão de crédito → abre CardForm", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -272,7 +297,10 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
   });
 
   test("mensagem ao abrir card form menciona criptografados", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -291,7 +319,10 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
   });
 
   test("clicar PIX → agente retorna código PIX", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options", "pix"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options", "pix"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -307,7 +338,10 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
   });
 
   test("QR Code renderiza quando há código PIX", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options", "pix"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options", "pix"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -324,7 +358,10 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
   });
 
   test("botão Copiar código PIX está visível", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options", "pix"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options", "pix"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -344,13 +381,16 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
 
 test.describe("4. Fluxo de Cupom", () => {
   test("quick reply 'Tenho um cupom' → mostra coupon box", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /cupom/i }).first();
+    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
     // tapQuick for coupon sets couponInputVisible=true locally, no network call
@@ -359,13 +399,16 @@ test.describe("4. Fluxo de Cupom", () => {
   });
 
   test("input de cupom aceita texto e botão Aplicar funciona", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options", "coupon_applied"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options", "coupon_applied"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /cupom/i }).first();
+    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
     const couponBox = page.locator(".aacp-coupon-box");
@@ -379,13 +422,16 @@ test.describe("4. Fluxo de Cupom", () => {
   });
 
   test("após aplicar cupom → desconto reflete nos totais", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options", "coupon_applied"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options", "coupon_applied"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /cupom/i }).first();
+    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
     const couponBox = page.locator(".aacp-coupon-box");
@@ -401,13 +447,16 @@ test.describe("4. Fluxo de Cupom", () => {
   });
 
   test("offer banner aparece quando há desconto", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options", "coupon_applied"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options", "coupon_applied"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /cupom/i }).first();
+    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
     const couponBox = page.locator(".aacp-coupon-box");
@@ -504,23 +553,18 @@ test.describe("7. Carrinho lateral", () => {
     await setupApiMocks(page, { chatSequence: [] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    // Use header cart button
-    const cartBtn = page.locator("button.aacp-cart-btn, button.aacp-cart-fab").first();
-    await expect(cartBtn).toBeVisible({ timeout: 5_000 });
-    await cartBtn.click();
+    // At desktop the order summary renders inline as an always-visible aside
+    // (the FAB + toggle are a mobile-only affordance, display:none here).
     const cartPanel = page.locator("#aacp-cart-panel");
-    await expect(cartPanel).toHaveClass(/open/, { timeout: 3_000 });
+    await expect(cartPanel).toBeVisible({ timeout: 5_000 });
   });
 
   test("itens do carrinho são exibidos corretamente", async ({ page }) => {
     await setupApiMocks(page, { chatSequence: [] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    const cartBtn = page.locator("button.aacp-cart-btn, button.aacp-cart-fab").first();
-    await expect(cartBtn).toBeVisible({ timeout: 5_000 });
-    await cartBtn.click();
     const cartPanel = page.locator("#aacp-cart-panel");
-    await expect(cartPanel).toHaveClass(/open/, { timeout: 3_000 });
+    await expect(cartPanel).toBeVisible({ timeout: 5_000 });
     // Should show the item name
     await expect(cartPanel).toContainText("Bolsa Executiva");
     // Should show quantity
@@ -531,24 +575,21 @@ test.describe("7. Carrinho lateral", () => {
     await setupApiMocks(page, { chatSequence: [] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    const cartBtn = page.locator("button.aacp-cart-btn, button.aacp-cart-fab").first();
-    await expect(cartBtn).toBeVisible({ timeout: 5_000 });
-    await cartBtn.click();
     const cartPanel = page.locator("#aacp-cart-panel");
-    await expect(cartPanel).toHaveClass(/open/, { timeout: 3_000 });
+    await expect(cartPanel).toBeVisible({ timeout: 5_000 });
     // Find increment button
     const incrementBtn = cartPanel.locator("button[aria-label^='Aumentar quantidade']").first();
     await expect(incrementBtn).toBeVisible({ timeout: 3_000 });
     await incrementBtn.click();
     await page.waitForTimeout(300);
     // Quantity should now be 3
-    const qtySpan = cartPanel.locator(".aacp-item-meta span").first();
-    await expect(qtySpan).toContainText("3");
+    const qtyValue = cartPanel.locator(".aacp-qty-value").first();
+    await expect(qtyValue).toContainText("3");
     // Find decrement button
     const decrementBtn = cartPanel.locator("button[aria-label^='Diminuir quantidade']").first();
     await decrementBtn.click();
     await page.waitForTimeout(300);
-    await expect(qtySpan).toContainText("2");
+    await expect(qtyValue).toContainText("2");
   });
 });
 
@@ -556,7 +597,13 @@ test.describe("7. Carrinho lateral", () => {
 
 test.describe("8. Resiliência / Edge cases", () => {
   test("erro de rede → mostra mensagem de erro com botão Tentar novamente", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["ask_email"], failOnChatCall: 1 });
+    // email_verified customer suppresses the auto-registration bootstrap so the
+    // buyer's own sendMessage is deterministically the first /chat/message call.
+    await setupApiMocks(page, {
+      chatSequence: ["ask_email"],
+      failOnChatCall: 1,
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -567,7 +614,11 @@ test.describe("8. Resiliência / Edge cases", () => {
   });
 
   test("retry reconecta e restaura o fluxo", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["ask_email", "ask_cpf"], failOnChatCall: 1 });
+    await setupApiMocks(page, {
+      chatSequence: ["ask_email", "ask_cpf"],
+      failOnChatCall: 1,
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -576,10 +627,13 @@ test.describe("8. Resiliência / Edge cases", () => {
     const retryBtn = page.locator("button", { hasText: /Tentar novamente|tentar/i });
     await expect(retryBtn.first()).toBeVisible({ timeout: 10_000 });
     await retryBtn.first().click();
-    // After retry, the next call should succeed (failOnChatCall only affects call #1)
-    // The widget should recover — either show composer or agent reply
-    await page.waitForTimeout(2_000);
+    // After retry, the widget recovers: greeting is restored and the composer
+    // becomes usable again (no fixed wait — assert on observable recovery state).
     const thread = page.locator(".aacp-thread");
-    await expect(thread).toBeVisible();
+    await expect(thread).toBeVisible({ timeout: 10_000 });
+    await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("input[aria-label='Mensagem para o assistente']")).toBeEnabled({
+      timeout: 10_000,
+    });
   });
 });

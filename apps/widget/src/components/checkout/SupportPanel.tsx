@@ -31,9 +31,10 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
     apiBaseUrl: model.apiOrigin,
     merchantId: model.merchantId,
     sessionId: model.sessionId,
+    embedToken: model.embedToken,
   });
 
-  const faq = useSupportFaq(model.apiOrigin, model.merchantId, model.open);
+  const faq = useSupportFaq(model.apiOrigin, model.merchantId, model.open, model.embedToken);
 
   useEffect(() => {
     if (threadRef.current) {

@@ -6,9 +6,9 @@
  * The widget must render chat bubbles without blank/error state.
  */
 import { test, expect } from "@playwright/test";
+import { openChatCheckout } from "../fixtures/realapi-helpers.js";
 
 const API = "http://localhost:3000";
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
 test.describe("@realapi deterministic chat", () => {
   let merchantId: string;
@@ -21,8 +21,7 @@ test.describe("@realapi deterministic chat", () => {
   });
 
   test("chat thread renders at least one bubble without LLM", async ({ page }) => {
-    await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
     // At least one chat bubble must appear (deterministic greeting)
     const bubble = page.locator(".aacp-bubble, [data-testid='chat-bubble'], .aacp-message").first();
@@ -34,8 +33,7 @@ test.describe("@realapi deterministic chat", () => {
   });
 
   test("send message returns deterministic response", async ({ page }) => {
-    await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
     const input = page.locator("input[placeholder], textarea[placeholder]").first();
     if (await input.isVisible({ timeout: 3_000 }).catch(() => false)) {

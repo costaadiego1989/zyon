@@ -54,6 +54,15 @@ function buildActiveExperience() {
   };
 }
 
+function buildActiveExperienceWithItems() {
+  return {
+    ...buildActiveExperience(),
+    items: [
+      { sku: "bag-001", name: "Bolsa", quantity: 1, unit_price: 300, line_total: 300 }
+    ]
+  };
+}
+
 function buildSessionState(overrides: Partial<CheckoutSessionState> = {}): CheckoutSessionState {
   return {
     session: {
@@ -246,6 +255,59 @@ describe("useCheckoutChat", () => {
       useCheckoutChat(buildConfig(), buildSessionState())
     );
     expect(result.current.composerLocked).toBe(false);
+  });
+
+  it("greeting quick replies do NOT reappear after buyer interacts while lastChat stays null", async () => {
+    // Coupon submit advances the conversation via syncExperience and never sets
+    // lastChat. Before the fix this left lastChat null and re-injected the
+    // greeting chips ("Olá!", "Quero começar"). They must stay gone once the
+    // buyer has interacted.
+    mockCheckoutJson.mockResolvedValue({
+      redemption_id: "red_1",
+      discount_applied: 5,
+      coupon: {}
+    });
+
+    const experience = {
+      ...buildActiveExperienceWithItems(),
+      copy: {
+        headline: "",
+        subheadline: "",
+        trust_badges: [],
+        quick_replies: ["Tenho um cupom"]
+      }
+    };
+    const { result } = renderHook(() =>
+      useCheckoutChat(
+        buildConfig(),
+        buildSessionState({ activeExperience: experience as any })
+      )
+    );
+
+    // Seed the opening agent greeting so quick replies can render.
+    act(() => {
+      result.current.appendAgentTurn("Olá! Sou a assistente.");
+    });
+
+    const openingLabels = result.current.quickReplies.map((r) => r.label);
+    expect(openingLabels).toContain("Olá!");
+    expect(openingLabels).toContain("Quero começar");
+
+    // Buyer interacts via coupon submit (no lastChat set).
+    act(() => {
+      result.current.setCoupon("PROMO5");
+    });
+    await act(async () => {
+      await result.current.submitCoupon();
+    });
+
+    expect(result.current.lastChat).toBeNull();
+    const afterLabels = result.current.quickReplies.map((r) => r.label);
+    expect(afterLabels).not.toContain("Olá!");
+    expect(afterLabels).not.toContain("Quero começar");
+    expect(afterLabels).not.toContain("Quero finalizar agora");
+    // Merchant-provided quick replies remain available.
+    expect(afterLabels).toContain("Tenho um cupom");
   });
 });
 

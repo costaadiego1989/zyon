@@ -10,6 +10,7 @@ import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
 import "./features/continuum/continuum.css";
+import "./features/continuum/polish.css";
 
 export { themeStyle };
 export type { WidgetConfig };

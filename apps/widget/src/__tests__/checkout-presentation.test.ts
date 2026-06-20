@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, isBuyerHubEligible, isBuyerRegistrationComplete } from "../hooks/checkout-presentation.js";
+import { brandInitials, filterCheckoutQuickReplies, resolveCartJourneyIndex, resolveStepperProgressPct, resolveStoreReturnUrl, shouldBootstrapShippingSelection, shouldSkipAutoRegistration, isBuyerHubEligible, isBuyerRegistrationComplete, COUPON_PROMPT_MESSAGE, COUPON_ENTRY_MESSAGE, COUPON_SKIP_REPLY_LABEL } from "../hooks/checkout-presentation.js";
+
+describe("coupon copy", () => {
+  it("uses accented 'código' in agent coupon messages", () => {
+    expect(COUPON_PROMPT_MESSAGE).toContain("código");
+    expect(COUPON_ENTRY_MESSAGE).toContain("código");
+    expect(COUPON_PROMPT_MESSAGE).not.toMatch(/\bcodigo\b/);
+    expect(COUPON_ENTRY_MESSAGE).not.toMatch(/\bcodigo\b/);
+  });
+
+  it("exposes a proceed-without-coupon label", () => {
+    expect(COUPON_SKIP_REPLY_LABEL).toBe("Continuar sem cupom");
+  });
+});
 
 describe("brandInitials", () => {
   it("returns first letters for multi-word brands", () => {
@@ -159,13 +172,13 @@ describe("filterCheckoutQuickReplies", () => {
     expect(replies.map((reply) => reply.label)).toEqual(["Sim", "Não"]);
   });
 
-  it("hides quick replies while the coupon input is active", () => {
+  it("keeps a proceed-without-coupon escape while the coupon input is active", () => {
     const replies = filterCheckoutQuickReplies(
       [{ label: "PIX" }, { label: "Cartao de credito" }],
       { stage: "payment", prePaymentStep: "coupon_entry" }
     );
 
-    expect(replies).toEqual([]);
+    expect(replies.map((reply) => reply.label)).toEqual(["Continuar sem cupom"]);
   });
 
   it("removes coupon prompts after the buyer skips the coupon gate", () => {

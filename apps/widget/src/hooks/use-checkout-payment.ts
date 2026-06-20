@@ -34,6 +34,28 @@ export interface StripeIntent {
   currency: string;
 }
 
+/**
+ * Persistent "aguardando/escutando pagamento" state for PIX (ADR §9.2).
+ *
+ * Born `listening` the moment the charge is created in `requires_action`, it
+ * carries the buyer-facing copy-paste / invoice references, the order amount and
+ * a hard 10-minute `deadline` (epoch ms) for the countdown. The webhook-driven
+ * poll flips it to `approved | failed | expired`. The widget never confirms PIX
+ * optimistically — only the persisted status moves this machine forward.
+ */
+export type PixWaitingStatus = "listening" | "approved" | "failed" | "expired";
+
+export interface PixWaitingState {
+  status: PixWaitingStatus;
+  copyPaste: string | null;
+  invoiceUrl: string | null;
+  amountCents?: number;
+  currency: string;
+  deadline: number;
+}
+
+const PIX_WAIT_WINDOW_MS = 1000 * 60 * 10;
+
 function paymentIntentErrorMessage(error: unknown, method: "pix" | "card" | "crypto"): string {
   const code = checkoutErrorCode(error);
   switch (code) {
@@ -87,6 +109,7 @@ export function useCheckoutPayment(
   const [stripeIntent, setStripeIntent] = useState<StripeIntent | null>(null);
   const [cryptoPayment, setCryptoPayment] = useState<CryptoPaymentState | null>(null);
   const [pixPolling, setPixPolling] = useState(false);
+  const [pixWaiting, setPixWaiting] = useState<PixWaitingState | null>(null);
   const pollRef = useRef<{ active: boolean } | null>(null);
   // P1: in-flight lock prevents duplicate intent creation from rapid re-taps.
   const intentInFlightRef = useRef(false);
@@ -179,6 +202,7 @@ export function useCheckoutPayment(
         try {
           const res = await checkoutGet<PaymentStatusResponse>(apiOrigin, path, { ...embedOpts });
           if (res.status === "approved") {
+            setPixWaiting((prev) => (prev ? { ...prev, status: "approved" } : prev));
             markPaymentCompleted(res.approved_amount_cents ?? res.amount_cents, res.currency, {
               orderId: res.order_id,
               receiptUrl: res.receipt_url
@@ -186,6 +210,9 @@ export function useCheckoutPayment(
             return;
           }
           if (res.status === "failed" || res.status === "expired" || res.status === "canceled") {
+            setPixWaiting((prev) =>
+              prev ? { ...prev, status: res.status === "expired" ? "expired" : "failed" } : prev
+            );
             appendAgentTurn(
               "O pagamento PIX expirou ou foi recusado. Gere uma nova cobranca para tentar novamente.",
               { stream: true }
@@ -197,6 +224,7 @@ export function useCheckoutPayment(
         }
       }
       if (controller.active) {
+        setPixWaiting((prev) => (prev ? { ...prev, status: "expired" } : prev));
         appendAgentTurn(
           "Ainda nao recebi a confirmacao do seu PIX. Assim que o pagamento for compensado, libero seu pedido aqui.",
           { stream: true }
@@ -242,6 +270,7 @@ export function useCheckoutPayment(
     cancelPoll();
     setStripeIntent(null);
     setCryptoPayment(null);
+    setPixWaiting((prev) => (prev ? { ...prev, status: "approved" } : prev));
     const total = typeof amountCents === "number"
       ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
       : "";
@@ -372,6 +401,18 @@ export function useCheckoutPayment(
       // Async charge (PIX/boleto): poll authoritative status; confirmation is webhook-driven.
       cancelPoll();
       if (snap.id) {
+        // Surface the persistent "aguardando/escutando pagamento" component
+        // (ADR §9.2) the instant the charge is born in requires_action.
+        if (method === "pix") {
+          setPixWaiting({
+            status: "listening",
+            copyPaste: bf?.qrCodeCopyPaste ?? null,
+            invoiceUrl: bf?.invoiceUrl ?? null,
+            amountCents: snap.amountCents,
+            currency: snap.currency ?? "BRL",
+            deadline: Date.now() + PIX_WAIT_WINDOW_MS
+          });
+        }
         void pollPaymentStatus(snap.id);
       }
     } catch (error) {
@@ -515,6 +556,8 @@ export function useCheckoutPayment(
     createEmbedPaymentIntentDemo,
     pollPaymentStatus,
     pixPolling,
+    pixWaiting,
+    dismissPixWaiting: () => setPixWaiting(null),
     stripeIntent,
     cryptoPayment,
     setCryptoPayment,

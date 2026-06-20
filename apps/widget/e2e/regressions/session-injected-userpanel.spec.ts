@@ -1,27 +1,53 @@
 /**
- * @regression T003 — UserPanel must render merchant identity from injected session.
+ * @regression T003 — Merchant identity from the injected session must render.
  *
- * When an embed session is pre-injected (via the embed bootstrap), the UserPanel
- * must display the merchant name and ID sourced from the session, not show a blank state.
+ * When an embed session is pre-injected (via setupApiMocks → start-checkout
+ * bootstrap), the widget must display the merchant name sourced from that
+ * session rather than a blank state. The brand name surfaces in the cart
+ * header (.aacp-cart-store); opening the user panel must not blank it out.
  */
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { setupApiMocks } from "../fixtures/api-mocks.js";
 
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
-test("@regression UserPanel renders merchant identity from injected embed session", async ({ page }) => {
-  await setupApiMocks(page, { merchantName: "Loja E2E", merchantId: "mrc_dev_seed" });
-  await page.goto(BASE);
-  await page.waitForSelector(".aacp-thread", { timeout: 10_000 });
+// The mocked start-checkout bootstrap brand (api-mocks BRAND.name).
+const MERCHANT_NAME = "Northstar Atelier";
 
-  // Open user panel
-  const userIcon = page.locator("[aria-label='Minha conta'], .aacp-user-btn").first();
-  if (await userIcon.isVisible()) {
-    await userIcon.click();
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    (globalThis as { process?: { env: Record<string, string> } }).process = {
+      env: { AACP_DISABLE_STREAMING: "1" },
+    };
+  });
+});
+
+async function dismissGateAndWaitForThread(page: Page) {
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  }
+  const thread = page.locator(".aacp-thread");
+  await expect(thread).toBeVisible({ timeout: 10_000 });
+  await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+}
+
+test("@regression merchant identity from injected embed session renders", async ({ page }) => {
+  await setupApiMocks(page, { chatSequence: [] });
+  await page.goto(BASE);
+  await dismissGateAndWaitForThread(page);
+
+  // The merchant name from the injected session is shown in the cart header.
+  const store = page.locator(".aacp-cart-store").first();
+  await expect(store).toBeVisible({ timeout: 5_000 });
+  await expect(store).toContainText(MERCHANT_NAME, { timeout: 3_000 });
+
+  // Opening the account panel must not blank out the injected identity.
+  const userBtn = page.locator(".aacp-user-chip, .aacp-user-btn").first();
+  if (await userBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    await userBtn.click();
+    await expect(page.locator(".aacp-user-panel")).toBeVisible({ timeout: 5_000 });
   }
 
-  // UserPanel must show merchant name
-  const panel = page.locator(".aacp-user-panel");
-  await expect(panel).toBeVisible({ timeout: 5_000 });
-  await expect(panel).toContainText("Loja E2E", { timeout: 3_000 });
+  await expect(store).toContainText(MERCHANT_NAME);
 });

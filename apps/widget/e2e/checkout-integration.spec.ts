@@ -2,7 +2,7 @@
  * Integration tests (mocked API) — full journeys + error paths.
  */
 import { expect, test } from "@playwright/test";
-import { setupApiMocks, type FlowStep } from "./fixtures/api-mocks.js";
+import { setupApiMocks, type FlowStep, noBootstrapDataCollectionExperience, startCheckoutResponse } from "./fixtures/api-mocks.js";
 import {
   CHAT_REGISTRATION_SEQUENCE,
   completeChatRegistration,
@@ -26,7 +26,10 @@ test.describe("Integração chat — fluxo completo até completed", () => {
   test.setTimeout(120_000);
 
   test("cadastro → frete → PIX (polling) → Pedido confirmado", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: CHAT_REGISTRATION_SEQUENCE });
+    await setupApiMocks(page, {
+      chatSequence: CHAT_REGISTRATION_SEQUENCE,
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173");
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -47,6 +50,7 @@ test.describe("Integração chat — fluxo completo até completed", () => {
     await setupApiMocks(page, {
       chatSequence: CHAT_REGISTRATION_SEQUENCE,
       cardInstantApproval: true,
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
     });
     await page.goto(process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173");
     await waitForGreeting(page);
@@ -91,7 +95,11 @@ test.describe("Integração chat — error paths", () => {
 
   test("cupom inválido mantém fluxo e não aplica desconto", async ({ page }) => {
     const sequence: FlowStep[] = [...CHAT_REGISTRATION_SEQUENCE];
-    await setupApiMocks(page, { chatSequence: sequence, rejectCoupon: true });
+    await setupApiMocks(page, {
+      chatSequence: sequence,
+      rejectCoupon: true,
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173");
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -118,6 +126,7 @@ test.describe("Integração chat — error paths", () => {
     await setupApiMocks(page, {
       chatSequence: CHAT_REGISTRATION_SEQUENCE,
       failPaymentIntent: true,
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
     });
     await page.goto(process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173");
     await waitForGreeting(page);

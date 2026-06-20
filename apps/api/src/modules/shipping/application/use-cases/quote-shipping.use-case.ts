@@ -113,30 +113,64 @@ export class QuoteShippingUseCase {
     const freeShippingEnabled = rules?.allowFreeShipping ?? false;
     const freeThreshold = rules?.freeShippingMinCartValue ?? Infinity;
 
-    // P2 fix: applyFreeShippingPolicy can add duplicate free entries when the
-    // same carrier already has a paid entry. Filter strictly: only add a free
-    // variant if the carrier_key doesn't already have one in the current results.
+    // BUG 1 fix: applyFreeShippingPolicy returns the SAME carriers re-priced to
+    // R$0.00. Appending those onto the existing paid entries produced two rows
+    // per carrier (priced + free) in the widget. Instead, merge by carrier_key
+    // keeping exactly one entry per carrier — the free variant replaces the
+    // paid one when free shipping applies. A distinct promo entry (a free
+    // carrier_key that has no paid counterpart) is kept as its own single row.
     const currentResults = quote.snapshot().results;
-    const freeEntriesToAdd = freeShippingEnabled
-      ? applyFreeShippingPolicy(currentResults, input.cart_total, {
-          enabled: true,
-          min_cart_total: freeThreshold
-        }).filter(
-          (r) =>
-            r.is_free &&
-            !currentResults.some(
-              (existing) => existing.carrier_key === r.carrier_key && existing.is_free
-            )
+    const finalResults = freeShippingEnabled
+      ? mergeFreeShipping(
+          currentResults,
+          applyFreeShippingPolicy(currentResults, input.cart_total, {
+            enabled: true,
+            min_cart_total: freeThreshold
+          })
         )
-      : [];
+      : currentResults;
 
-    const withFreeShipping =
-      freeEntriesToAdd.length > 0 ? quote.addResults(freeEntriesToAdd) : quote;
+    const withFreeShipping = ShippingQuoteEntity.create({
+      session_id: input.session_id,
+      merchant_id: input.merchant_id,
+      destination_zip: input.destination_zip,
+      quote_key: quoteKey
+    }).addResults(finalResults);
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);
     return finalQuote.snapshot();
   }
+}
+
+/**
+ * Merge the paid quote set with the free-shipping policy output so each
+ * carrier_key appears exactly once. When both a paid and a free variant exist
+ * for the same carrier, the free (cheaper) one wins and replaces the paid one.
+ * Free entries with no paid counterpart (distinct promos) are kept as-is.
+ */
+function mergeFreeShipping(
+  paid: ShippingQuoteResult[],
+  freeVariants: ShippingQuoteResult[]
+): ShippingQuoteResult[] {
+  const byCarrier = new Map<string, ShippingQuoteResult>();
+  for (const r of paid) {
+    byCarrier.set(r.carrier_key, r);
+  }
+  for (const r of freeVariants) {
+    if (!r.is_free) continue;
+    const existing = byCarrier.get(r.carrier_key);
+    // Replace the paid entry with the free one (free is cheaper); for a
+    // brand-new free carrier_key this just inserts it.
+    if (!existing || !existing.is_free || r.price < existing.price) {
+      byCarrier.set(r.carrier_key, r);
+    }
+  }
+  return [...byCarrier.values()].sort((a, b) => {
+    if (a.price !== b.price) return a.price - b.price;
+    if (a.eta_days !== b.eta_days) return a.eta_days - b.eta_days;
+    return a.label.localeCompare(b.label, "pt-BR");
+  });
 }
 
 function dedupeQuoteResults(results: ShippingQuoteResult[]): ShippingQuoteResult[] {

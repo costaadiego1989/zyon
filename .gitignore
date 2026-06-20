@@ -32,3 +32,9 @@ scripts/*
 /docs/architecture/*
 !/docs/architecture/adr/
 !/docs/architecture/adr/*.md
+
+.agents/
+.claude/
+.codex/
+.cursor/
+.github/

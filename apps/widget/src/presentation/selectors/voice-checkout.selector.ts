@@ -80,11 +80,12 @@ export function selectVoiceCheckoutPresentation(
       onOpenCart: () => vm.setCartOpen(true),
     },
     panels: (() => {
-      const all = selectCheckoutPanels(vm, {
-        variant: "voice",
-        hasPendingTurn: Boolean(voice.pendingTurn),
-      });
-      return { ...all, networkError: null, quickReplies: null };
+      // Panel parity (ADR §11.1.3): voice renders the SAME action-panel stack as
+      // chat (frete, cupom, cross-sell, cartão, crypto) by building it with the
+      // thread variant — one visual source of truth. Quick replies are surfaced
+      // as voice chips on the stage instead, so we null them here.
+      const all = selectCheckoutPanels(vm, { variant: "thread" });
+      return { ...all, quickReplies: null };
     })(),
     showChannelWelcome: vm.showChannelWelcome,
     cartOpen: vm.cartOpen,

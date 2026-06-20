@@ -12,27 +12,46 @@ test.describe("@realapi cross-tenant embed isolation", () => {
   test("embed token from merchant A rejected for merchant B", async ({ request }) => {
     const seedA = await request.post(`${API}/__test__/seed`);
     expect(seedA.ok()).toBe(true);
-    const { merchantId: merchantIdA, embedToken: embedTokenA } = await seedA.json();
+    const { embedToken: embedTokenA } = await seedA.json();
 
     const seedB = await request.post(`${API}/__test__/seed`);
     expect(seedB.ok()).toBe(true);
-    const { merchantId: merchantIdB } = await seedB.json();
+    const { embedToken: embedTokenB } = await seedB.json();
 
-    // Attempt to start checkout using merchant A's token but merchant B's merchant ID
-    const res = await request.post(`${API}/embed/checkout`, {
+    // Merchant B starts a real checkout session under its own token.
+    const startedB = await request.post(`${API}/embed/start`, {
+      headers: { "x-aacp-embed-token": embedTokenB },
       data: {
-        merchantId: merchantIdB,
-        productId: "e2e_product_001",
-        quantity: 1,
+        customer: {},
+        cart: {
+          currency: "BRL",
+          source: "storefront",
+          total: 150,
+          items: [{ sku: "e2e_product_001", name: "Produto E2E", price: 150, quantity: 1 }],
+        },
       },
-      headers: {
-        Authorization: `Bearer ${embedTokenA}`,
-        "x-merchant-id": merchantIdB,
+    });
+    expect(startedB.ok()).toBe(true, `Start B failed: ${await startedB.text()}`);
+    const { session_id: sessionIdB } = await startedB.json();
+
+    // Merchant A's token attempts to operate on merchant B's session.
+    const res = await request.post(`${API}/embed/coupons/apply`, {
+      headers: { "x-aacp-embed-token": embedTokenA },
+      data: {
+        session_id: sessionIdB,
+        code: "TESTE10",
+        cart: {
+          currency: "BRL",
+          source: "storefront",
+          total: 150,
+          items: [{ sku: "e2e_product_001", name: "Produto E2E", price: 150, quantity: 1 }],
+        },
       },
     });
 
-    // Must be rejected — 401 or 403
-    expect([401, 403]).toContain(res.status());
+    // Cross-tenant access must be rejected (403 forbidden or 404 not found
+    // — B's session is not visible to A's merchant scope).
+    expect([401, 403, 404]).toContain(res.status());
   });
 
   test("each seed produces a unique merchant ID", async ({ request }) => {

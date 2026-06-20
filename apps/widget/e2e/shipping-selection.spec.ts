@@ -5,6 +5,7 @@ import {
   buildExperience,
   chatResponse,
   startCheckoutResponse,
+  noBootstrapDataCollectionExperience,
   shippingExperience,
   paymentExperience,
 } from "./fixtures/api-mocks.js";
@@ -21,6 +22,12 @@ test.beforeEach(async ({ page }) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function waitForGreeting(page: import("@playwright/test").Page) {
+  // Dismiss the channel gate (chat vs voice) if present, otherwise the greeting
+  // turns are deferred and the thread bubbles never render.
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  }
   const thread = page.locator(".aacp-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
   const firstBubble = thread.locator(".aacp-bubble-agent").first();
@@ -54,7 +61,7 @@ async function waitForAgentReply(page: import("@playwright/test").Page) {
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  const noCoupon = page.locator(".aacp-chip", { hasText: /N(?:a|ã)o tenho cupom/i }).first();
+  const noCoupon = page.locator(".aacp-chip", { hasText: /^N(?:a|ã)o$/i }).first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
   await waitForStreamingDone(page);
@@ -115,7 +122,10 @@ test.describe("Shipping Selection Flow", () => {
   });
 
   test("ShippingSelector appears when stage is shipping and options exist", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -127,7 +137,10 @@ test.describe("Shipping Selection Flow", () => {
   });
 
   test("ShippingSelector shows all available options with prices", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -151,7 +164,10 @@ test.describe("Shipping Selection Flow", () => {
   });
 
   test("selecting PAC updates cart totals correctly", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options", "shipping_selected"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options", "shipping_selected"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -179,7 +195,10 @@ test.describe("Shipping Selection Flow", () => {
 
   test("selecting Sedex updates cart totals correctly", async ({ page }) => {
     // Use setupApiMocks with proper sequence: first call returns shipping options, second returns payment
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options", "shipping_selected"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options", "shipping_selected"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -206,7 +225,10 @@ test.describe("Shipping Selection Flow", () => {
   });
 
   test("ShippingSelector disappears after selection", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options", "shipping_selected"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options", "shipping_selected"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -226,7 +248,10 @@ test.describe("Shipping Selection Flow", () => {
   });
 
   test("agent transitions to payment stage after shipping selection", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options", "shipping_selected"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options", "shipping_selected"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);

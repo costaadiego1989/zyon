@@ -4,6 +4,7 @@
 import { expect, test } from "@playwright/test";
 import {
   checkoutUrl,
+  dismissChannelGate,
   E2E_VERIFIED_CUSTOMER,
   REALAPI_URL,
   seedCheckout,
@@ -35,18 +36,29 @@ test.describe("@realapi error paths", () => {
       };
     });
 
+    // Provide a fresh, unverified email (no name) so the checkout bootstrap
+    // auto-submits it and deterministically advances to the e-mail OTP step.
+    // Passing customerJson overrides the demo page's prefilled customer,
+    // keeping the buyer email under test control.
+    const buyerEmail = `otp_err_${Date.now()}@test.aacp`;
     const startResponse = page.waitForResponse(
       (res) => res.url() === `${REALAPI_URL}/embed/start` && res.request().method() === "POST",
     );
-    await page.goto(checkoutUrl(merchantId, embedToken, productId));
+    await page.goto(
+      checkoutUrl(merchantId, embedToken, productId, {
+        customer: { email: buyerEmail, isReturning: false },
+      }),
+    );
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page, "chat");
     const started = await startResponse;
     const startedBody = await started.json();
     const sessionId = startedBody.session_id as string;
 
-    await sendChat(page, "Diego Costa");
-    const buyerEmail = `otp_err_${Date.now()}@test.aacp`;
-    await sendChat(page, buyerEmail);
+    // Wait for the agent to ask for the e-mail verification code.
+    await expect(page.locator(".aacp-thread")).toContainText(/c[oó]digo|verifica/i, {
+      timeout: 15_000,
+    });
 
     const sessionLookup = await request.get(`${REALAPI_URL}/checkout/${merchantId}/${sessionId}`);
     expect(sessionLookup.ok()).toBe(true);
@@ -59,7 +71,9 @@ test.describe("@realapi error paths", () => {
     await expect(page.getByText(/Falha ao falar com a IA/i)).toHaveCount(0);
 
     await sendChat(page, otpCode!);
-    await expect(page.locator(".aacp-thread")).toContainText(/CPF|telefone|celular/i, {
+    // Valid code accepted → checkout advances past e-mail verification
+    // (next the agent collects the buyer's name for the invoice).
+    await expect(page.locator(".aacp-thread")).toContainText(/nome|CPF|telefone|celular/i, {
       timeout: 15_000,
     });
   });
@@ -75,6 +89,7 @@ test.describe("@realapi error paths", () => {
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `coupon_err_${Date.now()}@test.aacp` };
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page, "chat");
     await waitForChatIdle(page);
 
     await sendChat(page, "1000");
@@ -85,8 +100,9 @@ test.describe("@realapi error paths", () => {
     await selector.locator("button").first().click();
     await waitForChatIdle(page);
 
-    await expect(page.getByRole("button", { name: "Nao tenho cupom" })).toBeVisible({ timeout: 10_000 });
-    await page.getByRole("button", { name: "Tenho um cupom" }).click();
+    // Coupon gate offers Sim/Não quick replies. "Sim" opens the coupon box.
+    await expect(page.getByRole("button", { name: "Não" })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Sim" }).click();
 
     const couponBox = page.locator(".aacp-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 5_000 });

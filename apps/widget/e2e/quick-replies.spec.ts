@@ -7,6 +7,7 @@ import {
   chatResponse,
   startCheckoutResponse,
   dataCollectionExperience,
+  noBootstrapDataCollectionExperience,
   shippingExperience,
   paymentExperience,
   completedExperience,
@@ -24,10 +25,13 @@ test.beforeEach(async ({ page }) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function selectChatIfChannelGateIsOpen(page: import("@playwright/test").Page) {
-  const dialog = page.getByRole("dialog");
-  if (!(await dialog.isVisible().catch(() => false))) return;
+  // On a fresh origin the widget shows the channel gate (chat vs voice) before
+  // rendering the thread. Guard with a timeout so the check waits for the gate to
+  // render instead of racing it, and stays idempotent when the gate is auto-skipped.
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (!(await gate.isVisible({ timeout: 5_000 }).catch(() => false))) return;
 
-  const chatButton = dialog.getByRole("button", { name: /Comprar por chat/i });
+  const chatButton = page.getByRole("button", { name: /Comprar por chat/i });
   await expect(chatButton).toBeEnabled({ timeout: 10_000 });
   await chatButton.click();
 }
@@ -90,7 +94,9 @@ async function clickQuickReply(page: import("@playwright/test").Page, text: stri
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  await clickQuickReply(page, /N(?:a|ã)o tenho cupom/i);
+  // ADR §8: the coupon gate offers "Sim" / "Não" quick replies. Tapping "Não"
+  // declines the coupon and advances to the payment-method step.
+  await clickQuickReply(page, /^N(?:a|ã)o$/i);
   await waitForStreamingDone(page);
 }
 
@@ -103,6 +109,9 @@ test.describe("Quick Replies - Data Collection Stage", () => {
       startResponse: startCheckoutResponse(
         buildExperience({
           stage: "data_collection",
+          // email_verified suppresses the auto-registration bootstrap (ADR §3.2)
+          // so the scripted chatSequence is driven by the buyer, not the bootstrap.
+          customer: { email: "buyer@e2e.test", email_verified: true },
           copy: {
             headline: "Checkout assistido por IA",
             subheadline: "Finalize sua compra.",
@@ -123,20 +132,36 @@ test.describe("Quick Replies - Data Collection Stage", () => {
   });
 
   test("clicking 'Por que precisa do meu nome?' gets contextual response", async ({ page }) => {
-    await setupApiMocks(page, {
-      chatSequence: ["ask_name"],
-      startResponse: startCheckoutResponse(
-        buildExperience({
-          stage: "data_collection",
-          copy: {
-            headline: "Checkout assistido por IA",
-            subheadline: "Finalize sua compra.",
-            trust_badges: ["Pagamento seguro"],
-            quick_replies: ["Por que precisa do meu nome?", "Posso usar nome de empresa?"],
-          },
-        })
-      ),
+    const nameExperience = buildExperience({
+      stage: "data_collection",
+      // email_verified suppresses the auto-registration bootstrap (ADR §3.2).
+      customer: { email: "buyer@e2e.test", email_verified: true },
+      copy: {
+        headline: "Checkout assistido por IA",
+        subheadline: "Finalize sua compra.",
+        trust_badges: ["Pagamento seguro"],
+        quick_replies: ["Por que precisa do meu nome?", "Posso usar nome de empresa?"],
+      },
     });
+
+    const startBody = JSON.stringify(startCheckoutResponse(nameExperience));
+    // Fixed contextual answer returned regardless of sequence position, so an
+    // incidental bootstrap call cannot starve the buyer's own chat turn.
+    const chatBody = JSON.stringify(chatResponse({
+      message: "Preciso do seu nome para emitir a nota fiscal e personalizar o atendimento.",
+      experience: nameExperience,
+      stage: "data_collection",
+      missingFields: ["customer.fullName"],
+    }));
+    const trackBody = JSON.stringify({ received: true });
+
+    await page.route("**/embed/start", (route) => route.fulfill({ status: 200, contentType: "application/json", body: startBody }));
+    await page.route("**/start-checkout", (route) => route.fulfill({ status: 200, contentType: "application/json", body: startBody }));
+    await page.route("**/embed/chat", (route) => route.fulfill({ status: 200, contentType: "application/json", body: chatBody }));
+    await page.route("**/chat/message", (route) => route.fulfill({ status: 200, contentType: "application/json", body: chatBody }));
+    await page.route("**/embed/track", (route) => route.fulfill({ status: 200, contentType: "application/json", body: trackBody }));
+    await page.route("**/track-event", (route) => route.fulfill({ status: 200, contentType: "application/json", body: trackBody }));
+
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -254,7 +279,12 @@ test.describe("Quick Replies - Shipping Stage", () => {
   });
 
   test("shows freight selection quick replies after address confirmed", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["show_shipping_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["show_shipping_options"],
+      // No-customer start would trigger the auto-registration bootstrap (ADR §3.2)
+      // and consume the scripted step; a verified-email start suppresses it.
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -315,7 +345,10 @@ test.describe("Quick Replies - Shipping Stage", () => {
 
 test.describe("Quick Replies - Payment Stage", () => {
   test("shows payment method quick replies", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -329,7 +362,10 @@ test.describe("Quick Replies - Payment Stage", () => {
   });
 
   test("clicking 'Cartão de crédito' opens card form", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -342,7 +378,10 @@ test.describe("Quick Replies - Payment Stage", () => {
   });
 
   test("clicking 'PIX' triggers payment intent", async ({ page }) => {
-    await setupApiMocks(page, { chatSequence: ["payment_options"] });
+    await setupApiMocks(page, {
+      chatSequence: ["payment_options"],
+      startResponse: startCheckoutResponse(noBootstrapDataCollectionExperience()),
+    });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
@@ -359,18 +398,19 @@ test.describe("Quick Replies - Payment Stage", () => {
     expect(text).toMatch(/pix|pagamento|confirmado/i);
   });
 
-  test("clicking 'Tenho um cupom' shows coupon input", async ({ page }) => {
-    const payExp = paymentExperience();
-    payExp.copy.quick_replies = ["Tenho um cupom de desconto", "Cartão de crédito", "PIX"];
+  test("coupon gate 'Sim' reveals coupon input", async ({ page }) => {
+    // ADR §8: at the payment stage the buyer is first asked "Antes de liberar PIX
+    // ou cartao, voce tem algum cupom?" with Sim/Não chips. Tapping "Sim" opens
+    // the coupon entry box and streams the coupon prompt message.
     await setupApiMocks(page, {
       chatSequence: [],
-      startResponse: startCheckoutResponse(payExp),
+      startResponse: startCheckoutResponse(paymentExperience()),
     });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
 
-    await clickQuickReply(page, /cupom/i);
+    await clickQuickReply(page, /^sim$/i);
     // Coupon box should appear
     const couponBox = page.locator(".aacp-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
@@ -383,17 +423,16 @@ test.describe("Quick Replies - Payment Stage", () => {
   });
 
   test("coupon input submits code and hides after apply", async ({ page }) => {
-    const payExp = paymentExperience();
-    payExp.copy.quick_replies = ["Tenho um cupom de desconto", "Cartão de crédito", "PIX"];
     await setupApiMocks(page, {
       chatSequence: ["coupon_applied"],
-      startResponse: startCheckoutResponse(payExp),
+      startResponse: startCheckoutResponse(paymentExperience()),
     });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
 
-    await clickQuickReply(page, /cupom/i);
+    // ADR §8: tap "Sim" at the coupon gate to open the entry box.
+    await clickQuickReply(page, /^sim$/i);
     const couponBox = page.locator(".aacp-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
 
@@ -410,23 +449,22 @@ test.describe("Quick Replies - Payment Stage", () => {
     expect(text).toMatch(/cupom|desconto|aplicado/i);
   });
 
-  test("clicking 'Boleto' shows unavailable message", async ({ page }) => {
-    const payExp = paymentExperience();
-    payExp.copy.quick_replies = ["Cartão de crédito", "PIX", "Boleto"];
+  test("payment method step offers only card and PIX (boleto not surfaced)", async ({ page }) => {
+    // ADR §8: the payment_method step surfaces exactly Cartão / PIX (+ crypto when
+    // enabled). Boleto is intentionally not an offered method, so no boleto chip
+    // is ever rendered. This replaces an obsolete spec that tapped a "Boleto" chip.
     await setupApiMocks(page, {
       chatSequence: [],
-      startResponse: startCheckoutResponse(payExp),
+      startResponse: startCheckoutResponse(paymentExperience()),
     });
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
     await continueWithoutCoupon(page);
 
-    await clickQuickReply(page, /^boleto$/i);
-    await waitForStreamingDone(page);
-    const bubbles = page.locator(".aacp-bubble-agent");
-    const lastBubble = bubbles.last();
-    const text = await lastBubble.textContent();
-    expect(text).toMatch(/boleto.*n[aã]o.*dispon[ií]vel|n[aã]o.*dispon[ií]vel.*boleto|escolha.*cart[aã]o.*pix/i);
+    const labels = await getQuickReplyLabels(page);
+    expect(labels.some((l) => /cart[aã]o/i.test(l))).toBe(true);
+    expect(labels.some((l) => /pix/i.test(l))).toBe(true);
+    expect(labels.some((l) => /boleto/i.test(l))).toBe(false);
   });
 });

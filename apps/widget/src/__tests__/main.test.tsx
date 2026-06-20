@@ -1956,4 +1956,79 @@ describe("CheckoutAgent (conversational)", () => {
     expect(container.textContent).toContain("Carteira Slim RFID");
     expect(container.querySelectorAll(".aacp-item")).toHaveLength(2);
   });
+
+  it("cross-sell: banner renders when chat response delivers suggestedProducts at payment step", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.endsWith("/embed/start")) {
+        return new Response(JSON.stringify(buildStartResponse(baseTheme)), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        });
+      }
+      if (url.endsWith("/embed/chat")) {
+        const body = JSON.parse(String(init?.body || "{}"));
+        const msg: string = (body.user_message || "").toLowerCase();
+        if (msg.includes("sedex")) {
+          // Reaching payment is where the API attaches cross-sell suggestions.
+          return new Response(
+            JSON.stringify(
+              buildChatResponse("Sedex selecionado! Antes de pagar, veja estes complementos.", "payment", {
+                quickReplies: [],
+                actions: [],
+                experience: {
+                  stage: "payment",
+                  suggestedProducts: [
+                    { sku: "wallet-001", name: "Carteira Slim RFID", unit_price: 129.9 },
+                    { sku: "belt-002", name: "Cinto de Couro Genuíno", unit_price: 89.9 }
+                  ]
+                }
+              })
+            ),
+            { status: 200, headers: { "content-type": "application/json" } }
+          );
+        }
+        return new Response(
+          JSON.stringify(
+            buildChatResponse("Escolha a entrega.", "shipping", {
+              quickReplies: ["PAC (Grátis)", "Sedex (R$ 15,00)"],
+              actions: [],
+              experience: {
+                stage: "shipping",
+                shippingOptions: [
+                  { customerPrice: 0, carrier: "Correios", method: "PAC", deliveryDays: 5 },
+                  { customerPrice: 15, carrier: "Correios", method: "Sedex", deliveryDays: 2 }
+                ]
+              }
+            })
+          ),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      }
+      return new Response(JSON.stringify({}), { status: 200 });
+    });
+
+    const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+    });
+
+    const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "calcular frete" } });
+    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+
+    await waitFor(() => {
+      expect(container.textContent).toContain("Sedex (R$ 15,00)");
+    });
+
+    const sedexQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+      .find((b) => (b.textContent ?? "").includes("Sedex"));
+    fireEvent.click(sedexQr!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".aacp-cross-sell")).not.toBeNull();
+    });
+    expect(container.textContent).toContain("Você também pode gostar");
+    expect(container.querySelectorAll(".aacp-cross-sell-card")).toHaveLength(2);
+  });
 });

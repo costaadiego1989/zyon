@@ -365,6 +365,8 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
     createEmbedPaymentIntentDemo: payment.createEmbedPaymentIntentDemo,
     createPaymentIntent: payment.createPaymentIntent,
     stripeIntent: payment.stripeIntent,
+    pixWaiting: payment.pixWaiting,
+    dismissPixWaiting: payment.dismissPixWaiting,
     onStripePaymentConfirmed: payment.onStripePaymentConfirmed,
     onStripePaymentError: payment.onStripePaymentError,
     colorMode: panels.colorMode,

@@ -21,6 +21,13 @@ test.beforeEach(async ({ page }) => {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async function waitForGreeting(page: import("@playwright/test").Page) {
+  // Dismiss the channel gate (AgentChannelWelcome) if present. On a fresh origin
+  // the widget asks the buyer to pick chat vs voice before rendering the thread;
+  // without choosing, the greeting turns are deferred and never appear.
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  }
   const thread = page.locator(".aacp-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
   const firstBubble = thread.locator(".aacp-bubble-agent").first();
@@ -48,7 +55,8 @@ async function tapQuickReply(page: import("@playwright/test").Page, label: RegEx
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  await tapQuickReply(page, /N(?:a|ã)o tenho cupom/i);
+  // ADR §8: coupon gate quick replies are "Sim" / "Não". Tap "Não" to decline.
+  await tapQuickReply(page, /^N(?:a|ã)o$/i);
   await waitForStreamingDone(page);
 }
 
@@ -82,8 +90,8 @@ test.describe("Payment Confirmation Component", () => {
     // Should show "Pedido confirmado"
     await expect(confirmation).toContainText("Pedido confirmado");
 
-    // Should show order reference
-    await expect(confirmation).toContainText("#");
+    // Should show order reference (ADR §10: "Referência da sessão {sessionRef}")
+    await expect(confirmation).toContainText(/Referência da sessão/i);
   });
 
   test("shows order summary with items and totals", async ({ page }) => {

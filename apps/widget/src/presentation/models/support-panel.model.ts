@@ -3,6 +3,7 @@ export type SupportPanelModel = {
   apiOrigin: string;
   merchantId: string;
   sessionId?: string;
+  embedToken?: string;
   brandName: string;
   onClose: () => void;
 };

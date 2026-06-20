@@ -427,7 +427,8 @@ describe("SupportPanel", () => {
     expect(vi.mocked(useSupportFaq)).toHaveBeenCalledWith(
       "https://api.example.com",
       "mrc_001",
-      false
+      false,
+      undefined
     );
   });
 });

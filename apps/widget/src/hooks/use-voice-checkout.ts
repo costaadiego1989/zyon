@@ -64,6 +64,121 @@ function createVoiceTurnId(): string {
   return `voice_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 }
 
+// Audio quality: pick the best available pt-BR voice. Browser default voices
+// are often robotic; named "natural"/"premium"/cloud voices (Google, Microsoft
+// Online, Luciana, Francisca) sound markedly better. We score candidates and
+// cache the winner, refreshing when the voice list loads asynchronously.
+let cachedPreferredVoice: SpeechSynthesisVoice | null | undefined;
+
+function scorePtBrVoice(voice: SpeechSynthesisVoice): number {
+  const lang = voice.lang?.toLowerCase().replace("_", "-") ?? "";
+  if (!lang.startsWith("pt")) return -1;
+
+  let score = lang === "pt-br" ? 100 : lang.startsWith("pt") ? 40 : 0;
+  const name = voice.name?.toLowerCase() ?? "";
+
+  // Prefer higher-fidelity engines first: cloud/neural voices are dramatically
+  // less robotic than the bundled Windows SAPI fallback (the core complaint).
+  if (/natural|neural|premium|enhanced/.test(name)) score += 48;
+  if (/google/.test(name)) score += 32;
+  if (/online|microsoft/.test(name)) score += 22;
+  // Clara reads as a warm female agent — prefer named female pt-BR voices when
+  // multiple are available (Maria/Francisca/Luciana/Brenda/Thalita/Maria Clara).
+  if (/maria|francisca|luciana|brenda|thalita|giovanna|clara|heloisa/.test(name)) score += 16;
+  if (/daniel|antonio|fabio|julio|ricardo/.test(name)) score += 8;
+  // Local-only fallbacks are usually the lowest quality.
+  if (voice.localService && !/natural|neural|premium|enhanced/.test(name)) score -= 8;
+
+  return score;
+}
+
+function pickPreferredPtBrVoice(): SpeechSynthesisVoice | null {
+  if (typeof window === "undefined" || !window.speechSynthesis) return null;
+  if (typeof window.speechSynthesis.getVoices !== "function") return null;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices?.length) return null;
+
+  let best: SpeechSynthesisVoice | null = null;
+  let bestScore = -1;
+  for (const voice of voices) {
+    const score = scorePtBrVoice(voice);
+    if (score > bestScore) {
+      bestScore = score;
+      best = voice;
+    }
+  }
+  return bestScore >= 0 ? best : null;
+}
+
+function resolvePreferredPtBrVoice(): SpeechSynthesisVoice | null {
+  if (cachedPreferredVoice !== undefined && cachedPreferredVoice !== null) {
+    return cachedPreferredVoice;
+  }
+  const picked = pickPreferredPtBrVoice();
+  if (picked) cachedPreferredVoice = picked;
+  return picked;
+}
+
+// Visual-audio coherence: the on-screen presence orb/waveform should move with
+// the *actual* speech, not a decorative loop. We publish a 0..1 "amplitude" on
+// a CSS custom property that the UI consumes (transform: scaleY based on it).
+// Speech amplitude is driven by real `onboundary` (per-word) events — each word
+// kicks the level up, then a rAF loop decays it, producing a natural envelope
+// that tracks the spoken cadence even within Web Speech's limits.
+const VOICE_AMP_PROP = "--aacp-voice-amp";
+
+function setVoiceAmp(value: number): void {
+  if (typeof document === "undefined" || !document.documentElement) return;
+  const clamped = value < 0 ? 0 : value > 1 ? 1 : value;
+  document.documentElement.style.setProperty(VOICE_AMP_PROP, clamped.toFixed(3));
+}
+
+function createSpeechAmplitudeController() {
+  let raf: number | null = null;
+  let level = 0;
+  const hasRaf =
+    typeof window !== "undefined" && typeof window.requestAnimationFrame === "function";
+
+  const stopLoop = () => {
+    if (raf !== null && typeof window !== "undefined") {
+      window.cancelAnimationFrame(raf);
+    }
+    raf = null;
+  };
+
+  const tick = () => {
+    // Exponential decay toward rest; each word boundary re-energizes `level`.
+    level *= 0.86;
+    setVoiceAmp(level);
+    if (level > 0.02) {
+      raf = window.requestAnimationFrame(tick);
+    } else {
+      level = 0;
+      setVoiceAmp(0);
+      raf = null;
+    }
+  };
+
+  return {
+    // A spoken word just started — punch the level up with a little variation
+    // so the waveform never looks mechanically uniform.
+    pulse() {
+      if (!hasRaf) {
+        setVoiceAmp(0.7);
+        return;
+      }
+      level = Math.min(1, 0.62 + Math.random() * 0.38);
+      setVoiceAmp(level);
+      if (raf === null) raf = window.requestAnimationFrame(tick);
+    },
+    reset() {
+      stopLoop();
+      level = 0;
+      setVoiceAmp(0);
+    },
+  };
+}
+
 export function maskVoiceTranscriptForDisplay(text: string): string {
   return text
     .replace(/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, (email) => {
@@ -140,6 +255,10 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const spokenKeyRef = useRef<string | null>(null);
   const autoListenRef = useRef(false);
+  const ampRef = useRef<ReturnType<typeof createSpeechAmplitudeController> | null>(null);
+  if (ampRef.current === null) {
+    ampRef.current = createSpeechAmplitudeController();
+  }
   const buildPendingTurnRef = useRef(buildPendingTurn);
   const onConfirmTranscriptRef = useRef(onConfirmTranscript);
   const onAgentPlaybackDoneRef = useRef(onAgentPlaybackDone);
@@ -177,6 +296,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     if (typeof window !== "undefined" && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
+    ampRef.current?.reset();
     setSpeaking(false);
   }, []);
 
@@ -201,6 +321,23 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       setHint("Seu navegador ainda não suporta voz aqui. Use o chat para continuar.");
     }
   }, [enabled, stopAll]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const synth = window.speechSynthesis;
+    if (typeof synth.addEventListener !== "function") return;
+    // pt-BR voices often populate asynchronously; (re)resolve the preferred
+    // voice when the list changes so the first utterance can still use it.
+    const refresh = () => {
+      const picked = pickPreferredPtBrVoice();
+      if (picked) cachedPreferredVoice = picked;
+    };
+    refresh();
+    synth.addEventListener("voiceschanged", refresh);
+    return () => {
+      synth.removeEventListener?.("voiceschanged", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -305,14 +442,31 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
 
       const utterance = new SpeechSynthesisUtterance(stripAgentPrefix(text));
       utterance.lang = "pt-BR";
-      utterance.rate = 1;
+      // Audio quality tuning. The Windows default pt-BR SAPI voice sounds robotic
+      // mostly because of its flat, slightly-too-fast delivery. A marginally
+      // slower rate (0.98) plus a touch more pitch (1.04) reads warmer and more
+      // human for conversational copy, and gives the picked neural/cloud voice
+      // (see scorePtBrVoice) room to breathe. A higher-fidelity pt-BR voice is
+      // selected when the browser exposes one.
+      utterance.rate = 0.98;
+      utterance.pitch = 1.04;
+      utterance.volume = 1;
+      const preferredVoice = resolvePreferredPtBrVoice();
+      if (preferredVoice) utterance.voice = preferredVoice;
       utterance.onstart = () => {
         setSpeaking(true);
         stopListening();
+        ampRef.current?.pulse();
         setHint("Estou falando com você...");
+      };
+      // Real per-word boundary events drive the visual amplitude so the orb and
+      // waveform move in time with the actual speech — visual-audio coherence.
+      utterance.onboundary = () => {
+        ampRef.current?.pulse();
       };
       utterance.onend = () => {
         setSpeaking(false);
+        ampRef.current?.reset();
         markPlaybackDone();
         setHint("Toque no microfone quando quiser responder.");
         // P2: read current values from refs instead of the stale closure
@@ -332,6 +486,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
       };
       utterance.onerror = () => {
         setSpeaking(false);
+        ampRef.current?.reset();
         markPlaybackDone();
         setHint("Toque no microfone quando quiser responder.");
       };

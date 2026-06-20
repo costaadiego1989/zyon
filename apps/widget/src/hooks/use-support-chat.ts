@@ -9,6 +9,7 @@ interface UseSupportChatOptions {
   apiBaseUrl: string;
   merchantId: string;
   sessionId?: string;
+  embedToken?: string;
 }
 
 export interface SupportChatState {
@@ -38,7 +39,7 @@ function smartFallback(text: string): string {
   return "Entendo sua dúvida. Nossa equipe responde em até 24h — envie um e-mail para o suporte da loja.";
 }
 
-export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupportChatOptions): SupportChatState {
+export function useSupportChat({ apiBaseUrl, sessionId, embedToken }: UseSupportChatOptions): SupportChatState {
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,11 +55,15 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
 
       try {
         const base = apiBaseUrl.replace(/\/$/, "");
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        // /support/chat derives the merchant from the verified embed token
+        // (ADR-0003); merchant_id is no longer accepted in the body.
+        if (embedToken?.trim()) headers["x-aacp-embed-token"] = embedToken.trim();
         const res = await fetch(`${base}/support/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           credentials: "include",
-          body: JSON.stringify({ message: text.trim(), merchant_id: merchantId, session_id: sessionId }),
+          body: JSON.stringify({ message: text.trim(), session_id: sessionId }),
         });
         const fallback = smartFallback(text);
         if (!res.ok) {
@@ -83,7 +88,7 @@ export function useSupportChat({ apiBaseUrl, merchantId, sessionId }: UseSupport
         setLoading(false);
       }
     },
-    [apiBaseUrl, merchantId, sessionId, loading]
+    [apiBaseUrl, sessionId, embedToken, loading]
   );
 
   const reset = useCallback(() => {

@@ -50,6 +50,16 @@ async function sendChat(page: Page, text: string): Promise<void> {
   await waitForChatIdle(page);
 }
 
+async function dismissChannelGate(page: Page, channel: "chat" | "voice" = "chat"): Promise<void> {
+  const gate = page.locator(".aacp-channel-gate");
+  if (!(await gate.isVisible({ timeout: 15_000 }).catch(() => false))) return;
+  const label = channel === "voice" ? /Comprar por voz/i : /Comprar por chat/i;
+  const button = page.getByRole("button", { name: label });
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+  await expect(gate).toBeHidden({ timeout: 10_000 });
+}
+
 async function waitForTestWebhook(
   request: APIRequestContext,
   bucket: string,
@@ -96,6 +106,7 @@ test.describe("full checkout real @realapi", () => {
     expect(startBody.shipping).toBeUndefined();
 
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page);
     await expect(page.locator(".aacp-shipping-selector")).not.toBeVisible();
 
     const cartBtn = page.locator(".aacp-cart-btn, [aria-label='Carrinho']").first();
@@ -110,6 +121,7 @@ test.describe("full checkout real @realapi", () => {
   test("coupon input not visible before quick reply tap [REQ-CHK-004]", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page);
 
     await page.waitForTimeout(2_000);
     await expect(page.locator(".aacp-coupon-box")).not.toBeVisible();
@@ -119,6 +131,7 @@ test.describe("full checkout real @realapi", () => {
   test("full checkout flow renders without crash", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page);
 
     await expect(page.locator(".aacp-thread")).toBeVisible();
 
@@ -136,20 +149,30 @@ test.describe("full checkout real @realapi", () => {
       (globalThis as any).process = { env: { AACP_DISABLE_STREAMING: "1" } };
     });
 
+    // Fresh, unverified email (no name) so the widget bootstrap auto-submits it
+    // and deterministically advances to the e-mail OTP step. customerJson
+    // overrides the demo page's prefilled customer.
+    const buyerEmail = `diego_${Date.now()}@test.aacp`;
     const startResponse = page.waitForResponse((res) =>
       res.url() === `${API}/embed/start` && res.request().method() === "POST"
     );
-    await page.goto(checkoutUrl(merchantId, embedToken, productId));
+    await page.goto(
+      checkoutUrl(merchantId, embedToken, productId, {
+        customer: { email: buyerEmail, isReturning: false }
+      })
+    );
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page);
     const started = await startResponse;
     expect(started.ok()).toBe(true, `Start failed: ${await started.text()}`);
     const startedBody = await started.json();
     const sessionId = startedBody.session_id as string;
     expect(sessionId).toBeTruthy();
 
-    await sendChat(page, "Diego Costa");
-    const buyerEmail = `diego_${Date.now()}@test.aacp`;
-    await sendChat(page, buyerEmail);
+    // Agent asks for the e-mail verification code after auto-submitting email.
+    await expect(page.locator(".aacp-thread")).toContainText(/c[oó]digo|verifica/i, {
+      timeout: 15_000
+    });
 
     const afterEmail = await request.get(`${API}/checkout/${merchantId}/${sessionId}`);
     expect(afterEmail.ok()).toBe(true, `Checkout session lookup failed: ${await afterEmail.text()}`);
@@ -161,7 +184,8 @@ test.describe("full checkout real @realapi", () => {
 
     await expect(page.getByText("Falha ao falar com a IA")).toHaveCount(0);
     await expect(page.locator(".aacp-composer-form").first()).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator(".aacp-thread")).toContainText(/CPF|telefone|celular/i, { timeout: 10_000 });
+    // After e-mail verification the agent collects the buyer's name next.
+    await expect(page.locator(".aacp-thread")).toContainText(/nome|CPF|telefone|celular/i, { timeout: 10_000 });
 
     const afterOtpHealth = await request.post(`${API}/__test__/seed`);
     expect(afterOtpHealth.ok()).toBe(true, `API did not stay healthy after OTP: ${await afterOtpHealth.text()}`);
@@ -205,6 +229,7 @@ test.describe("full checkout real @realapi", () => {
 
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page);
     await waitForChatIdle(page);
 
     await sendChat(page, "1000");
@@ -212,17 +237,35 @@ test.describe("full checkout real @realapi", () => {
 
     const selector = page.locator(".aacp-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
-    await expect(selector.locator("button").first()).toContainText(/R\$/);
+    // ADR §6.2: when free shipping qualifies, exactly ONE option is the
+    // free/recommended one ("Grátis") and the faster/premium carriers remain
+    // PAID alternatives (matching /R\$/). The selector must contain BOTH a free
+    // and a paid option, and must NOT render every carrier at R$0,00.
+    await expect(selector).toContainText(/Gr[áa]tis/i, { timeout: 10_000 });
+    await expect(selector.getByText(/R\$/).first()).toBeVisible();
+    const optionButtons = selector.locator("button");
+    const optionCount = await optionButtons.count();
+    const freeCount = await selector.getByText(/Gr[áa]tis/i).count();
+    expect(freeCount).toBeGreaterThanOrEqual(1);
+    expect(freeCount).toBeLessThan(optionCount); // not ALL options are free
     await expect(selector).toContainText("Correios");
     await expect(selector).toContainText("PAC");
     await expect(selector).toContainText("Sedex");
     await expect(selector).toContainText("Transportadora");
 
-    await page.locator(".aacp-cart-btn").click();
+    // The cart toggle button is only rendered on narrow viewports; on desktop
+    // the cart panel is always visible in the sidebar. Click it only if shown.
+    const cartBtn = page.locator(".aacp-cart-btn");
+    if (await cartBtn.isVisible().catch(() => false)) {
+      await cartBtn.click();
+    }
     const cart = page.locator("#aacp-cart-panel");
-    await expect(cart).toContainText("Aguardando");
+    await expect(cart).toContainText("A calcular");
 
-    const selected = selector.locator("button").first();
+    // Select a PAID alternative (the first option is now the free/recommended
+    // one per ADR §6.2). Selecting a paid carrier keeps the cart-update
+    // assertion meaningful (frete renders a R$ value, not "Grátis").
+    const selected = selector.locator("button").filter({ hasText: /R\$/ }).first();
     const selectedText = await selected.textContent();
     const selectedMethod = selectedText?.replace(/\s+/g, " ").trim() ?? "";
     const selectionResponse = page.waitForResponse((res) =>
@@ -233,7 +276,7 @@ test.describe("full checkout real @realapi", () => {
     await waitForChatIdle(page);
 
     await expect(selector).toBeHidden({ timeout: 10_000 });
-    await expect(cart).not.toContainText("Aguardando");
+    await expect(cart).not.toContainText("A calcular");
     const cartText = await cart.textContent();
     expect(cartText ?? "").toMatch(/Frete[\s\S]*R\$/);
     expect(selectedMethod).toMatch(/R\$/);
@@ -248,10 +291,12 @@ test.describe("full checkout real @realapi", () => {
     expect(acceptedCrossSell.ok()).toBe(true, `Cross-sell accept failed: ${await acceptedCrossSell.text()}`);
     await expect(cart).toContainText("Carteira Slim RFID", { timeout: 10_000 });
 
-    await expect(page.getByRole("button", { name: "Nao tenho cupom" })).toBeVisible({ timeout: 10_000 });
-    await page.getByRole("button", { name: "Nao tenho cupom" }).click();
+    await expect(page.getByRole("button", { name: "Não" })).toBeVisible({ timeout: 10_000 });
+    await page.getByRole("button", { name: "Não" }).click();
 
-    await page.locator(".aacp-cart-btn").click();
+    if (await cartBtn.isVisible().catch(() => false)) {
+      await cartBtn.click();
+    }
     const paymentResponse = page.waitForResponse((res) =>
       res.url() === `${API}/embed/payment/intents` && res.request().method() === "POST"
     );
@@ -259,10 +304,25 @@ test.describe("full checkout real @realapi", () => {
     const paid = await paymentResponse;
     expect(paid.ok()).toBe(true, `Payment failed: ${await paid.text()}`);
     const paymentBody = await paid.json();
-    expect(paymentBody.status).toBe("approved");
+    // PIX is webhook-driven: the intent starts in requires_action and the
+    // widget polls status until the provider confirms. Drive that confirmation
+    // through the real Asaas webhook so the poll flips to approved.
+    expect(paymentBody.status).toBe("requires_action");
+    const approveWebhook = await request.post(`${API}/webhooks/asaas`, {
+      data: {
+        id: `evt_shipping_${Date.now()}`,
+        event: "PAYMENT_RECEIVED",
+        payment: {
+          id: `asaas_pay_shipping_${Date.now()}`,
+          value: (paymentBody.amountCents as number) / 100,
+          externalReference: paymentBody.id
+        }
+      }
+    });
+    expect(approveWebhook.ok()).toBe(true, `Asaas webhook failed: ${await approveWebhook.text()}`);
 
     const confirmation = page.locator(".aacp-order-confirmation");
-    await expect(confirmation).toBeVisible({ timeout: 10_000 });
+    await expect(confirmation).toBeVisible({ timeout: 15_000 });
     await expect(confirmation).toContainText(/Pedido confirmado|sucesso/i);
     await expect(page.locator(".aacp-composer-wrap")).toHaveCount(0);
   });
@@ -270,8 +330,11 @@ test.describe("full checkout real @realapi", () => {
   test("support panel answers through real support API", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await dismissChannelGate(page);
 
-    await page.getByRole("button", { name: "Abrir suporte" }).click();
+    // The conversational layout exposes the support panel via the header
+    // "Abrir ajuda" control (no floating "Abrir suporte" FAB in this variant).
+    await page.getByRole("button", { name: "Abrir ajuda" }).click();
     const panel = page.locator("aside.aacp-ai-panel");
     await expect(panel).toHaveClass(/open/, { timeout: 5_000 });
 
@@ -293,12 +356,10 @@ test.describe("full checkout real @realapi", () => {
 test.describe("full checkout real API @realapi", () => {
   test("checkout emits tenant webhooks and buyer hub shows inbound tracking timeline", async ({ request, page }) => {
     const bucket = `wh_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const merchantId = `mrc_${bucket}`;
     const merchantEmail = `${bucket}@tenant.test`;
 
     const registered = await request.post(`${API}/auth/register`, {
       data: {
-        merchant_id: merchantId,
         merchant_name: "Tenant E2E",
         email: merchantEmail,
         password: "TenantPass123!"
@@ -306,10 +367,14 @@ test.describe("full checkout real API @realapi", () => {
     });
     expect(registered.ok()).toBe(true, `Merchant register failed: ${await registered.text()}`);
     const auth = await registered.json();
+    // /auth/register assigns the merchant id; use the server-issued one for all
+    // subsequent scoped reads (checkout session, buyer login, purchases).
+    const merchantId = auth.merchant_id as string;
+    expect(merchantId).toBeTruthy();
     const tenantAuth = { Authorization: `Bearer ${auth.access_token}` };
 
     const webhook = await request.post(`${API}/integrations/webhooks`, {
-      headers: tenantAuth,
+      headers: { ...tenantAuth, "Idempotency-Key": `wh-create-${bucket}` },
       data: {
         url: `${API}/__test__/webhook-receiver/${bucket}`,
         events: ["order.approved", "customer.upserted", "order.tracking.updated"],
@@ -320,10 +385,10 @@ test.describe("full checkout real API @realapi", () => {
     expect(webhook.ok()).toBe(true, `Webhook register failed: ${await webhook.text()}`);
 
     const apiKeyResponse = await request.post(`${API}/integrations/api-keys`, {
-      headers: tenantAuth,
+      headers: { ...tenantAuth, "Idempotency-Key": `apikey-create-${bucket}` },
       data: {
         name: "Playwright backend",
-        scopes: ["embed:sessions:create", "orders:tracking:write"]
+        scopes: ["embed:sessions:create", "tracking:write", "tracking:read"]
       }
     });
     expect(apiKeyResponse.ok()).toBe(true, `API key create failed: ${await apiKeyResponse.text()}`);
@@ -332,7 +397,7 @@ test.describe("full checkout real API @realapi", () => {
     expect(apiKey).toBeTruthy();
 
     const embedSession = await request.post(`${API}/embed-sessions`, {
-      headers: tenantAuth,
+      headers: { ...tenantAuth, "Idempotency-Key": `embed-session-${bucket}` },
       data: {
         ttl_seconds: 900,
         allowed_origin: BASE,
@@ -347,7 +412,7 @@ test.describe("full checkout real API @realapi", () => {
 
     const customerEmail = `${bucket}@buyer.test`;
     const start = await request.post(`${API}/embed/start`, {
-      headers: { "x-aacp-embed-token": embedToken },
+      headers: { "x-aacp-embed-token": embedToken, Origin: BASE },
       data: {
         customer: {
           fullName: "Buyer Tracking E2E",
@@ -387,6 +452,7 @@ test.describe("full checkout real API @realapi", () => {
     expect(sessionId).toBeTruthy();
 
     const quote = await request.post(`${API}/embed/shipping/quote`, {
+      headers: { "x-aacp-embed-token": embedToken, Origin: BASE },
       data: {
         session_id: sessionId,
         merchant_id: merchantId,
@@ -400,6 +466,7 @@ test.describe("full checkout real API @realapi", () => {
     const carrierKey = quoteBody.results[0].carrier_key as string;
 
     const selected = await request.post(`${API}/embed/shipping/select`, {
+      headers: { "x-aacp-embed-token": embedToken, Origin: BASE },
       data: {
         session_id: sessionId,
         merchant_id: merchantId,
@@ -409,7 +476,7 @@ test.describe("full checkout real API @realapi", () => {
     expect(selected.ok()).toBe(true, `Select shipping failed: ${await selected.text()}`);
 
     const payment = await request.post(`${API}/embed/payment/intents`, {
-      headers: { "x-aacp-embed-token": embedToken },
+      headers: { "x-aacp-embed-token": embedToken, Origin: BASE },
       data: {
         session_id: sessionId,
         idempotency_key: `pay_${bucket}`,
@@ -418,9 +485,32 @@ test.describe("full checkout real API @realapi", () => {
     });
     expect(payment.ok()).toBe(true, `Payment failed: ${await payment.text()}`);
     const paid = await payment.json();
-    expect(paid.status).toBe("approved");
-    const externalOrderId = paid.providerPaymentId as string;
-    expect(externalOrderId).toBeTruthy();
+    // PIX is never approved synchronously: the intent sits in requires_action
+    // until the provider confirms via webhook (production never auto-approves).
+    expect(paid.status).toBe("requires_action");
+    const paymentIntentId = paid.id as string;
+    expect(paymentIntentId).toBeTruthy();
+
+    // Drive approval through the real Asaas webhook path. The provider sets the
+    // payment's externalReference to the intent id, so the webhook resolves the
+    // intent, validates the amount, marks it approved, and emits the
+    // order.approved + customer.upserted outbox events. The order's
+    // external_order_id is the provider payment id carried by the webhook.
+    const asaasPaymentId = `asaas_pay_${bucket}`;
+    const approveWebhook = await request.post(`${API}/webhooks/asaas`, {
+      data: {
+        id: `evt_${bucket}`,
+        event: "PAYMENT_RECEIVED",
+        payment: {
+          id: asaasPaymentId,
+          value: (paid.amountCents as number) / 100,
+          externalReference: paymentIntentId
+        }
+      }
+    });
+    expect(approveWebhook.ok()).toBe(true, `Asaas webhook failed: ${await approveWebhook.text()}`);
+
+    const externalOrderId = asaasPaymentId;
 
     const approvedWebhook = await waitForTestWebhook(request, bucket, "order.approved");
     expect(approvedWebhook.headers["x-aacp-signature"]).toBeTruthy();
@@ -436,7 +526,7 @@ test.describe("full checkout real API @realapi", () => {
 
     const trackingCode = `BR${Date.now().toString().slice(-9)}AA`;
     const tracked = await request.put(`${API}/integrations/orders/${externalOrderId}/tracking`, {
-      headers: { "x-aacp-api-key": apiKey },
+      headers: { "x-aacp-api-key": apiKey, "Idempotency-Key": `track-${bucket}` },
       data: {
         tracking_code: trackingCode,
         carrier: "Correios",
@@ -552,7 +642,10 @@ test.describe("full checkout real API @realapi", () => {
 
     await page.goto(hubUrl.toString());
     await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
-    await page.getByRole("button", { name: "Minha conta" }).click();
+    await dismissChannelGate(page);
+    // The account chip's accessible name is "Abrir conta" for a recognized
+    // buyer session and "Minha conta" otherwise; target the stable class.
+    await page.locator(".aacp-user-chip").click();
     const userPanel = page.locator(".aacp-user-panel");
     await expect(userPanel).toBeVisible({ timeout: 10_000 });
     await userPanel.getByRole("button", { name: "Pedidos" }).click();
@@ -625,11 +718,10 @@ test.describe("full checkout real API @realapi", () => {
     const quote = await request.post(`${API}/embed/shipping/quote`, {
       data: {
         session_id: startedBody.session_id,
-        merchant_id: merchantId,
         destination_zip: "01310100",
         cart_total: 150.0
       },
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json", "x-aacp-embed-token": embedToken }
     });
 
     expect(quote.ok()).toBe(true, `Quote failed: ${await quote.text()}`);

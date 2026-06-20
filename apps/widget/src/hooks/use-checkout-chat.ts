@@ -101,7 +101,17 @@ export function useCheckoutChat(
     const list: QuickReplyChoice[] = [];
 
     if (!lastChat) {
-      list.push(...DEFAULT_QUICK_REPLIES);
+      // Greeting quick replies belong to the opening only. Some buyer
+      // interactions advance the conversation through syncExperience without
+      // setting lastChat (catalog search/add, coupon, cross-sell accept, apply
+      // offer), which previously left lastChat null and re-injected the
+      // greeting chips. Only show them while the buyer hasn't interacted yet
+      // and the experience is still at the opening stage.
+      const hasInteracted =
+        turns.some((turn) => turn.role === "buyer") || checkoutStage !== "data_collection";
+      if (!hasInteracted) {
+        list.push(...DEFAULT_QUICK_REPLIES);
+      }
       if (activeExperience.copy.quick_replies.length > 0) {
         list.push(...activeExperience.copy.quick_replies.map((label) => ({ label })));
       }

@@ -23,6 +23,12 @@ export interface QuickReplyChoice {
   offerId?: string;
 }
 
+export const COUPON_PROMPT_MESSAGE =
+  "Digite o código do cupom para eu aplicar antes de liberar o pagamento.";
+export const COUPON_ENTRY_MESSAGE =
+  "Insira o código do seu cupom abaixo para aplicar o desconto.";
+export const COUPON_SKIP_REPLY_LABEL = "Continuar sem cupom";
+
 export const STAGE_FLOW = [
   { key: "data_collection", label: "Cadastro", shortLabel: "Cadastro" },
   { key: "shipping", label: "Entrega", shortLabel: "Entrega" },
@@ -401,6 +407,7 @@ export function filterCheckoutQuickReplies(
       return [...productChips, { label: "Não agora" }, { label: "Ir para pagamento" }];
     }
     if (context.prePaymentStep === "coupon_gate") return [{ label: "Sim" }, { label: "Não" }];
+    if (context.prePaymentStep === "coupon_entry") return [{ label: COUPON_SKIP_REPLY_LABEL }];
     if (context.prePaymentStep !== "payment_method") return [];
     return replies.filter((reply) => {
       const label = normalizeQuickReplyLabel(reply.label);

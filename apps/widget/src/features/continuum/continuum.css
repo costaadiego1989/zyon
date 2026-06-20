@@ -519,14 +519,27 @@
 
 .checkout-experience.aacp-widget--conversational
   .aacp-conversation-agent {
-  display: block;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   margin-bottom: 10px;
-  color: var(--continuum-success);
+  color: var(--continuum-accent);
   font-family: var(--continuum-operational);
   font-size: 8px;
   font-weight: 500;
   letter-spacing: 0.15em;
   text-transform: uppercase;
+}
+
+.checkout-experience.aacp-widget--conversational
+  .aacp-conversation-agent::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--continuum-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--continuum-accent) 18%, transparent);
+  animation: aacp-presence-blink 1.6s ease-in-out infinite;
 }
 
 .checkout-experience.aacp-widget--conversational
@@ -554,16 +567,23 @@
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-conversation-orbit {
+  position: relative;
   display: grid;
   width: 58px;
   height: 58px;
   place-items: center;
   overflow: hidden;
   border: 1px solid
-    color-mix(in oklch, var(--continuum-success) 22%, var(--continuum-line));
+    color-mix(in oklch, var(--continuum-accent) 26%, var(--continuum-line));
   border-radius: 50%;
-  background: var(--aacp-enterprise-success-soft);
-  color: var(--continuum-success);
+  background:
+    radial-gradient(circle at 32% 24%, color-mix(in oklch, white 30%, transparent), transparent 56%),
+    color-mix(in oklch, var(--continuum-accent) 12%, var(--continuum-surface));
+  color: var(--continuum-accent);
+  box-shadow:
+    0 0 0 1px color-mix(in oklch, var(--continuum-surface) 80%, transparent) inset,
+    0 0 28px color-mix(in oklch, var(--continuum-accent) 26%, transparent);
+  animation: aacp-presence-breathe 4.5s ease-in-out infinite;
 }
 
 .checkout-experience.aacp-widget--conversational
@@ -619,16 +639,18 @@
   .aacp-bubble-meta-avatar {
   width: 24px;
   height: 24px;
-  border: 0;
+  border: 1px solid color-mix(in oklch, var(--continuum-accent) 32%, var(--continuum-line));
   border-radius: 8px;
-  background: var(--continuum-ink);
-  color: var(--continuum-surface);
+  background:
+    radial-gradient(circle at 34% 26%, color-mix(in oklch, white 26%, transparent), transparent 56%),
+    color-mix(in oklch, var(--continuum-accent) 16%, var(--continuum-surface));
+  color: var(--continuum-accent);
 }
 
 .checkout-experience.aacp-widget--conversational
   .is-active-turn
   .aacp-bubble-meta-name {
-  color: var(--continuum-success);
+  color: var(--continuum-accent);
   font-family: var(--continuum-operational);
   font-size: 8px;
   font-weight: 500;
@@ -642,16 +664,19 @@
   max-width: min(620px, 94%);
   padding: 17px 20px;
   border: 1px solid
-    color-mix(in oklch, var(--continuum-line) 82%, transparent);
+    color-mix(in oklch, var(--continuum-accent) 18%, var(--continuum-line));
   border-radius: 18px 18px 18px 5px;
-  background: var(--continuum-surface);
+  background:
+    radial-gradient(120% 100% at 0% 0%, color-mix(in oklch, var(--continuum-accent) 5%, transparent), transparent 60%),
+    var(--continuum-surface);
   color: var(--continuum-ink);
   font-size: 16px;
   font-weight: 450;
   letter-spacing: -0.014em;
   line-height: 1.52;
-  box-shadow: 0 16px 34px
-    color-mix(in oklch, var(--continuum-ink) 7%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in oklch, white 50%, transparent) inset,
+    0 16px 34px color-mix(in oklch, var(--continuum-ink) 8%, transparent);
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-bubble-buyer {
@@ -659,9 +684,14 @@
   padding: 9px 13px;
   border-color: var(--continuum-ink);
   border-radius: 13px 13px 4px;
-  background: var(--continuum-ink);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--continuum-ink) 92%, var(--continuum-accent)),
+    var(--continuum-ink)
+  );
   color: var(--continuum-surface);
   font-size: 11px;
+  box-shadow: 0 8px 20px color-mix(in oklch, var(--continuum-ink) 18%, transparent);
 }
 
 .checkout-experience.aacp-widget--conversational .aacp-typing {
@@ -1384,5 +1414,27 @@
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Agent-presence motif shared with the voice canvas: a calm breathing orbit
+   and a live "is the agent here" pulse on the active turn. */
+@keyframes aacp-presence-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes aacp-presence-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
   }
 }

@@ -1,6 +1,8 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
-export const REALAPI_URL = "http://localhost:3000";
+// Force IPv4: on this host `localhost` resolves to ::1 first, where neither the
+// API (binds IPv4) nor the Docker pg port-proxy answer — handshakes hang/refuse.
+export const REALAPI_URL = "http://127.0.0.1:3000";
 export const REALAPI_BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
 export function checkoutUrl(
@@ -26,6 +28,43 @@ export async function seedCheckout(request: APIRequestContext) {
     return null;
   }
   return seed.json() as Promise<{ merchantId: string; embedToken: string; productId: string }>;
+}
+
+/**
+ * The conversational checkout opens with a channel-gate modal ("Sou Zion")
+ * that asks the buyer to pick voice or chat. Greeting turns and the composer
+ * stay gated until a channel is chosen (see use-checkout-chat `channelReady`),
+ * and the modal overlay intercepts pointer events. Real-API specs must dismiss
+ * it exactly like a buyer would before driving the chat surface.
+ */
+export async function dismissChannelGate(
+  page: Page,
+  channel: "chat" | "voice" = "chat",
+): Promise<void> {
+  const gate = page.locator(".aacp-channel-gate");
+  if (!(await gate.isVisible({ timeout: 15_000 }).catch(() => false))) return;
+  const label = channel === "voice" ? /Comprar por voz/i : /Comprar por chat/i;
+  const button = page.getByRole("button", { name: label });
+  // Channel buttons stay disabled until the session is ready (channelReady).
+  await expect(button).toBeEnabled({ timeout: 15_000 });
+  await button.click();
+  await expect(gate).toBeHidden({ timeout: 10_000 });
+}
+
+/**
+ * Navigate to the conversational checkout and dismiss the channel-gate so the
+ * chat thread + composer are interactive. Returns once `.aacp-thread` is shown.
+ */
+export async function openChatCheckout(
+  page: Page,
+  merchantId: string,
+  embedToken: string,
+  productId: string,
+  opts: { customer?: Record<string, unknown> } = {},
+): Promise<void> {
+  await page.goto(checkoutUrl(merchantId, embedToken, productId, opts));
+  await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+  await dismissChannelGate(page, "chat");
 }
 
 export async function waitForChatIdle(page: Page): Promise<void> {

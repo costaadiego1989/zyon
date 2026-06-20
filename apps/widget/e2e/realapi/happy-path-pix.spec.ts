@@ -5,9 +5,9 @@
  * verifies pix_code copy button renders.
  */
 import { test, expect } from "@playwright/test";
+import { openChatCheckout } from "../fixtures/realapi-helpers.js";
 
 const API = "http://localhost:3000";
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
 test.describe("@realapi happy-path pix", () => {
   let merchantId: string;
@@ -20,8 +20,7 @@ test.describe("@realapi happy-path pix", () => {
   });
 
   test("PIX option renders when payment step reached", async ({ page }) => {
-    await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
     const payBtn = page.locator("[data-testid='pay-button'], .aacp-pay-btn").first();
     if (await payBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {

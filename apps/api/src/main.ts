@@ -5,6 +5,7 @@ import { dirname, resolve } from "node:path";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
+import { E2eAppModule } from "./e2e-app.module.js";
 import { resolveCorsConfig } from "./shared/config/cors-config.js";
 import { resolveSecurityHeaders } from "./shared/config/security-headers-config.js";
 import { configureApiDocumentation } from "./shared/http/api-documentation.js";
@@ -22,7 +23,13 @@ loadDotenv({ path: resolve(__dirname, "../../../.env"), override: false });
 async function bootstrap() {
   assertRequiredSecretsInProduction(PRODUCTION_REQUIRED_SECRETS);
 
-  const app = await NestFactory.create(AppModule, { rawBody: true });
+  // AppModule is production-pure. Non-production runs that need the seed +
+  // coupon/cross-sell admin routes boot the e2e composition root instead.
+  const useE2eComposition =
+    process.env.E2E_SEED_ENABLED === "true" && process.env.NODE_ENV !== "production";
+  const rootModule = useE2eComposition ? E2eAppModule : AppModule;
+
+  const app = await NestFactory.create(rootModule, { rawBody: true });
   app.enableCors(resolveCorsConfig());
   app.use(apiVersioningMiddleware);
 

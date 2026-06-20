@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Global, Module } from "@nestjs/common";
 import { CROSS_SELL_PROMOTION_REPOSITORY } from "./domain/ports/cross-sell-promotion-repository.port.js";
 import { CROSS_SELL_SUGGESTION_REPOSITORY } from "./domain/ports/cross-sell-suggestion-repository.port.js";
 import { InMemoryCrossSellPromotionRepository } from "./infrastructure/repositories/in-memory-cross-sell-promotion.repository.js";
@@ -11,6 +11,7 @@ import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
 
+@Global()
 @Module({
   controllers: [MerchantCrossSellController],
   providers: [
@@ -25,6 +26,11 @@ import { MerchantCrossSellController } from "./presentation/http/merchant-cross-
     AcceptCrossSellSuggestionUseCase,
     DeclineCrossSellSuggestionUseCase
   ],
-  exports: [ListEligibleCrossSellsUseCase, AcceptCrossSellSuggestionUseCase, DeclineCrossSellSuggestionUseCase]
+  exports: [
+    CreateCrossSellPromotionUseCase,
+    ListEligibleCrossSellsUseCase,
+    AcceptCrossSellSuggestionUseCase,
+    DeclineCrossSellSuggestionUseCase
+  ]
 })
 export class CrossSellModule {}

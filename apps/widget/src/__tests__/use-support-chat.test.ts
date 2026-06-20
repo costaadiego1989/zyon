@@ -8,6 +8,7 @@ const DEFAULT_OPTS = {
   apiBaseUrl: "https://api.example.com",
   merchantId: "mrc_001",
   sessionId: "sess_abc",
+  embedToken: "tok.embed.support",
 };
 
 function jsonResponse(body: unknown, status = 200) {
@@ -119,7 +120,7 @@ describe("useSupportChat", () => {
     expect(url).toBe("https://api.example.com/support/chat");
   });
 
-  it("C09 — send: payload contém message, merchant_id e session_id corretos", async () => {
+  it("C09 — send: payload contém message e session_id; merchant deriva do token de embed", async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ reply: "Ok" }));
     const { result } = renderHook(() => useSupportChat(DEFAULT_OPTS));
 
@@ -127,11 +128,14 @@ describe("useSupportChat", () => {
 
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse((init as RequestInit).body as string);
+    // ADR-0003: merchant_id is no longer sent — it is derived from the
+    // verified embed token, passed via the x-aacp-embed-token header.
     expect(body).toEqual({
       message: "Qual o prazo?",
-      merchant_id: "mrc_001",
       session_id: "sess_abc",
     });
+    const headers = (init as RequestInit).headers as Record<string, string>;
+    expect(headers["x-aacp-embed-token"]).toBe("tok.embed.support");
   });
 
   it("C10 — send: message trimada antes de enviar e exibir", async () => {

@@ -50,7 +50,7 @@ test.describe("@realapi voice checkout", () => {
     await expect(page.locator(".aacp-voice-mic")).toBeVisible();
   });
 
-  test("happy path: cliente verificado → frete por voz → PIX → Pedido confirmado", async ({ page }) => {
+  test("happy path: cliente verificado → frete por voz → PIX → Pedido confirmado", async ({ page, request }) => {
     test.setTimeout(180_000);
 
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `voice_${Date.now()}@test.aacp` };
@@ -59,7 +59,8 @@ test.describe("@realapi voice checkout", () => {
     await page.getByRole("button", { name: /Comprar por voz/i }).click();
     await expect(page.locator("[data-channel='voice']")).toBeVisible({ timeout: 10_000 });
 
-    await waitForVoicePrompt(page, /numero|complemento|frete|endereco/i);
+    // The agent opens with a greeting (no field ask); the buyer speaks first.
+    await waitForVoicePrompt(page, /ajudar|finalizar|pedido|compra/i);
     await answerAndWaitForPrompt(page, "1000 apartamento 12", /frete|pac|sedex|cupom|pagamento/i);
 
     const selector = page.locator(".aacp-shipping-selector");
@@ -78,7 +79,22 @@ test.describe("@realapi voice checkout", () => {
     const paid = await paymentResponse;
     expect(paid.ok()).toBe(true, `Payment failed: ${await paid.text()}`);
     const paymentBody = await paid.json();
-    expect(paymentBody.status).toBe("approved");
+    // PIX never approves synchronously: the intent stays in requires_action and
+    // the widget polls status until the provider webhook confirms. Drive that
+    // confirmation through the real Asaas webhook so the voice flow completes.
+    expect(paymentBody.status).toBe("requires_action");
+    const approveWebhook = await request.post(`${REALAPI_URL}/webhooks/asaas`, {
+      data: {
+        id: `evt_voice_${Date.now()}`,
+        event: "PAYMENT_RECEIVED",
+        payment: {
+          id: `asaas_pay_voice_${Date.now()}`,
+          value: (paymentBody.amountCents as number) / 100,
+          externalReference: paymentBody.id,
+        },
+      },
+    });
+    expect(approveWebhook.ok()).toBe(true, `Asaas webhook failed: ${await approveWebhook.text()}`);
 
     await expect(page.locator("[data-channel='voice'][data-stage='completed']")).toBeVisible({
       timeout: 15_000,

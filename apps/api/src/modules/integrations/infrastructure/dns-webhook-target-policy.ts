@@ -12,7 +12,21 @@ export class DnsWebhookTargetPolicy implements WebhookTargetPolicy {
     } catch {
       throw new BadRequestException("invalid_webhook_url");
     }
-    if (url.username || url.password || url.protocol !== "https:") {
+    if (url.username || url.password) {
+      throw new BadRequestException("webhook_url_must_be_https");
+    }
+
+    // Non-production exception: allow plain http to loopback hosts so local
+    // and e2e environments can register a localhost webhook receiver. The
+    // SSRF guard below still applies to every other target.
+    const isLoopbackHttp =
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
+    if (isLoopbackHttp && process.env.NODE_ENV !== "production") {
+      return url.toString();
+    }
+
+    if (url.protocol !== "https:") {
       throw new BadRequestException("webhook_url_must_be_https");
     }
     if (url.port && url.port !== "443") {

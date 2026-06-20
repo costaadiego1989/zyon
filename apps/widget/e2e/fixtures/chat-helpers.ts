@@ -3,8 +3,13 @@ import { setupApiMocks, type FlowStep, type MockApiOptions } from "./api-mocks.j
 
 export const CHAT_BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
+// Drives a full data-collection → shipping handoff via completeChatRegistration's
+// 7 explicit messages (name, email, cpf, phone, cep, confirm, number). The
+// bootstrap is suppressed by starting from a verified-email experience, so the
+// FIRST message (name) maps to ask_email — there is NO leading ask_name step to
+// be eaten. msg7 (number) yields show_shipping_options; the PAC click consumes
+// shipping_selected.
 export const CHAT_REGISTRATION_SEQUENCE: FlowStep[] = [
-  "ask_name",
   "ask_email",
   "ask_cpf",
   "ask_phone",
@@ -24,8 +29,12 @@ export async function installChatTestInit(page: Page) {
 }
 
 export async function ensureChatChannel(page: Page) {
-  const dialog = page.getByRole("dialog");
-  if (await dialog.isVisible({ timeout: 3_000 }).catch(() => false)) {
+  // On a fresh origin the widget shows the channel gate (chat vs voice) before
+  // rendering the thread. Use the specific gate selector with a timeout so the
+  // check waits for the gate to render instead of racing it; idempotent when the
+  // gate is auto-skipped (e.g. recognized buyer) or already dismissed.
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
 }

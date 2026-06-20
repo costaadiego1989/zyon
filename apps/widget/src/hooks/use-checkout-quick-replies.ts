@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import type { ShippingQuote, SuggestedProduct } from "@aacp/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import {
+  COUPON_ENTRY_MESSAGE,
+  COUPON_PROMPT_MESSAGE,
+  COUPON_SKIP_REPLY_LABEL,
   filterCheckoutQuickReplies,
   matchShippingOptionFromLabel,
   normalizeQuickReplyLabel,
@@ -110,15 +113,33 @@ export function useCheckoutQuickReplies(input: UseCheckoutQuickRepliesInput) {
       }
     }
 
+    if (input.checkoutStage === "payment" && input.prePaymentStep === "coupon_entry") {
+      if (normalizeQuickReplyLabel(reply.label) === normalizeQuickReplyLabel(COUPON_SKIP_REPLY_LABEL)) {
+        input.setCouponInputVisible(false);
+        input.setPrePaymentStep("payment_method");
+        if (input.offer?.approved && input.visibleTotals.discount === 0) {
+          await input.applyOffer();
+          input.appendAgentTurn(
+            input.offer.type === "discount_percent" && (input.offer.value ?? 0) > 0
+              ? `Sem problema. Liberamos ${input.offer.value}% de desconto para voce finalizar agora.`
+              : "Perfeito. Liberamos uma condicao especial para voce finalizar agora.",
+            { stream: true },
+          );
+        } else {
+          input.appendAgentTurn("Perfeito. Agora escolha a forma de pagamento para finalizar.", {
+            stream: true,
+          });
+        }
+        return;
+      }
+    }
+
     if (input.checkoutStage === "payment" && input.prePaymentStep === "coupon_gate") {
       const normalized = normalizeQuickReplyLabel(reply.label);
       if (normalized === "sim" || /^(sim|tenho|usar|informar).*\bcupom\b/.test(normalized)) {
         input.setCouponInputVisible(true);
         input.setPrePaymentStep("coupon_entry");
-        input.appendAgentTurn(
-          "Digite o codigo do cupom para eu aplicar antes de liberar o pagamento.",
-          { stream: true },
-        );
+        input.appendAgentTurn(COUPON_PROMPT_MESSAGE, { stream: true });
         return;
       }
       if (normalized === "nao" || /^(nao|sem)\b.*cupom|^nao tenho cupom$/.test(normalized)) {
@@ -144,10 +165,7 @@ export function useCheckoutQuickReplies(input: UseCheckoutQuickRepliesInput) {
     if (input.checkoutStage === "payment" && /^(sim|tenho|usar|informar).*\bcupom\b/i.test(reply.label)) {
       input.setCouponInputVisible(true);
       input.setPrePaymentStep("coupon_entry");
-      input.appendAgentTurn(
-        "Digite o codigo do cupom para eu aplicar antes de liberar o pagamento.",
-        { stream: true },
-      );
+      input.appendAgentTurn(COUPON_PROMPT_MESSAGE, { stream: true });
       return;
     }
 
@@ -185,9 +203,7 @@ export function useCheckoutQuickReplies(input: UseCheckoutQuickRepliesInput) {
     if (/^(tenho|adicionar|usar|inserir|informar)\b.*\bcupom\b/i.test(reply.label)) {
       input.setCouponInputVisible(true);
       input.setPrePaymentStep("coupon_entry");
-      input.appendAgentTurn("Insira o codigo do seu cupom abaixo para aplicar o desconto.", {
-        stream: true,
-      });
+      input.appendAgentTurn(COUPON_ENTRY_MESSAGE, { stream: true });
       return;
     }
 

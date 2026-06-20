@@ -18,7 +18,7 @@ import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
-import { RoutingPaymentAdapter } from "./infrastructure/routing-payment.adapter.js";
+import { resolvePaymentProvider } from "./infrastructure/e2e-payment-provider.js";
 import { EvmCryptoPaymentAdapter } from "./infrastructure/evm-crypto-payment.adapter.js";
 import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapter.js";
 import { PaymentHttpController } from "./presentation/http/payment.controller.js";
@@ -119,14 +119,14 @@ import {
         http: HttpClientService,
       ) => {
         const { baseUrl } = readAsaasConnection();
-        return new RoutingPaymentAdapter(
-          isStripeConfigured() ? stripe : null,
-          isAsaasConfigured() ? asaas : null,
+        return resolvePaymentProvider({
+          stripe: isStripeConfigured() ? stripe : null,
+          asaas: isAsaasConfigured() ? asaas : null,
           evmCrypto,
           platformConnections,
-          baseUrl,
-          http.toFetch(),
-        );
+          asaasBaseUrl: baseUrl,
+          fetchImpl: http.toFetch(),
+        });
       },
       inject: [
         AsaasPaymentAdapter,

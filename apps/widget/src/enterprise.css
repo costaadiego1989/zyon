@@ -1061,6 +1061,11 @@
   box-shadow: none;
 }
 
+/* Coupon submit must match the coupon input height (44px) so the row aligns. */
+.aacp-widget--conversational .aacp-coupon-submit {
+  min-height: 44px;
+}
+
 .aacp-widget--conversational .aacp-coupon-box input {
   min-height: 44px;
   border-color: var(--aacp-enterprise-line);

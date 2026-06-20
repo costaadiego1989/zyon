@@ -134,6 +134,21 @@ export const SHIPPING_OPTIONS: ShippingQuote[] = [
   { customerPrice: 29.9, realCost: 22.0, carrier: "Correios", method: "Sedex", deliveryDays: 3, region: "SP" },
 ];
 
+// A buyer who has finished data collection (ADR §1.1: name + email + email_verified
+// + cpf + phone + phone_verified are required to leave `data_collection`). Stage
+// experiences (shipping/payment) MUST carry this to be contract-coherent, and its
+// `email_verified` flag also suppresses the auto-registration bootstrap
+// (ADR §3.2 / checkout-presentation.shouldSkipAutoRegistration) so a test's
+// scripted chatSequence is not consumed by an unrelated bootstrap call.
+const REGISTERED_CUSTOMER = {
+  email: "buyer@e2e.test",
+  email_verified: true,
+  fullName: "João Silva",
+  cpf: "12345678900",
+  phone: "11988887777",
+  phone_verified: true,
+};
+
 // ─── Experience builders ──────────────────────────────────────────────────────
 
 export function buildExperience(overrides: Partial<CheckoutExperienceSnapshot> = {}): CheckoutExperienceSnapshot {
@@ -156,11 +171,20 @@ export function dataCollectionExperience(quickReplies?: string[]): CheckoutExper
   });
 }
 
+export function noBootstrapDataCollectionExperience(): CheckoutExperienceSnapshot {
+  return buildExperience({
+    stage: "data_collection",
+    customer: { email: "buyer@e2e.test", email_verified: true },
+    copy: { ...BASE_COPY, quick_replies: ["Olá!", "Quero finalizar agora"] },
+  });
+}
+
 export function shippingExperience(opts?: { withOptions?: boolean; selected?: ShippingQuote }): CheckoutExperienceSnapshot {
   const shipping = opts?.selected ?? undefined;
   const shippingCost = shipping?.customerPrice ?? 0;
   return buildExperience({
     stage: "shipping",
+    customer: REGISTERED_CUSTOMER,
     shipping,
     shippingOptions: opts?.withOptions ? SHIPPING_OPTIONS : undefined,
     totals: { ...BASE_TOTALS, shipping: shippingCost, total: BASE_TOTALS.subtotal + shippingCost },
@@ -172,6 +196,7 @@ export function paymentExperience(discount = 0): CheckoutExperienceSnapshot {
   const shippingCost = 19.9;
   return buildExperience({
     stage: "payment",
+    customer: REGISTERED_CUSTOMER,
     shipping: SHIPPING_OPTIONS[0],
     totals: {
       ...BASE_TOTALS,

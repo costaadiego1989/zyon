@@ -50,6 +50,13 @@ async function waitForStreamingDone(page: import("@playwright/test").Page) {
 }
 
 async function waitForGreeting(page: import("@playwright/test").Page) {
+  // Dismiss the channel gate (AgentChannelWelcome) if present. On a fresh origin
+  // the widget asks the buyer to pick chat vs voice before rendering the thread;
+  // without choosing, the greeting turns are deferred and never appear.
+  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
+    await page.getByRole("button", { name: /Comprar por chat/i }).click();
+  }
   const thread = page.locator(".aacp-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
   await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
@@ -76,7 +83,8 @@ async function waitForAgentReply(page: import("@playwright/test").Page) {
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  const noCoupon = page.locator(".aacp-chip", { hasText: /N(?:a|ã)o tenho cupom/i }).first();
+  // ADR §8: coupon gate quick replies are "Sim" / "Não". Tap "Não" to decline.
+  const noCoupon = page.locator(".aacp-chip", { hasText: /^N(?:a|ã)o$/i }).first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
   await waitForStreamingDone(page);
