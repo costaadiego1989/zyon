@@ -1,0 +1,216 @@
+import type {
+  Bundle,
+  Coupon,
+  Customer,
+  FaceUser,
+  Order,
+  Product,
+  PulseAPIConfig,
+  ShippingOption,
+  TenantDiscount,
+} from './types';
+import { buildCouponFromTenant, resolveTenantDiscount } from '../config/tenantDiscount';
+
+export class PulseAPI {
+  storeName: string;
+  agentName: string;
+  currency: string;
+  baseUrl: string;
+  discount: Required<TenantDiscount>;
+
+  private merchantId: string;
+  private sessionToken: string | null;
+  private sessionId: string | null;
+  private _initialCart: { product: Product; qty: number } | undefined;
+  private _initialCustomer: Partial<Customer> | undefined;
+
+  private _fallbackCatalog: Product[] = [
+    { id: 'sd8', title: 'Smart Display 8', subtitle: 'Controla seu speaker por voz e vídeo.', price: 649, tags: ['display', 'tela', 'casa', 'smart'] },
+    { id: 'spk', title: 'Smart Speaker mini', subtitle: 'Som ambiente com assistente integrado.', price: 349, tags: ['speaker', 'som', 'casa', 'smart'] },
+    { id: 'bulb', title: 'Lâmpada inteligente RGB', subtitle: 'Mude a cor pelo app ou por voz.', price: 89, tags: ['lampada', 'luz', 'cor', 'smart'] },
+    { id: 'cam', title: 'Câmera de segurança HD', subtitle: 'Monitoramento 24h com visão noturna.', price: 299, tags: ['camera', 'segurança', 'hd', 'monitoramento'] },
+    { id: 'plug', title: 'Tomada inteligente Wi-Fi', subtitle: 'Automatize qualquer aparelho.', price: 99, tags: ['tomada', 'plug', 'energia'] },
+    { id: 'vac', title: 'Robô aspirador Lite', subtitle: 'Limpeza automática com mapeamento.', price: 1299, tags: ['robo', 'aspirador', 'limpeza'] },
+  ];
+
+  constructor(config: PulseAPIConfig = {}) {
+    this.storeName = config.storeName || 'Aurora Home';
+    this.agentName = config.agentName || 'Pulse';
+    this.currency = config.currency || 'BRL';
+    this.baseUrl = config.baseUrl?.replace(/\/$/, '') || '';
+    this.discount = resolveTenantDiscount({ discount: config.discount });
+    this.merchantId = config.merchantId || 'mrc_demo';
+    this.sessionToken = config.sessionToken ?? null;
+    this.sessionId = config.sessionId ?? null;
+    this._initialCart = config.initialCart;
+    this._initialCustomer = config.initialCustomer;
+  }
+
+  private _wait<T>(value: T, ms = 460): Promise<T> {
+    return new Promise((res) => setTimeout(() => res(value), ms));
+  }
+
+  private _headers(): Record<string, string> {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (this.sessionToken) h['Authorization'] = `Bearer ${this.sessionToken}`;
+    return h;
+  }
+
+  async getCart(): Promise<{ product: Product; qty: number }> {
+    if (this._initialCart) return this._wait(this._initialCart, 200);
+    return this._wait({ product: this._fallbackCatalog[0], qty: 1 });
+  }
+
+  async searchProducts(query: string): Promise<Product[]> {
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const q = encodeURIComponent(query);
+        const r = await fetch(
+          `${this.baseUrl}/embed/catalog/search?q=${q}&limit=6`,
+          { headers: this._headers() },
+        );
+        if (r.ok) {
+          const data = await r.json() as { products?: unknown[] };
+          const products = (data.products ?? []) as Array<{
+            sku: string;
+            name: string;
+            description?: string;
+            price_cents?: number;
+            tags?: string[];
+          }>;
+          if (products.length > 0) {
+            return products.map((p) => ({
+              id: p.sku,
+              title: p.name,
+              subtitle: p.description ?? '',
+              price: (p.price_cents ?? 0) / 100,
+              tags: p.tags ?? [],
+            }));
+          }
+        }
+      } catch {
+        // fall through to local search
+      }
+    }
+    const q = query.toLowerCase();
+    const results = this._fallbackCatalog.filter(
+      (p) => p.title.toLowerCase().includes(q) || p.tags.some((t) => t.includes(q)),
+    );
+    return this._wait(results.length ? results : this._fallbackCatalog.slice(0, 4), 300);
+  }
+
+  async getRecommendation(): Promise<Bundle> {
+    return this._wait({
+      id: 'bulb-combo',
+      title: 'Lâmpadas inteligentes · 2 un',
+      subtitle: 'Controle por voz junto com o seu display.',
+      price: 159,
+      was: 199,
+    });
+  }
+
+  async getBestCoupon(productPrice: number, discount?: TenantDiscount): Promise<Coupon> {
+    const d = discount ? resolveTenantDiscount({ discount }) : this.discount;
+    return this._wait(buildCouponFromTenant(productPrice, d));
+  }
+
+  async getShipping(): Promise<ShippingOption[]> {
+    return this._wait([
+      { key: 'sedex', label: 'Sedex Express', tag: 'Mais rápido', sub: 'Chega amanhã até 12h', cost: 0 },
+      { key: 'pac', label: 'PAC Econômico', tag: 'Mais barato', sub: 'Chega em 5-7 dias úteis', cost: 0 },
+      { key: 'jadlog', label: 'Jadlog Package', tag: 'Retirada fácil', sub: 'Chega em 3-4 dias úteis', cost: 9.9 },
+    ]);
+  }
+
+  async createOrder(): Promise<{ id: string }> {
+    if (this.sessionToken && this.baseUrl && this.sessionId) {
+      try {
+        const r = await fetch(`${this.baseUrl}/embed/payment/intents`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({
+            session_id: this.sessionId,
+            idempotency_key: `pulse-${Date.now()}`,
+            payment_method: 'pix',
+          }),
+        });
+        if (r.ok) {
+          const data = await r.json() as { intent_id?: string; order_id?: string };
+          const id = data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
+          return this._wait({ id }, 400);
+        }
+      } catch {
+        // fall through to mock
+      }
+    }
+    return this._wait({ id: `ORD-${Date.now().toString(36).toUpperCase()}` }, 800);
+  }
+
+  async supportAnswer(question: string): Promise<{ answer: string }> {
+    const q = (question || '').toLowerCase();
+    const faq = [
+      { k: ['pedido', 'rastre', 'onde', 'entrega', 'chega', 'prazo'], a: 'Seu pedido mais recente está em separação e sai para entrega em até 24h. Você acompanha cada etapa em tempo real na aba "Pedidos" — eu te aviso assim que ele sair.' },
+      { k: ['cashback', 'usdc', 'crypto', 'stellar'], a: 'No pagamento com crypto a liquidação acontece na rede Stellar em segundos e você recebe 3% de cashback em USDC, já liberado para a sua próxima compra.' },
+      { k: ['parcel', 'juros', 'cartão', 'cartao', 'vezes', '12x'], a: 'Dá para parcelar em até 12x sem juros no cartão de crédito — é só escolher o número de parcelas na hora do pagamento.' },
+      { k: ['segur', 'seguro', 'dados', 'privacidade', 'rosto', 'face'], a: 'Tudo é criptografado. O reconhecimento facial é processado no seu dispositivo e a imagem do seu rosto nunca é enviada para o servidor.' },
+      { k: ['troca', 'devolu', 'reembolso', 'cancelar'], a: 'Você tem 7 dias para troca ou devolução. Posso abrir a solicitação agora mesmo — é só me dizer qual pedido.' },
+      { k: ['cupom', 'desconto', 'promo'], a: 'Eu busco automaticamente o melhor cupom disponível e aplico no carrinho. Agora o cupom PULSE10 já está ativo para você.' },
+    ];
+    const hit = faq.find((f) => f.k.some((k) => q.includes(k)));
+    const answer = hit
+      ? hit.a
+      : 'Boa pergunta! Já estou com os dados do seu pedido em mãos — me dá um detalhe a mais que eu resolvo isso pra você na hora.';
+    return this._wait({ answer }, 700);
+  }
+
+  async getOrders(): Promise<Order[]> {
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const r = await fetch(
+          `${this.baseUrl}/buyer/me/purchases?merchant_id=${this.merchantId}&limit=5`,
+          { headers: this._headers() },
+        );
+        if (r.ok) {
+          const data = await r.json() as { data?: unknown[] };
+          const items = data.data ?? [];
+          if ((items as unknown[]).length > 0) {
+            return (items as Array<{
+              store_name?: string;
+              region?: string;
+              product_names?: string;
+              total_amount_cents?: number;
+              status?: string;
+              created_at?: string;
+            }>).map((o, i) => ({
+              store: o.store_name ?? this.storeName,
+              region: o.region ?? 'Brasil · BR',
+              items: o.product_names ?? '—',
+              amount: `R$ ${((o.total_amount_cents ?? 0) / 100).toFixed(2).replace('.', ',')}`,
+              tone: (o.status === 'delivered' ? 'done' : 'progress') as 'done' | 'progress',
+              status: o.status === 'delivered' ? 'Entregue' : 'Em andamento',
+              initial: (o.store_name ?? this.storeName)[0]?.toUpperCase() ?? 'L',
+              bg: ['#3b82f6', '#ef4444', '#10b981', '#8b5cf6', '#f59e0b'][i % 5],
+            }));
+          }
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return this._wait([
+      { store: this.storeName, region: 'São Paulo · BR', items: 'Smart Speaker mini', amount: 'R$ 349,00', tone: 'done', status: 'Entregue', initial: this.storeName[0]?.toUpperCase() ?? 'L', bg: '#8b5cf6' },
+    ]);
+  }
+
+  async authenticateFace(): Promise<FaceUser> {
+    return this._wait({
+      id: 'usr_face_001',
+      name: 'Diego Costa',
+      email: 'diego@aurora.com',
+      initial: 'D',
+      verified: true,
+    }, 2200);
+  }
+}
+
+export default PulseAPI;

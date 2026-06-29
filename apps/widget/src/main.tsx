@@ -1,24 +1,39 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
-import { CheckoutShell } from "./components/checkout/CheckoutShell.js";
 import { DEFAULT_WIDGET_API_BASE_URL, parseWidgetConfig } from "./lib/widget-schemas.js";
-import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model.js";
 import type { ProductSelectionLine, WidgetConfig } from "./lib/widget-types.js";
 import { themeStyle } from "./hooks/checkout-presentation.js";
+import { PulseCheckoutView } from "./features/pulse/views/PulseCheckoutView.js";
+import type { CheckoutProps } from "./features/pulse/model/types.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
 import "./features/continuum/continuum.css";
 import "./features/continuum/polish.css";
 import "./features/pulse/pulse-skin.css";
+import "./features/pulse/styles/animations.css";
 
 export { themeStyle };
 export type { WidgetConfig };
 
+function widgetConfigToCheckoutProps(config: WidgetConfig): CheckoutProps {
+  return {
+    storeName: config.agent?.name ?? "Loja",
+    agentName: "Pulse",
+    theme: "dark",
+    faceLogin: false,
+    voiceEnabled: true,
+    supportFab: true,
+    apiBaseUrl: config.apiBaseUrl,
+    merchantId: config.merchantId,
+    sessionToken: config.embedSessionToken,
+  };
+}
+
 export function CheckoutAgent({ config }: { config: WidgetConfig }) {
-  const viewModel = useCheckoutAgentViewModel(config);
-  return <CheckoutShell vm={viewModel} />;
+  const props = useMemo(() => widgetConfigToCheckoutProps(config), [config]);
+  return <PulseCheckoutView {...props} />;
 }
 
 const WIDGET_CE_NAME = "aacp-checkout-agent";
