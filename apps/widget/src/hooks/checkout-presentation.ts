@@ -96,7 +96,8 @@ export function brandInitials(name: string, max = 2): string {
 export function themeStyle(
   theme: MerchantTheme,
   isForcedMode = false,
-  colorMode: "light" | "dark" = "light"
+  colorMode: "light" | "dark" = "light",
+  skin: "default" | "pulse" = "default"
 ): React.CSSProperties {
   const merged: MerchantTheme = {
     ...DEFAULT_MERCHANT_THEME,
@@ -167,7 +168,83 @@ export function themeStyle(
       ? `linear-gradient(180deg, ${surface}f2, ${elevated}f2)`
       : `linear-gradient(180deg, ${surface}f2, ${elevated}f2)`;
   }
+
+  if (skin === "pulse") {
+    applyPulseTokens(styles, isDark);
+  }
+
   return styles as unknown as React.CSSProperties;
+}
+
+/**
+ * Pulse skin tokens, emitted inline so they override the stylesheet defaults
+ * (inline custom properties win the cascade against any rule). Faithful to
+ * packages/Pulse Agentic Checkout Copy/Pulse Widget.dc.html.
+ */
+function applyPulseTokens(styles: Record<string, string>, isDark: boolean): void {
+  const g1 = isDark ? "#8b5cf6" : "#7c3aed";
+  const g2 = isDark ? "#2dd4ff" : "#0891b2";
+  const g3 = isDark ? "#ff5cc8" : "#db2777";
+
+  const bg = isDark ? "#08080c" : "#e7e5df";
+  const surface = isDark ? "#0f0f16" : "#ffffff";
+  const surface2 = isDark ? "rgba(255,255,255,0.05)" : "#f6f5f2";
+  const surface3 = isDark ? "rgba(255,255,255,0.08)" : "#efeee9";
+  const fg = isDark ? "#f5f5f7" : "#141418";
+  const muted = isDark ? "#8b8b95" : "#71717a";
+  const faint = isDark ? "#6c6a72" : "#9a978e";
+  const line = isDark ? "rgba(255,255,255,0.1)" : "rgba(15,15,25,0.09)";
+  const lineStrong = isDark ? "rgba(255,255,255,0.12)" : "rgba(15,15,25,0.1)";
+
+  Object.assign(styles, {
+    "--pulse-g1": g1,
+    "--pulse-g2": g2,
+    "--pulse-g3": g3,
+
+    "--aacp-font": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    "--aacp-font-display": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    "--aacp-font-mono": "'Space Mono', ui-monospace, monospace",
+
+    "--aacp-radius": "16px",
+    "--aacp-radius-sm": "10px",
+    "--aacp-radius-md": "14px",
+    "--aacp-radius-lg": "20px",
+    "--aacp-radius-pill": "999px",
+
+    "--aacp-bg": bg,
+    "--aacp-surface": surface,
+    "--aacp-surface-2": surface2,
+    "--aacp-surface-3": surface3,
+    "--aacp-fg": fg,
+    "--aacp-muted": muted,
+    "--aacp-faint": faint,
+    "--aacp-line": line,
+    "--aacp-line-strong": lineStrong,
+    "--aacp-success": isDark ? "#34d399" : "#10b981",
+    "--aacp-warning": isDark ? "#fbbf24" : "#b45309",
+
+    "--aacp-accent": g1,
+    "--aacp-accent-2": g2,
+    "--aacp-accent-strong": g1,
+
+    "--aacp-grad-primary": `linear-gradient(95deg, ${g1}, ${g2}, ${g3})`,
+    "--aacp-grad-bubble-buyer": `linear-gradient(95deg, ${g1}, ${g2})`,
+    "--aacp-grad-soft": `linear-gradient(135deg, ${g1}24, ${g2}1a)`,
+    "--aacp-grad-glow": `radial-gradient(60% 60% at 50% 0%, ${g1}38, transparent 70%)`,
+    "--aacp-glow": `0 0 44px ${g2}4d`,
+
+    "--aacp-panel-bg": surface,
+    "--aacp-inset-bg": surface2,
+    "--aacp-shell-bg": bg,
+    "--aacp-shell-border": line,
+    "--aacp-shadow-sm": isDark ? "0 1px 2px rgba(0,0,0,0.4)" : "0 1px 2px rgba(40,30,80,0.08)",
+    "--aacp-shadow-md": isDark ? "0 8px 24px rgba(0,0,0,0.5)" : "0 8px 24px rgba(40,30,80,0.12)",
+    "--aacp-shadow-lg": isDark ? "0 34px 70px -28px rgba(0,0,0,0.75)" : "0 34px 70px -30px rgba(40,30,80,0.28)",
+
+    "--continuum-font-interface": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    "--continuum-font-editorial": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    "--continuum-font-operational": "'Space Mono', ui-monospace, monospace",
+  });
 }
 
 export function buildVisibleCart(experience: CheckoutExperienceSnapshot): VisibleCartState {
@@ -308,6 +385,19 @@ export function injectGoogleFont(fontFamily: string): void {
   link.id = id;
   link.rel = "stylesheet";
   link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family).replace(/%20/g, "+")}:wght@${GOOGLE_FONT_WEIGHTS}&display=swap`;
+  document.head.appendChild(link);
+}
+
+/** Loads the exact Pulse skin type pairing: Space Grotesk + Space Mono. */
+export function injectPulseFonts(): void {
+  if (typeof document === "undefined") return;
+  const id = "aacp-font-pulse";
+  if (document.getElementById(id)) return;
+  const link = document.createElement("link");
+  link.id = id;
+  link.rel = "stylesheet";
+  link.href =
+    "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&display=swap";
   document.head.appendChild(link);
 }
 

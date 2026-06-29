@@ -397,7 +397,7 @@ function fallbackReply(
   if (stage === "payment") {
     return {
       objection,
-      message: `Vamos finalizar — prefere pagar com PIX ou cartão de crédito?`
+      message: `Vamos finalizar seu pedido. Prefere pagar com PIX, cartão de crédito ou Crypto?`
     };
   }
 

@@ -7,6 +7,7 @@ import { useAccountHub } from "./use-account-hub.js";
 import { useBuyerHub } from "./use-buyer-hub.js";
 import {
   injectGoogleFont,
+  injectPulseFonts,
   isBuyerHubEligible,
   stageNarrative,
   type VisibleCartState,
@@ -136,6 +137,7 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
   const theme = themeStudio.resolvedTheme;
 
   useEffect(() => {
+    injectPulseFonts();
     injectGoogleFont(theme.fontFamily);
     if (theme.fontDisplay) injectGoogleFont(theme.fontDisplay);
   }, [theme.fontDisplay, theme.fontFamily]);

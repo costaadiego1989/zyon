@@ -286,6 +286,39 @@
 .aacp-voice-journey {
   margin: 0 auto;
   width: 100%;
+  /* Premium card: the stepper is a primary anchor in the voice column, so give
+     the wrapper its own surface + border + shadow instead of floating bare. */
+  border: 1px solid color-mix(in oklch, var(--voice-line) 70%, transparent);
+  border-radius: 18px;
+  background: color-mix(in oklch, var(--voice-surface) 88%, var(--voice-ice, var(--voice-surface)));
+  box-shadow: 0 10px 30px color-mix(in oklch, var(--voice-ink) 6%, transparent);
+  overflow: hidden;
+}
+
+/* Voice stepper reads larger + roomier than chat: the voice column has more
+   vertical space and the stepper is a primary anchor here, not a thin header
+   strip. Bumps marker/head sizes and padding via the same continuum tokens so
+   the dressing stays identical, just scaled up. */
+.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress {
+  min-height: 64px;
+  padding: 18px clamp(18px, 4vw, 28px) 16px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  --aacp-stage-head-height: 38px;
+  --aacp-stage-marker-size: 18px;
+}
+
+.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress-title {
+  font-size: 16px;
+}
+
+.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress-kicker {
+  font-size: 12px;
+}
+
+.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress-label {
+  font-size: 9px;
 }
 
 /* ---- Voice presence layer ---------------------------------------------- */
@@ -345,11 +378,17 @@
   position: absolute;
   inset: 10%;
   border-radius: 50%;
+  /* Symmetric two-lobe sweep so the rotating highlight never reads as a single
+     lopsided wedge (the "borda torta" report). Balanced at 0deg/180deg. */
   background: conic-gradient(
-    from 120deg,
-    transparent,
-    color-mix(in oklch, var(--voice-accent) 30%, transparent),
-    transparent 60%
+    from 0deg,
+    transparent 0deg,
+    color-mix(in oklch, var(--voice-accent) 30%, transparent) 40deg,
+    transparent 90deg,
+    transparent 180deg,
+    color-mix(in oklch, var(--voice-accent) 30%, transparent) 220deg,
+    transparent 270deg,
+    transparent 360deg
   );
   opacity: 0;
   transition: opacity 240ms var(--continuum-ease-out);
@@ -556,6 +595,47 @@
   align-items: center;
   gap: 10px;
 }
+
+/* Live voice waveform — bars scale to the real --aacp-voice-amp (mic RMS when
+   listening, TTS word-boundary envelope when speaking). A per-bar phase offset
+   plus a subtle idle shimmer keeps it organic even at low amplitude. */
+.aacp-voice-wave {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 34px;
+}
+
+.aacp-voice-wave__bar {
+  width: 4px;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--voice-accent);
+  transform-origin: center;
+  /* Center bars react more than the edges → natural bell-shaped envelope. */
+  transform: scaleY(
+    calc(
+      0.18 +
+      var(--aacp-voice-amp, 0) *
+      (1 - 0.12 * (var(--bar-index, 0) - 3) * (var(--bar-index, 0) - 3))
+    )
+  );
+  transition: transform 90ms var(--continuum-ease-out);
+  animation: aacp-voice-wave-idle 1.4s ease-in-out infinite;
+  animation-delay: calc(var(--bar-index, 0) * 90ms);
+  opacity: 0.9;
+}
+
+.aacp-voice-wave.is-speaking .aacp-voice-wave__bar {
+  background: var(--voice-success);
+}
+
+@keyframes aacp-voice-wave-idle {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.95; }
+}
+
 
 .aacp-voice-mic {
   position: relative;
@@ -1429,6 +1509,7 @@
   .aacp-voice-orb__ring--outer,
   .aacp-voice-mic.is-listening,
   .aacp-voice-mic__pulse,
+  .aacp-voice-wave__bar,
   .aacp-voice-bar__state-dot,
   .aacp-pix-waiting__beacon-core,
   .aacp-pix-waiting__wave {

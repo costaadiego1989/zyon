@@ -3,7 +3,7 @@ import {
   CircleHelp,
   LogIn,
   Moon,
-  ShoppingBag,
+  ShoppingCart,
   Sun,
 } from "lucide-react";
 import type { ExperienceHeaderModel } from "../../presentation/checkout-experience-model.js";
@@ -93,7 +93,7 @@ export function ExperienceHeader({ model }: { model: ExperienceHeaderModel }) {
           aria-label="Abrir resumo do pedido"
           type="button"
         >
-          <ShoppingBag size={16} />
+          <ShoppingCart size={16} className="aacp-cart-btn-icon" aria-hidden="true" />
           <span className="aacp-cart-btn-copy">
             <small>Pedido</small>
             <strong>{model.order.total}</strong>

@@ -12,7 +12,10 @@
     Georgia,
     serif
   );
-  --continuum-font-operational: "IBM Plex Mono", ui-monospace, monospace;
+  --continuum-font-operational: var(--aacp-font-mono, "Geist Mono", "IBM Plex Mono", ui-monospace, monospace);
+  /* Body text token: was consumed (continuum.css) but never defined → resolved
+     to inherited. Define it so prose/labels get the premium interface font. */
+  --continuum-body: var(--aacp-font, "Geist", ui-sans-serif, system-ui, sans-serif);
   --continuum-control-height: 44px;
   --continuum-control-height-compact: 40px;
   --continuum-space-1: 4px;

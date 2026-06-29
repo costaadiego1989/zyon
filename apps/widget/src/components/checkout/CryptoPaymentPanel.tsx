@@ -43,7 +43,7 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
     setStatus(null);
     wallet.setError(null);
     try {
-      const account = wallet.address ?? (await wallet.connectMetaMask());
+      const account = wallet.address ?? (await wallet.connect("any"));
       setStatus("Enviando USDC...");
       const txHash = await wallet.sendUsdcTransfer(quote, account);
       // P1: persist txHash immediately after broadcast — before the async
@@ -142,7 +142,7 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
               type="button"
               className="aacp-chip aacp-crypto-btn aacp-crypto-btn--ghost"
               disabled={wallet.connecting || model.expired}
-              onClick={() => void wallet.connectMetaMask()}
+              onClick={() => void wallet.connectTrust()}
             >
               Conectar Trust Wallet
             </button>

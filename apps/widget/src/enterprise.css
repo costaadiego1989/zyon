@@ -375,6 +375,13 @@
   text-align: left;
 }
 
+/* Cart glyph sits to the left of the Pedido/total copy. Slightly inset in a
+   soft chip so it reads as a clear cart affordance, not just a bare icon. */
+.aacp-widget--conversational .aacp-cart-btn-icon {
+  flex-shrink: 0;
+  color: color-mix(in oklch, var(--aacp-enterprise-surface) 92%, transparent);
+}
+
 .aacp-widget--conversational .aacp-cart-btn-copy small {
   color: color-mix(in oklch, var(--aacp-enterprise-surface) 70%, transparent);
   font-size: 8px;
@@ -863,7 +870,8 @@
   flex-wrap: wrap;
 }
 
-.aacp-widget--conversational .aacp-chip {
+.aacp-widget--conversational .aacp-chip,
+.aacp-widget--voice .aacp-chip {
   min-height: 42px;
   padding: 9px 14px;
   border: 1px solid var(--aacp-enterprise-line);
@@ -876,7 +884,8 @@
   transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
 }
 
-.aacp-widget--conversational .aacp-chip:hover {
+.aacp-widget--conversational .aacp-chip:hover,
+.aacp-widget--voice .aacp-chip:hover {
   border-color: color-mix(in oklch, var(--aacp-accent) 50%, var(--aacp-enterprise-line));
   background: color-mix(in oklch, var(--aacp-accent) 7%, var(--aacp-enterprise-surface));
   color: var(--aacp-enterprise-ink);
@@ -1575,7 +1584,8 @@
 }
 
 .aacp-widget--conversational .aacp-ledger-return,
-.aacp-widget--conversational .aacp-cta {
+.aacp-widget--conversational .aacp-cta,
+.aacp-widget--voice .aacp-cta {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -1595,7 +1605,8 @@
 }
 
 .aacp-widget--conversational .aacp-ledger-return:hover,
-.aacp-widget--conversational .aacp-cta:hover {
+.aacp-widget--conversational .aacp-cta:hover,
+.aacp-widget--voice .aacp-cta:hover {
   border-color: var(--aacp-enterprise-ink);
   background: color-mix(in oklch, var(--aacp-enterprise-ink) 92%, var(--aacp-enterprise-surface));
   transform: none;
@@ -2884,6 +2895,18 @@
   }
 }
 
+/* Tablet (861–1024px): the unscoped base `.aacp-cart-fab` block (styles.css
+   @media 1024px) force-shows the round legacy FAB, but the conversational pill
+   dressing only kicks in ≤860px — so in this range the FAB renders as a broken
+   round circle stuffed with pill content. The conversational cart is still the
+   inline desktop column here (drawer/sheet only ≤860px), so the FAB has no job:
+   suppress it, mirroring the voice channel's guard. */
+@media (min-width: 861px) and (max-width: 1024px) {
+  .aacp-widget--conversational .aacp-cart-fab {
+    display: none !important;
+  }
+}
+
 @media (max-width: 640px) {
   .aacp-widget--conversational .aacp-header {
     min-height: 64px;
@@ -3130,7 +3153,11 @@
   }
 }
 
-.aacp-widget--conversational .aacp-crypto-panel {
+/* Crypto payment panel — shared by chat + voice channels. Was scoped to
+   --conversational only, so in voice (and any non-chat surface) the panel fell
+   back to unstyled base = broken layout. :is() standardizes both. */
+.aacp-widget--conversational .aacp-crypto-panel,
+.aacp-widget--voice .aacp-crypto-panel {
   width: min(100%, 650px);
   margin: 8px auto 0;
   padding: 16px;
@@ -3139,24 +3166,28 @@
   background: var(--aacp-enterprise-surface);
 }
 
-.aacp-widget--conversational .aacp-crypto-panel-head {
+.aacp-widget--conversational .aacp-crypto-panel-head,
+.aacp-widget--voice .aacp-crypto-panel-head {
   display: flex;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
 }
 
-.aacp-widget--conversational .aacp-crypto-panel-head strong {
+.aacp-widget--conversational .aacp-crypto-panel-head strong,
+.aacp-widget--voice .aacp-crypto-panel-head strong {
   display: block;
   font-size: 14px;
 }
 
-.aacp-widget--conversational .aacp-crypto-panel-head small {
+.aacp-widget--conversational .aacp-crypto-panel-head small,
+.aacp-widget--voice .aacp-crypto-panel-head small {
   color: var(--aacp-enterprise-muted);
   font-size: 11px;
 }
 
-.aacp-widget--conversational .aacp-crypto-quote {
+.aacp-widget--conversational .aacp-crypto-quote,
+.aacp-widget--voice .aacp-crypto-quote {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 6px 12px;
@@ -3164,49 +3195,68 @@
   font-size: 12px;
 }
 
-.aacp-widget--conversational .aacp-crypto-quote dt {
+.aacp-widget--conversational .aacp-crypto-quote dt,
+.aacp-widget--voice .aacp-crypto-quote dt {
   color: var(--aacp-enterprise-muted);
 }
 
-.aacp-widget--conversational .aacp-crypto-quote dd {
+.aacp-widget--conversational .aacp-crypto-quote dd,
+.aacp-widget--voice .aacp-crypto-quote dd {
   margin: 0;
   font-weight: 600;
 }
 
-.aacp-widget--conversational .aacp-crypto-mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+.aacp-widget--conversational .aacp-crypto-mono,
+.aacp-widget--voice .aacp-crypto-mono {
+  font-family: var(--aacp-font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
   font-size: 11px;
 }
 
-.aacp-widget--conversational .aacp-crypto-actions {
+.aacp-widget--conversational .aacp-crypto-actions,
+.aacp-widget--voice .aacp-crypto-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.aacp-widget--conversational .aacp-crypto-btn--ghost {
+/* Connect buttons share the row evenly; pay button spans full width below. */
+.aacp-widget--conversational .aacp-crypto-btn,
+.aacp-widget--voice .aacp-crypto-btn {
+  flex: 1 1 0;
+  min-width: 140px;
+  justify-content: center;
+}
+
+.aacp-widget--conversational .aacp-crypto-btn--ghost,
+.aacp-widget--voice .aacp-crypto-btn--ghost {
   background: transparent;
 }
 
-.aacp-widget--conversational .aacp-crypto-pay {
+.aacp-widget--conversational .aacp-crypto-pay,
+.aacp-widget--voice .aacp-crypto-pay {
   width: 100%;
   justify-content: center;
 }
 
-.aacp-widget--conversational .aacp-crypto-error {
+.aacp-widget--conversational .aacp-crypto-error,
+.aacp-widget--voice .aacp-crypto-error {
   color: var(--aacp-enterprise-error, #b45309);
   font-size: 12px;
 }
 
 .aacp-widget--conversational .aacp-crypto-status,
 .aacp-widget--conversational .aacp-crypto-wallet,
-.aacp-widget--conversational .aacp-crypto-footnote {
+.aacp-widget--conversational .aacp-crypto-footnote,
+.aacp-widget--voice .aacp-crypto-status,
+.aacp-widget--voice .aacp-crypto-wallet,
+.aacp-widget--voice .aacp-crypto-footnote {
   margin: 10px 0 0;
   font-size: 11px;
   color: var(--aacp-enterprise-muted);
 }
 
-.aacp-widget--conversational .aacp-spin {
+.aacp-widget--conversational .aacp-spin,
+.aacp-widget--voice .aacp-spin {
   animation: aacp-spin 0.8s linear infinite;
 }
 

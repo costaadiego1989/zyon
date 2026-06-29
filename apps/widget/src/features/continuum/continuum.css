@@ -20,11 +20,13 @@
   --continuum-on-primary: var(--continuum-surface);
   --continuum-editorial: var(
     --aacp-font-display,
+    "Geist",
     "IBM Plex Serif",
     Georgia,
     serif
   );
-  --continuum-operational: "IBM Plex Mono", ui-monospace, monospace;
+  --continuum-operational: var(--aacp-font-mono, "Geist Mono", "IBM Plex Mono", ui-monospace, monospace);
+  --continuum-body: var(--aacp-font, "Geist", ui-sans-serif, system-ui, sans-serif);
 }
 
 .checkout-experience[data-theme="dark"] {
@@ -209,37 +211,37 @@
     0 10px 32px oklch(0% 0 0 / 0.32);
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational .aacp-stage-progress {
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress {
   border-top: 1px solid color-mix(in oklch, var(--continuum-line) 50%, transparent);
   border-bottom: 0;
   background: var(--continuum-stepper-bg);
   box-shadow: none;
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-index {
   background: color-mix(in oklch, var(--continuum-success) 11%, var(--continuum-surface-strong));
   border-color: color-mix(in oklch, var(--continuum-success) 24%, var(--continuum-line));
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-status {
   background: color-mix(in oklch, var(--continuum-success) 12%, var(--continuum-surface-strong));
   border-color: color-mix(in oklch, var(--continuum-success) 26%, var(--continuum-line));
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-dot {
   background: var(--continuum-surface-strong);
   border-color: var(--continuum-line);
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-label {
   color: var(--continuum-faint);
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-step.active
   .aacp-stage-progress-label {
   color: var(--continuum-ink);
@@ -247,7 +249,7 @@
 
 /* Journey protocol */
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress {
   position: relative;
   z-index: 4;
   min-height: 52px;
@@ -260,7 +262,7 @@
   --aacp-stage-marker-size: 14px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-shine {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-shine {
   position: absolute;
   left: 0;
   right: 0;
@@ -270,14 +272,14 @@
   pointer-events: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-shine::before {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-shine::before {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--continuum-line-soft);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-shine::after {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-shine::after {
   content: "";
   position: absolute;
   top: 0;
@@ -294,7 +296,7 @@
   animation: aacp-stage-shine-sweep 2.8s ease-in-out infinite;
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational
+.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-shine::after {
   background: linear-gradient(
     90deg,
@@ -304,7 +306,7 @@
   );
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-body {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-body {
   display: flex;
   align-items: center;
   gap: 20px;
@@ -312,7 +314,7 @@
   min-width: 0;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-head {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-head {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -320,14 +322,14 @@
   max-width: min(36%, 200px);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-lead {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-lead {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-index {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-index {
   display: inline-grid;
   place-items: center;
   width: var(--aacp-stage-head-height);
@@ -344,7 +346,7 @@
   line-height: 1;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-current {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-current {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -353,7 +355,7 @@
   min-width: 0;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-kicker {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-kicker {
   flex-shrink: 0;
   color: var(--continuum-muted);
   font-family: var(--continuum-body);
@@ -365,7 +367,7 @@
   white-space: nowrap;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-title {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-title {
   overflow: hidden;
   margin: 0;
   color: var(--continuum-ink);
@@ -376,7 +378,7 @@
   white-space: nowrap;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-status {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-status {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -396,7 +398,7 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-status-dot {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-status-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -404,7 +406,7 @@
   animation: pulse-ring 2s ease-out infinite;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-rail-wrap {
   flex: 1;
   min-width: 0;
@@ -412,7 +414,7 @@
   padding: 0;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-stage-progress-track {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-track {
   top: calc(var(--aacp-stage-marker-size) / 2);
   right: calc(50% / var(--aacp-stage-progress-steps, 4));
   left: calc(50% / var(--aacp-stage-progress-steps, 4));
@@ -421,18 +423,18 @@
   background: var(--continuum-line);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-track-fill {
   background: var(--continuum-success);
   transition: width 200ms var(--continuum-ease-out);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-step {
   gap: 7px;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-dot {
   display: inline-grid;
   place-items: center;
@@ -444,7 +446,7 @@
   background: var(--continuum-surface);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-step.active
   .aacp-stage-progress-dot {
   border: 5px solid var(--continuum-stepper-bg);
@@ -452,7 +454,7 @@
   box-shadow: 0 0 0 1px var(--continuum-success);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-step.done
   .aacp-stage-progress-dot {
   border-color: var(--continuum-success);
@@ -460,7 +462,20 @@
   color: #fff;
 }
 
-.checkout-experience.aacp-widget--conversational
+/* Done-step checkmark glyph (the markup ships an empty span; without this rule
+   the "done" dot reads as a flat circle and on voice the check looked black /
+   invisible). Pure-CSS check drawn with two borders, centered in the dot. */
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
+  .aacp-stage-progress-check {
+  display: block;
+  width: 30%;
+  height: 56%;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: translateY(-9%) rotate(45deg);
+}
+
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-label {
   display: block;
   width: 100%;
@@ -470,7 +485,7 @@
   text-align: center;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-stage-progress-step.active
   .aacp-stage-progress-label {
   color: var(--continuum-ink);
@@ -832,7 +847,14 @@
 
 /* Transaction rail */
 
-.checkout-experience.aacp-widget--conversational .aacp-cart {
+/* ---- Cart + panel dressing (shared by chat + voice channels) -----------
+   These rules theme the cart INTERNALS (header, status, items, ledger) and the
+   inline action panels. They are channel-agnostic: both the conversational chat
+   column and the voice drawer mount the SAME CartPanel/CartHeader/JourneyProtocol
+   and should look identical. Voice keeps its own drawer POSITIONING in
+   voice-checkout-experience.css; only the visual dressing is standardized here
+   via :is(--conversational, --voice). */
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart {
   background: color-mix(
     in oklch,
     var(--continuum-surface) 72%,
@@ -840,18 +862,18 @@
   );
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-header {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-header {
   position: static;
   padding: 25px 24px 10px;
   border: 0;
   background: transparent;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-brand-lockup {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-brand-lockup {
   gap: 11px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-brand-mark {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-brand-mark {
   width: 38px;
   height: 38px;
   flex-basis: 38px;
@@ -861,12 +883,12 @@
   color: var(--continuum-surface);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-store {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-store {
   font-size: 12px;
   font-weight: 700;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-order-badge {
   font-family: var(--continuum-operational);
   font-size: 7px;
@@ -874,7 +896,7 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-header-status {
   display: flex;
   align-items: baseline;
@@ -886,7 +908,7 @@
   background: transparent;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-status-kicker {
   flex: 0 0 auto;
   padding: 0;
@@ -898,7 +920,7 @@
   line-height: 1.2;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-status-label {
   flex: 0 1 auto;
   color: var(--continuum-ink);
@@ -907,20 +929,20 @@
   line-height: 1.2;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-status-hint {
   display: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-items-block {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-block {
   padding: 18px 24px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-items-head {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-head {
   margin-bottom: 12px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-items-title {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-title {
   color: var(--continuum-ink);
   font-size: 11px;
   font-weight: 700;
@@ -928,7 +950,7 @@
   text-transform: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-items-count {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-count {
   display: inline;
   width: auto;
   min-width: 0;
@@ -943,11 +965,11 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-items {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-items {
   gap: 12px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item {
   grid-template-columns: 62px minmax(0, 1fr);
   gap: 13px;
   padding: 13px;
@@ -958,57 +980,57 @@
     color-mix(in oklch, var(--continuum-ink) 5%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-thumb {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-thumb {
   width: 62px;
   height: 62px;
   border: 0;
   border-radius: 13px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-top {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-top {
   display: grid;
   gap: 5px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-name {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-name {
   max-width: 22ch;
   font-size: 11px;
   line-height: 1.28;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-price {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-price {
   color: var(--continuum-muted);
   font-family: var(--continuum-operational);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-desc {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-desc {
   display: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-controls {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-controls {
   margin-top: 10px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-qty-control {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-qty-control {
   grid-template-columns: 27px 28px 27px;
   min-height: 28px;
   border-color: var(--continuum-line-soft);
   border-radius: 9px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-qty-btn {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-qty-btn {
   width: 27px;
   height: 28px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-item-remove {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-remove {
   min-height: 28px;
   color: var(--continuum-faint);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-ledger-footer {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-footer {
   gap: 17px;
   margin-top: auto;
   padding: 20px 24px 24px;
@@ -1016,26 +1038,26 @@
   background: transparent;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-totals {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-totals {
   gap: 9px 16px;
   background: transparent;
   color: var(--continuum-muted);
   font-size: 10px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-totals dd {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-totals dd {
   font-family: var(--continuum-operational);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-total::before {
   margin: 5px 0 3px;
   background: var(--continuum-line-soft);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-total
   .total-row {
   margin-top: 0;
@@ -1044,7 +1066,7 @@
   font-size: 12px;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-cart-total
   .value {
   font-family: var(--continuum-font-interface);
@@ -1053,7 +1075,7 @@
   letter-spacing: -0.035em;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-ledger-assurance {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-assurance {
   align-items: center;
   gap: 8px;
   padding: 0;
@@ -1062,21 +1084,21 @@
   color: var(--continuum-success);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-ledger-assurance
   strong {
   color: var(--continuum-ink);
   font-size: 9px;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
   .aacp-ledger-assurance
   small {
   color: var(--continuum-muted);
   font-size: 8px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-ledger-return {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-return {
   display: none;
 }
 
@@ -1121,7 +1143,7 @@
 .checkout-experience.aacp-widget--conversational .aacp-coupon-box,
 .checkout-experience.aacp-widget--conversational .aacp-pix-panel,
 .checkout-experience.aacp-widget--conversational .aacp-order-confirmation,
-.checkout-experience.aacp-widget--conversational .aacp-crypto-panel {
+.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-crypto-panel {
   width: min(100%, 680px);
 }
 
@@ -1169,30 +1191,11 @@
     grid-template-rows: auto auto minmax(0, 1fr);
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-cart {
-    height: min(84dvh, 720px);
-    border-color: var(--continuum-line-soft);
-    border-radius: 24px 24px 0 0;
-    background: var(--continuum-surface);
-  }
-
-  .checkout-experience.aacp-widget--conversational .aacp-cart-close {
-    display: grid;
-  }
-
-  .checkout-experience.aacp-widget--conversational .aacp-cart-fab {
-    right: max(14px, env(safe-area-inset-right)) !important;
-    bottom: max(12px, env(safe-area-inset-bottom)) !important;
-    left: max(14px, env(safe-area-inset-left)) !important;
-    min-height: 60px !important;
-    padding: 8px 9px 8px 16px !important;
-    border: 0;
-    border-radius: 17px !important;
-    background: var(--continuum-ink) !important;
-    color: var(--continuum-surface) !important;
-    box-shadow: 0 18px 40px
-      color-mix(in oklch, var(--continuum-ink) 25%, transparent);
-  }
+  /* NOTE: the conversational mobile cart bottom-sheet (position/transform
+     slide-up), overlay, and FAB are owned by enterprise.css (@media 860px).
+     This block intentionally does NOT restyle .aacp-cart / .aacp-cart-fab —
+     a partial duplicate here previously out-specified enterprise per-property
+     and left the FAB half-applied (broken). Layout-only rules stay below. */
 
   .checkout-experience.aacp-widget--conversational .aacp-thread {
     padding-bottom: 112px;
@@ -1390,16 +1393,16 @@
     border-radius: 15px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-cart-header {
+  .checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-header {
     padding: 22px 18px 8px;
   }
 
-  .checkout-experience.aacp-widget--conversational
+  .checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
     .aacp-cart-items-block {
     padding: 17px 18px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-ledger-footer {
+  .checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-footer {
     padding: 18px max(18px, env(safe-area-inset-right))
       max(22px, env(safe-area-inset-bottom))
       max(18px, env(safe-area-inset-left));

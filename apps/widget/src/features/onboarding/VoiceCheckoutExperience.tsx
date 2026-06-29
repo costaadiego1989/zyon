@@ -210,6 +210,24 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
             {/* ---- Mic dock ---------------------------------------------- */}
             <div className="aacp-voice-controls">
+              {voiceStage.listening || voiceStage.speaking ? (
+                <div
+                  className={cn(
+                    "aacp-voice-wave",
+                    voiceStage.listening ? "is-listening" : "is-speaking",
+                  )}
+                  aria-hidden="true"
+                >
+                  {Array.from({ length: 7 }).map((_, i) => (
+                    <span
+                      key={i}
+                      className="aacp-voice-wave__bar"
+                      style={{ ["--bar-index" as string]: i }}
+                    />
+                  ))}
+                </div>
+              ) : null}
+
               <button
                 type="button"
                 className={cn(

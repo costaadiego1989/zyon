@@ -1,5 +1,6 @@
 import { z } from "zod";
-import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import type { Cart, CustomerHints, MerchantTheme, ShippingQuote } from "@aacp/shared-types";
 import type { WidgetConfig } from "./widget-types.js";
 
 export const cartItemSchema = z.object({
@@ -112,14 +113,43 @@ const merchantThemeSchema = z.object({
   agentAvatarUrl: z.string().min(1).optional()
 }).passthrough();
 
+const nullableString = z
+  .string()
+  .nullish()
+  .transform((v) => v ?? undefined);
+
 const checkoutBrandSnapshotSchema = z.object({
   merchant_id: z.string().min(1),
   name: z.string().min(1),
-  subtitle: z.string().optional(),
-  logo_url: z.string().optional(),
-  accent_color: z.string().optional(),
-  support_label: z.string().optional(),
-  theme: merchantThemeSchema
+  subtitle: nullableString,
+  logo_url: nullableString,
+  accent_color: nullableString,
+  support_label: nullableString,
+  // The API's brand snapshot may ship a partial theme (or null fields) — it
+  // emits a minimal { logoUrl, accentColor } and resolves the rest client-side.
+  // The shared CheckoutBrandSnapshot type requires a full MerchantTheme, so we
+  // accept whatever the API sends (loose, nulls→undefined) then merge over
+  // DEFAULT_MERCHANT_THEME. This keeps the parsed output type-complete and stops
+  // session start from failing ("não conecta") when a merchant lacks a theme.
+  theme: z
+    .object({
+      accentColor: nullableString,
+      secondaryColor: nullableString,
+      textColor: nullableString,
+      backgroundColor: nullableString,
+      fontFamily: nullableString,
+      logoUrl: nullableString,
+      agentAvatarUrl: nullableString
+    })
+    .passthrough()
+    .nullish()
+    .transform((theme): MerchantTheme => {
+      if (!theme) return DEFAULT_MERCHANT_THEME;
+      const defined = Object.fromEntries(
+        Object.entries(theme).filter(([, v]) => v !== undefined && v !== null)
+      );
+      return { ...DEFAULT_MERCHANT_THEME, ...defined } as MerchantTheme;
+    })
 }).passthrough();
 
 const checkoutItemSnapshotSchema = z.object({
@@ -313,7 +343,6 @@ export const buyerAuthResponseSchema = z.object({
 
 export type BuyerAuthApiResponse = z.infer<typeof buyerAuthResponseSchema>;
 
-// Supports both merchant sessions (merchant_id + user_id) and buyer sessions (global_user_id)
 export const globalAuthSessionSchema = z.object({
   merchant_id: z.string().min(1).optional(),
   user_id: z.string().min(1).optional(),
@@ -322,9 +351,6 @@ export const globalAuthSessionSchema = z.object({
   access_token: z.string().min(1),
   token_type: z.literal("Bearer"),
   expires_in: z.number().int().positive(),
-  // P2 (use-global-auth): absolute expiry timestamp (ms since epoch) persisted
-  // alongside expires_in so safeReadSession can reject stale tokens without an
-  // API round-trip. Legacy sessions without this field are treated as expired.
   expires_at: z.number().int().positive().optional(),
   merchant_name: z.string().min(1).optional(),
   provider: z.enum(["password", "phone"]).default("password")

@@ -6,7 +6,7 @@ type BrowserSpeechRecognition = {
   maxAlternatives: number;
   continuous: boolean;
   onstart: (() => void) | null;
-  onerror: (() => void) | null;
+  onerror: ((event: { error?: string }) => void) | null;
   onend: (() => void) | null;
   onresult: ((event: { results: Array<Array<{ transcript?: string }>> }) => void) | null;
   start: () => void;
@@ -179,6 +179,89 @@ function createSpeechAmplitudeController() {
   };
 }
 
+type MicAmplitudeController = {
+  start: () => Promise<void>;
+  stop: () => void;
+};
+
+function createMicAmplitudeController(): MicAmplitudeController {
+  let stream: MediaStream | null = null;
+  let audioCtx: AudioContext | null = null;
+  let analyser: AnalyserNode | null = null;
+  let source: MediaStreamAudioSourceNode | null = null;
+  let raf: number | null = null;
+  let buffer: Uint8Array<ArrayBuffer> | null = null;
+
+  const hasSupport =
+    typeof window !== "undefined" &&
+    typeof navigator !== "undefined" &&
+    !!navigator.mediaDevices?.getUserMedia &&
+    typeof window.requestAnimationFrame === "function";
+
+  const stop = () => {
+    if (raf !== null && typeof window !== "undefined") {
+      window.cancelAnimationFrame(raf);
+    }
+    raf = null;
+    source?.disconnect();
+    source = null;
+    analyser = null;
+    buffer = null;
+    if (audioCtx && audioCtx.state !== "closed") {
+      void audioCtx.close().catch(() => undefined);
+    }
+    audioCtx = null;
+    if (stream) {
+      for (const track of stream.getTracks()) track.stop();
+    }
+    stream = null;
+    setVoiceAmp(0);
+  };
+
+  const tick = () => {
+    if (!analyser || !buffer) return;
+    analyser.getByteTimeDomainData(buffer);
+    // RMS of the centered waveform → perceived loudness in 0..1.
+    let sumSquares = 0;
+    for (let i = 0; i < buffer.length; i += 1) {
+      const centered = (buffer[i] - 128) / 128;
+      sumSquares += centered * centered;
+    }
+    const rms = Math.sqrt(sumSquares / buffer.length);
+    // Scale + soft clip: quiet rooms still show life, loud speech caps at 1.
+    const amp = Math.min(1, rms * 3.2);
+    setVoiceAmp(amp);
+    raf = window.requestAnimationFrame(tick);
+  };
+
+  return {
+    async start() {
+      if (!hasSupport) return;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const Ctor =
+          window.AudioContext ??
+          (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!Ctor) {
+          stop();
+          return;
+        }
+        audioCtx = new Ctor();
+        source = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        buffer = new Uint8Array(new ArrayBuffer(analyser.fftSize));
+        source.connect(analyser);
+        raf = window.requestAnimationFrame(tick);
+      } catch {
+        // Permission denied / no device — silently fall back to static orb.
+        stop();
+      }
+    },
+    stop,
+  };
+}
+
 export function maskVoiceTranscriptForDisplay(text: string): string {
   return text
     .replace(/\b[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, (email) => {
@@ -259,6 +342,11 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   if (ampRef.current === null) {
     ampRef.current = createSpeechAmplitudeController();
   }
+  // Live mic amplitude while the user speaks (drives the same orb/waveform).
+  const micAmpRef = useRef<MicAmplitudeController | null>(null);
+  if (micAmpRef.current === null) {
+    micAmpRef.current = createMicAmplitudeController();
+  }
   const buildPendingTurnRef = useRef(buildPendingTurn);
   const onConfirmTranscriptRef = useRef(onConfirmTranscript);
   const onAgentPlaybackDoneRef = useRef(onAgentPlaybackDone);
@@ -289,6 +377,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
 
   const stopListening = useCallback(() => {
     recognitionRef.current?.stop();
+    micAmpRef.current?.stop();
     setListening(false);
   }, []);
 
@@ -342,6 +431,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort();
+      micAmpRef.current?.stop();
       stopSpeaking();
     };
   }, [stopSpeaking]);
@@ -367,14 +457,39 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     recognition.onstart = () => {
       setListening(true);
       setHint("Estou ouvindo...");
+      // Open the live mic meter so the orb/waveform reacts to the user's voice.
+      void micAmpRef.current?.start();
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      micAmpRef.current?.stop();
       setListening(false);
+      const error = event?.error ?? "";
+      // Benign: no speech detected or we aborted the session ourselves. These
+      // fire constantly (e.g. a brief pause right after tapping) and must NOT
+      // surface a scary "não captei" — just invite another try calmly.
+      if (error === "no-speech" || error === "aborted" || error === "") {
+        setHint("Não ouvi nada. Toque e fale quando quiser.");
+        return;
+      }
+      // Permission problems need a distinct, actionable message.
+      if (error === "not-allowed" || error === "service-not-allowed") {
+        setHint("Preciso de permissão do microfone. Libere o acesso ou use o chat.");
+        return;
+      }
+      if (error === "audio-capture") {
+        setHint("Não encontrei um microfone. Verifique o dispositivo ou use o chat.");
+        return;
+      }
+      if (error === "network") {
+        setHint("Falha de rede no reconhecimento de voz. Tente de novo ou use o chat.");
+        return;
+      }
       setHint("Não captei bem. Tente de novo ou mude para o chat.");
     };
 
     recognition.onend = () => {
+      micAmpRef.current?.stop();
       setListening(false);
     };
 
@@ -391,6 +506,7 @@ export function useVoiceCheckout(options: UseVoiceCheckoutOptions): VoiceCheckou
     try {
       recognition.start();
     } catch {
+      micAmpRef.current?.stop();
       setHint("Microfone indisponível. Verifique permissões ou use o chat.");
       setListening(false);
     }

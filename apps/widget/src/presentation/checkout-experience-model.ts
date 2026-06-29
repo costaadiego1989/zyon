@@ -155,7 +155,7 @@ export function selectCheckoutExperiencePresentation(
   return {
     colorMode: vm.colorMode,
     stage: vm.checkoutStage,
-    style: themeStyle(vm.theme, true, vm.colorMode),
+    style: themeStyle(vm.theme, true, vm.colorMode, "pulse"),
     header: selectExperienceHeader(vm),
     journey: selectJourneyProtocol(vm.checkoutStage),
   };

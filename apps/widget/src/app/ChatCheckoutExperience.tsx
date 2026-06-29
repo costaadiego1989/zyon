@@ -19,6 +19,7 @@ export function ChatCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
       data-theme={presentation.colorMode}
       data-stage={presentation.stage}
       data-channel="chat"
+      data-skin="pulse"
     >
       <div className="aacp-shell">
         <main className="aacp-main">

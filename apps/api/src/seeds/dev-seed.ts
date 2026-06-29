@@ -10,12 +10,20 @@
  *
  * Requires DATABASE_URL env var (same as the API).
  */
-import { PrismaClient } from "@prisma/client";
+import { resolve } from "node:path";
+import { config as loadDotenv } from "dotenv";
+import { createPrismaClient } from "../shared/persistence/prisma-client.js";
+
+// Load env the same way the API does so DATABASE_URL is available to the
+// Prisma 7 driver adapter (PrismaPg). Without this the bare PrismaClient()
+// throws PrismaClientInitializationError (needs an adapter + connection).
+loadDotenv({ path: resolve(process.cwd(), ".env") });
+loadDotenv({ path: resolve(process.cwd(), "../../.env"), override: false });
 
 const MERCHANT_ID = process.env.MERCHANT_ID ?? "mrc_dev_seed";
 const MERCHANT_NAME = process.env.MERCHANT_NAME ?? "Bolsas Executivas Demo";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   console.log(`\nSeeding tenant: ${MERCHANT_ID} (${MERCHANT_NAME})`);
@@ -115,14 +123,14 @@ async function main() {
         initialDelaySeconds: 3
       },
       interventionPolicy: {
-        minimumAbandonmentScore: 50,
+        minimumAbandonmentScore: 0.5,
         cooldownSeconds: 300,
         maxInterventionsPerSession: 3
       },
       triggerRules: [
-        { trigger: "cart_abandonment", enabled: true, priority: 1 },
-        { trigger: "exit_intent", enabled: true, priority: 2 },
-        { trigger: "inactivity", enabled: true, priority: 3 }
+        { trigger: "exit_intent_detected", enabled: true, priority: 1 },
+        { trigger: "idle_30_seconds", enabled: true, priority: 2 },
+        { trigger: "shipping_objection_detected", enabled: true, priority: 3 }
       ],
       suppressionRules: {
         suppressedSteps: [],
@@ -145,14 +153,14 @@ async function main() {
         initialDelaySeconds: 3
       },
       interventionPolicy: {
-        minimumAbandonmentScore: 50,
+        minimumAbandonmentScore: 0.5,
         cooldownSeconds: 300,
         maxInterventionsPerSession: 3
       },
       triggerRules: [
-        { trigger: "cart_abandonment", enabled: true, priority: 1 },
-        { trigger: "exit_intent", enabled: true, priority: 2 },
-        { trigger: "inactivity", enabled: true, priority: 3 }
+        { trigger: "exit_intent_detected", enabled: true, priority: 1 },
+        { trigger: "idle_30_seconds", enabled: true, priority: 2 },
+        { trigger: "shipping_objection_detected", enabled: true, priority: 3 }
       ],
       suppressionRules: {
         suppressedSteps: [],

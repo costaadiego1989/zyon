@@ -35,6 +35,7 @@ import { ProductSearchResults } from "./ProductSearchResults.js";
 import { CreditCardForm } from "./CreditCardForm.js";
 import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
 import { ShippingSelector } from "./ShippingSelector.js";
+import { PulseHero } from "../../features/pulse/PulseHero.js";
 import { quickReplyId } from "../../hooks/checkout-presentation.js";
 
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
@@ -46,6 +47,9 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   );
   const panels = selectCheckoutPanels(vm, { variant: "thread" });
   const composer = selectComposerModel(vm);
+  const showPulseHero =
+    vm.checkoutStage === "data_collection" &&
+    !vm.turns.some((turn) => turn.role === "buyer");
 
   return (
     <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
@@ -65,6 +69,8 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       </section>
 
       <div className="aacp-conversation-divider" aria-hidden="true" />
+
+      {showPulseHero ? <PulseHero vm={vm} /> : null}
 
       {panels.networkError ? <NetworkErrorView model={panels.networkError} /> : null}
 
