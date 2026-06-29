@@ -56,8 +56,41 @@ export class PulseAPI {
     return h;
   }
 
+  async ensureSession(): Promise<string> {
+    if (this.sessionId) return this.sessionId;
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const r = await fetch(`${this.baseUrl}/embed/start`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ merchant_id: this.merchantId, cart: { items: [] }, customer_hints: {} }),
+        });
+        if (r.ok) {
+          const data = await r.json() as { session_id?: string };
+          if (data.session_id) { this.sessionId = data.session_id; return this.sessionId; }
+        }
+      } catch { /* fall through */ }
+    }
+    this.sessionId = 'sess_demo';
+    return this.sessionId;
+  }
+
   async getCart(): Promise<{ product: Product; qty: number }> {
     if (this._initialCart) return this._wait(this._initialCart, 200);
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const sessionId = await this.ensureSession();
+        const r = await fetch(`${this.baseUrl}/embed/cart?session_id=${encodeURIComponent(sessionId)}`, { headers: this._headers() });
+        if (r.ok) {
+          const data = await r.json() as { items?: unknown[] };
+          const items = (data.items ?? []) as Array<{ sku: string; name: string; description?: string; price_cents?: number; quantity?: number; tags?: string[] }>;
+          if (items.length > 0) {
+            const first = items[0];
+            return { product: { id: first.sku, title: first.name, subtitle: first.description ?? '', price: (first.price_cents ?? 0) / 100, tags: first.tags ?? [] }, qty: first.quantity ?? 1 };
+          }
+        }
+      } catch { /* fall through */ }
+    }
     return this._wait({ product: this._fallbackCatalog[0], qty: 1 });
   }
 
@@ -122,28 +155,75 @@ export class PulseAPI {
     ]);
   }
 
-  async createOrder(): Promise<{ id: string }> {
-    if (this.sessionToken && this.baseUrl && this.sessionId) {
+  async createOrder(
+    payMethod: 'pix' | 'credito' | 'debito' | 'crypto' = 'pix',
+    _sessionId?: string,
+    installments?: number,
+  ): Promise<{
+    id: string;
+    pixQrCode?: string;
+    pixCopyPaste?: string;
+    pixExpiresAt?: string;
+  }> {
+    if (payMethod === 'pix' && this.sessionToken && this.baseUrl) {
       try {
         const r = await fetch(`${this.baseUrl}/embed/payment/intents`, {
           method: 'POST',
           headers: this._headers(),
           body: JSON.stringify({
             session_id: this.sessionId,
-            idempotency_key: `pulse-${Date.now()}`,
+            idempotency_key: `pulse-pix-${Date.now()}`,
             payment_method: 'pix',
           }),
         });
         if (r.ok) {
-          const data = await r.json() as { intent_id?: string; order_id?: string };
-          const id = data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
-          return this._wait({ id }, 400);
+          const data = await r.json() as {
+            intent_id?: string;
+            status?: string;
+            pix_qr_code?: string;
+            pix_copy_paste?: string;
+            pix_expires_at?: string;
+          };
+          return this._wait(
+            {
+              id: data.intent_id ?? `ORD-${Date.now()}`,
+              pixQrCode: data.pix_qr_code,
+              pixCopyPaste: data.pix_copy_paste,
+              pixExpiresAt: data.pix_expires_at,
+            },
+            400,
+          );
         }
       } catch {
         // fall through to mock
       }
+      return this._wait(
+        {
+          id: `PIX-MOCK-${Date.now()}`,
+          pixCopyPaste: '00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR5913Aurora Home6009SAO PAULO62070503***6304ABCD',
+        },
+        800,
+      );
     }
+    void installments;
     return this._wait({ id: `ORD-${Date.now().toString(36).toUpperCase()}` }, 800);
+  }
+
+  async checkPaymentStatus(intentId: string): Promise<'pending' | 'paid' | 'failed'> {
+    if (!this.baseUrl || !this.sessionToken) return 'pending';
+    try {
+      const r = await fetch(`${this.baseUrl}/embed/payment/intents/${intentId}/status`, {
+        headers: this._headers(),
+      });
+      if (r.ok) {
+        const data = await r.json() as { status?: string };
+        const s = data.status;
+        if (s === 'paid' || s === 'failed') return s;
+      }
+    } catch {
+      // fall through
+    }
+    return 'pending';
   }
 
   async supportAnswer(question: string): Promise<{ answer: string }> {

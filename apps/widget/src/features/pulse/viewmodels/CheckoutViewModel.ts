@@ -82,6 +82,11 @@ interface CheckoutState {
   supportInput: string;
   couponShownAt: number | null;
   urgencyTick: number;
+  pixIntentId: string | null;
+  pixQrCode: string | null;
+  pixCopyPaste: string | null;
+  pixExpiresAt: string | null;
+  pixStatus: 'idle' | 'waiting' | 'paid' | 'failed';
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -169,6 +174,11 @@ function initialState(): CheckoutState {
     supportInput: '',
     couponShownAt: null,
     urgencyTick: 0,
+    pixIntentId: null,
+    pixQrCode: null,
+    pixCopyPaste: null,
+    pixExpiresAt: null,
+    pixStatus: 'idle',
   };
 }
 
@@ -231,6 +241,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   private startOpen = false;
   private postFinalizeTimer: ReturnType<typeof setTimeout> | null = null;
   private urgencyInterval: ReturnType<typeof setInterval> | null = null;
+  private _pixPollTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(props: CheckoutProps, refs: DomRefs) {
     super(props, initialState());
@@ -268,6 +279,9 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     void this.ensureApi()
       .then((api) => api.getOrders())
       .then((orders) => this.setState({ orders }));
+    void this.ensureApi()
+      .then((api) => api.ensureSession())
+      .catch(() => { /* fire-and-forget */ });
   }
 
   unmount(): void {
@@ -276,6 +290,10 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     if (this.postFinalizeTimer) {
       clearTimeout(this.postFinalizeTimer);
       this.postFinalizeTimer = null;
+    }
+    if (this._pixPollTimer) {
+      clearInterval(this._pixPollTimer);
+      this._pixPollTimer = null;
     }
     window.removeEventListener('pointermove', this.move);
     window.removeEventListener('pointerup', this.end);
@@ -1388,8 +1406,60 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const api = await this.ensureApi();
     const c = this.state.cart;
     const calc = this.calc(c);
-    const order = await api.createOrder();
+    const order = await api.createOrder(method);
     const crypto = method === 'crypto';
+
+    if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
+      this.setState({
+        pixIntentId: order.id,
+        pixQrCode: order.pixQrCode ?? null,
+        pixCopyPaste: order.pixCopyPaste ?? null,
+        pixExpiresAt: order.pixExpiresAt ?? null,
+        pixStatus: 'waiting',
+      });
+      this.startPixPolling(order.id);
+      return;
+    }
+
+    this.completeOrder(method, order.id, crypto, c, calc);
+  }
+
+  startPixPolling(intentId: string): void {
+    if (this._pixPollTimer) {
+      clearInterval(this._pixPollTimer);
+      this._pixPollTimer = null;
+    }
+    void this.ensureApi().then((api) => {
+      this._pixPollTimer = setInterval(() => {
+        void api.checkPaymentStatus(intentId).then((status) => {
+          if (status === 'paid') {
+            if (this._pixPollTimer) {
+              clearInterval(this._pixPollTimer);
+              this._pixPollTimer = null;
+            }
+            this.setState({ pixStatus: 'paid' });
+            const c = this.state.cart;
+            const calc = this.calc(c);
+            this.completeOrder('pix', intentId, false, c, calc);
+          } else if (status === 'failed') {
+            if (this._pixPollTimer) {
+              clearInterval(this._pixPollTimer);
+              this._pixPollTimer = null;
+            }
+            this.setState({ pixStatus: 'failed' });
+          }
+        });
+      }, 3000);
+    });
+  }
+
+  private completeOrder(
+    method: PayMethod,
+    orderId: string,
+    crypto: boolean,
+    c: Cart,
+    calc: ReturnType<typeof this.calc>,
+  ): void {
     const sub = crypto
       ? 'Liquidação confirmada na Stellar. Cashback liberado.'
       : 'Seu pedido foi confirmado e o lojista já foi pago.';
@@ -1405,7 +1475,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     };
     this.setState((s) => ({
       completed: true,
-      orderId: order.id,
+      orderId,
       orders: [newOrder, ...s.orders],
       cart: freshCart(),
       customer: freshCustomer(),
@@ -1417,6 +1487,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       recommendation: null,
       installment: 1,
       couponShownAt: null,
+      pixIntentId: null,
+      pixQrCode: null,
+      pixCopyPaste: null,
+      pixExpiresAt: null,
+      pixStatus: 'idle',
     }));
     this.stopUrgencyTicker();
     const confirmText = crypto
@@ -1424,7 +1499,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       : 'Pronto! Pagamento aprovado e pedido confirmado. Já cuido do resto pra você.';
     this.push(
       { role: 'agent', kind: 'text', text: confirmText },
-      { role: 'agent', kind: 'complete', method, subline: sub, orderId: order.id },
+      { role: 'agent', kind: 'complete', method, subline: sub, orderId },
     );
     this.setState({
       actions: [this.A('Ver meus pedidos', this.goHub, true), this.A('Comprar de novo', this.buyAgain)],
@@ -2679,6 +2754,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
               } as React.CSSProperties),
         };
       }),
+
+      pixQrCode: this.state.pixQrCode,
+      pixCopyPaste: this.state.pixCopyPaste,
+      pixStatus: this.state.pixStatus,
+      pixExpiresAt: this.state.pixExpiresAt,
 
       chatRef: (el: HTMLDivElement | null) => {
         this.refs.chat = el;
