@@ -21,6 +21,7 @@ export class PulseAPI {
   private merchantId: string;
   private sessionToken: string | null;
   private sessionId: string | null;
+  private _buyerToken: string | null = null;
   private _initialCart: { product: Product; qty: number } | undefined;
   private _initialCustomer: Partial<Customer> | undefined;
 
@@ -54,6 +55,77 @@ export class PulseAPI {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.sessionToken) h['Authorization'] = `Bearer ${this.sessionToken}`;
     return h;
+  }
+
+  private _buyerHeaders(): Record<string, string> {
+    const h: Record<string, string> = { 'Content-Type': 'application/json' };
+    const token = this._buyerToken || this.sessionToken;
+    if (token) h['Authorization'] = `Bearer ${token}`;
+    return h;
+  }
+
+  setBuyerToken(token: string): void {
+    this._buyerToken = token;
+  }
+
+  async sendPhoneCode(phone: string): Promise<{ ok: boolean }> {
+    if (this.baseUrl) {
+      try {
+        const r = await fetch(`${this.baseUrl}/buyer/phone/send`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, merchant_id: this.merchantId }),
+        });
+        if (r.ok) {
+          return (await r.json()) as { ok: boolean };
+        }
+      } catch {
+        // fall through to demo
+      }
+    }
+    return { ok: true };
+  }
+
+  async verifyPhoneCode(phone: string, code: string): Promise<{ token: string; name: string; email: string } | null> {
+    if (this.baseUrl) {
+      try {
+        const r = await fetch(`${this.baseUrl}/buyer/phone/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, code, merchant_id: this.merchantId }),
+        });
+        if (r.ok) {
+          const data = await r.json() as { token: string; buyer: { globalUserId: string; name: string; email: string; phone: string } };
+          this.setBuyerToken(data.token);
+          return { token: data.token, name: data.buyer.name, email: data.buyer.email };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return null;
+  }
+
+  async loginFromSession(sessionId: string): Promise<{ token: string; name: string; email: string } | null> {
+    if (this.baseUrl) {
+      try {
+        const r = await fetch(`${this.baseUrl}/buyer/login-from-session`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+        if (r.ok) {
+          const data = await r.json() as { token: string; buyer: { globalUserId: string; name: string; email: string; phone: string } } | null;
+          if (data && data.token) {
+            this.setBuyerToken(data.token);
+            return { token: data.token, name: data.buyer.name, email: data.buyer.email };
+          }
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return null;
   }
 
   async ensureSession(): Promise<string> {
@@ -148,102 +220,79 @@ export class PulseAPI {
   }
 
   async getShipping(customer?: { cep?: string; number?: string; complement?: string }): Promise<ShippingOption[]> {
-    const mock: ShippingOption[] = [
-      { key: 'sedex', label: 'Sedex Express', tag: 'Mais rápido', sub: 'Chega amanhã até 12h', cost: 0 },
-      { key: 'pac', label: 'PAC Econômico', tag: 'Mais barato', sub: 'Chega em 5-7 dias úteis', cost: 0 },
-      { key: 'jadlog', label: 'Jadlog Package', tag: 'Retirada fácil', sub: 'Chega em 3-4 dias úteis', cost: 9.9 },
-    ];
-    if (this.sessionToken && this.baseUrl && customer?.cep) {
+    if (this.sessionToken && this.baseUrl) {
       try {
+        const sessionId = await this.ensureSession();
         const r = await fetch(`${this.baseUrl}/embed/shipping/evaluate`, {
           method: 'POST',
           headers: this._headers(),
-          body: JSON.stringify({ session_id: this.sessionId ?? 'sess_demo', destination: { cep: customer.cep, number: customer.number, complement: customer.complement } }),
+          body: JSON.stringify({
+            session_id: sessionId,
+            postal_code: customer?.cep ?? '',
+            address_number: customer?.number ?? '',
+            address_complement: customer?.complement ?? '',
+          }),
         });
         if (r.ok) {
-          const data = await r.json() as { options?: Array<{ key: string; carrier: string; service_name: string; estimated_days: number; price_cents: number; free?: boolean }> };
-          const options = data.options ?? [];
-          if (options.length > 0) {
-            return options.map((o) => {
-              const cost = o.free ? 0 : o.price_cents / 100;
-              const tag = o.estimated_days <= 2 ? 'Mais rápido' : cost === 0 ? 'Mais barato' : o.carrier;
-              const sub = o.estimated_days === 1 ? 'Chega amanhã até 12h' : `Chega em ${o.estimated_days}-${o.estimated_days + 1} dias úteis`;
-              return { key: o.key, label: o.service_name || o.carrier, tag, sub, cost };
-            });
+          const data = await r.json() as { options?: unknown[] };
+          const opts = (data.options ?? []) as Array<{ key?: string; carrier_name?: string; label?: string; tag?: string; sub?: string; price_cents?: number; delivery_days?: number }>;
+          if (opts.length > 0) {
+            return opts.map((o) => ({
+              key: o.key ?? o.carrier_name ?? 'shipping',
+              label: o.label ?? o.carrier_name ?? 'Frete',
+              tag: o.tag ?? (o.delivery_days === 1 ? 'Mais rápido' : 'Econômico'),
+              sub: o.sub ?? (o.delivery_days ? `Chega em ${o.delivery_days} dias úteis` : 'Prazo a confirmar'),
+              cost: (o.price_cents ?? 0) / 100,
+            }));
           }
         }
-      } catch { /* fall through to mock */ }
+      } catch { /* fall through */ }
     }
-    return this._wait(mock);
+    return this._wait([
+      { key: 'sedex', label: 'Sedex Express', tag: 'Mais rápido', sub: 'Chega amanhã até 12h', cost: 0 },
+      { key: 'pac', label: 'PAC Econômico', tag: 'Mais barato', sub: 'Chega em 5-7 dias úteis', cost: 0 },
+      { key: 'jadlog', label: 'Jadlog Package', tag: 'Retirada fácil', sub: 'Chega em 3-4 dias úteis', cost: 9.9 },
+    ]);
   }
 
-  async createOrder(
-    payMethod: 'pix' | 'credito' | 'debito' | 'crypto' = 'pix',
-    _sessionId?: string,
-    installments?: number,
-  ): Promise<{
-    id: string;
-    pixQrCode?: string;
-    pixCopyPaste?: string;
-    pixExpiresAt?: string;
-  }> {
-    if (payMethod === 'pix' && this.sessionToken && this.baseUrl) {
+  async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string }> {
+    if (this.sessionToken && this.baseUrl) {
       try {
+        const sessionId = _sessionId ?? await this.ensureSession();
         const r = await fetch(`${this.baseUrl}/embed/payment/intents`, {
           method: 'POST',
           headers: this._headers(),
           body: JSON.stringify({
-            session_id: this.sessionId,
-            idempotency_key: `pulse-pix-${Date.now()}`,
-            payment_method: 'pix',
+            session_id: sessionId,
+            idempotency_key: `pulse-${Date.now()}`,
+            payment_method: payMethod,
+            ...(installments ? { installments } : {}),
           }),
         });
         if (r.ok) {
-          const data = await r.json() as {
-            intent_id?: string;
-            status?: string;
-            pix_qr_code?: string;
-            pix_copy_paste?: string;
-            pix_expires_at?: string;
-          };
-          return this._wait(
-            {
-              id: data.intent_id ?? `ORD-${Date.now()}`,
-              pixQrCode: data.pix_qr_code,
-              pixCopyPaste: data.pix_copy_paste,
-              pixExpiresAt: data.pix_expires_at,
-            },
-            400,
-          );
+          const data = await r.json() as { intent_id?: string; order_id?: string; pix_qr_code?: string; pix_copy_paste?: string; pix_expires_at?: string };
+          const id = data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
+          return { id, pixQrCode: data.pix_qr_code, pixCopyPaste: data.pix_copy_paste, pixExpiresAt: data.pix_expires_at };
         }
-      } catch {
-        // fall through to mock
-      }
-      return this._wait(
-        {
-          id: `PIX-MOCK-${Date.now()}`,
-          pixCopyPaste: '00020126360014BR.GOV.BCB.PIX0114+5511999999999520400005303986540510.005802BR5913Aurora Home6009SAO PAULO62070503***6304ABCD',
-        },
-        800,
-      );
+      } catch { /* fall through */ }
     }
-    void installments;
+    if (payMethod === 'pix') {
+      return this._wait({ id: `ORD-${Date.now().toString(36).toUpperCase()}`, pixCopyPaste: '00020126580014BR.GOV.BCB.PIX0136mock-pix-key-uuid-6304ABCD', pixExpiresAt: new Date(Date.now() + 30 * 60000).toISOString() }, 800);
+    }
     return this._wait({ id: `ORD-${Date.now().toString(36).toUpperCase()}` }, 800);
   }
 
   async checkPaymentStatus(intentId: string): Promise<'pending' | 'paid' | 'failed'> {
-    if (!this.baseUrl || !this.sessionToken) return 'pending';
-    try {
-      const r = await fetch(`${this.baseUrl}/embed/payment/intents/${intentId}/status`, {
-        headers: this._headers(),
-      });
-      if (r.ok) {
-        const data = await r.json() as { status?: string };
-        const s = data.status;
-        if (s === 'paid' || s === 'failed') return s;
-      }
-    } catch {
-      // fall through
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const r = await fetch(`${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status`, { headers: this._headers() });
+        if (r.ok) {
+          const data = await r.json() as { status?: string };
+          const s = data.status;
+          if (s === 'paid' || s === 'confirmed' || s === 'completed') return 'paid';
+          if (s === 'failed' || s === 'cancelled' || s === 'expired') return 'failed';
+        }
+      } catch { /* fall through */ }
     }
     return 'pending';
   }
@@ -266,11 +315,11 @@ export class PulseAPI {
   }
 
   async getOrders(): Promise<Order[]> {
-    if (this.sessionToken && this.baseUrl) {
+    if ((this._buyerToken || this.sessionToken) && this.baseUrl) {
       try {
         const r = await fetch(
           `${this.baseUrl}/buyer/me/purchases?merchant_id=${this.merchantId}&limit=5`,
-          { headers: this._headers() },
+          { headers: this._buyerHeaders() },
         );
         if (r.ok) {
           const data = await r.json() as { data?: unknown[] };

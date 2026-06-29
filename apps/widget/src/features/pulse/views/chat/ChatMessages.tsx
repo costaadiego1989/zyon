@@ -414,32 +414,74 @@ export function ChatMessages({ s }: StageProps) {
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <div style={{ width: '84px', height: '84px', borderRadius: '12px', flex: 'none', background: '#fff', padding: '7px', border: '1px solid var(--bd)' }}>
-                    <div
-                      style={{
-                        width: '100%',
-                        height: '100%',
-                        backgroundImage: 'repeating-linear-gradient(0deg,#111 0 3px,transparent 3px 6px),repeating-linear-gradient(90deg,#111 0 3px,transparent 3px 6px)',
-                        backgroundSize: '6px 6px',
-                        borderRadius: '3px',
-                      }}
-                    />
+                    {stateStr(s, 'pixQrCode') ? (
+                      <img
+                        src={stateStr(s, 'pixQrCode')}
+                        alt="PIX QR Code"
+                        style={{ width: '100%', height: '100%', borderRadius: '3px', display: 'block' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          backgroundImage: 'repeating-linear-gradient(0deg,#111 0 3px,transparent 3px 6px),repeating-linear-gradient(90deg,#111 0 3px,transparent 3px 6px)',
+                          backgroundSize: '6px 6px',
+                          borderRadius: '3px',
+                        }}
+                      />
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13.5px', fontWeight: 600 }}>Pague com Pix</div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 600 }}>
+                      {stateStr(s, 'pixStatus') === 'paid' ? 'Pix confirmado!' : 'Pague com Pix'}
+                    </div>
                     <div style={{ fontSize: '11px', color: 'var(--mut)', lineHeight: 1.45, marginTop: '4px' }}>
-                      Escaneie o QR Code no app do seu banco. Seu pedido é confirmado assim que o pagamento cai.
+                      {stateStr(s, 'pixStatus') === 'paid'
+                        ? 'Pagamento recebido. Seu pedido está sendo processado.'
+                        : 'Escaneie o QR Code no app do seu banco. Seu pedido é confirmado assim que o pagamento cai.'}
                     </div>
                   </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '13px', padding: '10px 12px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)' }}>
-                  <span style={{ flex: 1, minWidth: 0, fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    00020126360014BR.GOV.BCB.PIX0114+55119...PULSE
-                  </span>
-                  <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--g2)', flex: 'none' }}>Copiar</span>
-                </div>
+                {stateStr(s, 'pixCopyPaste') && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '13px', padding: '10px 12px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {stateStr(s, 'pixCopyPaste')}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { void navigator.clipboard.writeText(stateStr(s, 'pixCopyPaste')); }}
+                      style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--g2)', flex: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
+                    >
+                      Copiar
+                    </button>
+                  </div>
+                )}
+                {!stateStr(s, 'pixCopyPaste') && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '13px', padding: '10px 12px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      00020126360014BR.GOV.BCB.PIX0114+55119...PULSE
+                    </span>
+                    <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--g2)', flex: 'none' }}>Copiar</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10.5px', color: 'var(--mut)', marginTop: '9px' }}>
-                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dot)', animation: 'pulseDot 2s infinite' }} />
-                  Aguardando pagamento · expira em 14:58
+                  {stateStr(s, 'pixStatus') === 'paid' ? (
+                    <>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#1ED760' }} />
+                      Pagamento confirmado
+                    </>
+                  ) : stateStr(s, 'pixStatus') === 'failed' ? (
+                    <>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ff4c6c' }} />
+                      Pagamento falhou — tente outro método
+                    </>
+                  ) : (
+                    <>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dot)', animation: 'pulseDot 2s infinite' }} />
+                      {stateStr(s, 'pixStatus') === 'waiting' ? 'Aguardando pagamento…' : 'Aguardando pagamento · expira em 14:58'}
+                    </>
+                  )}
                 </div>
               </div>
               </ShimmerBorder>

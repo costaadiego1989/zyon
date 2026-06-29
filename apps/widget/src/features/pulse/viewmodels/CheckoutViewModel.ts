@@ -82,6 +82,10 @@ interface CheckoutState {
   supportInput: string;
   couponShownAt: number | null;
   urgencyTick: number;
+  phoneStep: 'idle' | 'enter_phone' | 'enter_code' | 'verifying' | 'done';
+  phoneNumber: string;
+  phoneCode: string;
+  phoneError: string | null;
   pixIntentId: string | null;
   pixQrCode: string | null;
   pixCopyPaste: string | null;
@@ -174,6 +178,10 @@ function initialState(): CheckoutState {
     supportInput: '',
     couponShownAt: null,
     urgencyTick: 0,
+    phoneStep: 'idle',
+    phoneNumber: '',
+    phoneCode: '',
+    phoneError: null,
     pixIntentId: null,
     pixQrCode: null,
     pixCopyPaste: null,
@@ -640,6 +648,59 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       /* noop */
     }
     this.setState({ view: 'intro', faceStatus: 'idle', faceProgress: 0, camActive: false });
+  };
+
+  startPhoneLogin = (): void => {
+    this.setState({ phoneStep: 'enter_phone', phoneError: null });
+  };
+
+  onPhoneInput = (v: string): void => {
+    this.setState({ phoneNumber: v });
+  };
+
+  onPhoneCodeInput = (v: string): void => {
+    this.setState({ phoneCode: v });
+  };
+
+  submitPhone = async (): Promise<void> => {
+    const phone = this.state.phoneNumber.trim();
+    if (!phone) return;
+    this.setState({ phoneError: null });
+    const api = await this.ensureApi();
+    try {
+      const result = await api.sendPhoneCode(phone);
+      if (result.ok) {
+        this.setState({ phoneStep: 'enter_code' });
+      } else {
+        this.setState({ phoneError: 'Não foi possível enviar o código. Tente novamente.' });
+      }
+    } catch {
+      this.setState({ phoneError: 'Erro ao enviar o código. Verifique o número e tente novamente.' });
+    }
+  };
+
+  submitCode = async (): Promise<void> => {
+    const phone = this.state.phoneNumber.trim();
+    const code = this.state.phoneCode.trim();
+    if (!phone || !code) return;
+    this.setState({ phoneStep: 'verifying', phoneError: null });
+    const api = await this.ensureApi();
+    try {
+      const result = await api.verifyPhoneCode(phone, code);
+      if (result) {
+        this.setState((s) => ({
+          authed: true,
+          phoneStep: 'done',
+          customer: { ...s.customer, name: result.name || s.customer.name, email: result.email || s.customer.email },
+        }));
+        const orders = await api.getOrders();
+        this.setState({ orders });
+      } else {
+        this.setState({ phoneStep: 'enter_code', phoneError: 'Código inválido. Tente novamente.' });
+      }
+    } catch {
+      this.setState({ phoneStep: 'enter_code', phoneError: 'Erro ao verificar o código. Tente novamente.' });
+    }
   };
 
   private getSpeechRecognition(): (new () => SpeechRecognitionInstance) | undefined {
@@ -1406,8 +1467,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const api = await this.ensureApi();
     const c = this.state.cart;
     const calc = this.calc(c);
-    const order = await api.createOrder(method);
     const crypto = method === 'crypto';
+    const order = await api.createOrder(method);
 
     if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
       this.setState({
@@ -1487,11 +1548,6 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       recommendation: null,
       installment: 1,
       couponShownAt: null,
-      pixIntentId: null,
-      pixQrCode: null,
-      pixCopyPaste: null,
-      pixExpiresAt: null,
-      pixStatus: 'idle',
     }));
     this.stopUrgencyTicker();
     const confirmText = crypto
@@ -2634,6 +2690,16 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       startFace: this.startFace,
       skipLogin: this.skipLogin,
 
+      phoneStep: this.state.phoneStep,
+      phoneNumber: this.state.phoneNumber,
+      phoneCode: this.state.phoneCode,
+      phoneError: this.state.phoneError,
+      startPhoneLogin: this.startPhoneLogin,
+      onPhoneInput: this.onPhoneInput,
+      onPhoneCodeInput: this.onPhoneCodeInput,
+      submitPhone: this.submitPhone,
+      submitCode: this.submitCode,
+
       voiceDisabled: !this.voiceEnabled,
       startVoiceChat: this.startVoiceChat,
       toggleVoiceMode: this.toggleVoiceMode,
@@ -2755,11 +2821,6 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         };
       }),
 
-      pixQrCode: this.state.pixQrCode,
-      pixCopyPaste: this.state.pixCopyPaste,
-      pixStatus: this.state.pixStatus,
-      pixExpiresAt: this.state.pixExpiresAt,
-
       chatRef: (el: HTMLDivElement | null) => {
         this.refs.chat = el;
       },
@@ -2775,6 +2836,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       closeCart: this.closeCart,
       inc: this.inc,
       dec: this.dec,
+
+      pixQrCode: this.state.pixQrCode,
+      pixCopyPaste: this.state.pixCopyPaste,
+      pixExpiresAt: this.state.pixExpiresAt,
+      pixStatus: this.state.pixStatus,
     };
   }
 }

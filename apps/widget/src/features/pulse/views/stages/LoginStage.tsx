@@ -1,5 +1,6 @@
 import type { StageProps } from '../types';
 import { stateBool, stateFn, stateRef, stateStr, stateStyle } from '../types';
+import React from 'react';
 
 export function LoginStage({ s }: StageProps) {
   const camRef = stateRef<HTMLVideoElement>(s, 'camRef');
@@ -211,6 +212,137 @@ export function LoginStage({ s }: StageProps) {
         </svg>
         Processado no dispositivo · sua imagem não é enviada
       </div>
+
+      {stateBool(s, 'isLogin') && stateStr(s, 'phoneStep') !== 'done' && (
+        <div style={{ width: '100%', maxWidth: '280px', marginTop: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
+            <div style={{ flex: 1, height: '1px', background: 'var(--bd)' }} />
+            <span style={{ fontSize: '11px', color: 'var(--mut)', fontFamily: "'Space Mono',monospace", letterSpacing: '1px', textTransform: 'uppercase' }}>ou</span>
+            <div style={{ flex: 1, height: '1px', background: 'var(--bd)' }} />
+          </div>
+
+          {(stateStr(s, 'phoneStep') === 'idle' || stateStr(s, 'phoneStep') === 'enter_phone') && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, textAlign: 'center', marginBottom: '2px' }}>
+                Entrar com telefone
+              </div>
+              <input
+                type="tel"
+                value={stateStr(s, 'phoneNumber')}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  const fn = s['onPhoneInput'] as (v: string) => void;
+                  fn(e.target.value);
+                }}
+                placeholder="+55 (11) 99999-9999"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  background: 'var(--chip)',
+                  border: '1px solid var(--bd)',
+                  borderRadius: '12px',
+                  padding: '13px 14px',
+                  fontSize: '14px',
+                  fontFamily: 'inherit',
+                  color: 'var(--tx)',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={stateFn(s, 'submitPhone') as unknown as () => void}
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#fff',
+                  padding: '13px',
+                  borderRadius: '12px',
+                  background: 'var(--g1)',
+                  width: '100%',
+                }}
+              >
+                Receber código
+              </button>
+            </div>
+          )}
+
+          {stateStr(s, 'phoneStep') === 'enter_code' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ fontSize: '13px', fontWeight: 600, textAlign: 'center', marginBottom: '2px' }}>
+                Código enviado para {stateStr(s, 'phoneNumber')}
+              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={stateStr(s, 'phoneCode')}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                  const fn = s['onPhoneCodeInput'] as (v: string) => void;
+                  fn(e.target.value);
+                }}
+                placeholder="000000"
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  background: 'var(--chip)',
+                  border: '1px solid var(--bd)',
+                  borderRadius: '12px',
+                  padding: '13px 14px',
+                  fontSize: '22px',
+                  fontFamily: "'Space Mono',monospace",
+                  letterSpacing: '6px',
+                  color: 'var(--tx)',
+                  textAlign: 'center',
+                  outline: 'none',
+                }}
+              />
+              <button
+                type="button"
+                onClick={stateFn(s, 'submitCode') as unknown as () => void}
+                style={{
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#fff',
+                  padding: '13px',
+                  borderRadius: '12px',
+                  background: 'var(--g1)',
+                  width: '100%',
+                }}
+              >
+                Verificar
+              </button>
+            </div>
+          )}
+
+          {stateStr(s, 'phoneStep') === 'verifying' && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '14px 0', color: 'var(--mut)', fontSize: '13px' }}>
+              <span
+                style={{
+                  width: '16px',
+                  height: '16px',
+                  borderRadius: '50%',
+                  border: '2px solid var(--g2)',
+                  borderTopColor: 'transparent',
+                  animation: 'ringSpin .8s linear infinite',
+                  flex: 'none',
+                }}
+              />
+              Verificando…
+            </div>
+          )}
+
+          {stateStr(s, 'phoneError') && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#ef4444', textAlign: 'center', lineHeight: 1.4 }}>
+              {stateStr(s, 'phoneError')}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
