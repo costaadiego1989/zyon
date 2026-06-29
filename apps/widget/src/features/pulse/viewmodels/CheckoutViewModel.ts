@@ -1258,7 +1258,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   onAddressDone = async (): Promise<void> => {
     const api = await this.ensureApi();
-    const opts = await api.getShipping();
+    const opts = await api.getShipping(this.state.customer);
     this.setState({ shipOptions: opts });
     this.agentSay(
       [

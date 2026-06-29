@@ -147,12 +147,34 @@ export class PulseAPI {
     return this._wait(buildCouponFromTenant(productPrice, d));
   }
 
-  async getShipping(): Promise<ShippingOption[]> {
-    return this._wait([
+  async getShipping(customer?: { cep?: string; number?: string; complement?: string }): Promise<ShippingOption[]> {
+    const mock: ShippingOption[] = [
       { key: 'sedex', label: 'Sedex Express', tag: 'Mais rápido', sub: 'Chega amanhã até 12h', cost: 0 },
       { key: 'pac', label: 'PAC Econômico', tag: 'Mais barato', sub: 'Chega em 5-7 dias úteis', cost: 0 },
       { key: 'jadlog', label: 'Jadlog Package', tag: 'Retirada fácil', sub: 'Chega em 3-4 dias úteis', cost: 9.9 },
-    ]);
+    ];
+    if (this.sessionToken && this.baseUrl && customer?.cep) {
+      try {
+        const r = await fetch(`${this.baseUrl}/embed/shipping/evaluate`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ session_id: this.sessionId ?? 'sess_demo', destination: { cep: customer.cep, number: customer.number, complement: customer.complement } }),
+        });
+        if (r.ok) {
+          const data = await r.json() as { options?: Array<{ key: string; carrier: string; service_name: string; estimated_days: number; price_cents: number; free?: boolean }> };
+          const options = data.options ?? [];
+          if (options.length > 0) {
+            return options.map((o) => {
+              const cost = o.free ? 0 : o.price_cents / 100;
+              const tag = o.estimated_days <= 2 ? 'Mais rápido' : cost === 0 ? 'Mais barato' : o.carrier;
+              const sub = o.estimated_days === 1 ? 'Chega amanhã até 12h' : `Chega em ${o.estimated_days}-${o.estimated_days + 1} dias úteis`;
+              return { key: o.key, label: o.service_name || o.carrier, tag, sub, cost };
+            });
+          }
+        }
+      } catch { /* fall through to mock */ }
+    }
+    return this._wait(mock);
   }
 
   async createOrder(
