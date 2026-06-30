@@ -1,4 +1,4 @@
-import type { CouponsDomainEventType, DomainEventEnvelope } from "@aacp/shared-types";
+import type { CouponsDomainEventType, DomainEventEnvelope } from "@zyon/shared-types";
 
 export function createCouponEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: CouponsDomainEventType;

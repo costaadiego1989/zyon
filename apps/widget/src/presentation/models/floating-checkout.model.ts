@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { MerchantTheme } from "@aacp/shared-types";
+import type { MerchantTheme } from "@zyon/shared-types";
 import type { useThemeStudio } from "../../hooks/use-theme-studio.js";
 
 export type FloatingCheckoutTurnModel = {

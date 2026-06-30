@@ -5,7 +5,7 @@
  */
 import type { Page, Route } from "@playwright/test";
 
-// ─── Types (mirrors @aacp/shared-types) ───────────────────────────────────────
+// ─── Types (mirrors @zyon/shared-types) ───────────────────────────────────────
 
 export interface ShippingQuote {
   customerPrice: number;

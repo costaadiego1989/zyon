@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import type { CheckoutSettings, CheckoutSettingsMode, CheckoutSettingsPatch } from "@aacp/shared-types";
+import type { CheckoutSettings, CheckoutSettingsMode, CheckoutSettingsPatch } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile as MerchantMeProfile } from "../api-client.js";
 
 export function CheckoutSettingsPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {

@@ -39,13 +39,13 @@
   --continuum-edge-highlight: transparent;
 }
 
-.checkout-experience.aacp-widget--conversational.aacp-page {
+.checkout-experience.zyon-widget--conversational.zyon-page {
   min-height: calc(100dvh - 76px);
   padding: 4px 24px 24px;
   background: var(--continuum-canvas);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-shell {
+.checkout-experience.zyon-widget--conversational .zyon-shell {
   grid-template-columns: minmax(0, 1fr) minmax(330px, 360px);
   width: min(1240px, 100%);
   height: calc(100dvh - 104px);
@@ -63,7 +63,7 @@
       color-mix(in oklch, var(--continuum-ink) 9%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-main {
+.checkout-experience.zyon-widget--conversational .zyon-main {
   grid-template-rows: auto auto minmax(0, 1fr);
   border-right: 1px solid var(--continuum-line-soft);
   background: var(--continuum-surface);
@@ -71,7 +71,7 @@
 
 /* Experience context */
 
-.checkout-experience.aacp-widget--conversational .aacp-header {
+.checkout-experience.zyon-widget--conversational .zyon-header {
   position: sticky;
   top: 0;
   z-index: 6;
@@ -89,11 +89,11 @@
     0 10px 28px color-mix(in oklch, var(--continuum-ink) 5%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-header-left {
+.checkout-experience.zyon-widget--conversational .zyon-header-left {
   gap: 12px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-header-agent-avatar {
+.checkout-experience.zyon-widget--conversational .zyon-header-agent-avatar {
   width: 44px;
   height: 44px;
   flex-basis: 44px;
@@ -102,16 +102,16 @@
   background: var(--continuum-surface-muted);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-header-agent-avatar
-  .aacp-icon-frame {
+.checkout-experience.zyon-widget--conversational
+  .zyon-header-agent-avatar
+  .zyon-icon-frame {
   width: 44px;
   height: 44px;
   border-radius: 14px;
   background: var(--continuum-surface-muted);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-agent-context {
+.checkout-experience.zyon-widget--conversational .zyon-agent-context {
   display: block;
   margin-bottom: 2px;
   color: var(--continuum-success);
@@ -123,7 +123,7 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-agent-name {
+.checkout-experience.zyon-widget--conversational .zyon-agent-name {
   display: block;
   color: var(--continuum-ink);
   font-size: 14px;
@@ -132,14 +132,14 @@
   line-height: 1.2;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-agent-sub {
+.checkout-experience.zyon-widget--conversational .zyon-agent-sub {
   margin-top: 2px;
   color: var(--continuum-muted);
   font-size: 10px;
   font-weight: 500;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-header-presence {
+.checkout-experience.zyon-widget--conversational .zyon-header-presence {
   display: inline-flex;
   min-width: 0;
   align-items: center;
@@ -152,25 +152,25 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-header-presence-dot {
+.checkout-experience.zyon-widget--conversational
+  .zyon-header-presence-dot {
   display: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-header-actions {
+.checkout-experience.zyon-widget--conversational .zyon-header-actions {
   gap: 6px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-icon-btn,
-.checkout-experience.aacp-widget--conversational .aacp-login-btn,
-.checkout-experience.aacp-widget--conversational .aacp-user-chip {
+.checkout-experience.zyon-widget--conversational .zyon-icon-btn,
+.checkout-experience.zyon-widget--conversational .zyon-login-btn,
+.checkout-experience.zyon-widget--conversational .zyon-user-chip {
   min-height: 38px;
   border-color: transparent;
   border-radius: 11px;
   background: transparent;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-header-help {
+.checkout-experience.zyon-widget--conversational .zyon-header-help {
   display: inline-flex;
   width: auto;
   min-width: 0;
@@ -179,77 +179,77 @@
   padding: 0 10px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-header-action-label {
+.checkout-experience.zyon-widget--conversational .zyon-header-action-label {
   color: var(--continuum-muted);
   font-size: 10px;
   font-weight: 600;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-icon-btn:hover,
-.checkout-experience.aacp-widget--conversational .aacp-login-btn:hover,
-.checkout-experience.aacp-widget--conversational .aacp-user-chip:hover {
+.checkout-experience.zyon-widget--conversational .zyon-icon-btn:hover,
+.checkout-experience.zyon-widget--conversational .zyon-login-btn:hover,
+.checkout-experience.zyon-widget--conversational .zyon-user-chip:hover {
   border-color: var(--continuum-line-soft);
   background: var(--continuum-surface-muted);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-btn {
+.checkout-experience.zyon-widget--conversational .zyon-cart-btn {
   display: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cart-close {
+.checkout-experience.zyon-widget--conversational .zyon-cart-close {
   display: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-studio-fab,
-.checkout-experience.aacp-widget--conversational .aacp-debug-reset {
+.checkout-experience.zyon-widget--conversational .zyon-studio-fab,
+.checkout-experience.zyon-widget--conversational .zyon-debug-reset {
   display: none;
 }
 
-.checkout-experience[data-theme="dark"].aacp-widget--conversational .aacp-header {
+.checkout-experience[data-theme="dark"].zyon-widget--conversational .zyon-header {
   box-shadow:
     inset 0 1px 0 var(--continuum-edge-highlight),
     0 10px 32px oklch(0% 0 0 / 0.32);
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress {
   border-top: 1px solid color-mix(in oklch, var(--continuum-line) 50%, transparent);
   border-bottom: 0;
   background: var(--continuum-stepper-bg);
   box-shadow: none;
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-index {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-index {
   background: color-mix(in oklch, var(--continuum-success) 11%, var(--continuum-surface-strong));
   border-color: color-mix(in oklch, var(--continuum-success) 24%, var(--continuum-line));
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-status {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-status {
   background: color-mix(in oklch, var(--continuum-success) 12%, var(--continuum-surface-strong));
   border-color: color-mix(in oklch, var(--continuum-success) 26%, var(--continuum-line));
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-dot {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-dot {
   background: var(--continuum-surface-strong);
   border-color: var(--continuum-line);
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-label {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-label {
   color: var(--continuum-faint);
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-step.active
-  .aacp-stage-progress-label {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-step.active
+  .zyon-stage-progress-label {
   color: var(--continuum-ink);
 }
 
 /* Journey protocol */
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress {
   position: relative;
   z-index: 4;
   min-height: 52px;
@@ -262,7 +262,7 @@
   --aacp-stage-marker-size: 14px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-shine {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-shine {
   position: absolute;
   left: 0;
   right: 0;
@@ -272,14 +272,14 @@
   pointer-events: none;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-shine::before {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-shine::before {
   content: "";
   position: absolute;
   inset: 0;
   background: var(--continuum-line-soft);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-shine::after {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-shine::after {
   content: "";
   position: absolute;
   top: 0;
@@ -296,8 +296,8 @@
   animation: aacp-stage-shine-sweep 2.8s ease-in-out infinite;
 }
 
-.checkout-experience[data-theme="dark"]:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-shine::after {
+.checkout-experience[data-theme="dark"]:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-shine::after {
   background: linear-gradient(
     90deg,
     transparent 0%,
@@ -306,7 +306,7 @@
   );
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-body {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-body {
   display: flex;
   align-items: center;
   gap: 20px;
@@ -314,7 +314,7 @@
   min-width: 0;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-head {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-head {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
@@ -322,14 +322,14 @@
   max-width: min(36%, 200px);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-lead {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-lead {
   display: flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-index {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-index {
   display: inline-grid;
   place-items: center;
   width: var(--aacp-stage-head-height);
@@ -346,7 +346,7 @@
   line-height: 1;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-current {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-current {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -355,7 +355,7 @@
   min-width: 0;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-kicker {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-kicker {
   flex-shrink: 0;
   color: var(--continuum-muted);
   font-family: var(--continuum-body);
@@ -367,7 +367,7 @@
   white-space: nowrap;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-title {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-title {
   overflow: hidden;
   margin: 0;
   color: var(--continuum-ink);
@@ -378,7 +378,7 @@
   white-space: nowrap;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-status {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-status {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -398,7 +398,7 @@
   text-transform: uppercase;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-status-dot {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-status-dot {
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -406,15 +406,15 @@
   animation: pulse-ring 2s ease-out infinite;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-rail-wrap {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-rail-wrap {
   flex: 1;
   min-width: 0;
   align-self: center;
   padding: 0;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-stage-progress-track {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-stage-progress-track {
   top: calc(var(--aacp-stage-marker-size) / 2);
   right: calc(50% / var(--aacp-stage-progress-steps, 4));
   left: calc(50% / var(--aacp-stage-progress-steps, 4));
@@ -423,19 +423,19 @@
   background: var(--continuum-line);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-track-fill {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-track-fill {
   background: var(--continuum-success);
   transition: width 200ms var(--continuum-ease-out);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-step {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-step {
   gap: 7px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-dot {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-dot {
   display: inline-grid;
   place-items: center;
   box-sizing: border-box;
@@ -446,17 +446,17 @@
   background: var(--continuum-surface);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-step.active
-  .aacp-stage-progress-dot {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-step.active
+  .zyon-stage-progress-dot {
   border: 5px solid var(--continuum-stepper-bg);
   background: var(--continuum-success);
   box-shadow: 0 0 0 1px var(--continuum-success);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-step.done
-  .aacp-stage-progress-dot {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-step.done
+  .zyon-stage-progress-dot {
   border-color: var(--continuum-success);
   background: var(--continuum-success);
   color: #fff;
@@ -465,8 +465,8 @@
 /* Done-step checkmark glyph (the markup ships an empty span; without this rule
    the "done" dot reads as a flat circle and on voice the check looked black /
    invisible). Pure-CSS check drawn with two borders, centered in the dot. */
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-check {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-check {
   display: block;
   width: 30%;
   height: 56%;
@@ -475,8 +475,8 @@
   transform: translateY(-9%) rotate(45deg);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-label {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-label {
   display: block;
   width: 100%;
   color: var(--continuum-faint);
@@ -485,29 +485,29 @@
   text-align: center;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-stage-progress-step.active
-  .aacp-stage-progress-label {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-stage-progress-step.active
+  .zyon-stage-progress-label {
   color: var(--continuum-ink);
 }
 
 /* Decision stage */
 
-.checkout-experience.aacp-widget--conversational .aacp-decision-stage {
+.checkout-experience.zyon-widget--conversational .zyon-decision-stage {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--continuum-surface-muted);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-thread {
+.checkout-experience.zyon-widget--conversational .zyon-thread {
   gap: 13px;
   padding: 34px clamp(28px, 5vw, 64px) 34px;
   scroll-padding-bottom: 130px;
   background: transparent;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-conversation-lead {
+.checkout-experience.zyon-widget--conversational .zyon-conversation-lead {
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 58px;
@@ -519,7 +519,7 @@
   border: 0;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-conversation-divider {
+.checkout-experience.zyon-widget--conversational .zyon-conversation-divider {
   width: min(100%, 680px);
   height: 1px;
   margin: 18px auto 22px;
@@ -527,13 +527,13 @@
   background: var(--continuum-line-soft);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-conversation-lead-copy {
+.checkout-experience.zyon-widget--conversational
+  .zyon-conversation-lead-copy {
   min-width: 0;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-conversation-agent {
+.checkout-experience.zyon-widget--conversational
+  .zyon-conversation-agent {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -546,8 +546,8 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-conversation-agent::before {
+.checkout-experience.zyon-widget--conversational
+  .zyon-conversation-agent::before {
   content: "";
   width: 6px;
   height: 6px;
@@ -557,8 +557,8 @@
   animation: aacp-presence-blink 1.6s ease-in-out infinite;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-conversation-lead
+.checkout-experience.zyon-widget--conversational
+  .zyon-conversation-lead
   h2 {
   max-width: 16ch;
   margin: 0;
@@ -571,8 +571,8 @@
   line-height: 0.98;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-conversation-lead
+.checkout-experience.zyon-widget--conversational
+  .zyon-conversation-lead
   p {
   max-width: 56ch;
   margin: 13px 0 0;
@@ -581,7 +581,7 @@
   line-height: 1.55;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-conversation-orbit {
+.checkout-experience.zyon-widget--conversational .zyon-conversation-orbit {
   position: relative;
   display: grid;
   width: 58px;
@@ -601,33 +601,33 @@
   animation: aacp-presence-breathe 4.5s ease-in-out infinite;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-conversation-orbit
+.checkout-experience.zyon-widget--conversational
+  .zyon-conversation-orbit
   img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-bubble-stack {
+.checkout-experience.zyon-widget--conversational .zyon-bubble-stack {
   width: min(100%, 680px);
   max-width: min(100%, 680px);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-bubble-stack--agent:not(.is-active-turn) {
+.checkout-experience.zyon-widget--conversational
+  .zyon-bubble-stack--agent:not(.is-active-turn) {
   opacity: 0.58;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-bubble-stack--agent:not(.is-active-turn)
-  .aacp-bubble-meta {
+.checkout-experience.zyon-widget--conversational
+  .zyon-bubble-stack--agent:not(.is-active-turn)
+  .zyon-bubble-meta {
   display: none;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-bubble-stack--agent:not(.is-active-turn)
-  .aacp-bubble {
+.checkout-experience.zyon-widget--conversational
+  .zyon-bubble-stack--agent:not(.is-active-turn)
+  .zyon-bubble {
   max-width: 72%;
   padding: 2px 0;
   border: 0;
@@ -637,21 +637,21 @@
   line-height: 1.5;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-bubble-stack.is-active-turn {
+.checkout-experience.zyon-widget--conversational
+  .zyon-bubble-stack.is-active-turn {
   margin-top: 4px;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience.zyon-widget--conversational
   .is-active-turn
-  .aacp-bubble-meta {
+  .zyon-bubble-meta {
   gap: 7px;
   margin-bottom: 2px;
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience.zyon-widget--conversational
   .is-active-turn
-  .aacp-bubble-meta-avatar {
+  .zyon-bubble-meta-avatar {
   width: 24px;
   height: 24px;
   border: 1px solid color-mix(in oklch, var(--continuum-accent) 32%, var(--continuum-line));
@@ -662,9 +662,9 @@
   color: var(--continuum-accent);
 }
 
-.checkout-experience.aacp-widget--conversational
+.checkout-experience.zyon-widget--conversational
   .is-active-turn
-  .aacp-bubble-meta-name {
+  .zyon-bubble-meta-name {
   color: var(--continuum-accent);
   font-family: var(--continuum-operational);
   font-size: 8px;
@@ -673,8 +673,8 @@
   text-transform: uppercase;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-bubble-agent.is-latest {
+.checkout-experience.zyon-widget--conversational
+  .zyon-bubble-agent.is-latest {
   width: fit-content;
   max-width: min(620px, 94%);
   padding: 17px 20px;
@@ -694,7 +694,7 @@
     0 16px 34px color-mix(in oklch, var(--continuum-ink) 8%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-bubble-buyer {
+.checkout-experience.zyon-widget--conversational .zyon-bubble-buyer {
   max-width: 72%;
   padding: 9px 13px;
   border-color: var(--continuum-ink);
@@ -709,14 +709,14 @@
   box-shadow: 0 8px 20px color-mix(in oklch, var(--continuum-ink) 18%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-typing {
+.checkout-experience.zyon-widget--conversational .zyon-typing {
   margin-left: calc((100% - min(100%, 680px)) / 2);
   border: 0;
   background: transparent;
   color: var(--continuum-muted);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-network-error {
+.checkout-experience.zyon-widget--conversational .zyon-network-error {
   align-items: center;
   width: min(100%, 680px);
   padding: 10px 12px;
@@ -726,23 +726,23 @@
   font-size: 11px;
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-network-error
+.checkout-experience.zyon-widget--conversational
+  .zyon-network-error
   button {
   min-height: 34px;
   border-radius: 9px;
   font-size: 10px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-quick-replies,
-.checkout-experience.aacp-widget--conversational
-  .aacp-quick-replies--in-thread {
+.checkout-experience.zyon-widget--conversational .zyon-quick-replies,
+.checkout-experience.zyon-widget--conversational
+  .zyon-quick-replies--in-thread {
   width: min(100%, 680px);
   gap: 7px;
   margin-top: 3px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-chip {
+.checkout-experience.zyon-widget--conversational .zyon-chip {
   min-height: 40px;
   padding: 0 14px;
   border-color: var(--continuum-line);
@@ -753,20 +753,20 @@
   font-weight: 600;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-chip:first-child {
+.checkout-experience.zyon-widget--conversational .zyon-chip:first-child {
   border-color: var(--continuum-primary);
   background: var(--continuum-primary);
   color: var(--continuum-on-primary);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-chip:hover {
+.checkout-experience.zyon-widget--conversational .zyon-chip:hover {
   border-color: var(--continuum-ink);
   background: var(--continuum-surface);
   color: var(--continuum-ink);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-chip:first-child:hover {
+.checkout-experience.zyon-widget--conversational
+  .zyon-chip:first-child:hover {
   background: color-mix(
     in oklch,
     var(--continuum-primary) 92%,
@@ -775,8 +775,8 @@
   color: var(--continuum-on-primary);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-thread-composer-wrap {
+.checkout-experience.zyon-widget--conversational
+  .zyon-thread-composer-wrap {
   position: sticky;
   bottom: -35px;
   width: min(100%, 700px);
@@ -792,7 +792,7 @@
   box-shadow: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-composer {
+.checkout-experience.zyon-widget--conversational .zyon-composer {
   min-height: 54px;
   padding: 5px 6px 5px 15px;
   border-color: var(--continuum-line);
@@ -802,33 +802,33 @@
     color-mix(in oklch, var(--continuum-ink) 6%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-composer:focus-within {
+.checkout-experience.zyon-widget--conversational .zyon-composer:focus-within {
   border-color: var(--continuum-line);
   box-shadow:
     0 0 0 3px color-mix(in oklch, var(--continuum-ink) 8%, transparent),
     0 10px 26px color-mix(in oklch, var(--continuum-ink) 6%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-input {
+.checkout-experience.zyon-widget--conversational .zyon-input {
   font-size: 13px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-input:focus,
-.checkout-experience.aacp-widget--conversational .aacp-input:focus-visible {
+.checkout-experience.zyon-widget--conversational .zyon-input:focus,
+.checkout-experience.zyon-widget--conversational .zyon-input:focus-visible {
   border: 0;
   outline: 0;
   box-shadow: none;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-input:-webkit-autofill,
-.checkout-experience.aacp-widget--conversational .aacp-input:-webkit-autofill:focus {
+.checkout-experience.zyon-widget--conversational .zyon-input:-webkit-autofill,
+.checkout-experience.zyon-widget--conversational .zyon-input:-webkit-autofill:focus {
   -webkit-text-fill-color: var(--continuum-ink);
   caret-color: var(--continuum-ink);
   -webkit-box-shadow: 0 0 0 1000px var(--continuum-surface) inset;
   transition: background-color 99999s ease-in-out 0s;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-send {
+.checkout-experience.zyon-widget--conversational .zyon-send {
   width: 42px;
   height: 42px;
   border-color: var(--continuum-primary);
@@ -837,8 +837,8 @@
   color: var(--continuum-on-primary);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-composer-hint-inline {
+.checkout-experience.zyon-widget--conversational
+  .zyon-composer-hint-inline {
   padding-right: 4px;
   font-family: var(--continuum-operational);
   font-size: 7px;
@@ -854,7 +854,7 @@
    and should look identical. Voice keeps its own drawer POSITIONING in
    voice-checkout-experience.css; only the visual dressing is standardized here
    via :is(--conversational, --voice). */
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart {
   background: color-mix(
     in oklch,
     var(--continuum-surface) 72%,
@@ -862,18 +862,18 @@
   );
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-header {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-header {
   position: static;
   padding: 25px 24px 10px;
   border: 0;
   background: transparent;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-brand-lockup {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-brand-lockup {
   gap: 11px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-brand-mark {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-brand-mark {
   width: 38px;
   height: 38px;
   flex-basis: 38px;
@@ -883,21 +883,21 @@
   color: var(--continuum-surface);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-store {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-store {
   font-size: 12px;
   font-weight: 700;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-order-badge {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-order-badge {
   font-family: var(--continuum-operational);
   font-size: 7px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-header-status {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-header-status {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -908,8 +908,8 @@
   background: transparent;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-status-kicker {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-status-kicker {
   flex: 0 0 auto;
   padding: 0;
   color: var(--continuum-success);
@@ -920,8 +920,8 @@
   line-height: 1.2;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-status-label {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-status-label {
   flex: 0 1 auto;
   color: var(--continuum-ink);
   font-size: 10px;
@@ -929,20 +929,20 @@
   line-height: 1.2;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-status-hint {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-status-hint {
   display: none;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-block {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-items-block {
   padding: 18px 24px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-head {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-items-head {
   margin-bottom: 12px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-title {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-items-title {
   color: var(--continuum-ink);
   font-size: 11px;
   font-weight: 700;
@@ -950,7 +950,7 @@
   text-transform: none;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-items-count {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-items-count {
   display: inline;
   width: auto;
   min-width: 0;
@@ -965,11 +965,11 @@
   text-transform: uppercase;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-items {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-items {
   gap: 12px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item {
   grid-template-columns: 62px minmax(0, 1fr);
   gap: 13px;
   padding: 13px;
@@ -980,57 +980,57 @@
     color-mix(in oklch, var(--continuum-ink) 5%, transparent);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-thumb {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-thumb {
   width: 62px;
   height: 62px;
   border: 0;
   border-radius: 13px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-top {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-top {
   display: grid;
   gap: 5px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-name {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-name {
   max-width: 22ch;
   font-size: 11px;
   line-height: 1.28;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-price {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-price {
   color: var(--continuum-muted);
   font-family: var(--continuum-operational);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-desc {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-desc {
   display: none;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-controls {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-controls {
   margin-top: 10px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-qty-control {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-qty-control {
   grid-template-columns: 27px 28px 27px;
   min-height: 28px;
   border-color: var(--continuum-line-soft);
   border-radius: 9px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-qty-btn {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-qty-btn {
   width: 27px;
   height: 28px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-item-remove {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-item-remove {
   min-height: 28px;
   color: var(--continuum-faint);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-footer {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-ledger-footer {
   gap: 17px;
   margin-top: auto;
   padding: 20px 24px 24px;
@@ -1038,27 +1038,27 @@
   background: transparent;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-totals {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-totals {
   gap: 9px 16px;
   background: transparent;
   color: var(--continuum-muted);
   font-size: 10px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-totals dd {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-totals dd {
   font-family: var(--continuum-operational);
   font-size: 9px;
   font-variant-numeric: tabular-nums;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-total::before {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-total::before {
   margin: 5px 0 3px;
   background: var(--continuum-line-soft);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-total
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-total
   .total-row {
   margin-top: 0;
   padding-top: 0;
@@ -1066,8 +1066,8 @@
   font-size: 12px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-cart-total
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-cart-total
   .value {
   font-family: var(--continuum-font-interface);
   font-size: 20px;
@@ -1075,7 +1075,7 @@
   letter-spacing: -0.035em;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-assurance {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-ledger-assurance {
   align-items: center;
   gap: 8px;
   padding: 0;
@@ -1084,28 +1084,28 @@
   color: var(--continuum-success);
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-ledger-assurance
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-ledger-assurance
   strong {
   color: var(--continuum-ink);
   font-size: 9px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-  .aacp-ledger-assurance
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+  .zyon-ledger-assurance
   small {
   color: var(--continuum-muted);
   font-size: 8px;
 }
 
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-return {
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-ledger-return {
   display: none;
 }
 
 /* Contextual product states */
 
-.checkout-experience.aacp-widget--conversational .aacp-offer-cta,
-.checkout-experience.aacp-widget--conversational .aacp-cross-sell-proceed {
+.checkout-experience.zyon-widget--conversational .zyon-offer-cta,
+.checkout-experience.zyon-widget--conversational .zyon-cross-sell-proceed {
   min-height: 44px;
   padding: 0 18px;
   border: 1px solid var(--continuum-primary);
@@ -1118,7 +1118,7 @@
   box-shadow: 0 10px 24px color-mix(in oklch, var(--continuum-primary) 24%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-cross-sell-proceed {
+.checkout-experience.zyon-widget--conversational .zyon-cross-sell-proceed {
   display: inline-flex;
   width: 100%;
   align-items: center;
@@ -1127,82 +1127,82 @@
   margin-top: 10px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-offer-banner {
+.checkout-experience.zyon-widget--conversational .zyon-offer-banner {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-offer-banner .aacp-offer-cta {
+.checkout-experience.zyon-widget--conversational .zyon-offer-banner .zyon-offer-cta {
   min-width: 112px;
   white-space: nowrap;
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-offer,
-.checkout-experience.aacp-widget--conversational .aacp-coupon-box,
-.checkout-experience.aacp-widget--conversational .aacp-pix-panel,
-.checkout-experience.aacp-widget--conversational .aacp-order-confirmation,
-.checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-crypto-panel {
+.checkout-experience.zyon-widget--conversational .zyon-offer,
+.checkout-experience.zyon-widget--conversational .zyon-coupon-box,
+.checkout-experience.zyon-widget--conversational .zyon-pix-panel,
+.checkout-experience.zyon-widget--conversational .zyon-order-confirmation,
+.checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-crypto-panel {
   width: min(100%, 680px);
 }
 
-.checkout-experience.aacp-widget--conversational .aacp-order-confirmation {
+.checkout-experience.zyon-widget--conversational .zyon-order-confirmation {
   border-radius: 18px;
   box-shadow: 0 16px 34px
     color-mix(in oklch, var(--continuum-ink) 7%, transparent);
 }
 
-.checkout-experience.aacp-widget--conversational
-  .aacp-order-confirmation-reference {
+.checkout-experience.zyon-widget--conversational
+  .zyon-order-confirmation-reference {
   font-family: var(--continuum-operational);
 }
 
 @media (max-width: 1040px) {
-  .checkout-experience.aacp-widget--conversational.aacp-page {
+  .checkout-experience.zyon-widget--conversational.zyon-page {
     padding: 0 12px 12px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-shell {
+  .checkout-experience.zyon-widget--conversational .zyon-shell {
     height: calc(100dvh - 88px);
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-header-presence {
+  .checkout-experience.zyon-widget--conversational .zyon-header-presence {
     display: none;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-header {
+  .checkout-experience.zyon-widget--conversational .zyon-header {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 }
 
 @media (max-width: 860px) {
-  .checkout-experience.aacp-widget--conversational.aacp-page {
+  .checkout-experience.zyon-widget--conversational.zyon-page {
     min-height: calc(100dvh - 64px);
     padding: 0;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-shell,
-  .checkout-experience.aacp-widget--conversational .aacp-main {
+  .checkout-experience.zyon-widget--conversational .zyon-shell,
+  .checkout-experience.zyon-widget--conversational .zyon-main {
     height: calc(100dvh - 64px);
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-main {
+  .checkout-experience.zyon-widget--conversational .zyon-main {
     grid-template-rows: auto auto minmax(0, 1fr);
   }
 
   /* NOTE: the conversational mobile cart bottom-sheet (position/transform
      slide-up), overlay, and FAB are owned by enterprise.css (@media 860px).
-     This block intentionally does NOT restyle .aacp-cart / .aacp-cart-fab —
+     This block intentionally does NOT restyle .zyon-cart / .zyon-cart-fab —
      a partial duplicate here previously out-specified enterprise per-property
      and left the FAB half-applied (broken). Layout-only rules stay below. */
 
-  .checkout-experience.aacp-widget--conversational .aacp-thread {
+  .checkout-experience.zyon-widget--conversational .zyon-thread {
     padding-bottom: 112px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-thread-composer-wrap {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-thread-composer-wrap {
     position: relative;
     bottom: auto;
     margin: 8px auto 0;
@@ -1217,192 +1217,192 @@
 }
 
 @media (max-width: 640px) {
-  .checkout-experience.aacp-widget--conversational .aacp-header {
+  .checkout-experience.zyon-widget--conversational .zyon-header {
     min-height: 58px;
     gap: 10px;
     padding: 9px 14px 5px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-header-agent-avatar,
-  .checkout-experience.aacp-widget--conversational
-    .aacp-header-agent-avatar
-    .aacp-icon-frame {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-header-agent-avatar,
+  .checkout-experience.zyon-widget--conversational
+    .zyon-header-agent-avatar
+    .zyon-icon-frame {
     width: 36px;
     height: 36px;
     flex-basis: 36px;
     border-radius: 11px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-agent-context,
-  .checkout-experience.aacp-widget--conversational .aacp-agent-sub {
+  .checkout-experience.zyon-widget--conversational .zyon-agent-context,
+  .checkout-experience.zyon-widget--conversational .zyon-agent-sub {
     display: none;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-agent-name {
+  .checkout-experience.zyon-widget--conversational .zyon-agent-name {
     font-size: 12px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-header-action-label {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-header-action-label {
     display: none;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-header-help {
+  .checkout-experience.zyon-widget--conversational .zyon-header-help {
     width: 38px;
     padding: 0;
     justify-content: center;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress {
     min-height: auto;
     padding: 12px 14px 10px;
     --aacp-stage-head-height: 28px;
     --aacp-stage-marker-size: 12px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-body {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-body {
     flex-direction: column;
     align-items: center;
     gap: 12px;
     text-align: center;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-head {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-head {
     width: 100%;
     max-width: none;
     justify-content: center;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-lead {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-lead {
     justify-content: center;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-current {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-current {
     align-items: center;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-rail-wrap {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-rail-wrap {
     width: 100%;
     max-width: 300px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-index {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-index {
     font-size: 11px;
     border-radius: 8px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-status {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-status {
     display: inline-flex;
     height: auto;
     padding: 5px 10px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-title {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-title {
     font-size: 13px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-stage-progress-kicker {
+  .checkout-experience.zyon-widget--conversational .zyon-stage-progress-kicker {
     font-size: 10px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-thread {
+  .checkout-experience.zyon-widget--conversational .zyon-thread {
     gap: 11px;
     padding: 25px 16px 110px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-conversation-lead {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-conversation-lead {
     grid-template-columns: minmax(0, 1fr) 44px;
     gap: 18px;
     margin-bottom: 0;
     padding: 0;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-conversation-divider {
+  .checkout-experience.zyon-widget--conversational .zyon-conversation-divider {
     width: 100%;
     margin: 14px auto 18px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-conversation-orbit {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-conversation-orbit {
     width: 44px;
     height: 44px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-conversation-lead
+  .checkout-experience.zyon-widget--conversational
+    .zyon-conversation-lead
     h2 {
     font-size: 1.75rem;
     line-height: 1;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-conversation-lead
+  .checkout-experience.zyon-widget--conversational
+    .zyon-conversation-lead
     p {
     margin-top: 10px;
     font-size: 11px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-bubble-stack--agent:not(.is-active-turn)
-    .aacp-bubble {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-bubble-stack--agent:not(.is-active-turn)
+    .zyon-bubble {
     max-width: 86%;
     font-size: 10px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-bubble-agent.is-latest {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-bubble-agent.is-latest {
     max-width: 96%;
     padding: 15px 16px;
     border-radius: 17px 17px 17px 5px;
     font-size: 14px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-bubble-buyer {
+  .checkout-experience.zyon-widget--conversational .zyon-bubble-buyer {
     max-width: 84%;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-quick-replies,
-  .checkout-experience.aacp-widget--conversational
-    .aacp-quick-replies--in-thread {
+  .checkout-experience.zyon-widget--conversational .zyon-quick-replies,
+  .checkout-experience.zyon-widget--conversational
+    .zyon-quick-replies--in-thread {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-chip:first-child {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-chip:first-child {
     grid-column: 1 / -1;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-chip {
+  .checkout-experience.zyon-widget--conversational .zyon-chip {
     min-height: 42px;
     padding: 0 12px;
     font-size: 10px;
   }
 
-  .checkout-experience.aacp-widget--conversational
-    .aacp-thread-composer-wrap {
+  .checkout-experience.zyon-widget--conversational
+    .zyon-thread-composer-wrap {
     width: 100%;
     padding: 8px 2px 4px;
   }
 
-  .checkout-experience.aacp-widget--conversational .aacp-composer {
+  .checkout-experience.zyon-widget--conversational .zyon-composer {
     min-height: 52px;
     border-radius: 15px;
   }
 
-  .checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-cart-header {
+  .checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-cart-header {
     padding: 22px 18px 8px;
   }
 
-  .checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice)
-    .aacp-cart-items-block {
+  .checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice)
+    .zyon-cart-items-block {
     padding: 17px 18px;
   }
 
-  .checkout-experience:is(.aacp-widget--conversational, .aacp-widget--voice) .aacp-ledger-footer {
+  .checkout-experience:is(.zyon-widget--conversational, .zyon-widget--voice) .zyon-ledger-footer {
     padding: 18px max(18px, env(safe-area-inset-right))
       max(22px, env(safe-area-inset-bottom))
       max(18px, env(safe-area-inset-left));

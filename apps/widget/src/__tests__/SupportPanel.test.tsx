@@ -47,18 +47,18 @@ function buildVm(overrides: Record<string, unknown> = {}): CheckoutAgentViewMode
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Selects the X close button in the header (always last .aacp-ai-close in header) */
+/** Selects the X close button in the header (always last .zyon-ai-close in header) */
 function getHeaderCloseBtn(container: HTMLElement) {
-  const closeBtns = container.querySelectorAll(".aacp-ai-head .aacp-ai-close");
+  const closeBtns = container.querySelectorAll(".zyon-ai-head .zyon-ai-close");
   return closeBtns[closeBtns.length - 1] as HTMLElement;
 }
 
 function getComposerInput(container: HTMLElement) {
-  return container.querySelector(".aacp-ai-composer .aacp-input") as HTMLInputElement;
+  return container.querySelector(".zyon-ai-composer .zyon-input") as HTMLInputElement;
 }
 
 function getComposerForm(container: HTMLElement) {
-  return container.querySelector(".aacp-ai-composer") as HTMLFormElement;
+  return container.querySelector(".zyon-ai-composer") as HTMLFormElement;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,23 +77,23 @@ describe("SupportPanel", () => {
 
   it("B01 — painel fechado não tem classe open", () => {
     const { container } = render(<SupportPanel vm={buildVm({ supportOpen: false })} />);
-    expect(container.querySelector(".aacp-ai-panel")!.classList.contains("open")).toBe(false);
+    expect(container.querySelector(".zyon-ai-panel")!.classList.contains("open")).toBe(false);
   });
 
   it("B02 — painel aberto tem classe open", () => {
     const { container } = render(<SupportPanel vm={buildVm({ supportOpen: true })} />);
-    expect(container.querySelector(".aacp-ai-panel")!.classList.contains("open")).toBe(true);
+    expect(container.querySelector(".zyon-ai-panel")!.classList.contains("open")).toBe(true);
   });
 
   it("B03 — backdrop tem classe open quando painel aberto", () => {
     const { container } = render(<SupportPanel vm={buildVm({ supportOpen: true })} />);
-    expect(container.querySelector(".aacp-support-backdrop")!.classList.contains("open")).toBe(true);
+    expect(container.querySelector(".zyon-support-backdrop")!.classList.contains("open")).toBe(true);
   });
 
   it("B04 — click no backdrop chama setSupportOpen(false)", () => {
     const setSupportOpen = vi.fn();
     const { container } = render(<SupportPanel vm={buildVm({ setSupportOpen })} />);
-    fireEvent.click(container.querySelector(".aacp-support-backdrop")!);
+    fireEvent.click(container.querySelector(".zyon-support-backdrop")!);
     expect(setSupportOpen).toHaveBeenCalledWith(false);
   });
 
@@ -144,7 +144,7 @@ describe("SupportPanel", () => {
 
   it("B09 — exatamente 5 cards renderizados", () => {
     const { container } = render(<SupportPanel vm={buildVm()} />);
-    expect(container.querySelectorAll(".aacp-ai-faq-card")).toHaveLength(5);
+    expect(container.querySelectorAll(".zyon-ai-faq-card")).toHaveLength(5);
   });
 
   it("B10 — click em sugestão chama send com o label correto", () => {
@@ -180,7 +180,7 @@ describe("SupportPanel", () => {
   it("B11 — todos os cards desabilitados quando chat.loading=true", () => {
     vi.mocked(useSupportChat).mockReturnValue(buildChat({ loading: true }));
     const { container } = render(<SupportPanel vm={buildVm()} />);
-    const cards = container.querySelectorAll<HTMLButtonElement>(".aacp-ai-faq-card");
+    const cards = container.querySelectorAll<HTMLButtonElement>(".zyon-ai-faq-card");
     expect(cards.length).toBeGreaterThan(0);
     cards.forEach((card) => { expect(card.disabled).toBe(true); });
   });
@@ -189,14 +189,14 @@ describe("SupportPanel", () => {
     const { container } = render(
       <SupportPanel vm={buildVm({ activeExperience: { brand: { name: "Minha Loja" } } })} />
     );
-    expect(container.querySelector(".aacp-ai-sub")!.textContent).toContain("Minha Loja");
+    expect(container.querySelector(".zyon-ai-sub")!.textContent).toContain("Minha Loja");
   });
 
   it("B13 — fallback 'a loja' quando brand.name ausente", () => {
     const { container } = render(
       <SupportPanel vm={buildVm({ activeExperience: { brand: {} } })} />
     );
-    expect(container.querySelector(".aacp-ai-sub")!.textContent).toContain("a loja");
+    expect(container.querySelector(".zyon-ai-sub")!.textContent).toContain("a loja");
   });
 
   it("B14 — footer de confiança visível na welcome screen", () => {
@@ -219,7 +219,7 @@ describe("SupportPanel", () => {
       buildChat({ messages: [{ role: "user", text: "Qual o prazo?" }] })
     );
     const { getByText } = render(<SupportPanel vm={buildVm()} />);
-    expect(getByText("Qual o prazo?").closest(".aacp-bubble-buyer")).not.toBeNull();
+    expect(getByText("Qual o prazo?").closest(".zyon-bubble-buyer")).not.toBeNull();
   });
 
   it("B17 — bubble do agente tem classe aacp-bubble-agent", () => {
@@ -227,7 +227,7 @@ describe("SupportPanel", () => {
       buildChat({ messages: [{ role: "agent", text: "5 dias úteis." }] })
     );
     const { getByText } = render(<SupportPanel vm={buildVm()} />);
-    expect(getByText("5 dias úteis.").closest(".aacp-bubble-agent")).not.toBeNull();
+    expect(getByText("5 dias úteis.").closest(".zyon-bubble-agent")).not.toBeNull();
   });
 
   it("B18 — múltiplas mensagens renderizadas na ordem correta", () => {
@@ -241,7 +241,7 @@ describe("SupportPanel", () => {
       })
     );
     const { container } = render(<SupportPanel vm={buildVm()} />);
-    const bubbles = container.querySelectorAll(".aacp-bubble");
+    const bubbles = container.querySelectorAll(".zyon-bubble");
     expect(bubbles).toHaveLength(3);
     expect(bubbles[0]!.textContent).toBe("Msg 1");
     expect(bubbles[1]!.textContent).toBe("Resp 1");
@@ -321,7 +321,7 @@ describe("SupportPanel", () => {
 
   it("B25 — botão envio desabilitado quando input vazio", () => {
     const { container } = render(<SupportPanel vm={buildVm()} />);
-    const sendBtn = container.querySelector<HTMLButtonElement>(".aacp-send");
+    const sendBtn = container.querySelector<HTMLButtonElement>(".zyon-send");
     expect(sendBtn!.disabled).toBe(true);
   });
 
@@ -329,14 +329,14 @@ describe("SupportPanel", () => {
     const { container } = render(<SupportPanel vm={buildVm()} />);
     const input = getComposerInput(container);
     fireEvent.change(input, { target: { value: "Qual o prazo?" } });
-    const sendBtn = container.querySelector<HTMLButtonElement>(".aacp-send");
+    const sendBtn = container.querySelector<HTMLButtonElement>(".zyon-send");
     expect(sendBtn!.disabled).toBe(false);
   });
 
   it("B27 — botão envio desabilitado quando loading=true", () => {
     vi.mocked(useSupportChat).mockReturnValue(buildChat({ loading: true }));
     const { container } = render(<SupportPanel vm={buildVm()} />);
-    const sendBtn = container.querySelector<HTMLButtonElement>(".aacp-send");
+    const sendBtn = container.querySelector<HTMLButtonElement>(".zyon-send");
     expect(sendBtn!.disabled).toBe(true);
   });
 
@@ -362,7 +362,7 @@ describe("SupportPanel", () => {
 
     const { container } = render(<SupportPanel vm={buildVm()} />);
     fireEvent.change(getComposerInput(container), { target: { value: "Teste" } });
-    fireEvent.click(container.querySelector(".aacp-send")!);
+    fireEvent.click(container.querySelector(".zyon-send")!);
     expect(send).toHaveBeenCalledWith("Teste");
   });
 

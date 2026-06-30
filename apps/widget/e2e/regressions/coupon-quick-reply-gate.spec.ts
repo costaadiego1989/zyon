@@ -23,22 +23,22 @@ test.describe("@regression coupon-quick-reply-gate", () => {
 
   test("coupon input not shown on initial load", async ({ page }) => {
     await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
 
-    await expect(page.locator(".aacp-coupon-box")).not.toBeVisible();
+    await expect(page.locator(".zyon-coupon-box")).not.toBeVisible();
     await expect(page.locator("input[placeholder*='cupom' i], input[placeholder*='Cupom' i]")).not.toBeVisible();
   });
 
   test("coupon input appears after tapping the quick reply", async ({ page }) => {
     await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
 
-    const cupomReply = page.locator(".aacp-quick-replies button, .aacp-quick-reply").filter({ hasText: /cupom/i }).first();
+    const cupomReply = page.locator(".zyon-quick-replies button, .zyon-quick-reply").filter({ hasText: /cupom/i }).first();
     if (await cupomReply.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await cupomReply.click();
-      await expect(page.locator(".aacp-coupon-box, input[placeholder*='cupom' i]")).toBeVisible({ timeout: 5_000 });
+      await expect(page.locator(".zyon-coupon-box, input[placeholder*='cupom' i]")).toBeVisible({ timeout: 5_000 });
     }
 
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

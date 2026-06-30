@@ -1,5 +1,5 @@
 import React from "react";
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules } from "@zyon/shared-types";
 
 export function RulesForm({
   rules,

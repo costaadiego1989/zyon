@@ -17,6 +17,6 @@ export default defineConfig({
     return { js: ".cjs" };
   },
   banner: {
-    js: "/* @aacp/agentic-checkout-js UMD — global AACPAgenticCheckout */"
+    js: "/* @zyon/agentic-checkout-js UMD — global AACPAgenticCheckout */"
   }
 });

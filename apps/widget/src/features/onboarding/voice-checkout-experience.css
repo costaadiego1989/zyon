@@ -13,7 +13,7 @@
  * speech word-boundary events; the orb + ambient field consume it so motion is
  * tied to the actual audio, not a decorative loop.
  */
-.aacp-widget--voice {
+.zyon-widget--voice {
   --voice-accent: var(--aacp-accent, oklch(45% 0.11 165));
   --voice-surface: var(--aacp-enterprise-surface, oklch(99.2% 0.006 100));
   --voice-surface-muted: var(--aacp-enterprise-surface-muted, oklch(96.2% 0.012 108));
@@ -46,7 +46,7 @@
   --aacp-voice-amp: 0;
 }
 
-.aacp-widget--voice[data-theme="dark"] {
+.zyon-widget--voice[data-theme="dark"] {
   --voice-surface: var(--aacp-enterprise-surface, oklch(22% 0.018 155));
   --voice-surface-muted: var(--aacp-enterprise-surface-muted, oklch(25.5% 0.018 155));
   --voice-surface-strong: var(--aacp-enterprise-surface-strong, oklch(30% 0.02 155));
@@ -62,7 +62,7 @@
   --voice-glass: color-mix(in oklch, var(--voice-surface) 76%, transparent);
 }
 
-.aacp-widget--voice.aacp-page {
+.zyon-widget--voice.zyon-page {
   position: relative;
   min-height: 100vh;
   min-height: 100dvh;
@@ -77,7 +77,7 @@
 }
 
 /* Ambient field behind the page — gently energized by live speech amplitude. */
-.aacp-widget--voice.aacp-page::before {
+.zyon-widget--voice.zyon-page::before {
   content: "";
   position: fixed;
   inset: 0;
@@ -92,7 +92,7 @@
 }
 
 /* ---- Shell ------------------------------------------------------------- */
-.aacp-voice-shell {
+.zyon-voice-shell {
   position: relative;
   width: min(640px, 100%);
   margin: 0 auto;
@@ -111,7 +111,7 @@
 }
 
 /* ---- Status bar (shared spine, voice-dressed) -------------------------- */
-.aacp-voice-bar {
+.zyon-voice-bar {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
@@ -121,14 +121,14 @@
   background: color-mix(in oklch, var(--voice-surface-muted) 30%, transparent);
 }
 
-.aacp-voice-bar__brand {
+.zyon-voice-bar__brand {
   display: inline-flex;
   align-items: center;
   gap: 10px;
   min-width: 0;
 }
 
-.aacp-voice-bar__spark {
+.zyon-voice-bar__spark {
   width: 9px;
   height: 9px;
   flex: 0 0 auto;
@@ -137,14 +137,14 @@
   box-shadow: 0 0 0 4px color-mix(in oklch, var(--voice-accent) 16%, transparent);
 }
 
-.aacp-voice-bar__brand-copy {
+.zyon-voice-bar__brand-copy {
   display: flex;
   flex-direction: column;
   gap: 3px;
   min-width: 0;
 }
 
-.aacp-voice-bar__merchant {
+.zyon-voice-bar__merchant {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.64rem;
   font-weight: 500;
@@ -156,7 +156,7 @@
   text-overflow: ellipsis;
 }
 
-.aacp-voice-header__mode {
+.zyon-voice-header__mode {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -166,12 +166,12 @@
   color: var(--voice-accent);
 }
 
-.aacp-voice-header__mode > svg {
+.zyon-voice-header__mode > svg {
   opacity: 0.9;
 }
 
 /* Agent-state pill — the "is the agent with me" signal. */
-.aacp-voice-bar__state {
+.zyon-voice-bar__state {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -187,7 +187,7 @@
   white-space: nowrap;
 }
 
-.aacp-voice-bar__state-dot {
+.zyon-voice-bar__state-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
@@ -195,41 +195,41 @@
   transition: background 200ms var(--continuum-ease-out);
 }
 
-.aacp-voice-bar__state[data-state="listening"] {
+.zyon-voice-bar__state[data-state="listening"] {
   color: var(--voice-accent);
   border-color: color-mix(in oklch, var(--voice-accent) 40%, var(--voice-line));
 }
 
-.aacp-voice-bar__state[data-state="listening"] .aacp-voice-bar__state-dot {
+.zyon-voice-bar__state[data-state="listening"] .zyon-voice-bar__state-dot {
   background: var(--voice-accent);
   animation: aacp-voice-blink 1.4s ease-in-out infinite;
 }
 
-.aacp-voice-bar__state[data-state="speaking"] {
+.zyon-voice-bar__state[data-state="speaking"] {
   color: var(--voice-success);
   border-color: color-mix(in oklch, var(--voice-success) 40%, var(--voice-line));
 }
 
-.aacp-voice-bar__state[data-state="speaking"] .aacp-voice-bar__state-dot {
+.zyon-voice-bar__state[data-state="speaking"] .zyon-voice-bar__state-dot {
   background: var(--voice-success);
 }
 
-.aacp-voice-bar__state[data-state="thinking"] .aacp-voice-bar__state-dot,
-.aacp-voice-bar__state[data-state="confirming"] .aacp-voice-bar__state-dot {
+.zyon-voice-bar__state[data-state="thinking"] .zyon-voice-bar__state-dot,
+.zyon-voice-bar__state[data-state="confirming"] .zyon-voice-bar__state-dot {
   background: var(--voice-warning);
   animation: aacp-voice-blink 1s ease-in-out infinite;
 }
 
-.aacp-voice-bar__actions {
+.zyon-voice-bar__actions {
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
 }
 
-.aacp-voice-bar__order,
-.aacp-voice-bar__icon,
-.aacp-voice-bar__switch {
+.zyon-voice-bar__order,
+.zyon-voice-bar__icon,
+.zyon-voice-bar__switch {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -249,33 +249,33 @@
     transform 160ms var(--continuum-ease-out);
 }
 
-.aacp-voice-bar__icon {
+.zyon-voice-bar__icon {
   width: 36px;
   padding: 0;
   justify-content: center;
   color: var(--voice-muted);
 }
 
-.aacp-voice-bar__order:hover,
-.aacp-voice-bar__icon:hover,
-.aacp-voice-bar__switch:hover {
+.zyon-voice-bar__order:hover,
+.zyon-voice-bar__icon:hover,
+.zyon-voice-bar__switch:hover {
   border-color: color-mix(in oklch, var(--voice-accent) 46%, var(--voice-line));
   background: color-mix(in oklch, var(--voice-accent) 8%, var(--voice-surface));
 }
 
-.aacp-voice-bar__order:active,
-.aacp-voice-bar__icon:active,
-.aacp-voice-bar__switch:active {
+.zyon-voice-bar__order:active,
+.zyon-voice-bar__icon:active,
+.zyon-voice-bar__switch:active {
   transform: translateY(1px);
 }
 
-.aacp-voice-bar__switch {
+.zyon-voice-bar__switch {
   color: var(--voice-accent);
   border-color: color-mix(in oklch, var(--voice-accent) 32%, var(--voice-line));
 }
 
 /* ---- Main ; vertical reading column ------------------------------------ */
-.aacp-voice-main {
+.zyon-voice-main {
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -283,7 +283,7 @@
   overflow-y: auto;
 }
 
-.aacp-voice-journey {
+.zyon-voice-journey {
   margin: 0 auto;
   width: 100%;
   /* Premium card: the stepper is a primary anchor in the voice column, so give
@@ -299,7 +299,7 @@
    vertical space and the stepper is a primary anchor here, not a thin header
    strip. Bumps marker/head sizes and padding via the same continuum tokens so
    the dressing stays identical, just scaled up. */
-.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress {
+.zyon-widget--voice .zyon-voice-journey .zyon-stage-progress {
   min-height: 64px;
   padding: 18px clamp(18px, 4vw, 28px) 16px;
   border-radius: 0;
@@ -309,27 +309,27 @@
   --aacp-stage-marker-size: 18px;
 }
 
-.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress-title {
+.zyon-widget--voice .zyon-voice-journey .zyon-stage-progress-title {
   font-size: 16px;
 }
 
-.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress-kicker {
+.zyon-widget--voice .zyon-voice-journey .zyon-stage-progress-kicker {
   font-size: 12px;
 }
 
-.aacp-widget--voice .aacp-voice-journey .aacp-stage-progress-label {
+.zyon-widget--voice .zyon-voice-journey .zyon-stage-progress-label {
   font-size: 9px;
 }
 
 /* ---- Voice presence layer ---------------------------------------------- */
-.aacp-voice-stage {
+.zyon-voice-stage {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 18px;
 }
 
-.aacp-voice-presence {
+.zyon-voice-presence {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -337,7 +337,7 @@
   text-align: center;
 }
 
-.aacp-voice-orb {
+.zyon-voice-orb {
   position: relative;
   display: grid;
   place-items: center;
@@ -346,7 +346,7 @@
   isolation: isolate;
 }
 
-.aacp-voice-orb__halo {
+.zyon-voice-orb__halo {
   position: absolute;
   inset: -6%;
   border-radius: 50%;
@@ -357,24 +357,24 @@
   z-index: 0;
 }
 
-.aacp-voice-orb__ring {
+.zyon-voice-orb__ring {
   position: absolute;
   border-radius: 50%;
   border: 1px solid var(--voice-line-strong);
   z-index: 1;
 }
 
-.aacp-voice-orb__ring--outer {
+.zyon-voice-orb__ring--outer {
   inset: 6%;
   border-color: color-mix(in oklch, var(--voice-accent) 22%, var(--voice-line));
 }
 
-.aacp-voice-orb__ring--inner {
+.zyon-voice-orb__ring--inner {
   inset: 19%;
   border-color: color-mix(in oklch, var(--voice-accent) 16%, var(--voice-line));
 }
 
-.aacp-voice-orb__sheen {
+.zyon-voice-orb__sheen {
   position: absolute;
   inset: 10%;
   border-radius: 50%;
@@ -395,7 +395,7 @@
   z-index: 1;
 }
 
-.aacp-voice-orb__core {
+.zyon-voice-orb__core {
   position: relative;
   display: grid;
   place-items: center;
@@ -415,7 +415,7 @@
   overflow: hidden;
 }
 
-.aacp-voice-orb__core img {
+.zyon-voice-orb__core img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -423,23 +423,23 @@
 }
 
 /* State choreography */
-.aacp-voice-orb--listening .aacp-voice-orb__sheen,
-.aacp-voice-orb--speaking .aacp-voice-orb__sheen,
-.aacp-voice-orb--thinking .aacp-voice-orb__sheen {
+.zyon-voice-orb--listening .zyon-voice-orb__sheen,
+.zyon-voice-orb--speaking .zyon-voice-orb__sheen,
+.zyon-voice-orb--thinking .zyon-voice-orb__sheen {
   opacity: 1;
   animation: aacp-voice-orb-spin 6s linear infinite;
 }
 
-.aacp-voice-orb--listening .aacp-voice-orb__ring--outer {
+.zyon-voice-orb--listening .zyon-voice-orb__ring--outer {
   border-color: color-mix(in oklch, var(--voice-accent) 50%, var(--voice-line));
   animation: aacp-voice-orb-pulse 1.7s ease-out infinite;
 }
 
-.aacp-voice-orb--speaking .aacp-voice-orb__ring--outer {
+.zyon-voice-orb--speaking .zyon-voice-orb__ring--outer {
   border-color: color-mix(in oklch, var(--voice-success) 50%, var(--voice-line));
 }
 
-.aacp-voice-orb--listening .aacp-voice-orb__core {
+.zyon-voice-orb--listening .zyon-voice-orb__core {
   color: var(--voice-accent);
   box-shadow:
     0 1px 0 var(--voice-edge) inset,
@@ -447,7 +447,7 @@
     0 0 40px var(--voice-glow-accent);
 }
 
-.aacp-voice-orb--speaking .aacp-voice-orb__core {
+.zyon-voice-orb--speaking .zyon-voice-orb__core {
   color: var(--voice-success);
   box-shadow:
     0 1px 0 var(--voice-edge) inset,
@@ -455,27 +455,27 @@
     0 0 40px var(--voice-glow-success);
 }
 
-.aacp-voice-orb--confirming .aacp-voice-orb__ring--inner {
+.zyon-voice-orb--confirming .zyon-voice-orb__ring--inner {
   border-style: dashed;
   border-color: color-mix(in oklch, var(--voice-warning) 50%, var(--voice-line));
 }
 
-.aacp-voice-orb--thinking .aacp-voice-orb__core {
+.zyon-voice-orb--thinking .zyon-voice-orb__core {
   animation: aacp-voice-orb-breathe 1.3s ease-in-out infinite;
 }
 
-.aacp-voice-orb--idle .aacp-voice-orb__core {
+.zyon-voice-orb--idle .zyon-voice-orb__core {
   animation: aacp-voice-orb-breathe 4.5s ease-in-out infinite;
 }
 
-.aacp-voice-presence__meta {
+.zyon-voice-presence__meta {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
 }
 
-.aacp-voice-agent-name {
+.zyon-voice-agent-name {
   margin: 0;
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.66rem;
@@ -485,19 +485,19 @@
   color: var(--voice-muted);
 }
 
-.aacp-voice-status {
+.zyon-voice-status {
   margin: 0;
   font-size: 0.82rem;
   color: var(--voice-faint);
   transition: color 200ms var(--continuum-ease-out);
 }
 
-.aacp-voice-status--busy {
+.zyon-voice-status--busy {
   color: var(--voice-accent);
 }
 
 /* ---- Live caption (editorial) ------------------------------------------ */
-.aacp-voice-caption {
+.zyon-voice-caption {
   width: min(100%, 52ch);
   display: flex;
   flex-direction: column;
@@ -509,7 +509,7 @@
   box-shadow: 0 8px 26px color-mix(in oklch, var(--voice-ink) 6%, transparent);
 }
 
-.aacp-voice-caption__agent {
+.zyon-voice-caption__agent {
   margin: 0;
   font-family: var(--continuum-font-editorial, "IBM Plex Serif", Georgia, serif);
   font-size: clamp(1.18rem, 3.4vw, 1.46rem);
@@ -519,7 +519,7 @@
   text-wrap: balance;
 }
 
-.aacp-voice-caption__foot {
+.zyon-voice-caption__foot {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -529,7 +529,7 @@
   border-top: 1px solid color-mix(in oklch, var(--voice-line) 56%, transparent);
 }
 
-.aacp-voice-caption__buyer {
+.zyon-voice-caption__buyer {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -539,7 +539,7 @@
   color: var(--voice-muted);
 }
 
-.aacp-voice-caption__buyer-tag {
+.zyon-voice-caption__buyer-tag {
   flex: 0 0 auto;
   padding: 2px 8px;
   border-radius: 999px;
@@ -551,14 +551,14 @@
   text-transform: uppercase;
 }
 
-.aacp-voice-caption__buyer-text {
+.zyon-voice-caption__buyer-text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.aacp-voice-caption__replay {
+.zyon-voice-caption__replay {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -577,19 +577,19 @@
     background 160ms var(--continuum-ease-out);
 }
 
-.aacp-voice-caption__replay:hover:not(:disabled) {
+.zyon-voice-caption__replay:hover:not(:disabled) {
   color: var(--voice-accent);
   border-color: color-mix(in oklch, var(--voice-accent) 44%, var(--voice-line));
   background: color-mix(in oklch, var(--voice-accent) 7%, transparent);
 }
 
-.aacp-voice-caption__replay:disabled {
+.zyon-voice-caption__replay:disabled {
   opacity: 0.45;
   cursor: default;
 }
 
 /* ---- Mic dock ---------------------------------------------------------- */
-.aacp-voice-controls {
+.zyon-voice-controls {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -599,7 +599,7 @@
 /* Live voice waveform — bars scale to the real --aacp-voice-amp (mic RMS when
    listening, TTS word-boundary envelope when speaking). A per-bar phase offset
    plus a subtle idle shimmer keeps it organic even at low amplitude. */
-.aacp-voice-wave {
+.zyon-voice-wave {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -607,7 +607,7 @@
   height: 34px;
 }
 
-.aacp-voice-wave__bar {
+.zyon-voice-wave__bar {
   width: 4px;
   height: 100%;
   border-radius: 999px;
@@ -627,7 +627,7 @@
   opacity: 0.9;
 }
 
-.aacp-voice-wave.is-speaking .aacp-voice-wave__bar {
+.zyon-voice-wave.is-speaking .zyon-voice-wave__bar {
   background: var(--voice-success);
 }
 
@@ -637,7 +637,7 @@
 }
 
 
-.aacp-voice-mic {
+.zyon-voice-mic {
   position: relative;
   display: grid;
   place-items: center;
@@ -654,52 +654,52 @@
   transition: transform 160ms var(--continuum-ease-out), box-shadow 200ms var(--continuum-ease-out);
 }
 
-.aacp-voice-mic:hover:not(:disabled) {
+.zyon-voice-mic:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-.aacp-voice-mic:active:not(:disabled) {
+.zyon-voice-mic:active:not(:disabled) {
   transform: translateY(1px);
 }
 
-.aacp-voice-mic:disabled {
+.zyon-voice-mic:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.aacp-voice-mic__icon {
+.zyon-voice-mic__icon {
   position: relative;
   z-index: 1;
   display: grid;
   place-items: center;
 }
 
-.aacp-voice-mic__pulse {
+.zyon-voice-mic__pulse {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   pointer-events: none;
 }
 
-.aacp-voice-mic.is-listening {
+.zyon-voice-mic.is-listening {
   animation: aacp-voice-mic-pulse 1.6s ease-out infinite;
 }
 
-.aacp-voice-mic.is-speaking {
+.zyon-voice-mic.is-speaking {
   background: linear-gradient(180deg, color-mix(in oklch, var(--voice-success) 92%, white), var(--voice-success));
   box-shadow:
     0 1px 0 color-mix(in oklch, white 30%, transparent) inset,
     0 14px 30px var(--voice-glow-success);
 }
 
-.aacp-voice-controls__label {
+.zyon-voice-controls__label {
   font-size: 0.8rem;
   font-weight: 500;
   color: var(--voice-muted);
 }
 
 /* ---- Voice quick-reply chips ------------------------------------------- */
-.aacp-voice-chips {
+.zyon-voice-chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -707,7 +707,7 @@
   width: min(100%, 52ch);
 }
 
-.aacp-voice-chip {
+.zyon-voice-chip {
   padding: 9px 16px;
   border: 1px solid color-mix(in oklch, var(--voice-accent) 32%, var(--voice-line));
   border-radius: 999px;
@@ -723,19 +723,19 @@
     transform 160ms var(--continuum-ease-out);
 }
 
-.aacp-voice-chip:hover:not(:disabled) {
+.zyon-voice-chip:hover:not(:disabled) {
   border-color: var(--voice-accent);
   background: color-mix(in oklch, var(--voice-accent) 10%, var(--voice-surface));
   transform: translateY(-1px);
 }
 
-.aacp-voice-chip:disabled {
+.zyon-voice-chip:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
 /* ---- Voice confirmation panel (data-risk) ------------------------------ */
-.aacp-voice-confirmation {
+.zyon-voice-confirmation {
   width: min(100%, 52ch);
   display: flex;
   flex-direction: column;
@@ -749,27 +749,27 @@
   box-shadow: 0 10px 30px color-mix(in oklch, var(--voice-ink) 8%, transparent);
 }
 
-.aacp-voice-confirmation[data-risk="high"] {
+.zyon-voice-confirmation[data-risk="high"] {
   border-color: color-mix(in oklch, var(--voice-error) 44%, var(--voice-line));
   background:
     linear-gradient(180deg, color-mix(in oklch, var(--voice-error) 9%, transparent), transparent),
     color-mix(in oklch, var(--voice-surface) 82%, transparent);
 }
 
-.aacp-voice-confirmation[data-risk="low"] {
+.zyon-voice-confirmation[data-risk="low"] {
   border-color: color-mix(in oklch, var(--voice-success) 40%, var(--voice-line));
   background:
     linear-gradient(180deg, color-mix(in oklch, var(--voice-success) 8%, transparent), transparent),
     color-mix(in oklch, var(--voice-surface) 82%, transparent);
 }
 
-.aacp-voice-confirmation__header {
+.zyon-voice-confirmation__header {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.aacp-voice-confirmation__icon {
+.zyon-voice-confirmation__icon {
   display: grid;
   place-items: center;
   width: 38px;
@@ -780,17 +780,17 @@
   color: var(--voice-warning);
 }
 
-.aacp-voice-confirmation[data-risk="high"] .aacp-voice-confirmation__icon {
+.zyon-voice-confirmation[data-risk="high"] .zyon-voice-confirmation__icon {
   background: color-mix(in oklch, var(--voice-error) 16%, transparent);
   color: var(--voice-error);
 }
 
-.aacp-voice-confirmation[data-risk="low"] .aacp-voice-confirmation__icon {
+.zyon-voice-confirmation[data-risk="low"] .zyon-voice-confirmation__icon {
   background: color-mix(in oklch, var(--voice-success) 16%, transparent);
   color: var(--voice-success);
 }
 
-.aacp-voice-confirmation__eyebrow {
+.zyon-voice-confirmation__eyebrow {
   margin: 0;
   font-size: 0.68rem;
   font-weight: 700;
@@ -799,7 +799,7 @@
   color: var(--voice-muted);
 }
 
-.aacp-voice-confirmation__header h2 {
+.zyon-voice-confirmation__header h2 {
   margin: 2px 0 0;
   font-size: 1.04rem;
   font-weight: 700;
@@ -807,13 +807,13 @@
   color: var(--voice-ink);
 }
 
-.aacp-voice-confirmation__review {
+.zyon-voice-confirmation__review {
   display: grid;
   gap: 10px;
   margin: 0;
 }
 
-.aacp-voice-confirmation__review > div {
+.zyon-voice-confirmation__review > div {
   display: grid;
   gap: 3px;
   padding: 10px 14px;
@@ -821,7 +821,7 @@
   background: color-mix(in oklch, var(--voice-surface-muted) 60%, transparent);
 }
 
-.aacp-voice-confirmation__review dt {
+.zyon-voice-confirmation__review dt {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -829,20 +829,20 @@
   color: var(--voice-faint);
 }
 
-.aacp-voice-confirmation__review dd {
+.zyon-voice-confirmation__review dd {
   margin: 0;
   font-size: 0.94rem;
   color: var(--voice-ink);
 }
 
-.aacp-voice-confirmation__actions {
+.zyon-voice-confirmation__actions {
   display: grid;
   gap: 8px;
 }
 
-.aacp-voice-confirmation__primary,
-.aacp-voice-confirmation__secondary,
-.aacp-voice-confirmation__quiet {
+.zyon-voice-confirmation__primary,
+.zyon-voice-confirmation__secondary,
+.zyon-voice-confirmation__quiet {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -861,42 +861,42 @@
     border-color 160ms var(--continuum-ease-out);
 }
 
-.aacp-voice-confirmation__primary {
+.zyon-voice-confirmation__primary {
   background: linear-gradient(180deg, color-mix(in oklch, var(--voice-accent) 92%, white), var(--voice-accent));
   color: var(--voice-on-accent);
   box-shadow: 0 10px 24px var(--voice-glow-accent);
 }
 
-.aacp-voice-confirmation__primary:hover:not(:disabled) {
+.zyon-voice-confirmation__primary:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
-.aacp-voice-confirmation__secondary {
+.zyon-voice-confirmation__secondary {
   background: color-mix(in oklch, var(--voice-surface) 70%, transparent);
   border-color: color-mix(in oklch, var(--voice-line) 72%, transparent);
   color: var(--voice-ink);
 }
 
-.aacp-voice-confirmation__quiet {
+.zyon-voice-confirmation__quiet {
   background: transparent;
   color: var(--voice-muted);
 }
 
-.aacp-voice-confirmation__secondary:hover:not(:disabled),
-.aacp-voice-confirmation__quiet:hover:not(:disabled) {
+.zyon-voice-confirmation__secondary:hover:not(:disabled),
+.zyon-voice-confirmation__quiet:hover:not(:disabled) {
   border-color: color-mix(in oklch, var(--voice-accent) 40%, var(--voice-line));
   color: var(--voice-accent);
 }
 
-.aacp-voice-confirmation__primary:disabled,
-.aacp-voice-confirmation__secondary:disabled,
-.aacp-voice-confirmation__quiet:disabled {
+.zyon-voice-confirmation__primary:disabled,
+.zyon-voice-confirmation__secondary:disabled,
+.zyon-voice-confirmation__quiet:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
 /* ---- Shared action-panel stack (identical components to chat) ---------- */
-.aacp-voice-panels {
+.zyon-voice-panels {
   width: 100%;
   max-width: 560px;
   margin: 0 auto;
@@ -905,16 +905,16 @@
   gap: 14px;
 }
 
-.aacp-voice-panels:empty {
+.zyon-voice-panels:empty {
   display: none;
 }
 
-.aacp-voice-panels > div:empty {
+.zyon-voice-panels > div:empty {
   display: none;
 }
 
 /* ---- Order strip ------------------------------------------------------- */
-.aacp-voice-order-strip {
+.zyon-voice-order-strip {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
@@ -932,12 +932,12 @@
   transition: border-color 160ms var(--continuum-ease-out), background 160ms var(--continuum-ease-out);
 }
 
-.aacp-voice-order-strip:hover {
+.zyon-voice-order-strip:hover {
   border-color: color-mix(in oklch, var(--voice-accent) 44%, var(--voice-line));
   background: color-mix(in oklch, var(--voice-accent) 6%, var(--voice-surface));
 }
 
-.aacp-voice-order-strip__label {
+.zyon-voice-order-strip__label {
   font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -945,14 +945,14 @@
   color: var(--voice-muted);
 }
 
-.aacp-voice-order-strip__meta {
+.zyon-voice-order-strip__meta {
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--voice-ink);
   font-variant-numeric: tabular-nums;
 }
 
-.aacp-voice-order-strip__action {
+.zyon-voice-order-strip__action {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--voice-accent);
@@ -961,9 +961,9 @@
 /* ========================================================================
    PIX waiting / listening component (ADR §9.2)
    Lives on the shared shell — renders in BOTH chat and voice.
-   Selector contract: .aacp-pix-waiting[data-pix-state]
+   Selector contract: .zyon-pix-waiting[data-pix-state]
    ======================================================================== */
-.aacp-pix-waiting {
+.zyon-pix-waiting {
   --pix-tone: var(--aacp-accent, var(--voice-accent, oklch(45% 0.11 165)));
   position: relative;
   display: flex;
@@ -982,22 +982,22 @@
   box-shadow: 0 16px 44px color-mix(in oklch, var(--pix-tone) 16%, transparent);
 }
 
-.aacp-pix-waiting[data-pix-state="approved"] {
+.zyon-pix-waiting[data-pix-state="approved"] {
   --pix-tone: var(--aacp-success, oklch(45% 0.11 153));
 }
 
-.aacp-pix-waiting[data-pix-state="failed"],
-.aacp-pix-waiting[data-pix-state="expired"] {
+.zyon-pix-waiting[data-pix-state="failed"],
+.zyon-pix-waiting[data-pix-state="expired"] {
   --pix-tone: var(--aacp-enterprise-error, oklch(50% 0.16 28));
 }
 
-.aacp-pix-waiting__head {
+.zyon-pix-waiting__head {
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.aacp-pix-waiting__beacon {
+.zyon-pix-waiting__beacon {
   position: relative;
   display: grid;
   place-items: center;
@@ -1010,25 +1010,25 @@
 }
 
 /* Active-listening pulse on the beacon core. */
-.aacp-pix-waiting__beacon-core {
+.zyon-pix-waiting__beacon-core {
   width: 12px;
   height: 12px;
   border-radius: 50%;
   background: var(--pix-tone);
 }
 
-.aacp-pix-waiting[data-pix-state="listening"] .aacp-pix-waiting__beacon-core {
+.zyon-pix-waiting[data-pix-state="listening"] .zyon-pix-waiting__beacon-core {
   animation: aacp-pix-beacon 1.5s ease-out infinite;
 }
 
-.aacp-pix-waiting__headings {
+.zyon-pix-waiting__headings {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.aacp-pix-waiting__kicker {
+.zyon-pix-waiting__kicker {
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1036,7 +1036,7 @@
   color: var(--pix-tone);
 }
 
-.aacp-pix-waiting__title {
+.zyon-pix-waiting__title {
   margin: 0;
   font-size: 1.02rem;
   font-weight: 700;
@@ -1044,7 +1044,7 @@
   color: var(--aacp-fg, oklch(23% 0.022 155));
 }
 
-.aacp-pix-waiting__timer {
+.zyon-pix-waiting__timer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1058,7 +1058,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.aacp-pix-waiting__description {
+.zyon-pix-waiting__description {
   margin: 0;
   font-size: 0.88rem;
   line-height: 1.5;
@@ -1066,7 +1066,7 @@
 }
 
 /* Listening waveform — three bars that breathe to signal "actively waiting". */
-.aacp-pix-waiting__listening {
+.zyon-pix-waiting__listening {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -1075,7 +1075,7 @@
   background: color-mix(in oklch, var(--pix-tone) 7%, transparent);
 }
 
-.aacp-pix-waiting__wave {
+.zyon-pix-waiting__wave {
   width: 4px;
   height: 16px;
   border-radius: 999px;
@@ -1083,28 +1083,28 @@
   animation: aacp-pix-wave 1.1s ease-in-out infinite;
 }
 
-.aacp-pix-waiting__wave:nth-child(2) {
+.zyon-pix-waiting__wave:nth-child(2) {
   animation-delay: 0.18s;
 }
 
-.aacp-pix-waiting__wave:nth-child(3) {
+.zyon-pix-waiting__wave:nth-child(3) {
   animation-delay: 0.36s;
 }
 
-.aacp-pix-waiting__listening-label {
+.zyon-pix-waiting__listening-label {
   margin-left: 6px;
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--pix-tone);
 }
 
-.aacp-pix-waiting__body {
+.zyon-pix-waiting__body {
   display: flex;
   gap: 16px;
   align-items: center;
 }
 
-.aacp-pix-waiting__qr {
+.zyon-pix-waiting__qr {
   flex: 0 0 auto;
   padding: 10px;
   border-radius: 14px;
@@ -1113,14 +1113,14 @@
   line-height: 0;
 }
 
-.aacp-pix-waiting__code {
+.zyon-pix-waiting__code {
   display: flex;
   flex-direction: column;
   gap: 6px;
   min-width: 0;
 }
 
-.aacp-pix-waiting__amount {
+.zyon-pix-waiting__amount {
   font-size: 1.1rem;
   font-weight: 700;
   letter-spacing: -0.01em;
@@ -1128,7 +1128,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.aacp-pix-waiting__code-label {
+.zyon-pix-waiting__code-label {
   font-size: 0.66rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1136,7 +1136,7 @@
   color: var(--aacp-muted, oklch(47% 0.018 155));
 }
 
-.aacp-pix-waiting__code-value {
+.zyon-pix-waiting__code-value {
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   font-size: 0.72rem;
   line-height: 1.4;
@@ -1146,9 +1146,9 @@
   overflow: hidden;
 }
 
-.aacp-pix-waiting__copy,
-.aacp-pix-waiting__retry,
-.aacp-pix-waiting__invoice {
+.zyon-pix-waiting__copy,
+.zyon-pix-waiting__retry,
+.zyon-pix-waiting__invoice {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1165,7 +1165,7 @@
   transition: transform 160ms var(--continuum-ease-out), background 160ms var(--continuum-ease-out);
 }
 
-.aacp-pix-waiting__copy {
+.zyon-pix-waiting__copy {
   align-self: flex-start;
   margin-top: 2px;
   background: linear-gradient(180deg, color-mix(in oklch, var(--pix-tone) 92%, white), var(--pix-tone));
@@ -1173,22 +1173,22 @@
   box-shadow: 0 10px 22px color-mix(in oklch, var(--pix-tone) 28%, transparent);
 }
 
-.aacp-pix-waiting__copy:hover {
+.zyon-pix-waiting__copy:hover {
   transform: translateY(-1px);
 }
 
-.aacp-pix-waiting__invoice {
+.zyon-pix-waiting__invoice {
   background: color-mix(in oklch, var(--pix-tone) 92%, white);
   color: oklch(98% 0.006 100);
 }
 
-.aacp-pix-waiting__retry {
+.zyon-pix-waiting__retry {
   background: color-mix(in oklch, var(--pix-tone) 12%, transparent);
   color: var(--pix-tone);
   border-color: color-mix(in oklch, var(--pix-tone) 34%, transparent);
 }
 
-.aacp-pix-waiting__retry:hover {
+.zyon-pix-waiting__retry:hover {
   background: color-mix(in oklch, var(--pix-tone) 18%, transparent);
 }
 
@@ -1196,13 +1196,13 @@
    Cart drawer (voice) — parity with the chat bottom-sheet.
 
    The voice channel mounts the SAME CartPanel / CartFAB / overlay components
-   as chat (`.aacp-widget--voice` only changes dressing). Base styles.css gives
-   `.aacp-cart` `position: relative`, which would dump the panel inline inside
+   as chat (`.zyon-widget--voice` only changes dressing). Base styles.css gives
+   `.zyon-cart` `position: relative`, which would dump the panel inline inside
    the single-column voice shell. So voice — like conversational — promotes the
    cart to an off-canvas drawer: right-side rail ≥861px, bottom sheet ≤860px.
-   Selector contract untouched (.aacp-cart / .aacp-cart-overlay / .aacp-cart-fab).
+   Selector contract untouched (.zyon-cart / .zyon-cart-overlay / .zyon-cart-fab).
    ======================================================================== */
-.aacp-widget--voice .aacp-cart {
+.zyon-widget--voice .zyon-cart {
   position: fixed;
   z-index: 55;
   top: max(12px, env(safe-area-inset-top));
@@ -1220,11 +1220,11 @@
   will-change: transform;
 }
 
-.aacp-widget--voice .aacp-cart.open {
+.zyon-widget--voice .zyon-cart.open {
   transform: translateX(0);
 }
 
-.aacp-widget--voice .aacp-cart-overlay {
+.zyon-widget--voice .zyon-cart-overlay {
   position: fixed;
   z-index: 50;
   inset: 0;
@@ -1237,33 +1237,33 @@
   transition: opacity 200ms var(--continuum-ease-out);
 }
 
-.aacp-widget--voice .aacp-cart-overlay.open {
+.zyon-widget--voice .zyon-cart-overlay.open {
   opacity: 1;
   pointer-events: auto;
 }
 
 /* The close affordance is hidden by default (base) — surface it in the drawer. */
-.aacp-widget--voice .aacp-cart-close {
+.zyon-widget--voice .zyon-cart-close {
   display: inline-flex;
 }
 
 /* The inline order strip is redundant once a FAB anchors the cart on small
    screens; keep it on the wide reading column only. */
-.aacp-widget--voice .aacp-cart-fab {
+.zyon-widget--voice .zyon-cart-fab {
   display: none;
 }
 
 /* Tablet (861–1024px): the unscoped base block forces the round base FAB on.
    Voice keeps the in-column order strip there, so suppress that base FAB. */
 @media (min-width: 861px) and (max-width: 1024px) {
-  .aacp-widget--voice .aacp-cart-fab {
+  .zyon-widget--voice .zyon-cart-fab {
     display: none !important;
   }
 }
 
 /* ---- Cart drawer → bottom sheet on phones ------------------------------ */
 @media (max-width: 860px) {
-  .aacp-widget--voice .aacp-cart {
+  .zyon-widget--voice .zyon-cart {
     top: auto;
     right: 0;
     bottom: 0;
@@ -1277,14 +1277,14 @@
     transition: transform 260ms var(--continuum-ease-out);
   }
 
-  .aacp-widget--voice .aacp-cart.open {
+  .zyon-widget--voice .zyon-cart.open {
     transform: translateY(0);
   }
 
   /* Floating total bar — same role as chat's FAB, voice-toned.
      `!important` mirrors the conversational FAB: it must beat the unscoped
-     `@media (max-width:1024px) .aacp-cart-fab { ... !important }` base block. */
-  .aacp-widget--voice .aacp-cart-fab {
+     `@media (max-width:1024px) .zyon-cart-fab { ... !important }` base block. */
+  .zyon-widget--voice .zyon-cart-fab {
     position: fixed !important;
     z-index: 42;
     right: max(12px, env(safe-area-inset-right)) !important;
@@ -1308,13 +1308,13 @@
     transform: none;
   }
 
-  .aacp-widget--voice .aacp-cart-fab-total {
+  .zyon-widget--voice .zyon-cart-fab-total {
     display: grid;
     gap: 1px;
     text-align: left;
   }
 
-  .aacp-widget--voice .aacp-cart-fab-total small {
+  .zyon-widget--voice .zyon-cart-fab-total small {
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -1322,12 +1322,12 @@
     color: var(--voice-muted);
   }
 
-  .aacp-widget--voice .aacp-cart-fab-total strong {
+  .zyon-widget--voice .zyon-cart-fab-total strong {
     font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
   }
 
-  .aacp-widget--voice .aacp-cart-fab-action {
+  .zyon-widget--voice .zyon-cart-fab-action {
     display: inline-flex;
     align-items: center;
     gap: 8px;
@@ -1340,7 +1340,7 @@
     font-weight: 700;
   }
 
-  .aacp-widget--voice .aacp-cart-fab-badge {
+  .zyon-widget--voice .zyon-cart-fab-badge {
     position: static !important;
     display: grid;
     min-width: 20px;
@@ -1356,7 +1356,7 @@
   }
 
   /* The inline order strip duplicates the FAB on mobile — drop it. */
-  .aacp-widget--voice .aacp-voice-order-strip {
+  .zyon-widget--voice .zyon-voice-order-strip {
     display: none;
   }
 }
@@ -1402,14 +1402,14 @@
 /* ---- Responsive -------------------------------------------------------- */
 @media (max-width: 860px) {
   /* Reading column breathes less and clears the floating FAB. */
-  .aacp-voice-main {
+  .zyon-voice-main {
     gap: 18px;
     padding: 18px clamp(14px, 4.5vw, 24px) calc(96px + env(safe-area-inset-bottom));
   }
 }
 
 @media (max-width: 640px) {
-  .aacp-widget--voice.aacp-page {
+  .zyon-widget--voice.zyon-page {
     padding:
       max(10px, env(safe-area-inset-top))
       max(10px, env(safe-area-inset-right))
@@ -1417,107 +1417,107 @@
       max(10px, env(safe-area-inset-left));
   }
 
-  .aacp-voice-shell {
+  .zyon-voice-shell {
     min-height: calc(100dvh - 20px);
     border-radius: 20px;
   }
 
-  .aacp-voice-bar {
+  .zyon-voice-bar {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     padding: 12px 14px;
   }
 
   /* The agent-state pill wraps to its own full-width row below the brand. */
-  .aacp-voice-bar__state {
+  .zyon-voice-bar__state {
     order: 3;
     grid-column: 1 / -1;
     justify-self: stretch;
     justify-content: center;
   }
 
-  .aacp-voice-bar__actions {
+  .zyon-voice-bar__actions {
     gap: 6px;
   }
 
-  .aacp-voice-bar__order span,
-  .aacp-voice-bar__switch span {
+  .zyon-voice-bar__order span,
+  .zyon-voice-bar__switch span {
     display: none;
   }
 
   /* Keep the channel-switch label — it is the only way back to chat. */
-  .aacp-voice-bar__switch {
+  .zyon-voice-bar__switch {
     padding: 0 10px;
   }
 
-  .aacp-voice-orb {
+  .zyon-voice-orb {
     width: 132px;
     height: 132px;
   }
 
-  .aacp-voice-orb__core {
+  .zyon-voice-orb__core {
     width: 80px;
     height: 80px;
   }
 
-  .aacp-voice-caption,
-  .aacp-voice-chips,
-  .aacp-voice-confirmation {
+  .zyon-voice-caption,
+  .zyon-voice-chips,
+  .zyon-voice-confirmation {
     width: 100%;
   }
 
-  .aacp-voice-caption {
+  .zyon-voice-caption {
     padding: 16px 16px;
   }
 
-  .aacp-voice-caption__foot {
+  .zyon-voice-caption__foot {
     flex-direction: column;
     align-items: stretch;
     gap: 10px;
   }
 
-  .aacp-voice-caption__replay {
+  .zyon-voice-caption__replay {
     margin-left: 0;
     justify-content: center;
   }
 
-  .aacp-voice-mic {
+  .zyon-voice-mic {
     width: 72px;
     height: 72px;
   }
 
-  .aacp-pix-waiting__body {
+  .zyon-pix-waiting__body {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .aacp-pix-waiting__qr {
+  .zyon-pix-waiting__qr {
     align-self: center;
   }
 }
 
 @media (min-width: 720px) {
-  .aacp-voice-confirmation__actions {
+  .zyon-voice-confirmation__actions {
     grid-template-columns: minmax(190px, 1.2fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .aacp-voice-orb,
-  .aacp-voice-orb__core,
-  .aacp-voice-orb__sheen,
-  .aacp-voice-orb__ring--outer,
-  .aacp-voice-mic.is-listening,
-  .aacp-voice-mic__pulse,
-  .aacp-voice-wave__bar,
-  .aacp-voice-bar__state-dot,
-  .aacp-pix-waiting__beacon-core,
-  .aacp-pix-waiting__wave {
+  .zyon-voice-orb,
+  .zyon-voice-orb__core,
+  .zyon-voice-orb__sheen,
+  .zyon-voice-orb__ring--outer,
+  .zyon-voice-mic.is-listening,
+  .zyon-voice-mic__pulse,
+  .zyon-voice-wave__bar,
+  .zyon-voice-bar__state-dot,
+  .zyon-pix-waiting__beacon-core,
+  .zyon-pix-waiting__wave {
     animation: none !important;
     transform: none !important;
   }
 
-  .aacp-voice-orb__halo {
+  .zyon-voice-orb__halo {
     opacity: 0.2 !important;
   }
 }

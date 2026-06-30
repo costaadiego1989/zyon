@@ -1,4 +1,4 @@
-import type { MerchantCryptoPayments } from "@aacp/shared-types";
+import type { MerchantCryptoPayments } from "@zyon/shared-types";
 
 export type EvmChain = MerchantCryptoPayments["chain"];
 export type EvmNetwork = MerchantCryptoPayments["network"];

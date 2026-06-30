@@ -18,7 +18,7 @@ import type { PixWaitingModel } from "../../presentation/models/pix-waiting.mode
  * webhook — a live pulse, the QR Code + copy-paste code, and a 10-minute
  * countdown. It then transitions to approved / failed / expired.
  *
- * e2e contract: `.aacp-pix-waiting` with
+ * e2e contract: `.zyon-pix-waiting` with
  * `data-pix-state="listening|approved|failed|expired"`.
  */
 

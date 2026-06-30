@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { pathToFileURL } from "node:url";
-import type { Cart, CartItem } from "@aacp/shared-types";
+import type { Cart, CartItem } from "@zyon/shared-types";
 
 export type FakeProduct = Omit<CartItem, "quantity"> & {
   description: string;

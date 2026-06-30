@@ -1,4 +1,4 @@
-import type { SupportSettings } from "@aacp/shared-types";
+import type { SupportSettings } from "@zyon/shared-types";
 
 export const SUPPORT_SETTINGS_REPOSITORY = "SUPPORT_SETTINGS_REPOSITORY";
 

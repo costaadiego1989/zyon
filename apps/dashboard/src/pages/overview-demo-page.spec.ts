@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CheckoutSession, DashboardOverview, SupportTicket } from "@aacp/shared-types";
+import type { CheckoutSession, DashboardOverview, SupportTicket } from "@zyon/shared-types";
 import { buildPilotMetrics } from "./overview-demo-page.js";
 
 const now = "2026-05-21T00:00:00.000Z";

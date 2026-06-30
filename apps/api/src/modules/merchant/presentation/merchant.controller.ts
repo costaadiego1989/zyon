@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, Req, UseGuards, ValidationPipe } from "@nestjs/common";
-import type { MerchantTheme } from "@aacp/shared-types";
+import type { MerchantTheme } from "@zyon/shared-types";
 import { AuthGuard, currentUser } from "../../auth/presentation/auth.guard.js";
 import {
   GetMerchantProfileUseCase,

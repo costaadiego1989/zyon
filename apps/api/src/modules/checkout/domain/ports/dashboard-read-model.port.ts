@@ -1,4 +1,4 @@
-import type { DashboardOverview } from "@aacp/shared-types";
+import type { DashboardOverview } from "@zyon/shared-types";
 
 export const DASHBOARD_READ_MODEL = Symbol("DASHBOARD_READ_MODEL");
 

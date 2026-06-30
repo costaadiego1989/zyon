@@ -1,4 +1,4 @@
-import type { ChatTurn, CheckoutEventName, CheckoutSession } from "@aacp/shared-types";
+import type { ChatTurn, CheckoutEventName, CheckoutSession } from "@zyon/shared-types";
 
 export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY");
 

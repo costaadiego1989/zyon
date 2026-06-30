@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AuthorizedOffer } from "@aacp/shared-types";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
+import type { AuthorizedOffer } from "@zyon/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";

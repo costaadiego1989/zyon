@@ -4,7 +4,7 @@ import type {
   CheckoutSettingsContext,
   DashboardOverview,
   MerchantTheme
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import type { GlobalAuthSession } from "../lib/widget-schemas.js";
 
 export type AccountHubSection = "summary" | "orders" | "metrics" | "account" | "agent";

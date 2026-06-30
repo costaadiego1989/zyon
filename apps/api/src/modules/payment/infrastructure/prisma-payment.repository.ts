@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import type {
   CryptoTransferKey,

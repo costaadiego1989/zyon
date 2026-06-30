@@ -14,8 +14,8 @@ import type {
   MerchantRules,
   OfferType,
   ShippingQuote
-} from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";

@@ -9,7 +9,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentContext, Cart } from "@aacp/shared-types";
+import type { AgentContext, Cart } from "@zyon/shared-types";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { createPrismaClient } from "../../../../shared/persistence/prisma-client.js";
 import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";

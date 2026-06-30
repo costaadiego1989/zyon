@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 import { DEFAULT_WIDGET_API_BASE_URL, parseWidgetConfig } from "./lib/widget-schemas.js";
 import type { ProductSelectionLine, WidgetConfig } from "./lib/widget-types.js";
 import { themeStyle } from "./hooks/checkout-presentation.js";
@@ -36,7 +36,7 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   return <PulseCheckoutView {...props} />;
 }
 
-const WIDGET_CE_NAME = "aacp-checkout-agent";
+const WIDGET_CE_NAME = "zyon-checkout-agent";
 
 const ATTRS = [
   "embed-session-token",

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { DomainEventEnvelope, ShippingDomainEventType } from "@aacp/shared-types";
+import type { DomainEventEnvelope, ShippingDomainEventType } from "@zyon/shared-types";
 
 export function createShippingEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: ShippingDomainEventType;

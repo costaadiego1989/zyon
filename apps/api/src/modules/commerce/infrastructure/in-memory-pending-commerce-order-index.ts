@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PendingCommerceOrderIndexPort } from "../domain/ports/pending-commerce-order-index.port.js";
 
 function keyOf(merchantId: string, sessionId: string): string {

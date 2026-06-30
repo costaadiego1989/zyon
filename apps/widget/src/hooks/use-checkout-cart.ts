@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { CheckoutExperienceSnapshot, UpdateCartItemInput } from "@aacp/shared-types";
+import type { CheckoutExperienceSnapshot, UpdateCartItemInput } from "@zyon/shared-types";
 import { buildVisibleCart, countVisibleItems, removeVisibleCartItem, incrementVisibleCartItem, decrementVisibleCartItem, fallbackExperience, type VisibleCartState } from "./checkout-presentation.js";
 import type { WidgetConfig } from "../lib/widget-types.js";
 

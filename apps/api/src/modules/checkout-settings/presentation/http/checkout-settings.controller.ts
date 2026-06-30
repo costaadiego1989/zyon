@@ -14,7 +14,7 @@ import {
   ApiCookieAuth,
   ApiTags,
 } from "@nestjs/swagger";
-import type { CheckoutSettingsPatch } from "@aacp/shared-types";
+import type { CheckoutSettingsPatch } from "@zyon/shared-types";
 import type { Response } from "express";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 import { EntityTagService } from "../../../../shared/http/entity-tag.service.js";

@@ -1,6 +1,6 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { CheckoutSettingsContext, TrackEventRequest, TrackEventResponse } from "@aacp/shared-types";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
+import type { CheckoutSettingsContext, TrackEventRequest, TrackEventResponse } from "@zyon/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
@@ -11,7 +11,7 @@ import {
   type CheckoutInterventionLedgerPort
 } from "../../domain/ports/checkout-intervention-ledger.port.js";
 import { decideInterventions } from "../../domain/services/intervention-policy.service.js";
-import type { CheckoutSession } from "@aacp/shared-types";
+import type { CheckoutSession } from "@zyon/shared-types";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {

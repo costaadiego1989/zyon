@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
-import type { Cart, MerchantRules } from "@aacp/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
+import type { Cart, MerchantRules } from "@zyon/shared-types";
 import type { DiscountAuthorization, DiscountRulesEnginePort } from "../../domain/ports/discount-rules-engine.port.js";
 
 @Injectable()

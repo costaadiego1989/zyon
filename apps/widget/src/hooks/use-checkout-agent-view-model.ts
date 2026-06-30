@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Cart, CustomerHints, MerchantTheme, ShippingQuote, SuggestedProduct } from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import type { Cart, CustomerHints, MerchantTheme, ShippingQuote, SuggestedProduct } from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import { useGlobalAuth } from "./use-global-auth.js";
 import { useAccountHub } from "./use-account-hub.js";

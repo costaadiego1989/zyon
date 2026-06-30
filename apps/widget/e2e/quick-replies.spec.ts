@@ -28,7 +28,7 @@ async function selectChatIfChannelGateIsOpen(page: import("@playwright/test").Pa
   // On a fresh origin the widget shows the channel gate (chat vs voice) before
   // rendering the thread. Guard with a timeout so the check waits for the gate to
   // render instead of racing it, and stays idempotent when the gate is auto-skipped.
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (!(await gate.isVisible({ timeout: 5_000 }).catch(() => false))) return;
 
   const chatButton = page.getByRole("button", { name: /Comprar por chat/i });
@@ -38,9 +38,9 @@ async function selectChatIfChannelGateIsOpen(page: import("@playwright/test").Pa
 
 async function waitForGreeting(page: import("@playwright/test").Page) {
   await selectChatIfChannelGateIsOpen(page);
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  const firstBubble = thread.locator(".aacp-bubble-agent").first();
+  const firstBubble = thread.locator(".zyon-bubble-agent").first();
   await expect(firstBubble).toBeVisible({ timeout: 10_000 });
   return firstBubble;
 }
@@ -69,26 +69,26 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
   // Wait for the API call to complete and streaming to start
   await page.waitForTimeout(500);
-  const typing = page.locator(".aacp-typing");
+  const typing = page.locator(".zyon-typing");
   if (await typing.isVisible()) {
     await expect(typing).toBeHidden({ timeout: 15_000 });
   }
   // Wait for streaming caret to disappear (if it appeared)
   await page.waitForTimeout(300);
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
-  const bubbles = page.locator(".aacp-bubble-agent");
+  const bubbles = page.locator(".zyon-bubble-agent");
   const count = await bubbles.count();
   return bubbles.nth(count - 1);
 }
 
 async function getQuickReplyLabels(page: import("@playwright/test").Page): Promise<string[]> {
-  const chips = page.locator(".aacp-quick-replies .aacp-chip");
+  const chips = page.locator(".zyon-quick-replies .zyon-chip");
   await expect(chips.first()).toBeVisible({ timeout: 5_000 });
   return chips.allTextContents();
 }
 
 async function clickQuickReply(page: import("@playwright/test").Page, text: string | RegExp) {
-  const chip = page.locator(".aacp-chip", { hasText: text }).first();
+  const chip = page.locator(".zyon-chip", { hasText: text }).first();
   await expect(chip).toBeVisible({ timeout: 5_000 });
   await chip.click();
 }
@@ -292,7 +292,7 @@ test.describe("Quick Replies - Shipping Stage", () => {
     await waitForAgentReply(page);
 
     // ShippingSelector should appear
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     await expect(selector).toContainText("PAC");
     await expect(selector).toContainText("Sedex");
@@ -374,7 +374,7 @@ test.describe("Quick Replies - Payment Stage", () => {
     await continueWithoutCoupon(page);
 
     await clickQuickReply(page, /cart[aã]o/i);
-    await expect(page.locator(".aacp-stripe-element-wrap")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-stripe-element-wrap")).toBeVisible({ timeout: 5_000 });
   });
 
   test("clicking 'PIX' triggers payment intent", async ({ page }) => {
@@ -392,7 +392,7 @@ test.describe("Quick Replies - Payment Stage", () => {
     await clickQuickReply(page, /^pix$/i);
     // Should show PIX-related content (QR code or payment message)
     await waitForAgentReply(page);
-    const bubbles = page.locator(".aacp-bubble-agent");
+    const bubbles = page.locator(".zyon-bubble-agent");
     const lastBubble = bubbles.last();
     const text = await lastBubble.textContent();
     expect(text).toMatch(/pix|pagamento|confirmado/i);
@@ -412,11 +412,11 @@ test.describe("Quick Replies - Payment Stage", () => {
 
     await clickQuickReply(page, /^sim$/i);
     // Coupon box should appear
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
     // Should also show a contextual message
     await waitForStreamingDone(page);
-    const bubbles = page.locator(".aacp-bubble-agent");
+    const bubbles = page.locator(".zyon-bubble-agent");
     const lastBubble = bubbles.last();
     const text = await lastBubble.textContent();
     expect(text).toMatch(/cupom|código|desconto/i);
@@ -433,14 +433,14 @@ test.describe("Quick Replies - Payment Stage", () => {
 
     // ADR §8: tap "Sim" at the coupon gate to open the entry box.
     await clickQuickReply(page, /^sim$/i);
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
 
     // Type coupon code
-    const couponInput = page.locator(".aacp-coupon-box input");
+    const couponInput = page.locator(".zyon-coupon-box input");
     await couponInput.fill("DESCONTO10");
     // Submit
-    const applyBtn = page.locator(".aacp-coupon-box button[type='submit']");
+    const applyBtn = page.locator(".zyon-coupon-box button[type='submit']");
     await applyBtn.click();
 
     // Agent should respond with coupon applied

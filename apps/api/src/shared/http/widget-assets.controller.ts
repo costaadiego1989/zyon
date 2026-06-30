@@ -5,7 +5,7 @@ import type { Response } from "express";
 
 /**
  * Serves the built widget bundle so storefronts (and the dashboard live
- * preview) can load the real `aacp-checkout-agent` custom element from the API
+ * preview) can load the real `zyon-checkout-agent` custom element from the API
  * origin. Matches the snippet emitted during onboarding:
  * `<script src="${apiBaseUrl}/widget/aacp.js"></script>`.
  *

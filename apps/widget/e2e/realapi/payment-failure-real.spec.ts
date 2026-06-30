@@ -46,14 +46,14 @@ test.describe("@realapi payment failure", () => {
 
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `pay_fail_${Date.now()}@test.aacp` };
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     await waitForChatIdle(page);
 
     // Reach payment: pick shipping, decline the coupon.
     await sendChat(page, "1000");
     await sendChat(page, "Nao tem");
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
     await selector.locator("button").first().click();
     await waitForChatIdle(page);
@@ -65,7 +65,7 @@ test.describe("@realapi payment failure", () => {
     const paymentResponse = page.waitForResponse(
       (res) => res.url() === `${API}/embed/payment/intents` && res.request().method() === "POST",
     );
-    await page.locator(".aacp-chip", { hasText: /^PIX$/i }).click();
+    await page.locator(".zyon-chip", { hasText: /^PIX$/i }).click();
     const paid = await paymentResponse;
     expect(paid.ok()).toBe(true, `Payment failed: ${await paid.text()}`);
     const paymentBody = await paid.json();
@@ -87,11 +87,11 @@ test.describe("@realapi payment failure", () => {
     expect(overdue.ok()).toBe(true, `Asaas overdue webhook failed: ${await overdue.text()}`);
 
     // The widget polls the authoritative status and surfaces the retry copy.
-    await expect(page.locator(".aacp-thread")).toContainText(/expirou ou foi recusado|gere uma nova cobran/i, {
+    await expect(page.locator(".zyon-thread")).toContainText(/expirou ou foi recusado|gere uma nova cobran/i, {
       timeout: 30_000,
     });
 
     // The order is never confirmed on a failed charge.
-    await expect(page.locator(".aacp-order-confirmation")).toHaveCount(0);
+    await expect(page.locator(".zyon-order-confirmation")).toHaveCount(0);
   });
 });

@@ -1,4 +1,4 @@
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 
 /**
  * Evita aplicar `markOrderPaid` duas vezes para o mesmo evento de pagamento

@@ -69,19 +69,19 @@ describe("UserPanel", () => {
     const { container } = render(
       <UserPanel vm={buildVm({ auth: buildBuyerAuth({ session: null }) as any, userPanelOpen: true })} />
     );
-    expect(container.querySelector(".aacp-user-panel")).toBeNull();
+    expect(container.querySelector(".zyon-user-panel")).toBeNull();
   });
 
   it("renders nothing when userPanelOpen=false", () => {
     const { container } = render(
       <UserPanel vm={buildVm({ userPanelOpen: false })} />
     );
-    expect(container.querySelector(".aacp-user-panel")).toBeNull();
+    expect(container.querySelector(".zyon-user-panel")).toBeNull();
   });
 
   it("renders panel with class aacp-user-panel when open", () => {
     const { container } = render(<UserPanel vm={buildVm()} />);
-    expect(container.querySelector(".aacp-user-panel")).not.toBeNull();
+    expect(container.querySelector(".zyon-user-panel")).not.toBeNull();
   });
 
   it("shows profile email from hub.profile when available", () => {
@@ -160,12 +160,12 @@ describe("UserPanel", () => {
       })
     });
     const { container } = render(<UserPanel vm={vm} />);
-    expect(container.querySelector(".aacp-side-avatar")?.textContent).toBe("M");
+    expect(container.querySelector(".zyon-side-avatar")?.textContent).toBe("M");
   });
 
   it("shows 'C' avatar fallback when no display_name", () => {
     const { container } = render(<UserPanel vm={buildVm()} />);
-    expect(container.querySelector(".aacp-side-avatar")?.textContent).toBe("C");
+    expect(container.querySelector(".zyon-side-avatar")?.textContent).toBe("C");
   });
 
   it("renders profile tab by default", () => {
@@ -303,7 +303,7 @@ describe("UserPanel", () => {
     const { container } = render(
       <UserPanel vm={buildVm({ setUserPanelOpen })} />
     );
-    const backdrop = container.querySelector(".aacp-side-backdrop") as HTMLElement;
+    const backdrop = container.querySelector(".zyon-side-backdrop") as HTMLElement;
     backdrop.click();
     expect(setUserPanelOpen).toHaveBeenCalledWith(false);
   });

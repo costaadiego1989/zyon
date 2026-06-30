@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/shipping-engine",
+  "name": "@zyon/shipping-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,7 +11,7 @@
     "test": "pnpm build && node dist/select-cheapest-quote.spec.js && node dist/index.spec.js && node dist/quote-key.spec.js"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*",
-    "@aacp/rules-engine": "workspace:*"
+    "@zyon/shared-types": "workspace:*",
+    "@zyon/rules-engine": "workspace:*"
   }
 }

@@ -19,7 +19,7 @@ html {
   background: var(--demo-canvas);
 }
 
-body.aacp-demo-page {
+body.zyon-demo-page {
   min-width: 320px;
   min-height: 100dvh;
   margin: 0;
@@ -30,7 +30,7 @@ body.aacp-demo-page {
   -webkit-font-smoothing: antialiased;
 }
 
-body.aacp-demo-page:has(.checkout-experience[data-theme="dark"]) {
+body.zyon-demo-page:has(.checkout-experience[data-theme="dark"]) {
   --demo-canvas: oklch(14.5% 0.014 160);
   --demo-surface: oklch(19% 0.016 158);
   --demo-ink: oklch(94% 0.009 105);
@@ -143,10 +143,10 @@ body.aacp-demo-page:has(.checkout-experience[data-theme="dark"]) {
   outline-offset: 2px;
 }
 
-.aacp-chat-column,
-.aacp-chat-mount,
-.aacp-chat-mount aacp-checkout-agent,
-.aacp-chat-mount aacp-checkout-agent > div {
+.zyon-chat-column,
+.zyon-chat-mount,
+.zyon-chat-mount zyon-checkout-agent,
+.zyon-chat-mount zyon-checkout-agent > div {
   display: flex;
   min-height: 0;
   flex: 1 1 auto;

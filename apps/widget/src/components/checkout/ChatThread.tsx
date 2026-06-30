@@ -8,7 +8,7 @@ import {
 import { Composer } from "./Composer.js";
 import { useEffect, useRef, useState } from "react";
 import QRCode from "react-qr-code";
-import type { ChatTurn } from "@aacp/shared-types";
+import type { ChatTurn } from "@zyon/shared-types";
 import { useStreamedText } from "../../hooks/use-streamed-text.js";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import {

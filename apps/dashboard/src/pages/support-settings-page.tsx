@@ -5,7 +5,7 @@ import type {
   SupportSettings,
   SupportTicket,
   SupportTicketStatus
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile as MerchantMeProfile } from "../api-client.js";
 
 function newItem(): SupportFaqItem {

@@ -33,7 +33,7 @@ export async function ensureChatChannel(page: Page) {
   // rendering the thread. Use the specific gate selector with a timeout so the
   // check waits for the gate to render instead of racing it; idempotent when the
   // gate is auto-skipped (e.g. recognized buyer) or already dismissed.
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
@@ -41,9 +41,9 @@ export async function ensureChatChannel(page: Page) {
 
 export async function waitForGreeting(page: Page) {
   await ensureChatChannel(page);
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+  await expect(thread.locator(".zyon-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
 }
 
 export async function waitForStreamingDone(page: Page) {
@@ -60,18 +60,18 @@ export async function sendMessage(page: Page, text: string) {
 }
 
 export async function waitForAgentReply(page: Page) {
-  const typing = page.locator(".aacp-typing");
+  const typing = page.locator(".zyon-typing");
   await page.waitForTimeout(300);
   if (await typing.isVisible()) {
     await expect(typing).toBeHidden({ timeout: 15_000 });
   }
   await waitForStreamingDone(page);
-  const bubbles = page.locator(".aacp-bubble-agent");
+  const bubbles = page.locator(".zyon-bubble-agent");
   return bubbles.nth((await bubbles.count()) - 1);
 }
 
 export async function tapQuickReply(page: Page, label: RegExp | string) {
-  const btn = page.locator(".aacp-chip, .aacp-quick-replies button").filter({ hasText: label }).first();
+  const btn = page.locator(".zyon-chip, .zyon-quick-replies button").filter({ hasText: label }).first();
   await expect(btn).toBeVisible({ timeout: 5_000 });
   await btn.click();
   await waitForStreamingDone(page);
@@ -80,7 +80,7 @@ export async function tapQuickReply(page: Page, label: RegExp | string) {
 export async function continueWithoutCoupon(page: Page) {
   const noCoupon = page
     .getByRole("button", { name: /^N[aã]o$/i })
-    .or(page.locator(".aacp-chip, .aacp-quick-replies button").filter({ hasText: /N(?:a|ã)o tenho cupom/i }))
+    .or(page.locator(".zyon-chip, .zyon-quick-replies button").filter({ hasText: /N(?:a|ã)o tenho cupom/i }))
     .first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
@@ -125,7 +125,7 @@ export async function completeChatRegistration(page: Page) {
 }
 
 export async function selectChatShipping(page: Page, method: RegExp = /PAC/) {
-  const selector = page.locator(".aacp-shipping-selector");
+  const selector = page.locator(".zyon-shipping-selector");
   await expect(selector).toBeVisible({ timeout: 5_000 });
   await selector.locator("button", { hasText: method }).first().click();
   await waitForAgentReply(page);

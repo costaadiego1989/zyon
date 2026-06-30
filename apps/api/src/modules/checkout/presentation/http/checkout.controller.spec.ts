@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AuthorizedOffer } from "@aacp/shared-types";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";

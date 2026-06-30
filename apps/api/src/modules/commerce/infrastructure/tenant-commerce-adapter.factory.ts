@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
   ShopifyCommerceAdapter,
   WooCommerceCommerceAdapter,
-} from "@aacp/commerce-adapters";
+} from "@zyon/commerce-adapters";
 import type {
   CommerceCatalogPage,
   CommerceCatalogPort,
@@ -12,7 +12,7 @@ import type {
   CommerceOrderPort,
   CommerceProviderPort,
   TrustedCartSnapshot
-} from "@aacp/commerce-adapters";
+} from "@zyon/commerce-adapters";
 import { HttpClientService } from "../../../shared/http/http-client.service.js";
 import { isProduction } from "../../../shared/config/secret-config.js";
 import {

@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/dashboard",
+  "name": "@zyon/dashboard",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*",
+    "@zyon/shared-types": "workspace:*",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.3",
     "typescript": "^5.7.2",

@@ -26,7 +26,7 @@ html {
   scroll-behavior: smooth;
 }
 
-body.aacp-demo-page {
+body.zyon-demo-page {
   margin: 0;
   min-height: 100dvh;
   font-family: var(--font-sans);
@@ -123,7 +123,7 @@ body.aacp-demo-page {
     grid-template-columns: 1fr;
   }
 
-  .aacp-chat-column {
+  .zyon-chat-column {
     min-height: min(58vh, 520px);
   }
 }
@@ -133,7 +133,7 @@ body.aacp-demo-page {
   background: linear-gradient(135deg, #ffffff, #f0fdfa);
 }
 
-.aacp-chat-column {
+.zyon-chat-column {
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -164,21 +164,21 @@ body.aacp-demo-page {
   background: rgba(15, 23, 42, 0.06);
 }
 
-.aacp-chat-mount {
+.zyon-chat-mount {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.aacp-chat-mount aacp-checkout-agent {
+.zyon-chat-mount zyon-checkout-agent {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
   min-height: 0;
 }
 
-.aacp-chat-mount aacp-checkout-agent > div {
+.zyon-chat-mount zyon-checkout-agent > div {
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;

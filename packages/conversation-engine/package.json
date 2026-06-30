@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/conversation-engine",
+  "name": "@zyon/conversation-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "test": "pnpm build && node dist/index.spec.js"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*"
+    "@zyon/shared-types": "workspace:*"
   }
 }

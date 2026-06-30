@@ -1,5 +1,5 @@
 import { Injectable, Inject, NotFoundException, Optional, ConflictException, BadRequestException } from "@nestjs/common";
-import type { ShippingQuote } from "@aacp/shared-types";
+import type { ShippingQuote } from "@zyon/shared-types";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { ShippingQuoteResult, ShippingQuoteSnapshot } from "../../domain/entities/shipping-quote.entity.js";

@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
-import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import type { SupportTicketRepository } from "../domain/ports/support-ticket-repository.port.js";
 import { decodeSupportTicketCursor } from "../domain/ports/support-ticket-repository.port.js";

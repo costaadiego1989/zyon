@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { CommerceOrderPort } from "@aacp/commerce-adapters";
+import type { CommerceOrderPort } from "@zyon/commerce-adapters";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import type { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";

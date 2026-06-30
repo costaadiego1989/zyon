@@ -19,7 +19,7 @@ test("@regression UserPanel shows buyer email after phone OTP login", async ({ p
   await page.goto(BASE);
 
   // Dismiss channel gate if visible (AgentChannelWelcome dialog)
-  const channelGate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const channelGate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await channelGate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     const chatBtn = page.getByRole("button", { name: /Comprar por chat/i });
     if (await chatBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
@@ -28,10 +28,10 @@ test("@regression UserPanel shows buyer email after phone OTP login", async ({ p
   }
 
   // Wait for the chat thread to load
-  await page.waitForSelector(".aacp-thread", { timeout: 10_000 });
+  await page.waitForSelector(".zyon-thread", { timeout: 10_000 });
 
   // Click "Entrar" in the header to open the GlobalAuthModal
-  const entrarBtn = page.locator(".aacp-login-btn.aacp-google-login");
+  const entrarBtn = page.locator(".zyon-login-btn.zyon-google-login");
   await expect(entrarBtn).toBeVisible({ timeout: 8_000 });
   await entrarBtn.click();
 
@@ -41,7 +41,7 @@ test("@regression UserPanel shows buyer email after phone OTP login", async ({ p
   await phoneInput.fill("(11) 98765-4321");
 
   // Send code
-  const primaryBtn = page.locator(".aacp-auth-primary");
+  const primaryBtn = page.locator(".zyon-auth-primary");
   await expect(primaryBtn).toBeEnabled({ timeout: 3_000 });
   await primaryBtn.click();
 
@@ -55,15 +55,15 @@ test("@regression UserPanel shows buyer email after phone OTP login", async ({ p
   await primaryBtn.click();
 
   // Auth modal closes on success
-  await expect(page.locator(".aacp-auth-dialog")).not.toBeVisible({ timeout: 8_000 });
+  await expect(page.locator(".zyon-auth-dialog")).not.toBeVisible({ timeout: 8_000 });
 
   // Open user panel via the account chip (now shows "Minha conta")
-  const accountChip = page.locator(".aacp-user-chip");
+  const accountChip = page.locator(".zyon-user-chip");
   await expect(accountChip).toBeVisible({ timeout: 8_000 });
   await accountChip.click();
 
   // UserPanel must show the authenticated email
-  const panel = page.locator(".aacp-user-panel");
+  const panel = page.locator(".zyon-user-panel");
   await expect(panel).toBeVisible({ timeout: 5_000 });
   await expect(panel).toContainText("buyer@regression.test", { timeout: 3_000 });
 });

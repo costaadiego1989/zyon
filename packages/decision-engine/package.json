@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/decision-engine",
+  "name": "@zyon/decision-engine",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "test": "echo \"decision-engine: no tests\""
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*"
+    "@zyon/shared-types": "workspace:*"
   }
 }

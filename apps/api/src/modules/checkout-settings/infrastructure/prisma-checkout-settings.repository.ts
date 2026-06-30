@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { CheckoutSettings } from "@aacp/shared-types";
+import type { CheckoutSettings } from "@zyon/shared-types";
 import type { CheckoutSettingsRepository } from "../domain/ports/checkout-settings-repository.port.js";
 import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.errors.js";
 

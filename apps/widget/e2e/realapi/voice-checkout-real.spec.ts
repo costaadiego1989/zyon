@@ -47,7 +47,7 @@ test.describe("@realapi voice checkout", () => {
     await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
     await page.getByRole("button", { name: /Comprar por voz/i }).click();
     await expect(page.locator("[data-channel='voice']")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator(".aacp-voice-mic")).toBeVisible();
+    await expect(page.locator(".zyon-voice-mic")).toBeVisible();
   });
 
   test("happy path: cliente verificado → frete por voz → PIX → Pedido confirmado", async ({ page, request }) => {
@@ -63,7 +63,7 @@ test.describe("@realapi voice checkout", () => {
     await waitForVoicePrompt(page, /ajudar|finalizar|pedido|compra/i);
     await answerAndWaitForPrompt(page, "1000 apartamento 12", /frete|pac|sedex|cupom|pagamento/i);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     if (await selector.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await selectVoiceShipping(page, "PAC");
     } else {

@@ -4,7 +4,7 @@
  * When an embed session is pre-injected (via setupApiMocks → start-checkout
  * bootstrap), the widget must display the merchant name sourced from that
  * session rather than a blank state. The brand name surfaces in the cart
- * header (.aacp-cart-store); opening the user panel must not blank it out.
+ * header (.zyon-cart-store); opening the user panel must not blank it out.
  */
 import { test, expect, type Page } from "@playwright/test";
 import { setupApiMocks } from "../fixtures/api-mocks.js";
@@ -23,13 +23,13 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function dismissGateAndWaitForThread(page: Page) {
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+  await expect(thread.locator(".zyon-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
 }
 
 test("@regression merchant identity from injected embed session renders", async ({ page }) => {
@@ -38,15 +38,15 @@ test("@regression merchant identity from injected embed session renders", async 
   await dismissGateAndWaitForThread(page);
 
   // The merchant name from the injected session is shown in the cart header.
-  const store = page.locator(".aacp-cart-store").first();
+  const store = page.locator(".zyon-cart-store").first();
   await expect(store).toBeVisible({ timeout: 5_000 });
   await expect(store).toContainText(MERCHANT_NAME, { timeout: 3_000 });
 
   // Opening the account panel must not blank out the injected identity.
-  const userBtn = page.locator(".aacp-user-chip, .aacp-user-btn").first();
+  const userBtn = page.locator(".zyon-user-chip, .zyon-user-btn").first();
   if (await userBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
     await userBtn.click();
-    await expect(page.locator(".aacp-user-panel")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-user-panel")).toBeVisible({ timeout: 5_000 });
   }
 
   await expect(store).toContainText(MERCHANT_NAME);

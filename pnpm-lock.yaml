@@ -17,30 +17,6 @@ importers:
 
   apps/api:
     dependencies:
-      '@aacp/commerce-adapters':
-        specifier: workspace:*
-        version: link:../../packages/commerce-adapters
-      '@aacp/contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@aacp/conversation-engine':
-        specifier: workspace:*
-        version: link:../../packages/conversation-engine
-      '@aacp/decision-engine':
-        specifier: workspace:*
-        version: link:../../packages/decision-engine
-      '@aacp/negotiation-engine':
-        specifier: workspace:*
-        version: link:../../packages/negotiation-engine
-      '@aacp/rules-engine':
-        specifier: workspace:*
-        version: link:../../packages/rules-engine
-      '@aacp/shared-types':
-        specifier: workspace:*
-        version: link:../../packages/shared-types
-      '@aacp/shipping-engine':
-        specifier: workspace:*
-        version: link:../../packages/shipping-engine
       '@nestjs/common':
         specifier: ^10.4.15
         version: 10.4.22(class-transformer@0.5.1)(class-validator@0.15.1)(reflect-metadata@0.2.2)(rxjs@7.8.2)
@@ -74,6 +50,30 @@ importers:
       '@scalar/nestjs-api-reference':
         specifier: 1.0.31
         version: 1.0.31
+      '@zyon/commerce-adapters':
+        specifier: workspace:*
+        version: link:../../packages/commerce-adapters
+      '@zyon/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@zyon/conversation-engine':
+        specifier: workspace:*
+        version: link:../../packages/conversation-engine
+      '@zyon/decision-engine':
+        specifier: workspace:*
+        version: link:../../packages/decision-engine
+      '@zyon/negotiation-engine':
+        specifier: workspace:*
+        version: link:../../packages/negotiation-engine
+      '@zyon/rules-engine':
+        specifier: workspace:*
+        version: link:../../packages/rules-engine
+      '@zyon/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@zyon/shipping-engine':
+        specifier: workspace:*
+        version: link:../../packages/shipping-engine
       class-transformer:
         specifier: ^0.5.1
         version: 0.5.1
@@ -150,12 +150,12 @@ importers:
 
   apps/dashboard:
     dependencies:
-      '@aacp/shared-types':
-        specifier: workspace:*
-        version: link:../../packages/shared-types
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@6.4.2(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.4))
+      '@zyon/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@18.3.1)
@@ -184,18 +184,12 @@ importers:
 
   apps/fake-commerce-api:
     dependencies:
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
 
   apps/widget:
     dependencies:
-      '@aacp/agentic-checkout-js':
-        specifier: workspace:*
-        version: link:../../packages/agentic-checkout-js
-      '@aacp/shared-types':
-        specifier: workspace:*
-        version: link:../../packages/shared-types
       '@stripe/react-stripe-js':
         specifier: ^6.3.0
         version: 6.3.0(@stripe/stripe-js@9.4.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -205,6 +199,12 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@6.4.2(@types/node@22.19.17)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.4))
+      '@zyon/agentic-checkout-js':
+        specifier: workspace:*
+        version: link:../../packages/agentic-checkout-js
+      '@zyon/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
       lucide-react:
         specifier: ^0.468.0
         version: 0.468.0(react@18.3.1)
@@ -269,7 +269,7 @@ importers:
 
   packages/agentic-checkout-js:
     dependencies:
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../shared-types
     devDependencies:
@@ -285,7 +285,7 @@ importers:
 
   packages/commerce-adapters:
     dependencies:
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../shared-types
 
@@ -297,13 +297,13 @@ importers:
 
   packages/conversation-engine:
     dependencies:
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../shared-types
 
   packages/decision-engine:
     dependencies:
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../shared-types
 
@@ -311,7 +311,7 @@ importers:
 
   packages/rules-engine:
     dependencies:
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../shared-types
 
@@ -319,10 +319,10 @@ importers:
 
   packages/shipping-engine:
     dependencies:
-      '@aacp/rules-engine':
+      '@zyon/rules-engine':
         specifier: workspace:*
         version: link:../rules-engine
-      '@aacp/shared-types':
+      '@zyon/shared-types':
         specifier: workspace:*
         version: link:../shared-types
 

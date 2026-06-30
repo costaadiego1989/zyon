@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { GlobalAuthSession } from "../lib/widget-schemas.js";
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
 
 export interface BuyerProfile {
   global_user_id: string;

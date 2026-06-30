@@ -23,16 +23,16 @@ test.describe("@realapi happy-path card", () => {
     await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
     // Thread visible — checkout session started
-    const thread = page.locator(".aacp-thread");
+    const thread = page.locator(".zyon-thread");
     await expect(thread).toBeVisible();
 
     // Pay button or payment step reachable
-    const payBtn = page.locator("[data-testid='pay-button'], .aacp-pay-btn").first();
+    const payBtn = page.locator("[data-testid='pay-button'], .zyon-pay-btn").first();
     if (await payBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await payBtn.click();
       // CardForm or payment options should appear
       await expect(
-        page.locator(".aacp-card-form, [data-testid='card-form'], .aacp-payment-options")
+        page.locator(".zyon-card-form, [data-testid='card-form'], .zyon-payment-options")
       ).toBeVisible({ timeout: 8_000 });
     }
   });

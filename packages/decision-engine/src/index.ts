@@ -1,4 +1,4 @@
-import type { CheckoutEventName } from "@aacp/shared-types";
+import type { CheckoutEventName } from "@zyon/shared-types";
 
 const EVENT_WEIGHTS: Record<CheckoutEventName, number> = {
   checkout_started: 0.05,

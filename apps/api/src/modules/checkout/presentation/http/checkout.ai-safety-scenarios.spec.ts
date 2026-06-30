@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateSalesReply } from "@aacp/conversation-engine";
-import type { AgentContext, AuthorizedOffer, MerchantRules } from "@aacp/shared-types";
+import { generateSalesReply } from "@zyon/conversation-engine";
+import type { AgentContext, AuthorizedOffer, MerchantRules } from "@zyon/shared-types";
 import { AcceptCheckoutOfferUseCase } from "../../application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";

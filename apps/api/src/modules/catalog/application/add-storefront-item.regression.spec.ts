@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { AddStorefrontItemUseCase } from "./add-storefront-item.use-case.js";
 import { checkoutSession, testCart } from "../../checkout/__tests__/checkout-test-fixtures.js";
-import type { SuggestedProduct } from "@aacp/shared-types";
+import type { SuggestedProduct } from "@zyon/shared-types";
 import type { StorefrontCatalogPort } from "../domain/ports/storefront-catalog.port.js";
 
 class FakeCatalog implements StorefrontCatalogPort {

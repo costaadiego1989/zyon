@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Inject, NotFoundException, Post, Req, UseGuards } from "@nestjs/common";
-import type { Cart, CartItem, ChatTurn, CheckoutSession } from "@aacp/shared-types";
+import type { Cart, CartItem, ChatTurn, CheckoutSession } from "@zyon/shared-types";
 import { ListEligibleCrossSellsUseCase } from "../../application/use-cases/list-eligible-cross-sells.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "../../application/use-cases/accept-cross-sell-suggestion.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "../../application/use-cases/decline-cross-sell-suggestion.use-case.js";

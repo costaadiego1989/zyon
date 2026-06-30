@@ -24,13 +24,13 @@ async function waitForGreeting(page: import("@playwright/test").Page) {
   // Dismiss the channel gate (AgentChannelWelcome) if present. On a fresh origin
   // the widget asks the buyer to pick chat vs voice before rendering the thread;
   // without choosing, the greeting turns are deferred and never appear.
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  const firstBubble = thread.locator(".aacp-bubble-agent").first();
+  const firstBubble = thread.locator(".zyon-bubble-agent").first();
   await expect(firstBubble).toBeVisible({ timeout: 10_000 });
   return firstBubble;
 }
@@ -49,7 +49,7 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 }
 
 async function tapQuickReply(page: import("@playwright/test").Page, label: RegExp | string) {
-  const btn = page.locator(".aacp-quick-replies button", { hasText: label });
+  const btn = page.locator(".zyon-quick-replies button", { hasText: label });
   await expect(btn).toBeVisible({ timeout: 5_000 });
   await btn.click();
 }
@@ -61,13 +61,13 @@ async function continueWithoutCoupon(page: import("@playwright/test").Page) {
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
-  const typing = page.locator(".aacp-typing");
+  const typing = page.locator(".zyon-typing");
   await page.waitForTimeout(300);
   if (await typing.isVisible()) {
     await expect(typing).toBeHidden({ timeout: 15_000 });
   }
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
-  const bubbles = page.locator(".aacp-bubble-agent");
+  const bubbles = page.locator(".zyon-bubble-agent");
   const count = await bubbles.count();
   return bubbles.nth(count - 1);
 }
@@ -84,7 +84,7 @@ test.describe("Payment Confirmation Component", () => {
     await waitForAgentReply(page);
 
     // Confirmation component should be visible
-    const confirmation = page.locator(".aacp-order-confirmation");
+    const confirmation = page.locator(".zyon-order-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 5_000 });
 
     // Should show "Pedido confirmado"
@@ -102,7 +102,7 @@ test.describe("Payment Confirmation Component", () => {
     await sendMessage(page, "Confirmar pagamento");
     await waitForAgentReply(page);
 
-    const confirmation = page.locator(".aacp-order-confirmation");
+    const confirmation = page.locator(".zyon-order-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 5_000 });
 
     // Should show "Resumo do pedido"
@@ -123,7 +123,7 @@ test.describe("Payment Confirmation Component", () => {
       const observer = new MutationObserver((mutations) => {
         for (const m of mutations) {
           for (const node of m.addedNodes) {
-            if (node instanceof HTMLElement && node.tagName.toLowerCase() === "aacp-checkout-agent") {
+            if (node instanceof HTMLElement && node.tagName.toLowerCase() === "zyon-checkout-agent") {
               node.setAttribute("empty-cart-redirect-url", "https://loja.example.com");
               observer.disconnect();
             }
@@ -138,7 +138,7 @@ test.describe("Payment Confirmation Component", () => {
     await sendMessage(page, "Confirmar pagamento");
     await waitForAgentReply(page);
 
-    const confirmation = page.locator(".aacp-order-confirmation");
+    const confirmation = page.locator(".zyon-order-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 5_000 });
 
     // Return button should be visible
@@ -156,11 +156,11 @@ test.describe("Payment Confirmation Component", () => {
     await waitForAgentReply(page);
 
     // Composer should not be visible
-    const composer = page.locator(".aacp-thread-composer-wrap");
+    const composer = page.locator(".zyon-thread-composer-wrap");
     await expect(composer).toBeHidden({ timeout: 3_000 });
 
     // Quick replies should not be visible
-    const quickReplies = page.locator(".aacp-quick-replies");
+    const quickReplies = page.locator(".zyon-quick-replies");
     await expect(quickReplies).toBeHidden({ timeout: 3_000 });
   });
 });
@@ -219,7 +219,7 @@ test.describe("Full Checkout Flow E2E", () => {
     await waitForAgentReply(page);
 
     // ShippingSelector should appear
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
 
     // Step 8: Select shipping
@@ -236,7 +236,7 @@ test.describe("Full Checkout Flow E2E", () => {
     await waitForStreamingDone(page);
 
     // Verify PIX payment was generated
-    const bubbles = page.locator(".aacp-bubble-agent");
+    const bubbles = page.locator(".zyon-bubble-agent");
     const lastBubble = bubbles.last();
     await expect(lastBubble).toContainText(/Cobrança|PIX/i, { timeout: 5_000 });
   });
@@ -263,7 +263,7 @@ test.describe("Full Checkout Flow E2E", () => {
     await sendMessage(page, "123456");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     await expect(selector).toContainText("PAC");
     await expect(selector).toContainText("Sedex");
@@ -284,7 +284,7 @@ test.describe("Full Checkout Flow E2E", () => {
     await waitForStreamingDone(page);
 
     // Initially should show "Cadastro"
-    const stageLabel = page.locator(".aacp-stage-progress-title");
+    const stageLabel = page.locator(".zyon-stage-progress-title");
     await expect(stageLabel).toContainText("Cadastro");
 
     // Send phone → transition to shipping
@@ -297,7 +297,7 @@ test.describe("Full Checkout Flow E2E", () => {
     await waitForAgentReply(page);
 
     // Select shipping → transition to payment
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     const pacBtn = selector.locator("button", { hasText: /PAC/ }).first();
     await pacBtn.click();
@@ -312,14 +312,14 @@ test.describe("Full Checkout Flow E2E", () => {
     await waitForStreamingDone(page);
 
     // Before shipping selection, total = subtotal
-    const totalEl = page.locator(".aacp-cart-total dd");
+    const totalEl = page.locator(".zyon-cart-total dd");
 
     // Send message to get shipping options
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
     // Select PAC (19.90)
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     const pacBtn = selector.locator("button", { hasText: /PAC/ }).first();
     await pacBtn.click();

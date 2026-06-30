@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Bot, Save } from "lucide-react";
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules } from "@zyon/shared-types";
 import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
 import { createDashboardApi, DashboardHttpError } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";

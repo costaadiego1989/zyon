@@ -5,7 +5,7 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-check
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession, authorizedOffer } from "../../../checkout/__tests__/checkout-test-fixtures.js";
-import type { ApplyOfferRequest, ApplyOfferResponse } from "@aacp/shared-types";
+import type { ApplyOfferRequest, ApplyOfferResponse } from "@zyon/shared-types";
 
 test("embed offers apply uses merchant from token and ignores body merchant_id", async () => {
   const tokens = new EmbedTokenService({

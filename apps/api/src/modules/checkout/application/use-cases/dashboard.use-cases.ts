@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { DashboardOverview, MerchantRules } from "@aacp/shared-types";
+import type { DashboardOverview, MerchantRules } from "@zyon/shared-types";
 import { DASHBOARD_READ_MODEL, type DashboardReadModel } from "../../domain/ports/dashboard-read-model.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 

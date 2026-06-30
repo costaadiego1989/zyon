@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { CheckoutSettingsContext } from "@aacp/shared-types";
+import type { CheckoutSettingsContext } from "@zyon/shared-types";
 import { GetCheckoutSettingsContextUseCase } from "../../../checkout-settings/application/checkout-settings.use-cases.js";
 import type { CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 

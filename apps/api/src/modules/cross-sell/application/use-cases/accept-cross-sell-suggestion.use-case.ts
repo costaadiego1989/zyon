@@ -1,10 +1,10 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, UnprocessableEntityException } from "@nestjs/common";
-import type { Cart, MerchantRules } from "@aacp/shared-types";
+import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateStacking } from "../../domain/policies/stacking.policy.js";
 
 @Injectable()

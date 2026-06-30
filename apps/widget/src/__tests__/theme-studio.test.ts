@@ -6,7 +6,7 @@ import {
   mergeThemeLayers,
   THEME_PRESETS
 } from "../lib/theme-studio.js";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 
 const merchantSession = {
   merchant_id: "mrc_1",

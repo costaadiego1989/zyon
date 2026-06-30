@@ -1,4 +1,4 @@
-import { IdempotencyKeySchema } from "@aacp/contracts";
+import { IdempotencyKeySchema } from "@zyon/contracts";
 import {
   BadRequestException,
   CallHandler,

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentContext } from "@aacp/shared-types";
+import type { AgentContext } from "@zyon/shared-types";
 import type { GetAgentContextUseCase } from "../../../agent-rules/application/agent-rules.use-cases.js";
 import type { GetBuyerPurchaseContextUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 import { AgentRulesContextAdapter } from "./agent-rules-context.adapter.js";

@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
-import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@aacp/shared-types";
+import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { CompletedOrderEntity } from "../../domain/entities/completed-order.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
@@ -9,7 +9,7 @@ import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer
 import { ORDER_REPOSITORY, type OrderRepository } from "../../domain/ports/order.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
-import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@aacp/shared-types";
+import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@zyon/shared-types";
 
 /** Persistence surface required to commit an order atomically with its events. */
 interface OrderCommitRepository {

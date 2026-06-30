@@ -1,5 +1,5 @@
 import { Injectable, Inject } from "@nestjs/common";
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
 import { CrossSellSuggestionEntity } from "../../domain/entities/cross-sell-suggestion.entity.js";

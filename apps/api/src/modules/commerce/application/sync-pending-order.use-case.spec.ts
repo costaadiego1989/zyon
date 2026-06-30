@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CommerceOrderPort } from "@aacp/commerce-adapters";
+import type { CommerceOrderPort } from "@zyon/commerce-adapters";
 import { InMemoryPendingCommerceOrderIndex } from "../infrastructure/in-memory-pending-commerce-order-index.js";
 import { SyncPendingOrderUseCase } from "./sync-pending-order.use-case.js";
 

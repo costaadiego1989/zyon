@@ -1,4 +1,4 @@
-import type { Cart, ChatTurn, CheckoutSession, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, ChatTurn, CheckoutSession, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 import { CHECKOUT_TRIGGER_THRESHOLD } from "../services/checkout-abandonment.service.js";
 
 const CHAT_HISTORY_LIMIT = 50;

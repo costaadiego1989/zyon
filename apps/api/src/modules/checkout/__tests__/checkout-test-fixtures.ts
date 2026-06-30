@@ -5,7 +5,7 @@ import type {
   CompleteOrderRequest,
   MerchantRules,
   StartCheckoutRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 export function testCart(overrides: Partial<Cart> = {}): Cart {
   return {

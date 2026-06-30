@@ -3,8 +3,8 @@ import type {
   ChatMessageRequest,
   ChatMessageResponse,
   SuggestedProduct
-} from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";

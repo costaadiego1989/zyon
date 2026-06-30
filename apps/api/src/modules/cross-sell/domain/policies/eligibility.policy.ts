@@ -1,4 +1,4 @@
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 import type { CrossSellPromotionEntity } from "../entities/cross-sell-promotion.entity.js";
 
 export function isPromotionEligible(promotion: CrossSellPromotionEntity, cart: Cart): boolean {

@@ -3,7 +3,7 @@ import type {
   CheckoutSession,
   StartCheckoutRequest,
   StartCheckoutResponse
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";

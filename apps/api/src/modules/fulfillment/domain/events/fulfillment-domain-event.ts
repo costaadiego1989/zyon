@@ -1,4 +1,4 @@
-import type { FulfillmentDomainEventType, DomainEventEnvelope } from "@aacp/shared-types";
+import type { FulfillmentDomainEventType, DomainEventEnvelope } from "@zyon/shared-types";
 
 export function createFulfillmentEventEnvelope<TPayload extends Record<string, unknown>>(input: {
   eventType: FulfillmentDomainEventType;

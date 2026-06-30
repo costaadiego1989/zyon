@@ -53,13 +53,13 @@ async function waitForGreeting(page: import("@playwright/test").Page) {
   // Dismiss the channel gate (AgentChannelWelcome) if present. On a fresh origin
   // the widget asks the buyer to pick chat vs voice before rendering the thread;
   // without choosing, the greeting turns are deferred and never appear.
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+  await expect(thread.locator(".zyon-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
 }
 
 async function sendMessage(page: import("@playwright/test").Page, text: string) {
@@ -72,19 +72,19 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
-  const typing = page.locator(".aacp-typing");
+  const typing = page.locator(".zyon-typing");
   await page.waitForTimeout(300);
   if (await typing.isVisible()) {
     await expect(typing).toBeHidden({ timeout: 15_000 });
   }
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
-  const bubbles = page.locator(".aacp-bubble-agent");
+  const bubbles = page.locator(".zyon-bubble-agent");
   return bubbles.nth(await bubbles.count() - 1);
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
   // ADR §8: coupon gate quick replies are "Sim" / "Não". Tap "Não" to decline.
-  const noCoupon = page.locator(".aacp-chip", { hasText: /^N(?:a|ã)o$/i }).first();
+  const noCoupon = page.locator(".zyon-chip", { hasText: /^N(?:a|ã)o$/i }).first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
   await waitForStreamingDone(page);
@@ -109,7 +109,7 @@ test.describe("1. Shipping options (regression: lastChat.experience.shippingOpti
     await sendMessage(page, "123, Apto 4B");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 8_000 });
     await expect(selector).toContainText("PAC");
     await expect(selector).toContainText("Sedex");
@@ -123,7 +123,7 @@ test.describe("1. Shipping options (regression: lastChat.experience.shippingOpti
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 8_000 });
     const content = await selector.textContent();
     expect(content).toMatch(/19[,.]90/);
@@ -140,7 +140,7 @@ test.describe("1. Shipping options (regression: lastChat.experience.shippingOpti
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 8_000 });
     const pacBtn = selector.locator("button", { hasText: /PAC/ }).first();
     await pacBtn.click();
@@ -149,7 +149,7 @@ test.describe("1. Shipping options (regression: lastChat.experience.shippingOpti
     const text = await reply.textContent();
     expect(text).toMatch(/cupom|pagamento|pagar/i);
     await continueWithoutCoupon(page);
-    await expect(page.locator(".aacp-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("shipping chips appear as quick replies at shipping stage", async ({ page }) => {
@@ -161,7 +161,7 @@ test.describe("1. Shipping options (regression: lastChat.experience.shippingOpti
     await waitForAgentReply(page);
 
     // Shipping selector buttons or chips should include shipping method names
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 8_000 });
     const pacBtn = selector.locator("button", { hasText: /PAC/ });
     await expect(pacBtn.first()).toBeVisible({ timeout: 3_000 });
@@ -249,7 +249,7 @@ test.describe("2. Buyer phone OTP session (regression: camelCase mapping)", () =
     const userBtnVisible = await userBtn.isVisible().catch(() => false);
     if (userBtnVisible) {
       await userBtn.click();
-      const panel = page.locator(".aacp-user-panel, .aacp-hub-panel, aside[class*='user']").first();
+      const panel = page.locator(".zyon-user-panel, .zyon-hub-panel, aside[class*='user']").first();
       await expect(panel).toBeVisible({ timeout: 5_000 });
       const content = await panel.textContent();
       expect(content).toMatch(/buyer@e2e\.test/i);
@@ -331,7 +331,7 @@ test.describe("3. Merchant hub session (regression: hub loads data)", () => {
 
     if (hubBtnVisible) {
       await hubBtn.click();
-      const hubPanel = page.locator(".aacp-hub-panel, aside[class*='hub'], div[class*='hub']").first();
+      const hubPanel = page.locator(".zyon-hub-panel, aside[class*='hub'], div[class*='hub']").first();
       await expect(hubPanel).toBeVisible({ timeout: 5_000 });
       await expect(hubPanel).toContainText(/Loja E2E|mrc_dev_seed/i, { timeout: 5_000 });
     } else {

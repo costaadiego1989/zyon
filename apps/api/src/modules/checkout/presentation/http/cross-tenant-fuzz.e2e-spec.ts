@@ -14,7 +14,7 @@ import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in
 import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
-import type { AgentContext, Cart } from "@aacp/shared-types";
+import type { AgentContext, Cart } from "@zyon/shared-types";
 
 const CART: Cart = {
   currency: "BRL", source: "storefront", total: 200,

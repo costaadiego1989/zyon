@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import type { GlobalAuthSession } from "../lib/widget-schemas.js";
 import {
   canUseThemeStudio,

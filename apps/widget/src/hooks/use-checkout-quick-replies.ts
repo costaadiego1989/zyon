@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { ShippingQuote, SuggestedProduct } from "@aacp/shared-types";
+import type { ShippingQuote, SuggestedProduct } from "@zyon/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import {
   COUPON_ENTRY_MESSAGE,

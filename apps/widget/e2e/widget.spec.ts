@@ -22,13 +22,13 @@ async function waitForGreeting(page: import("@playwright/test").Page) {
   // Dismiss the channel gate (AgentChannelWelcome) if present. On a fresh origin
   // the widget asks the buyer to pick chat vs voice before rendering the thread;
   // without choosing, the greeting turns are deferred and never appear.
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  const firstBubble = thread.locator(".aacp-bubble-agent").first();
+  const firstBubble = thread.locator(".zyon-bubble-agent").first();
   await expect(firstBubble).toBeVisible({ timeout: 10_000 });
   return firstBubble;
 }
@@ -49,7 +49,7 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
   // Wait for typing indicator to appear and disappear
-  const typing = page.locator(".aacp-typing");
+  const typing = page.locator(".zyon-typing");
   await page.waitForTimeout(300);
   if (await typing.isVisible()) {
     await expect(typing).toBeHidden({ timeout: 15_000 });
@@ -57,19 +57,19 @@ async function waitForAgentReply(page: import("@playwright/test").Page) {
   // Wait for streaming caret to disappear (text fully rendered)
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
   // Return the last agent bubble
-  const bubbles = page.locator(".aacp-bubble-agent");
+  const bubbles = page.locator(".zyon-bubble-agent");
   const count = await bubbles.count();
   return bubbles.nth(count - 1);
 }
 
 async function waitForComposer(page: import("@playwright/test").Page) {
-  const composerWrap = page.locator(".aacp-thread-composer-wrap");
+  const composerWrap = page.locator(".zyon-thread-composer-wrap");
   await expect(composerWrap).toBeVisible({ timeout: 10_000 });
   return composerWrap;
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  const noCoupon = page.locator(".aacp-chip", { hasText: /^N(?:a|ã)o$/i }).first();
+  const noCoupon = page.locator(".zyon-chip", { hasText: /^N(?:a|ã)o$/i }).first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
   await waitForStreamingDone(page);
@@ -83,11 +83,11 @@ test.describe("1. Fluxo de Cadastro (data_collection)", () => {
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
-    const bubble = page.locator(".aacp-bubble-agent").first();
+    const bubble = page.locator(".zyon-bubble-agent").first();
     const text = await bubble.textContent();
     expect(text).toContain("Clara");
     // Second bubble asks for name
-    const secondBubble = page.locator(".aacp-bubble-agent").nth(1);
+    const secondBubble = page.locator(".zyon-bubble-agent").nth(1);
     await expect(secondBubble).toBeVisible();
     const secondText = await secondBubble.textContent();
     expect(secondText).toMatch(/nome/i);
@@ -106,7 +106,7 @@ test.describe("1. Fluxo de Cadastro (data_collection)", () => {
     await page.goto(BASE);
     await waitForGreeting(page);
     await waitForStreamingDone(page);
-    const chips = page.locator(".aacp-chip");
+    const chips = page.locator(".zyon-chip");
     await expect(chips.first()).toBeVisible({ timeout: 5_000 });
   });
 
@@ -198,7 +198,7 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "123, Apto 4B");
     await waitForAgentReply(page);
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
   });
 
@@ -209,7 +209,7 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "123");
     await waitForAgentReply(page);
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     await expect(selector).toContainText("PAC");
     await expect(selector).toContainText("Sedex");
@@ -225,7 +225,7 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "123");
     await waitForAgentReply(page);
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     // Click PAC option button
     const pacOption = selector.locator("button", { hasText: /PAC/ }).first();
@@ -234,7 +234,7 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
     const text = await reply.textContent();
     expect(text).toMatch(/cupom|pagamento|pagar/i);
     await continueWithoutCoupon(page);
-    await expect(page.locator(".aacp-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
   });
 
   test("totais do carrinho atualizam com valor do frete", async ({ page }) => {
@@ -247,7 +247,7 @@ test.describe("2. Fluxo de Frete (shipping)", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "123");
     await waitForAgentReply(page);
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
     const pacOption = selector.locator("button", { hasText: /PAC/ }).first();
     await pacOption.click();
@@ -272,7 +272,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
     await continueWithoutCoupon(page);
-    const chips = page.locator(".aacp-chip");
+    const chips = page.locator(".zyon-chip");
     await expect(chips.filter({ hasText: /cart[aã]o/i }).first()).toBeVisible({ timeout: 5_000 });
     await expect(chips.filter({ hasText: /pix/i }).first()).toBeVisible({ timeout: 3_000 });
     await expect(chips.filter({ hasText: /cupom/i })).toHaveCount(0);
@@ -289,11 +289,11 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
     await continueWithoutCoupon(page);
-    const cardChip = page.locator(".aacp-chip", { hasText: /cart[aã]o/i }).first();
+    const cardChip = page.locator(".zyon-chip", { hasText: /cart[aã]o/i }).first();
     await expect(cardChip).toBeVisible({ timeout: 5_000 });
     await cardChip.click();
     // CardForm should appear — tapQuick opens it directly without network call
-    await expect(page.locator(".aacp-stripe-element-wrap")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-stripe-element-wrap")).toBeVisible({ timeout: 5_000 });
   });
 
   test("mensagem ao abrir card form menciona criptografados", async ({ page }) => {
@@ -307,12 +307,12 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
     await continueWithoutCoupon(page);
-    const cardChip = page.locator(".aacp-chip", { hasText: /cart[aã]o/i }).first();
+    const cardChip = page.locator(".zyon-chip", { hasText: /cart[aã]o/i }).first();
     await expect(cardChip).toBeVisible({ timeout: 5_000 });
     await cardChip.click();
     // Wait for the locally-appended agent message to stream
     await waitForStreamingDone(page);
-    const bubbles = page.locator(".aacp-bubble-agent");
+    const bubbles = page.locator(".zyon-bubble-agent");
     const lastBubble = bubbles.last();
     const text = await lastBubble.textContent();
     expect(text).toMatch(/cart[aÃ£]o|confirmar|cobranca|a[cÃ§]ao final/i);
@@ -329,7 +329,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
     await continueWithoutCoupon(page);
-    const pixChip = page.locator(".aacp-chip", { hasText: /pix/i }).first();
+    const pixChip = page.locator(".zyon-chip", { hasText: /pix/i }).first();
     await expect(pixChip).toBeVisible({ timeout: 5_000 });
     await pixChip.click();
     const reply = await waitForAgentReply(page);
@@ -348,7 +348,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
     await continueWithoutCoupon(page);
-    const pixChip = page.locator(".aacp-chip", { hasText: /pix/i }).first();
+    const pixChip = page.locator(".zyon-chip", { hasText: /pix/i }).first();
     await expect(pixChip).toBeVisible({ timeout: 5_000 });
     await pixChip.click();
     await waitForAgentReply(page);
@@ -368,7 +368,7 @@ test.describe("3. Fluxo de Pagamento (payment)", () => {
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
     await continueWithoutCoupon(page);
-    const pixChip = page.locator(".aacp-chip", { hasText: /pix/i }).first();
+    const pixChip = page.locator(".zyon-chip", { hasText: /pix/i }).first();
     await expect(pixChip).toBeVisible({ timeout: 5_000 });
     await pixChip.click();
     await waitForAgentReply(page);
@@ -390,11 +390,11 @@ test.describe("4. Fluxo de Cupom", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
+    const couponChip = page.locator(".zyon-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
     // tapQuick for coupon sets couponInputVisible=true locally, no network call
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
   });
 
@@ -408,10 +408,10 @@ test.describe("4. Fluxo de Cupom", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
+    const couponChip = page.locator(".zyon-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
     const input = couponBox.locator("input");
     await input.fill("DESCONTO10");
@@ -431,10 +431,10 @@ test.describe("4. Fluxo de Cupom", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
+    const couponChip = page.locator(".zyon-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
     const input = couponBox.locator("input");
     await input.fill("DESCONTO10");
@@ -456,17 +456,17 @@ test.describe("4. Fluxo de Cupom", () => {
     await waitForStreamingDone(page);
     await sendMessage(page, "PAC");
     await waitForAgentReply(page);
-    const couponChip = page.locator(".aacp-chip", { hasText: /^Sim$/i }).first();
+    const couponChip = page.locator(".zyon-chip", { hasText: /^Sim$/i }).first();
     await expect(couponChip).toBeVisible({ timeout: 5_000 });
     await couponChip.click();
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 3_000 });
     const input = couponBox.locator("input");
     await input.fill("DESCONTO10");
     const applyBtn = couponBox.locator("button", { hasText: /aplicar/i });
     await applyBtn.click();
     await page.waitForTimeout(2_000);
-    const offerBanner = page.locator(".aacp-offer-banner");
+    const offerBanner = page.locator(".zyon-offer-banner");
     await expect(offerBanner).toBeVisible({ timeout: 5_000 });
   });
 });
@@ -482,7 +482,7 @@ test.describe("5. Fluxo Completo (completed)", () => {
     await sendMessage(page, "Confirmar pagamento");
     await waitForAgentReply(page);
     // Completed banner should appear
-    const completedBanner = page.locator(".aacp-order-confirmation");
+    const completedBanner = page.locator(".zyon-order-confirmation");
     await expect(completedBanner).toBeVisible({ timeout: 5_000 });
   });
 
@@ -505,7 +505,7 @@ test.describe("5. Fluxo Completo (completed)", () => {
     await sendMessage(page, "Confirmar");
     await waitForAgentReply(page);
     await page.waitForTimeout(500);
-    const composerWrap = page.locator(".aacp-thread-composer-wrap");
+    const composerWrap = page.locator(".zyon-thread-composer-wrap");
     await expect(composerWrap).toBeHidden({ timeout: 3_000 });
   });
 });
@@ -517,10 +517,10 @@ test.describe("6. Painel de Suporte", () => {
     await setupApiMocks(page, { chatSequence: [] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    const supportBtn = page.locator("button.aacp-header-help[aria-label='Abrir ajuda']");
+    const supportBtn = page.locator("button.zyon-header-help[aria-label='Abrir ajuda']");
     await expect(supportBtn).toBeVisible({ timeout: 5_000 });
     await supportBtn.click();
-    const panel = page.locator("aside.aacp-ai-panel");
+    const panel = page.locator("aside.zyon-ai-panel");
     await expect(panel).toHaveClass(/open/, { timeout: 3_000 });
   });
 
@@ -528,19 +528,19 @@ test.describe("6. Painel de Suporte", () => {
     await setupApiMocks(page, { chatSequence: ["greeting"] });
     await page.goto(BASE);
     await waitForGreeting(page);
-    const supportBtn = page.locator("button.aacp-header-help[aria-label='Abrir ajuda']");
+    const supportBtn = page.locator("button.zyon-header-help[aria-label='Abrir ajuda']");
     await expect(supportBtn).toBeVisible({ timeout: 5_000 });
     await supportBtn.click();
-    const panel = page.locator("aside.aacp-ai-panel");
+    const panel = page.locator("aside.zyon-ai-panel");
     await expect(panel).toHaveClass(/open/, { timeout: 3_000 });
     // Type in support composer
-    const input = panel.locator("input.aacp-input");
+    const input = panel.locator("input.zyon-input");
     await expect(input).toBeVisible({ timeout: 3_000 });
     await input.fill("Qual o prazo de entrega?");
     await page.keyboard.press("Enter");
     // Wait for agent reply in support panel
     await page.waitForTimeout(2_000);
-    const bubbles = panel.locator(".aacp-bubble-agent");
+    const bubbles = panel.locator(".zyon-bubble-agent");
     const count = await bubbles.count();
     expect(count).toBeGreaterThan(0);
   });
@@ -583,7 +583,7 @@ test.describe("7. Carrinho lateral", () => {
     await incrementBtn.click();
     await page.waitForTimeout(300);
     // Quantity should now be 3
-    const qtyValue = cartPanel.locator(".aacp-qty-value").first();
+    const qtyValue = cartPanel.locator(".zyon-qty-value").first();
     await expect(qtyValue).toContainText("3");
     // Find decrement button
     const decrementBtn = cartPanel.locator("button[aria-label^='Diminuir quantidade']").first();
@@ -629,9 +629,9 @@ test.describe("8. Resiliência / Edge cases", () => {
     await retryBtn.first().click();
     // After retry, the widget recovers: greeting is restored and the composer
     // becomes usable again (no fixed wait — assert on observable recovery state).
-    const thread = page.locator(".aacp-thread");
+    const thread = page.locator(".zyon-thread");
     await expect(thread).toBeVisible({ timeout: 10_000 });
-    await expect(thread.locator(".aacp-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
+    await expect(thread.locator(".zyon-bubble-agent").first()).toBeVisible({ timeout: 10_000 });
     await expect(page.locator("input[aria-label='Mensagem para o assistente']")).toBeEnabled({
       timeout: 10_000,
     });

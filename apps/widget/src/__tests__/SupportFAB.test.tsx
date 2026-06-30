@@ -25,14 +25,14 @@ describe("SupportFAB", () => {
 
   it("A01 — botão sem classe active quando painel fechado", () => {
     const { container } = render(<SupportFAB vm={buildVm({ supportOpen: false })} />);
-    const btn = container.querySelector(".aacp-fab");
+    const btn = container.querySelector(".zyon-fab");
     expect(btn).not.toBeNull();
     expect(btn!.classList.contains("active")).toBe(false);
   });
 
   it("A02/A05 — botão com classe active quando painel aberto", () => {
     const { container } = render(<SupportFAB vm={buildVm({ supportOpen: true })} />);
-    const btn = container.querySelector(".aacp-fab");
+    const btn = container.querySelector(".zyon-fab");
     expect(btn!.classList.contains("active")).toBe(true);
   });
 
@@ -43,7 +43,7 @@ describe("SupportFAB", () => {
     const { container } = render(
       <SupportFAB vm={buildVm({ supportOpen: false, setSupportOpen })} />
     );
-    fireEvent.click(container.querySelector(".aacp-fab")!);
+    fireEvent.click(container.querySelector(".zyon-fab")!);
     expect(setSupportOpen).toHaveBeenCalledWith(true);
   });
 
@@ -52,7 +52,7 @@ describe("SupportFAB", () => {
     const { container } = render(
       <SupportFAB vm={buildVm({ supportOpen: true, setSupportOpen })} />
     );
-    fireEvent.click(container.querySelector(".aacp-fab")!);
+    fireEvent.click(container.querySelector(".zyon-fab")!);
     expect(setSupportOpen).toHaveBeenCalledWith(false);
   });
 
@@ -60,12 +60,12 @@ describe("SupportFAB", () => {
 
   it("A06 — aria-label 'Abrir suporte' quando fechado", () => {
     const { container } = render(<SupportFAB vm={buildVm({ supportOpen: false })} />);
-    expect(container.querySelector(".aacp-fab")!.getAttribute("aria-label")).toBe("Abrir suporte");
+    expect(container.querySelector(".zyon-fab")!.getAttribute("aria-label")).toBe("Abrir suporte");
   });
 
   it("A07 — aria-label 'Fechar suporte' quando aberto", () => {
     const { container } = render(<SupportFAB vm={buildVm({ supportOpen: true })} />);
-    expect(container.querySelector(".aacp-fab")!.getAttribute("aria-label")).toBe("Fechar suporte");
+    expect(container.querySelector(".zyon-fab")!.getAttribute("aria-label")).toBe("Fechar suporte");
   });
 
   // ── Tooltip ───────────────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ describe("SupportFAB", () => {
     const { queryByText, container } = render(
       <SupportFAB vm={buildVm({ supportOpen: false, setSupportOpen })} />
     );
-    const tooltipCloseBtn = container.querySelector(".aacp-fab-tooltip button");
+    const tooltipCloseBtn = container.querySelector(".zyon-fab-tooltip button");
     expect(tooltipCloseBtn).not.toBeNull();
     fireEvent.click(tooltipCloseBtn!);
     expect(queryByText("Precisa de ajuda com o pedido?")).toBeNull();

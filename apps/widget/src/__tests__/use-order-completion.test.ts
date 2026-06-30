@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useOrderCompletion } from "../hooks/use-order-completion.js";
-import type { CheckoutExperienceSnapshot, CurrencyCode } from "@aacp/shared-types";
+import type { CheckoutExperienceSnapshot, CurrencyCode } from "@zyon/shared-types";
 
 function buildExperience(stage = "payment"): CheckoutExperienceSnapshot {
   return {

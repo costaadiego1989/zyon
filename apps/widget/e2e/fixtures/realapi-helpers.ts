@@ -41,7 +41,7 @@ export async function dismissChannelGate(
   page: Page,
   channel: "chat" | "voice" = "chat",
 ): Promise<void> {
-  const gate = page.locator(".aacp-channel-gate");
+  const gate = page.locator(".zyon-channel-gate");
   if (!(await gate.isVisible({ timeout: 15_000 }).catch(() => false))) return;
   const label = channel === "voice" ? /Comprar por voz/i : /Comprar por chat/i;
   const button = page.getByRole("button", { name: label });
@@ -53,7 +53,7 @@ export async function dismissChannelGate(
 
 /**
  * Navigate to the conversational checkout and dismiss the channel-gate so the
- * chat thread + composer are interactive. Returns once `.aacp-thread` is shown.
+ * chat thread + composer are interactive. Returns once `.zyon-thread` is shown.
  */
 export async function openChatCheckout(
   page: Page,
@@ -63,19 +63,19 @@ export async function openChatCheckout(
   opts: { customer?: Record<string, unknown> } = {},
 ): Promise<void> {
   await page.goto(checkoutUrl(merchantId, embedToken, productId, opts));
-  await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+  await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
   await dismissChannelGate(page, "chat");
 }
 
 export async function waitForChatIdle(page: Page): Promise<void> {
   await page.waitForTimeout(150);
-  await expect(page.locator(".aacp-typing")).toBeHidden({ timeout: 15_000 }).catch(() => undefined);
+  await expect(page.locator(".zyon-typing")).toBeHidden({ timeout: 15_000 }).catch(() => undefined);
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
 }
 
 export async function sendChat(page: Page, text: string): Promise<void> {
   await waitForChatIdle(page);
-  const form = page.locator(".aacp-composer-form").first();
+  const form = page.locator(".zyon-composer-form").first();
   const input = form.getByLabel("Mensagem para o assistente");
   const sendButton = form.getByRole("button", { name: "Enviar mensagem" });
 

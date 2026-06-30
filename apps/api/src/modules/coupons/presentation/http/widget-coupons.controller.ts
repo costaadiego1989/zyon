@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Inject, NotFoundException, Post, Req, UseGuards } from "@nestjs/common";
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 import { ApplyCouponUseCase } from "../../application/use-cases/apply-coupon.use-case.js";
 import type { EmbedHttpRequest } from "../../../embed/presentation/http/embed-checkout.controller.js";
 import { EmbedCheckoutGuardHelper } from "../../../embed/presentation/http/embed-checkout.controller.js";

@@ -71,9 +71,9 @@ describe("CheckoutHeader", () => {
 
   it("renders brand name with online status as presence", () => {
     const { container } = render(<CheckoutHeader vm={buildVm()} />);
-    expect(container.querySelector(".aacp-header-presence")?.textContent).toContain("Northstar Atelier");
-    expect(container.querySelector(".aacp-header-presence")?.textContent).toContain("online");
-    expect(container.querySelector(".aacp-agent-sub")?.textContent).toBe("Agente de compras");
+    expect(container.querySelector(".zyon-header-presence")?.textContent).toContain("Northstar Atelier");
+    expect(container.querySelector(".zyon-header-presence")?.textContent).toContain("online");
+    expect(container.querySelector(".zyon-agent-sub")?.textContent).toBe("Agente de compras");
   });
 
   it("renders enterprise theme header copy without trust strip", () => {
@@ -84,15 +84,15 @@ describe("CheckoutHeader", () => {
     vm.theme.trustBadges = ["Pagamento seguro", "Frete rastreavel", "Suporte humano"];
     const { container, getByText } = render(<CheckoutHeader vm={vm} />);
     expect(getByText("Concierge Northstar")).not.toBeNull();
-    expect(container.querySelector(".aacp-header-presence")?.textContent).toContain("Pagamento seguro");
-    expect(container.querySelectorAll(".aacp-trust-seal")).toHaveLength(0);
+    expect(container.querySelector(".zyon-header-presence")?.textContent).toContain("Pagamento seguro");
+    expect(container.querySelectorAll(".zyon-trust-seal")).toHaveLength(0);
   });
 
   it("renders avatar image when agentAvatarUrl is set", () => {
     const vm = buildVm();
     vm.theme.agentAvatarUrl = "https://cdn.example.com/avatar.png";
     const { container } = render(<CheckoutHeader vm={vm} />);
-    const img = container.querySelector(".aacp-header-agent-avatar img");
+    const img = container.querySelector(".zyon-header-agent-avatar img");
     expect(img).not.toBeNull();
     expect((img as HTMLImageElement).src).toContain("avatar.png");
   });
@@ -101,16 +101,16 @@ describe("CheckoutHeader", () => {
     const vm = buildVm();
     vm.theme.agentAvatarUrl = undefined;
     const { container } = render(<CheckoutHeader vm={vm} />);
-    expect(container.querySelector(".aacp-header-agent-avatar img")).toBeNull();
-    expect(container.querySelector(".aacp-header-agent-avatar svg")).not.toBeNull();
+    expect(container.querySelector(".zyon-header-agent-avatar img")).toBeNull();
+    expect(container.querySelector(".zyon-header-agent-avatar svg")).not.toBeNull();
   });
 
   it("does not render merchant initials in chat header", () => {
     const vm = buildVm();
     vm.theme.logoUrl = undefined;
     const { container } = render(<CheckoutHeader vm={vm} />);
-    expect(container.querySelector(".aacp-header-monogram-text")).toBeNull();
-    expect(container.querySelector(".aacp-header-agent-avatar")).not.toBeNull();
+    expect(container.querySelector(".zyon-header-monogram-text")).toBeNull();
+    expect(container.querySelector(".zyon-header-agent-avatar")).not.toBeNull();
   });
 
   // ── Color mode toggle ───────────────────────────────────────────────────────
@@ -141,7 +141,7 @@ describe("CheckoutHeader", () => {
 
   it("does not render live dot in subtitle", () => {
     const { container } = render(<CheckoutHeader vm={buildVm()} />);
-    expect(container.querySelector(".aacp-agent-sub .live-dot")).toBeNull();
+    expect(container.querySelector(".zyon-agent-sub .live-dot")).toBeNull();
   });
 
   // ── Login states ────────────────────────────────────────────────────────────

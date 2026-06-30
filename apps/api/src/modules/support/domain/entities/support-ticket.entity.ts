@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 
 const SUPPORT_TICKET_STATUSES = new Set<SupportTicketStatus>([
   "open",

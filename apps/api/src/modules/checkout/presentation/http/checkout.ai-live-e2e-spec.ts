@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateSalesReply } from "@aacp/conversation-engine";
-import type { AgentContext, AuthorizedOffer } from "@aacp/shared-types";
+import { generateSalesReply } from "@zyon/conversation-engine";
+import type { AgentContext, AuthorizedOffer } from "@zyon/shared-types";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";

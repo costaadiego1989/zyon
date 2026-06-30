@@ -3,7 +3,7 @@ import type { PixWaitingStatus } from "../../hooks/use-checkout-payment.js";
 /**
  * View model for the persistent PIX "aguardando/escutando pagamento" component
  * (ADR §9.2). It renders identically on the shared shell in both channels and
- * exposes the e2e contract `.aacp-pix-waiting[data-pix-state]`.
+ * exposes the e2e contract `.zyon-pix-waiting[data-pix-state]`.
  */
 export type PixWaitingModel = {
   status: PixWaitingStatus;

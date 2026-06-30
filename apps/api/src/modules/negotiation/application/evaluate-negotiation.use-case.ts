@@ -5,7 +5,7 @@ import {
   type MerchantNegotiationPolicy,
   type NegotiationCart,
   type NegotiationResult
-} from "@aacp/negotiation-engine";
+} from "@zyon/negotiation-engine";
 
 export interface EvaluateNegotiationInput {
   merchantId: string;

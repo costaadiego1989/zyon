@@ -88,7 +88,7 @@ test.describe("@realapi returning buyer", () => {
         customer: { email, isReturning: false },
       }),
     );
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     await waitForChatIdle(page);
 
@@ -103,8 +103,8 @@ test.describe("@realapi returning buyer", () => {
 
     // Recognized + complete profile bootstraps shipping selection — no e-mail,
     // OTP, name, or CPF prompts are shown.
-    await expect(page.locator(".aacp-shipping-selector")).toBeVisible({ timeout: 15_000 });
-    await expect(page.locator(".aacp-thread")).not.toContainText(/c[oó]digo de verifica|informe seu e-?mail|qual o seu nome/i);
+    await expect(page.locator(".zyon-shipping-selector")).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator(".zyon-thread")).not.toContainText(/c[oó]digo de verifica|informe seu e-?mail|qual o seu nome/i);
 
     // The server-side session confirms the recognized, pre-verified state.
     const sessionId = firstBody.session_id as string;

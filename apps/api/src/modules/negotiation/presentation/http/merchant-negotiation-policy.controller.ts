@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Put, Req, UseGuards } from "@nestjs/common";
-import type { MerchantNegotiationPolicy } from "@aacp/negotiation-engine";
+import type { MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import {
   GetMerchantNegotiationPolicyUseCase,

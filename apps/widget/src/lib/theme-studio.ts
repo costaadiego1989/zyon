@@ -1,4 +1,4 @@
-import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import type { GlobalAuthSession } from "./widget-schemas.js";
 
 const LOCAL_THEME_KEY = "aacp_theme_studio_overrides";

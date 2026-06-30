@@ -1,4 +1,4 @@
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
 
 export interface BuyerAccountProps {
   globalUserId: string;

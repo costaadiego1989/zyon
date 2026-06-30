@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { NegotiationResult } from "@aacp/negotiation-engine";
+import type { NegotiationResult } from "@zyon/negotiation-engine";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 
 @Injectable()

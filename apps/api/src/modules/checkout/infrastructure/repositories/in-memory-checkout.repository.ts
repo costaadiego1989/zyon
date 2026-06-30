@@ -12,7 +12,7 @@ import type {
   DashboardOverview,
   DomainEventEnvelope,
   MerchantRules
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import type { CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import type { OfferRepository } from "../../domain/ports/offer.repository.port.js";

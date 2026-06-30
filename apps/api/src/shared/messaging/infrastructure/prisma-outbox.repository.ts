@@ -1,6 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../persistence/persistence.module.js";
 import type {
   OutboxClaim,

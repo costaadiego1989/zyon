@@ -1,4 +1,4 @@
-import type { Cart, MerchantRules, OfferType } from "@aacp/shared-types";
+import type { Cart, MerchantRules, OfferType } from "@zyon/shared-types";
 
 export interface MarginResult {
   grossRevenue: number;

@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PendingCommerceOrderIndexPort } from "../domain/ports/pending-commerce-order-index.port.js";
 import { appendOutboxInTransaction } from "./commerce-outbox.js";
 

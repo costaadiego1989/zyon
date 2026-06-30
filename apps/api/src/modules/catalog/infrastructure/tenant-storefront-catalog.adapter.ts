@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { SuggestedProduct } from "@aacp/shared-types";
+import type { SuggestedProduct } from "@zyon/shared-types";
 import {
   COMMERCE_CATALOG_PORT,
   type CommerceCatalogReader,

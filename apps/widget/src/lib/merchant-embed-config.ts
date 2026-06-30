@@ -1,4 +1,4 @@
-import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 import type { HybridCheckoutOptions } from "./merchant-checkout-shell.js";
 import { DEFAULT_WIDGET_API_BASE_URL } from "./widget-schemas.js";
 import type { ProductSelectionLine } from "./widget-types.js";

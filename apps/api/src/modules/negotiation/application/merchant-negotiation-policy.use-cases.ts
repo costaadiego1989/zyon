@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { MerchantNegotiationPolicy } from "@aacp/negotiation-engine";
+import type { MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 import { DEFAULT_MERCHANT_NEGOTIATION_POLICY } from "../domain/negotiation-defaults.js";
 import { assertValidMerchantNegotiationPolicy } from "../domain/merchant-negotiation-policy.entity.js";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";

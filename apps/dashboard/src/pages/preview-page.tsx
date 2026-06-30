@@ -26,7 +26,7 @@ function widgetBundleBase(apiBaseUrl: string): string {
 
 /**
  * Live preview of the **real** checkout widget (custom element
- * `aacp-checkout-agent`), loaded from the API origin inside a sandboxed iframe
+ * `zyon-checkout-agent`), loaded from the API origin inside a sandboxed iframe
  * and fed by a short-lived, tenant-scoped preview embed token. The widget
  * hydrates the merchant's saved theme/agent/copy server-side, so this reflects
  * the live configuration without touching production data.
@@ -72,11 +72,11 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
       "<style>html,body{margin:0;padding:16px;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;}</style>",
       "</head><body>",
       `<script defer src="${bundleBase}/aacp.js"></script>`,
-      "<aacp-checkout-agent",
+      "<zyon-checkout-agent",
       `  embed-session-token="${token}"`,
       `  api-base-url="${apiBase}"`,
       `  ui-presentation="${presentation}"`,
-      "></aacp-checkout-agent>",
+      "></zyon-checkout-agent>",
       "</body></html>",
     ].join("\n");
   }, [token, apiBase, bundleBase, presentation]);

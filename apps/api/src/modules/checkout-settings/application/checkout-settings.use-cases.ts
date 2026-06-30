@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { CheckoutSettings, CheckoutSettingsContext, CheckoutSettingsPatch } from "@aacp/shared-types";
+import type { CheckoutSettings, CheckoutSettingsContext, CheckoutSettingsPatch } from "@zyon/shared-types";
 import { CheckoutSettingsEntity } from "../domain/entities/checkout-settings.entity.js";
 import {
   CHECKOUT_SETTINGS_REPOSITORY,

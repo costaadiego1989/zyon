@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { MerchantCryptoPayments } from "@aacp/shared-types";
+import type { MerchantCryptoPayments } from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { isCryptoPaymentsEnabled } from "../../merchant/domain/services/merchant-crypto.validation.js";
 import type {

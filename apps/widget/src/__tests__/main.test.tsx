@@ -11,7 +11,7 @@ import type {
   DashboardOverview,
   MerchantTheme,
   StartCheckoutResponse
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 // ── Stripe mocks (hoisted so they're available inside vi.mock factories) ──────
 const { mockConfirmPaymentGlobal, mockLoadStripeGlobal } = vi.hoisted(() => ({
@@ -237,13 +237,13 @@ function buildChatResponse(
 async function skipCouponGate(container: HTMLElement) {
   await waitFor(() => {
     expect(
-      Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).some(
+      Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button")).some(
         (button) => button.textContent === "Não"
       )
     ).toBe(true);
   });
 
-  const skipCoupon = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).find(
+  const skipCoupon = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button")).find(
     (button) => button.textContent === "Não"
   );
   expect(skipCoupon).not.toBeUndefined();
@@ -492,44 +492,44 @@ describe("CheckoutAgent (conversational)", () => {
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-brand strong")?.textContent).toBe(
+      expect(container.querySelector(".zyon-cart-brand strong")?.textContent).toBe(
         "Northstar Atelier"
       );
     });
 
-    expect(container.querySelector(".aacp-cart-title")?.textContent).toContain("Em andamento");
-    expect(container.querySelector(".aacp-flow-rail")?.textContent).toContain("Cadastro");
-    expect(container.querySelector(".aacp-hero")).toBeNull();
-    expect(container.querySelector(".aacp-cart-intel")).toBeNull();
+    expect(container.querySelector(".zyon-cart-title")?.textContent).toContain("Em andamento");
+    expect(container.querySelector(".zyon-flow-rail")?.textContent).toContain("Cadastro");
+    expect(container.querySelector(".zyon-hero")).toBeNull();
+    expect(container.querySelector(".zyon-cart-intel")).toBeNull();
     expect(container.textContent).not.toContain("Receita IA");
     expect(container.textContent).not.toContain("Conversão");
     expect(container.textContent).not.toContain("Telemetria");
-    expect(container.querySelector(".aacp-chat-intro")).toBeNull();
+    expect(container.querySelector(".zyon-chat-intro")).toBeNull();
 
-    const widget = container.querySelector(".aacp-widget--conversational") as HTMLElement;
+    const widget = container.querySelector(".zyon-widget--conversational") as HTMLElement;
     expect(widget.style.getPropertyValue("--aacp-accent")).toBe("#FF0066");
     expect(widget.style.getPropertyValue("--aacp-font")).toBe(
       "Manrope, system-ui, sans-serif"
     );
-    expect(container.querySelector("img.aacp-cart-logo")?.getAttribute("src")).toBe(
+    expect(container.querySelector("img.zyon-cart-logo")?.getAttribute("src")).toBe(
       "https://cdn.example.com/logo.png"
     );
 
     await waitFor(() => {
-      const bubble = container.querySelector(".aacp-chat-bubble--agent .aacp-chat-text");
+      const bubble = container.querySelector(".zyon-chat-bubble--agent .zyon-chat-text");
       expect(bubble?.textContent ?? "").toContain("Aurora");
     });
 
     expect(
-      container.querySelector(".aacp-cart-total dd")?.textContent
+      container.querySelector(".zyon-cart-total dd")?.textContent
     ).toMatch(/929/);
 
     fireEvent.click(getByLabelText("Remover Bolsa Executiva"));
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-empty")).not.toBeNull();
+      expect(container.querySelector(".zyon-cart-empty")).not.toBeNull();
     });
-    expect(container.querySelector(".aacp-cart-total")).toBeNull();
+    expect(container.querySelector(".zyon-cart-total")).toBeNull();
   });
 
   it("loads the cart from the configured product API before starting checkout", async () => {
@@ -610,7 +610,7 @@ describe("CheckoutAgent (conversational)", () => {
     const { container } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")?.textContent).toContain(
+      expect(container.querySelector(".zyon-chat-bubble--agent")?.textContent).toContain(
         "12% de desconto"
       );
     });
@@ -621,7 +621,7 @@ describe("CheckoutAgent (conversational)", () => {
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     let resolveChat!: (value: Response) => void;
@@ -645,10 +645,10 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.click(submitBtn);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-typing")).not.toBeNull();
+      expect(container.querySelector(".zyon-typing")).not.toBeNull();
     });
     expect(
-      container.querySelector(".aacp-chat-bubble--buyer .aacp-chat-text")?.textContent
+      container.querySelector(".zyon-chat-bubble--buyer .zyon-chat-text")?.textContent
     ).toBe("esta caro");
 
     await act(async () => {
@@ -665,23 +665,23 @@ describe("CheckoutAgent (conversational)", () => {
     });
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-typing")).toBeNull();
+      expect(container.querySelector(".zyon-typing")).toBeNull();
     });
 
-    const texts = Array.from(container.querySelectorAll(".aacp-chat-text")).map((b) =>
+    const texts = Array.from(container.querySelectorAll(".zyon-chat-text")).map((b) =>
       (b.textContent ?? "").trim()
     );
     expect(texts).toContain("esta caro");
     expect(texts.some((t) => t.includes("AURORA5"))).toBe(true);
 
     const quickReplyLabels = Array.from(
-      container.querySelectorAll(".aacp-quick-replies--in-thread button")
+      container.querySelectorAll(".zyon-quick-replies--in-thread button")
     ).map((b) => b.textContent ?? "");
     expect(quickReplyLabels).toEqual(
       expect.arrayContaining(["Sim", "Não"])
     );
     expect(quickReplyLabels).not.toContain("Prefiro PIX");
-    expect(container.querySelector(".aacp-flow-rail")?.textContent).toContain("Pagamento");
+    expect(container.querySelector(".zyon-flow-rail")?.textContent).toContain("Pagamento");
 
     expect(() => getByLabelText("Cupom de desconto")).toThrow();
   });
@@ -690,7 +690,7 @@ describe("CheckoutAgent (conversational)", () => {
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     fetchMock.mockImplementationOnce(async () =>
@@ -734,7 +734,7 @@ describe("CheckoutAgent (conversational)", () => {
 
     const second = render(<CheckoutAgent config={buildConfig({ merchantId: "mrc_demo_2" })} />);
     await waitFor(() => {
-      expect(second.container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(second.container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
     fireEvent.change(second.getByLabelText("Mensagem para o assistente"), {
       target: { value: "pagamento recusado" }
@@ -750,11 +750,11 @@ describe("CheckoutAgent (conversational)", () => {
     const { container } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelectorAll(".aacp-quick-replies button").length).toBeGreaterThan(0);
+      expect(container.querySelectorAll(".zyon-quick-replies button").length).toBeGreaterThan(0);
     });
 
     const chips = Array.from(
-      container.querySelectorAll(".aacp-quick-replies button")
+      container.querySelectorAll(".zyon-quick-replies button")
     ).map((b) => b.textContent);
     expect(chips).toEqual([
       "Olá!",
@@ -769,7 +769,7 @@ describe("CheckoutAgent (conversational)", () => {
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     let resolveChat!: (value: Response) => void;
@@ -805,19 +805,19 @@ describe("CheckoutAgent (conversational)", () => {
     await skipCouponGate(container);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-offer-banner")).not.toBeNull();
+      expect(container.querySelector(".zyon-offer-banner")).not.toBeNull();
     });
-    expect(container.querySelector(".aacp-offer-banner")?.textContent).toContain("Oferta aplicada");
+    expect(container.querySelector(".zyon-offer-banner")?.textContent).toContain("Oferta aplicada");
   });
 
   it("opens the phone login modal and keeps Google disabled until OAuth is enabled", async () => {
     const { container, getByText, getByPlaceholderText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-shell-header")).not.toBeNull();
+      expect(container.querySelector(".zyon-shell-header")).not.toBeNull();
     });
 
-    const loginButton = container.querySelector(".aacp-google-login") as HTMLButtonElement;
+    const loginButton = container.querySelector(".zyon-google-login") as HTMLButtonElement;
     fireEvent.click(loginButton);
 
     await waitFor(() => {
@@ -888,7 +888,7 @@ describe("CheckoutAgent (conversational)", () => {
     fireEvent.click(getByText("Minha conta"));
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-hub-sheet")).not.toBeNull();
+      expect(container.querySelector(".zyon-hub-sheet")).not.toBeNull();
     });
     await waitFor(() => {
       expect(container.textContent).toContain("Northstar Atelier");
@@ -1056,7 +1056,7 @@ describe("CheckoutAgent (conversational)", () => {
 
     // Wait for greeting
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     // 2. Simulate Registration Flow (Diego -> Email -> OTP -> CPF -> Phone)
@@ -1130,7 +1130,7 @@ describe("CheckoutAgent (conversational)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("PAC (Grátis)");
     });
-    const pacQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+    const pacQr = Array.from(container.querySelectorAll(".zyon-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("PAC (Grátis)"));
     expect(pacQr).not.toBeUndefined();
     fireEvent.click(pacQr!);
@@ -1138,14 +1138,14 @@ describe("CheckoutAgent (conversational)", () => {
     // Check shipping policies and discounts in the UI
     await waitFor(() => {
       // Check totals are updated
-      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("809,82");
+      expect(container.querySelector(".zyon-cart-total dd")?.textContent).toContain("809,82");
     });
 
     // 4. Payment method selection in quick replies (discount already applied → skip coupon gate)
     await waitFor(() => {
       expect(container.textContent).toContain("PIX");
     });
-    const pixQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+    const pixQr = Array.from(container.querySelectorAll(".zyon-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("PIX"));
     expect(pixQr).not.toBeUndefined();
     fireEvent.click(pixQr!);
@@ -1209,12 +1209,12 @@ describe("CheckoutAgent (conversational)", () => {
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Quero pagar" } });
-    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+    fireEvent.submit(container.querySelector("form.zyon-composer-form")!);
 
     await skipCouponGate(container);
 
@@ -1223,7 +1223,7 @@ describe("CheckoutAgent (conversational)", () => {
     });
 
     // Click card quick reply → showCardForm = true → CreditCardForm (Stripe) renders
-    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+    const cardQr = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button"))
       .find((b) => (b.textContent ?? "").includes("Cartão"));
     expect(cardQr).not.toBeUndefined();
 
@@ -1321,7 +1321,7 @@ describe("CheckoutAgent (conversational)", () => {
     expect(container.textContent).toContain("Ver Promoções");
 
     // Verify the DEV Reset button is rendered in the CartPanel header instead of CheckoutHeader
-    const cartHeader = container.querySelector(".aacp-cart-brand");
+    const cartHeader = container.querySelector(".zyon-cart-brand");
     expect(cartHeader).not.toBeNull();
     
     // The Reset button should be located in the CartPanel near the brand header
@@ -1385,24 +1385,24 @@ describe("CheckoutAgent (conversational)", () => {
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "calcular frete" } });
-    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+    fireEvent.submit(container.querySelector("form.zyon-composer-form")!);
 
     await waitFor(() => {
       expect(container.textContent).toContain("Sedex (R$ 15,00)");
     });
 
-    const sedexQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+    const sedexQr = Array.from(container.querySelectorAll(".zyon-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("Sedex"));
     expect(sedexQr).not.toBeUndefined();
     fireEvent.click(sedexQr!);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("914,80");
+      expect(container.querySelector(".zyon-cart-total dd")?.textContent).toContain("914,80");
     });
   });
 
@@ -1439,11 +1439,11 @@ describe("CheckoutAgent (conversational)", () => {
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-brand strong")?.textContent).toBe("Northstar Atelier");
+      expect(container.querySelector(".zyon-cart-brand strong")?.textContent).toBe("Northstar Atelier");
     });
 
     // Initial qty = 2
-    const qtySpan = () => container.querySelector(".aacp-item-meta span");
+    const qtySpan = () => container.querySelector(".zyon-item-meta span");
     expect(qtySpan()?.textContent).toBe("2");
 
     fireEvent.click(getByLabelText("Aumentar quantidade de Bolsa Executiva"));
@@ -1461,7 +1461,7 @@ describe("CheckoutAgent (conversational)", () => {
     await waitFor(() => { expect(qtySpan()?.textContent).toBe("1"); });
     fireEvent.click(getByLabelText("Diminuir quantidade de Bolsa Executiva"));
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-empty")).not.toBeNull();
+      expect(container.querySelector(".zyon-cart-empty")).not.toBeNull();
     });
 
     // Server is the authority: each mutation persisted with sku + quantity (never price).
@@ -1507,15 +1507,15 @@ describe("CheckoutAgent (conversational)", () => {
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const chatInput = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(chatInput, { target: { value: "quero pagar" } });
-    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+    fireEvent.submit(container.querySelector("form.zyon-composer-form")!);
 
     const couponGate = await waitFor(() => {
-      const button = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+      const button = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button"))
         .find((candidate) => candidate.textContent === "Sim");
       expect(button).not.toBeUndefined();
       return button as HTMLButtonElement;
@@ -1567,27 +1567,27 @@ describe("CheckoutAgent (conversational)", () => {
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const chatInput = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(chatInput, { target: { value: "quero pagar" } });
-    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+    fireEvent.submit(container.querySelector("form.zyon-composer-form")!);
 
     await waitFor(() => {
-      const labels = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
+      const labels = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
       expect(labels).toContain("Sim");
       expect(labels).toContain("Não");
       expect(labels).not.toContain("PIX");
     });
     expect(container.querySelector("input[aria-label='Cupom de desconto']")).toBeNull();
 
-    const skipCoupon = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+    const skipCoupon = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button"))
       .find((button) => button.textContent === "Não");
     fireEvent.click(skipCoupon!);
 
     await waitFor(() => {
-      const labels = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
+      const labels = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button")).map((b) => b.textContent ?? "");
       expect(labels).toContain("PIX");
       expect(labels).toContain("Cartão de crédito");
     });
@@ -1639,12 +1639,12 @@ describe("CheckoutAgent (conversational)", () => {
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "Quero pagar com cartão" } });
-    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+    fireEvent.submit(container.querySelector("form.zyon-composer-form")!);
 
     await skipCouponGate(container);
 
@@ -1652,7 +1652,7 @@ describe("CheckoutAgent (conversational)", () => {
       expect(container.textContent).toContain("Cartão de crédito");
     });
 
-    const cardQr = Array.from(container.querySelectorAll(".aacp-quick-replies--in-thread button"))
+    const cardQr = Array.from(container.querySelectorAll(".zyon-quick-replies--in-thread button"))
       .find((b) => (b.textContent ?? "").includes("Cartão"));
     await act(async () => { fireEvent.click(cardQr!); });
 
@@ -1750,7 +1750,7 @@ describe("CheckoutAgent (conversational)", () => {
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
@@ -1836,7 +1836,7 @@ describe("CheckoutAgent (conversational)", () => {
     });
     expect(container.textContent).toContain("Carteira Slim RFID");
     expect(container.textContent).toContain("Cinto de Couro Genuíno");
-    expect(container.querySelectorAll(".aacp-cross-sell-card")).toHaveLength(2);
+    expect(container.querySelectorAll(".zyon-cross-sell-card")).toHaveLength(2);
   });
 
   it("cross-sell: clicking Adicionar sends 'Quero adicionar: {name}' to chat API", async () => {
@@ -1868,10 +1868,10 @@ describe("CheckoutAgent (conversational)", () => {
     const { container } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cross-sell-card")).not.toBeNull();
+      expect(container.querySelector(".zyon-cross-sell-card")).not.toBeNull();
     });
 
-    const addBtn = Array.from(container.querySelectorAll(".aacp-cross-sell-card button"))
+    const addBtn = Array.from(container.querySelectorAll(".zyon-cross-sell-card button"))
       .find((b) => (b.textContent ?? "").includes("Adicionar"));
     expect(addBtn).not.toBeUndefined();
 
@@ -1936,14 +1936,14 @@ describe("CheckoutAgent (conversational)", () => {
     const { container } = render(<CheckoutAgent config={buildConfig()} />);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toMatch(/929/);
+      expect(container.querySelector(".zyon-cart-total dd")?.textContent).toMatch(/929/);
     });
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cross-sell-card")).not.toBeNull();
+      expect(container.querySelector(".zyon-cross-sell-card")).not.toBeNull();
     });
 
-    const addBtn = Array.from(container.querySelectorAll(".aacp-cross-sell-card button"))
+    const addBtn = Array.from(container.querySelectorAll(".zyon-cross-sell-card button"))
       .find((b) => (b.textContent ?? "").includes("Adicionar"));
 
     await act(async () => {
@@ -1951,10 +1951,10 @@ describe("CheckoutAgent (conversational)", () => {
     });
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cart-total dd")?.textContent).toContain("1.059,60");
+      expect(container.querySelector(".zyon-cart-total dd")?.textContent).toContain("1.059,60");
     });
     expect(container.textContent).toContain("Carteira Slim RFID");
-    expect(container.querySelectorAll(".aacp-item")).toHaveLength(2);
+    expect(container.querySelectorAll(".zyon-item")).toHaveLength(2);
   });
 
   it("cross-sell: banner renders when chat response delivers suggestedProducts at payment step", async () => {
@@ -2010,25 +2010,25 @@ describe("CheckoutAgent (conversational)", () => {
 
     const { container, getByLabelText } = render(<CheckoutAgent config={buildConfig()} />);
     await waitFor(() => {
-      expect(container.querySelector(".aacp-chat-bubble--agent")).not.toBeNull();
+      expect(container.querySelector(".zyon-chat-bubble--agent")).not.toBeNull();
     });
 
     const input = getByLabelText("Mensagem para o assistente") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "calcular frete" } });
-    fireEvent.submit(container.querySelector("form.aacp-composer-form")!);
+    fireEvent.submit(container.querySelector("form.zyon-composer-form")!);
 
     await waitFor(() => {
       expect(container.textContent).toContain("Sedex (R$ 15,00)");
     });
 
-    const sedexQr = Array.from(container.querySelectorAll(".aacp-quick-replies button"))
+    const sedexQr = Array.from(container.querySelectorAll(".zyon-quick-replies button"))
       .find((b) => (b.textContent ?? "").includes("Sedex"));
     fireEvent.click(sedexQr!);
 
     await waitFor(() => {
-      expect(container.querySelector(".aacp-cross-sell")).not.toBeNull();
+      expect(container.querySelector(".zyon-cross-sell")).not.toBeNull();
     });
     expect(container.textContent).toContain("Você também pode gostar");
-    expect(container.querySelectorAll(".aacp-cross-sell-card")).toHaveLength(2);
+    expect(container.querySelectorAll(".zyon-cross-sell-card")).toHaveLength(2);
   });
 });

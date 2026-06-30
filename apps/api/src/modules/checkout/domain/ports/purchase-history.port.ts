@@ -1,4 +1,4 @@
-import type { CurrencyCode } from "@aacp/shared-types";
+import type { CurrencyCode } from "@zyon/shared-types";
 
 export const PURCHASE_HISTORY_PORT = Symbol("PURCHASE_HISTORY_PORT");
 

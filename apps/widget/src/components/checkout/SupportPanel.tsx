@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import { X, Send, Sparkles, ShieldCheck, Truck, CreditCard, Package, Headphones, ArrowRight, ArrowLeft, MessageCircle } from "lucide-react";
-import type { SupportFaqItem } from "@aacp/shared-types";
+import type { SupportFaqItem } from "@zyon/shared-types";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { useSupportChat } from "../../hooks/use-support-chat.js";
 import { useSupportFaq } from "../../hooks/use-support-faq.js";

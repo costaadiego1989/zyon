@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { CartItem, ChatTurn, CheckoutExperienceSnapshot, CheckoutSession } from "@aacp/shared-types";
+import type { CartItem, ChatTurn, CheckoutExperienceSnapshot, CheckoutSession } from "@zyon/shared-types";
 import {
   CHECKOUT_SESSION_REPOSITORY,
   type CheckoutSessionRepository

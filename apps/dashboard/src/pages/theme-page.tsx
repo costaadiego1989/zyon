@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Palette, RotateCcw, Save } from "lucide-react";
-import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
 
 const FONT_OPTIONS = [

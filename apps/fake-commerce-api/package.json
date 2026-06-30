@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/fake-commerce-api",
+  "name": "@zyon/fake-commerce-api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -19,6 +19,6 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*"
+    "@zyon/shared-types": "workspace:*"
   }
 }

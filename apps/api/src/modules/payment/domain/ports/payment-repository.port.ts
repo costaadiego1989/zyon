@@ -1,4 +1,4 @@
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PaymentIntentEntity } from "../payment-intent.entity.js";
 
 export const PAYMENT_REPOSITORY = Symbol("PAYMENT_REPOSITORY");

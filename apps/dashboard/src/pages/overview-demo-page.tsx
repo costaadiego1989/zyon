@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { RefreshCw, Save } from "lucide-react";
-import type { DashboardOverview, MerchantRules, SupportTicket } from "@aacp/shared-types";
+import type { DashboardOverview, MerchantRules, SupportTicket } from "@zyon/shared-types";
 import { createDashboardApi, type MerchantProfile } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
 

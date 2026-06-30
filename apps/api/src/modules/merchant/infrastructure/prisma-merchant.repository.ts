@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
-import type { StageQuickReplies } from "@aacp/shared-types";
+import type { StageQuickReplies } from "@zyon/shared-types";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";

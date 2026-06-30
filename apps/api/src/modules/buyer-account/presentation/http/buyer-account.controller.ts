@@ -8,7 +8,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
 import { RegisterBuyerUseCase } from "../../application/use-cases/register-buyer.use-case.js";
 import { LoginBuyerUseCase } from "../../application/use-cases/login-buyer.use-case.js";
 import { LoginBuyerFromSessionUseCase } from "../../application/use-cases/login-buyer-from-session.use-case.js";

@@ -27,7 +27,7 @@ provider (`CHECKOUT_REPOSITORY` reusado por `useExisting`).
 
 **Fluxos-chave.** start-checkout → track-event (scoring + gate de
 intervenção pelo `checkout-settings` + ledger) → chat → evaluate-shipping
-(via `@aacp/shipping-engine`) → offers/apply → orders/complete (commit
+(via `@zyon/shipping-engine`) → offers/apply → orders/complete (commit
 atômico do agregado + outbox; side-effects pós-commit).
 
 **Invariantes que o módulo deve sustentar (CLAUDE.md).**
@@ -225,7 +225,7 @@ no controller** e **concorrência otimista por `updatedAt`** no agregado.
   determinísticos para o mesmo merchant. Mina a matemática de oferta
   determinística (invariante 5).
 - **Remediação:** uma única constante `DEFAULT_MERCHANT_RULES` compartilhada em
-  `@aacp/shared-types` referenciada em todos os caminhos.
+  `@zyon/shared-types` referenciada em todos os caminhos.
 - **Contrato/migração:** **não** (constante compartilhada em shared-types, ADR 0025).
 
 #### P2 — Side-effects pós-commit de complete-order não transacionais e sem retry durável

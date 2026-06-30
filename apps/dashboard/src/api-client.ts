@@ -10,9 +10,9 @@ import type {
   SupportTicket,
   SupportTicketStatus,
   SupportTicketStatusPatch,
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
-export type { OnboardingStateResponse, OnboardingStepId } from "@aacp/shared-types";
+export type { OnboardingStateResponse, OnboardingStepId } from "@zyon/shared-types";
 
 export function normalizeApiBase(url: string): string {
   return url.trimEnd().replace(/\/+$/, "");

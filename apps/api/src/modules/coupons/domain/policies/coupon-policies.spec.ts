@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { validateCoupon } from "./coupon-validity.policy.js";
 import { checkCouponLimits } from "./coupon-limit.policy.js";
 import type { CouponSnapshot } from "../entities/coupon.entity.js";
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 
 function makeCoupon(overrides: Partial<CouponSnapshot> = {}): CouponSnapshot {
   return {

@@ -1,4 +1,4 @@
-import type { CheckoutExperienceSnapshot } from "@aacp/shared-types";
+import type { CheckoutExperienceSnapshot } from "@zyon/shared-types";
 import type { BuyerHubSection } from "../../hooks/use-checkout-panels.js";
 import type { useBuyerHub } from "../../hooks/use-buyer-hub.js";
 import type { useGlobalAuth } from "../../hooks/use-global-auth.js";

@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { OnboardingStateResponse } from "@aacp/shared-types";
+import type { OnboardingStateResponse } from "@zyon/shared-types";
 import {
   ONBOARDING_STATE_REPOSITORY,
   type OnboardingStateRepository

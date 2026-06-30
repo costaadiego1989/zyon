@@ -3,7 +3,7 @@ import type {
   BuyerNegotiationPreferences,
   MerchantNegotiationPolicy,
   NegotiationResult
-} from "@aacp/negotiation-engine";
+} from "@zyon/negotiation-engine";
 import type { NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 
 export class PrismaNegotiationStore implements NegotiationStore {

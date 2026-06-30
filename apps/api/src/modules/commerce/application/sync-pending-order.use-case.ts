@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { TrustedCartSnapshot } from "@aacp/commerce-adapters";
+import type { TrustedCartSnapshot } from "@zyon/commerce-adapters";
 import { COMMERCE_ORDER_PORT, type CommerceOrderPort } from "../domain/ports/commerce-order.port.js";
 import {
   COMMERCE_PENDING_ORDER_INDEX,

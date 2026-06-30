@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import type { SupportSettings } from "@aacp/shared-types";
+import type { SupportSettings } from "@zyon/shared-types";
 import { SupportSettingsEntity } from "../domain/entities/support-settings.entity.js";
 import {
   SUPPORT_SETTINGS_REPOSITORY,

@@ -162,7 +162,7 @@ describe("GlobalAuthModal — hub panel", () => {
       />
     );
     expect(container.textContent).toContain("buyer@test.com");
-    expect(container.querySelector(".aacp-hub-panel")).not.toBeNull();
+    expect(container.querySelector(".zyon-hub-panel")).not.toBeNull();
   });
 
   it("renders hub panel with merchant email when merchant session", () => {

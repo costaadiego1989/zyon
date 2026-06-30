@@ -1,5 +1,5 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@aacp/shared-types";
-import type { Objection } from "@aacp/conversation-engine";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@zyon/shared-types";
+import type { Objection } from "@zyon/conversation-engine";
 
 export const CONVERSATION_PORT = Symbol("CONVERSATION_PORT");
 

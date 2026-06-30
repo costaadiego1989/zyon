@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, Package, Plus, Check, X } from "lucide-react";
-import type { SuggestedProduct } from "@aacp/shared-types";
+import type { SuggestedProduct } from "@zyon/shared-types";
 import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 interface CrossSellBannerProps {

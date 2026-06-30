@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import type { CheckoutSession, CustomerHints, PackageDimensions, ShippingQuote } from "@aacp/shared-types";
+import type { CheckoutSession, CustomerHints, PackageDimensions, ShippingQuote } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
 import { extractAddressDetailLine, isShippingQuickReplyQuestion } from "../../domain/services/customer-extraction.service.js";

@@ -1,4 +1,4 @@
-import type { CustomerHints } from "@aacp/shared-types";
+import type { CustomerHints } from "@zyon/shared-types";
 
 export class CheckoutIdentityService {
   static identityKey(merchantId: string, customer?: CustomerHints): string | undefined {

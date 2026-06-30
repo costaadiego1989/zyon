@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
 import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
 import { BuyerAgentProfile, type AgentPersonality } from "../domain/entities/buyer-agent-profile.entity.js";
 import type { BuyerAccountRepository } from "../domain/ports/buyer-account-repository.port.js";

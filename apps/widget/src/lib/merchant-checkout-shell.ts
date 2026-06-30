@@ -1,4 +1,4 @@
-import type { Cart, CheckoutEventName, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, CheckoutEventName, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 import type { ProductSelectionLine } from "./widget-types.js";
 import { brandInitials } from "../hooks/checkout-presentation.js";
 

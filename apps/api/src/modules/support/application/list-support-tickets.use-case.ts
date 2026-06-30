@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 import { isSupportTicketStatus } from "../domain/entities/support-ticket.entity.js";
 import {
   SUPPORT_TICKET_REPOSITORY,

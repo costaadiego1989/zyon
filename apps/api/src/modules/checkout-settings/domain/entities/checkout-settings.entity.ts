@@ -4,7 +4,7 @@ import type {
   CheckoutSettingsPatch,
   CheckoutTriggerName,
   CheckoutTriggerRule
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 const ALLOWED_TRIGGERS: CheckoutTriggerName[] = [
   "shipping_objection_detected",

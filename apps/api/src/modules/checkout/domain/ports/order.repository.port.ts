@@ -1,4 +1,4 @@
-import type { CompletedOrder } from "@aacp/shared-types";
+import type { CompletedOrder } from "@zyon/shared-types";
 
 export const ORDER_REPOSITORY = Symbol("ORDER_REPOSITORY");
 

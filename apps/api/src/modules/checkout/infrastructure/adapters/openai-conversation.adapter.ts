@@ -1,5 +1,5 @@
 import { Injectable, Optional } from "@nestjs/common";
-import { generateSalesReply } from "@aacp/conversation-engine";
+import { generateSalesReply } from "@zyon/conversation-engine";
 import type { ConversationPort, ConversationReplyInput } from "../../domain/ports/conversation.port.js";
 import { HttpClientService } from "../../../../shared/http/http-client.service.js";
 

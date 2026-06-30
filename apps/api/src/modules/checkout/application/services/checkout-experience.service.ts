@@ -9,10 +9,10 @@ import type {
   CustomerHints,
   MerchantTheme,
   ShippingQuote
-} from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
-import type { MerchantRules } from "@aacp/shared-types";
+import type { MerchantRules } from "@zyon/shared-types";
 
 export interface ExperienceInputs {
   merchant_id: string;

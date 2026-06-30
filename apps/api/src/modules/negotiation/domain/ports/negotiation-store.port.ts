@@ -2,7 +2,7 @@ import type {
   BuyerNegotiationPreferences,
   MerchantNegotiationPolicy,
   NegotiationResult
-} from "@aacp/negotiation-engine";
+} from "@zyon/negotiation-engine";
 
 export const NEGOTIATION_STORE = Symbol("NEGOTIATION_STORE");
 

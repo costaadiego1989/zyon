@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { SupportFaqItem } from "@aacp/shared-types";
+import type { SupportFaqItem } from "@zyon/shared-types";
 
 interface UseSupportFaqResult {
   items: SupportFaqItem[];

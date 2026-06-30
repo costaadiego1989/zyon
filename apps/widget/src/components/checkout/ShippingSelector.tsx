@@ -1,5 +1,5 @@
 import React from "react";
-import type { ShippingQuote } from "@aacp/shared-types";
+import type { ShippingQuote } from "@zyon/shared-types";
 import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 interface ShippingSelectorProps {

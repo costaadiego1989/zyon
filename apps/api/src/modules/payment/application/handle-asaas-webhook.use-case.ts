@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
-import type { CurrencyCode } from "@aacp/shared-types";
+import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import {
   PAYMENT_REPOSITORY,

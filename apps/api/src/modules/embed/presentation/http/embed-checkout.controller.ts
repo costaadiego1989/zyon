@@ -19,7 +19,7 @@ import type {
   StartCheckoutRequest,
   TrackEventRequest,
   UpdateCartRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply-offer.use-case.js";
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";

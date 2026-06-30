@@ -9,7 +9,7 @@ describe("CheckoutProgressRail", () => {
     expect(screen.getByText("Cadastro")).toBeTruthy();
     expect(screen.getByText("Entrega")).toBeTruthy();
     expect(screen.getByText("Pagamento")).toBeTruthy();
-    const fill = document.querySelector(".aacp-progress-line-fill") as HTMLElement | null;
+    const fill = document.querySelector(".zyon-progress-line-fill") as HTMLElement | null;
     expect(fill).not.toBeNull();
     expect(fill?.style.width).toMatch(/^33\.33/);
   });

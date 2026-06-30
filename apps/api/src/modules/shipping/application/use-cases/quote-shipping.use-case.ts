@@ -1,10 +1,10 @@
 import { Injectable, Inject, Optional } from "@nestjs/common";
-import { buildQuoteKey } from "@aacp/shipping-engine";
+import { buildQuoteKey } from "@zyon/shipping-engine";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
-import type { PackageDimensions } from "@aacp/shared-types";
+import type { PackageDimensions } from "@zyon/shared-types";
 import {
   MERCHANT_RULES_REPOSITORY,
   type MerchantRulesRepository

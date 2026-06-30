@@ -2,7 +2,7 @@ import type {
   OnboardingStateResponse,
   OnboardingStepId,
   OnboardingStepState
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 /**
  * Ordered provisioning steps for self-serve tenant onboarding (ADR 0015).

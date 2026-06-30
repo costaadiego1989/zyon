@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
-import { isSafeGeneratedMessage } from "@aacp/conversation-engine";
-import type { SupportFaqItem, SupportTicket, SupportTicketStatus } from "@aacp/shared-types";
+import { isSafeGeneratedMessage } from "@zyon/conversation-engine";
+import type { SupportFaqItem, SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
 import { HttpClientService } from "../../../shared/http/http-client.service.js";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import {

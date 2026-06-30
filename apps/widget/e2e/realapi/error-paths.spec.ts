@@ -49,14 +49,14 @@ test.describe("@realapi error paths", () => {
         customer: { email: buyerEmail, isReturning: false },
       }),
     );
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     const started = await startResponse;
     const startedBody = await started.json();
     const sessionId = startedBody.session_id as string;
 
     // Wait for the agent to ask for the e-mail verification code.
-    await expect(page.locator(".aacp-thread")).toContainText(/c[oó]digo|verifica/i, {
+    await expect(page.locator(".zyon-thread")).toContainText(/c[oó]digo|verifica/i, {
       timeout: 15_000,
     });
 
@@ -67,13 +67,13 @@ test.describe("@realapi error paths", () => {
     expect(otpCode).toMatch(/^\d{6}$/);
 
     await sendChat(page, "000000");
-    await expect(page.locator(".aacp-shipping-selector")).not.toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-shipping-selector")).not.toBeVisible({ timeout: 5_000 });
     await expect(page.getByText(/Falha ao falar com a IA/i)).toHaveCount(0);
 
     await sendChat(page, otpCode!);
     // Valid code accepted → checkout advances past e-mail verification
     // (next the agent collects the buyer's name for the invoice).
-    await expect(page.locator(".aacp-thread")).toContainText(/nome|CPF|telefone|celular/i, {
+    await expect(page.locator(".zyon-thread")).toContainText(/nome|CPF|telefone|celular/i, {
       timeout: 15_000,
     });
   });
@@ -88,14 +88,14 @@ test.describe("@realapi error paths", () => {
 
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `coupon_err_${Date.now()}@test.aacp` };
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     await waitForChatIdle(page);
 
     await sendChat(page, "1000");
     await sendChat(page, "Nao tem");
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
     await selector.locator("button").first().click();
     await waitForChatIdle(page);
@@ -104,13 +104,13 @@ test.describe("@realapi error paths", () => {
     await expect(page.getByRole("button", { name: "Não" })).toBeVisible({ timeout: 10_000 });
     await page.getByRole("button", { name: "Sim" }).click();
 
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 5_000 });
     await couponBox.locator("input").fill("CODIGO_INEXISTENTE_999");
     await couponBox.locator("button", { hasText: /aplicar/i }).click();
     await page.waitForTimeout(2_000);
 
-    await expect(page.locator(".aacp-order-confirmation")).not.toBeVisible();
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-order-confirmation")).not.toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

@@ -27,13 +27,13 @@ function checkoutUrl(
 
 async function waitForChatIdle(page: Page): Promise<void> {
   await page.waitForTimeout(150);
-  await expect(page.locator(".aacp-typing")).toBeHidden({ timeout: 15_000 }).catch(() => undefined);
+  await expect(page.locator(".zyon-typing")).toBeHidden({ timeout: 15_000 }).catch(() => undefined);
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
 }
 
 async function sendChat(page: Page, text: string): Promise<void> {
   await waitForChatIdle(page);
-  const form = page.locator(".aacp-composer-form").first();
+  const form = page.locator(".zyon-composer-form").first();
   const input = form.getByLabel("Mensagem para o assistente");
   const sendButton = form.getByRole("button", { name: "Enviar mensagem" });
 
@@ -51,7 +51,7 @@ async function sendChat(page: Page, text: string): Promise<void> {
 }
 
 async function dismissChannelGate(page: Page, channel: "chat" | "voice" = "chat"): Promise<void> {
-  const gate = page.locator(".aacp-channel-gate");
+  const gate = page.locator(".zyon-channel-gate");
   if (!(await gate.isVisible({ timeout: 15_000 }).catch(() => false))) return;
   const label = channel === "voice" ? /Comprar por voz/i : /Comprar por chat/i;
   const button = page.getByRole("button", { name: label });
@@ -105,11 +105,11 @@ test.describe("full checkout real @realapi", () => {
     expect(startRequest.headers()["x-aacp-embed-token"]).toBe(embedToken);
     expect(startBody.shipping).toBeUndefined();
 
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
-    await expect(page.locator(".aacp-shipping-selector")).not.toBeVisible();
+    await expect(page.locator(".zyon-shipping-selector")).not.toBeVisible();
 
-    const cartBtn = page.locator(".aacp-cart-btn, [aria-label='Carrinho']").first();
+    const cartBtn = page.locator(".zyon-cart-btn, [aria-label='Carrinho']").first();
     if (await cartBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await cartBtn.click();
       const cart = page.locator("#aacp-cart-panel");
@@ -120,27 +120,27 @@ test.describe("full checkout real @realapi", () => {
 
   test("coupon input not visible before quick reply tap [REQ-CHK-004]", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
 
     await page.waitForTimeout(2_000);
-    await expect(page.locator(".aacp-coupon-box")).not.toBeVisible();
+    await expect(page.locator(".zyon-coupon-box")).not.toBeVisible();
     await expect(page.locator("input[placeholder*='cupom' i]")).not.toBeVisible();
   });
 
   test("full checkout flow renders without crash", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
 
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
 
-    const bubble = page.locator(".aacp-bubble, [data-testid='chat-bubble'], .aacp-message").first();
+    const bubble = page.locator(".zyon-bubble, [data-testid='chat-bubble'], .zyon-message").first();
     await expect(bubble).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator(".error-overlay, [data-testid='error']")).not.toBeVisible();
-    await expect(page.locator(".aacp-coupon-box")).not.toBeVisible();
-    await expect(page.locator(".aacp-shipping-selector")).not.toBeVisible();
+    await expect(page.locator(".zyon-coupon-box")).not.toBeVisible();
+    await expect(page.locator(".zyon-shipping-selector")).not.toBeVisible();
   });
 
   test("email OTP typed in chat keeps API alive and advances checkout", async ({ page, request }) => {
@@ -161,7 +161,7 @@ test.describe("full checkout real @realapi", () => {
         customer: { email: buyerEmail, isReturning: false }
       })
     );
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
     const started = await startResponse;
     expect(started.ok()).toBe(true, `Start failed: ${await started.text()}`);
@@ -170,7 +170,7 @@ test.describe("full checkout real @realapi", () => {
     expect(sessionId).toBeTruthy();
 
     // Agent asks for the e-mail verification code after auto-submitting email.
-    await expect(page.locator(".aacp-thread")).toContainText(/c[oó]digo|verifica/i, {
+    await expect(page.locator(".zyon-thread")).toContainText(/c[oó]digo|verifica/i, {
       timeout: 15_000
     });
 
@@ -183,9 +183,9 @@ test.describe("full checkout real @realapi", () => {
     await sendChat(page, otpCode!);
 
     await expect(page.getByText("Falha ao falar com a IA")).toHaveCount(0);
-    await expect(page.locator(".aacp-composer-form").first()).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".zyon-composer-form").first()).toBeVisible({ timeout: 10_000 });
     // After e-mail verification the agent collects the buyer's name next.
-    await expect(page.locator(".aacp-thread")).toContainText(/nome|CPF|telefone|celular/i, { timeout: 10_000 });
+    await expect(page.locator(".zyon-thread")).toContainText(/nome|CPF|telefone|celular/i, { timeout: 10_000 });
 
     const afterOtpHealth = await request.post(`${API}/__test__/seed`);
     expect(afterOtpHealth.ok()).toBe(true, `API did not stay healthy after OTP: ${await afterOtpHealth.text()}`);
@@ -228,14 +228,14 @@ test.describe("full checkout real @realapi", () => {
     expect(promotion.ok()).toBe(true, `Cross-sell seed failed: ${await promotion.text()}`);
 
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
     await waitForChatIdle(page);
 
     await sendChat(page, "1000");
     await sendChat(page, "Nao tem");
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
     // ADR §6.2: when free shipping qualifies, exactly ONE option is the
     // free/recommended one ("Grátis") and the faster/premium carriers remain
@@ -255,7 +255,7 @@ test.describe("full checkout real @realapi", () => {
 
     // The cart toggle button is only rendered on narrow viewports; on desktop
     // the cart panel is always visible in the sidebar. Click it only if shown.
-    const cartBtn = page.locator(".aacp-cart-btn");
+    const cartBtn = page.locator(".zyon-cart-btn");
     if (await cartBtn.isVisible().catch(() => false)) {
       await cartBtn.click();
     }
@@ -281,7 +281,7 @@ test.describe("full checkout real @realapi", () => {
     expect(cartText ?? "").toMatch(/Frete[\s\S]*R\$/);
     expect(selectedMethod).toMatch(/R\$/);
 
-    const crossSellCard = page.locator(".aacp-cross-sell-card", { hasText: "Carteira Slim RFID" });
+    const crossSellCard = page.locator(".zyon-cross-sell-card", { hasText: "Carteira Slim RFID" });
     await expect(crossSellCard).toBeVisible({ timeout: 10_000 });
     const crossSellResponse = page.waitForResponse((res) =>
       res.url() === `${API}/embed/cross-sell/accept` && res.request().method() === "POST"
@@ -300,7 +300,7 @@ test.describe("full checkout real @realapi", () => {
     const paymentResponse = page.waitForResponse((res) =>
       res.url() === `${API}/embed/payment/intents` && res.request().method() === "POST"
     );
-    await page.locator(".aacp-chip", { hasText: /^PIX$/i }).click();
+    await page.locator(".zyon-chip", { hasText: /^PIX$/i }).click();
     const paid = await paymentResponse;
     expect(paid.ok()).toBe(true, `Payment failed: ${await paid.text()}`);
     const paymentBody = await paid.json();
@@ -321,21 +321,21 @@ test.describe("full checkout real @realapi", () => {
     });
     expect(approveWebhook.ok()).toBe(true, `Asaas webhook failed: ${await approveWebhook.text()}`);
 
-    const confirmation = page.locator(".aacp-order-confirmation");
+    const confirmation = page.locator(".zyon-order-confirmation");
     await expect(confirmation).toBeVisible({ timeout: 15_000 });
     await expect(confirmation).toContainText(/Pedido confirmado|sucesso/i);
-    await expect(page.locator(".aacp-composer-wrap")).toHaveCount(0);
+    await expect(page.locator(".zyon-composer-wrap")).toHaveCount(0);
   });
 
   test("support panel answers through real support API", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
 
     // The conversational layout exposes the support panel via the header
     // "Abrir ajuda" control (no floating "Abrir suporte" FAB in this variant).
     await page.getByRole("button", { name: "Abrir ajuda" }).click();
-    const panel = page.locator("aside.aacp-ai-panel");
+    const panel = page.locator("aside.zyon-ai-panel");
     await expect(panel).toHaveClass(/open/, { timeout: 5_000 });
 
     const response = page.waitForResponse((res) =>
@@ -346,7 +346,7 @@ test.describe("full checkout real @realapi", () => {
     const answered = await response;
     expect(answered.ok()).toBe(true, `Support failed: ${await answered.text()}`);
 
-    await expect(panel.locator(".aacp-bubble-agent").last()).toContainText(
+    await expect(panel.locator(".zyon-bubble-agent").last()).toContainText(
       /frete|prazo|rastreamento|entrega/i,
       { timeout: 10_000 }
     );
@@ -641,12 +641,12 @@ test.describe("full checkout real API @realapi", () => {
     );
 
     await page.goto(hubUrl.toString());
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
     await dismissChannelGate(page);
     // The account chip's accessible name is "Abrir conta" for a recognized
     // buyer session and "Minha conta" otherwise; target the stable class.
-    await page.locator(".aacp-user-chip").click();
-    const userPanel = page.locator(".aacp-user-panel");
+    await page.locator(".zyon-user-chip").click();
+    const userPanel = page.locator(".zyon-user-panel");
     await expect(userPanel).toBeVisible({ timeout: 10_000 });
     await userPanel.getByRole("button", { name: "Pedidos" }).click();
     await expect(userPanel).toContainText(trackingCode, { timeout: 15_000 });

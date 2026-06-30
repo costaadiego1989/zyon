@@ -1,4 +1,4 @@
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 import type { CouponSnapshot } from "../entities/coupon.entity.js";
 
 export type CouponValidityResult =

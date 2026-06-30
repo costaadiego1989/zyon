@@ -1,4 +1,4 @@
-import type { CheckoutExperienceSnapshot } from "@aacp/shared-types";
+import type { CheckoutExperienceSnapshot } from "@zyon/shared-types";
 import type { CheckoutAgentViewModel } from "../hooks/use-checkout-agent-view-model.js";
 import { selectCheckoutExperiencePresentation } from "../presentation/checkout-experience-model.js";
 import { ExperienceHeader } from "../features/shell/ExperienceHeader.js";

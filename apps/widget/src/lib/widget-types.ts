@@ -1,4 +1,4 @@
-import type { Cart, CustomerHints, ShippingQuote } from "@aacp/shared-types";
+import type { Cart, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 
 export interface ProductSelectionLine {
   sku: string;

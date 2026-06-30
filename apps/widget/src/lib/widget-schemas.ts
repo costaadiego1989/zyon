@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
-import type { Cart, CustomerHints, MerchantTheme, ShippingQuote } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
+import type { Cart, CustomerHints, MerchantTheme, ShippingQuote } from "@zyon/shared-types";
 import type { WidgetConfig } from "./widget-types.js";
 
 export const cartItemSchema = z.object({

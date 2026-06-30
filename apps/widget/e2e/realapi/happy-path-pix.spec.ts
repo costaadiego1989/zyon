@@ -22,10 +22,10 @@ test.describe("@realapi happy-path pix", () => {
   test("PIX option renders when payment step reached", async ({ page }) => {
     await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
-    const payBtn = page.locator("[data-testid='pay-button'], .aacp-pay-btn").first();
+    const payBtn = page.locator("[data-testid='pay-button'], .zyon-pay-btn").first();
     if (await payBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await payBtn.click();
-      await page.waitForSelector(".aacp-payment-options, [data-payment-method]", { timeout: 8_000 }).catch(() => null);
+      await page.waitForSelector(".zyon-payment-options, [data-payment-method]", { timeout: 8_000 }).catch(() => null);
 
       const pixOption = page.locator("[data-payment-method='pix'], button:has-text('PIX')").first();
       if (await pixOption.isVisible({ timeout: 3_000 }).catch(() => false)) {
@@ -36,6 +36,6 @@ test.describe("@realapi happy-path pix", () => {
     }
 
     // At minimum, thread rendered without JS error
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

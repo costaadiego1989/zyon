@@ -5,8 +5,8 @@ import { CouponEntity } from "../../domain/entities/coupon.entity.js";
 import { InMemoryCouponRepository } from "../../infrastructure/repositories/in-memory-coupon.repository.js";
 import { InMemoryCouponRedemptionRepository } from "../../infrastructure/repositories/in-memory-coupon-redemption.repository.js";
 import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
-import type { Cart, MerchantRules } from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
+import type { Cart, MerchantRules } from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { DiscountRulesEnginePort, DiscountAuthorization } from "../../domain/ports/discount-rules-engine.port.js";
 
 // Stub that approves the full requested discount (permissive for most tests)

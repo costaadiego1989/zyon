@@ -5,10 +5,10 @@
  *   - Auth modal open button: aria-label "Entrar" (anonymous) or "Minha conta"
  *   - Phone input:  aria-label "Numero do celular"  (type="tel")
  *   - Code input:   aria-label "Codigo de verificacao"
- *   - Primary CTA:  .aacp-auth-primary (text changes: "Enviar codigo por SMS" → "Confirmar codigo")
- *   - Error region: role="alert" (.aacp-auth-error)
- *   - UserPanel:    .aacp-user-panel / .aacp-side-email
- *   - Account chip (after auth): aria-label "Minha conta" (.aacp-user-chip)
+ *   - Primary CTA:  .zyon-auth-primary (text changes: "Enviar codigo por SMS" → "Confirmar codigo")
+ *   - Error region: role="alert" (.zyon-auth-error)
+ *   - UserPanel:    .zyon-user-panel / .zyon-side-email
+ *   - Account chip (after auth): aria-label "Minha conta" (.zyon-user-chip)
  */
 import { test, expect } from "@playwright/test";
 import { openChatCheckout } from "./fixtures/chat-helpers.js";
@@ -43,7 +43,7 @@ test("chat: phone OTP — enter phone, receive code, verify → shows buyer emai
   await phoneInput.fill(TEST_PHONE);
 
   // "Enviar codigo por SMS" button should become enabled
-  const sendBtn = page.locator(".aacp-auth-primary");
+  const sendBtn = page.locator(".zyon-auth-primary");
   await expect(sendBtn).toBeEnabled({ timeout: 3_000 });
   await expect(sendBtn).toContainText(/Enviar codigo por SMS/i);
 
@@ -60,7 +60,7 @@ test("chat: phone OTP — enter phone, receive code, verify → shows buyer emai
   await sendBtn.click();
 
   // Modal should close and user chip updates to "Minha conta"
-  await expect(page.locator(".aacp-auth-dialog")).not.toBeVisible({ timeout: 8_000 });
+  await expect(page.locator(".zyon-auth-dialog")).not.toBeVisible({ timeout: 8_000 });
 
   // Account chip should now show "Minha conta" (authenticated state)
   const accountChip = page.getByRole("button", { name: /Minha conta/i });
@@ -68,9 +68,9 @@ test("chat: phone OTP — enter phone, receive code, verify → shows buyer emai
   await accountChip.click();
 
   // UserPanel should show the buyer email
-  const panel = page.locator(".aacp-user-panel");
+  const panel = page.locator(".zyon-user-panel");
   await expect(panel).toBeVisible({ timeout: 5_000 });
-  await expect(panel.locator(".aacp-side-email")).toContainText(TEST_EMAIL, { timeout: 3_000 });
+  await expect(panel.locator(".zyon-side-email")).toContainText(TEST_EMAIL, { timeout: 3_000 });
 });
 
 // ─── Rejected code path ──────────────────────���────────────────────────────────
@@ -91,7 +91,7 @@ test("chat: phone OTP — wrong code shows error, does NOT authenticate", async 
   await expect(phoneInput).toBeVisible({ timeout: 5_000 });
   await phoneInput.fill(TEST_PHONE);
 
-  const sendBtn = page.locator(".aacp-auth-primary");
+  const sendBtn = page.locator(".zyon-auth-primary");
   await expect(sendBtn).toBeEnabled({ timeout: 3_000 });
   await sendBtn.click();
 
@@ -107,7 +107,7 @@ test("chat: phone OTP — wrong code shows error, does NOT authenticate", async 
   await expect(errorRegion).not.toBeEmpty();
 
   // The modal must still be open (auth was NOT granted)
-  await expect(page.locator(".aacp-auth-dialog")).toBeVisible({ timeout: 3_000 });
+  await expect(page.locator(".zyon-auth-dialog")).toBeVisible({ timeout: 3_000 });
 
   // "Entrar" button must still exist (not replaced by account chip)
   const accountChip = page.getByRole("button", { name: /Minha conta/i });

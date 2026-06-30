@@ -1,5 +1,5 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import type { TrustedCartSnapshot } from "@aacp/commerce-adapters";
+import type { TrustedCartSnapshot } from "@zyon/commerce-adapters";
 import { COMMERCE_CART_PORT, type CommerceCartPort } from "../domain/ports/commerce-cart.port.js";
 
 export type ValidateCartForPaymentInput = {

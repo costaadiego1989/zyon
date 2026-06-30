@@ -1,4 +1,4 @@
-import type { MerchantTheme } from "@aacp/shared-types";
+import type { MerchantTheme } from "@zyon/shared-types";
 
 export type CartPanelItemModel = {
   sku: string;

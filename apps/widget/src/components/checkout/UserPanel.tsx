@@ -3,7 +3,7 @@ import {
   X, User, Bot, ShoppingBag, Settings, Package,
   LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Smartphone, Search, Truck, MapPin, ExternalLink, ChevronDown
 } from "lucide-react";
-import type { CustomerAddress } from "@aacp/shared-types";
+import type { CustomerAddress } from "@zyon/shared-types";
 import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view-model.js";
 import { selectUserPanelModel } from "../../presentation/selectors/user-panel.selector.js";
 import type { BuyerAgentPersonality } from "../../hooks/use-buyer-hub.js";

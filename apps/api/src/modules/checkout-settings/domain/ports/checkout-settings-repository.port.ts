@@ -1,4 +1,4 @@
-import type { CheckoutSettings } from "@aacp/shared-types";
+import type { CheckoutSettings } from "@zyon/shared-types";
 
 export const CHECKOUT_SETTINGS_REPOSITORY = Symbol("CHECKOUT_SETTINGS_REPOSITORY");
 

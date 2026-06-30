@@ -44,13 +44,13 @@ test.describe("@realapi coupon", () => {
         await applyBtn.click();
         // Coupon was seeded — expect success feedback
         await expect(
-          page.locator("[data-testid='coupon-result'], .aacp-coupon-feedback, .aacp-discount-chip")
+          page.locator("[data-testid='coupon-result'], .zyon-coupon-feedback, .zyon-discount-chip")
         ).toBeVisible({ timeout: 5_000 });
       }
     }
 
     // Thread must still be intact
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 
   test("invalid coupon code shows error feedback", async ({ page }) => {
@@ -64,12 +64,12 @@ test.describe("@realapi coupon", () => {
         await applyBtn.click();
         // Invalid code — expect error feedback
         await expect(
-          page.locator(".aacp-coupon-error, [data-testid='coupon-error']")
+          page.locator(".zyon-coupon-error, [data-testid='coupon-error']")
         ).toBeVisible({ timeout: 5_000 }).catch(() => null);
       }
     }
 
     // Thread must still be intact
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

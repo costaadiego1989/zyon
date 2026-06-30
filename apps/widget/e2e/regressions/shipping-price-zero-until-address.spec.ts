@@ -23,25 +23,25 @@ test.describe("@regression shipping-price-zero-until-address", () => {
 
   test("shipping selector not visible before address is provided", async ({ page }) => {
     await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
 
-    await expect(page.locator(".aacp-shipping-selector")).not.toBeVisible();
+    await expect(page.locator(".zyon-shipping-selector")).not.toBeVisible();
   });
 
   test("cart shipping line shows R$0,00 before address", async ({ page }) => {
     await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
 
-    const cartBtn = page.locator(".aacp-cart-btn, [aria-label='Carrinho']").first();
+    const cartBtn = page.locator(".zyon-cart-btn, [aria-label='Carrinho']").first();
     if (await cartBtn.isVisible({ timeout: 2_000 }).catch(() => false)) {
       await cartBtn.click();
-      const shippingCost = page.locator(".aacp-totals-shipping, [data-testid='shipping-cost']").first();
+      const shippingCost = page.locator(".zyon-totals-shipping, [data-testid='shipping-cost']").first();
       if (await shippingCost.isVisible({ timeout: 2_000 }).catch(() => false)) {
         const text = await shippingCost.textContent() ?? "";
         expect(text).toMatch(/R\$\s*0[,.]00|grátis|Grátis/i);
       }
     }
 
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

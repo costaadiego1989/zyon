@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { CheckoutExperienceSnapshot, CurrencyCode } from "@aacp/shared-types";
+import type { CheckoutExperienceSnapshot, CurrencyCode } from "@zyon/shared-types";
 import { buildEmptyCompletedExperience } from "./checkout-presentation.js";
 import type { VisibleCartState } from "./checkout-presentation.js";
 import { emitCheckoutEvent } from "../lib/merchant-checkout-shell.js";

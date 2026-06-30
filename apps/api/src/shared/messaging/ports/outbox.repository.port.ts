@@ -1,4 +1,4 @@
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 
 export const OUTBOX_REPOSITORY = Symbol("OUTBOX_REPOSITORY");
 

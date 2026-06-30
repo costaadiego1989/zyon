@@ -554,13 +554,13 @@ video {
   display: none;
 }
 
-.aacp-widget {
+.zyon-widget {
   font-family: var(--aacp-font);
 }
 
-.aacp-widget *,
-  .aacp-widget *::before,
-  .aacp-widget *::after {
+.zyon-widget *,
+  .zyon-widget *::before,
+  .zyon-widget *::after {
   box-sizing: border-box;
 }
 
@@ -598,7 +598,7 @@ video {
   }
 }
 
-.aacp-auth-sheet {
+.zyon-auth-sheet {
   position: relative;
   width: min(560px,100%);
   border-radius: 32px;
@@ -615,26 +615,26 @@ video {
   backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
 }
 
-.aacp-auth-header,
-  .aacp-auth-brand,
-  .aacp-hub-header,
-  .aacp-hub-brand,
-  .aacp-hub-actions {
+.zyon-auth-header,
+  .zyon-auth-brand,
+  .zyon-hub-header,
+  .zyon-hub-brand,
+  .zyon-hub-actions {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.aacp-auth-header,
-  .aacp-hub-header {
+.zyon-auth-header,
+  .zyon-hub-header {
   justify-content: space-between;
 }
 
-.aacp-auth-brand > div:last-child > span,
-  .aacp-hub-brand span,
-  .aacp-hub-card span,
-  .aacp-hub-section-head span,
-  .aacp-auth-session span {
+.zyon-auth-brand > div:last-child > span,
+  .zyon-hub-brand span,
+  .zyon-hub-card span,
+  .zyon-hub-section-head span,
+  .zyon-auth-session span {
   display: block;
   font-size: 10px;
   font-weight: 900;
@@ -643,8 +643,8 @@ video {
   color: rgb(255 255 255 / 0.45);
 }
 
-.aacp-auth-brand strong,
-  .aacp-hub-brand strong {
+.zyon-auth-brand strong,
+  .zyon-hub-brand strong {
   margin-top: 0.25rem;
   display: block;
   font-size: 1rem;
@@ -655,7 +655,7 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.aacp-hub-brand small {
+.zyon-hub-brand small {
   margin-top: 0.25rem;
   display: block;
   font-size: 0.75rem;
@@ -663,8 +663,8 @@ video {
   color: rgb(255 255 255 / 0.5);
 }
 
-.aacp-auth-google-mark,
-  .aacp-hub-mark {
+.zyon-auth-google-mark,
+  .zyon-hub-mark {
   display: grid;
   height: 2.75rem;
   width: 2.75rem;
@@ -680,7 +680,7 @@ video {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
-.aacp-auth-close {
+.zyon-auth-close {
   display: grid;
   height: 2.5rem;
   width: 2.5rem;
@@ -696,24 +696,24 @@ video {
   transition-duration: 150ms;
 }
 
-.aacp-auth-close:hover {
+.zyon-auth-close:hover {
   --tw-translate-y: -0.125rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
   background-color: rgb(255 255 255 / 0.15);
 }
 
-.aacp-auth-copy {
+.zyon-auth-copy {
   margin-top: 1.25rem;
 }
 
-.aacp-auth-copy p {
+.zyon-auth-copy p {
   font-size: 0.875rem;
   line-height: 1.25rem;
   line-height: 1.625;
   color: rgb(255 255 255 / 0.6);
 }
 
-.aacp-auth-session {
+.zyon-auth-session {
   margin-top: 1rem;
   border-radius: 1.5rem;
   border-width: 1px;
@@ -722,7 +722,7 @@ video {
   padding: 1rem;
 }
 
-.aacp-auth-session strong {
+.zyon-auth-session strong {
   margin-top: 0.5rem;
   display: block;
   font-size: 0.875rem;
@@ -732,7 +732,7 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.aacp-auth-session small {
+.zyon-auth-session small {
   margin-top: 0.25rem;
   display: block;
   font-size: 0.75rem;
@@ -740,7 +740,7 @@ video {
   color: rgb(255 255 255 / 0.55);
 }
 
-.aacp-auth-tabs {
+.zyon-auth-tabs {
   margin-top: 1.25rem;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -752,7 +752,7 @@ video {
   padding: 0.25rem;
 }
 
-.aacp-auth-tabs button {
+.zyon-auth-tabs button {
   border-radius: 9999px;
   padding-left: 1rem;
   padding-right: 1rem;
@@ -767,7 +767,7 @@ video {
   transition-duration: 150ms;
 }
 
-.aacp-auth-tabs button.is-active {
+.zyon-auth-tabs button.is-active {
   --tw-bg-opacity: 1;
   background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
   --tw-text-opacity: 1;
@@ -777,25 +777,25 @@ video {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
-.aacp-auth-form {
+.zyon-auth-form {
   margin-top: 1.25rem;
   display: grid;
   gap: 0.75rem;
 }
 
-.aacp-auth-form label {
+.zyon-auth-form label {
   display: grid;
   gap: 0.5rem;
 }
 
-.aacp-auth-form label > span {
+.zyon-auth-form label > span {
   font-size: 0.75rem;
   line-height: 1rem;
   font-weight: 700;
   color: rgb(255 255 255 / 0.7);
 }
 
-.aacp-auth-form input {
+.zyon-auth-form input {
   width: 100%;
   border-radius: 1rem;
   border-width: 1px;
@@ -814,20 +814,20 @@ video {
   outline-offset: 2px;
 }
 
-.aacp-auth-form input::-moz-placeholder {
+.zyon-auth-form input::-moz-placeholder {
   color: rgb(255 255 255 / 0.35);
 }
 
-.aacp-auth-form input::placeholder {
+.zyon-auth-form input::placeholder {
   color: rgb(255 255 255 / 0.35);
 }
 
-.aacp-auth-form input:focus {
+.zyon-auth-form input:focus {
   border-color: rgb(255 255 255 / 0.25);
 }
 
-.aacp-auth-submit,
-  .aacp-auth-secondary {
+.zyon-auth-submit,
+  .zyon-auth-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -845,19 +845,19 @@ video {
   transition-duration: 150ms;
 }
 
-.aacp-auth-submit:hover,
-  .aacp-auth-secondary:hover {
+.zyon-auth-submit:hover,
+  .zyon-auth-secondary:hover {
   --tw-translate-y: -0.125rem;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
-.aacp-auth-submit:disabled,
-  .aacp-auth-secondary:disabled {
+.zyon-auth-submit:disabled,
+  .zyon-auth-secondary:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
-.aacp-auth-submit {
+.zyon-auth-submit {
   background-color: var(--aacp-accent);
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
@@ -866,7 +866,7 @@ video {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
-.aacp-auth-secondary {
+.zyon-auth-secondary {
   border-width: 1px;
   border-color: rgb(255 255 255 / 0.1);
   background-color: rgb(255 255 255 / 0.1);
@@ -874,7 +874,7 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.aacp-auth-error {
+.zyon-auth-error {
   border-radius: 1rem;
   border-width: 1px;
   border-color: rgb(248 113 113 / 0.2);
@@ -887,7 +887,7 @@ video {
   color: rgb(254 226 226 / var(--tw-text-opacity, 1));
 }
 
-.aacp-auth-status {
+.zyon-auth-status {
   border-radius: 1rem;
   border-width: 1px;
   border-color: rgb(52 211 153 / 0.2);
@@ -900,7 +900,7 @@ video {
   color: rgb(209 250 229 / var(--tw-text-opacity, 1));
 }
 
-.aacp-hub-sheet {
+.zyon-hub-sheet {
   position: relative;
   max-height: min(760px,calc(100dvh - 28px));
   width: min(1040px,calc(100vw - 28px));
@@ -918,13 +918,13 @@ video {
   backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
 }
 
-.aacp-hub-header {
+.zyon-hub-header {
   border-bottom-width: 1px;
   border-color: rgb(255 255 255 / 0.1);
   padding: 1.25rem;
 }
 
-.aacp-hub-shell {
+.zyon-hub-shell {
   display: grid;
   max-height: calc(min(760px,calc(100dvh - 28px)) - 86px);
   grid-template-columns: repeat(1, minmax(0, 1fr));
@@ -934,12 +934,12 @@ video {
 }
 
 @media (min-width: 768px) {
-  .aacp-hub-shell {
+  .zyon-hub-shell {
     grid-template-columns: 250px minmax(0,1fr);
   }
 }
 
-.aacp-hub-nav {
+.zyon-hub-nav {
   display: grid;
   gap: 0.5rem;
   border-radius: 28px;
@@ -950,13 +950,13 @@ video {
 }
 
 @media (min-width: 768px) {
-  .aacp-hub-nav {
+  .zyon-hub-nav {
     display: flex;
     flex-direction: column;
   }
 }
 
-.aacp-hub-nav button {
+.zyon-hub-nav button {
   display: grid;
   min-height: 3rem;
   grid-template-columns: auto minmax(0,1fr) auto;
@@ -975,11 +975,11 @@ video {
   transition-duration: 150ms;
 }
 
-.aacp-hub-nav button:hover {
+.zyon-hub-nav button:hover {
   background-color: rgb(255 255 255 / 0.1);
 }
 
-.aacp-hub-nav button.is-active {
+.zyon-hub-nav button.is-active {
   --tw-bg-opacity: 1;
   background-color: rgb(255 255 255 / var(--tw-bg-opacity, 1));
   --tw-text-opacity: 1;
@@ -989,29 +989,29 @@ video {
   box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
-.aacp-hub-logout {
+.zyon-hub-logout {
   --tw-text-opacity: 1;
   color: rgb(254 202 202 / var(--tw-text-opacity, 1));
 }
 
 @media (min-width: 768px) {
-  .aacp-hub-logout {
+  .zyon-hub-logout {
     margin-top: auto;
   }
 }
 
-.aacp-hub-grid {
+.zyon-hub-grid {
   display: grid;
   gap: 0.75rem;
 }
 
 @media (min-width: 768px) {
-  .aacp-hub-grid {
+  .zyon-hub-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.aacp-hub-card {
+.zyon-hub-card {
   min-height: 9rem;
   border-radius: 28px;
   border-width: 1px;
@@ -1024,12 +1024,12 @@ video {
 }
 
 @media (min-width: 768px) {
-  .aacp-hub-card--hero {
+  .zyon-hub-card--hero {
     grid-column: span 2 / span 2;
   }
 }
 
-.aacp-hub-card strong {
+.zyon-hub-card strong {
   margin-top: 0.75rem;
   display: block;
   font-size: 1.5rem;
@@ -1040,7 +1040,7 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.aacp-hub-card p {
+.zyon-hub-card p {
   margin-top: 0.75rem;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -1048,14 +1048,14 @@ video {
   color: rgb(255 255 255 / 0.55);
 }
 
-.aacp-hub-stack,
-  .aacp-hub-list {
+.zyon-hub-stack,
+  .zyon-hub-list {
   display: grid;
   gap: 0.75rem;
 }
 
-.aacp-hub-section-head,
-  .aacp-hub-list-item {
+.zyon-hub-section-head,
+  .zyon-hub-list-item {
   border-radius: 28px;
   border-width: 1px;
   border-color: rgb(255 255 255 / 0.1);
@@ -1063,14 +1063,14 @@ video {
   padding: 1.25rem;
 }
 
-.aacp-hub-section-head {
+.zyon-hub-section-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: 1rem;
 }
 
-.aacp-hub-section-head strong {
+.zyon-hub-section-head strong {
   margin-top: 0.5rem;
   display: block;
   font-size: 1.25rem;
@@ -1081,25 +1081,25 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.aacp-hub-section-head small,
-  .aacp-hub-list-item p {
+.zyon-hub-section-head small,
+  .zyon-hub-list-item p {
   font-size: 0.875rem;
   line-height: 1.25rem;
   color: rgb(255 255 255 / 0.55);
 }
 
-.aacp-hub-list-item {
+.zyon-hub-list-item {
   display: grid;
   gap: 0.75rem;
 }
 
 @media (min-width: 768px) {
-  .aacp-hub-list-item {
+  .zyon-hub-list-item {
     grid-template-columns: minmax(0,1fr) auto;
   }
 }
 
-.aacp-hub-list-item strong {
+.zyon-hub-list-item strong {
   display: block;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -1108,7 +1108,7 @@ video {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.aacp-hub-empty {
+.zyon-hub-empty {
   border-radius: 28px;
   border-width: 1px;
   border-style: dashed;
@@ -2024,21 +2024,21 @@ video {
   transition-duration: 300ms;
 }
 
-.aacp-scrollbar {
+.zyon-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--aacp-accent) 42%, transparent) transparent;
 }
 
-.aacp-scrollbar::-webkit-scrollbar {
+.zyon-scrollbar::-webkit-scrollbar {
   width: 9px;
 }
 
-.aacp-scrollbar::-webkit-scrollbar-thumb {
+.zyon-scrollbar::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: color-mix(in srgb, var(--aacp-accent) 42%, transparent);
 }
 
-.aacp-sheet-backdrop {
+.zyon-sheet-backdrop {
   position: fixed;
   inset: 0;
   z-index: 35;
@@ -2048,12 +2048,12 @@ video {
 }
 
 @media (min-width: 1080px) {
-  .aacp-sheet-backdrop {
+  .zyon-sheet-backdrop {
     display: none;
   }
 }
 
-.aacp-auth-modal {
+.zyon-auth-modal {
   position: fixed;
   inset: 0;
   z-index: 50;
@@ -2062,7 +2062,7 @@ video {
   padding: 18px;
 }
 
-.aacp-auth-backdrop {
+.zyon-auth-backdrop {
   position: absolute;
   inset: 0;
   border: 0;
@@ -2070,7 +2070,7 @@ video {
   backdrop-filter: blur(18px);
 }
 
-.aacp-chat-caret {
+.zyon-chat-caret {
   display: inline-block;
   width: 10px;
   height: 1.05em;

@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/widget",
+  "name": "@zyon/widget",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,8 +15,8 @@
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@aacp/agentic-checkout-js": "workspace:*",
-    "@aacp/shared-types": "workspace:*",
+    "@zyon/agentic-checkout-js": "workspace:*",
+    "@zyon/shared-types": "workspace:*",
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.4.0",
     "@vitejs/plugin-react": "^4.3.4",

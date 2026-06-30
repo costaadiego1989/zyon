@@ -1,4 +1,4 @@
-import type { CheckoutSettingsContext } from "@aacp/shared-types";
+import type { CheckoutSettingsContext } from "@zyon/shared-types";
 
 export const CHECKOUT_SETTINGS_PORT = Symbol("CHECKOUT_SETTINGS_PORT");
 

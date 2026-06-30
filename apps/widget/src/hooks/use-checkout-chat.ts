@@ -4,7 +4,7 @@ import type {
   ChatMessageResponse,
   ChatTurn,
   SuggestedProduct
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import {
   checkoutGet,
   checkoutJson,

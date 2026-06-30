@@ -24,13 +24,13 @@ test.beforeEach(async ({ page }) => {
 async function waitForGreeting(page: import("@playwright/test").Page) {
   // Dismiss the channel gate (chat vs voice) if present, otherwise the greeting
   // turns are deferred and the thread bubbles never render.
-  const gate = page.locator(".aacp-channel-gate__panel[role='dialog']");
+  const gate = page.locator(".zyon-channel-gate__panel[role='dialog']");
   if (await gate.isVisible({ timeout: 5_000 }).catch(() => false)) {
     await page.getByRole("button", { name: /Comprar por chat/i }).click();
   }
-  const thread = page.locator(".aacp-thread");
+  const thread = page.locator(".zyon-thread");
   await expect(thread).toBeVisible({ timeout: 10_000 });
-  const firstBubble = thread.locator(".aacp-bubble-agent").first();
+  const firstBubble = thread.locator(".zyon-bubble-agent").first();
   await expect(firstBubble).toBeVisible({ timeout: 10_000 });
   return firstBubble;
 }
@@ -49,19 +49,19 @@ async function sendMessage(page: import("@playwright/test").Page, text: string) 
 }
 
 async function waitForAgentReply(page: import("@playwright/test").Page) {
-  const typing = page.locator(".aacp-typing");
+  const typing = page.locator(".zyon-typing");
   await page.waitForTimeout(300);
   if (await typing.isVisible()) {
     await expect(typing).toBeHidden({ timeout: 15_000 });
   }
   await expect(page.locator(".chat-caret")).toHaveCount(0, { timeout: 15_000 });
-  const bubbles = page.locator(".aacp-bubble-agent");
+  const bubbles = page.locator(".zyon-bubble-agent");
   const count = await bubbles.count();
   return bubbles.nth(count - 1);
 }
 
 async function continueWithoutCoupon(page: import("@playwright/test").Page) {
-  const noCoupon = page.locator(".aacp-chip", { hasText: /^N(?:a|ã)o$/i }).first();
+  const noCoupon = page.locator(".zyon-chip", { hasText: /^N(?:a|ã)o$/i }).first();
   await expect(noCoupon).toBeVisible({ timeout: 5_000 });
   await noCoupon.click();
   await waitForStreamingDone(page);
@@ -92,7 +92,7 @@ test.describe("Shipping Selection Flow", () => {
     await waitForStreamingDone(page);
 
     // Cart should show "Aguardando" for shipping
-    const shippingLabel = page.locator(".aacp-shipping-total", { hasText: "A calcular" });
+    const shippingLabel = page.locator(".zyon-shipping-total", { hasText: "A calcular" });
     await expect(shippingLabel).toBeVisible({ timeout: 5_000 });
   });
 
@@ -117,7 +117,7 @@ test.describe("Shipping Selection Flow", () => {
     await waitForStreamingDone(page);
 
     // Total should be subtotal only (899.80)
-    const totalEl = page.locator(".aacp-cart-total dd");
+    const totalEl = page.locator(".zyon-cart-total dd");
     await expect(totalEl).toContainText("899,80");
   });
 
@@ -132,7 +132,7 @@ test.describe("Shipping Selection Flow", () => {
     await sendMessage(page, "123, Apto 4B");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
   });
 
@@ -147,7 +147,7 @@ test.describe("Shipping Selection Flow", () => {
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
 
     // PAC option
@@ -174,7 +174,7 @@ test.describe("Shipping Selection Flow", () => {
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
 
     // Click PAC
@@ -189,7 +189,7 @@ test.describe("Shipping Selection Flow", () => {
     expect(pageContent).toMatch(/19[,.]90/);
 
     // Total should be subtotal + shipping (899.80 + 19.90 = 919.70)
-    const totalEl = page.locator(".aacp-cart-total dd");
+    const totalEl = page.locator(".zyon-cart-total dd");
     await expect(totalEl).toContainText("919,70");
   });
 
@@ -205,7 +205,7 @@ test.describe("Shipping Selection Flow", () => {
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
 
     // Click Sedex (29.90)
@@ -220,7 +220,7 @@ test.describe("Shipping Selection Flow", () => {
 
     // After the full flow, the cart should show the shipping cost from the API response
     // The "shipping_selected" mock uses paymentExperience() which has shipping=19.9, total=919.7
-    const totalEl = page.locator(".aacp-cart-total dd");
+    const totalEl = page.locator(".zyon-cart-total dd");
     await expect(totalEl).toContainText("919,70");
   });
 
@@ -235,7 +235,7 @@ test.describe("Shipping Selection Flow", () => {
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
 
     // Click PAC
@@ -258,7 +258,7 @@ test.describe("Shipping Selection Flow", () => {
     await sendMessage(page, "123");
     await waitForAgentReply(page);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 5_000 });
 
     const pacBtn = selector.locator("button", { hasText: /PAC/ }).first();
@@ -268,6 +268,6 @@ test.describe("Shipping Selection Flow", () => {
     const text = await reply.textContent();
     expect(text).toMatch(/cupom|pagamento|pagar/i);
     await continueWithoutCoupon(page);
-    await expect(page.locator(".aacp-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator(".zyon-chip", { hasText: /PIX/i }).first()).toBeVisible({ timeout: 5_000 });
   });
 });

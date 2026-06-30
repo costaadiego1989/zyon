@@ -91,9 +91,9 @@ test.describe("@regression buyer-hub-bearer UI", () => {
     const { merchantId, embedToken } = await seed.json();
 
     await page.goto(`${BASE}?merchantId=${merchantId}&embedToken=${embedToken}&productId=e2e_product_001`);
-    await page.waitForSelector(".aacp-thread", { timeout: 15_000 });
+    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
 
-    const userBtn = page.locator("[aria-label*='usuário' i], [aria-label*='perfil' i], .aacp-user-btn, [aria-label='Conta']").first();
+    const userBtn = page.locator("[aria-label*='usuário' i], [aria-label*='perfil' i], .zyon-user-btn, [aria-label='Conta']").first();
     if (await userBtn.isVisible({ timeout: 3_000 }).catch(() => false)) {
       await userBtn.click();
       await page.waitForTimeout(500);
@@ -101,6 +101,6 @@ test.describe("@regression buyer-hub-bearer UI", () => {
       await expect(authError).not.toBeVisible();
     }
 
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

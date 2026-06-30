@@ -1,5 +1,5 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
-import type { SupportTicket } from "@aacp/shared-types";
+import type { SupportTicket } from "@zyon/shared-types";
 import { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import {

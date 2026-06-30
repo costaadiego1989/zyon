@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { AgentContext, AuthorizedOffer, CheckoutEventName } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, CheckoutEventName } from "@zyon/shared-types";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";

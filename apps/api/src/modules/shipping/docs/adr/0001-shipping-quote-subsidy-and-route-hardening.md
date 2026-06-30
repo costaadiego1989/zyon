@@ -11,7 +11,7 @@ O módulo `shipping` cota frete para o checkout/widget e persiste a cotação
 para reuso. Responsabilidades atuais:
 
 - **Use-cases:** `QuoteShippingUseCase` (monta `quoteKey` via
-  `@aacp/shipping-engine`, consulta cache por chave, dispara transportadoras
+  `@zyon/shipping-engine`, consulta cache por chave, dispara transportadoras
   em `Promise.allSettled`, aplica política de frete grátis, persiste via
   `saveWithEvents`) e `SelectShippingMethodUseCase`.
 - **Portas:** `CARRIER_ADAPTERS` (lista de `CarrierPort`),

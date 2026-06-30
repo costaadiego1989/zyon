@@ -1,7 +1,7 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { evaluateDiscountOffer } from "@aacp/rules-engine";
-import { evaluateShippingOffer } from "@aacp/shipping-engine";
-import type { AuthorizedOffer, ChatStage, CheckoutSession, MerchantRules } from "@aacp/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
+import { evaluateShippingOffer } from "@zyon/shipping-engine";
+import type { AuthorizedOffer, ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { createAuthorizedOffer } from "../use-cases/offer-factory.js";
 

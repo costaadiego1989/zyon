@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import {
   MERCHANT_REPOSITORY,
   type MerchantRepository

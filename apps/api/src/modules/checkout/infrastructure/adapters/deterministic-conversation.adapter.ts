@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { generateDeterministicReply } from "@aacp/conversation-engine";
+import { generateDeterministicReply } from "@zyon/conversation-engine";
 import type { ConversationPort, ConversationReplyInput } from "../../domain/ports/conversation.port.js";
 
 @Injectable()

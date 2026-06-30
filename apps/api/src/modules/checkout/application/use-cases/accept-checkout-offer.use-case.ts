@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException } from "@nestjs/common";
-import type { AcceptedOffer } from "@aacp/shared-types";
+import type { AcceptedOffer } from "@zyon/shared-types";
 import { AcceptedOfferEntity } from "../../domain/entities/accepted-offer.entity.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";

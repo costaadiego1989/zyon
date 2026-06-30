@@ -1,10 +1,10 @@
-import type { CheckoutEventName } from "@aacp/shared-types";
-import { AgenticCheckoutEmbedClient } from "@aacp/agentic-checkout-js";
+import type { CheckoutEventName } from "@zyon/shared-types";
+import { AgenticCheckoutEmbedClient } from "@zyon/agentic-checkout-js";
 import { emitCheckoutEvent, renderConversationalCheckoutChrome, type HybridCheckoutOptions } from "./merchant-checkout-shell.js";
 import { readMerchantEmbedOptions } from "./merchant-embed-config.js";
 import "../main.js";
 
-const WIDGET_CE = "aacp-checkout-agent";
+const WIDGET_CE = "zyon-checkout-agent";
 
 function attachWidget(opts: HybridCheckoutOptions): void {
   document.querySelectorAll(WIDGET_CE).forEach((n) => n.remove());

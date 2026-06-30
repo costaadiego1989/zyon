@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SuggestedProduct } from "@aacp/shared-types";
+import type { SuggestedProduct } from "@zyon/shared-types";
 
 export type PrePaymentStep = "cross_sell" | "coupon_gate" | "coupon_entry" | "payment_method";
 

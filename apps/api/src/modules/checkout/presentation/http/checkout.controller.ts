@@ -10,7 +10,7 @@ import type {
   TrackEventRequest,
   UpdateCartRequest,
   UpdateOrderTrackingRequest
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
 import {

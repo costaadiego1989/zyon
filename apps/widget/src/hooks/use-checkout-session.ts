@@ -7,7 +7,7 @@ import type {
   TrackEventResponse,
   UpdateCartItemInput,
   UpdateCartResponse
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import {
   checkoutJson,
   CHECKOUT_EMBED_PATHS,

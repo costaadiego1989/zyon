@@ -115,13 +115,13 @@ export async function spokenCount(page: Page): Promise<number> {
 }
 
 export async function waitForVoicePrompt(page: Page, expected: RegExp) {
-  const prompt = page.locator(".aacp-voice-caption__agent");
+  const prompt = page.locator(".zyon-voice-caption__agent");
   await expect(prompt).toBeVisible({ timeout: 10_000 });
   await expect(prompt).toContainText(expected, { timeout: 10_000 });
 }
 
 export async function ensureListening(page: Page) {
-  const mic = page.locator(".aacp-voice-mic");
+  const mic = page.locator(".zyon-voice-mic");
   await expect(mic).toBeVisible({ timeout: 10_000 });
   await expect(mic).toBeEnabled({ timeout: 10_000 });
 
@@ -141,8 +141,8 @@ export async function emitVoiceTranscript(page: Page, text: string) {
 
 export async function answerByVoice(page: Page, text: string) {
   await emitVoiceTranscript(page, text);
-  await expect(page.locator(".aacp-voice-confirmation")).toBeVisible({ timeout: 5_000 });
-  await expect(page.locator(".aacp-voice-confirmation")).toContainText(/Antes de enviar/i);
+  await expect(page.locator(".zyon-voice-confirmation")).toBeVisible({ timeout: 5_000 });
+  await expect(page.locator(".zyon-voice-confirmation")).toContainText(/Antes de enviar/i);
   await page.getByRole("button", { name: /Confirmar e enviar/i }).click();
 }
 
@@ -174,7 +174,7 @@ export async function completeVoiceRegistration(page: Page) {
 }
 
 export async function selectVoiceShipping(page: Page, method: "PAC" | "Sedex" = "PAC") {
-  const selector = page.locator(".aacp-shipping-selector");
+  const selector = page.locator(".zyon-shipping-selector");
   await expect(selector).toBeVisible({ timeout: 10_000 });
   await expect(selector).toContainText("PAC");
   await expect(selector).toContainText("Sedex");

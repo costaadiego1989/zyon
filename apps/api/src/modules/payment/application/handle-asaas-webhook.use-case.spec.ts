@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { CommerceOrderPort } from "@aacp/commerce-adapters";
+import type { CommerceOrderPort } from "@zyon/commerce-adapters";
 import { PaymentIntentEntity, type PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import { HandleAsaasWebhookUseCase, UnauthorizedWebhookError, assertWebhookToken } from "./handle-asaas-webhook.use-case.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";

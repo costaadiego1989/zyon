@@ -4,7 +4,7 @@ import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "../../auth/domain/services/jwt.service.js";
 import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
 import { AuthGuard } from "../../auth/presentation/auth.guard.js";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { GetMerchantProfileUseCase, GetMerchantRulesUseCase, UpdateMerchantRulesUseCase } from "../application/merchant.use-cases.js";
 import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";

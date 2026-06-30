@@ -1,7 +1,7 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import { evaluateShippingOffer } from "@aacp/shipping-engine";
-import type { ShippingEvaluateRequest, ShippingEvaluateResponse } from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_RULES } from "@aacp/shared-types";
+import { evaluateShippingOffer } from "@zyon/shipping-engine";
+import type { ShippingEvaluateRequest, ShippingEvaluateResponse } from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";

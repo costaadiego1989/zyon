@@ -1,4 +1,4 @@
-import type { CompletedOrder, CompleteOrderRequest } from "@aacp/shared-types";
+import type { CompletedOrder, CompleteOrderRequest } from "@zyon/shared-types";
 
 export class CompletedOrderEntity {
   private constructor(private readonly props: CompletedOrder) {}

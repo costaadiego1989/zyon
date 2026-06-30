@@ -1,6 +1,6 @@
 import { Injectable, Optional } from "@nestjs/common";
-import { applyShopifyOffer } from "@aacp/commerce-adapters";
-import type { AuthorizedOffer } from "@aacp/shared-types";
+import { applyShopifyOffer } from "@zyon/commerce-adapters";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import { HttpClientService } from "../../../../shared/http/http-client.service.js";
 

@@ -5,7 +5,7 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-check
 import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
-import type { StartCheckoutRequest } from "@aacp/shared-types";
+import type { StartCheckoutRequest } from "@zyon/shared-types";
 
 describe("EmbedCheckoutController", () => {
   it("start-checkout uses merchant from embed token not body merchant_id", async () => {

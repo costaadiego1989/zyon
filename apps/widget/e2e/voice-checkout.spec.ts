@@ -24,15 +24,15 @@ test.beforeEach(async ({ page }) => {
 test.describe("0. Channel gate (voz)", () => {
   test("dialog mostra opção Comprar por voz e abre experiência voice", async ({ page }) => {
     await openVoiceCheckout(page, []);
-    await expect(page.locator(".aacp-voice-header__mode")).toContainText(/voz/i);
-    await expect(page.locator(".aacp-voice-mic")).toBeVisible();
+    await expect(page.locator(".zyon-voice-header__mode")).toContainText(/voz/i);
+    await expect(page.locator(".zyon-voice-mic")).toBeVisible();
   });
 
   test("botão Chat permite voltar ao modo conversacional", async ({ page }) => {
     await openVoiceCheckout(page, []);
     await page.getByRole("button", { name: /^Chat$/i }).click();
     await expect(page.locator("[data-channel='voice']")).toHaveCount(0);
-    await expect(page.locator(".aacp-thread")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".zyon-thread")).toBeVisible({ timeout: 10_000 });
   });
 });
 
@@ -61,7 +61,7 @@ test.describe("1. Cadastro por voz (data_collection)", () => {
     await waitForVoicePrompt(page, /nome/i);
     await answerAndWaitForPrompt(page, "Joao Silva", /e-?mail/i);
     await emitVoiceTranscript(page, "12345678901");
-    const panel = page.locator(".aacp-voice-confirmation");
+    const panel = page.locator(".zyon-voice-confirmation");
     await expect(panel).toBeVisible();
     await expect(panel).toContainText(/\*\*\*/);
     await page.getByRole("button", { name: /Confirmar e enviar/i }).click();
@@ -83,7 +83,7 @@ test.describe("1. Cadastro por voz (data_collection)", () => {
     await answerByVoice(page, "123456");
     await waitForVoicePrompt(page, /frete|endereco|bem-vindo/i);
 
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
     expect((await loginResponse).ok()).toBe(true);
   });
@@ -106,7 +106,7 @@ test.describe("2. Frete por voz (shipping)", () => {
     await answerAndWaitForPrompt(page, "01310100", /endereco|rua/i);
     await answerAndWaitForPrompt(page, "sim correto", /numero|complemento/i);
     await answerByVoice(page, "456 bloco B");
-    const selector = page.locator(".aacp-shipping-selector");
+    const selector = page.locator(".zyon-shipping-selector");
     await expect(selector).toBeVisible({ timeout: 10_000 });
     await expect(selector).toContainText("PAC");
     await expect(selector).toContainText("Sedex");
@@ -117,14 +117,14 @@ test.describe("2. Frete por voz (shipping)", () => {
     await completeVoiceRegistration(page);
     await selectVoiceShipping(page, "Sedex");
     await skipCouponByVoice(page);
-    await expect(page.locator(".aacp-voice-chip, .aacp-voice-chips button").filter({ hasText: /PIX/i }).first()).toBeVisible({
+    await expect(page.locator(".zyon-voice-chip, .zyon-voice-chips button").filter({ hasText: /PIX/i }).first()).toBeVisible({
       timeout: 5_000,
     });
   });
 
   test("indicador de jornada avança de Cadastro para Entrega", async ({ page }) => {
     await openVoiceCheckout(page, ["ask_cep", "show_shipping_options"]);
-    const stageLabel = page.locator(".aacp-stage-progress-title, .aacp-journey-step.is-active .aacp-journey-step__label").first();
+    const stageLabel = page.locator(".zyon-stage-progress-title, .zyon-journey-step.is-active .zyon-journey-step__label").first();
     await waitForVoicePrompt(page, /nome/i);
     await answerAndWaitForPrompt(page, "Pedro Alves", /cep|frete/i);
     await expect(stageLabel).toContainText(/Entrega|Frete/i, { timeout: 10_000 });
@@ -154,7 +154,7 @@ test.describe("3. Pagamento por voz (payment)", () => {
     await answerByVoice(page, "cartao de credito");
     const request = await cardIntentRequest;
     expect(JSON.parse(request.postData() ?? "{}")).toMatchObject({ method: "card" });
-    await expect(page.locator(".aacp-stripe-element-wrap")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".zyon-stripe-element-wrap")).toBeVisible({ timeout: 10_000 });
   });
 
   test("PIX gera cobrança via API e fala código na legenda", async ({ page }) => {
@@ -176,7 +176,7 @@ test.describe("3. Pagamento por voz (payment)", () => {
     await pixIntentRequest;
     await waitForVoicePrompt(page, /cobranca|pix|000201/i);
     // QR/copiar ficam no thread de chat; em voz validamos a cobrança gerada na legenda.
-    await expect(page.locator(".aacp-voice-caption__agent")).toContainText(/cobranca|pix/i);
+    await expect(page.locator(".zyon-voice-caption__agent")).toContainText(/cobranca|pix/i);
   });
 });
 
@@ -192,7 +192,7 @@ test.describe("4. Cupom por voz", () => {
     await selectVoiceShipping(page, "PAC");
     await answerAndWaitForPrompt(page, "tenho cupom", /codigo|cupom/i);
 
-    const couponBox = page.locator(".aacp-coupon-box");
+    const couponBox = page.locator(".zyon-coupon-box");
     await expect(couponBox).toBeVisible({ timeout: 5_000 });
     const input = couponBox.locator("input");
     await input.fill("DESCONTO10");
@@ -235,7 +235,7 @@ test.describe("5. Conclusão por voz (completed)", () => {
 test.describe("6. Carrinho por voz", () => {
   test("order strip abre painel do carrinho", async ({ page }) => {
     await openVoiceCheckout(page, []);
-    await page.locator(".aacp-voice-order-strip").click();
+    await page.locator(".zyon-voice-order-strip").click();
     const cartPanel = page.locator("#aacp-cart-panel");
     await expect(cartPanel).toHaveClass(/open/, { timeout: 3_000 });
     await expect(cartPanel).toContainText("Bolsa Executiva");
@@ -251,9 +251,9 @@ test.describe("7. Resiliência por voz", () => {
     await openVoiceCheckout(page, ["ask_email"]);
     await waitForVoicePrompt(page, /nome/i);
     await emitVoiceTranscript(page, "nome errado");
-    await expect(page.locator(".aacp-voice-confirmation")).toBeVisible();
+    await expect(page.locator(".zyon-voice-confirmation")).toBeVisible();
     await page.getByRole("button", { name: /Falar de novo/i }).click();
-    await expect(page.locator(".aacp-voice-confirmation")).toBeHidden({ timeout: 5_000 });
+    await expect(page.locator(".zyon-voice-confirmation")).toBeHidden({ timeout: 5_000 });
     await ensureListening(page);
   });
 
@@ -261,9 +261,9 @@ test.describe("7. Resiliência por voz", () => {
     await openVoiceCheckout(page, ["ask_email"]);
     await waitForVoicePrompt(page, /nome/i);
     await emitVoiceTranscript(page, "Joao da Silva");
-    await expect(page.locator(".aacp-voice-confirmation")).toBeVisible();
+    await expect(page.locator(".zyon-voice-confirmation")).toBeVisible();
     await page.getByRole("button", { name: /Editar no chat/i }).click();
-    await expect(page.locator(".aacp-thread")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".zyon-thread")).toBeVisible({ timeout: 10_000 });
     const input = page.locator("input[aria-label='Mensagem para o assistente']");
     await expect(input).toHaveValue("Joao da Silva");
   });
@@ -271,7 +271,7 @@ test.describe("7. Resiliência por voz", () => {
   test("mic desabilitado enquanto agente fala (speaking state)", async ({ page }) => {
     await openVoiceCheckout(page, []);
     await waitForVoicePrompt(page, /nome/i);
-    const mic = page.locator(".aacp-voice-mic");
+    const mic = page.locator(".zyon-voice-mic");
     await expect(mic).toBeVisible();
     const voiceState = page.locator("[data-channel='voice']");
     await expect(voiceState).toHaveAttribute("data-voice-state", /idle|listening|speaking/);
@@ -290,8 +290,8 @@ test.describe("8. Fluxo completo por voz", () => {
     await skipCouponByVoice(page);
     await answerByVoice(page, "cartao de credito");
 
-    await expect(page.locator(".aacp-stripe-element-wrap")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator(".aacp-voice-caption__agent")).toContainText(/cartao|valor|confirmar/i, {
+    await expect(page.locator(".zyon-stripe-element-wrap")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator(".zyon-voice-caption__agent")).toContainText(/cartao|valor|confirmar/i, {
       timeout: 10_000,
     });
     await expect.poll(() => spokenCount(page), { timeout: 10_000 }).toBeGreaterThan(3);

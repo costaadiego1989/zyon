@@ -77,7 +77,7 @@
     <p>
       Fluxo igual a produção: <strong>não há token fixo na página.</strong> Faz login (JWT merchant), pede um
       <code>embed_session_token</code> em <code>POST /embed-sessions</code>, carrega o script do widget e monta o
-      <code>aacp-checkout-agent</code> apenas depois — ninguém deve embeber só com merchant-id público quando o modo
+      <code>zyon-checkout-agent</code> apenas depois — ninguém deve embeber só com merchant-id público quando o modo
       seguro existe.
     </p>
 
@@ -125,12 +125,12 @@
     <pre style="font-size: 11px; background: #f1f5f9; padding: 12px; border-radius: 8px; overflow: auto"><code>&lt;link rel="stylesheet" href="https://SEU_CDN/widget.css" /&gt;
 &lt;script defer src="https://SEU_CDN/aacp-checkout-widget.iife.js"&gt;&lt;/script&gt;
 &lt;!-- Depois o backend preenche embed-session-token (nunca expor EMBED_TOKEN_SECRET no browser) --&gt;
-&lt;aacp-checkout-agent
+&lt;zyon-checkout-agent
   embed-session-token="..."
   api-base-url="https://SUA_API"
   cart-total="420"
   shipping-price="39.9"
-&gt;&lt;/aacp-checkout-agent&gt;</code></pre>
+&gt;&lt;/zyon-checkout-agent&gt;</code></pre>
 
     <script>
       /** @type {HTMLElement | null} */
@@ -170,7 +170,7 @@
 
       /** @returns {Promise<void>} */
       function loadWidgetScriptOnce() {
-        if (window.customElements.get("aacp-checkout-agent")) {
+        if (window.customElements.get("zyon-checkout-agent")) {
           return Promise.resolve();
         }
         if (widgetBootPromise) return widgetBootPromise;
@@ -187,7 +187,7 @@
             s.defer = true;
           }
           s.onload = function () {
-            window.customElements.whenDefined("aacp-checkout-agent").then(resolve).catch(reject);
+            window.customElements.whenDefined("zyon-checkout-agent").then(resolve).catch(reject);
           };
           s.onerror = function () {
             widgetBootPromise = null;
@@ -205,7 +205,7 @@
         if (!slot) return;
 
         slot.innerHTML = "";
-        mountedEl = document.createElement("aacp-checkout-agent");
+        mountedEl = document.createElement("zyon-checkout-agent");
         mountedEl.setAttribute("embed-session-token", token);
         mountedEl.setAttribute("api-base-url", origin);
         mountedEl.setAttribute("cart-total", "420");

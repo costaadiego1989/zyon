@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { GetMerchantThemeUseCase } from "./get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "./update-merchant-theme.use-case.js";
 import { InMemoryMerchantRepository } from "../infrastructure/in-memory-merchant.repository.js";

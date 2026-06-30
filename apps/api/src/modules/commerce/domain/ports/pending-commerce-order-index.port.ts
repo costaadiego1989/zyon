@@ -1,4 +1,4 @@
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 
 /** Índice idempotente: uma ordem pendente por par (merchantId, checkout sessionId). */
 export interface PendingCommerceOrderIndexPort {

@@ -1,5 +1,5 @@
 {
-  "name": "@aacp/commerce-adapters",
+  "name": "@zyon/commerce-adapters",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,6 +11,6 @@
     "test": "pnpm run build && node --test dist/ports.spec.js dist/shopify/shopify-commerce.adapter.spec.js dist/woocommerce/woocommerce-commerce.adapter.spec.js"
   },
   "dependencies": {
-    "@aacp/shared-types": "workspace:*"
+    "@zyon/shared-types": "workspace:*"
   }
 }

@@ -5,7 +5,7 @@ import type {
   AuthorizedOffer,
   CheckoutSession,
   ChatTurn
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { COMMERCE_OFFER_PORT, type CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";

@@ -1,4 +1,4 @@
-import type { ShippingQuote, SuggestedProduct } from "@aacp/shared-types";
+import type { ShippingQuote, SuggestedProduct } from "@zyon/shared-types";
 import type { QuickReplyChoice } from "../../hooks/checkout-presentation.js";
 import type { CouponBoxModel } from "./checkout-action-panels.model.js";
 import type { CreditCardFormModel } from "./credit-card-form.model.js";

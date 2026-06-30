@@ -1,5 +1,5 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException, UnprocessableEntityException } from "@nestjs/common";
-import type { Cart, MerchantRules } from "@aacp/shared-types";
+import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { COUPON_REDEMPTION_REPOSITORY, type CouponRedemptionRepository } from "../../domain/ports/coupon-redemption-repository.port.js";
 import { CouponRedemptionEntity, type RedemptionSource } from "../../domain/entities/coupon-redemption.entity.js";

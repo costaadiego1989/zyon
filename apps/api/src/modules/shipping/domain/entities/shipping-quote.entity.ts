@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { computeQuoteExpiry, isQuoteExpired } from "@aacp/shipping-engine";
-import type { DomainEventEnvelope } from "@aacp/shared-types";
+import { computeQuoteExpiry, isQuoteExpired } from "@zyon/shipping-engine";
+import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { createShippingEventEnvelope } from "../events/shipping-domain-event.js";
 
 export type ShippingQuoteResult = {

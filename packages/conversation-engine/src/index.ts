@@ -1,4 +1,4 @@
-import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@aacp/shared-types";
+import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, MerchantRules, ShippingQuote } from "@zyon/shared-types";
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
 

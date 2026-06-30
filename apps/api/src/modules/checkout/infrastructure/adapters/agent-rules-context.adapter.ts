@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { AgentContext } from "@aacp/shared-types";
+import type { AgentContext } from "@zyon/shared-types";
 import { GetAgentContextUseCase } from "../../../agent-rules/application/agent-rules.use-cases.js";
 import { GetBuyerPurchaseContextUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";

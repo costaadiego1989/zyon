@@ -8,7 +8,7 @@
    ============================================================ */
 
 /* ---- shared tokens (both themes) ---- */
-.aacp-page[data-skin="pulse"] {
+.zyon-page[data-skin="pulse"] {
   /* signature gradient stops */
   --pulse-g1: #8b5cf6;
   --pulse-g2: #2dd4ff;
@@ -41,7 +41,7 @@
 }
 
 /* ---- dark theme (default Pulse look) ---- */
-.aacp-page[data-skin="pulse"][data-theme="dark"] {
+.zyon-page[data-skin="pulse"][data-theme="dark"] {
   --aacp-bg: #08080c;
   --aacp-surface: #0f0f16;
   --aacp-surface-2: rgba(255, 255, 255, 0.05);
@@ -63,7 +63,7 @@
 }
 
 /* ---- light theme ---- */
-.aacp-page[data-skin="pulse"][data-theme="light"] {
+.zyon-page[data-skin="pulse"][data-theme="light"] {
   --pulse-g1: #7c3aed;
   --pulse-g2: #0891b2;
   --pulse-g3: #db2777;
@@ -89,13 +89,13 @@
 }
 
 /* ---- shell shape: rounded widget like the Pulse reference ---- */
-.aacp-page[data-skin="pulse"] .aacp-shell {
+.zyon-page[data-skin="pulse"] .zyon-shell {
   border-radius: 28px;
   overflow: hidden;
 }
 
 /* gradient text helper reused by the hero headline */
-.aacp-page[data-skin="pulse"] .pulse-grad-text {
+.zyon-page[data-skin="pulse"] .pulse-grad-text {
   background: linear-gradient(95deg, var(--pulse-g1), var(--pulse-g2), var(--pulse-g3));
   -webkit-background-clip: text;
   background-clip: text;

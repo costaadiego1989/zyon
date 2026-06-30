@@ -1,4 +1,4 @@
-import type { AuthorizedOffer } from "@aacp/shared-types";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 
 export * from "./ports.js";
 export {

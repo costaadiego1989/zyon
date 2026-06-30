@@ -7,8 +7,8 @@ import type {
   MerchantTheme,
   ShippingQuote,
   SuggestedProduct
-} from "@aacp/shared-types";
-import { DEFAULT_MERCHANT_THEME } from "@aacp/shared-types";
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import type { WidgetConfig } from "../lib/widget-types.js";
 
 export type VisibleCartState = {

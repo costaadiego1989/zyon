@@ -41,11 +41,11 @@ const VOICE_STATE_LABEL: Record<string, string> = {
  * are rendered by the same components as chat — one visual source of truth.
  *
  * Every e2e-contract selector is preserved: `data-channel="voice"`,
- * `data-stage`, `data-voice-state`, `.aacp-voice-shell`, `.aacp-voice-bar`,
- * `.aacp-voice-bar__state[data-state]`, `.aacp-voice-orb`, `.aacp-voice-caption`,
- * `.aacp-voice-caption__agent`, `.aacp-voice-mic` (aria-pressed),
- * `.aacp-voice-confirmation[data-risk]`, `.aacp-voice-chip(s)`, plus the shared
- * `.aacp-shipping-selector` / cross-sell / `.aacp-order-confirmation`.
+ * `data-stage`, `data-voice-state`, `.zyon-voice-shell`, `.zyon-voice-bar`,
+ * `.zyon-voice-bar__state[data-state]`, `.zyon-voice-orb`, `.zyon-voice-caption`,
+ * `.zyon-voice-caption__agent`, `.zyon-voice-mic` (aria-pressed),
+ * `.zyon-voice-confirmation[data-risk]`, `.zyon-voice-chip(s)`, plus the shared
+ * `.zyon-shipping-selector` / cross-sell / `.zyon-order-confirmation`.
  */
 export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
   const { presentation, actions } = useVoiceCheckoutExperience(vm);

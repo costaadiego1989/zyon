@@ -1,4 +1,4 @@
-import type { CartItem, SuggestedProduct } from "@aacp/shared-types";
+import type { CartItem, SuggestedProduct } from "@zyon/shared-types";
 
 const CATALOG: Record<string, Omit<CartItem, "sku" | "quantity">> = {
   "NECS-001": {

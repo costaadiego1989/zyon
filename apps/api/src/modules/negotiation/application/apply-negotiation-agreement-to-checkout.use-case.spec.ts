@@ -5,9 +5,9 @@ import { ApplyNegotiationAgreementToCheckoutUseCase } from "./apply-negotiation-
 import { InMemoryNegotiationStore } from "../infrastructure/in-memory-negotiation.store.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
-import { negotiateDiscount } from "@aacp/negotiation-engine";
+import { negotiateDiscount } from "@zyon/negotiation-engine";
 import { negotiationCartFingerprint } from "../domain/cart-fingerprint.js";
-import type { NegotiationResult } from "@aacp/negotiation-engine";
+import type { NegotiationResult } from "@zyon/negotiation-engine";
 import { GetMerchantNegotiationPolicyUseCase } from "./merchant-negotiation-policy.use-cases.js";
 
 /** Helper: build a use-case instance with an optional merchant policy override */

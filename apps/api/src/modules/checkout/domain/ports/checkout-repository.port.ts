@@ -9,7 +9,7 @@ import type {
   DashboardOverview,
   DomainEventEnvelope,
   MerchantRules
-} from "@aacp/shared-types";
+} from "@zyon/shared-types";
 
 // Facade — delegates to split ports. Remove after Wave 2 migration.
 /** @deprecated Use CHECKOUT_SESSION_REPOSITORY, OFFER_REPOSITORY, ORDER_REPOSITORY, OUTBOX_REPOSITORY, MERCHANT_RULES_REPOSITORY, BUYER_IDENTITY_REPOSITORY, or DASHBOARD_READ_MODEL instead. */

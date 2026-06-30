@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
-import type { SupportFaqItem, SupportSettings } from "@aacp/shared-types";
+import type { SupportFaqItem, SupportSettings } from "@zyon/shared-types";
 import type { SupportSettingsRepository } from "../domain/ports/support-settings-repository.port.js";
 
 export class PrismaSupportSettingsRepository implements SupportSettingsRepository {

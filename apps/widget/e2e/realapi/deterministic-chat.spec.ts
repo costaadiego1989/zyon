@@ -24,11 +24,11 @@ test.describe("@realapi deterministic chat", () => {
     await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
     // At least one chat bubble must appear (deterministic greeting)
-    const bubble = page.locator(".aacp-bubble, [data-testid='chat-bubble'], .aacp-message").first();
+    const bubble = page.locator(".zyon-bubble, [data-testid='chat-bubble'], .zyon-message").first();
     await expect(bubble).toBeVisible({ timeout: 10_000 });
 
     // No unhandled JS errors — page should not show error overlay
-    const errorOverlay = page.locator(".error-overlay, [data-testid='error'], .aacp-error");
+    const errorOverlay = page.locator(".error-overlay, [data-testid='error'], .zyon-error");
     await expect(errorOverlay).not.toBeVisible();
   });
 
@@ -40,11 +40,11 @@ test.describe("@realapi deterministic chat", () => {
       await input.fill("Olá");
       await input.press("Enter");
       // A new bubble should appear within 5s (deterministic, no LLM latency)
-      await expect(page.locator(".aacp-bubble, [data-testid='chat-bubble']").nth(1))
+      await expect(page.locator(".zyon-bubble, [data-testid='chat-bubble']").nth(1))
         .toBeVisible({ timeout: 8_000 })
         .catch(() => null);
     }
 
-    await expect(page.locator(".aacp-thread")).toBeVisible();
+    await expect(page.locator(".zyon-thread")).toBeVisible();
   });
 });

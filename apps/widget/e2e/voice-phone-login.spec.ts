@@ -48,12 +48,12 @@ test("voice: returning buyer OTP recognised by agent — session established, Us
   await expect(page.locator("[data-channel='voice']")).toBeVisible({ timeout: 10_000 });
 
   // Agent speaks — caption reflects OTP flow step
-  await expect(page.locator(".aacp-voice-caption__agent")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".zyon-voice-caption__agent")).toBeVisible({ timeout: 10_000 });
 
   // The widget should have triggered login-from-session automatically.
   // After the buyer is recognised, the session exists and the cart panel
   // can be opened. We verify the voice experience remains functional (no crash).
-  const orderBtn = page.locator(".aacp-voice-header__order, .aacp-voice-order-strip");
+  const orderBtn = page.locator(".zyon-voice-header__order, .zyon-voice-order-strip");
   await expect(orderBtn.first()).toBeVisible({ timeout: 5_000 });
 });
 
@@ -75,10 +75,10 @@ test("voice: buyer OTP rejected by server — voice UI remains functional, no cr
   await expect(page.locator("[data-channel='voice']")).toBeVisible({ timeout: 10_000 });
 
   // The agent caption should still appear (voice flow not crashed)
-  await expect(page.locator(".aacp-voice-caption__agent")).toBeVisible({ timeout: 10_000 });
+  await expect(page.locator(".zyon-voice-caption__agent")).toBeVisible({ timeout: 10_000 });
 
-  // No unhandled error overlay (NetworkErrorView uses .aacp-network-error; not present)
+  // No unhandled error overlay (NetworkErrorView uses .zyon-network-error; not present)
   // Just assert the mic button is still in the DOM (voice UI intact)
-  const mic = page.locator(".aacp-voice-mic");
+  const mic = page.locator(".zyon-voice-mic");
   await expect(mic).toBeVisible({ timeout: 5_000 });
 });

@@ -1,4 +1,4 @@
-import type { ChatStage, CheckoutSession, CustomerAddress } from "@aacp/shared-types";
+import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-types";
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
 const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;

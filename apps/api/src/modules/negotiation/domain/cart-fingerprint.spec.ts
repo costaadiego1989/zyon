@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { negotiationCartFingerprint, checkoutCartFingerprint } from "./cart-fingerprint.js";
-import type { Cart } from "@aacp/shared-types";
+import type { Cart } from "@zyon/shared-types";
 
 test("negotiation fingerprint ignores category and matches checkout cart order", () => {
   const neg = {
