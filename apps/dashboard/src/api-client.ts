@@ -154,8 +154,6 @@ export type TenantPayment = {
   updated_at: string;
 };
 
-// ── Billing ──────────────────────────────────────────────────────────────────
-
 export type BillingSubscription = {
   plan: string;
   status: string;
@@ -172,8 +170,6 @@ export type BillingPortalSessionResponse = {
   url: string;
 };
 
-// ── Payment connections ──────────────────────────────────────────────────────
-
 export type PaymentConnection = {
   id: string;
   provider: "stripe" | "asaas" | string;
@@ -187,8 +183,6 @@ export type PaymentOnboardingLinkResponse = {
   url: string;
 };
 
-// ── Audit events ─────────────────────────────────────────────────────────────
-
 export type AuditEvent = {
   id: string;
   merchant_id: string;
@@ -200,20 +194,14 @@ export type AuditEvent = {
   created_at: string;
 };
 
-// ── Agent rules ──────────────────────────────────────────────────────────────
-
 export type AgentRules = Record<string, unknown> & {
   enabled?: boolean;
 };
-
-// ── Negotiation policy ───────────────────────────────────────────────────────
 
 export type NegotiationPolicy = Record<string, unknown> & {
   enabled?: boolean;
   max_discount_pct?: number;
 };
-
-// ── Commerce connections ──────────────────────────────────────────────────────
 
 export type CommerceConnection = {
   id: string;
@@ -223,8 +211,6 @@ export type CommerceConnection = {
   created_at: string;
   updated_at: string;
 };
-
-// ── Installations ─────────────────────────────────────────────────────────────
 
 export type Installation = {
   id: string;
@@ -284,16 +270,11 @@ export async function dashboardFetch(
     const refreshed = await silentRefresh(apiBaseUrl, fetchImpl);
     if (refreshed) {
       const retryRes = await doFetch();
-      // BUG-AUTH-1 (P1): If the retry after a successful refresh is still 401,
-      // the session is truly gone — emit SESSION_EXPIRED consistently here so
-      // ALL callers (not just dashboardJson) react to it.
       if (retryRes.status === 401) {
         emitSessionExpired();
       }
       return retryRes;
     }
-    // BUG-AUTH-1 (P1): Refresh itself failed → session expired. Emit here so
-    // direct dashboardFetch callers (non-JSON paths) also trigger the event.
     emitSessionExpired();
   }
 
@@ -408,17 +389,13 @@ export function createDashboardApi(options: {
     },
 
     async patchCheckoutSettings(patch: CheckoutSettingsPatch): Promise<CheckoutSettings> {
-      // If-Match is REQUIRED by the server (assertIfMatch throws 428 when absent).
-      // Fetch the current ETag first so concurrent writes are detected; fall back
-      // to '*' only if the GET fails to keep the happy-path working.
       let ifMatchValue = "*";
       try {
-        const current = await dashboardJson<CheckoutSettings>(base, "/checkout-settings", { method: "GET" }, f);
-        if (current?.updatedAt) {
-          ifMatchValue = `"${current.updatedAt}"`;
-        }
+        const getRes = await dashboardFetch(base, "/checkout-settings", { method: "GET" }, f);
+        const etag = getRes.headers.get("etag");
+        if (etag) ifMatchValue = etag;
       } catch {
-        // ignore – proceed with wildcard
+        // ignore
       }
       return dashboardJson(base, "/checkout-settings", {
         method: "PUT",
@@ -615,8 +592,6 @@ export function createDashboardApi(options: {
       );
     },
 
-    // ── Billing ────────────────────────────────────────────────────────────
-
     getBillingSubscription(): Promise<BillingSubscription> {
       return dashboardJson(base, "/billing/subscription", { method: "GET" }, f);
     },
@@ -628,8 +603,6 @@ export function createDashboardApi(options: {
     createBillingPortalSession(payload: { return_url?: string }): Promise<BillingPortalSessionResponse> {
       return dashboardJson(base, "/billing/portal-session", { method: "POST", jsonBody: payload }, f);
     },
-
-    // ── Payment connections ────────────────────────────────────────────────
 
     getPaymentConnections(): Promise<PaymentConnection[]> {
       return dashboardJson<PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
@@ -655,8 +628,6 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/payments/connections/asaas/sync", { method: "POST" }, f);
     },
 
-    // ── Audit events ───────────────────────────────────────────────────────
-
     async getAuditEvents(limit?: number): Promise<AuditEvent[]> {
       const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
       const response = await dashboardJson<AuditEvent[] | CursorPage<AuditEvent>>(
@@ -667,8 +638,6 @@ export function createDashboardApi(options: {
       );
       return Array.isArray(response) ? response : response.data;
     },
-
-    // ── Agent rules ─────���──────────────────────────────────────────────────
 
     getAgentRules(): Promise<AgentRules> {
       return dashboardJson(base, "/agent-rules", { method: "GET" }, f);
@@ -682,8 +651,6 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/agent-rules/context", { method: "GET" }, f);
     },
 
-    // ── Negotiation policy ─────────────────────────────────────────────────
-
     getNegotiationPolicy(): Promise<NegotiationPolicy> {
       return dashboardJson(base, "/negotiations/policy", { method: "GET" }, f);
     },
@@ -691,8 +658,6 @@ export function createDashboardApi(options: {
     putNegotiationPolicy(payload: NegotiationPolicy): Promise<NegotiationPolicy> {
       return dashboardJson(base, "/negotiations/policy", { method: "PUT", jsonBody: payload }, f);
     },
-
-    // ── Commerce connections ───────────────────────────────────────────────
 
     getCommerceConnections(): Promise<CommerceConnection[]> {
       return dashboardJson<CommerceConnection[]>(base, "/commerce/connections", { method: "GET" }, f);
@@ -713,8 +678,6 @@ export function createDashboardApi(options: {
     deleteCommerceConnection(connectionId: string): Promise<Record<string, never>> {
       return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" }, f);
     },
-
-    // ── Installations ──────────────────────────────────────────────────────
 
     async getInstallations(): Promise<Installation[]> {
       const response = await dashboardJson<Installation[] | CursorPage<Installation>>(
@@ -744,16 +707,6 @@ function createIdempotencyKey(): string {
   return `dashboard_${random}`;
 }
 
-/**
- * BUG-AUTH-3 (P2): Return a stable idempotency key for a user-initiated action.
- * Pass this as `headers: { "Idempotency-Key": stableIdempotencyKey(actionId) }`
- * when calling dashboardFetch/dashboardJson so that manual retries of the same
- * form submission reuse the same key (deduplicating double-submit on the server).
- *
- * @param actionId - A caller-scoped ID stable across retries of the same action.
- *   Typically generated once per form submission and stored in component state.
- *   Example: `const [actionId] = useState(() => stableIdempotencyKey(formId))`.
- */
 export function stableIdempotencyKey(actionId: string): string {
   return `dashboard_action_${actionId}`;
 }
