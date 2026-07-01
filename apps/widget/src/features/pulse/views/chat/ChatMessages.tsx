@@ -11,8 +11,24 @@ import {
 import { AgentAvatar } from '../components/AgentAvatar';
 import { PulseAgentOrb } from '../components/PulseAgentOrb';
 import { ShimmerBorder } from '../components/ShimmerBorder';
+import { useMetaMaskPayment } from '../../hooks/useMetaMaskPayment';
+
+// Demo merchant Stellar address — replace with real value from merchant config
+const DEMO_MERCHANT_STELLAR = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+
+const METAMASK_STATUS_LABEL: Record<string, string> = {
+  idle: 'Pagar com MetaMask (USDC · Base → Stellar)',
+  connecting: 'Conectando carteira…',
+  approving: 'Aprovando USDC…',
+  burning: 'Enviando USDC via CCTP…',
+  submitted: 'Enviado!',
+  error: 'Tentar novamente',
+};
 
 export function ChatMessages({ s }: StageProps) {
+  const { status: mmStatus, txHash: mmTxHash, error: mmError, payWithMetaMask } = useMetaMaskPayment();
+  const cryptoUsdc = stateStr(s, 'cryptoUsdc');
+  const merchantStellar = (s.merchantStellarAddress as string | undefined) ?? DEMO_MERCHANT_STELLAR;
   const messages = s.messages as MessageRender[];
   const actions = s.actions as ActionItem[];
   const chatRef = stateRef<HTMLDivElement>(s, 'chatRef');
@@ -606,6 +622,74 @@ export function ChatMessages({ s }: StageProps) {
                   <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: 'var(--g2)' }} />
                   Cashback de {stateStr(s, 'cashbackStr')} em USDC após confirmar
                 </div>
+
+                {/* MetaMask CCTP button */}
+                <button
+                  type="button"
+                  disabled={mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning'}
+                  onClick={() => void payWithMetaMask(cryptoUsdc, merchantStellar)}
+                  style={{
+                    marginTop: '13px',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    padding: '11px 14px',
+                    borderRadius: '13px',
+                    border: 'none',
+                    cursor: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: '12.5px',
+                    fontWeight: 700,
+                    color: '#fff',
+                    background: mmStatus === 'submitted' ? '#1ED760' : mmStatus === 'error' ? '#ff4c6c' : '#f6851b',
+                    opacity: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 0.72 : 1,
+                    transition: 'background .2s, opacity .2s',
+                  }}
+                >
+                  {/* MetaMask fox icon */}
+                  <svg width="16" height="16" viewBox="0 0 35 33" fill="none">
+                    <path d="M32.9 1L19.4 10.7l2.4-5.8L32.9 1z" fill="#E17726" stroke="#E17726" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2.1 1l13.4 9.8-2.3-5.9L2.1 1z" fill="#E27625" stroke="#E27625" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M28.2 23.5l-3.6 5.5 7.7 2.1 2.2-7.5-6.3-.1zM.6 23.6l2.2 7.5 7.7-2.1-3.6-5.5-6.3.1z" fill="#E27625" stroke="#E27625" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10.1 14.5l-2.1 3.2 7.5.3-.3-8-5.1 4.5zM24.9 14.5l-5.2-4.6-.2 8.1 7.5-.3-2.1-3.2zM10.5 29l4.5-2.2-3.9-3-.6 5.2zM20 26.8l4.5 2.2-.6-5.2-3.9 3z" fill="#E27625" stroke="#E27625" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M24.5 29l-4.5-2.2.4 3-.1 1.1 4.2-1.9zM10.5 29l4.2 1.9-.1-1.1.4-3-4.5 2.2z" fill="#D5BFB2" stroke="#D5BFB2" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M14.8 21.8l-3.7-1.1 2.6-1.2 1.1 2.3zM20.2 21.8l1.1-2.3 2.6 1.2-3.7 1.1z" fill="#233447" stroke="#233447" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M10.5 29l.6-5.5-4.5.1 3.9 5.4zM23.9 23.5l.6 5.5 3.9-5.4-4.5-.1zM27.4 17.7l-7.5.3.7 3.8 1.1-2.3 2.6 1.2 3.1-2.9v-.1zM11.1 20.7l2.6-1.2 1.1 2.3.7-3.8-7.5-.3 3.1 3z" fill="#CC6228" stroke="#CC6228" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M7.5 17.7l3.1 6.1-.1-3.1-3-3zM24.5 20.7l-.1 3.1 3.1-6.1-3 3zM15.2 17.9l-.7 3.8.9 4.6.2-6.1-.4-2.3zM19.8 17.9l-.4 2.3.2 6.1.9-4.6-.7-3.8z" fill="#E27525" stroke="#E27525" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M20.2 21.8l-.9 4.6.6.5 3.9-3 .1-3.1-3.7-1zM11.1 20.7l.1 3.1 3.9 3 .6-.5-.9-4.6-3.7-1z" fill="#F5841F" stroke="#F5841F" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M20.3 30.9l.1-1.1-.3-.3h-5.2l-.3.3.1 1.1-4.2-1.9 1.5 1.2 3 2h5.1l3-2 1.5-1.2-4.3 1.9z" fill="#C0AC9D" stroke="#C0AC9D" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M20 26.8l-.6-.5h-3.8l-.6.5-.4 3 .3-.3h5.2l.3.3-.4-3z" fill="#161616" stroke="#161616" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M33.5 11.3L34.8 5l-1.9-4-12.9 9.6 5 4.2 7 2 1.5-1.8-.7-.5 1.1-1-.8-.6 1.1-.8-.7-.8zM.2 5l1.4 6.3-.9.8 1.1.8-.8.6 1.1 1-.7.5 1.5 1.8 7-2 5-4.2L2.1 1 .2 5z" fill="#763E1A" stroke="#763E1A" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M32.2 15.6l-7-2 2.1 3.2-3.1 6.1 4.1-.1h6.3l-2.4-7.2zM9.8 13.6l-7 2-2.4 7.2h6.3l4.1.1-3.1-6.1 2.1-3.2zM19.8 17.9l.4-8.1 2.4-5.8H12.4l2.4 5.8.4 8.1.1 2.3v6.1h3.8l.1-6.1.6-2.3z" fill="#F5841F" stroke="#F5841F" strokeWidth=".25" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  {METAMASK_STATUS_LABEL[mmStatus]}
+                </button>
+
+                {/* Submitted: show tx hash */}
+                {mmStatus === 'submitted' && mmTxHash && (
+                  <div style={{ marginTop: '8px', padding: '9px 11px', borderRadius: '10px', background: 'rgba(30,215,96,.1)', border: '1px solid rgba(30,215,96,.25)' }}>
+                    <div style={{ fontFamily: "'Space Mono',monospace", fontSize: '9px', letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--g2)', marginBottom: '3px' }}>
+                      TX · Base
+                    </div>
+                    <a
+                      href={`https://basescan.org/tx/${mmTxHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ fontFamily: "'Space Mono',monospace", fontSize: '9.5px', color: 'var(--g2)', wordBreak: 'break-all', textDecoration: 'none' }}
+                    >
+                      {mmTxHash.slice(0, 18)}…{mmTxHash.slice(-6)}
+                    </a>
+                  </div>
+                )}
+
+                {/* Error state */}
+                {mmStatus === 'error' && mmError && (
+                  <div style={{ marginTop: '8px', padding: '9px 11px', borderRadius: '10px', background: 'rgba(255,76,108,.1)', border: '1px solid rgba(255,76,108,.25)', fontSize: '11.5px', color: '#ff4c6c', lineHeight: 1.45 }}>
+                    {mmError}
+                  </div>
+                )}
               </div>
               </ShimmerBorder>
             )}
