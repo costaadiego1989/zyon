@@ -21,6 +21,7 @@ export function PulseWidget({ s }: PulseWidgetProps) {
   return (
     <div
       className="shimmer-border pulse-widget-frame"
+      data-theme={stateStr(s, 'theme')}
       style={{ ['--shimmer-r' as string]: '28px' }}
     >
       <div

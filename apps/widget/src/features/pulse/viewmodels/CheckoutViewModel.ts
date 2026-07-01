@@ -201,12 +201,12 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   ];
 
   FIELDS: FieldDef[] = [
-    { key: 'name', tag: 'Seus dados · nome', ph: 'Nome completo', def: 'Marina Alves' },
-    { key: 'email', tag: 'Seus dados · e-mail', ph: 'voce@email.com', def: 'marina.alves@email.com' },
-    { key: 'cpf', tag: 'Seus dados · CPF', ph: '000.000.000-00', def: '123.456.789-00' },
-    { key: 'cep', tag: 'Entrega · CEP', ph: '00000-000', def: '01310-100' },
-    { key: 'number', tag: 'Entrega · número', ph: 'Nº', def: '1578' },
-    { key: 'complement', tag: 'Entrega · complemento', ph: 'Apto, bloco… (opcional)', def: 'Apto 142' },
+    { key: 'name', tag: 'Seus dados · nome', ph: 'Nome completo', def: '' },
+    { key: 'email', tag: 'Seus dados · e-mail', ph: 'voce@email.com', def: '' },
+    { key: 'cpf', tag: 'Seus dados · CPF', ph: '000.000.000-00', def: '' },
+    { key: 'cep', tag: 'Entrega · CEP', ph: '00000-000', def: '' },
+    { key: 'number', tag: 'Entrega · número', ph: 'Nº', def: '' },
+    { key: 'complement', tag: 'Entrega · complemento', ph: 'Apto, bloco… (opcional)', def: '' },
   ];
 
   FIELD_Q: Record<keyof Customer, string> = {
@@ -220,12 +220,12 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   PROFILE_DEFAULTS = {
-    name: 'Marina Alves',
-    email: 'marina.alves@email.com',
-    phone: '(11) 98876-5521',
-    cep: '01310-100',
-    number: '1578',
-    complement: 'Apto 142',
+    name: '',
+    email: '',
+    phone: '',
+    cep: '',
+    number: '',
+    complement: '',
   };
 
   refs: DomRefs;
@@ -335,7 +335,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   get storeName(): string {
-    return this.props.storeName || 'Aurora Home';
+    return this.props.storeName || '';
   }
 
   teardownMedia(): void {
@@ -817,17 +817,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   fallbackVoice(): void {
     if (this.fellBack) return;
     this.fellBack = true;
-    const demo = 'câmera de segurança';
-    let i = 0;
-    this.setState({ voiceTranscript: '' });
-    const type = (): void => {
-      if (!this.state.voiceOpen) return;
-      i++;
-      this.setState({ voiceTranscript: demo.slice(0, i) });
-      if (i < demo.length) this.after(60, type);
-      else this.after(520, () => this.finishVoice(demo));
-    };
-    this.after(700, type);
+    this.setState({ voiceOpen: false, voiceStatus: 'idle', voiceTranscript: '' });
   }
 
   startMicLevels(): void {
@@ -2311,7 +2301,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const profileName = cust.name && cust.name.length ? cust.name : P.name;
     const profileEmail = cust.email && cust.email.length ? cust.email : P.email;
     const profilePhone = cust.phone && cust.phone.length ? cust.phone : P.phone;
-    const addrShort = 'Av. Paulista, ' + (cust.number || P.number) + ' · ' + (cust.cep || P.cep);
+    const addrShort = cust.cep ? (cust.number ? cust.number + ' · ' : '') + cust.cep : '—';
     const langLabel = prefs.lang === 'pt-BR' ? 'Português (BR)' : prefs.lang === 'en-US' ? 'English (US)' : 'Español';
     const notifOn = [prefs.notifPromo && 'Promoções', prefs.notifStatus && 'Status', prefs.notifPush && 'Push'].filter(
       Boolean,
@@ -2500,8 +2490,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       cashbackStr: calc.cashbackStr,
       cryptoUsdc: calc.usdc,
       addrName: profileName,
-      addrLine1: 'Av. Paulista, ' + (cust.number || '1578') + (cust.complement ? ' — ' + cust.complement : ''),
-      addrLine2: 'Bela Vista, São Paulo - SP · ' + (cust.cep || '01310-100'),
+      addrLine1: cust.number ? cust.number + (cust.complement ? ' — ' + cust.complement : '') : '',
+      addrLine2: cust.cep || '',
 
       scrimStyle: {
         position: 'absolute',
@@ -2625,7 +2615,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       })),
       payOpts: [
         { label: 'Pix', sub: 'Aprovação na hora', val: 'pix' },
-        { label: 'Cartão ·· 4242', sub: 'Crédito · Visa', val: 'credito' },
+        { label: 'Cartão de crédito', sub: 'Crédito · até 12x', val: 'credito' },
         { label: 'USDC · Stellar', sub: 'Cashback de 3%', val: 'crypto' },
       ].map((o) => ({
         label: o.label,
@@ -2841,6 +2831,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       pixCopyPaste: this.state.pixCopyPaste,
       pixExpiresAt: this.state.pixExpiresAt,
       pixStatus: this.state.pixStatus,
+
+      theme: this.theme,
     };
   }
 }
