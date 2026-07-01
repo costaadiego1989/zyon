@@ -21,6 +21,13 @@ function formatDate(iso: string): string {
   );
 }
 
+function actionBadgeClass(action: string): string {
+  if (/delete|remove|revoke|disable/i.test(action)) return "badge bad";
+  if (/create|add|enable|approve/i.test(action)) return "badge ok";
+  if (/update|edit|change|modify/i.test(action)) return "badge warn";
+  return "badge muted";
+}
+
 export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
   const [events, setEvents] = useState<AuditEvent[]>([]);
@@ -50,8 +57,12 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
   if (!props.me) {
     return (
       <>
-        <h1>Auditoria</h1>
-        <p className="page-lead">Login necessario para acessar o log de auditoria.</p>
+        <header className="page-head">
+          <div>
+            <h1>Auditoria</h1>
+            <p className="page-lead">Login necessario para acessar o log de auditoria.</p>
+          </div>
+        </header>
       </>
     );
   }
@@ -63,55 +74,72 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <h1>Log de auditoria</h1>
           <p className="page-lead">Registro de acoes administrativas do tenant (compliance/seguranca).</p>
         </div>
-        <button type="button" disabled={loading} onClick={() => void load()}>
-          <RefreshCw size={16} />
-          Atualizar
-        </button>
+        <div className="button-row">
+          <button type="button" disabled={loading} onClick={() => void load()}>
+            <RefreshCw size={16} />
+            Atualizar
+          </button>
+        </div>
       </header>
 
       {message ? <p className="panel panel-warn">{message}</p> : null}
-      {loading ? <p className="panel panel-info">Carregando...</p> : null}
 
       <section className="panel stacked">
         <div className="panel-title">
           <h2>Eventos recentes</h2>
           <ShieldCheck size={18} />
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Acao</th>
-                <th>Recurso</th>
-                <th>ID recurso</th>
-                <th>Ator</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((evt) => (
-                <tr key={evt.id}>
-                  <td>{formatDate(evt.created_at)}</td>
-                  <td>
-                    <code>{evt.action}</code>
-                  </td>
-                  <td>{evt.resource_type}</td>
-                  <td>
-                    <code>{evt.resource_id ?? "—"}</code>
-                  </td>
-                  <td>
-                    <code>{evt.actor_id ?? "sistema"}</code>
-                  </td>
-                </tr>
-              ))}
-              {events.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={5}>Nenhum evento de auditoria encontrado.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+
+        {loading ? (
+          <div className="empty-state">
+            <div className="skeleton" style={{ width: "100%", height: 200 }} />
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Acao</th>
+                    <th>Recurso</th>
+                    <th>ID recurso</th>
+                    <th>Ator</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.map((evt) => (
+                    <tr key={evt.id}>
+                      <td>{formatDate(evt.created_at)}</td>
+                      <td>
+                        <span className={actionBadgeClass(evt.action)}>
+                          <code>{evt.action}</code>
+                        </span>
+                      </td>
+                      <td>{evt.resource_type}</td>
+                      <td>
+                        <code>{evt.resource_id ?? "—"}</code>
+                      </td>
+                      <td>
+                        <code>{evt.actor_id ?? "sistema"}</code>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {events.length === 0 && !loading ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">
+                  <ShieldCheck size={32} />
+                </div>
+                <h3>Nenhum evento de auditoria</h3>
+                <p>Acoes administrativas do tenant serao registradas aqui para fins de compliance.</p>
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
     </>
   );

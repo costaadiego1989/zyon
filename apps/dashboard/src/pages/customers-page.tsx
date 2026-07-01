@@ -51,8 +51,12 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   if (!props.me) {
     return (
       <>
-        <h1>Clientes</h1>
-        <p className="page-lead">Login necessario.</p>
+        <header className="page-head">
+          <div>
+            <h1>Clientes</h1>
+            <p className="page-lead">Login necessario.</p>
+          </div>
+        </header>
       </>
     );
   }
@@ -64,54 +68,67 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           <h1>Clientes</h1>
           <p className="page-lead">Clientes recentes capturados no checkout.</p>
         </div>
-        <button type="button" disabled={busy} onClick={() => void load()}>
-          <RefreshCw size={16} />
-          Atualizar
-        </button>
+        <div className="button-row">
+          <button type="button" disabled={busy} onClick={() => void load()}>
+            <RefreshCw size={16} />
+            Atualizar
+          </button>
+        </div>
       </header>
-      {message ? <p className="panel panel-info">{message}</p> : null}
+
+      {message ? <p className="panel panel-error">{message}</p> : null}
+
       <section className="panel stacked">
         <div className="panel-title">
           <h2>Clientes recentes</h2>
           <UsersRound size={18} />
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Email</th>
-                <th>Telefone</th>
-                <th>Global user</th>
-                <th>Ultima atividade</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.globalUserId}>
-                  <td>{row.name}</td>
-                  <td>{row.email}</td>
-                  <td>{row.phone}</td>
-                  <td>
-                    <code>{row.globalUserId}</code>
-                  </td>
-                  <td>{formatDate(row.lastSeen)}</td>
-                </tr>
-              ))}
-              {/* BUG-BPH-1 (P2): Only show empty-state after loading completes. */}
-              {rows.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={5}>Nenhum cliente recente.</td>
-                </tr>
-              ) : null}
-              {loading ? (
-                <tr>
-                  <td colSpan={5}>Carregando…</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+
+        {loading ? (
+          <div className="empty-state">
+            <div className="skeleton" style={{ width: "100%", height: 200 }} />
+          </div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Telefone</th>
+                    <th>Global user</th>
+                    <th>Ultima atividade</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.globalUserId}>
+                      <td>{row.name}</td>
+                      <td>{row.email}</td>
+                      <td>{row.phone}</td>
+                      <td>
+                        <code>{row.globalUserId}</code>
+                      </td>
+                      <td>{formatDate(row.lastSeen)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* BUG-BPH-1 (P2): Only show empty-state after loading completes. */}
+            {rows.length === 0 && !loading ? (
+              <div className="empty-state">
+                <div className="empty-state-icon">
+                  <UsersRound size={32} />
+                </div>
+                <h3>Nenhum cliente recente</h3>
+                <p>Clientes que interagirem com o checkout aparecerão aqui.</p>
+              </div>
+            ) : null}
+          </>
+        )}
       </section>
     </>
   );

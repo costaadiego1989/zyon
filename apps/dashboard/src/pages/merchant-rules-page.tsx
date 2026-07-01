@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Bot, Save } from "lucide-react";
 import type { MerchantRules } from "@zyon/shared-types";
 import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
 import { createDashboardApi, DashboardHttpError } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
 import { QuickRepliesSection } from "../components/quick-replies-section.js";
+import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
 
 function readError(e: unknown): string {
   return e instanceof DashboardHttpError
@@ -19,6 +20,7 @@ export function MerchantRulesAuthenticatedPage(props: {
   me: MerchantMeProfile | null;
 }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const previewRef = useRef<LivePreviewPanelRef>(null);
 
   // merchant-rules state (existing)
   const [rules, setRules] = useState<MerchantRules | null>(null);
@@ -121,71 +123,106 @@ export function MerchantRulesAuthenticatedPage(props: {
 
   return (
     <>
-      {/* Merchant rules section */}
       <header className="page-head">
         <div>
           <h1>Regras do merchant atual</h1>
-          <p className="page-lead">{props.me.name ?? props.me.id} · rotas `/merchants/me/rules`.</p>
+          <p className="page-lead">{props.me.name ?? props.me.id} · rotas <code>/merchants/me/rules</code>.</p>
         </div>
-        <button type="button" disabled={saving || !rules} onClick={() => void saveRules()}>
+        <button
+          type="button"
+          className="primary-action"
+          disabled={saving || !rules}
+          onClick={() => void saveRules()}
+        >
           <Save size={16} />
-          Salvar
+          {saving ? "Salvando..." : "Salvar regras"}
         </button>
       </header>
+
       {gate === "401" ? (
         <p className="panel panel-warn">Sessão invalida ou expirada (401).</p>
       ) : null}
-      {gate === "error" ? <p className="panel panel-warn">{hint ?? "Falha de rede"}</p> : null}
-      {rules ? (
-        <>
-          <RulesForm rules={rules} onChange={setRules} />
-          <div style={{ marginTop: 24 }}>
-            <QuickRepliesSection
-              value={rules.quickReplies}
-              onChange={(qr) => setRules({ ...rules, quickReplies: qr })}
-            />
-          </div>
-        </>
-      ) : gate === "idle" ? <p>Carregando…</p> : null}
+      {gate === "error" ? (
+        <p className="panel panel-error">{hint ?? "Falha de rede"}</p>
+      ) : null}
 
-      {/* Agent rules section */}
-      <section className="panel stacked" style={{ marginTop: 32 }}>
-        <div className="panel-title">
-          <h2>Motor de regras do agente</h2>
-          <Bot size={18} />
+      <div className="split-panel">
+        {/* Left: rules form + quick replies */}
+        <div className="split-panel-controls">
+          {rules ? (
+            <>
+              <div className="panel stacked">
+                <div className="panel-title">
+                  <h2>Configuração de Regras</h2>
+                </div>
+                <RulesForm rules={rules} onChange={setRules} />
+              </div>
+
+              <div className="panel stacked" style={{ marginTop: 16 }}>
+                <QuickRepliesSection
+                  value={rules.quickReplies}
+                  onChange={(qr) => setRules({ ...rules, quickReplies: qr })}
+                />
+              </div>
+            </>
+          ) : gate === "idle" ? (
+            <p className="panel panel-info">Carregando regras...</p>
+          ) : null}
+
+          {/* Agent rules JSON editor */}
+          <section className="panel stacked" style={{ marginTop: 16 }}>
+            <div className="panel-title">
+              <h2>Motor de regras do agente</h2>
+              <Bot size={18} style={{ color: "var(--color-brand-light)" }} />
+            </div>
+            <p className="page-lead" style={{ marginBottom: 12 }}>
+              Configuração avançada: <code>GET/PUT /agent-rules</code>. Edite o JSON e salve.
+            </p>
+            {agentMessage ? (
+              <p className="panel panel-info" style={{ marginBottom: 8 }}>{agentMessage}</p>
+            ) : null}
+            {agentLoading ? (
+              <p className="panel panel-info" style={{ marginBottom: 8 }}>Carregando regras do agente...</p>
+            ) : null}
+            <textarea
+              spellCheck={false}
+              disabled={agentBusy || agentLoading}
+              className="mono-textarea"
+              value={agentRulesJson}
+              onChange={(e) => setAgentRulesJson(e.target.value)}
+              rows={12}
+              aria-label="JSON das regras do agente"
+            />
+            <div className="button-row" style={{ marginTop: 8 }}>
+              <button
+                type="button"
+                className="primary-action"
+                disabled={agentBusy || agentLoading || !agentRules}
+                onClick={() => void saveAgentRules()}
+              >
+                <Save size={16} />
+                {agentBusy ? "Salvando..." : "Salvar regras do agente"}
+              </button>
+              <button
+                type="button"
+                disabled={agentBusy || agentLoading}
+                onClick={() => void loadAgentRules()}
+              >
+                Recarregar
+              </button>
+            </div>
+          </section>
         </div>
-        <p className="page-lead" style={{ marginBottom: 8 }}>
-          Configuracao avancada: <code>GET/PUT /agent-rules</code>. Edite o JSON e salve.
-        </p>
-        {agentMessage ? <p className="panel panel-info">{agentMessage}</p> : null}
-        {agentLoading ? <p className="panel panel-info">Carregando regras do agente...</p> : null}
-        <textarea
-          spellCheck={false}
-          disabled={agentBusy || agentLoading}
-          className="mono-textarea"
-          value={agentRulesJson}
-          onChange={(e) => setAgentRulesJson(e.target.value)}
-          rows={12}
-          aria-label="JSON das regras do agente"
-        />
-        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-          <button
-            type="button"
-            disabled={agentBusy || agentLoading || !agentRules}
-            onClick={() => void saveAgentRules()}
-          >
-            <Save size={16} />
-            Salvar regras do agente
-          </button>
-          <button
-            type="button"
-            disabled={agentBusy || agentLoading}
-            onClick={() => void loadAgentRules()}
-          >
-            Recarregar
-          </button>
+
+        {/* Right: live preview sticky */}
+        <div className="split-panel-preview">
+          <LivePreviewPanel
+            ref={previewRef}
+            apiBaseUrl={props.apiBaseUrl}
+            me={props.me}
+          />
         </div>
-      </section>
+      </div>
     </>
   );
 }

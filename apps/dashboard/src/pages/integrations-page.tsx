@@ -285,7 +285,9 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           </button>
         </div>
       </header>
+
       {message ? <p className="panel panel-info">{message}</p> : null}
+
       {newSecret ? (
         <section className="secret-box">
           <div className="panel-title">
@@ -548,7 +550,6 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </div>
       </section>
 
-      {/* Installations section */}
       <section className="panel stacked" style={{ marginTop: 16 }}>
         <div className="panel-title">
           <h2>Instalacoes</h2>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Eye, RefreshCw } from "lucide-react";
+import { Eye, MonitorSmartphone, RefreshCw, Smartphone } from "lucide-react";
 import {
   createDashboardApi,
   DashboardHttpError,
@@ -82,55 +82,230 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   }, [token, apiBase, bundleBase, presentation]);
 
   return (
-    <section className="panel stacked checkout-preview">
-      <header className="page-head">
-        <div>
-          <h1>
-            <Eye size={18} /> Live preview do checkout
-          </h1>
-          <p className="page-lead">
-            Widget real de {props.me.name}, com a sua configuracao salva e um token de preview
-            (origem + expiracao {PREVIEW_TTL_SECONDS / 60} min). Sem efeito em dados de producao.
-          </p>
-        </div>
-        <div className="preview-controls">
-          <div className="segmented">
-            <button
-              type="button"
-              className={presentation === "floating" ? "active" : ""}
-              onClick={() => setPresentation("floating")}
-            >
-              Flutuante
-            </button>
-            <button
-              type="button"
-              className={presentation === "conversational" ? "active" : ""}
-              onClick={() => setPresentation("conversational")}
-            >
-              Conversacional
-            </button>
-          </div>
-          <button type="button" disabled={busy} onClick={() => void issuePreview()}>
-            <RefreshCw size={15} /> Renovar token
+    <div className="dashboard-content">
+      <div className="split-panel" style={{ gridTemplateColumns: "280px 1fr", gap: "var(--space-5)" }}>
+
+        {/* Left — controls */}
+        <div className="split-panel-controls">
+          <section className="panel stacked">
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginBottom: "var(--space-1)" }}>
+              <div style={{
+                width: 32,
+                height: 32,
+                display: "grid",
+                placeItems: "center",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--color-brand-subtle)",
+                color: "var(--color-brand)",
+                flexShrink: 0
+              }}>
+                <Eye size={16} />
+              </div>
+              <h2 style={{ fontSize: 15 }}>Live Preview</h2>
+            </div>
+
+            <p style={{ fontSize: 12, color: "var(--color-text-muted)", lineHeight: 1.6, margin: 0 }}>
+              Widget real de <strong style={{ color: "var(--color-text-secondary)" }}>{props.me.name}</strong>,
+              com configuração salva e token de preview (
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>{PREVIEW_TTL_SECONDS / 60} min</span>).
+              Sem efeito em dados de produção.
+            </p>
+
+            {/* Token status */}
+            <div style={{
+              padding: "var(--space-3)",
+              borderRadius: "var(--radius-sm)",
+              background: token ? "var(--color-success-bg)" : busy ? "var(--color-bg)" : "var(--color-error-bg)",
+              border: `1px solid ${token ? "var(--color-success-border)" : busy ? "var(--color-border)" : "var(--color-error-border)"}`,
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-2)"
+            }}>
+              <span className={`status-dot ${token ? "green" : busy ? "amber" : "red"}`} />
+              <span style={{
+                fontSize: 12,
+                fontWeight: 600,
+                color: token ? "#065F46" : busy ? "var(--color-text-muted)" : "var(--color-error)"
+              }}>
+                {token ? "Token ativo" : busy ? "Emitindo token…" : "Sem token"}
+              </span>
+              {token && (
+                <span style={{
+                  marginLeft: "auto",
+                  fontSize: 10,
+                  fontFamily: "var(--font-mono)",
+                  color: "#059669",
+                  fontWeight: 600
+                }}>
+                  {PREVIEW_TTL_SECONDS / 60} min
+                </span>
+              )}
+            </div>
+
+            {message && (
+              <p className="panel-error" style={{ margin: 0, fontSize: 12 }}>{message}</p>
+            )}
+          </section>
+
+          {/* Presentation mode */}
+          <section className="panel stacked">
+            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-1)" }}>
+              Modo de apresentação
+            </h2>
+
+            <div style={{ display: "grid", gap: "var(--space-2)" }}>
+              {(["floating", "conversational"] as Presentation[]).map((mode) => {
+                const active = presentation === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setPresentation(mode)}
+                    style={{
+                      justifyContent: "flex-start",
+                      gap: "var(--space-3)",
+                      padding: "var(--space-3) var(--space-3)",
+                      minHeight: 44,
+                      borderRadius: "var(--radius-sm)",
+                      background: active ? "var(--color-brand-subtle)" : "var(--color-surface-raised)",
+                      borderColor: active ? "var(--color-brand)" : "var(--color-border)",
+                      color: active ? "var(--color-brand)" : "var(--color-text-secondary)",
+                      fontWeight: active ? 700 : 500,
+                      transition: "all var(--duration-fast) var(--ease)"
+                    }}
+                  >
+                    {mode === "floating"
+                      ? <MonitorSmartphone size={16} style={{ flexShrink: 0 }} />
+                      : <Smartphone size={16} style={{ flexShrink: 0 }} />
+                    }
+                    <div style={{ textAlign: "left" }}>
+                      <span style={{ display: "block", fontSize: 13 }}>
+                        {mode === "floating" ? "Flutuante" : "Conversacional"}
+                      </span>
+                      <span style={{ display: "block", fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", marginTop: 1 }}>
+                        {mode === "floating"
+                          ? "Botão sobreposição com chat expandido"
+                          : "Fluxo de chat tela cheia"}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Scopes info */}
+          <section className="panel stacked">
+            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-1)" }}>
+              Escopos de preview
+            </h2>
+            <div style={{ display: "grid", gap: "var(--space-1)" }}>
+              {PREVIEW_SCOPES.map((scope) => (
+                <div key={scope} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                  <span className="status-dot green" style={{ flexShrink: 0 }} />
+                  <code style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}>
+                    {scope}
+                  </code>
+                </div>
+              ))}
+              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-1)" }}>
+                <span className="status-dot" style={{ background: "var(--color-border-strong)", flexShrink: 0 }} />
+                <code style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-text-faint)", textDecoration: "line-through" }}>
+                  payment:intents:create
+                </code>
+              </div>
+            </div>
+          </section>
+
+          {/* Renew button */}
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void issuePreview()}
+            style={{ width: "100%", justifyContent: "center", minHeight: 40 }}
+          >
+            <RefreshCw size={14} style={{ ...(busy ? { animation: "spin 1s linear infinite" } : {}) }} />
+            {busy ? "Renovando…" : "Renovar token"}
           </button>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
-      </header>
 
-      {message ? <p className="panel panel-info">{message}</p> : null}
+        {/* Right — preview iframe */}
+        <div className="split-panel-preview" style={{ minWidth: 0 }}>
+          <div className="preview-stage" style={{ margin: 0, borderRadius: "var(--radius-lg)" }}>
+            {/* Stage chrome bar */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "var(--space-3)",
+              padding: "var(--space-3) var(--space-4)",
+              background: "var(--color-surface)",
+              borderBottom: "1px solid var(--color-border)"
+            }}>
+              {/* Traffic lights */}
+              <div style={{ display: "flex", gap: 6 }}>
+                {["#F87171", "#FBBF24", "#34D399"].map((c) => (
+                  <span key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c, flexShrink: 0 }} />
+                ))}
+              </div>
+              {/* Fake URL bar */}
+              <div style={{
+                flex: 1,
+                maxWidth: 480,
+                margin: "0 auto",
+                padding: "4px var(--space-3)",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)"
+              }}>
+                <span className="status-dot green" style={{ width: 6, height: 6 }} />
+                <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  preview — {props.me.name}
+                </span>
+              </div>
+              <span className="badge muted" style={{ fontSize: 10, flexShrink: 0 }}>
+                {presentation === "floating" ? "Flutuante" : "Conversacional"}
+              </span>
+            </div>
 
-      <div className="preview-stage">
-        {srcDoc ? (
-          <iframe
-            key={`${presentation}:${token}`}
-            className="preview-frame"
-            title="Live preview do checkout"
-            srcDoc={srcDoc}
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          />
-        ) : (
-          <p className="page-lead">{busy ? "Emitindo token de preview..." : "Sem preview."}</p>
-        )}
+            {/* Frame content */}
+            {srcDoc ? (
+              <iframe
+                key={`${presentation}:${token}`}
+                className="preview-frame"
+                title="Live preview do checkout"
+                srcDoc={srcDoc}
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                style={{ height: 720 }}
+              />
+            ) : busy ? (
+              <div style={{ height: 720, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "var(--space-4)", background: "var(--color-surface-raised)" }}>
+                <div style={{ display: "grid", gap: "var(--space-3)", width: "60%", maxWidth: 320 }}>
+                  <div className="skeleton" style={{ height: 14, borderRadius: "var(--radius-sm)" }} />
+                  <div className="skeleton" style={{ height: 14, borderRadius: "var(--radius-sm)", width: "75%" }} />
+                  <div className="skeleton" style={{ height: 14, borderRadius: "var(--radius-sm)", width: "85%" }} />
+                </div>
+                <p style={{ fontSize: 13, color: "var(--color-text-muted)", margin: 0 }}>
+                  Emitindo token de preview…
+                </p>
+              </div>
+            ) : (
+              <div className="empty-state" style={{ height: 720, justifyContent: "center" }}>
+                <div className="empty-state-icon"><Eye size={22} /></div>
+                <h3>Sem preview</h3>
+                <p>Clique em "Renovar token" para iniciar o preview do widget.</p>
+                <button type="button" className="btn-primary" onClick={() => void issuePreview()}>
+                  <RefreshCw size={14} />
+                  Iniciar preview
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
-    </section>
+    </div>
   );
 }

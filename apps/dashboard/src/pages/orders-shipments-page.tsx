@@ -42,8 +42,12 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
   if (!props.me) {
     return (
       <>
-        <h1>Pedidos e envios</h1>
-        <p className="page-lead">Login necessario.</p>
+        <header className="page-head">
+          <div>
+            <h1>Pedidos e envios</h1>
+            <p className="page-lead">Login necessario.</p>
+          </div>
+        </header>
       </>
     );
   }
@@ -55,59 +59,83 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
           <h1>Pedidos e envios</h1>
           <p className="page-lead">Pedidos reais, status financeiro e tracking do tenant autenticado.</p>
         </div>
-        <button type="button" disabled={busy} onClick={() => void load()}>
-          <RefreshCw size={16} />
-          Atualizar
-        </button>
+        <div className="button-row">
+          <button type="button" disabled={busy} onClick={() => void load()}>
+            <RefreshCw size={16} />
+            Atualizar
+          </button>
+        </div>
       </header>
-      {message ? <p className="panel panel-info">{message}</p> : null}
+
+      {message ? <p className="panel panel-error">{message}</p> : null}
+
       <section className="panel stacked">
         <div className="panel-title">
           <h2>Pedidos</h2>
           <PackageSearch size={18} />
         </div>
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Pedido</th>
-                <th>Cliente</th>
-                <th>Total</th>
-                <th>Tracking</th>
-                <th>Status</th>
-                <th>Concluido</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.map((order) => (
-                <tr key={order.id}>
-                  <td>{order.external_order_id}</td>
-                  <td>{customerLabel(order.customer)}</td>
-                  <td>{formatMinor(order.total, order.currency)}</td>
-                  <td><code>{order.tracking_code ?? "pendente"}</code></td>
-                  <td>
-                    <span className={order.status === "approved" ? "badge ok" : "badge bad"}>{order.status}</span>
-                  </td>
-                  <td>{formatDate(order.completed_at)}</td>
-                </tr>
-              ))}
-              {/* BUG-COM-1 fix: show loading row while fetching, empty-state only
-                  after a successful load with zero results, suppress during error. */}
-              {busy ? (
+
+        {busy && !hasLoaded ? (
+          <div className="empty-state">
+            <div className="skeleton" style={{ width: "100%", height: 200 }} />
+          </div>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <td colSpan={6}>Carregando...</td>
+                  <th>Pedido</th>
+                  <th>Cliente</th>
+                  <th>Total</th>
+                  <th>Tracking</th>
+                  <th>Status</th>
+                  <th>Concluido</th>
                 </tr>
-              ) : hasLoaded && orders.length === 0 && !message ? (
-                <tr>
-                  <td colSpan={6}>Nenhum envio encontrado.</td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {orders.map((order) => (
+                  <tr key={order.id}>
+                    <td><code>{order.external_order_id}</code></td>
+                    <td>{customerLabel(order.customer)}</td>
+                    <td>{formatMinor(order.total, order.currency)}</td>
+                    <td><code>{order.tracking_code ?? "pendente"}</code></td>
+                    <td>
+                      <span className={orderBadgeClass(order.status)}>{order.status}</span>
+                    </td>
+                    <td>{formatDate(order.completed_at)}</td>
+                  </tr>
+                ))}
+                {busy && hasLoaded ? (
+                  <tr>
+                    <td colSpan={6} className="muted">Carregando...</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* BUG-COM-1 fix: show empty-state only after a successful load with zero
+            results, never during fetch, never when there's an error. */}
+        {hasLoaded && orders.length === 0 && !message && !busy ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <PackageSearch size={32} />
+            </div>
+            <h3>Nenhum pedido encontrado</h3>
+            <p>Os pedidos do tenant aparecerão aqui assim que forem sincronizados.</p>
+          </div>
+        ) : null}
       </section>
     </>
   );
+}
+
+function orderBadgeClass(status: string): string {
+  if (status === "approved") return "badge ok";
+  if (status === "cancelled" || status === "failed" || status === "refunded") return "badge bad";
+  if (status === "pending" || status === "processing") return "badge warn";
+  return "badge muted";
 }
 
 function customerLabel(customer: Record<string, unknown> | null): string {

@@ -317,16 +317,20 @@ function App() {
   }
 
   const activeItem = NAV_ITEMS.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
+  const ActiveIcon = activeItem.icon;
   const groupedSections = [...new Set(NAV_ITEMS.map((item) => item.section))];
 
   return (
     <div className="dashboard-shell">
       <aside className="dashboard-sidebar">
         <div className="console-brand">
-          <span>AACP</span>
+          <span>Z</span>
           <div>
-            <strong>{me.name}</strong>
-            <small>{me.id}</small>
+            <strong>
+              Zyon Console
+              <span className="ai-status-dot" aria-label="Agente ativo" title="Agente ativo" />
+            </strong>
+            <small>{me.name || me.id}</small>
           </div>
         </div>
 
@@ -343,7 +347,7 @@ function App() {
                     className={tab === item.key ? "active" : ""}
                     onClick={() => setTab(item.key)}
                   >
-                    <Icon size={17} />
+                    <Icon size={16} />
                     {item.label}
                   </button>
                 );
@@ -353,20 +357,25 @@ function App() {
         </nav>
 
         <button className="logout-button" type="button" onClick={() => void logout()} disabled={busy}>
-          <LogOut size={16} />
+          <LogOut size={15} />
           Sair
         </button>
       </aside>
 
       <main className="dashboard-main">
         <header className="dashboard-header">
-          <div>
-            <p className="eyebrow">AACP Console</p>
-            <h1>{activeItem.label}</h1>
+          <div className="dashboard-header-title">
+            <div className="dashboard-header-icon">
+              <ActiveIcon size={17} />
+            </div>
+            <div>
+              <p className="eyebrow">Zyon Console</p>
+              <h1>{activeItem.label}</h1>
+            </div>
           </div>
           <div className="dashboard-header-status">
-            <ShieldCheck size={16} />
-            <span>API {API_BASE_URL}</span>
+            <ShieldCheck size={14} />
+            <span>{me.name || me.id}</span>
           </div>
         </header>
 
