@@ -86,6 +86,8 @@ export class InMemoryCheckoutRepository
 
   async setStripeConnectAccountId(_merchantId: string, _accountId: string): Promise<void> {}
 
+  async enableCrypto(_merchantId: string, _stellarPublicKey: string): Promise<void> {}
+
   async updateTheme(_merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
     return theme;
   }

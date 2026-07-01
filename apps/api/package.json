@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@zyon/commerce-adapters": "workspace:*",
+    "@zyon/payments-stellar": "workspace:*",
     "@zyon/contracts": "workspace:*",
     "@zyon/conversation-engine": "workspace:*",
     "@zyon/decision-engine": "workspace:*",

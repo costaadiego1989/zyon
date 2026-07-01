@@ -49,6 +49,17 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     });
   }
 
+  async enableCrypto(merchantId: string, stellarPublicKey: string): Promise<void> {
+    await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: {
+        stellarPublicKey,
+        stellarAccountActivated: true,
+        cryptoPaymentsEnabled: true
+      }
+    });
+  }
+
   async updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {
     const updated = await this.prisma.merchant.update({
       where: { id: merchantId },

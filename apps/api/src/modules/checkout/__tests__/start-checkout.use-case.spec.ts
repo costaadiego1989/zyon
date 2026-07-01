@@ -126,7 +126,8 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
     async getStripeConnectAccountId() {
       return undefined;
     },
-    async setStripeConnectAccountId() {}
+    async setStripeConnectAccountId() {},
+    async enableCrypto() {}
   };
   const agentContext: AgentContextPort = {
     async get() {
