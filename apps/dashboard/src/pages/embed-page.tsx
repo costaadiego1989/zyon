@@ -175,7 +175,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           {hasToken && <span className="badge ok" style={{ marginLeft: 'auto' }}><CheckCircle2 size={11} /> Token ativo</span>}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 'var(--space-4)' }}>
           <label htmlFor="embed-origin">
             Domínio permitido
             <input
@@ -198,11 +198,9 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             />
             {validationErrors.cartRef && <span className="field-error" role="alert">{validationErrors.cartRef}</span>}
           </label>
-        </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
           <label htmlFor="embed-ttl">
-            Validade (segundos)
+            Validade (seg)
             <input
               id="embed-ttl"
               type="number"
@@ -211,17 +209,16 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               value={ttl}
               onChange={(e) => setTtl(Number(e.target.value))}
             />
-            <span className="field-hint">{Math.round(ttl / 60)} min · 15min para lojas, 1h para server-side</span>
             {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
           </label>
+        </div>
 
-          <label style={{ visibility: 'hidden', fontSize: 12 }}>
-            &nbsp;
-            <button type="button" className="btn-primary" style={{ height: 40, padding: '0 var(--space-6)', whiteSpace: 'nowrap', visibility: 'visible' }} disabled={busy} onClick={() => void issue()}>
-              <KeyRound size={15} />
-              {busy ? "Gerando…" : "Gerar token"}
-            </button>
-          </label>
+        <div style={{ marginTop: 'var(--space-4)' }}>
+          <button type="button" className="btn-primary" style={{ height: 40, padding: '0 var(--space-6)' }} disabled={busy} onClick={() => void issue()}>
+            <KeyRound size={15} />
+            {busy ? "Gerando…" : "Gerar token"}
+          </button>
+          <span className="field-hint" style={{ marginLeft: 'var(--space-3)', verticalAlign: 'middle' }}>{Math.round(ttl / 60)} min · máx 24h</span>
         </div>
 
         {session && (

@@ -212,75 +212,33 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
         )}
       </div>
 
-      {/* ── Preview Stage (full width) ── */}
-      <div style={{ background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-6)", display: "flex", justifyContent: "center", alignItems: "stretch" }}>
-          <div
-            className="preview-device-frame"
-            style={{
-              width: device === "desktop" ? "100%" : DEVICE_SIZES[device].width,
-              maxWidth: device === "desktop" ? 1200 : undefined,
-              margin: "0 auto",
-              transition: "width 0.3s ease, box-shadow 0.3s ease",
-              ...(presentation === "floating" ? {
-                width: device === "desktop" ? 400 : Math.min(400, parseInt(DEVICE_SIZES[device].width)),
-                maxWidth: 400,
-                boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)",
-                borderRadius: "var(--radius-lg)",
-              } : {})
-            } as React.CSSProperties}
-          >
-            <div className="preview-stage" style={{ margin: 0, borderRadius: "var(--radius-lg)", overflow: "visible", background: "#fff", display: 'flex', flexDirection: 'column' }}>
-              {/* Chrome Bar */}
-              <div style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-3)",
-                padding: "var(--space-3) var(--space-4)",
-                background: "var(--color-surface)",
-                borderBottom: "1px solid var(--color-border)"
-              }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  {["#F87171", "#FBBF24", "#34D399"].map((c) => (
-                    <span key={c} style={{ width: 10, height: 10, borderRadius: "50%", background: c, flexShrink: 0 }} />
-                  ))}
-                </div>
-                <div style={{
-                  flex: 1,
-                  maxWidth: 480,
-                  margin: "0 auto",
-                  padding: "4px var(--space-3)",
-                  borderRadius: "var(--radius-sm)",
-                  background: "var(--color-bg)",
-                  border: "1px solid var(--color-border)",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-2)"
-                }}>
-                  <span className="status-dot green" style={{ width: 6, height: 6 }} />
-                  <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "var(--font-mono)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    preview — {props.me.name}
-                  </span>
-                </div>
-                <span className="badge muted" style={{ fontSize: 10, flexShrink: 0 }}>
-                  {DEVICE_SIZES[device].label} · {presentation === "floating" ? "Flutuante" : "Tela cheia"}
-                </span>
-              </div>
-
-              {/* LivePreviewPanel */}
-              <div style={{ height: presentation === "conversational" ? 750 : 650, width: "100%", overflow: "hidden", borderRadius: "0 0 var(--radius-lg) var(--radius-lg)" }}>
-                <LivePreviewPanel
-                  ref={previewRef}
-                  apiBaseUrl={props.apiBaseUrl}
-                  me={props.me}
-                  presentation={presentation}
-                  hideControls
-                  width="100%"
-                  onTokenIssued={handleTokenIssued}
-                />
-              </div>
+      {/* ── Preview Stage ── */}
+      <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        {/* Browser chrome */}
+        <div style={{ width: '100%', maxWidth: presentation === 'floating' ? 420 : (device === 'desktop' ? 900 : device === 'tablet' ? 768 : 375), margin: '0 auto', transition: 'max-width 0.3s ease' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#1e293b', borderRadius: '12px 12px 0 0' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
+            </div>
+            <div style={{ flex: 1, textAlign: 'center', fontSize: 11, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
+              {props.me.name || 'Preview'} — {DEVICE_SIZES[device].label} · {presentation === 'floating' ? 'Flutuante' : 'Fullscreen'}
             </div>
           </div>
+
+          {/* Widget iframe container */}
+          <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', overflow: 'hidden', height: presentation === 'conversational' ? 720 : 620 }}>
+            <LivePreviewPanel
+              ref={previewRef}
+              apiBaseUrl={props.apiBaseUrl}
+              me={props.me}
+              presentation={presentation}
+              hideControls
+              width="100%"
+              onTokenIssued={handleTokenIssued}
+            />
+          </div>
         </div>
+      </div>
     </div>
   );
 }
