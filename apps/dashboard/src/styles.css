@@ -1553,6 +1553,51 @@ button.dash-tab.active {
   gap: var(--space-2);
 }
 
+.theme-color-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.theme-color-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.theme-color-input {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.theme-color-input:hover {
+  border-color: var(--color-border-strong);
+}
+
+.theme-color-input input[type="color"] {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.theme-color-input input[type="text"] {
+  border: none;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  background: transparent;
+}
+
 .theme-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -365,32 +365,42 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </label>
               </div>
 
-              <label>
-                Selos de confiança
-                <span className="field-hint">Máximo 4 — exibidos no rodapé do widget</span>
-              </label>
-              <div className="chip-list">
-                {parseBadges(badgesText).map((badge, i) => (
-                  <span key={`${badge}-${i}`} className="chip">
-                    {badge}
-                    <button type="button" className="chip-remove" onClick={() => removeBadge(i)} aria-label={`Remover ${badge}`}>
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="theme-grid-2">
+            </div>
+
+            {/* Panel — Selos de confiança */}
+            <div className="panel stacked">
+              <div className="section-header"><h3>Selos de confiança</h3></div>
+              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
+                Exibidos como badges no rodapé do widget (ex: "Compra Segura", "Envio Rastreado"). Máximo 4.
+              </p>
+
+              {parseBadges(badgesText).length > 0 && (
+                <div className="chip-list">
+                  {parseBadges(badgesText).map((badge, i) => (
+                    <span key={`${badge}-${i}`} className="chip">
+                      {badge}
+                      <button type="button" className="chip-remove" onClick={() => removeBadge(i)} aria-label={`Remover ${badge}`}>
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
                 <input
+                  style={{ flex: 1 }}
                   value={badgeInput}
                   onChange={(e) => setBadgeInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBadge(); } }}
-                  placeholder="Novo selo..."
+                  placeholder="Ex: Compra Segura, Frete Grátis..."
                   disabled={!canAddBadge(badgesText)}
                 />
-                <button type="button" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)} style={{ minHeight: 40 }}>
-                  {LABELS.addBadge}
+                <button type="button" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)} style={{ minHeight: 40, whiteSpace: 'nowrap' }}>
+                  Adicionar selo
                 </button>
               </div>
+              <span className="field-hint">{parseBadges(badgesText).length}/4 selos</span>
             </div>
 
             {/* Panel 2 — Cores */}
@@ -398,18 +408,22 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               <div className="section-header"><h3>Paleta de cores</h3></div>
               <div className="theme-grid-2">
                 {COLOR_FIELDS.map((field) => (
-                  <label key={String(field.key)} className="swatch-field">
-                    <span>{field.label}</span>
-                    <div className="swatch-row">
+                  <div key={String(field.key)} className="theme-color-field">
+                    <span className="theme-color-label">{field.label}</span>
+                    <div className="theme-color-input">
                       <input
                         type="color"
-                        aria-label={`Cor: ${field.label}`}
                         value={String(theme[field.key] ?? "#000000")}
                         onChange={(e) => patch({ [field.key]: e.target.value } as Partial<MerchantTheme>)}
                       />
-                      <code>{String(theme[field.key] ?? "")}</code>
+                      <input
+                        type="text"
+                        value={String(theme[field.key] ?? "")}
+                        onChange={(e) => patch({ [field.key]: e.target.value } as Partial<MerchantTheme>)}
+                        style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
+                      />
                     </div>
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
