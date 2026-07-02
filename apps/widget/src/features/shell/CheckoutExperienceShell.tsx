@@ -23,7 +23,7 @@ export function CheckoutExperienceShell({ vm, className }: CheckoutExperienceShe
       {pixWaiting ? <PixWaitingPanel model={pixWaiting} /> : null}
 
       <div
-        className={cn("aacp-cart-overlay", overlay.open ? "open" : "", className)}
+        className={cn("zyon-cart-overlay", overlay.open ? "open" : "", className)}
         onClick={overlay.onClose}
         aria-label="Fechar resumo do pedido"
       />

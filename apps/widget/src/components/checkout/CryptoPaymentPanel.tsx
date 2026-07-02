@@ -62,8 +62,8 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
   }
 
   return (
-    <div className="aacp-crypto-panel" role="region" aria-label="Pagamento com crypto">
-      <div className="aacp-crypto-panel-head">
+    <div className="zyon-crypto-panel" role="region" aria-label="Pagamento com crypto">
+      <div className="zyon-crypto-panel-head">
         <Wallet size={18} aria-hidden />
         <div>
           <strong>Pagar com USDC</strong>
@@ -74,7 +74,7 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
         </div>
       </div>
 
-      <dl className="aacp-crypto-quote">
+      <dl className="zyon-crypto-quote">
         {model.orderTotalLabel ? (
           <>
             <dt>Total do pedido</dt>
@@ -84,44 +84,44 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
         <dt>Valor em crypto</dt>
         <dd>{quote.amountDisplay}</dd>
         <dt>Destino</dt>
-        <dd className="aacp-crypto-mono">{truncateAddress(quote.destinationAddress)}</dd>
+        <dd className="zyon-crypto-mono">{truncateAddress(quote.destinationAddress)}</dd>
         <dt>Cotação válida até</dt>
         <dd>{new Date(quote.quoteExpiresAt).toLocaleTimeString("pt-BR")}</dd>
       </dl>
 
       {model.expired ? (
-        <p className="aacp-crypto-error" role="alert">
+        <p className="zyon-crypto-error" role="alert">
           Cotação expirada. Escolha pagar com crypto novamente para gerar um novo valor.
         </p>
       ) : null}
 
       {wallet.error ? (
-        <p className="aacp-crypto-error" role="alert">
+        <p className="zyon-crypto-error" role="alert">
           {wallet.error}
         </p>
       ) : null}
 
       {pendingConfirm ? (
-        <p className="aacp-crypto-status" role="status">
+        <p className="zyon-crypto-status" role="status">
           Transação enviada:{" "}
-          <span className="aacp-crypto-mono">{truncateAddress(pendingConfirm.txHash)}</span>
+          <span className="zyon-crypto-mono">{truncateAddress(pendingConfirm.txHash)}</span>
         </p>
       ) : null}
 
       {wallet.address ? (
-        <p className="aacp-crypto-wallet">
+        <p className="zyon-crypto-wallet">
           Carteira conectada:{" "}
-          <span className="aacp-crypto-mono">{truncateAddress(wallet.address)}</span>
+          <span className="zyon-crypto-mono">{truncateAddress(wallet.address)}</span>
         </p>
       ) : null}
 
-      <div className="aacp-crypto-actions">
+      <div className="zyon-crypto-actions">
         {pendingConfirm ? (
           // P1: retry confirmation without re-broadcasting. The txHash is
           // retained so the same on-chain transaction can be reconciled.
           <button
             type="button"
-            className="aacp-cta aacp-crypto-pay"
+            className="zyon-cta zyon-crypto-pay"
             disabled={paying}
             onClick={() => void handleConfirm(model.intentId, pendingConfirm.txHash, pendingConfirm.account)}
           >
@@ -131,16 +131,16 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
           <>
             <button
               type="button"
-              className="aacp-chip aacp-crypto-btn"
+              className="zyon-chip zyon-crypto-btn"
               disabled={wallet.connecting || model.expired}
               onClick={() => void wallet.connectMetaMask()}
             >
-              {wallet.connecting ? <Loader2 size={16} className="aacp-spin" /> : null}
+              {wallet.connecting ? <Loader2 size={16} className="zyon-spin" /> : null}
               Conectar MetaMask
             </button>
             <button
               type="button"
-              className="aacp-chip aacp-crypto-btn aacp-crypto-btn--ghost"
+              className="zyon-chip zyon-crypto-btn zyon-crypto-btn--ghost"
               disabled={wallet.connecting || model.expired}
               onClick={() => void wallet.connectTrust()}
             >
@@ -150,19 +150,19 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
         ) : (
           <button
             type="button"
-            className="aacp-cta aacp-crypto-pay"
+            className="zyon-cta zyon-crypto-pay"
             disabled={paying || model.expired}
             onClick={() => void handlePay()}
           >
-            {paying ? <Loader2 size={16} className="aacp-spin" /> : null}
+            {paying ? <Loader2 size={16} className="zyon-spin" /> : null}
             Pagar agora
           </button>
         )}
       </div>
 
-      {status ? <p className="aacp-crypto-status">{status}</p> : null}
+      {status ? <p className="zyon-crypto-status">{status}</p> : null}
 
-      <p className="aacp-crypto-footnote">
+      <p className="zyon-crypto-footnote">
         Envie exatamente {quote.amountDisplay} na rede {quote.chainLabel}. Nunca compartilhe sua
         seed phrase.
       </p>

@@ -68,7 +68,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
   return (
     <section
-      className="checkout-experience aacp-page aacp-widget aacp-widget--voice"
+      className="checkout-experience zyon-page zyon-widget zyon-widget--voice"
       style={presentation.style}
       data-cart-open={presentation.cartOpen ? "true" : undefined}
       data-color-mode={presentation.colorMode}
@@ -77,14 +77,14 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
       data-channel="voice"
       data-voice-state={ambientVoiceState}
     >
-      <div className="aacp-voice-shell">
+      <div className="zyon-voice-shell">
         {/* ---- Ambient status bar (shared spine, voice-dressed) ---------- */}
-        <header className="aacp-voice-bar">
-          <div className="aacp-voice-bar__brand">
-            <span className="aacp-voice-bar__spark" aria-hidden="true" />
-            <span className="aacp-voice-bar__brand-copy">
-              <span className="aacp-voice-bar__merchant">{header.merchantName}</span>
-              <span className="aacp-voice-header__mode">
+        <header className="zyon-voice-bar">
+          <div className="zyon-voice-bar__brand">
+            <span className="zyon-voice-bar__spark" aria-hidden="true" />
+            <span className="zyon-voice-bar__brand-copy">
+              <span className="zyon-voice-bar__merchant">{header.merchantName}</span>
+              <span className="zyon-voice-header__mode">
                 <Radio size={11} aria-hidden="true" />
                 Checkout por voz
               </span>
@@ -92,18 +92,18 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
           </div>
 
           <p
-            className="aacp-voice-bar__state"
+            className="zyon-voice-bar__state"
             data-state={voiceStage.voiceState}
             aria-live="polite"
           >
-            <span className="aacp-voice-bar__state-dot" aria-hidden="true" />
-            <span className="aacp-voice-bar__state-label">{stateLabel}</span>
+            <span className="zyon-voice-bar__state-dot" aria-hidden="true" />
+            <span className="zyon-voice-bar__state-label">{stateLabel}</span>
           </p>
 
-          <div className="aacp-voice-bar__actions">
+          <div className="zyon-voice-bar__actions">
             <button
               type="button"
-              className="aacp-voice-bar__order"
+              className="zyon-voice-bar__order"
               onClick={header.onOpenCart}
               aria-expanded={header.cartOpen}
             >
@@ -113,7 +113,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
             <button
               type="button"
-              className="aacp-voice-bar__icon"
+              className="zyon-voice-bar__icon"
               onClick={header.onToggleColorMode}
               aria-label={header.colorMode === "dark" ? "Modo claro" : "Modo escuro"}
             >
@@ -122,7 +122,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
             <button
               type="button"
-              className="aacp-voice-bar__switch"
+              className="zyon-voice-bar__switch"
               onClick={header.onSwitchToChat}
             >
               <MessageSquare size={14} />
@@ -131,24 +131,24 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
           </div>
         </header>
 
-        <main className="aacp-voice-main" aria-label="Sessão de compra por voz">
+        <main className="zyon-voice-main" aria-label="Sessão de compra por voz">
           {/* ---- Journey stepper (same component as chat) --------------- */}
-          <div className="aacp-voice-journey">
+          <div className="zyon-voice-journey">
             <JourneyProtocol model={presentation.journey} />
           </div>
 
           {/* ---- Voice presence layer: orb + live caption -------------- */}
-          <div className="aacp-voice-stage">
-            <div className="aacp-voice-presence">
+          <div className="zyon-voice-stage">
+            <div className="zyon-voice-presence">
               <div
-                className={`aacp-voice-orb aacp-voice-orb--${ambientVoiceState}`}
+                className={`zyon-voice-orb zyon-voice-orb--${ambientVoiceState}`}
                 aria-hidden="true"
               >
-                <span className="aacp-voice-orb__halo" />
-                <span className="aacp-voice-orb__ring aacp-voice-orb__ring--outer" />
-                <span className="aacp-voice-orb__ring aacp-voice-orb__ring--inner" />
-                <span className="aacp-voice-orb__sheen" />
-                <span className="aacp-voice-orb__core">
+                <span className="zyon-voice-orb__halo" />
+                <span className="zyon-voice-orb__ring zyon-voice-orb__ring--outer" />
+                <span className="zyon-voice-orb__ring zyon-voice-orb__ring--inner" />
+                <span className="zyon-voice-orb__sheen" />
+                <span className="zyon-voice-orb__core">
                   {voiceStage.agentAvatarUrl ? (
                     <img src={voiceStage.agentAvatarUrl} alt="" />
                   ) : (
@@ -157,12 +157,12 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
                 </span>
               </div>
 
-              <div className="aacp-voice-presence__meta">
-                <p className="aacp-voice-agent-name">{voiceStage.agentGiven}</p>
+              <div className="zyon-voice-presence__meta">
+                <p className="zyon-voice-agent-name">{voiceStage.agentGiven}</p>
                 <p
                   className={cn(
-                    "aacp-voice-status",
-                    showThinking ? "aacp-voice-status--busy" : "",
+                    "zyon-voice-status",
+                    showThinking ? "zyon-voice-status--busy" : "",
                   )}
                   aria-live="polite"
                 >
@@ -171,14 +171,14 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
               </div>
             </div>
 
-            <div className="aacp-voice-caption" aria-live="polite">
-              <p className="aacp-voice-caption__agent">{captionText}</p>
+            <div className="zyon-voice-caption" aria-live="polite">
+              <p className="zyon-voice-caption__agent">{captionText}</p>
 
-              <div className="aacp-voice-caption__foot">
+              <div className="zyon-voice-caption__foot">
                 {voiceStage.latestBuyerText ? (
-                  <p className="aacp-voice-caption__buyer">
-                    <span className="aacp-voice-caption__buyer-tag">Você</span>
-                    <span className="aacp-voice-caption__buyer-text">
+                  <p className="zyon-voice-caption__buyer">
+                    <span className="zyon-voice-caption__buyer-tag">Você</span>
+                    <span className="zyon-voice-caption__buyer-text">
                       {voiceStage.latestBuyerText}
                     </span>
                   </p>
@@ -188,7 +188,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
                 <button
                   type="button"
-                  className="aacp-voice-caption__replay"
+                  className="zyon-voice-caption__replay"
                   onClick={actions.replayAgentLine}
                   disabled={voiceStage.busy || voiceStage.speaking}
                 >
@@ -209,11 +209,11 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
             ) : null}
 
             {/* ---- Mic dock ---------------------------------------------- */}
-            <div className="aacp-voice-controls">
+            <div className="zyon-voice-controls">
               {voiceStage.listening || voiceStage.speaking ? (
                 <div
                   className={cn(
-                    "aacp-voice-wave",
+                    "zyon-voice-wave",
                     voiceStage.listening ? "is-listening" : "is-speaking",
                   )}
                   aria-hidden="true"
@@ -221,7 +221,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
                   {Array.from({ length: 7 }).map((_, i) => (
                     <span
                       key={i}
-                      className="aacp-voice-wave__bar"
+                      className="zyon-voice-wave__bar"
                       style={{ ["--bar-index" as string]: i }}
                     />
                   ))}
@@ -231,7 +231,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
               <button
                 type="button"
                 className={cn(
-                  "aacp-voice-mic",
+                  "zyon-voice-mic",
                   voiceStage.listening ? "is-listening" : "",
                   voiceStage.speaking ? "is-speaking" : "",
                 )}
@@ -248,8 +248,8 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
                         : "Falar resposta"
                 }
               >
-                <span className="aacp-voice-mic__pulse" aria-hidden="true" />
-                <span className="aacp-voice-mic__icon">
+                <span className="zyon-voice-mic__pulse" aria-hidden="true" />
+                <span className="zyon-voice-mic__icon">
                   {voiceStage.speaking ? (
                     <Volume2 size={26} />
                   ) : voiceStage.listening ? (
@@ -259,7 +259,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
                   )}
                 </span>
               </button>
-              <span className="aacp-voice-controls__label">
+              <span className="zyon-voice-controls__label">
                 {voiceStage.listening
                   ? "Toque para parar"
                   : voiceStage.speaking
@@ -270,7 +270,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
             {voiceStage.quickReplies ? (
               <div
-                className="aacp-voice-chips"
+                className="zyon-voice-chips"
                 role="group"
                 aria-label="Respostas sugeridas"
               >
@@ -278,7 +278,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
                   <button
                     key={quickReplyId(reply)}
                     type="button"
-                    className="aacp-voice-chip"
+                    className="zyon-voice-chip"
                     onClick={() => void voiceStage.quickReplies!.onTap(reply)}
                     disabled={voiceStage.quickReplies?.disabled}
                   >
@@ -290,7 +290,7 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
           </div>
 
           {/* ---- Shared action-panel stack (identical to chat) --------- */}
-          <section className="aacp-voice-panels" aria-label="Ações do checkout">
+          <section className="zyon-voice-panels" aria-label="Ações do checkout">
             <CheckoutPanels model={panels} />
 
             {isCompleted ? (
@@ -300,15 +300,15 @@ export function VoiceCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) 
 
           <button
             type="button"
-            className="aacp-voice-order-strip"
+            className="zyon-voice-order-strip"
             onClick={orderStrip.onOpenCart}
             aria-expanded={orderStrip.cartOpen}
           >
-            <span className="aacp-voice-order-strip__label">Seu pedido</span>
-            <span className="aacp-voice-order-strip__meta">
+            <span className="zyon-voice-order-strip__label">Seu pedido</span>
+            <span className="zyon-voice-order-strip__meta">
               {orderStrip.itemCountLabel} · {orderStrip.totalLabel}
             </span>
-            <span className="aacp-voice-order-strip__action">Ver detalhes</span>
+            <span className="zyon-voice-order-strip__action">Ver detalhes</span>
           </button>
         </main>
 

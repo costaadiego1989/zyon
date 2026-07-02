@@ -3,27 +3,27 @@ import type { CartHeaderModel } from "../../presentation/models/cart-panel.model
 
 export function CartHeader({ model }: { model: CartHeaderModel }) {
   return (
-    <header className="aacp-cart-header">
-      <div className="aacp-cart-header-bar">
-        <div className="aacp-cart-brand aacp-cart-brand-lockup">
-          <div className="aacp-cart-brand-mark" aria-hidden>
+    <header className="zyon-cart-header">
+      <div className="zyon-cart-header-bar">
+        <div className="zyon-cart-brand zyon-cart-brand-lockup">
+          <div className="zyon-cart-brand-mark" aria-hidden>
             {model.logoUrl ? (
-              <img src={model.logoUrl} alt="" className="aacp-cart-logo aacp-cart-brand-img" />
+              <img src={model.logoUrl} alt="" className="zyon-cart-logo zyon-cart-brand-img" />
             ) : (
               model.merchantInitials
             )}
           </div>
-          <div className="aacp-cart-brand-copy">
-            <strong className="aacp-cart-store">{model.merchantName}</strong>
-            <span className="aacp-cart-order-badge">Sessão {model.orderRef}</span>
+          <div className="zyon-cart-brand-copy">
+            <strong className="zyon-cart-store">{model.merchantName}</strong>
+            <span className="zyon-cart-order-badge">Sessão {model.orderRef}</span>
           </div>
         </div>
 
-        <div className="aacp-cart-header-actions">
+        <div className="zyon-cart-header-actions">
           {model.showDevReset ? (
             <button
               type="button"
-              className="aacp-debug-reset"
+              className="zyon-debug-reset"
               onClick={model.onDevReset}
               title="Resetar sessão (dev)"
               aria-label="Resetar sessão de desenvolvimento"
@@ -32,7 +32,7 @@ export function CartHeader({ model }: { model: CartHeaderModel }) {
             </button>
           ) : null}
           <button
-            className="aacp-cart-close lg:hidden"
+            className="zyon-cart-close lg:hidden"
             onClick={model.onClose}
             aria-label="Fechar"
             type="button"
@@ -42,10 +42,10 @@ export function CartHeader({ model }: { model: CartHeaderModel }) {
         </div>
       </div>
 
-      <div className="aacp-cart-header-status">
-        <span className="aacp-cart-title aacp-cart-status-kicker">Em andamento</span>
-        <span className="aacp-cart-status-label">{model.journeyLabel}</span>
-        <span className="aacp-cart-status-hint">{model.journeyHint}</span>
+      <div className="zyon-cart-header-status">
+        <span className="zyon-cart-title zyon-cart-status-kicker">Em andamento</span>
+        <span className="zyon-cart-status-label">{model.journeyLabel}</span>
+        <span className="zyon-cart-status-hint">{model.journeyHint}</span>
       </div>
     </header>
   );

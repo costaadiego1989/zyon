@@ -79,7 +79,7 @@ describe("UserPanel", () => {
     expect(container.querySelector(".zyon-user-panel")).toBeNull();
   });
 
-  it("renders panel with class aacp-user-panel when open", () => {
+  it("renders panel with class zyon-user-panel when open", () => {
     const { container } = render(<UserPanel vm={buildVm()} />);
     expect(container.querySelector(".zyon-user-panel")).not.toBeNull();
   });

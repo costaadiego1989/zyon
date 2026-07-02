@@ -12,18 +12,18 @@ export function CartFAB({ vm }: { vm: CheckoutAgentViewModel }) {
 export function CartFABView({ model }: { model: CartFabModel }) {
   return (
     <button
-      className="aacp-cart-fab"
+      className="zyon-cart-fab"
       onClick={model.onOpen}
       aria-label={`Ver resumo do pedido. Total ${model.totalLabel}`}
     >
-      <span className="aacp-cart-fab-total">
+      <span className="zyon-cart-fab-total">
         <small>Total</small>
         <strong>{model.totalLabel}</strong>
       </span>
-      <span className="aacp-cart-fab-action">
+      <span className="zyon-cart-fab-action">
         <ShoppingBag size={17} />
         <span>Ver resumo</span>
-        <span className="aacp-cart-fab-badge">{model.itemCount}</span>
+        <span className="zyon-cart-fab-badge">{model.itemCount}</span>
         <ChevronUp size={15} />
       </span>
     </button>

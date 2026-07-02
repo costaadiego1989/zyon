@@ -52,14 +52,14 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
     !vm.turns.some((turn) => turn.role === "buyer");
 
   return (
-    <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
-      <section className="aacp-conversation-lead" aria-labelledby="aacp-conversation-title">
-        <div className="aacp-conversation-lead-copy">
-          <span className="aacp-conversation-agent">Decisao atual</span>
-          <h2 id="aacp-conversation-title">{stageLead.title}</h2>
+    <div className="zyon-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
+      <section className="zyon-conversation-lead" aria-labelledby="zyon-conversation-title">
+        <div className="zyon-conversation-lead-copy">
+          <span className="zyon-conversation-agent">Decisao atual</span>
+          <h2 id="zyon-conversation-title">{stageLead.title}</h2>
           <p>{stageLead.description}</p>
         </div>
-        <span className="aacp-conversation-orbit" aria-hidden="true">
+        <span className="zyon-conversation-orbit" aria-hidden="true">
           {vm.theme?.agentAvatarUrl ? (
             <img src={vm.theme.agentAvatarUrl} alt="" />
           ) : (
@@ -68,7 +68,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
         </span>
       </section>
 
-      <div className="aacp-conversation-divider" aria-hidden="true" />
+      <div className="zyon-conversation-divider" aria-hidden="true" />
 
       {showPulseHero ? <PulseHero vm={vm} /> : null}
 
@@ -92,9 +92,9 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       })}
 
       {vm.busy ? (
-        <div className="aacp-typing" aria-label={agentTypingLine(vm.activeExperience.agent.name)}>
+        <div className="zyon-typing" aria-label={agentTypingLine(vm.activeExperience.agent.name)}>
           <strong>{agentName.given}</strong> está digitando
-          <span className="aacp-dots"><span /><span /><span /></span>
+          <span className="zyon-dots"><span /><span /><span /></span>
         </div>
       ) : null}
 
@@ -137,13 +137,13 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
       {panels.quickReplies ? (
         <div
-          className="aacp-quick-replies aacp-quick-replies--in-thread"
+          className="zyon-quick-replies zyon-quick-replies--in-thread"
           role="group"
           aria-label="Respostas sugeridas"
         >
           {panels.quickReplies.items.map((reply) => (
             <button
-              className="aacp-chip"
+              className="zyon-chip"
               key={quickReplyId(reply)}
               type="button"
               onClick={() => void panels.quickReplies!.onTap(reply)}
@@ -156,7 +156,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       ) : null}
 
       {composer ? (
-        <div className="aacp-thread-composer-wrap">
+        <div className="zyon-thread-composer-wrap">
           <Composer model={composer} />
         </div>
       ) : null}
@@ -170,22 +170,22 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
 
 export function OrderConfirmationView({ model }: { model: OrderConfirmationModel }) {
   return (
-    <section className="aacp-order-confirmation" aria-labelledby="aacp-order-confirmation-title">
-      <div className="aacp-order-confirmation-head">
-        <div className="aacp-order-confirmation-icon" aria-hidden="true">
+    <section className="zyon-order-confirmation" aria-labelledby="zyon-order-confirmation-title">
+      <div className="zyon-order-confirmation-head">
+        <div className="zyon-order-confirmation-icon" aria-hidden="true">
           <CheckCircle2 size={24} />
         </div>
         <div>
-          <span className="aacp-order-confirmation-kicker">Pagamento aprovado</span>
-          <h3 id="aacp-order-confirmation-title">Pedido confirmado</h3>
+          <span className="zyon-order-confirmation-kicker">Pagamento aprovado</span>
+          <h3 id="zyon-order-confirmation-title">Pedido confirmado</h3>
           <p>Enviaremos as atualizações de entrega e rastreio para sua conta.</p>
-          <span className="aacp-order-confirmation-reference">Referência da sessão {model.sessionRef}</span>
+          <span className="zyon-order-confirmation-reference">Referência da sessão {model.sessionRef}</span>
         </div>
       </div>
 
-      <div className="aacp-order-confirmation-summary">
+      <div className="zyon-order-confirmation-summary">
         <h4>Resumo do pedido</h4>
-        <div className="aacp-order-confirmation-lines">
+        <div className="zyon-order-confirmation-lines">
           {model.lines.map((line) => (
             <div
               key={line.key}
@@ -193,7 +193,7 @@ export function OrderConfirmationView({ model }: { model: OrderConfirmationModel
                 line.variant === "discount"
                   ? "is-discount"
                   : line.variant === "total"
-                    ? "aacp-order-confirmation-total"
+                    ? "zyon-order-confirmation-total"
                     : undefined
               }
             >
@@ -208,7 +208,7 @@ export function OrderConfirmationView({ model }: { model: OrderConfirmationModel
         <a
           href={model.redirectUrl}
           target="_top"
-          className="aacp-cta aacp-order-confirmation-action"
+          className="zyon-cta zyon-order-confirmation-action"
           data-testid="return-to-store"
         >
           {model.redirectLabel}
@@ -262,13 +262,13 @@ export function ChatBubble({
   const bubbleBody = (
     <div
       ref={isAgent ? undefined : bubbleRef}
-      className={`aacp-bubble aacp-bubble-${turn.role} aacp-chat-bubble aacp-chat-bubble--${turn.role}${isLatest ? " is-latest" : ""}`}
+      className={`zyon-bubble zyon-bubble-${turn.role} zyon-chat-bubble zyon-chat-bubble--${turn.role}${isLatest ? " is-latest" : ""}`}
     >
-      <span className="aacp-chat-text">{displayed}</span>
+      <span className="zyon-chat-text">{displayed}</span>
       {showCaret && <span className="chat-caret" aria-hidden="true" />}
 
       {pixCode && isAgent && !showCaret ? (
-        <div className="aacp-pix-panel">
+        <div className="zyon-pix-panel">
           <QRCode value={pixCode} size={160} />
           <PixCopyButton pixCode={pixCode} />
         </div>
@@ -278,7 +278,7 @@ export function ChatBubble({
 
   if (!isAgent) {
     return (
-      <div key={key} ref={bubbleRef} className="aacp-bubble-stack aacp-bubble-stack--buyer">
+      <div key={key} ref={bubbleRef} className="zyon-bubble-stack zyon-bubble-stack--buyer">
         {bubbleBody}
       </div>
     );
@@ -288,17 +288,17 @@ export function ChatBubble({
     <div
       key={key}
       ref={bubbleRef}
-      className={`aacp-bubble-stack aacp-bubble-stack--agent${isLatest ? " is-active-turn" : ""}`}
+      className={`zyon-bubble-stack zyon-bubble-stack--agent${isLatest ? " is-active-turn" : ""}`}
     >
-      <div className="aacp-bubble-meta" aria-hidden="true">
-        <span className="aacp-bubble-meta-avatar">
+      <div className="zyon-bubble-meta" aria-hidden="true">
+        <span className="zyon-bubble-meta-avatar">
           {agentAvatarUrl ? (
             <img src={agentAvatarUrl} alt="" />
           ) : (
             <Bot size={16} strokeWidth={2} />
           )}
         </span>
-        <span className="aacp-bubble-meta-name">{given || agentName}</span>
+        <span className="zyon-bubble-meta-name">{given || agentName}</span>
       </div>
       {bubbleBody}
     </div>
@@ -340,7 +340,7 @@ function PixCopyButton({ pixCode }: { pixCode: string }) {
   };
 
   return (
-    <button type="button" onClick={handleCopy} className="aacp-pix-copy">
+    <button type="button" onClick={handleCopy} className="zyon-pix-copy">
       {copied ? <Check size={16} /> : <Copy size={16} />}
       {copied ? "Copiado!" : "Copiar código PIX"}
     </button>

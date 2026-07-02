@@ -59,7 +59,7 @@ function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
         </div>
       ) : null}
 
-      <div className="rounded-xl overflow-hidden border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] p-3 aacp-stripe-element-wrap">
+      <div className="rounded-xl overflow-hidden border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] p-3 zyon-stripe-element-wrap">
         <PaymentElement
           options={{
             layout: "tabs",

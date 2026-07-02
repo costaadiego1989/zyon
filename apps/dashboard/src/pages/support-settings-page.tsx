@@ -29,6 +29,19 @@ function newItem(): SupportFaqItem {
   return { id: crypto.randomUUID(), question: "", answer: "" };
 }
 
+export function formatPtBrDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export function validateFaqItems(items: SupportFaqItem[]): Array<{ question: boolean; answer: boolean }> {
+  return items.map((it) => ({
+    question: !it.question.trim(),
+    answer: !it.answer.trim(),
+  }));
+}
+
 const SUPPORT_STATUS_LABELS: Record<SupportTicketStatus, string> = {
   open: "Aberto",
   in_progress: "Em atendimento",
@@ -95,9 +108,10 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
         api.getSupportSettings(),
         api.getSupportTickets(ticketStatusFilter === "all" ? undefined : ticketStatusFilter)
       ]);
-      setSettings(s);
-      setItems(s.faqItems);
-      setTickets(t);
+      const settings = s && typeof s === "object" && !Array.isArray(s) ? s : null;
+      setSettings(settings);
+      setItems(settings?.faqItems ?? []);
+      setTickets(Array.isArray(t) ? t : []);
     } catch (e) {
       const text = e instanceof DashboardHttpError
         ? e.responseBody.slice(0, 160)
@@ -172,6 +186,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
       {/* ── Page Head ── */}
       <header className="page-head">
         <div>
+          <span className="eyebrow">Atendimento</span>
           <h1>Suporte — FAQ e chamados</h1>
           <p className="page-lead">
             Perguntas frequentes do widget e chamados criados por handoff.

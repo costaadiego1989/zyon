@@ -24,6 +24,9 @@ export interface LivePreviewPanelProps {
   me: MerchantProfile | null;
   presentation?: Presentation;
   className?: string;
+  onTokenIssued?: (expiresAtUnix: number) => void;
+  hideControls?: boolean;
+  width?: string;
 }
 
 export interface LivePreviewPanelRef {
@@ -44,7 +47,7 @@ function widgetBundleBase(apiBaseUrl: string): string {
 
 export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanelProps>(
   function LivePreviewPanel(props, ref) {
-    const { apiBaseUrl, me, className } = props;
+    const { apiBaseUrl, me, className, onTokenIssued, hideControls, width } = props;
 
     const api = useMemo(() => createDashboardApi({ baseUrl: apiBaseUrl }), [apiBaseUrl]);
     const apiBase = useMemo(() => normalizeApiBase(apiBaseUrl), [apiBaseUrl]);
@@ -70,6 +73,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
           scopes: PREVIEW_SCOPES,
         });
         setToken(session.embed_session_token);
+        onTokenIssued?.(session.expires_at_unix);
       } catch (e) {
         setErrorMsg(errorText(e));
       } finally {
@@ -135,29 +139,31 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
     return (
       <section
         className={className}
-        style={{ display: "flex", flexDirection: "column", gap: 12 }}
+        style={{ display: "flex", flexDirection: "column", gap: 12, width: width ?? "100%" }}
       >
-        <div className="preview-controls" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div className="segmented">
-            <button
-              type="button"
-              className={presentation === "floating" ? "active" : ""}
-              onClick={() => setPresentation("floating")}
-            >
-              Flutuante
-            </button>
-            <button
-              type="button"
-              className={presentation === "conversational" ? "active" : ""}
-              onClick={() => setPresentation("conversational")}
-            >
-              Conversacional
+        {!hideControls && (
+          <div className="preview-controls" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div className="segmented">
+              <button
+                type="button"
+                className={presentation === "floating" ? "active" : ""}
+                onClick={() => setPresentation("floating")}
+              >
+                Flutuante
+              </button>
+              <button
+                type="button"
+                className={presentation === "conversational" ? "active" : ""}
+                onClick={() => setPresentation("conversational")}
+              >
+                Conversacional
+              </button>
+            </div>
+            <button type="button" disabled={busy} onClick={() => void issueToken()}>
+              <RefreshCw size={15} /> Renovar token
             </button>
           </div>
-          <button type="button" disabled={busy} onClick={() => void issueToken()}>
-            <RefreshCw size={15} /> Renovar token
-          </button>
-        </div>
+        )}
 
         {errorMsg ? <p className="panel panel-info">{errorMsg}</p> : null}
 

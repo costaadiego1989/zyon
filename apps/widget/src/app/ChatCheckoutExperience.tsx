@@ -12,7 +12,7 @@ export function ChatCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
 
   return (
     <section
-      className="checkout-experience aacp-page aacp-widget aacp-widget--conversational"
+      className="checkout-experience zyon-page zyon-widget zyon-widget--conversational"
       style={presentation.style}
       data-cart-open={vm.cartOpen ? "true" : undefined}
       data-color-mode={presentation.colorMode}
@@ -21,8 +21,8 @@ export function ChatCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
       data-channel="chat"
       data-skin="pulse"
     >
-      <div className="aacp-shell">
-        <main className="aacp-main">
+      <div className="zyon-shell">
+        <main className="zyon-main">
           <ExperienceHeader model={presentation.header} />
           <JourneyProtocol model={presentation.journey} />
           <DecisionStage vm={vm} />

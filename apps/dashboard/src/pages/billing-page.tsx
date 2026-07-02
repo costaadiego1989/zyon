@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { CreditCard, ExternalLink, RefreshCw, Sparkles, CheckCircle2 } from "lucide-react";
+import { CreditCard, ExternalLink, RefreshCw, Sparkles, CheckCircle2, Receipt, Activity, Zap, BarChart3 } from "lucide-react";
 import {
   createDashboardApi,
   DashboardHttpError,
@@ -40,21 +40,24 @@ const PLANS = [
   {
     key: "starter",
     name: "Starter",
+    priceId: "starter",
     price: "Gratuito",
-    features: ["1 instalacao", "500 sessoes/mes", "Webhooks basicos", "Suporte comunidade"],
+    features: ["1 instalação", "500 sessões/mês", "Webhooks básicos", "Suporte comunidade"],
   },
   {
     key: "growth",
     name: "Growth",
-    price: "R$ 299/mo",
-    features: ["5 instalacoes", "10k sessoes/mes", "Webhooks + replay", "Suporte email"],
+    priceId: "growth",
+    price: "R$ 299/mês",
+    features: ["5 instalações", "10k sessões/mês", "Webhooks + replay", "Suporte email"],
     highlight: true,
   },
   {
     key: "scale",
     name: "Scale",
-    price: "R$ 899/mo",
-    features: ["Instalacoes ilimitadas", "Sessoes ilimitadas", "SLA 99.9%", "Suporte dedicado"],
+    priceId: "scale",
+    price: "R$ 899/mês",
+    features: ["Instalações ilimitadas", "Sessões ilimitadas", "SLA 99.9%", "Suporte dedicado"],
   },
 ];
 
@@ -101,11 +104,12 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
     }
   }
 
-  async function openCheckout() {
+  async function openCheckout(priceId: string) {
     setBusy(true);
     setMessage(null);
     try {
       const { url } = await api.createBillingCheckoutSession({
+        price_id: priceId,
         success_url: window.location.href,
         cancel_url: window.location.href,
       });
@@ -120,8 +124,16 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
   if (!props.me) {
     return (
       <>
-        <h1>Faturamento</h1>
-        <p className="page-lead">Login necessario para ver assinatura e faturas.</p>
+        <header className="page-head">
+          <div>
+            <p className="eyebrow">Plano &amp; Cobrança</p>
+            <h1>Faturamento</h1>
+            <p className="page-lead">Login necessário para ver assinatura e faturas.</p>
+          </div>
+        </header>
+        <div className="panel panel-info">
+          <p>Faça login para acessar informações de faturamento.</p>
+        </div>
       </>
     );
   }
@@ -132,7 +144,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         <div>
           <p className="eyebrow">Plano &amp; Cobrança</p>
           <h1>Faturamento</h1>
-          <p className="page-lead">Plano, assinatura e historico de cobranças do tenant.</p>
+          <p className="page-lead">Plano, assinatura e histórico de cobranças do tenant.</p>
         </div>
         <div className="button-row">
           <button type="button" disabled={loading || busy} onClick={() => void load()}>
@@ -145,7 +157,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
               Portal de faturamento
             </button>
           ) : (
-            <button type="button" className="primary-action" disabled={busy} onClick={() => void openCheckout()}>
+            <button type="button" className="primary-action" disabled={busy} onClick={() => void openCheckout("starter")}>
               <CreditCard size={16} />
               Assinar plano
             </button>
@@ -153,8 +165,37 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         </div>
       </header>
 
-      {message ? <p className="panel panel-warn">{message}</p> : null}
-      {loading ? <p className="panel panel-info">Carregando...</p> : null}
+      <div role="status" aria-live="polite">
+        {message ? <p className="panel panel-warn">{message}</p> : null}
+        {loading ? <p className="panel panel-info">Carregando...</p> : null}
+      </div>
+
+      <div className="metrics">
+        <article className="metric">
+          <BarChart3 size={18} aria-hidden />
+          <span className="metric-value">{subscription?.plan ?? "—"}</span>
+          <span className="metric-label">Plano Atual</span>
+        </article>
+        <article className="metric">
+          <Activity size={18} aria-hidden />
+          <span className="metric-value">{subscription?.usage?.sessions_current ?? "—"}</span>
+          <span className="metric-label">Sessões este mês</span>
+        </article>
+        <article className="metric">
+          <Zap size={18} aria-hidden />
+          <span className="metric-value">{subscription?.usage?.installations_current ?? "—"}</span>
+          <span className="metric-label">Instalações ativas</span>
+        </article>
+        <article className="metric">
+          <CreditCard size={18} aria-hidden />
+          <span className="metric-value">
+            <span className={subscription ? statusBadgeClass(subscription.status) : "badge"}>
+              {subscription ? (STATUS_LABEL[subscription.status] ?? subscription.status) : "Sem plano"}
+            </span>
+          </span>
+          <span className="metric-label">Status</span>
+        </article>
+      </div>
 
       {subscription ? (
         <section className="panel stacked">
@@ -165,7 +206,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
           <dl className="detail-list">
             <dt>Plano</dt>
             <dd>
-              <strong style={{ fontFamily: "var(--font-data)", fontSize: 13 }}>{subscription.plan}</strong>
+              <strong className="plan-price" style={{ fontSize: 13 }}>{subscription.plan}</strong>
             </dd>
             <dt>Status</dt>
             <dd>
@@ -173,58 +214,89 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
                 {STATUS_LABEL[subscription.status] ?? subscription.status}
               </span>
             </dd>
-            <dt>Renovacao</dt>
-            <dd style={{ fontFamily: "var(--font-data)", fontSize: 13 }}>{formatDate(subscription.current_period_end)}</dd>
+            <dt>Renovação</dt>
+            <dd className="plan-price" style={{ fontSize: 13 }}>{formatDate(subscription.current_period_end)}</dd>
             {subscription.trial_end ? (
               <>
                 <dt>Fim do teste</dt>
-                <dd style={{ fontFamily: "var(--font-data)", fontSize: 13 }}>{formatDate(subscription.trial_end)}</dd>
+                <dd className="plan-price" style={{ fontSize: 13 }}>{formatDate(subscription.trial_end)}</dd>
               </>
             ) : null}
             {subscription.cancel_at_period_end ? (
               <>
                 <dt>Cancelamento</dt>
-                <dd><span className="badge warn">Agendado ao fim do periodo</span></dd>
+                <dd><span className="badge warn">Agendado ao fim do período</span></dd>
               </>
             ) : null}
           </dl>
+          {subscription.usage ? (
+            <div className="metrics">
+              <div className="metric">
+                <span className="metric-label">Sessões este mês</span>
+                <span className="metric-value">{subscription.usage.sessions_current ?? "—"}</span>
+              </div>
+              <div className="metric">
+                <span className="metric-label">Instalações ativas</span>
+                <span className="metric-value">{subscription.usage.installations_current ?? "—"}</span>
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : !loading ? (
-        <div className="panel panel-warn" style={{ marginBottom: 24 }}>
-          Nenhuma assinatura ativa. Selecione um plano abaixo para comecar.
+        <div className="panel panel-warn">
+          Nenhuma assinatura ativa. Selecione um plano abaixo para começar.
         </div>
       ) : null}
+
+      <section className="panel stacked">
+        <div className="panel-title">
+          <h2>Histórico de faturas</h2>
+          <Receipt size={18} />
+        </div>
+        <p className="empty-state">Nenhuma fatura encontrada. O histórico estará disponível em breve.</p>
+      </section>
+
+      <section className="panel stacked">
+        <div className="panel-title">
+          <h2>Método de pagamento</h2>
+          <CreditCard size={18} />
+        </div>
+        <p className="empty-state">
+          Nenhum método cadastrado.{" "}
+          <button type="button" className="link-button" disabled={busy} onClick={() => void openPortal()}>
+            Gerenciar no portal
+          </button>
+        </p>
+      </section>
 
       <div className="section-header">
         <h2>Planos disponíveis</h2>
         <p className="page-lead">Escolha o plano ideal para o volume do seu tenant.</p>
       </div>
 
-      <div className="ops-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
+      <div className="ops-grid three-col">
         {PLANS.map((plan) => {
           const isCurrent = subscription?.plan?.toLowerCase() === plan.key;
           return (
             <section
               key={plan.key}
-              className="panel stacked"
-              style={plan.highlight ? { border: "1.5px solid var(--color-brand)", boxShadow: "0 0 0 3px var(--color-brand-subtle)" } : undefined}
+              className={`panel stacked${plan.highlight ? " plan-highlighted" : ""}`}
+              aria-labelledby={`plan-${plan.key}-title`}
             >
               {plan.highlight ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-brand)", fontWeight: 700, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8 }}>
+                <div className="plan-badge-popular">
                   <Sparkles size={13} />
                   Mais popular
                 </div>
               ) : null}
-              <div className="panel-title" style={{ marginBottom: 4 }}>
-                <h2>{plan.name}</h2>
+              <div className="panel-title">
+                <h2 id={`plan-${plan.key}-title`}>{plan.name}</h2>
                 {isCurrent ? <span className="badge ok">Plano atual</span> : null}
               </div>
-              <p style={{ fontFamily: "var(--font-data)", fontSize: 20, fontWeight: 700, color: "var(--color-text)", marginBottom: 16 }}>
-                {plan.price}
-              </p>
-              <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px", display: "flex", flexDirection: "column", gap: 8 }}>
+              <p className="plan-price">{plan.price}</p>
+              <ul className="plan-features" aria-label={`Recursos do plano ${plan.name}`}>
                 {plan.features.map((feat) => (
-                  <li key={feat} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text-secondary)" }}>
+                  <li key={feat}>
                     <CheckCircle2 size={14} style={{ color: "var(--color-brand)", flexShrink: 0 }} />
                     {feat}
                   </li>
@@ -235,7 +307,8 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
                   type="button"
                   className={plan.highlight ? "primary-action" : ""}
                   disabled={busy}
-                  onClick={() => void openCheckout()}
+                  onClick={() => void openCheckout(plan.priceId)}
+                  aria-label={`Assinar plano ${plan.name}`}
                   style={{ width: "100%", justifyContent: "center" }}
                 >
                   {subscription ? "Mudar para este plano" : "Assinar"}

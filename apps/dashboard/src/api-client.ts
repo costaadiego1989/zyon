@@ -1,6 +1,7 @@
 import type {
   CheckoutSettings,
   CheckoutSettingsPatch,
+  DashboardOverview,
   MerchantRules,
   MerchantTheme,
   OnboardingStateResponse,
@@ -12,7 +13,7 @@ import type {
   SupportTicketStatusPatch,
 } from "@zyon/shared-types";
 
-export type { OnboardingStateResponse, OnboardingStepId } from "@zyon/shared-types";
+export type { MerchantTheme, OnboardingStateResponse, OnboardingStepId } from "@zyon/shared-types";
 
 export function normalizeApiBase(url: string): string {
   return url.trimEnd().replace(/\/+$/, "");
@@ -160,6 +161,12 @@ export type BillingSubscription = {
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   trial_end: string | null;
+  usage?: {
+    sessions_current: number | null;
+    sessions_limit: number | null;
+    installations_current: number | null;
+    installations_limit: number | null;
+  };
 };
 
 export type BillingCheckoutSessionResponse = {
@@ -185,31 +192,97 @@ export type PaymentOnboardingLinkResponse = {
 
 export type AuditEvent = {
   id: string;
-  merchant_id: string;
+  actor_type: "human" | "service";
   actor_id: string | null;
   action: string;
   resource_type: string;
   resource_id: string | null;
+  correlation_id: string | null;
   metadata: Record<string, unknown> | null;
-  created_at: string;
+  occurred_at: string;
 };
 
 export type AgentRules = Record<string, unknown> & {
   enabled?: boolean;
 };
 
-export type NegotiationPolicy = Record<string, unknown> & {
-  enabled?: boolean;
-  max_discount_pct?: number;
-};
+export interface NegotiationDiscountRange {
+  minOfferDiscountPercent: number;
+  maxDiscountPercent: number;
+}
+
+export interface CategoryNegotiationPolicy extends NegotiationDiscountRange {
+  categoryId: string;
+}
+
+export interface ItemNegotiationPolicy extends NegotiationDiscountRange {
+  sku: string;
+}
+
+export interface NegotiationPolicy {
+  enabled: boolean;
+  global: NegotiationDiscountRange;
+  categories?: CategoryNegotiationPolicy[];
+  items?: ItemNegotiationPolicy[];
+  maxRounds: number;
+  maxAiCostCents?: number;
+  estimatedCostPerAiCallCents: number;
+}
+
+export interface NegotiationPolicyResponse {
+  has_custom_policy: boolean;
+  policy: NegotiationPolicy;
+}
+
+export interface NegotiationSession {
+  id: string;
+  global_user_id?: string;
+  cart_fingerprint: string;
+  agreement: boolean;
+  selected_discount_percent: number;
+  denial_reason?: string;
+  estimated_ai_cost_cents: number;
+  created_at: string;
+  applied_at?: string;
+}
+
+export interface NegotiationStats {
+  total_sessions: number;
+  total_ai_cost_cents: number;
+  agreement_count: number;
+  agreement_rate: number;
+  avg_discount_percent: number;
+  total_ledger_entries: number;
+  period: string;
+}
 
 export type CommerceConnection = {
-  id: string;
-  platform: string;
-  shop_domain: string | null;
-  status: "active" | "inactive" | "error" | string;
+  provider: "shopify" | "woocommerce" | string;
+  store_url: string;
+  status: "pending" | "healthy" | "degraded" | string;
+  api_version: string | null;
+  last_tested_at: string | null;
+  last_synced_at: string | null;
+  last_error_code: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type ConnectCommercePayload = {
+  provider: "shopify" | "woocommerce";
+  shop_domain?: string;
+  admin_access_token?: string;
+  storefront_access_token?: string;
+  api_version?: string;
+  store_url?: string;
+  consumer_key?: string;
+  consumer_secret?: string;
+};
+
+export type CommerceConnectionTestResult = {
+  connection: CommerceConnection;
+  store_name: string;
+  currency: string;
 };
 
 export type Installation = {
@@ -222,7 +295,7 @@ export type Installation = {
   updated_at: string;
 };
 
-type CursorPage<T> = {
+export type CursorPage<T> = {
   data: T[];
   next_cursor: string | null;
   has_more: boolean;
@@ -534,16 +607,17 @@ export function createDashboardApi(options: {
       );
     },
 
-    async getOrders(limit?: number): Promise<TenantOrder[]> {
-      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
-      return (
-        await dashboardJson<CursorPage<TenantOrder>>(
-          base,
-          `/orders${query}`,
-          { method: "GET" },
-          f,
-        )
-      ).data;
+    async getOrders(limit?: number, cursor?: string): Promise<CursorPage<TenantOrder>> {
+      const params = new URLSearchParams();
+      if (limit) params.set("limit", String(limit));
+      if (cursor) params.set("cursor", cursor);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      return dashboardJson<CursorPage<TenantOrder>>(
+        base,
+        `/orders${query}`,
+        { method: "GET" },
+        f,
+      );
     },
 
     async getCustomers(limit?: number): Promise<TenantCustomer[]> {
@@ -558,6 +632,19 @@ export function createDashboardApi(options: {
       ).data;
     },
 
+    async getCustomersPage(limit?: number, cursor?: string): Promise<CursorPage<TenantCustomer>> {
+      const params = new URLSearchParams();
+      if (limit) params.set("limit", String(limit));
+      if (cursor) params.set("cursor", cursor);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      return dashboardJson<CursorPage<TenantCustomer>>(
+        base,
+        `/customers${query}`,
+        { method: "GET" },
+        f,
+      );
+    },
+
     async getPayments(limit?: number): Promise<TenantPayment[]> {
       const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
       return (
@@ -568,6 +655,15 @@ export function createDashboardApi(options: {
           f,
         )
       ).data;
+    },
+
+    getDashboardOverview(merchantId: string): Promise<DashboardOverview> {
+      return dashboardJson<DashboardOverview>(
+        base,
+        `/checkout/dashboard/overview/${encodeURIComponent(merchantId)}`,
+        { method: "GET" },
+        f,
+      );
     },
 
     createEmbedSession(payload: {
@@ -604,8 +700,9 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/billing/portal-session", { method: "POST", jsonBody: payload }, f);
     },
 
-    getPaymentConnections(): Promise<PaymentConnection[]> {
-      return dashboardJson<PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
+    async getPaymentConnections(): Promise<PaymentConnection[]> {
+      const res = await dashboardJson<{ data: PaymentConnection[] } | PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
+      return Array.isArray(res) ? res : (res?.data ?? []);
     },
 
     createStripeOnboardingLink(payload: { return_url?: string; refresh_url?: string }): Promise<PaymentOnboardingLinkResponse> {
@@ -628,15 +725,20 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/payments/connections/asaas/sync", { method: "POST" }, f);
     },
 
-    async getAuditEvents(limit?: number): Promise<AuditEvent[]> {
-      const query = limit ? `?limit=${encodeURIComponent(String(limit))}` : "";
-      const response = await dashboardJson<AuditEvent[] | CursorPage<AuditEvent>>(
+    async getAuditEvents(options?: {
+      limit?: number;
+      cursor?: string;
+    }): Promise<CursorPage<AuditEvent>> {
+      const params = new URLSearchParams();
+      if (options?.limit) params.set("limit", String(options.limit));
+      if (options?.cursor) params.set("cursor", options.cursor);
+      const query = params.toString() ? `?${params.toString()}` : "";
+      return dashboardJson<CursorPage<AuditEvent>>(
         base,
         `/audit-events${query}`,
         { method: "GET" },
         f,
       );
-      return Array.isArray(response) ? response : response.data;
     },
 
     getAgentRules(): Promise<AgentRules> {
@@ -651,32 +753,51 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/agent-rules/context", { method: "GET" }, f);
     },
 
-    getNegotiationPolicy(): Promise<NegotiationPolicy> {
+    getNegotiationPolicy(): Promise<NegotiationPolicyResponse> {
       return dashboardJson(base, "/negotiations/policy", { method: "GET" }, f);
     },
 
-    putNegotiationPolicy(payload: NegotiationPolicy): Promise<NegotiationPolicy> {
+    putNegotiationPolicy(payload: NegotiationPolicy): Promise<NegotiationPolicyResponse> {
       return dashboardJson(base, "/negotiations/policy", { method: "PUT", jsonBody: payload }, f);
     },
 
-    getCommerceConnections(): Promise<CommerceConnection[]> {
-      return dashboardJson<CommerceConnection[]>(base, "/commerce/connections", { method: "GET" }, f);
+    getNegotiationSessions(params?: { limit?: number; cursor?: string }): Promise<CursorPage<NegotiationSession>> {
+      const query = new URLSearchParams();
+      if (params?.limit) query.set("limit", String(params.limit));
+      if (params?.cursor) query.set("cursor", params.cursor);
+      const qs = query.toString();
+      return dashboardJson(base, `/negotiations/sessions${qs ? `?${qs}` : ""}`, { method: "GET" }, f);
     },
 
-    createCommerceConnection(payload: { platform: string; shop_domain?: string; credentials?: Record<string, unknown> }): Promise<CommerceConnection> {
+    getNegotiationStats(period?: string): Promise<NegotiationStats> {
+      const qs = period ? `?period=${encodeURIComponent(period)}` : "";
+      return dashboardJson(base, `/negotiations/stats${qs}`, { method: "GET" }, f);
+    },
+
+    async getCommerceConnections(): Promise<CommerceConnection[]> {
+      const response = await dashboardJson<CommerceConnection[] | CursorPage<CommerceConnection>>(
+        base,
+        "/commerce/connections",
+        { method: "GET" },
+        f,
+      );
+      return Array.isArray(response) ? response : response.data;
+    },
+
+    createCommerceConnection(payload: ConnectCommercePayload): Promise<CommerceConnection> {
       return dashboardJson(base, "/commerce/connections", { method: "POST", jsonBody: payload }, f);
     },
 
-    testCommerceConnection(connectionId: string): Promise<{ ok: boolean; message?: string }> {
-      return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}/test`, { method: "POST" }, f);
+    testCommerceConnection(): Promise<CommerceConnectionTestResult> {
+      return dashboardJson(base, "/commerce/connections/test", { method: "POST" }, f);
     },
 
-    syncCommerceConnection(connectionId: string): Promise<CommerceConnection> {
-      return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}/sync`, { method: "POST" }, f);
+    syncCommerceConnection(): Promise<CommerceConnection> {
+      return dashboardJson(base, "/commerce/connections/sync", { method: "POST" }, f);
     },
 
-    deleteCommerceConnection(connectionId: string): Promise<Record<string, never>> {
-      return dashboardJson(base, `/commerce/connections/${encodeURIComponent(connectionId)}`, { method: "DELETE" }, f);
+    deleteCommerceConnection(): Promise<{ disconnected: boolean }> {
+      return dashboardJson(base, "/commerce/connections", { method: "DELETE" }, f);
     },
 
     async getInstallations(): Promise<Installation[]> {

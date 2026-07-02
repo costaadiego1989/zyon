@@ -18,9 +18,9 @@ export function SupportFABView({ model }: { model: SupportFabModel }) {
   }, []);
 
   return (
-    <div className="aacp-fab-container">
+    <div className="zyon-fab-container">
       {showTooltip && !model.supportOpen ? (
-        <div className="aacp-fab-tooltip">
+        <div className="zyon-fab-tooltip">
           <Sparkles size={12} className="text-purple-400" />
           <span>Precisa de ajuda com o pedido?</span>
           <button type="button" onClick={() => setShowTooltip(false)}>
@@ -30,7 +30,7 @@ export function SupportFABView({ model }: { model: SupportFabModel }) {
       ) : null}
       <button
         type="button"
-        className={`aacp-fab${model.supportOpen ? " active" : ""}`}
+        className={`zyon-fab${model.supportOpen ? " active" : ""}`}
         onClick={model.onToggle}
         aria-label={model.supportOpen ? "Fechar suporte" : "Abrir suporte"}
       >

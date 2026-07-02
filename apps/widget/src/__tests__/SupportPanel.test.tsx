@@ -214,7 +214,7 @@ describe("SupportPanel", () => {
     expect(queryByText("Olá! Sou o assistente de suporte.")).toBeNull();
   });
 
-  it("B16 — bubble do usuário tem classe aacp-bubble-buyer", () => {
+  it("B16 — bubble do usuário tem classe zyon-bubble-buyer", () => {
     vi.mocked(useSupportChat).mockReturnValue(
       buildChat({ messages: [{ role: "user", text: "Qual o prazo?" }] })
     );
@@ -222,7 +222,7 @@ describe("SupportPanel", () => {
     expect(getByText("Qual o prazo?").closest(".zyon-bubble-buyer")).not.toBeNull();
   });
 
-  it("B17 — bubble do agente tem classe aacp-bubble-agent", () => {
+  it("B17 — bubble do agente tem classe zyon-bubble-agent", () => {
     vi.mocked(useSupportChat).mockReturnValue(
       buildChat({ messages: [{ role: "agent", text: "5 dias úteis." }] })
     );

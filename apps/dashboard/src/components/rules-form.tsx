@@ -1,5 +1,6 @@
 import React from "react";
 import type { MerchantRules } from "@zyon/shared-types";
+import { validateOriginZip, validateTreasuryAddress } from "../utils/rules-validation.js";
 
 const BRAND_VOICE_DESC: Record<MerchantRules["brandVoice"], string> = {
   consultative: "Consultiva — tom educativo, foco em valor e benefícios",
@@ -15,12 +16,35 @@ const SAMPLE_PRICE = 100;
 export function RulesForm({
   rules,
   onChange,
+  validationErrors = {},
+  onValidationChange,
 }: {
   rules: MerchantRules;
   onChange: (rules: MerchantRules) => void;
+  validationErrors?: Record<string, string>;
+  onValidationChange?: (errors: Record<string, string>) => void;
 }) {
   function patch(next: Partial<MerchantRules>) {
     onChange({ ...rules, ...next });
+  }
+
+  function setFieldError(field: string, error: string | null) {
+    if (!onValidationChange) return;
+    const next = { ...validationErrors };
+    if (error) next[field] = error;
+    else delete next[field];
+    onValidationChange(next);
+  }
+
+  function handleOriginZipBlur() {
+    const err = validateOriginZip(rules.originZip);
+    setFieldError("originZip", err);
+  }
+
+  function handleTreasuryAddressBlur() {
+    if (!rules.cryptoPayments?.enabled) return;
+    const err = validateTreasuryAddress(rules.cryptoPayments?.treasuryAddress);
+    setFieldError("treasuryAddress", err);
   }
 
   const maxDiscountValue = ((SAMPLE_PRICE * rules.maxDiscountPercent) / 100).toFixed(2);
@@ -37,38 +61,47 @@ export function RulesForm({
       <fieldset>
         <legend>Descontos</legend>
 
-        <label>
-          Desconto máximo: <strong>{rules.maxDiscountPercent}%</strong>
+        <label htmlFor="slider-max-discount">
+          Desconto máximo: <strong id="value-max-discount">{rules.maxDiscountPercent}%</strong>
           <input
+            id="slider-max-discount"
             type="range"
             min={0}
             max={30}
             step={1}
             value={rules.maxDiscountPercent}
             onChange={(e) => patch({ maxDiscountPercent: Number(e.target.value) })}
+            aria-valuemin={0}
+            aria-valuemax={30}
+            aria-valuenow={rules.maxDiscountPercent}
+            aria-valuetext={`${rules.maxDiscountPercent}%`}
+            aria-describedby="value-max-discount"
           />
         </label>
+        {validationErrors.marginConsistency && (
+          <span className="field-error">{validationErrors.marginConsistency}</span>
+        )}
 
-        <label>
-          Margem mínima: <strong>{rules.minimumMarginPercent}%</strong>
+        <label htmlFor="slider-min-margin">
+          Margem mínima: <strong id="value-min-margin">{rules.minimumMarginPercent}%</strong>
           <input
+            id="slider-min-margin"
             type="range"
             min={20}
             max={60}
             step={1}
             value={rules.minimumMarginPercent}
             onChange={(e) => patch({ minimumMarginPercent: Number(e.target.value) })}
+            aria-valuemin={20}
+            aria-valuemax={60}
+            aria-valuenow={rules.minimumMarginPercent}
+            aria-valuetext={`${rules.minimumMarginPercent}%`}
+            aria-describedby="value-min-margin"
           />
         </label>
 
         <div
-          className="panel"
-          style={{
-            marginTop: 8,
-            fontSize: 13,
-            background: marginOk ? "var(--color-success-bg, #f0fdf4)" : "var(--color-warn-bg, #fff7ed)",
-            borderColor: marginOk ? "var(--color-success, #16a34a)" : "var(--color-warn, #ea580c)",
-          }}
+          className={`panel ${marginOk ? "panel-info" : "panel-warn"}`}
         >
           <strong>Simulação — produto R${SAMPLE_PRICE.toFixed(2)}</strong>
           <div>Desconto máximo: R${maxDiscountValue} ({rules.maxDiscountPercent}%)</div>
@@ -92,6 +125,8 @@ export function RulesForm({
             type="checkbox"
             checked={rules.allowFreeShipping}
             onChange={(e) => patch({ allowFreeShipping: e.target.checked })}
+            role="switch"
+            aria-checked={rules.allowFreeShipping}
           />
           Permitir frete grátis
         </label>
@@ -101,6 +136,8 @@ export function RulesForm({
             type="checkbox"
             checked={rules.allowShippingDiscount}
             onChange={(e) => patch({ allowShippingDiscount: e.target.checked })}
+            role="switch"
+            aria-checked={rules.allowShippingDiscount}
           />
           Permitir desconto parcial no frete
         </label>
@@ -111,6 +148,8 @@ export function RulesForm({
               type="checkbox"
               checked={rules.allowStackDiscountAndFreeShipping}
               onChange={(e) => patch({ allowStackDiscountAndFreeShipping: e.target.checked })}
+              role="switch"
+              aria-checked={rules.allowStackDiscountAndFreeShipping}
             />
             Permitir desconto + frete grátis combinados
           </label>
@@ -125,6 +164,9 @@ export function RulesForm({
             value={rules.freeShippingMinCartValue}
             onChange={(e) => patch({ freeShippingMinCartValue: Number(e.target.value) })}
           />
+          {validationErrors.freeShippingMinCartValue && (
+            <span className="field-error">{validationErrors.freeShippingMinCartValue}</span>
+          )}
         </label>
 
         <label>
@@ -136,17 +178,26 @@ export function RulesForm({
             value={rules.maxShippingSubsidy}
             onChange={(e) => patch({ maxShippingSubsidy: Number(e.target.value) })}
           />
+          {validationErrors.maxShippingSubsidy && (
+            <span className="field-error">{validationErrors.maxShippingSubsidy}</span>
+          )}
         </label>
 
-        <label>
-          Desconto parcial máximo no frete: <strong>{rules.maxPartialShippingDiscount}%</strong>
+        <label htmlFor="slider-partial-shipping">
+          Desconto parcial máximo no frete: <strong id="value-partial-shipping">{rules.maxPartialShippingDiscount}%</strong>
           <input
+            id="slider-partial-shipping"
             type="range"
             min={0}
             max={100}
             step={5}
             value={rules.maxPartialShippingDiscount}
             onChange={(e) => patch({ maxPartialShippingDiscount: Number(e.target.value) })}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={rules.maxPartialShippingDiscount}
+            aria-valuetext={`${rules.maxPartialShippingDiscount}%`}
+            aria-describedby="value-partial-shipping"
           />
         </label>
       </fieldset>
@@ -160,6 +211,8 @@ export function RulesForm({
             type="checkbox"
             checked={rules.allowBonusItem}
             onChange={(e) => patch({ allowBonusItem: e.target.checked })}
+            role="switch"
+            aria-checked={rules.allowBonusItem}
           />
           Permitir item bônus como oferta
         </label>
@@ -169,6 +222,8 @@ export function RulesForm({
             type="checkbox"
             checked={rules.couponBoxEnabled}
             onChange={(e) => patch({ couponBoxEnabled: e.target.checked })}
+            role="switch"
+            aria-checked={rules.couponBoxEnabled}
           />
           Exibir campo de cupom no checkout
         </label>
@@ -207,7 +262,7 @@ export function RulesForm({
               </option>
             ))}
           </select>
-          <span style={{ fontSize: 12, color: "var(--color-muted, #64748b)", marginTop: 4, display: "block" }}>
+          <span className="page-lead">
             {BRAND_VOICE_DESC[rules.brandVoice]}
           </span>
         </label>
@@ -220,7 +275,11 @@ export function RulesForm({
             placeholder="00000-000"
             value={rules.originZip ?? ""}
             onChange={(e) => patch({ originZip: e.target.value || undefined })}
+            onBlur={handleOriginZipBlur}
           />
+          {validationErrors.originZip && (
+            <span className="field-error">{validationErrors.originZip}</span>
+          )}
         </label>
       </fieldset>
 
@@ -244,6 +303,8 @@ export function RulesForm({
                 },
               })
             }
+            role="switch"
+            aria-checked={rules.cryptoPayments?.enabled === true}
           />
           Aceitar pagamento com crypto
         </label>
@@ -315,8 +376,12 @@ export function RulesForm({
                 },
               })
             }
+            onBlur={handleTreasuryAddressBlur}
             placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
           />
+          {validationErrors.treasuryAddress && (
+            <span className="field-error">{validationErrors.treasuryAddress}</span>
+          )}
         </label>
         <label>
           Taxa BRL por 1 USDC

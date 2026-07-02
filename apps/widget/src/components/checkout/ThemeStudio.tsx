@@ -19,9 +19,9 @@ function ColorField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="aacp-studio-field">
+    <label className="zyon-studio-field">
       <span>{label}</span>
-      <div className="aacp-studio-color">
+      <div className="zyon-studio-color">
         <input type="color" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label} />
         <input
           type="text"
@@ -42,7 +42,7 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
     <>
       <button
         type="button"
-        className={`aacp-studio-fab${studio.open ? " active" : ""}`}
+        className={`zyon-studio-fab${studio.open ? " active" : ""}`}
         onClick={() => studio.setOpen(!studio.open)}
         aria-label={studio.open ? "Fechar Theme Studio" : "Abrir Theme Studio"}
         title="Theme Studio"
@@ -51,36 +51,36 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
       </button>
 
       <div
-        className={`aacp-studio-backdrop${studio.open ? " open" : ""}`}
+        className={`zyon-studio-backdrop${studio.open ? " open" : ""}`}
         onClick={() => studio.setOpen(false)}
         aria-hidden={!studio.open}
       />
 
       <aside
-        className={`aacp-studio-panel${studio.open ? " open" : ""}`}
+        className={`zyon-studio-panel${studio.open ? " open" : ""}`}
         aria-label="Theme Studio"
         aria-hidden={!studio.open}
       >
-        <header className="aacp-studio-header">
+        <header className="zyon-studio-header">
           <div>
-            <p className="aacp-studio-kicker">AACP</p>
+            <p className="zyon-studio-kicker">AACP</p>
             <h2>Theme Studio</h2>
-            <p className="aacp-studio-sub">Personalize o checkout em tempo real.</p>
+            <p className="zyon-studio-sub">Personalize o checkout em tempo real.</p>
           </div>
-          <button type="button" className="aacp-studio-close" onClick={() => studio.setOpen(false)} aria-label="Fechar">
+          <button type="button" className="zyon-studio-close" onClick={() => studio.setOpen(false)} aria-label="Fechar">
             <X size={18} />
           </button>
         </header>
 
-        <div className="aacp-studio-body">
-          <section className="aacp-studio-section">
+        <div className="zyon-studio-body">
+          <section className="zyon-studio-section">
             <h3>Presets</h3>
-            <div className="aacp-studio-presets">
+            <div className="zyon-studio-presets">
               {THEME_PRESETS.map((preset) => (
                 <button
                   key={preset.id}
                   type="button"
-                  className="aacp-studio-preset"
+                  className="zyon-studio-preset"
                   onClick={() => studio.applyPreset(preset.id)}
                 >
                   <strong>{preset.label}</strong>
@@ -90,9 +90,9 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
             </div>
           </section>
 
-          <section className="aacp-studio-section">
+          <section className="zyon-studio-section">
             <h3>Tipografia</h3>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Fonte principal</span>
               <select
                 value={theme.fontFamily}
@@ -103,7 +103,7 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
                 ))}
               </select>
             </label>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Fonte de destaque</span>
               <select
                 value={theme.fontDisplay ?? theme.fontFamily}
@@ -116,9 +116,9 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
             </label>
           </section>
 
-          <section className="aacp-studio-section">
+          <section className="zyon-studio-section">
             <h3>Cores</h3>
-            <div className="aacp-studio-grid">
+            <div className="zyon-studio-grid">
               {THEME_COLOR_FIELDS.map((field) => (
                 <ColorField
                   key={field.key}
@@ -130,9 +130,9 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
             </div>
           </section>
 
-          <section className="aacp-studio-section">
+          <section className="zyon-studio-section">
             <h3>Layout</h3>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Raio das bordas ({theme.borderRadius ?? 12}px)</span>
               <input
                 type="range"
@@ -143,7 +143,7 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
                 onChange={(e) => studio.setField("borderRadius", Number(e.target.value))}
               />
             </label>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Densidade</span>
               <select
                 value={theme.density ?? "comfortable"}
@@ -156,9 +156,9 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
             </label>
           </section>
 
-          <section className="aacp-studio-section">
+          <section className="zyon-studio-section">
             <h3>Cabeçalho</h3>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Título</span>
               <input
                 type="text"
@@ -168,7 +168,7 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
                 maxLength={80}
               />
             </label>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Subtítulo</span>
               <input
                 type="text"
@@ -178,7 +178,7 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
                 maxLength={140}
               />
             </label>
-            <label className="aacp-studio-field">
+            <label className="zyon-studio-field">
               <span>Nome do agente</span>
               <input
                 type="text"
@@ -191,26 +191,26 @@ export function ThemeStudio({ studio, theme }: { studio: ThemeStudioState; theme
           </section>
         </div>
 
-        <footer className="aacp-studio-footer">
-          {studio.error ? <p className="aacp-studio-error">{studio.error}</p> : null}
-          {studio.status ? <p className="aacp-studio-status">{studio.status}</p> : null}
-          <div className="aacp-studio-actions">
-            <button type="button" className="aacp-studio-btn ghost" onClick={studio.resetDraft}>
+        <footer className="zyon-studio-footer">
+          {studio.error ? <p className="zyon-studio-error">{studio.error}</p> : null}
+          {studio.status ? <p className="zyon-studio-status">{studio.status}</p> : null}
+          <div className="zyon-studio-actions">
+            <button type="button" className="zyon-studio-btn ghost" onClick={studio.resetDraft}>
               <RotateCcw size={14} />
               Reset
             </button>
-            <button type="button" className="aacp-studio-btn ghost" onClick={studio.exportJson}>
+            <button type="button" className="zyon-studio-btn ghost" onClick={studio.exportJson}>
               <Download size={14} />
               JSON
             </button>
-            <button type="button" className="aacp-studio-btn" onClick={studio.saveLocal}>
+            <button type="button" className="zyon-studio-btn" onClick={studio.saveLocal}>
               <Save size={14} />
               Salvar local
             </button>
             {studio.canPersist ? (
               <button
                 type="button"
-                className="aacp-studio-btn primary"
+                className="zyon-studio-btn primary"
                 disabled={studio.saving}
                 onClick={() => void studio.saveRemote()}
               >

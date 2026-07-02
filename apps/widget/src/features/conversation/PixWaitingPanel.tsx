@@ -93,58 +93,58 @@ export function PixWaitingPanel({ model }: { model: PixWaitingModel }) {
 
   return (
     <section
-      className="aacp-pix-waiting"
+      className="zyon-pix-waiting"
       data-pix-state={status}
       aria-label="Aguardando confirmação do pagamento PIX"
       aria-live="polite"
     >
-      <header className="aacp-pix-waiting__head">
-        <span className="aacp-pix-waiting__beacon" aria-hidden="true">
+      <header className="zyon-pix-waiting__head">
+        <span className="zyon-pix-waiting__beacon" aria-hidden="true">
           {isApproved ? (
             <CheckCircle2 size={18} />
           ) : isTerminalError ? (
             <AlertTriangle size={18} />
           ) : (
-            <span className="aacp-pix-waiting__beacon-core" />
+            <span className="zyon-pix-waiting__beacon-core" />
           )}
         </span>
-        <div className="aacp-pix-waiting__headings">
-          <span className="aacp-pix-waiting__kicker">{copy.kicker}</span>
-          <h3 className="aacp-pix-waiting__title">{copy.title}</h3>
+        <div className="zyon-pix-waiting__headings">
+          <span className="zyon-pix-waiting__kicker">{copy.kicker}</span>
+          <h3 className="zyon-pix-waiting__title">{copy.title}</h3>
         </div>
         {isListening ? (
-          <span className="aacp-pix-waiting__timer" role="timer" aria-label="Tempo restante">
+          <span className="zyon-pix-waiting__timer" role="timer" aria-label="Tempo restante">
             <TimerReset size={14} aria-hidden="true" />
-            <span className="aacp-pix-waiting__timer-value">{countdown}</span>
+            <span className="zyon-pix-waiting__timer-value">{countdown}</span>
           </span>
         ) : null}
       </header>
 
-      <p className="aacp-pix-waiting__description">{copy.description}</p>
+      <p className="zyon-pix-waiting__description">{copy.description}</p>
 
       {isListening ? (
         <>
-          <div className="aacp-pix-waiting__listening" aria-hidden="true">
-            <span className="aacp-pix-waiting__wave" />
-            <span className="aacp-pix-waiting__wave" />
-            <span className="aacp-pix-waiting__wave" />
-            <span className="aacp-pix-waiting__listening-label">Escutando o webhook…</span>
+          <div className="zyon-pix-waiting__listening" aria-hidden="true">
+            <span className="zyon-pix-waiting__wave" />
+            <span className="zyon-pix-waiting__wave" />
+            <span className="zyon-pix-waiting__wave" />
+            <span className="zyon-pix-waiting__listening-label">Escutando o webhook…</span>
           </div>
 
           {model.copyPaste ? (
-            <div className="aacp-pix-waiting__body">
-              <div className="aacp-pix-waiting__qr">
+            <div className="zyon-pix-waiting__body">
+              <div className="zyon-pix-waiting__qr">
                 <QRCode value={model.copyPaste} size={148} />
               </div>
-              <div className="aacp-pix-waiting__code">
+              <div className="zyon-pix-waiting__code">
                 {model.amountLabel ? (
-                  <span className="aacp-pix-waiting__amount">{model.amountLabel}</span>
+                  <span className="zyon-pix-waiting__amount">{model.amountLabel}</span>
                 ) : null}
-                <span className="aacp-pix-waiting__code-label">PIX copia e cola</span>
-                <code className="aacp-pix-waiting__code-value">{model.copyPaste}</code>
+                <span className="zyon-pix-waiting__code-label">PIX copia e cola</span>
+                <code className="zyon-pix-waiting__code-value">{model.copyPaste}</code>
                 <button
                   type="button"
-                  className="aacp-pix-waiting__copy"
+                  className="zyon-pix-waiting__copy"
                   onClick={handleCopy}
                 >
                   {copied ? <Check size={15} /> : <Copy size={15} />}
@@ -154,7 +154,7 @@ export function PixWaitingPanel({ model }: { model: PixWaitingModel }) {
             </div>
           ) : model.invoiceUrl ? (
             <a
-              className="aacp-pix-waiting__invoice"
+              className="zyon-pix-waiting__invoice"
               href={model.invoiceUrl}
               target="_blank"
               rel="noreferrer"
@@ -167,7 +167,7 @@ export function PixWaitingPanel({ model }: { model: PixWaitingModel }) {
       ) : null}
 
       {isTerminalError ? (
-        <button type="button" className="aacp-pix-waiting__retry" onClick={model.onDismiss}>
+        <button type="button" className="zyon-pix-waiting__retry" onClick={model.onDismiss}>
           <TimerReset size={15} />
           Gerar nova cobrança
         </button>

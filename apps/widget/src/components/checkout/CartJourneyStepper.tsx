@@ -21,12 +21,12 @@ export function CartJourneyStepper({
   const progressPct = allDone ? 100 : resolveStepperProgressPct(activeIndex, CART_JOURNEY.length);
 
   return (
-    <nav className="aacp-cart-journey aacp-cart-journey--horizontal" aria-label="Jornada do carrinho">
-      <div className="aacp-cart-journey-rail-wrap">
-        <div className="aacp-cart-journey-track" aria-hidden>
-          <div className="aacp-cart-journey-track-fill" style={{ width: `${progressPct}%` }} />
+    <nav className="zyon-cart-journey zyon-cart-journey--horizontal" aria-label="Jornada do carrinho">
+      <div className="zyon-cart-journey-rail-wrap">
+        <div className="zyon-cart-journey-track" aria-hidden>
+          <div className="zyon-cart-journey-track-fill" style={{ width: `${progressPct}%` }} />
         </div>
-        <ol className="aacp-cart-journey-rail">
+        <ol className="zyon-cart-journey-rail">
           {CART_JOURNEY.map((step, index) => {
             const status = allDone
               ? "done"
@@ -38,11 +38,11 @@ export function CartJourneyStepper({
             const Icon = JOURNEY_ICONS[step.key];
 
             return (
-              <li key={step.key} className={cn("aacp-cart-journey-step", status)}>
-                <span className="aacp-cart-journey-marker" aria-hidden>
+              <li key={step.key} className={cn("zyon-cart-journey-step", status)}>
+                <span className="zyon-cart-journey-marker" aria-hidden>
                   {status === "done" ? <Check size={12} strokeWidth={2.75} /> : <Icon size={13} />}
                 </span>
-                <span className="aacp-cart-journey-label">{step.shortLabel}</span>
+                <span className="zyon-cart-journey-label">{step.shortLabel}</span>
               </li>
             );
           })}

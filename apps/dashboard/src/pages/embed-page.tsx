@@ -13,17 +13,88 @@ const SCOPE_META: Record<string, { ok: boolean; label: string }> = {
   "payment:intents:create":{ ok: false, label: "Criar intenções de pagamento" },
 };
 
+// ── Utility Functions (exported for testing) ─────────────────────────────────
+
+export function formatExpiry(unixSeconds: number): string {
+  const date = new Date(unixSeconds * 1000);
+  const formatted = date.toLocaleString('pt-BR', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+  const diffMs = unixSeconds * 1000 - Date.now();
+  const diffMin = Math.round(diffMs / 60000);
+  if (diffMin <= 0) return `${formatted} (expirado)`;
+  if (diffMin < 60) return `${formatted} (expira em ${diffMin} min)`;
+  const diffH = Math.round(diffMin / 60);
+  return `${formatted} (expira em ${diffH}h)`;
+}
+
+export function validateEmbedForm(params: {
+  allowedOrigin: string;
+  cartRef: string;
+  ttl: number;
+  scopes: string[];
+}): Record<string, string> {
+  const errors: Record<string, string> = {};
+  try {
+    const url = new URL(params.allowedOrigin);
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      errors.allowedOrigin = "Protocolo deve ser http ou https";
+    }
+  } catch {
+    errors.allowedOrigin = "URL inválida. Ex: https://minha-loja.com";
+  }
+  if (!params.cartRef.trim()) {
+    errors.cartRef = "Referência do carrinho é obrigatória";
+  }
+  if (params.ttl < 60 || params.ttl > 86400) {
+    errors.ttl = "TTL deve estar entre 60 e 86400 segundos";
+  }
+  if (params.scopes.length === 0) {
+    errors.scopes = "Selecione ao menos um escopo";
+  }
+  return errors;
+}
+
+export async function copyToClipboard(text: string): Promise<boolean> {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch { /* fall through to fallback */ }
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    return document.execCommand('copy');
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
 export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
-  const [allowedOrigin, setAllowedOrigin] = useState("https://store.example");
-  const [cartRef, setCartRef] = useState("cart_123");
+  const [allowedOrigin, setAllowedOrigin] = useState("https://");
+  const [cartRef, setCartRef] = useState("");
   const [ttl, setTtl] = useState(900);
   const [session, setSession] = useState<EmbedSessionResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(EMBED_SCOPES);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   async function issue() {
+    const errors = validateEmbedForm({ allowedOrigin, cartRef, ttl, scopes: selectedScopes });
+    setValidationErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setBusy(true);
     setMessage(null);
     try {
@@ -31,7 +102,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         ttl_seconds: ttl,
         allowed_origin: allowedOrigin,
         cart_ref: cartRef,
-        scopes: EMBED_SCOPES
+        scopes: selectedScopes
       }));
       setMessage("Token emitido com sucesso.");
     } catch (e) {
@@ -41,10 +112,12 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     }
   }
 
-  function copySnippet() {
-    void navigator.clipboard?.writeText(snippet).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  function handleCopy() {
+    void copyToClipboard(snippet).then((ok) => {
+      if (ok) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
     });
   }
 
@@ -70,9 +143,10 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <div className="dashboard-content">
       <header className="page-head">
         <div>
+          <span className="eyebrow">Plataforma</span>
           <h1>Token de Embed</h1>
           <p className="page-lead">
-            Emita tokens scoped, origin-bound para incorporar o widget no seu storefront.
+            Emita tokens com escopo definido e vinculados à origem para incorporar o widget no seu storefront.
             Cada token expira em {Math.round(ttl / 60)} min e fica vinculado à origem especificada.
           </p>
         </div>
@@ -83,76 +157,94 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       </header>
 
       {message && (
-        <p className={`panel-info ${session ? "panel-info" : "panel-warn"}`} style={{ marginBottom: "var(--space-5)" }}>
+        <div
+          className={`${session ? "panel-info" : "panel-warn"} embed-feedback`}
+          role="status"
+          aria-live="polite"
+        >
           {message}
-        </p>
+        </div>
       )}
 
-      <div className="split-panel" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="split-panel">
         {/* Left — form */}
         <div className="split-panel-controls">
           <section className="panel stacked">
             <div className="panel-title">
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <Shield size={16} style={{ color: "var(--color-brand)" }} />
+              <div>
+                <Shield size={16} className="icon-brand" />
                 <h2>Parâmetros de emissão</h2>
               </div>
               {hasToken && (
                 <span className="badge ok">
-                  <CheckCircle2 size={11} style={{ marginRight: 4 }} />
+                  <CheckCircle2 size={11} />
                   Ativo
                 </span>
               )}
             </div>
 
-            <label>
-              Origem permitida (allowed_origin)
+            <label htmlFor="embed-origin">
+              Origem permitida (<code>allowed_origin</code>)
               <input
+                id="embed-origin"
                 type="url"
                 value={allowedOrigin}
-                placeholder="https://store.example"
+                placeholder="https://minha-loja.com"
                 onChange={(e) => setAllowedOrigin(e.target.value)}
+                aria-describedby={validationErrors.allowedOrigin ? "embed-origin-error" : undefined}
               />
+              {validationErrors.allowedOrigin && (
+                <span className="field-error" id="embed-origin-error" role="alert">
+                  {validationErrors.allowedOrigin}
+                </span>
+              )}
             </label>
 
-            <label>
-              Referência do carrinho (cart_ref)
+            <label htmlFor="embed-cart-ref">
+              Referência do carrinho (<code>cart_ref</code>)
               <input
+                id="embed-cart-ref"
                 value={cartRef}
-                placeholder="cart_123"
+                placeholder="cart_abc123"
                 onChange={(e) => setCartRef(e.target.value)}
+                aria-describedby={validationErrors.cartRef ? "embed-cart-ref-error" : undefined}
               />
+              {validationErrors.cartRef && (
+                <span className="field-error" id="embed-cart-ref-error" role="alert">
+                  {validationErrors.cartRef}
+                </span>
+              )}
             </label>
 
-            <label>
+            <label htmlFor="embed-ttl">
               TTL (segundos)
               <input
+                id="embed-ttl"
                 type="number"
                 min={60}
                 max={86400}
                 value={ttl}
                 onChange={(e) => setTtl(Number(e.target.value))}
+                aria-describedby={validationErrors.ttl ? "embed-ttl-error" : "embed-ttl-hint"}
               />
-              <span style={{ fontSize: 11, color: "var(--color-text-faint)", fontFamily: "var(--font-mono)" }}>
+              <span className="field-hint" id="embed-ttl-hint">
                 {Math.round(ttl / 60)} min — máx 24h
               </span>
+              {validationErrors.ttl && (
+                <span className="field-error" id="embed-ttl-error" role="alert">
+                  {validationErrors.ttl}
+                </span>
+              )}
             </label>
 
             {session && (
-              <div style={{
-                padding: "var(--space-3)",
-                borderRadius: "var(--radius-sm)",
-                background: "var(--color-success-bg)",
-                border: "1px solid var(--color-success-border)",
-                display: "grid",
-                gap: "var(--space-1)"
-              }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.05em" }}>Token ativo</span>
-                <code style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "#064E3B", wordBreak: "break-all" }}>
+              <div className="embed-token-active">
+                <span className="token-label">Token ativo</span>
+                <code className="token-value" aria-label="Token de embed ativo">
                   {session.embed_session_token.slice(0, 40)}…
                 </code>
-                <span style={{ fontSize: 11, color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
-                  exp: {session.expires_at_unix}
+                <span className="token-expiry">
+                  {formatExpiry(session.expires_at_unix)}
                 </span>
               </div>
             )}
@@ -160,86 +252,98 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           <section className="panel stacked">
             <div className="panel-title">
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <Code2 size={16} style={{ color: "var(--color-brand)" }} />
+              <div>
+                <Code2 size={16} className="icon-brand" />
                 <h2>Escopos concedidos</h2>
               </div>
-              <span className="badge muted">{EMBED_SCOPES.length} escopos</span>
+              <span className="badge muted">{selectedScopes.length} escopos</span>
             </div>
-            <div className="list" style={{ gap: "var(--space-1)" }}>
+            <div className="list">
               {EMBED_SCOPES.map((scope) => {
                 const meta = SCOPE_META[scope];
+                const isSelected = selectedScopes.includes(scope);
                 return (
-                  <article key={scope} style={{ gridTemplateColumns: "auto 1fr auto", gap: "var(--space-3)", padding: "10px var(--space-3)" }}>
-                    <span className={`status-dot ${meta?.ok ? "green" : "amber"}`} style={{ marginTop: 2 }} />
+                  <article key={scope} className="scope-item">
+                    <input
+                      type="checkbox"
+                      className="scope-checkbox"
+                      id={`scope-${scope}`}
+                      checked={isSelected}
+                      onChange={() => {
+                        setSelectedScopes((prev) =>
+                          isSelected ? prev.filter((s) => s !== scope) : [...prev, scope]
+                        );
+                      }}
+                      aria-label={scope}
+                    />
+                    <span className={`status-dot ${meta?.ok ? "green" : "amber"}`} aria-hidden="true" />
                     <div>
-                      <strong style={{ fontSize: 12, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--color-text)" }}>{scope}</strong>
-                      {meta && <span style={{ display: "block", fontSize: 11, color: "var(--color-text-muted)", fontWeight: 400 }}>{meta.label}</span>}
+                      <strong className="scope-name">{scope}</strong>
+                      {meta && <span className="scope-description">{meta.label}</span>}
                     </div>
-                    <span className={`badge ${meta?.ok ? "ok" : "warn"}`} style={{ alignSelf: "center" }}>
+                    <span className={`badge ${meta?.ok ? "ok" : "warn"}`}>
                       {meta?.ok ? "read/write" : "write"}
                     </span>
                   </article>
                 );
               })}
             </div>
+            {validationErrors.scopes && (
+              <span className="field-error" role="alert">
+                {validationErrors.scopes}
+              </span>
+            )}
           </section>
         </div>
 
         {/* Right — snippet */}
         <div className="split-panel-preview">
-          <div className="developer-code" style={{ borderRadius: "var(--radius-md)" }}>
-            <div className="panel-title" style={{ padding: "var(--space-3) var(--space-4)", background: "#0F172A", borderRadius: "var(--radius-md) var(--radius-md) 0 0" }}>
-              <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", color: "#CBD5E1", fontFamily: "var(--font-mono)", fontSize: 12 }}>
+          <div className="developer-code">
+            <div className="panel-title">
+              <span>
                 <Terminal size={13} />
                 snippet.html
               </span>
               <button
                 type="button"
-                style={{ minHeight: 28, color: copied ? "#86EFAC" : "#E2E8F0", borderColor: "#334155", background: "#1E293B", fontSize: 12 }}
-                onClick={copySnippet}
+                onClick={handleCopy}
+                aria-label="Copiar snippet de integração"
               >
                 {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
                 {copied ? "Copiado!" : "Copiar"}
               </button>
             </div>
-            <pre className="code-block" style={{ minHeight: 180, borderRadius: 0, padding: "var(--space-5)", lineHeight: 1.7 }}>
+            <pre className="code-block" aria-label="Código de integração do widget">
               <code>{snippet}</code>
             </pre>
 
             {!hasToken && (
-              <div style={{
-                padding: "var(--space-4) var(--space-5)",
-                borderTop: "1px solid #1E293B",
-                background: "#111827"
-              }}>
-                <div className="empty-state" style={{ padding: "var(--space-5) var(--space-4)", background: "transparent" }}>
-                  <div className="empty-state-icon" style={{ background: "#1E293B", borderColor: "#334155", color: "#94A3B8" }}>
+              <div className="embed-code-empty">
+                <div className="empty-state">
+                  <div className="empty-state-icon">
                     <KeyRound size={20} />
                   </div>
-                  <h3 style={{ color: "#CBD5E1", fontSize: 13 }}>Nenhum token emitido</h3>
-                  <p style={{ color: "#64748B", fontSize: 12 }}>
-                    Preencha os parâmetros e clique em "Emitir token" para gerar o snippet com o token real.
+                  <h3>Nenhum token emitido</h3>
+                  <p>
+                    Preencha os parâmetros e clique em &quot;Emitir token&quot; para gerar o snippet com o token real.
                   </p>
                 </div>
               </div>
             )}
 
             {hasToken && (
-              <div style={{ padding: "var(--space-3) var(--space-5)", borderTop: "1px solid #1E293B", background: "#111827" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <span className="status-dot green" />
-                  <span style={{ fontSize: 11, color: "#86EFAC", fontWeight: 600, fontFamily: "var(--font-mono)" }}>
-                    Token real incorporado — pronto para produção
-                  </span>
+              <div className="embed-code-footer">
+                <div className="status-line">
+                  <span className="status-dot green" aria-hidden="true" />
+                  <span>Token real incorporado — pronto para produção</span>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="panel-info" style={{ marginTop: "var(--space-4)", fontSize: 12, lineHeight: 1.6 }}>
-            <strong style={{ display: "block", marginBottom: 4, fontSize: 12, color: "var(--color-info)" }}>Como usar</strong>
-            Cole o snippet no <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>&lt;head&gt;</code> ou antes do <code style={{ fontFamily: "var(--font-mono)", fontSize: 11 }}>&lt;/body&gt;</code> do seu storefront. O widget inicializa automaticamente ao detectar o token.
+          <div className="panel-info">
+            <strong>Como usar</strong>
+            Cole o snippet no <code>&lt;head&gt;</code> ou antes do <code>&lt;/body&gt;</code> do seu storefront. O widget inicializa automaticamente ao detectar o token.
           </div>
         </div>
       </div>

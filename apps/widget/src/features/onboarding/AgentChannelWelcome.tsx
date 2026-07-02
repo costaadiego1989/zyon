@@ -12,87 +12,87 @@ export function AgentChannelWelcome({ vm }: { vm: CheckoutAgentViewModel }) {
 
 export function AgentChannelWelcomeView({ model }: { model: ChannelWelcomeModel }) {
   return (
-    <div className="aacp-channel-gate" data-theme={model.colorMode} role="presentation">
-      <div className="aacp-channel-gate__backdrop" aria-hidden="true" />
+    <div className="zyon-channel-gate" data-theme={model.colorMode} role="presentation">
+      <div className="zyon-channel-gate__backdrop" aria-hidden="true" />
 
       <section
-        className="aacp-channel-gate__panel"
+        className="zyon-channel-gate__panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="aacp-channel-welcome-title"
+        aria-labelledby="zyon-channel-welcome-title"
       >
-        <div className="aacp-channel-gate__scan" aria-hidden="true" />
+        <div className="zyon-channel-gate__scan" aria-hidden="true" />
 
-        <header className="aacp-channel-gate__head">
-          <div className="aacp-channel-gate__agent" aria-hidden="true">
+        <header className="zyon-channel-gate__head">
+          <div className="zyon-channel-gate__agent" aria-hidden="true">
             {model.agentAvatarUrl ? (
               <img src={model.agentAvatarUrl} alt="" />
             ) : (
               <Bot size={30} strokeWidth={1.6} />
             )}
-            <span className="aacp-channel-gate__agent-pulse" />
+            <span className="zyon-channel-gate__agent-pulse" />
           </div>
 
-          <div className="aacp-channel-gate__meta">
-            <span className="aacp-channel-gate__merchant">{model.merchantName}</span>
-            <span className="aacp-channel-gate__status">Online agora</span>
+          <div className="zyon-channel-gate__meta">
+            <span className="zyon-channel-gate__merchant">{model.merchantName}</span>
+            <span className="zyon-channel-gate__status">Online agora</span>
           </div>
         </header>
 
-        <h2 id="aacp-channel-welcome-title" className="aacp-channel-gate__title">
+        <h2 id="zyon-channel-welcome-title" className="zyon-channel-gate__title">
           Sou <em>{model.agentName}</em>
         </h2>
 
-        <p className="aacp-channel-gate__lead">
+        <p className="zyon-channel-gate__lead">
           Vou conduzir sua compra na {model.merchantName}. Escolha como prefere seguir: fale comigo por
           voz ou converse por chat. Seu pedido fica visível o tempo todo.
         </p>
 
         {model.networkError ? (
-          <div className="aacp-channel-gate__alert" role="alert">
+          <div className="zyon-channel-gate__alert" role="alert">
             <p>{model.networkError}</p>
-            <button type="button" className="aacp-channel-gate__retry" onClick={model.onRetry}>
+            <button type="button" className="zyon-channel-gate__retry" onClick={model.onRetry}>
               Tentar conectar de novo
             </button>
           </div>
         ) : !model.channelReady ? (
-          <p className="aacp-channel-gate__loading" aria-live="polite">
-            <span className="aacp-channel-gate__loading-dot" aria-hidden="true" />
+          <p className="zyon-channel-gate__loading" aria-live="polite">
+            <span className="zyon-channel-gate__loading-dot" aria-hidden="true" />
             Sincronizando sessão com a loja…
           </p>
         ) : null}
 
-        <div className="aacp-channel-gate__channels" role="group" aria-label="Escolha como comprar">
+        <div className="zyon-channel-gate__channels" role="group" aria-label="Escolha como comprar">
           <button
             type="button"
-            className="aacp-channel-gate__channel aacp-channel-gate__channel--voice is-featured"
+            className="zyon-channel-gate__channel zyon-channel-gate__channel--voice is-featured"
             onClick={model.onSelectVoice}
             disabled={model.busy || !model.channelReady}
           >
-            <span className="aacp-channel-gate__channel-icon" aria-hidden="true">
+            <span className="zyon-channel-gate__channel-icon" aria-hidden="true">
               <Mic size={20} strokeWidth={1.75} />
             </span>
-            <span className="aacp-channel-gate__channel-copy">
+            <span className="zyon-channel-gate__channel-copy">
               <strong>Comprar por voz</strong>
               <small>Responda falando. Eu guio cada etapa até o pagamento.</small>
             </span>
-            <span className="aacp-channel-gate__channel-tag">Recomendado</span>
+            <span className="zyon-channel-gate__channel-tag">Recomendado</span>
           </button>
 
           <button
             type="button"
-            className="aacp-channel-gate__channel aacp-channel-gate__channel--chat"
+            className="zyon-channel-gate__channel zyon-channel-gate__channel--chat"
             onClick={model.onSelectChat}
             disabled={model.busy || !model.channelReady}
           >
-            <span className="aacp-channel-gate__channel-icon" aria-hidden="true">
+            <span className="zyon-channel-gate__channel-icon" aria-hidden="true">
               <MessageSquare size={20} strokeWidth={1.75} />
             </span>
-            <span className="aacp-channel-gate__channel-copy">
+            <span className="zyon-channel-gate__channel-copy">
               <strong>Comprar por chat</strong>
               <small>Digite no seu ritmo, com as mesmas respostas e sugestões.</small>
             </span>
-            <span className="aacp-channel-gate__channel-tag">Texto</span>
+            <span className="zyon-channel-gate__channel-tag">Texto</span>
           </button>
         </div>
       </section>

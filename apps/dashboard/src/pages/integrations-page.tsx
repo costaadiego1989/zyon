@@ -244,7 +244,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     if (!newSecret) return;
     await copyText(
       newSecret,
-      "Secret key copiada. Ela nao sera exibida novamente.",
+      "Secret key copiada. Ela não será exibida novamente.",
       setMessage,
     );
   }
@@ -340,7 +340,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       <section className="panel developer-quickstart">
         <div>
           <p className="eyebrow">Backend quickstart</p>
-          <h2>Emita uma sessao curta para o widget</h2>
+          <h2>Emita uma sessão curta para o widget</h2>
           <p>
             A chave vive somente no servidor. O navegador recebe apenas o token
             efemero vinculado ao tenant, origem e escopos permitidos.
@@ -616,7 +616,19 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
   );
 }
 
-function readError(error: unknown): string {
+export function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 1) return "agora";
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `há ${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `há ${days}d`;
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
+}
+
+export function readError(error: unknown): string {
   return error instanceof DashboardHttpError ? error.responseBody.slice(0, 180) : error instanceof Error ? error.message : String(error);
 }
 
@@ -646,6 +658,6 @@ async function copyText(
     await navigator.clipboard.writeText(value);
     setMessage(successMessage);
   } catch {
-    setMessage("Nao foi possivel copiar automaticamente neste navegador.");
+    setMessage("Não foi possível copiar automaticamente neste navegador.");
   }
 }

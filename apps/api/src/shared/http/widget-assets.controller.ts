@@ -36,6 +36,9 @@ export class WidgetAssetsController {
     res.setHeader("Content-Type", contentType);
     res.setHeader("Content-Length", statSync(fullPath).size);
     res.setHeader("Cache-Control", "public, max-age=300");
+    // Public embeddable assets: storefronts and the dashboard preview iframe
+    // load them from other origins, so the global CORP: same-origin must not apply.
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     createReadStream(fullPath).pipe(res);
   }
 }

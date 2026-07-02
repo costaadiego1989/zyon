@@ -21,25 +21,25 @@ export function CheckoutProgressRail({
 
   return (
     <nav
-      className={cn("aacp-progress-rail aacp-progress-rail--main", className)}
+      className={cn("zyon-progress-rail zyon-progress-rail--main", className)}
       aria-label="Progresso do checkout"
     >
-      <div className="aacp-progress-rail-inner">
-        <div className="aacp-progress-line" aria-hidden>
-          <div className="aacp-progress-line-fill" style={{ width: `${progressPct}%` }} />
+      <div className="zyon-progress-rail-inner">
+        <div className="zyon-progress-line" aria-hidden>
+          <div className="zyon-progress-line-fill" style={{ width: `${progressPct}%` }} />
         </div>
-        <ol className="aacp-progress-track">
+        <ol className="zyon-progress-track">
           {STAGE_FLOW.map((step, index) => {
             const status = index < activeIndex ? "done" : index === activeIndex ? "active" : "pending";
             const Icon = STEP_ICONS[step.key];
 
             return (
-              <li key={step.key} className="aacp-progress-item">
-                <div className={cn("aacp-progress-step", status)}>
-                  <div className="aacp-progress-node" aria-current={status === "active" ? "step" : undefined}>
+              <li key={step.key} className="zyon-progress-item">
+                <div className={cn("zyon-progress-step", status)}>
+                  <div className="zyon-progress-node" aria-current={status === "active" ? "step" : undefined}>
                     {status === "done" ? <CheckCircle2 size={14} aria-hidden /> : <Icon size={14} aria-hidden />}
                   </div>
-                  <span className="aacp-progress-label">{step.shortLabel}</span>
+                  <span className="zyon-progress-label">{step.shortLabel}</span>
                 </div>
               </li>
             );

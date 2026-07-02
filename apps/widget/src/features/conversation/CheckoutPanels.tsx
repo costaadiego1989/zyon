@@ -68,8 +68,8 @@ function CheckoutQuickReplies({
     <div
       className={
         isVoice
-          ? "aacp-voice-chips"
-          : "aacp-quick-replies aacp-quick-replies--in-thread"
+          ? "zyon-voice-chips"
+          : "zyon-quick-replies zyon-quick-replies--in-thread"
       }
       role="group"
       aria-label="Respostas sugeridas"
@@ -78,7 +78,7 @@ function CheckoutQuickReplies({
         <button
           key={quickReplyId(reply)}
           type="button"
-          className={isVoice ? "aacp-voice-chip" : "aacp-chip"}
+          className={isVoice ? "zyon-voice-chip" : "zyon-chip"}
           onClick={() => void model.onTap(reply)}
           disabled={model.disabled}
         >

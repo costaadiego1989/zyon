@@ -99,20 +99,20 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
   return (
     <>
       <div
-        className={model.open ? "aacp-support-backdrop open" : "aacp-support-backdrop"}
+        className={model.open ? "zyon-support-backdrop open" : "zyon-support-backdrop"}
         onClick={model.onClose}
       />
       <aside
-        id="aacp-support-panel"
-        className={`aacp-ai-panel ${model.open ? "open" : ""}`}
+        id="zyon-support-panel"
+        className={`zyon-ai-panel ${model.open ? "open" : ""}`}
         aria-label="Central de ajuda"
         aria-hidden={!model.open}
       >
         {/* Header */}
-        <div className="aacp-ai-head">
+        <div className="zyon-ai-head">
           {(hasMessages || selectedFaq) && (
             <button
-              className="aacp-ai-close"
+              className="zyon-ai-close"
               onClick={() => { setSelectedFaq(null); chat.reset(); setInput(""); }}
               aria-label="Voltar"
               style={{ marginRight: 4 }}
@@ -121,18 +121,18 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
             </button>
           )}
           <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1, minWidth: 0 }}>
-            <div className="aacp-ai-avatar">
+            <div className="zyon-ai-avatar">
               <Headphones size={18} />
             </div>
             <div>
-              <div className="aacp-ai-title">Central de Ajuda</div>
-              <div className="aacp-ai-sub">
+              <div className="zyon-ai-title">Central de Ajuda</div>
+              <div className="zyon-ai-sub">
                 <span className="live-dot" /> {brandName} · suporte 24h
               </div>
             </div>
           </div>
           <button
-            className="aacp-ai-close"
+            className="zyon-ai-close"
             onClick={model.onClose}
             aria-label="Fechar suporte"
           >
@@ -141,61 +141,61 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
         </div>
 
         {/* Thread / Body */}
-        <div className="aacp-ai-thread" ref={threadRef}>
+        <div className="zyon-ai-thread" ref={threadRef}>
           {selectedFaq ? (
             /* FAQ answer view */
-            <div className="aacp-ai-welcome-section">
-              <div className="aacp-ai-welcome-avatar">
+            <div className="zyon-ai-welcome-section">
+              <div className="zyon-ai-welcome-avatar">
                 <ShieldCheck size={24} />
               </div>
-              <h3 className="aacp-ai-welcome-title" style={{ fontSize: "0.95rem" }}>
+              <h3 className="zyon-ai-welcome-title" style={{ fontSize: "0.95rem" }}>
                 {selectedFaq.question}
               </h3>
-              <p className="aacp-ai-welcome-desc" style={{ textAlign: "left", fontSize: "0.9rem" }}>
+              <p className="zyon-ai-welcome-desc" style={{ textAlign: "left", fontSize: "0.9rem" }}>
                 {selectedFaq.answer}
               </p>
               <button
-                className="aacp-ai-faq-card"
+                className="zyon-ai-faq-card"
                 style={{ marginTop: 12, width: "100%" }}
                 onClick={handleEscalateToAI}
                 disabled={chat.loading}
               >
-                <span className="aacp-ai-faq-icon"><MessageCircle size={14} /></span>
-                <span className="aacp-ai-faq-label">Isso não respondeu minha dúvida</span>
-                <ArrowRight size={12} className="aacp-ai-faq-arrow" />
+                <span className="zyon-ai-faq-icon"><MessageCircle size={14} /></span>
+                <span className="zyon-ai-faq-label">Isso não respondeu minha dúvida</span>
+                <ArrowRight size={12} className="zyon-ai-faq-arrow" />
               </button>
-              <div className="aacp-ai-trust-footer" style={{ marginTop: 12 }}>
+              <div className="zyon-ai-trust-footer" style={{ marginTop: 12 }}>
                 <ShieldCheck size={12} />
                 <span>Respostas verificadas · Atendimento humano disponível</span>
               </div>
             </div>
           ) : !hasMessages ? (
             /* Welcome / FAQ list view */
-            <div className="aacp-ai-welcome-section">
-              <div className="aacp-ai-welcome-avatar">
+            <div className="zyon-ai-welcome-section">
+              <div className="zyon-ai-welcome-avatar">
                 <Sparkles size={24} />
               </div>
-              <h3 className="aacp-ai-welcome-title">Olá! Sou o assistente de suporte.</h3>
-              <p className="aacp-ai-welcome-desc">
+              <h3 className="zyon-ai-welcome-title">Olá! Sou o assistente de suporte.</h3>
+              <p className="zyon-ai-welcome-desc">
                 Posso te ajudar com dúvidas sobre entrega, pagamento, segurança e muito mais. Escolha uma opção abaixo ou envie sua pergunta.
               </p>
 
-              <div className="aacp-ai-faq-grid">
+              <div className="zyon-ai-faq-grid">
                 {faqCards.map((s) => (
                   <button
                     key={s.label}
-                    className="aacp-ai-faq-card"
+                    className="zyon-ai-faq-card"
                     disabled={chat.loading || (hasMerchantFaq && faq.loading)}
                     onClick={() => s.item ? handleFaqClick(s.item) : handleSend(s.label)}
                   >
-                    <span className="aacp-ai-faq-icon">{s.icon}</span>
-                    <span className="aacp-ai-faq-label">{s.label}</span>
-                    <ArrowRight size={12} className="aacp-ai-faq-arrow" />
+                    <span className="zyon-ai-faq-icon">{s.icon}</span>
+                    <span className="zyon-ai-faq-label">{s.label}</span>
+                    <ArrowRight size={12} className="zyon-ai-faq-arrow" />
                   </button>
                 ))}
               </div>
 
-              <div className="aacp-ai-trust-footer">
+              <div className="zyon-ai-trust-footer">
                 <ShieldCheck size={12} />
                 <span>Respostas verificadas · Atendimento humano disponível</span>
               </div>
@@ -206,18 +206,18 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
               {chat.messages.map((msg, i) => (
                 <div
                   key={i}
-                  className={`aacp-bubble aacp-bubble-${msg.role === "user" ? "buyer" : "agent"}`}
+                  className={`zyon-bubble zyon-bubble-${msg.role === "user" ? "buyer" : "agent"}`}
                 >
                   {msg.text}
                 </div>
               ))}
               {chat.loading && (
-                <div className="aacp-bubble aacp-bubble-agent" style={{ opacity: 0.5 }}>
+                <div className="zyon-bubble zyon-bubble-agent" style={{ opacity: 0.5 }}>
                   Digitando...
                 </div>
               )}
               {chat.handoffPending && chat.latestTicketId && (
-                <div className="aacp-support-ticket-note" role="status">
+                <div className="zyon-support-ticket-note" role="status">
                   Chamado aberto: {chat.latestTicketId}
                 </div>
               )}
@@ -226,11 +226,11 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
         </div>
 
         {/* Composer */}
-        <div className="aacp-ai-footer">
-          <form className="aacp-ai-composer" onSubmit={handleSubmit}>
+        <div className="zyon-ai-footer">
+          <form className="zyon-ai-composer" onSubmit={handleSubmit}>
             <input
               ref={inputRef}
-              className="aacp-input"
+              className="zyon-input"
               aria-label="Mensagem para o suporte"
               placeholder="Digite sua dúvida aqui..."
               value={input}
@@ -245,7 +245,7 @@ function SupportPanelView({ model }: { model: SupportPanelModel }) {
             />
             <button
               type="submit"
-              className="aacp-send"
+              className="zyon-send"
               disabled={!input.trim() || chat.loading}
               aria-label="Enviar mensagem ao suporte"
             >

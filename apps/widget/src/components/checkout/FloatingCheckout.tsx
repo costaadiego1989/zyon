@@ -13,12 +13,12 @@ export function FloatingCheckout({ vm }: { vm: CheckoutAgentViewModel }) {
 export function FloatingCheckoutView({ model }: { model: FloatingCheckoutModel }) {
   return (
     <section
-      className="aacp-widget fixed bottom-5 right-5 z-50 font-merchant"
+      className="zyon-widget fixed bottom-5 right-5 z-50 font-merchant"
       style={model.style}
       data-theme={model.colorMode}
     >
       {model.open ? (
-        <div className="aacp-panel flex h-[560px] w-[min(380px,calc(100vw-32px))] flex-col overflow-hidden rounded-[var(--aacp-radius-lg)] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-[var(--aacp-shadow-lg)]">
+        <div className="zyon-panel flex h-[560px] w-[min(380px,calc(100vw-32px))] flex-col overflow-hidden rounded-[var(--aacp-radius-lg)] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-[var(--aacp-shadow-lg)]">
           <header className="flex items-center justify-between gap-3 border-b border-[var(--aacp-line-strong)] px-4 py-4 bg-[var(--aacp-panel-bg)]">
             <div>
               <strong className="block text-sm font-black">Assistente de checkout</strong>
@@ -34,7 +34,7 @@ export function FloatingCheckoutView({ model }: { model: FloatingCheckoutModel }
             </button>
           </header>
           <div
-            className="aacp-lines aacp-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto p-4"
+            className="zyon-lines zyon-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto p-4"
             role="log"
             aria-live="polite"
           >
@@ -81,7 +81,7 @@ export function FloatingCheckoutView({ model }: { model: FloatingCheckoutModel }
       ) : (
         <button
           type="button"
-          className="aacp-launcher grid h-16 w-16 place-items-center rounded-[var(--aacp-radius-lg)] bg-[var(--aacp-accent)] text-white shadow-[var(--aacp-shadow-md)] transition hover:-translate-y-0.5"
+          className="zyon-launcher grid h-16 w-16 place-items-center rounded-[var(--aacp-radius-lg)] bg-[var(--aacp-accent)] text-white shadow-[var(--aacp-shadow-md)] transition hover:-translate-y-0.5"
           aria-label="Abrir assistente"
           onClick={() => model.onToggleOpen(true)}
         >

@@ -15,9 +15,9 @@ export function ProductSearchResults({
   if (!products.length) return null;
 
   return (
-    <div className="aacp-catalog-results" role="list" aria-label="Produtos encontrados na loja">
-      <div className="aacp-catalog-results-head">Resultados da loja</div>
-      <div className="aacp-catalog-results-list">
+    <div className="zyon-catalog-results" role="list" aria-label="Produtos encontrados na loja">
+      <div className="zyon-catalog-results-head">Resultados da loja</div>
+      <div className="zyon-catalog-results-list">
         {products.map((product) => (
           <CatalogResultCard key={product.sku} product={product} currency={currency} onAdd={onAdd} />
         ))}
@@ -46,18 +46,18 @@ function CatalogResultCard({
   }
 
   return (
-    <article className="aacp-catalog-result-card" role="listitem">
-      <div className="aacp-catalog-result-thumb">
+    <article className="zyon-catalog-result-card" role="listitem">
+      <div className="zyon-catalog-result-thumb">
         {product.image_url ? <img src={product.image_url} alt="" /> : <Package size={20} />}
       </div>
-      <div className="aacp-catalog-result-body">
-        <strong className="aacp-catalog-result-name">{product.name}</strong>
-        {product.description ? <p className="aacp-catalog-result-desc">{product.description}</p> : null}
-        <span className="aacp-catalog-result-price">{formatCurrency(product.unit_price, currency)}</span>
+      <div className="zyon-catalog-result-body">
+        <strong className="zyon-catalog-result-name">{product.name}</strong>
+        {product.description ? <p className="zyon-catalog-result-desc">{product.description}</p> : null}
+        <span className="zyon-catalog-result-price">{formatCurrency(product.unit_price, currency)}</span>
       </div>
       <button
         type="button"
-        className="aacp-catalog-result-add"
+        className="zyon-catalog-result-add"
         disabled={loading || added}
         onClick={() => void handleAdd()}
       >

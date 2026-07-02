@@ -132,53 +132,53 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
   }
 
   return (
-    <div className="aacp-auth-layer" role="presentation">
-      <div className="aacp-auth-backdrop" onClick={auth.close} aria-hidden />
+    <div className="zyon-auth-layer" role="presentation">
+      <div className="zyon-auth-backdrop" onClick={auth.close} aria-hidden />
       <section
         ref={(el) => { dialogRef.current = el; }}
-        className="aacp-auth-dialog aacp-login-panel"
+        className="zyon-auth-dialog zyon-login-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="aacp-login-title"
+        aria-labelledby="zyon-login-title"
       >
-        <button type="button" className="aacp-icon-button aacp-auth-close" onClick={auth.close} aria-label="Fechar">
+        <button type="button" className="zyon-icon-button zyon-auth-close" onClick={auth.close} aria-label="Fechar">
           <X size={20} />
         </button>
 
-        <div className="aacp-auth-icon" aria-hidden>
+        <div className="zyon-auth-icon" aria-hidden>
           <LogIn size={24} />
         </div>
 
-        <span className="aacp-auth-eyebrow">Conta segura</span>
-        <h2 id="aacp-login-title" className="aacp-auth-title">
+        <span className="zyon-auth-eyebrow">Conta segura</span>
+        <h2 id="zyon-login-title" className="zyon-auth-title">
           Entrar com celular
         </h2>
-        <p className="aacp-auth-copy">
+        <p className="zyon-auth-copy">
           Acesse pedidos anteriores e conclua compras futuras com menos etapas.
         </p>
 
-        <div className="aacp-auth-assurance">
+        <div className="zyon-auth-assurance">
           <ShieldCheck size={17} />
           <span>Seu acesso e seus dados permanecem protegidos.</span>
         </div>
 
-        <button type="button" className="aacp-auth-provider" disabled>
-          <span className="aacp-auth-provider-mark" aria-hidden>G</span>
+        <button type="button" className="zyon-auth-provider" disabled>
+          <span className="zyon-auth-provider-mark" aria-hidden>G</span>
           Entrar com Google em breve
         </button>
 
-        <div className="aacp-auth-divider" aria-hidden>
+        <div className="zyon-auth-divider" aria-hidden>
           <span>ou use seu celular</span>
         </div>
 
         <form
-          className="aacp-auth-form"
+          className="zyon-auth-form"
           onSubmit={(event) => event.preventDefault()}
         >
           {!codeSent ? (
-            <label className="aacp-auth-field">
+            <label className="zyon-auth-field">
               <span>Celular</span>
-              <div className="aacp-auth-input-wrap">
+              <div className="zyon-auth-input-wrap">
                 <Smartphone size={19} aria-hidden />
                 <input
                   value={phone}
@@ -192,9 +192,9 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
               </div>
             </label>
           ) : (
-            <label className="aacp-auth-field">
+            <label className="zyon-auth-field">
               <span>Codigo de verificacao</span>
-              <div className="aacp-auth-input-wrap">
+              <div className="zyon-auth-input-wrap">
                 <KeyRound size={19} aria-hidden />
                 <input
                   value={phoneCode}
@@ -211,20 +211,20 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
           )}
 
           {codeSent ? (
-            <p className="aacp-auth-status" role="status">
+            <p className="zyon-auth-status" role="status">
               Codigo enviado para {normalizedPhone}
             </p>
           ) : null}
 
           {auth.error ? (
-            <p className="aacp-auth-error" role="alert">
+            <p className="zyon-auth-error" role="alert">
               {auth.error}
             </p>
           ) : null}
 
           <button
             type="button"
-            className="aacp-auth-primary"
+            className="zyon-auth-primary"
             disabled={auth.loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode)}
             onClick={async () => {
               if (!codeSent) {
@@ -239,7 +239,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
           </button>
 
           {codeSent ? (
-            <button type="button" className="aacp-auth-secondary" onClick={() => setCodeSent(false)}>
+            <button type="button" className="zyon-auth-secondary" onClick={() => setCodeSent(false)}>
               Alterar numero
             </button>
           ) : null}
@@ -261,40 +261,40 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
   useFocusTrap(auth.open, dialogRef, auth.close);
 
   return (
-    <div className="aacp-auth-layer" role="presentation">
-      <div className="aacp-auth-backdrop" onClick={auth.close} aria-hidden />
+    <div className="zyon-auth-layer" role="presentation">
+      <div className="zyon-auth-backdrop" onClick={auth.close} aria-hidden />
       <section
         ref={(el) => { dialogRef.current = el; }}
-        className="aacp-auth-dialog aacp-hub-sheet aacp-hub-panel"
+        className="zyon-auth-dialog zyon-hub-sheet zyon-hub-panel"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="aacp-hub-title"
+        aria-labelledby="zyon-hub-title"
       >
-        <header className="aacp-hub-header">
-          <div className="aacp-hub-identity">
-            <div className="aacp-hub-mark" aria-hidden>
+        <header className="zyon-hub-header">
+          <div className="zyon-hub-identity">
+            <div className="zyon-hub-mark" aria-hidden>
               <ShieldCheck size={20} />
             </div>
             <div>
               <span>Conta verificada</span>
-              <strong id="aacp-hub-title">{auth.session?.email}</strong>
+              <strong id="zyon-hub-title">{auth.session?.email}</strong>
             </div>
           </div>
-          <button type="button" className="aacp-icon-button" onClick={auth.close} aria-label="Fechar">
+          <button type="button" className="zyon-icon-button" onClick={auth.close} aria-label="Fechar">
             <X size={20} />
           </button>
         </header>
 
-        <div className="aacp-hub-layout">
-          <nav className="aacp-hub-nav" aria-label="Navegacao da conta">
-            <div className="aacp-hub-nav-label">Sua conta</div>
+        <div className="zyon-hub-layout">
+          <nav className="zyon-hub-nav" aria-label="Navegacao da conta">
+            <div className="zyon-hub-nav-label">Sua conta</div>
             {HUB_NAV.map((item) => {
               const Icon = item.icon;
               return (
                 <button
                   key={item.key}
                   type="button"
-                  className={cn("aacp-hub-nav-item", hub.section === item.key && "is-active")}
+                  className={cn("zyon-hub-nav-item", hub.section === item.key && "is-active")}
                   onClick={() => hub.setSection(item.key)}
                   aria-current={hub.section === item.key ? "page" : undefined}
                 >
@@ -303,30 +303,30 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
                 </button>
               );
             })}
-            <button type="button" className="aacp-hub-logout" onClick={auth.logout}>
+            <button type="button" className="zyon-hub-logout" onClick={auth.logout}>
               <LogOut size={18} />
               <span>Sair da conta</span>
             </button>
           </nav>
 
-          <main className="aacp-hub-content">
-            <div className="aacp-hub-content-head">
+          <main className="zyon-hub-content">
+            <div className="zyon-hub-content-head">
               <div>
                 <span>Central do comprador</span>
                 <h2>{currentLabel}</h2>
               </div>
-              <span className="aacp-hub-secure-label">
+              <span className="zyon-hub-secure-label">
                 <ShieldCheck size={15} />
                 Sessao protegida
               </span>
             </div>
 
-            {hub.loading ? <div className="aacp-hub-state">Carregando...</div> : null}
-            {hub.error && !hub.loading ? <div className="aacp-hub-state is-error">{hub.error}</div> : null}
+            {hub.loading ? <div className="zyon-hub-state">Carregando...</div> : null}
+            {hub.error && !hub.loading ? <div className="zyon-hub-state is-error">{hub.error}</div> : null}
 
             {!hub.loading && !hub.error && hub.section === "summary" ? (
-              <div className="aacp-hub-section">
-                <article className="aacp-hub-overview">
+              <div className="zyon-hub-section">
+                <article className="zyon-hub-overview">
                   <span>Resumo da operacao</span>
                   <h3>{merchant?.name ?? "Sua conta"}</h3>
                   <p>
@@ -335,7 +335,7 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
                       : "Seus dados de compra aparecerao aqui assim que estiverem disponiveis."}
                   </p>
                 </article>
-                <div className="aacp-hub-metrics">
+                <div className="zyon-hub-metrics">
                   <MetricCard label="Experiencia" value={theme?.fontFamily ?? "Padrao da loja"} />
                   <MetricCard
                     label="Metodo de acesso"
@@ -346,15 +346,15 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
             ) : null}
 
             {!hub.loading && !hub.error && hub.section === "orders" ? (
-              <div className="aacp-hub-section">
+              <div className="zyon-hub-section">
                 <SectionIntro
                   title="Pedidos recentes"
                   description="Acompanhe as sessoes e valores associados a esta conta."
                 />
-                <div className="aacp-hub-list">
+                <div className="zyon-hub-list">
                   {overview?.recent_sessions?.length ? (
                     overview.recent_sessions.map((session) => (
-                      <article key={session.sessionId} className="aacp-hub-list-row">
+                      <article key={session.sessionId} className="zyon-hub-list-row">
                         <div>
                           <strong>{session.sessionId}</strong>
                           <span>{session.customer?.email ?? "Cliente nao identificado"}</span>
@@ -370,12 +370,12 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
             ) : null}
 
             {!hub.loading && !hub.error && hub.section === "metrics" ? (
-              <div className="aacp-hub-section">
+              <div className="zyon-hub-section">
                 <SectionIntro
                   title="Desempenho operacional"
                   description="Indicadores essenciais da experiencia assistida."
                 />
-                <div className="aacp-hub-metrics">
+                <div className="zyon-hub-metrics">
                   <MetricCard
                 label="Receita IA"
                     value={formatMoney(overview?.incremental_revenue ?? 0)}
@@ -390,12 +390,12 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
             ) : null}
 
             {!hub.loading && !hub.error && hub.section === "agent" ? (
-              <div className="aacp-hub-section">
+              <div className="zyon-hub-section">
                 <SectionIntro
                   title="Assistente da loja"
                   description="Entenda quem conduz a experiencia e como ele opera."
                 />
-                <dl className="aacp-hub-details">
+                <dl className="zyon-hub-details">
                   <Detail label="Nome" value={agentContext?.agent?.agentName ?? "Assistente de compras"} />
                   <Detail label="Persona" value={agentContext?.agent?.persona ?? "Orientacao clara e objetiva."} />
                   <Detail
@@ -407,12 +407,12 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
             ) : null}
 
             {!hub.loading && !hub.error && hub.section === "account" ? (
-              <div className="aacp-hub-section">
+              <div className="zyon-hub-section">
                 <SectionIntro
                   title="Dados da conta"
                   description="Informacoes usadas para identificar sua sessao de compra."
                 />
-                <dl className="aacp-hub-details">
+                <dl className="zyon-hub-details">
                   <Detail label="E-mail" value={auth.session?.email ?? "Nao informado"} />
                   <Detail label="Status" value="Conta verificada" />
                   <Detail label="Protecao" value="Sessao autenticada" />
@@ -428,7 +428,7 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
 
 function SectionIntro({ title, description }: { title: string; description: string }) {
   return (
-    <header className="aacp-hub-section-intro">
+    <header className="zyon-hub-section-intro">
       <h3>{title}</h3>
       <p>{description}</p>
     </header>
@@ -445,7 +445,7 @@ function MetricCard({
   emphasis?: boolean;
 }) {
   return (
-    <article className={cn("aacp-hub-metric", emphasis && "is-emphasis")}>
+    <article className={cn("zyon-hub-metric", emphasis && "is-emphasis")}>
       <span>{label}</span>
       <strong>{value}</strong>
     </article>
@@ -462,7 +462,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 }
 
 function EmptyHubState({ text }: { text: string }) {
-  return <div className="aacp-hub-empty">{text}</div>;
+  return <div className="zyon-hub-empty">{text}</div>;
 }
 
 function formatMoney(value: number): string {

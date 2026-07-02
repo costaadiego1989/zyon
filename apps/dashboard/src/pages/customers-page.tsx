@@ -1,29 +1,102 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { RefreshCw, UsersRound } from "lucide-react";
+import { RefreshCw, UsersRound, UserPlus, Repeat, Download, ArrowUpDown } from "lucide-react";
 import {
   createDashboardApi,
   DashboardHttpError,
+  type CursorPage,
   type MerchantProfile,
   type TenantCustomer,
 } from "../api-client.js";
 
-type CustomerRow = {
+export type CustomerRow = {
   globalUserId: string;
   name: string;
   email: string;
   phone: string;
+  firstSeen: string;
   lastSeen: string;
+  initials: string;
 };
+
+export interface CustomerMetrics {
+  total: number;
+  newLast7Days: number;
+  returningRate: number;
+}
+
+export function getInitials(name: string): string {
+  if (!name || name === "-") return "?";
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" && value ? value : "-";
+}
+
+export function toCustomerRows(customers: TenantCustomer[]): CustomerRow[] {
+  return customers.map((customer) => {
+    const name = text(customer.profile.full_name);
+    return {
+      globalUserId: customer.id,
+      name,
+      email: text(customer.profile.email),
+      phone: text(customer.profile.phone),
+      firstSeen: customer.first_seen_at,
+      lastSeen: customer.last_seen_at,
+      initials: getInitials(name),
+    };
+  });
+}
+
+export function formatDate(value: string): string {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (isNaN(date.getTime())) return "-";
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+export function computeMetrics(rows: CustomerRow[]): CustomerMetrics {
+  const total = rows.length;
+  const now = Date.now();
+  const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const newLast7Days = rows.filter((r) => {
+    const d = new Date(r.firstSeen).getTime();
+    return !isNaN(d) && d >= sevenDaysAgo;
+  }).length;
+  const returning = rows.filter((r) => r.firstSeen !== r.lastSeen).length;
+  const returningRate = total > 0 ? returning / total : 0;
+  return { total, newLast7Days, returningRate };
+}
+
+export function filterRows(rows: CustomerRow[], term: string): CustomerRow[] {
+  if (!term.trim()) return rows;
+  const normalized = term.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  return rows.filter((row) => {
+    const name = row.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+    const email = row.email.toLowerCase();
+    return name.includes(normalized) || email.includes(normalized);
+  });
+}
+
+const PAGE_SIZE = 30;
 
 export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
   const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // BUG-BPH-1 (P2): Track loading state separately from busy so the empty-state
-  // row is hidden while the initial fetch is in flight. Without this flag,
-  // "Nenhum cliente recente." flashes during load before data arrives.
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [sortCol, setSortCol] = useState<"name" | "email" | "lastSeen">("lastSeen");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   useEffect(() => {
     if (!props.me) {
@@ -38,14 +111,83 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     setBusy(true);
     setLoading(true);
     setMessage(null);
+    setRows([]);
+    setNextCursor(null);
+    setHasMore(false);
     try {
-      setRows(toCustomerRows(await api.getCustomers(100)));
+      const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE);
+      setRows(toCustomerRows(page.data));
+      setNextCursor(page.next_cursor);
+      setHasMore(page.has_more);
     } catch (e) {
-      setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
+      setMessage(
+        e instanceof DashboardHttpError
+          ? e.responseBody.slice(0, 160)
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
     } finally {
       setBusy(false);
       setLoading(false);
     }
+  }
+
+  async function loadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    setBusy(true);
+    try {
+      const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE, nextCursor);
+      setRows((prev) => [...prev, ...toCustomerRows(page.data)]);
+      setNextCursor(page.next_cursor);
+      setHasMore(page.has_more);
+    } catch (e) {
+      setMessage(
+        e instanceof DashboardHttpError
+          ? e.responseBody.slice(0, 160)
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
+    } finally {
+      setLoadingMore(false);
+      setBusy(false);
+    }
+  }
+
+  const filteredRows = useMemo(() => {
+    const filtered = filterRows(rows, searchTerm);
+    return [...filtered].sort((a, b) => {
+      const valA = a[sortCol] ?? "";
+      const valB = b[sortCol] ?? "";
+      const cmp = valA.localeCompare(valB);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, searchTerm, sortCol, sortDir]);
+  const metrics = useMemo(() => computeMetrics(rows), [rows]);
+
+  function toggleSort(col: typeof sortCol) {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  }
+
+  function exportCsv() {
+    const header = "Nome,Email,Telefone,Primeira visita,Última atividade";
+    const csvRows = filteredRows.map((r) =>
+      [r.name, r.email, r.phone, r.firstSeen, r.lastSeen].join(",")
+    );
+    const blob = new Blob([header + "\n" + csvRows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   if (!props.me) {
@@ -54,7 +196,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         <header className="page-head">
           <div>
             <h1>Clientes</h1>
-            <p className="page-lead">Login necessario.</p>
+            <p className="page-lead">Login necessário.</p>
           </div>
         </header>
       </>
@@ -65,11 +207,26 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     <>
       <header className="page-head">
         <div>
+          <span className="eyebrow">Clientes</span>
           <h1>Clientes</h1>
-          <p className="page-lead">Clientes recentes capturados no checkout.</p>
+          <p className="page-lead">Visão geral da base de clientes capturados no checkout.</p>
         </div>
         <div className="button-row">
-          <button type="button" disabled={busy} onClick={() => void load()}>
+          <button
+            type="button"
+            onClick={exportCsv}
+            disabled={filteredRows.length === 0}
+            aria-label="Exportar clientes em CSV"
+          >
+            <Download size={16} />
+            Exportar
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void load()}
+            aria-label="Atualizar lista de clientes"
+          >
             <RefreshCw size={16} />
             Atualizar
           </button>
@@ -78,6 +235,33 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
 
       {message ? <p className="panel panel-error">{message}</p> : null}
 
+      <div className="metrics">
+        <article className="metric">
+          <UsersRound size={18} />
+          <span className="metric-value">{metrics.total}</span>
+          <span className="metric-label">Total Clientes</span>
+        </article>
+        <article className="metric">
+          <UserPlus size={18} />
+          <span className="metric-value">{metrics.newLast7Days}</span>
+          <span className="metric-label">Novos (7 dias)</span>
+        </article>
+        <article className="metric">
+          <Repeat size={18} />
+          <span className="metric-value">{Math.round(metrics.returningRate * 100)}%</span>
+          <span className="metric-label">Taxa de Retorno</span>
+        </article>
+      </div>
+
+      <input
+        type="search"
+        className="table-search"
+        placeholder="Buscar por nome ou email..."
+        aria-label="Buscar clientes por nome ou email"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+      />
+
       <section className="panel stacked">
         <div className="panel-title">
           <h2>Clientes recentes</h2>
@@ -85,31 +269,41 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         </div>
 
         {loading ? (
-          <div className="empty-state">
+          <div className="empty-state" aria-hidden="true">
             <div className="skeleton" style={{ width: "100%", height: 200 }} />
           </div>
         ) : (
           <>
             <div className="table-wrap">
-              <table className="data-table">
+              <table
+                className="data-table"
+                aria-busy={loading || loadingMore}
+                aria-label="Lista de clientes"
+              >
                 <thead>
                   <tr>
-                    <th>Nome</th>
-                    <th>Email</th>
-                    <th>Telefone</th>
-                    <th>Global user</th>
-                    <th>Ultima atividade</th>
+                    <th scope="col"></th>
+                    <th scope="col" className="sortable" onClick={() => toggleSort("name")} aria-sort={sortCol === "name" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
+                      Nome <ArrowUpDown size={12} />
+                    </th>
+                    <th scope="col" className="sortable" onClick={() => toggleSort("email")} aria-sort={sortCol === "email" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
+                      Email <ArrowUpDown size={12} />
+                    </th>
+                    <th scope="col">Telefone</th>
+                    <th scope="col" className="sortable" onClick={() => toggleSort("lastSeen")} aria-sort={sortCol === "lastSeen" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
+                      Última atividade <ArrowUpDown size={12} />
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {filteredRows.map((row) => (
                     <tr key={row.globalUserId}>
-                      <td>{row.name}</td>
-                      <td>{row.email}</td>
-                      <td>{row.phone}</td>
                       <td>
-                        <code>{row.globalUserId}</code>
+                        <div className="customer-avatar">{row.initials}</div>
                       </td>
+                      <td>{row.name}</td>
+                      <td><code>{row.email}</code></td>
+                      <td>{row.phone}</td>
                       <td>{formatDate(row.lastSeen)}</td>
                     </tr>
                   ))}
@@ -117,9 +311,21 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
               </table>
             </div>
 
-            {/* BUG-BPH-1 (P2): Only show empty-state after loading completes. */}
-            {rows.length === 0 && !loading ? (
-              <div className="empty-state">
+            {hasMore && !loading ? (
+              <div className="load-more-row">
+                <button
+                  type="button"
+                  disabled={loadingMore}
+                  onClick={() => void loadMore()}
+                  aria-label="Carregar mais clientes"
+                >
+                  Carregar mais
+                </button>
+              </div>
+            ) : null}
+
+            {filteredRows.length === 0 && !loading ? (
+              <div className="empty-state" role="status">
                 <div className="empty-state-icon">
                   <UsersRound size={32} />
                 </div>
@@ -132,34 +338,4 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       </section>
     </>
   );
-}
-
-function toCustomerRows(customers: TenantCustomer[]): CustomerRow[] {
-  return customers.map((customer) => ({
-    globalUserId: customer.id,
-    name: text(customer.profile.full_name),
-    email: text(customer.profile.email),
-    phone: text(customer.profile.phone),
-    lastSeen: customer.last_seen_at,
-  }));
-}
-
-function text(value: unknown): string {
-  return typeof value === "string" && value ? value : "-";
-}
-
-/**
- * BUG-BPH-2 (P3): Guard against absent or malformed date values.
- * `new Date(undefined)` / `new Date("")` produce an Invalid Date that formats
- * as "Invalid Date". Returning "-" for missing/invalid values is safe and
- * matches the sentinel used for other optional string fields.
- */
-function formatDate(value: string): string {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (isNaN(date.getTime())) return "-";
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(date);
 }

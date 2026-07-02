@@ -23,6 +23,10 @@ export default defineConfig({
     /** Se outro projeto já usa 5173, o dev falha (não há “mudança silenciosa” de porta nem confusão com outro Vite). */
     strictPort: true
   },
+  define: {
+    "process.env.VITEST": "undefined",
+    "process.env.NODE_ENV": JSON.stringify("production"),
+  },
   build: {
     lib: {
       entry: resolve(__dirname, "src/main.tsx"),

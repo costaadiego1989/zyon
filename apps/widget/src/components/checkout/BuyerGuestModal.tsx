@@ -17,14 +17,14 @@ export function BuyerGuestModalView({ model }: { model: BuyerGuestModalModel }) 
         className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-2xl"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="aacp-guest-modal-title"
+        aria-labelledby="zyon-guest-modal-title"
       >
         <header className="flex items-center justify-between border-b border-[var(--aacp-line)] px-6 py-4">
           <div>
             <span className="mb-1 block text-[10px] font-black uppercase tracking-widest text-[var(--aacp-faint)]">
               Minha conta
             </span>
-            <strong id="aacp-guest-modal-title" className="text-sm font-black tracking-tight">
+            <strong id="zyon-guest-modal-title" className="text-sm font-black tracking-tight">
               Acesso ao hub do cliente
             </strong>
           </div>
@@ -58,7 +58,7 @@ export function BuyerGuestModalView({ model }: { model: BuyerGuestModalModel }) 
           )}
           <button
             type="button"
-            className="aacp-cta inline-flex items-center gap-2 px-5 py-2.5 text-sm"
+            className="zyon-cta inline-flex items-center gap-2 px-5 py-2.5 text-sm"
             onClick={model.onLogin}
           >
             <LogIn size={16} />

@@ -27,26 +27,26 @@ function inputIcon(meta: ComposerInputMeta) {
 
 export function Composer({ model }: { model: ComposerModel }) {
   return (
-    <div className="aacp-composer-wrap">
-      <div className="aacp-composer-inline">
-        <div className="aacp-agent-tag" aria-hidden="true">
+    <div className="zyon-composer-wrap">
+      <div className="zyon-composer-inline">
+        <div className="zyon-agent-tag" aria-hidden="true">
           <Sparkles size={12} />
           {model.agentGiven} · IA
         </div>
 
         <form
-          className="aacp-composer aacp-composer-form"
+          className="zyon-composer zyon-composer-form"
           onSubmit={(e) => {
             e.preventDefault();
             void model.onSubmit();
           }}
         >
-          <span className="aacp-input-icon" aria-hidden="true">
+          <span className="zyon-input-icon" aria-hidden="true">
             {inputIcon(model.meta)}
           </span>
           <input
             ref={model.inputRef}
-            className="aacp-input"
+            className="zyon-input"
             type={model.meta.inputType}
             inputMode={model.meta.inputMode as React.HTMLAttributes<HTMLInputElement>["inputMode"]}
             placeholder={model.busy ? "Aguarde..." : model.meta.placeholder}
@@ -59,7 +59,7 @@ export function Composer({ model }: { model: ComposerModel }) {
           />
           <button
             type="button"
-            className="aacp-send"
+            className="zyon-send"
             disabled={!model.message.trim() || model.composerLocked}
             aria-label="Enviar mensagem"
             onClick={() => {
@@ -71,7 +71,7 @@ export function Composer({ model }: { model: ComposerModel }) {
           </button>
         </form>
 
-        <div className="aacp-composer-hint-inline" aria-hidden="true">
+        <div className="zyon-composer-hint-inline" aria-hidden="true">
           <Sparkles size={11} />
           Pressione Enter para enviar
         </div>

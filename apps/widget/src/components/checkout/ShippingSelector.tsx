@@ -18,7 +18,7 @@ export const ShippingSelector: React.FC<ShippingSelectorProps> = ({
   if (!options || options.length === 0) return null;
 
   return (
-    <div className="aacp-shipping-selector mt-3 flex flex-col gap-2">
+    <div className="zyon-shipping-selector mt-3 flex flex-col gap-2">
       <p className="mb-1 px-1 text-xs font-medium opacity-60">Selecione o frete:</p>
       <div className="grid grid-cols-1 gap-2">
         {options.map((option) => {

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { Component, useEffect, useMemo, useState, type ErrorInfo, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import {
   BarChart3,
@@ -30,7 +30,7 @@ import {
 } from "./api-client.js";
 import { OverviewDemoPage } from "./pages/overview-demo-page.js";
 import { MerchantRulesAuthenticatedPage } from "./pages/merchant-rules-page.js";
-import { CheckoutSettingsPage } from "./pages/checkout-settings-page.js";
+import { CheckoutSettingsPage } from "./pages/checkout-settings/index.js";
 import { NegotiationPage } from "./pages/negotiation-page.js";
 import { SupportSettingsPage } from "./pages/support-settings-page.js";
 import { IntegrationsPage } from "./pages/integrations-page.js";
@@ -70,8 +70,8 @@ type TabKey =
 type AuthMode = "login" | "signup";
 
 const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: LucideIcon }> = [
-  { key: "onboarding", label: "Primeiros passos", section: "Comecar", icon: Rocket },
-  { key: "overview", label: "Operacao", section: "Hoje", icon: BarChart3 },
+  { key: "onboarding", label: "Primeiros passos", section: "Começar", icon: Rocket },
+  { key: "overview", label: "Operação", section: "Hoje", icon: BarChart3 },
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
   { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook },
@@ -82,19 +82,58 @@ const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: Luci
   { key: "support", label: "Suporte", section: "Atendimento", icon: MessageSquare },
   { key: "settings", label: "Checkout", section: "Atendimento", icon: Settings2 },
   { key: "rules", label: "Agente", section: "Atendimento", icon: Bot },
-  { key: "negotiation", label: "Negociacao", section: "Atendimento", icon: SlidersHorizontal },
+  { key: "negotiation", label: "Negociação", section: "Atendimento", icon: SlidersHorizontal },
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
   { key: "payment-connections", label: "Pagamentos", section: "Conta", icon: Zap },
   { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },
 ];
 
+class PageErrorBoundary extends Component<
+  { children: ReactNode; onReset?: () => void },
+  { error: Error | null }
+> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("[PageErrorBoundary]", error, info.componentStack);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="panel" style={{ textAlign: "center", padding: "var(--space-8)" }}>
+          <p style={{ fontWeight: 600, marginBottom: "var(--space-2)" }}>Algo deu errado nesta página.</p>
+          <p className="text-muted" style={{ marginBottom: "var(--space-4)", fontSize: "0.85rem" }}>
+            {this.state.error.message.slice(0, 200)}
+          </p>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              this.setState({ error: null });
+              this.props.onReset?.();
+            }}
+          >
+            Tentar novamente
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function friendlyAuthError(error: unknown): string {
   const text =
     error instanceof DashboardHttpError ? error.responseBody : error instanceof Error ? error.message : String(error);
-  if (text.includes("email_already_registered")) return "Este email ja esta cadastrado.";
-  if (text.includes("invalid_credentials")) return "Email ou senha invalidos.";
+  if (text.includes("email_already_registered")) return "Este e-mail já está cadastrado.";
+  if (text.includes("invalid_credentials")) return "E-mail ou senha inválidos.";
   if (text.includes("login_rate_limited")) return "Muitas tentativas. Tente novamente em alguns minutos.";
-  return text.slice(0, 180) || "Nao foi possivel autenticar.";
+  return text.slice(0, 180) || "Não foi possível autenticar.";
 }
 
 function AuthScreen(props: {
@@ -150,7 +189,7 @@ function AuthScreen(props: {
 
         <form className="auth-form" onSubmit={props.onSubmit}>
           <div>
-            <p className="eyebrow">{props.mode === "login" ? "Sessao merchant" : "Novo tenant"}</p>
+            <p className="eyebrow">{props.mode === "login" ? "Sessão merchant" : "Novo tenant"}</p>
             <h2>{props.mode === "login" ? "Acesse seu painel" : "Cadastre sua loja"}</h2>
           </div>
 
@@ -236,7 +275,7 @@ function App() {
         setMe(null);
       } else {
         // Transient error: keep the session (me) as-is; surface a warning.
-        setAuthHint("API indisponível. Recarregue para tentar novamente.");
+        setAuthHint("API indisponível. Recarregue a página para tentar novamente.");
       }
     } finally {
       setCheckingSession(false);
@@ -253,7 +292,7 @@ function App() {
     function handleSessionExpired() {
       setMe(null);
       setAuthMode("login");
-      setAuthHint("Sessao expirada. Entre novamente.");
+      setAuthHint("Sessão expirada. Entre novamente.");
     }
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
@@ -304,7 +343,7 @@ function App() {
         mode={authMode}
         setMode={setAuthMode}
         busy={busy || checkingSession}
-        hint={checkingSession ? "Verificando sessao..." : authHint}
+        hint={checkingSession ? "Verificando sessão..." : authHint}
         email={email}
         setEmail={setEmail}
         password={password}
@@ -334,7 +373,7 @@ function App() {
           </div>
         </div>
 
-        <nav className="sidebar-nav" aria-label="Modulos do painel">
+        <nav className="sidebar-nav" aria-label="Módulos do painel">
           {groupedSections.map((section) => (
             <div className="nav-section" key={section}>
               <span>{section}</span>
@@ -380,6 +419,7 @@ function App() {
         </header>
 
         <section className="dashboard-content">
+          <PageErrorBoundary key={tab}>
           {tab === "onboarding" ? (
             <OnboardingWizard
               apiBaseUrl={API_BASE_URL}
@@ -405,6 +445,7 @@ function App() {
           {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
           {tab === "commerce-connections" ? <CommerceConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+          </PageErrorBoundary>
         </section>
       </main>
     </div>

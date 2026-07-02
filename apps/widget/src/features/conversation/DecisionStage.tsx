@@ -4,7 +4,7 @@ import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view
 export function DecisionStage({ vm }: { vm: CheckoutAgentViewModel }) {
   return (
     <section
-      className="aacp-decision-stage"
+      className="zyon-decision-stage"
       aria-label="Decisao atual do checkout"
       data-stage={vm.checkoutStage}
     >

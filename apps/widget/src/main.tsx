@@ -134,6 +134,7 @@ class AacpCheckoutAgentElement extends HTMLElement {
 
   connectedCallback(): void {
     this.mount();
+    window.addEventListener("message", this.onMessage);
   }
 
   attributeChangedCallback(_name: string, prev: string | null, next: string | null): void {
@@ -146,7 +147,18 @@ class AacpCheckoutAgentElement extends HTMLElement {
     this.root = undefined;
     this.host?.remove();
     this.host = undefined;
+    window.removeEventListener("message", this.onMessage);
   }
+
+  private onMessage = (event: MessageEvent): void => {
+    if (event.data?.type !== "THEME_UPDATE" || !this.host) return;
+    const styles = themeStyle(event.data.payload as Parameters<typeof themeStyle>[0]);
+    for (const [prop, val] of Object.entries(styles)) {
+      if (prop.startsWith("--") && val !== undefined) {
+        this.host.style.setProperty(prop, String(val));
+      }
+    }
+  };
 
   private mount(): void {
     if (!this.host) {

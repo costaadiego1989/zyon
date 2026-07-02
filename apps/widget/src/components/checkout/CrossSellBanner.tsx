@@ -15,23 +15,23 @@ export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss, 
   if (!products.length) return null;
 
   return (
-    <section className="aacp-cross-sell mt-3" aria-label="Complementos sugeridos">
-      <div className="aacp-cross-sell-head">
+    <section className="zyon-cross-sell mt-3" aria-label="Complementos sugeridos">
+      <div className="zyon-cross-sell-head">
         <div>
-          <span className="aacp-cross-sell-kicker">Antes de pagar</span>
-          <strong className="aacp-cross-sell-title">Você também pode gostar</strong>
+          <span className="zyon-cross-sell-kicker">Antes de pagar</span>
+          <strong className="zyon-cross-sell-title">Você também pode gostar</strong>
         </div>
         <button
           type="button"
           aria-label="Fechar sugestões"
           onClick={onDismiss}
-          className="aacp-cross-sell-dismiss"
+          className="zyon-cross-sell-dismiss"
         >
           <X size={14} />
         </button>
       </div>
 
-      <div className="aacp-cross-sell-list">
+      <div className="zyon-cross-sell-list">
         {products.map((product) => (
           <CrossSellCard
             key={product.sku}
@@ -44,7 +44,7 @@ export function CrossSellBanner({ products, currency = "BRL", onAdd, onDismiss, 
 
       <button
         type="button"
-        className="aacp-cross-sell-skip"
+        className="zyon-cross-sell-skip"
         onClick={onProceedToPayment}
       >
         Continuar sem adicionar
@@ -74,25 +74,25 @@ function CrossSellCard({
   }
 
   return (
-    <article className="aacp-cross-sell-card">
-      <div className="aacp-cross-sell-thumb">
+    <article className="zyon-cross-sell-card">
+      <div className="zyon-cross-sell-thumb">
         {product.image_url ? (
           <img
             src={product.image_url}
             alt={product.name}
-            className="aacp-cross-sell-thumb-image"
+            className="zyon-cross-sell-thumb-image"
           />
         ) : (
-          <Package size={20} className="aacp-cross-sell-thumb-fallback" />
+          <Package size={20} className="zyon-cross-sell-thumb-fallback" />
         )}
       </div>
 
-      <div className="aacp-cross-sell-body">
-        <div className="aacp-cross-sell-name">{product.name}</div>
+      <div className="zyon-cross-sell-body">
+        <div className="zyon-cross-sell-name">{product.name}</div>
         {product.variant ? (
-          <div className="aacp-cross-sell-variant">{product.variant}</div>
+          <div className="zyon-cross-sell-variant">{product.variant}</div>
         ) : null}
-        <div className="aacp-cross-sell-price">
+        <div className="zyon-cross-sell-price">
           {formatCurrency(product.unit_price, currency)}
         </div>
       </div>
@@ -101,7 +101,7 @@ function CrossSellCard({
         type="button"
         disabled={loading || added}
         onClick={() => void handleAdd()}
-        className="aacp-cta aacp-cross-sell-add"
+        className="zyon-cta zyon-cross-sell-add"
         aria-label={added ? `${product.name} adicionado` : `Adicionar ${product.name}`}
       >
         {added ? (

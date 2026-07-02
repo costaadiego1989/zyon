@@ -20,15 +20,15 @@ export function TrustStrip({
 
   return (
     <div
-      className={`aacp-trust-strip aacp-trust-strip--${variant} ${className}`.trim()}
+      className={`zyon-trust-strip zyon-trust-strip--${variant} ${className}`.trim()}
       role="group"
       aria-label="Garantias e segurança"
     >
       {showDefaults
         ? DEFAULT_TRUST_ITEMS.map((item) => (
-            <span key={item.id} className="aacp-trust-seal">
+            <span key={item.id} className="zyon-trust-seal">
               {"flag" in item ? (
-                <span className="aacp-trust-flag" aria-hidden>
+                <span className="zyon-trust-flag" aria-hidden>
                   {item.flag}
                 </span>
               ) : (
@@ -38,7 +38,7 @@ export function TrustStrip({
             </span>
           ))
         : custom.map((label) => (
-            <span key={label} className="aacp-trust-seal">
+            <span key={label} className="zyon-trust-seal">
               <ShieldCheck size={12} aria-hidden />
               {label}
             </span>

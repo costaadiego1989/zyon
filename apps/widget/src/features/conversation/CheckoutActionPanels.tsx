@@ -9,7 +9,7 @@ import type {
 
 export function NetworkErrorView({ model }: { model: NetworkErrorModel }) {
   return (
-    <div className="aacp-network-error" role="alert">
+    <div className="zyon-network-error" role="alert">
       <span>{model.message}</span>
       <button type="button" onClick={model.onRetry}>
         Tentar novamente
@@ -21,7 +21,7 @@ export function NetworkErrorView({ model }: { model: NetworkErrorModel }) {
 export function CouponBoxView({ model }: { model: CouponBoxModel }) {
   return (
     <form
-      className="aacp-coupon-box mt-3 flex gap-2"
+      className="zyon-coupon-box mt-3 flex gap-2"
       onSubmit={(e) => {
         e.preventDefault();
         void model.onSubmit();
@@ -46,7 +46,7 @@ export function CouponBoxView({ model }: { model: CouponBoxModel }) {
       <button
         type="submit"
         disabled={!model.value.trim() || model.busy}
-        className="aacp-coupon-submit"
+        className="zyon-coupon-submit"
       >
         Aplicar
       </button>
@@ -56,11 +56,11 @@ export function CouponBoxView({ model }: { model: CouponBoxModel }) {
 
 export function OfferBannerView({ model }: { model: OfferBannerModel }) {
   return (
-    <div className="aacp-offer aacp-offer-banner aacp-offer-banner--applied">
-      <div className="aacp-offer-icon">
+    <div className="zyon-offer zyon-offer-banner zyon-offer-banner--applied">
+      <div className="zyon-offer-icon">
         <Gift size={18} />
       </div>
-      <div className="aacp-offer-text">
+      <div className="zyon-offer-text">
         <strong>Oferta aplicada</strong>
         <span>
           -{model.discountLabel}
@@ -79,7 +79,7 @@ export function OfferBannerView({ model }: { model: OfferBannerModel }) {
       </div>
       <button
         type="button"
-        className="aacp-offer-cta"
+        className="zyon-offer-cta"
         onClick={() => void model.onContinue()}
         disabled={model.busy}
       >
@@ -91,11 +91,11 @@ export function OfferBannerView({ model }: { model: OfferBannerModel }) {
 
 export function PendingOfferBannerView({ model }: { model: PendingOfferBannerModel }) {
   return (
-    <div className="aacp-offer aacp-offer-banner aacp-pending-offer">
-      <div className="aacp-offer-icon aacp-pending-offer-icon">
+    <div className="zyon-offer zyon-offer-banner zyon-pending-offer">
+      <div className="zyon-offer-icon zyon-pending-offer-icon">
         <Gift size={20} />
       </div>
-      <div className="aacp-offer-text">
+      <div className="zyon-offer-text">
         <strong>Oferta exclusiva para você</strong>
         <span>
           Preparamos {model.savingsLabel} se você finalizar agora. Aproveite antes de pagar.
@@ -103,7 +103,7 @@ export function PendingOfferBannerView({ model }: { model: PendingOfferBannerMod
       </div>
       <button
         type="button"
-        className="aacp-offer-cta aacp-pending-offer-cta"
+        className="zyon-offer-cta zyon-pending-offer-cta"
         onClick={() => void model.onApply()}
         disabled={model.busy}
       >

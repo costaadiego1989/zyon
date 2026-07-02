@@ -167,7 +167,7 @@ describe("CheckoutHeader", () => {
     const btn = getByLabelText("Abrir conta");
     expect(btn.textContent).toContain("Olá, Diego");
     expect(btn.textContent).toContain("Cliente");
-    expect(container.querySelector("#aacp-login-btn")).not.toBeNull();
+    expect(container.querySelector("#zyon-login-btn")).not.toBeNull();
   });
 
   it("calls openBuyerPanel when verified customer chip is clicked", () => {
@@ -247,8 +247,8 @@ describe("CheckoutHeader", () => {
     expect(setCartOpen).toHaveBeenCalledWith(true);
   });
 
-  it("cart button has aria-controls pointing to aacp-cart-panel", () => {
+  it("cart button has aria-controls pointing to zyon-cart-panel", () => {
     const { getByLabelText } = render(<CheckoutHeader vm={buildVm()} />);
-    expect(getByLabelText("Abrir resumo do pedido").getAttribute("aria-controls")).toBe("aacp-cart-panel");
+    expect(getByLabelText("Abrir resumo do pedido").getAttribute("aria-controls")).toBe("zyon-cart-panel");
   });
 });

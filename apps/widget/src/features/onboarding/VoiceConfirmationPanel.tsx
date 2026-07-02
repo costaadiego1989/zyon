@@ -22,21 +22,21 @@ export function VoiceConfirmationPanel({
 }) {
   return (
     <section
-      className="aacp-voice-confirmation"
+      className="zyon-voice-confirmation"
       data-risk={pendingTurn.riskLevel}
       aria-label="Confirmar resposta por voz"
     >
-      <div className="aacp-voice-confirmation__header">
-        <span className="aacp-voice-confirmation__icon" aria-hidden="true">
+      <div className="zyon-voice-confirmation__header">
+        <span className="zyon-voice-confirmation__icon" aria-hidden="true">
           <ShieldCheck size={17} />
         </span>
         <div>
-          <p className="aacp-voice-confirmation__eyebrow">{riskLabel(pendingTurn.riskLevel)}</p>
+          <p className="zyon-voice-confirmation__eyebrow">{riskLabel(pendingTurn.riskLevel)}</p>
           <h2>Antes de enviar</h2>
         </div>
       </div>
 
-      <dl className="aacp-voice-confirmation__review">
+      <dl className="zyon-voice-confirmation__review">
         <div>
           <dt>Você disse</dt>
           <dd>{pendingTurn.displayTranscript}</dd>
@@ -47,10 +47,10 @@ export function VoiceConfirmationPanel({
         </div>
       </dl>
 
-      <div className="aacp-voice-confirmation__actions">
+      <div className="zyon-voice-confirmation__actions">
         <button
           type="button"
-          className="aacp-voice-confirmation__primary"
+          className="zyon-voice-confirmation__primary"
           onClick={onConfirm}
           disabled={busy}
         >
@@ -59,7 +59,7 @@ export function VoiceConfirmationPanel({
         </button>
         <button
           type="button"
-          className="aacp-voice-confirmation__secondary"
+          className="zyon-voice-confirmation__secondary"
           onClick={onRetry}
           disabled={busy}
         >
@@ -68,7 +68,7 @@ export function VoiceConfirmationPanel({
         </button>
         <button
           type="button"
-          className="aacp-voice-confirmation__quiet"
+          className="zyon-voice-confirmation__quiet"
           onClick={onEditInChat}
           disabled={busy}
         >
