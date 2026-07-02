@@ -303,38 +303,30 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </section>
       ) : null}
 
-      <section className="developer-status-strip" aria-label="Status da integração">
-        <article>
-          <Activity size={18} />
-          <span>API pública</span>
+      <div className="metrics">
+        <div className="metric">
+          <span><Activity size={14} /> API</span>
           <strong>
             {apiReachable === null
-              ? "Verificando"
+              ? "—"
               : apiReachable
-                ? "Respondendo"
-                : "Indisponível"}
+                ? "Online"
+                : "Offline"}
           </strong>
-          <small>{documentationRoot}</small>
-        </article>
-        <article>
-          <KeyRound size={18} />
-          <span>Chaves ativas</span>
+        </div>
+        <div className="metric">
+          <span><KeyRound size={14} /> Chaves</span>
           <strong>{apiKeys.filter((key) => !key.revokedAt).length}</strong>
-          <small>isoladas por tenant e escopo</small>
-        </article>
-        <article>
-          <Webhook size={18} />
-          <span>Webhooks ativos</span>
+        </div>
+        <div className="metric">
+          <span><Webhook size={14} /> Webhooks</span>
           <strong>{webhooks.filter((endpoint) => endpoint.enabled).length}</strong>
-          <small>assinatura HMAC e replay</small>
-        </article>
-        <article>
-          <RotateCcw size={18} />
-          <span>Falhas recentes</span>
+        </div>
+        <div className="metric">
+          <span><RotateCcw size={14} /> Falhas</span>
           <strong>{deliveries.filter((delivery) => delivery.status === "failed").length}</strong>
-          <small>ultimas {deliveries.length} entregas</small>
-        </article>
-      </section>
+        </div>
+      </div>
 
       <section className="panel developer-quickstart">
         <div>

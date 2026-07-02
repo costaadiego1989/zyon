@@ -7,6 +7,7 @@ import {
   type MerchantProfile,
   type TenantCustomer,
 } from "../api-client.js";
+import { Pagination } from "../components/Pagination.js";
 
 export type CustomerRow = {
   globalUserId: string;
@@ -97,6 +98,9 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   const [hasMore, setHasMore] = useState(false);
   const [sortCol, setSortCol] = useState<"name" | "email" | "lastSeen">("lastSeen");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [dateFilter, setDateFilter] = useState<"all" | "7d" | "30d">("all");
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     if (!props.me) {
@@ -157,14 +161,25 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   }
 
   const filteredRows = useMemo(() => {
-    const filtered = filterRows(rows, searchTerm);
+    let filtered = filterRows(rows, searchTerm);
+    if (dateFilter !== "all") {
+      const days = dateFilter === "7d" ? 7 : 30;
+      const cutoff = Date.now() - days * 86_400_000;
+      filtered = filtered.filter((r) => new Date(r.lastSeen).getTime() >= cutoff);
+    }
     return [...filtered].sort((a, b) => {
       const valA = a[sortCol] ?? "";
       const valB = b[sortCol] ?? "";
       const cmp = valA.localeCompare(valB);
       return sortDir === "asc" ? cmp : -cmp;
     });
-  }, [rows, searchTerm, sortCol, sortDir]);
+  }, [rows, searchTerm, sortCol, sortDir, dateFilter]);
+
+  const paginatedRows = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredRows.slice(start, start + PAGE_SIZE);
+  }, [filteredRows, page]);
+
   const metrics = useMemo(() => computeMetrics(rows), [rows]);
 
   function toggleSort(col: typeof sortCol) {
@@ -256,13 +271,30 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           <UsersRound size={18} />
         </div>
         <div className="orders-toolbar">
+          <nav className="filter-tabs" role="tablist" aria-label="Filtrar por período">
+            {(["all", "7d", "30d"] as const).map((value) => {
+              const labels = { all: "Todos", "7d": "Últimos 7 dias", "30d": "Últimos 30 dias" };
+              return (
+                <button
+                  key={value}
+                  role="tab"
+                  className={`filter-tab${dateFilter === value ? " active" : ""}`}
+                  aria-selected={dateFilter === value}
+                  onClick={() => { setDateFilter(value); setPage(1); }}
+                  type="button"
+                >
+                  {labels[value]}
+                </button>
+              );
+            })}
+          </nav>
           <input
             type="search"
             className="search-input"
             placeholder="Buscar por nome, e-mail ou telefone..."
             aria-label="Buscar por nome, e-mail ou telefone"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
           />
         </div>
 
@@ -295,7 +327,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredRows.map((row) => (
+                  {paginatedRows.map((row) => (
                     <tr key={row.globalUserId}>
                       <td>
                         <div className="customer-avatar">{row.initials}</div>
@@ -311,18 +343,13 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
               </table>
             </div>
 
-            {hasMore && !loading ? (
-              <div className="load-more-row">
-                <button
-                  type="button"
-                  disabled={loadingMore}
-                  onClick={() => void loadMore()}
-                  aria-label="Carregar mais clientes"
-                >
-                  Carregar mais
-                </button>
-              </div>
-            ) : null}
+            <Pagination
+              page={page}
+              pageSize={PAGE_SIZE}
+              total={filteredRows.length}
+              onChange={setPage}
+              disabled={loading}
+            />
 
             {filteredRows.length === 0 && !loading ? (
               <div className="empty-state" role="status">

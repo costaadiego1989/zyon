@@ -303,8 +303,8 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                 <PlugZap size={18} />
               </div>
               <div>
-                <h2>Nova Conexão</h2>
-                <p>Credenciais ficam criptografadas; uma conexão ativa por loja.</p>
+                <h2>Conectar plataforma</h2>
+                <p>Informe as credenciais da sua loja. Dados criptografados em repouso.</p>
               </div>
             </div>
           </div>
@@ -340,6 +340,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                     required
                     minLength={3}
                   />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Sem https:// — apenas o subdomínio .myshopify.com</small>
                 </label>
               ) : (
                 <label>
@@ -359,7 +360,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             {provider === "shopify" ? (
               <>
                 <label>
-                  Token de acesso
+                  Token de acesso (Admin API)
                   <input
                     type="password"
                     placeholder="shpat_..."
@@ -373,6 +374,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                     data-1p-ignore
                     data-lpignore="true"
                   />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Gere em Shopify Admin → Settings → Apps → Develop apps → Admin API access token</small>
                   {adminToken && !SHOPIFY_TOKEN_PATTERN.test(adminToken) ? (
                     <span className="commerce-field-warning">Formato esperado: shpat_ seguido de 32+ caracteres hexadecimais</span>
                   ) : null}
@@ -408,7 +410,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             ) : (
               <div className="commerce-credential-row">
                 <label>
-                  Chave do consumidor
+                  Chave do consumidor (Consumer Key)
                   <input
                     type="password"
                     placeholder="ck_..."
@@ -427,7 +429,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                   ) : null}
                 </label>
                 <label>
-                  Segredo do consumidor
+                  Segredo do consumidor (Consumer Secret)
                   <input
                     type="password"
                     placeholder="cs_..."
@@ -454,6 +456,22 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             </button>
           </form>
         </section>
+      ) : null}
+
+      {/* Upcoming integrations */}
+      {!hasConnection ? (
+        <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
+          <div className="section-header" style={{ marginBottom: 'var(--space-3)' }}><h3>Outras plataformas (em breve)</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Estamos trabalhando na integração com mais plataformas.</p>
+          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+            <span className="badge muted">Nuvemshop</span>
+            <span className="badge muted">VTEX</span>
+            <span className="badge muted">Magento</span>
+            <span className="badge muted">Tray</span>
+            <span className="badge muted">Yampi</span>
+            <span className="badge muted">Loja Integrada</span>
+          </div>
+        </div>
       ) : null}
 
       {/* Active connection */}

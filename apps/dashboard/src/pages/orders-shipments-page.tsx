@@ -9,6 +9,7 @@ import {
   Sparkles,
   Truck,
 } from "lucide-react";
+import { Pagination } from "../components/Pagination.js";
 import {
   createDashboardApi,
   DashboardHttpError,
@@ -161,6 +162,8 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
   const [searchQuery, setSearchQuery] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => {
     if (!props.me) {
@@ -203,6 +206,10 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
     () => filterOrders(orders, statusFilter, searchQuery),
     [orders, statusFilter, searchQuery],
   );
+  const paginatedOrders = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredOrders.slice(start, start + PAGE_SIZE);
+  }, [filteredOrders, page]);
 
   if (!props.me) {
     return (
@@ -347,7 +354,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                 </tr>
               </thead>
               <tbody>
-                {filteredOrders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <React.Fragment key={order.id}>
                     <tr
                       className="order-row-clickable"
@@ -414,16 +421,14 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       </section>
 
       {/* Pagination */}
-      {hasMore && !busy ? (
-        <div className="load-more-row">
-          <button
-            type="button"
-            className="load-more"
-            onClick={() => void load(nextCursor ?? undefined)}
-          >
-            Carregar mais
-          </button>
-        </div>
+      {hasLoaded && filteredOrders.length > 0 ? (
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={filteredOrders.length}
+          onChange={setPage}
+          disabled={busy}
+        />
       ) : null}
     </div>
   );
