@@ -213,7 +213,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
       </div>
 
       {/* ── Preview Stage (full width) ── */}
-      <div style={{ minWidth: 0, background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-5)", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+      <div style={{ background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-5)", display: "flex", justifyContent: "center", minHeight: 680 }}>
           <div
             className="preview-device-frame"
             style={{
