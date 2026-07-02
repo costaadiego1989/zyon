@@ -170,8 +170,8 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
       <div className="dashboard-content">
         <header className="page-head">
           <div>
-            <h1>Suporte — FAQ e chamados</h1>
-            <p className="page-lead">Login necessário para gerenciar FAQ do suporte.</p>
+            <h1>Atendimento ao Comprador</h1>
+            <p className="page-lead">Login necessário para configurar o atendimento.</p>
           </div>
         </header>
       </div>
@@ -187,9 +187,9 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
       <header className="page-head">
         <div>
           <span className="eyebrow">Atendimento</span>
-          <h1>Suporte — FAQ e chamados</h1>
+          <h1>Atendimento ao Comprador</h1>
           <p className="page-lead">
-            Perguntas frequentes do widget e chamados criados por handoff.
+            Configure o atendimento ao comprador durante o checkout.
             {settings?.updatedAt ? (
               <> · FAQ atualizado em{" "}
                 <span style={{ fontFamily: "var(--font-data)", fontSize: 12 }}>
@@ -270,6 +270,14 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
 
       {settings ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+          {/* ── Hours Section ── */}
+          <section className="panel stacked">
+            <div className="panel-title">
+              <h2>Horário de atendimento</h2>
+            </div>
+            <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>Quando o suporte humano está disponível</p>
+          </section>
+
           {/* ── FAQ Section ── */}
           <section className="panel stacked">
             <div className="panel-title">
@@ -289,7 +297,8 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                 >
                   <HelpCircle size={15} />
                 </div>
-                <h2>Perguntas Frequentes</h2>
+                <h2>Resposta automática</h2>
+              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>Mensagem exibida fora do horário de atendimento</p>
               </div>
               <span className={`badge ${items.length > 0 ? "ok" : "muted"}`}>
                 {items.length}/{20} itens
@@ -400,7 +409,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                   }}
                 >
                   <label>
-                    Pergunta
+                    Pergunta do comprador
                     <input
                       type="text"
                       value={item.question}
@@ -412,7 +421,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                   </label>
 
                   <label>
-                    Resposta
+                    Resposta sugerida
                     <textarea
                       value={item.answer}
                       maxLength={1000}
@@ -482,7 +491,8 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                 >
                   <Ticket size={15} />
                 </div>
-                <h2>Chamados</h2>
+                <h2>Escalonamento</h2>
+              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>Encaminhe conversas para seu time quando necessário</p>
                 <span
                   className="badge muted"
                   style={{ fontFamily: "var(--font-data)", fontSize: 11 }}

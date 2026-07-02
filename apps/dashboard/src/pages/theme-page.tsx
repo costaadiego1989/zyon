@@ -8,17 +8,17 @@ import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePr
 
 export const LABELS = {
   loginRequired: "Login necessário.",
-  tenantSubtitle: "Checkout configurável por tenant.",
-  headerTitle: "Título do header",
-  headerSubtitle: "Subtítulo do header",
-  badges: "Badges de confiança",
-  fontUi: "Fonte da interface",
-  fontDisplay: "Fonte de destaque",
-  borderRadius: "Raio da borda",
-  assetsLayout: "Recursos e layout",
-  reset: "Resetar",
+  tenantSubtitle: "Personalize a aparência do checkout para combinar com sua marca.",
+  headerTitle: "Nome da loja",
+  headerSubtitle: "Subtítulo da loja",
+  badges: "Selos de confiança",
+  fontUi: "Tipografia da interface",
+  fontDisplay: "Tipografia de destaque",
+  borderRadius: "Arredondamento",
+  assetsLayout: "Imagens e layout",
+  reset: "Restaurar padrão",
   saveSuccess: "Tema salvo com sucesso.",
-  resetConfirm: "Resetar para padrão? Alterações não salvas serão perdidas.",
+  resetConfirm: "Restaurar o tema padrão? Suas alterações não salvas serão perdidas.",
   urlInvalid: "URL inválida — use https://...",
   unsavedChanges: "Alterações não salvas",
   badgesMax: "máximo 4",
@@ -26,22 +26,22 @@ export const LABELS = {
 } as const;
 
 export const COLOR_FIELDS: Array<{ key: keyof MerchantTheme; label: string }> = [
-  { key: "accentColor", label: "Cor de destaque" },
-  { key: "secondaryColor", label: "Cor secundária" },
-  { key: "textColor", label: "Texto" },
-  { key: "mutedTextColor", label: "Texto secundário" },
-  { key: "backgroundColor", label: "Fundo" },
-  { key: "surfaceColor", label: "Superfície" },
-  { key: "surfaceElevatedColor", label: "Superfície elevada" },
-  { key: "borderColor", label: "Borda" },
-  { key: "successColor", label: "Sucesso" },
-  { key: "warningColor", label: "Aviso" },
+  { key: "accentColor", label: "Cor principal — botões e destaques" },
+  { key: "secondaryColor", label: "Cor secundária — elementos de apoio" },
+  { key: "textColor", label: "Texto principal" },
+  { key: "mutedTextColor", label: "Texto discreto" },
+  { key: "backgroundColor", label: "Fundo da página" },
+  { key: "surfaceColor", label: "Fundo de cartões" },
+  { key: "surfaceElevatedColor", label: "Fundo de modais" },
+  { key: "borderColor", label: "Bordas e separadores" },
+  { key: "successColor", label: "Sucesso e confirmações" },
+  { key: "warningColor", label: "Alertas e avisos" },
 ];
 
 export const DENSITY_OPTIONS: Array<{ value: NonNullable<MerchantTheme["density"]>; label: string }> = [
   { value: "compact", label: "Compacto" },
-  { value: "comfortable", label: "Confortável" },
-  { value: "spacious", label: "Espaçoso" },
+  { value: "comfortable", label: "Normal" },
+  { value: "spacious", label: "Amplo" },
 ];
 
 export function isValidUrl(value: string): boolean {
@@ -231,7 +231,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       <>
         <header className="page-head">
           <div>
-            <h1>Tema</h1>
+            <h1>Aparência</h1>
             <p className="page-lead">{LABELS.loginRequired}</p>
           </div>
         </header>
@@ -243,17 +243,15 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <>
       <header className="page-head">
         <div>
-          <span className="eyebrow">Plataforma</span>
-          <h1>Tema enterprise</h1>
+          <span className="eyebrow">Personalização</span>
+          <h1>Personalize a aparência do checkout para combinar com sua marca</h1>
           <p className="page-lead">
             {props.me.name ?? props.me.id}
-            <span className="badge" style={{ marginLeft: 8 }}>tenant</span>
             {dirty ? (
               <span className="badge warn" style={{ marginLeft: 8 }} aria-label={LABELS.unsavedChanges}>
                 não salvo
               </span>
             ) : null}
-            {" "}— {LABELS.tenantSubtitle}
           </p>
         </div>
         <div className="button-row">
@@ -302,16 +300,17 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           {/* ── controls column ── */}
           <div className="split-panel-controls">
 
-            {/* 1 — Identidade */}
+            {/* 1 — Identidade e tipografia */}
             <section className="panel stacked">
               <div className="panel-title">
-                <h2>Identidade</h2>
+                <h2>Identidade e tipografia</h2>
                 <Palette size={15} />
               </div>
 
               <div className="form-grid">
                 <label>
                   {LABELS.fontUi}
+                  <span className="field-hint">Fonte usada nos textos e botões do widget</span>
                   <select value={theme.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })}>
                     {FONT_OPTIONS.map((font) => (
                       <option key={font} value={font}>{font.split(",")[0]}</option>
@@ -321,6 +320,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
                 <label>
                   {LABELS.fontDisplay}
+                  <span className="field-hint">Fonte para títulos e valores em destaque</span>
                   <select
                     value={theme.fontDisplay ?? theme.fontFamily}
                     onChange={(e) => patch({ fontDisplay: e.target.value })}
@@ -333,28 +333,31 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
                 <label>
                   {LABELS.headerTitle}
+                  <span className="field-hint">Nome exibido no topo do widget</span>
                   <input
                     value={theme.headerTitle ?? ""}
                     onChange={(e) => patch({ headerTitle: e.target.value })}
-                    placeholder="Nome que aparece no header do widget"
+                    placeholder="Minha Loja"
                   />
                 </label>
 
                 <label>
                   {LABELS.headerSubtitle}
+                  <span className="field-hint">Frase curta abaixo do nome</span>
                   <input
                     value={theme.headerSubtitle ?? ""}
                     onChange={(e) => patch({ headerSubtitle: e.target.value })}
-                    placeholder="Subtítulo do header"
+                    placeholder="Finalize sua compra com o melhor preço"
                   />
                 </label>
 
                 <label>
-                  Nome do agente
+                  Nome do assistente
+                  <span className="field-hint">Como o agente se apresenta ao comprador</span>
                   <input
                     value={theme.agentName ?? ""}
                     onChange={(e) => patch({ agentName: e.target.value })}
-                    placeholder="Nome do agente AI"
+                    placeholder="Ana"
                   />
                 </label>
               </div>
@@ -397,11 +400,11 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               </div>
             </section>
 
-            {/* 2 — Cores */}
+            {/* 2 — Paleta de cores */}
             <section className="panel stacked">
               <div className="panel-title">
-                <h2>Cores</h2>
-                <span className="badge">{COLOR_FIELDS.length} tokens</span>
+                <h2>Paleta de cores</h2>
+                <span className="badge">{COLOR_FIELDS.length} cores</span>
               </div>
 
               <div className="theme-color-grid">
@@ -420,7 +423,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               </div>
             </section>
 
-            {/* 3 — Recursos e layout */}
+            {/* 3 — Imagens e layout */}
             <section className="panel stacked">
               <div className="panel-title">
                 <h2>{LABELS.assetsLayout}</h2>
@@ -428,7 +431,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <div className="form-grid">
                 <label>
-                  Logo URL
+                  Logo da marca
+                  <span className="field-hint">Imagem exibida no topo do widget</span>
                   <input
                     value={theme.logoUrl ?? ""}
                     onChange={(e) => patch({ logoUrl: e.target.value })}
@@ -440,7 +444,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </label>
 
                 <label>
-                  Avatar URL
+                  Avatar do assistente
+                  <span className="field-hint">Foto que aparece nas mensagens do agente</span>
                   <input
                     value={theme.agentAvatarUrl ?? ""}
                     onChange={(e) => patch({ agentAvatarUrl: e.target.value })}
@@ -452,7 +457,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </label>
 
                 <label>
-                  Background image URL
+                  Imagem de fundo
+                  <span className="field-hint">Background decorativo do widget</span>
                   <input
                     value={theme.backgroundImageUrl ?? ""}
                     onChange={(e) => patch({ backgroundImageUrl: e.target.value })}
@@ -479,9 +485,10 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <div>
                 <p style={{ marginBottom: 8, fontWeight: 600, color: "var(--color-text-secondary)", fontSize: 13 }}>
-                  Densidade
+                  Espaçamento
                 </p>
-                <div className="segmented-control" role="group" aria-label="Densidade">
+                <span className="field-hint" style={{ display: "block", marginBottom: 8 }}>Distância entre elementos no widget</span>
+                <div className="segmented-control" role="group" aria-label="Espaçamento">
                   {DENSITY_OPTIONS.map((opt) => (
                     <button
                       type="button"
@@ -498,8 +505,11 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           </div>
 
-          {/* ── preview column ── */}
+          {/* ── Pré-visualização em tempo real ── */}
           <div className="split-panel-preview">
+            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
+              Pré-visualização em tempo real
+            </p>
             <LivePreviewPanel
               ref={previewRef}
               apiBaseUrl={props.apiBaseUrl}

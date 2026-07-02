@@ -186,9 +186,9 @@ export function MerchantRulesAuthenticatedPage(props: {
       <header className="page-head">
         <div>
           <span className="eyebrow">Atendimento</span>
-          <h1>Regras de Negociação</h1>
+          <h1>Regras do Agente</h1>
           <p className="page-lead">
-            Configure limites de desconto, frete, ofertas e comportamento do agente para {props.me.name ?? "sua loja"}.
+            Defina o comportamento e os limites do agente de checkout.
           </p>
         </div>
         <div className="button-row">
@@ -235,7 +235,8 @@ export function MerchantRulesAuthenticatedPage(props: {
           <div className="split-panel-controls">
             <div className="panel stacked">
               <div className="panel-title">
-                <h2>Configuração de Regras</h2>
+                <h2>Capacidades</h2>
+              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>O que o agente pode fazer durante a conversa</p>
               </div>
               <RulesForm
                 rules={rules}
@@ -254,11 +255,11 @@ export function MerchantRulesAuthenticatedPage(props: {
 
             <section className="panel stacked rules-section-gap">
               <div className="panel-title">
-                <h2>Motor de regras do agente</h2>
+                <h2>Limites</h2>
                 <Bot size={18} className="icon-brand" />
               </div>
-              <p className="page-lead">
-                Configuração avançada do comportamento e limites do agente de negociação.
+              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>
+                Restrições que o agente deve respeitar sempre
               </p>
               {agentMessage ? (
                 <p className="panel panel-info">{agentMessage}</p>
@@ -282,7 +283,7 @@ export function MerchantRulesAuthenticatedPage(props: {
                   onClick={() => void saveAgentRules()}
                 >
                   <Save size={16} />
-                  {agentBusy ? "Salvando..." : "Salvar regras do agente"}
+                  {agentBusy ? "Salvando..." : "Salvar regras"}
                 </button>
                 <button
                   type="button"

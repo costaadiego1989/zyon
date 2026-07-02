@@ -31,13 +31,12 @@ export function NegotiationPage(props: { apiBaseUrl: string; me: MerchantMeProfi
           <span className="eyebrow">Atendimento</span>
           <h1>Motor de Negociação M2M</h1>
           <p className="page-lead">
-            Gerencie a política de negociação automatizada, acompanhe sessões e custos de IA,
-            e teste o motor de avaliação.
+            Configure regras de negociação automática. O agente usa essas regras para oferecer descontos e condições especiais.
           </p>
         </div>
       </header>
 
-      <nav className="page-tabs" role="tablist" aria-label="Seções de negociação">
+      <nav className="page-tabs" role="tablist" aria-label="Seções de negociação automática">
         <button
           type="button"
           role="tab"
@@ -45,7 +44,7 @@ export function NegotiationPage(props: { apiBaseUrl: string; me: MerchantMeProfi
           className={`page-tab ${activeTab === "overview" ? "active" : ""}`}
           onClick={() => setActiveTab("overview")}
         >
-          Visão Geral
+          Sessões e custos
         </button>
         <button
           type="button"
@@ -54,7 +53,7 @@ export function NegotiationPage(props: { apiBaseUrl: string; me: MerchantMeProfi
           className={`page-tab ${activeTab === "policy" ? "active" : ""}`}
           onClick={() => setActiveTab("policy")}
         >
-          Política
+          Regras de negociação
         </button>
         <button
           type="button"
@@ -63,7 +62,7 @@ export function NegotiationPage(props: { apiBaseUrl: string; me: MerchantMeProfi
           className={`page-tab ${activeTab === "simulator" ? "active" : ""}`}
           onClick={() => setActiveTab("simulator")}
         >
-          Simulador
+          Testar cenários
         </button>
       </nav>
 

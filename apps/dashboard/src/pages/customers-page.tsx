@@ -209,7 +209,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         <div>
           <span className="eyebrow">Clientes</span>
           <h1>Clientes</h1>
-          <p className="page-lead">Visão geral da base de clientes capturados no checkout.</p>
+          <p className="page-lead">Visualize e gerencie os compradores que interagiram com seu checkout.</p>
         </div>
         <div className="button-row">
           <button
@@ -219,7 +219,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
             aria-label="Exportar clientes em CSV"
           >
             <Download size={16} />
-            Exportar
+            Exportar lista
           </button>
           <button
             type="button"
@@ -228,7 +228,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
             aria-label="Atualizar lista de clientes"
           >
             <RefreshCw size={16} />
-            Atualizar
+            Atualizar dados
           </button>
         </div>
       </header>
@@ -239,25 +239,25 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         <article className="metric">
           <UsersRound size={18} />
           <span className="metric-value">{metrics.total}</span>
-          <span className="metric-label">Total Clientes</span>
+          <span className="metric-label">Compradores identificados</span>
         </article>
         <article className="metric">
           <UserPlus size={18} />
           <span className="metric-value">{metrics.newLast7Days}</span>
-          <span className="metric-label">Novos (7 dias)</span>
+          <span className="metric-label">Novos nos últimos 7 dias</span>
         </article>
         <article className="metric">
           <Repeat size={18} />
           <span className="metric-value">{Math.round(metrics.returningRate * 100)}%</span>
-          <span className="metric-label">Taxa de Retorno</span>
+          <span className="metric-label">Compradores que voltaram</span>
         </article>
       </div>
 
       <input
         type="search"
         className="table-search"
-        placeholder="Buscar por nome ou email..."
-        aria-label="Buscar clientes por nome ou email"
+        placeholder="Buscar por nome, e-mail ou telefone..."
+        aria-label="Buscar por nome, e-mail ou telefone"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
       />
@@ -287,11 +287,12 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                       Nome <ArrowUpDown size={12} />
                     </th>
                     <th scope="col" className="sortable" onClick={() => toggleSort("email")} aria-sort={sortCol === "email" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
-                      Email <ArrowUpDown size={12} />
+                      E-mail <ArrowUpDown size={12} />
                     </th>
                     <th scope="col">Telefone</th>
+                    <th scope="col">Primeira visita</th>
                     <th scope="col" className="sortable" onClick={() => toggleSort("lastSeen")} aria-sort={sortCol === "lastSeen" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
-                      Última atividade <ArrowUpDown size={12} />
+                      Última visita <ArrowUpDown size={12} />
                     </th>
                   </tr>
                 </thead>
@@ -304,6 +305,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                       <td>{row.name}</td>
                       <td><code>{row.email}</code></td>
                       <td>{row.phone}</td>
+                      <td>{formatDate(row.firstSeen)}</td>
                       <td>{formatDate(row.lastSeen)}</td>
                     </tr>
                   ))}
@@ -329,8 +331,8 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
                 <div className="empty-state-icon">
                   <UsersRound size={32} />
                 </div>
-                <h3>Nenhum cliente recente</h3>
-                <p>Clientes que interagirem com o checkout aparecerão aqui.</p>
+                <h3>Nenhum comprador registrado ainda.</h3>
+                <p>Clientes aparecerão aqui após a primeira interação no checkout.</p>
               </div>
             ) : null}
           </>

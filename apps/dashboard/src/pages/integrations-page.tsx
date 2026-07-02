@@ -244,7 +244,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     if (!newSecret) return;
     await copyText(
       newSecret,
-      "Secret key copiada. Ela não será exibida novamente.",
+      "Guarde esta chave em local seguro. Ela não será exibida novamente.",
       setMessage,
     );
   }
@@ -253,7 +253,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     return (
       <>
         <h1>Desenvolvedores</h1>
-        <p className="page-lead">Login necessario.</p>
+        <p className="page-lead">Login necessário.</p>
       </>
     );
   }
@@ -265,8 +265,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           <p className="eyebrow">Integration API V1</p>
           <h1>Desenvolvedores</h1>
           <p className="page-lead">
-            Integre o checkout agentico pelo seu backend com contratos publicos,
-            chaves por escopo e webhooks assinados.
+            Conecte sua plataforma ao Zyon via API, webhooks e tokens de sessão.
           </p>
         </div>
         <div className="developer-actions">
@@ -292,8 +291,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         <section className="secret-box">
           <div className="panel-title">
             <div>
-              <strong>Secret key exibida uma unica vez</strong>
-              <span>Armazene-a em um secret manager. Nunca envie para o navegador.</span>
+              <strong>Secret key exibida uma única vez</strong>
+              <span>Guarde esta chave em local seguro. Ela não será exibida novamente.</span>
             </div>
             <button type="button" onClick={() => void copySecret()}>
               <Copy size={15} />
@@ -304,16 +303,16 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </section>
       ) : null}
 
-      <section className="developer-status-strip" aria-label="Status da integracao">
+      <section className="developer-status-strip" aria-label="Status da integração">
         <article>
           <Activity size={18} />
-          <span>API publica</span>
+          <span>API pública</span>
           <strong>
             {apiReachable === null
               ? "Verificando"
               : apiReachable
                 ? "Respondendo"
-                : "Indisponivel"}
+                : "Indisponível"}
           </strong>
           <small>{documentationRoot}</small>
         </article>
@@ -347,7 +346,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           </p>
           <ol className="developer-steps">
             <li>Crie uma chave de sandbox com o menor conjunto de escopos.</li>
-            <li>Cadastre a origem permitida em Instalacoes.</li>
+            <li>Cadastre a origem permitida em Instalações.</li>
             <li>Emita a embed session no seu backend.</li>
             <li>Inicialize o widget com o token retornado.</li>
           </ol>
@@ -380,9 +379,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       <div className="ops-grid">
         <section className="panel stacked">
           <div className="panel-title">
-            <h2>API keys</h2>
+            <h2>Chaves de acesso</h2>
             <KeyRound size={18} />
           </div>
+          <p className="section-subtitle">Autentique chamadas à API do Zyon</p>
           <div className="form-grid two">
             <label>
               Nome
@@ -390,7 +390,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
             </label>
             <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()}>
               <KeyRound size={16} />
-              Criar
+              Gerar nova chave
             </button>
           </div>
           <details className="scope-disclosure">
@@ -437,15 +437,16 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                       </span>
                     </td>
                     <td>
-                      <button type="button" disabled={busy || Boolean(key.revokedAt)} onClick={() => void revokeKey(key.id)} title="Revogar">
+                      <button type="button" disabled={busy || Boolean(key.revokedAt)} onClick={() => void revokeKey(key.id)} title="Revogar chave">
                         <Trash2 size={14} />
+                        Revogar chave
                       </button>
                     </td>
                   </tr>
                 ))}
                 {apiKeys.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>Crie uma chave de sandbox para iniciar a integracao server-to-server.</td>
+                    <td colSpan={5}>Nenhuma chave criada. Gere uma chave para começar a integrar.</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -458,6 +459,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
             <h2>Webhooks</h2>
             <Webhook size={18} />
           </div>
+          <p className="section-subtitle">Receba notificações em tempo real sobre eventos do checkout</p>
           <label>
             Endpoint
             <input value={webhookUrl} placeholder="https://api.sualoja.com/aacp/webhooks" onChange={(event) => setWebhookUrl(event.target.value)} />
@@ -477,7 +479,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           </div>
           <button type="button" disabled={busy || !webhookUrl.trim()} onClick={() => void createWebhook()}>
             <Webhook size={16} />
-            Criar webhook
+            Adicionar endpoint
           </button>
           <div className="list compact-list">
             {webhooks.map((endpoint) => (
@@ -494,7 +496,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               </article>
             ))}
             {webhooks.length === 0 ? (
-              <p className="developer-empty">Cadastre um endpoint HTTPS para receber eventos do checkout.</p>
+              <p className="developer-empty">Nenhum webhook configurado. Adicione um endpoint para receber eventos.</p>
             ) : null}
           </div>
         </section>
@@ -542,7 +544,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               ))}
               {deliveries.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>As tentativas de entrega aparecerao aqui apos o primeiro evento.</td>
+                  <td colSpan={6}>As tentativas de entrega aparecerão aqui após o primeiro evento.</td>
                 </tr>
               ) : null}
             </tbody>
@@ -552,11 +554,11 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
 
       <section className="panel stacked" style={{ marginTop: 16 }}>
         <div className="panel-title">
-          <h2>Instalacoes</h2>
+          <h2>Tokens de sessão</h2>
           <Activity size={18} />
         </div>
-        <p className="page-lead" style={{ marginBottom: 8 }}>
-          Instalacoes do tenant e status de saude (<code>GET /installations</code>).
+        <p className="section-subtitle" style={{ marginBottom: 8 }}>
+          Autentique o widget no seu site
         </p>
         <div className="table-wrap">
           <table className="data-table">
@@ -605,7 +607,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               ))}
               {installations.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={6}>Nenhuma instalacao encontrada.</td>
+                  <td colSpan={6}>Nenhuma instalação encontrada.</td>
                 </tr>
               ) : null}
             </tbody>

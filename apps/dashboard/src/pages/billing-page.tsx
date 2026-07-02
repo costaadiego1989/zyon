@@ -25,9 +25,9 @@ const STATUS_LABEL: Record<string, string> = {
   trialing: "Em teste",
   past_due: "Em atraso",
   canceled: "Cancelada",
-  incomplete: "Incompleta",
+  incomplete: "Pendente",
   incomplete_expired: "Expirada",
-  unpaid: "Inadimplente",
+  unpaid: "Pagamento pendente",
 };
 
 function statusBadgeClass(status: string): string {
@@ -42,14 +42,14 @@ const PLANS = [
     name: "Starter",
     priceId: "starter",
     price: "Gratuito",
-    features: ["1 instalação", "500 sessões/mês", "Webhooks básicos", "Suporte comunidade"],
+    features: ["1 site conectado", "Até 500 conversas por mês", "Notificações em tempo real", "Suporte via comunidade"],
   },
   {
     key: "growth",
     name: "Growth",
     priceId: "growth",
     price: "R$ 299/mês",
-    features: ["5 instalações", "10k sessões/mês", "Webhooks + replay", "Suporte email"],
+    features: ["Até 5 sites conectados", "Até 10 mil conversas por mês", "Notificações com histórico", "Suporte por e-mail prioritário"],
     highlight: true,
   },
   {
@@ -57,7 +57,7 @@ const PLANS = [
     name: "Scale",
     priceId: "scale",
     price: "R$ 899/mês",
-    features: ["Instalações ilimitadas", "Sessões ilimitadas", "SLA 99.9%", "Suporte dedicado"],
+    features: ["Sites ilimitados", "Conversas ilimitadas", "Garantia de disponibilidade 99,9%", "Gerente de conta dedicado"],
   },
 ];
 
@@ -144,7 +144,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         <div>
           <p className="eyebrow">Plano &amp; Cobrança</p>
           <h1>Faturamento</h1>
-          <p className="page-lead">Plano, assinatura e histórico de cobranças do tenant.</p>
+          <p className="page-lead">Gerencie sua assinatura e acompanhe o uso da plataforma.</p>
         </div>
         <div className="button-row">
           <button type="button" disabled={loading || busy} onClick={() => void load()}>
@@ -244,7 +244,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         </section>
       ) : !loading ? (
         <div className="panel panel-warn">
-          Nenhuma assinatura ativa. Selecione um plano abaixo para começar.
+          Você ainda não tem um plano ativo. Escolha o plano ideal para sua operação.
         </div>
       ) : null}
 
@@ -264,14 +264,14 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         <p className="empty-state">
           Nenhum método cadastrado.{" "}
           <button type="button" className="link-button" disabled={busy} onClick={() => void openPortal()}>
-            Gerenciar no portal
+            Gerenciar assinatura
           </button>
         </p>
       </section>
 
       <div className="section-header">
         <h2>Planos disponíveis</h2>
-        <p className="page-lead">Escolha o plano ideal para o volume do seu tenant.</p>
+        <p className="page-lead">Escolha o plano ideal para seu volume de vendas</p>
       </div>
 
       <div className="ops-grid three-col">
@@ -308,10 +308,10 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
                   className={plan.highlight ? "primary-action" : ""}
                   disabled={busy}
                   onClick={() => void openCheckout(plan.priceId)}
-                  aria-label={`Assinar plano ${plan.name}`}
+                  aria-label={`Ativar plano ${plan.name}`}
                   style={{ width: "100%", justifyContent: "center" }}
                 >
-                  {subscription ? "Mudar para este plano" : "Assinar"}
+                  {subscription ? "Fazer upgrade" : "Ativar plano"}
                 </button>
               ) : (
                 <button type="button" disabled style={{ width: "100%", justifyContent: "center" }}>

@@ -4,13 +4,13 @@ import { createDashboardApi, DashboardHttpError, type EmbedSessionResponse, type
 
 const EMBED_SCOPES = ["checkout:start", "checkout:track", "checkout:chat", "offers:apply", "coupons:apply", "payment:intents:create"];
 
-const SCOPE_META: Record<string, { ok: boolean; label: string }> = {
-  "checkout:start":        { ok: true,  label: "Iniciar sessão de checkout" },
-  "checkout:track":        { ok: true,  label: "Rastrear progresso do checkout" },
-  "checkout:chat":         { ok: true,  label: "Conversa do agente" },
-  "offers:apply":          { ok: true,  label: "Aplicar ofertas aprovadas" },
-  "coupons:apply":         { ok: true,  label: "Aplicar cupons" },
-  "payment:intents:create":{ ok: false, label: "Criar intenções de pagamento" },
+const SCOPE_META: Record<string, { ok: boolean; label: string; description: string }> = {
+  "checkout:start":        { ok: true,  label: "Iniciar sessão", description: "Permite abrir uma nova sessão de checkout para o comprador" },
+  "checkout:track":        { ok: true,  label: "Rastrear progresso", description: "Acompanha em que etapa do checkout o comprador está" },
+  "checkout:chat":         { ok: true,  label: "Chat do agente", description: "Habilita a conversa com o assistente de compras" },
+  "offers:apply":          { ok: true,  label: "Aplicar ofertas", description: "Permite que ofertas aprovadas sejam aplicadas ao carrinho" },
+  "coupons:apply":         { ok: true,  label: "Cupons", description: "Permite aplicar cupons de desconto durante o checkout" },
+  "payment:intents:create":{ ok: false, label: "Criar pagamentos", description: "Autoriza a criação de intenções de pagamento (sensível)" },
 };
 
 // ── Utility Functions (exported for testing) ─────────────────────────────────
@@ -104,7 +104,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         cart_ref: cartRef,
         scopes: selectedScopes
       }));
-      setMessage("Token emitido com sucesso.");
+      setMessage("Token gerado com sucesso.");
     } catch (e) {
       setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
     } finally {
@@ -131,7 +131,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         <div className="empty-state">
           <div className="empty-state-icon"><KeyRound size={22} /></div>
           <h3>Autenticação necessária</h3>
-          <p>Faça login para emitir tokens de embed e configurar integrações.</p>
+          <p>Faça login para gerar tokens de sessão e instalar o widget no seu site.</p>
         </div>
       </div>
     );
@@ -143,16 +143,15 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <div className="dashboard-content">
       <header className="page-head">
         <div>
-          <span className="eyebrow">Plataforma</span>
-          <h1>Token de Embed</h1>
+          <span className="eyebrow">Integração</span>
+          <h1>Instale o widget no seu site em minutos</h1>
           <p className="page-lead">
-            Emita tokens com escopo definido e vinculados à origem para incorporar o widget no seu storefront.
-            Cada token expira em {Math.round(ttl / 60)} min e fica vinculado à origem especificada.
+            Gere tokens seguros para autenticar sessões do checkout no seu storefront.
           </p>
         </div>
         <button type="button" className="btn-primary" disabled={busy} onClick={() => void issue()}>
           <KeyRound size={15} />
-          {busy ? "Emitindo…" : "Emitir token"}
+          {busy ? "Gerando…" : "Gerar token"}
         </button>
       </header>
 
@@ -173,7 +172,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel-title">
               <div>
                 <Shield size={16} className="icon-brand" />
-                <h2>Parâmetros de emissão</h2>
+                <h2>Configuração do token</h2>
               </div>
               {hasToken && (
                 <span className="badge ok">
@@ -184,7 +183,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             </div>
 
             <label htmlFor="embed-origin">
-              Origem permitida (<code>allowed_origin</code>)
+              Domínio do seu site
+              <span className="field-hint">Endereço onde o widget será exibido</span>
               <input
                 id="embed-origin"
                 type="url"
@@ -201,7 +201,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             </label>
 
             <label htmlFor="embed-cart-ref">
-              Referência do carrinho (<code>cart_ref</code>)
+              Identificador do carrinho
+              <span className="field-hint">Referência única do carrinho do comprador</span>
               <input
                 id="embed-cart-ref"
                 value={cartRef}
@@ -217,7 +218,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             </label>
 
             <label htmlFor="embed-ttl">
-              TTL (segundos)
+              Duração do token
+              <span className="field-hint">Tempo que o comprador pode usar a sessão</span>
               <input
                 id="embed-ttl"
                 type="number"
@@ -228,7 +230,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 aria-describedby={validationErrors.ttl ? "embed-ttl-error" : "embed-ttl-hint"}
               />
               <span className="field-hint" id="embed-ttl-hint">
-                {Math.round(ttl / 60)} min — máx 24h
+                {Math.round(ttl / 60)} min — máximo 24 horas
               </span>
               {validationErrors.ttl && (
                 <span className="field-error" id="embed-ttl-error" role="alert">
@@ -254,10 +256,13 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel-title">
               <div>
                 <Code2 size={16} className="icon-brand" />
-                <h2>Escopos concedidos</h2>
+                <h2>Permissões do widget</h2>
               </div>
-              <span className="badge muted">{selectedScopes.length} escopos</span>
+              <span className="badge muted">{selectedScopes.length} ativas</span>
             </div>
+            <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 var(--space-3)" }}>
+              Escolha o que o widget pode fazer durante a sessão do comprador.
+            </p>
             <div className="list">
               {EMBED_SCOPES.map((scope) => {
                 const meta = SCOPE_META[scope];
@@ -278,11 +283,11 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                     />
                     <span className={`status-dot ${meta?.ok ? "green" : "amber"}`} aria-hidden="true" />
                     <div>
-                      <strong className="scope-name">{scope}</strong>
-                      {meta && <span className="scope-description">{meta.label}</span>}
+                      <strong className="scope-name">{meta?.label ?? scope}</strong>
+                      {meta && <span className="scope-description">{meta.description}</span>}
                     </div>
                     <span className={`badge ${meta?.ok ? "ok" : "warn"}`}>
-                      {meta?.ok ? "read/write" : "write"}
+                      {meta?.ok ? "leitura" : "escrita"}
                     </span>
                   </article>
                 );
@@ -302,12 +307,12 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel-title">
               <span>
                 <Terminal size={13} />
-                snippet.html
+                Código de instalação
               </span>
               <button
                 type="button"
                 onClick={handleCopy}
-                aria-label="Copiar snippet de integração"
+                aria-label="Copiar código de instalação"
               >
                 {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
                 {copied ? "Copiado!" : "Copiar"}
@@ -323,9 +328,9 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   <div className="empty-state-icon">
                     <KeyRound size={20} />
                   </div>
-                  <h3>Nenhum token emitido</h3>
+                  <h3>Aguardando token</h3>
                   <p>
-                    Preencha os parâmetros e clique em &quot;Emitir token&quot; para gerar o snippet com o token real.
+                    Configure os campos ao lado e clique em "Gerar token" para obter o código pronto para uso.
                   </p>
                 </div>
               </div>
@@ -335,15 +340,15 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               <div className="embed-code-footer">
                 <div className="status-line">
                   <span className="status-dot green" aria-hidden="true" />
-                  <span>Token real incorporado — pronto para produção</span>
+                  <span>Token incorporado — pronto para produção</span>
                 </div>
               </div>
             )}
           </div>
 
           <div className="panel-info">
-            <strong>Como usar</strong>
-            Cole o snippet no <code>&lt;head&gt;</code> ou antes do <code>&lt;/body&gt;</code> do seu storefront. O widget inicializa automaticamente ao detectar o token.
+            <strong>Como instalar</strong>
+            Cole este código no <code>&lt;head&gt;</code> ou antes do <code>&lt;/body&gt;</code> do seu site. O widget aparece automaticamente para o comprador.
           </div>
         </div>
       </div>

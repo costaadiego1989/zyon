@@ -114,10 +114,10 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
     : "issuing";
 
   const statusText = tokenStatus === "active"
-    ? "Token ativo"
+    ? "Sessão ativa"
     : tokenStatus === "expired"
-      ? "Token expirado"
-      : "Emitindo token...";
+      ? "Sessão expirada"
+      : "Iniciando sessão...";
 
   const statusDotClass = tokenStatus === "active"
     ? "green"
@@ -129,7 +129,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
     return (
       <div className="preview-fullscreen">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "var(--space-4)" }}>
-          <h2 style={{ fontSize: 15 }}>Preview ao Vivo</h2>
+          <h2 style={{ fontSize: 15 }}>Preview em tela cheia</h2>
           <button
             type="button"
             onClick={() => setIsFullscreen(false)}
@@ -159,8 +159,8 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
         <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
           <div className="page-icon"><Eye size={18} /></div>
           <div>
-            <h1>Preview ao Vivo</h1>
-            <p>Visualize o widget de checkout com a configuração atual do seu merchant</p>
+            <h1>Visualize como seus clientes verão o checkout</h1>
+            <p className="page-lead">Simule a experiência de compra em diferentes dispositivos e modos de apresentação.</p>
           </div>
         </div>
       </header>
@@ -171,7 +171,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
           {/* Token Status Card */}
           <section className="panel stacked">
             <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Status do token
+              Sessão de preview
             </h2>
             <div
               aria-live="polite"
@@ -207,6 +207,9 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
             <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
               Modo de apresentação
             </h2>
+            <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 var(--space-2)" }}>
+              Como o widget aparece para o comprador
+            </p>
             <div role="radiogroup" aria-label="Modo de apresentação" style={{ display: "grid", gap: "var(--space-2)" }}>
               {(["floating", "conversational"] as Presentation[]).map((mode) => {
                 const active = presentation === mode;
@@ -232,12 +235,12 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   >
                     <div style={{ textAlign: "left" }}>
                       <span style={{ display: "block", fontSize: 13 }}>
-                        {mode === "floating" ? "Flutuante" : "Conversacional"}
+                        {mode === "floating" ? "Flutuante" : "Tela cheia"}
                       </span>
                       <span style={{ display: "block", fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", marginTop: 1 }}>
                         {mode === "floating"
-                          ? "Widget como botão flutuante com chat expansível"
-                          : "Fluxo de chat em tela cheia"}
+                          ? "Botão no canto da tela com chat expansível"
+                          : "Experiência de conversa em tela inteira"}
                       </span>
                     </div>
                   </button>
@@ -249,8 +252,11 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
           {/* Device Viewport Selector */}
           <section className="panel stacked">
             <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Tamanho de dispositivo
+              Dispositivo
             </h2>
+            <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 var(--space-2)" }}>
+              Simule a largura de tela dos seus compradores
+            </p>
             <div role="radiogroup" aria-label="Tamanho de dispositivo" style={{ display: "flex", gap: "var(--space-2)" }}>
               {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
                 const active = device === size;
@@ -289,7 +295,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
           {/* Scopes Info Card */}
           <section className="panel stacked">
             <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Escopos de preview
+              Permissões ativas
             </h2>
             <div style={{ display: "grid", gap: "var(--space-1)" }}>
               {PREVIEW_SCOPES.map((scope) => (
@@ -312,7 +318,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
           {/* Theme Applied Card */}
           <section className="panel stacked">
             <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Tema aplicado
+              Tema atual
             </h2>
             {themeError ? (
               <p style={{ fontSize: 12, color: "var(--color-error)", margin: 0 }}>{themeError}</p>
@@ -340,7 +346,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
               onClick={reloadTheme}
               style={{ marginTop: "var(--space-2)", width: "100%", justifyContent: "center" }}
             >
-              <RefreshCw size={13} /> Recarregar tema
+              <RefreshCw size={13} /> Atualizar tema
             </button>
           </section>
 
@@ -350,7 +356,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
             onClick={() => previewRef.current?.reload()}
             style={{ width: "100%", justifyContent: "center", minHeight: 40 }}
           >
-            <RefreshCw size={14} /> Renovar token
+            <RefreshCw size={14} /> Reiniciar sessão
           </button>
 
           <button

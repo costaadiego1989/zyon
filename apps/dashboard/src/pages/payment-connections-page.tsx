@@ -37,7 +37,7 @@ export function sanitizeError(e: unknown): string {
     if (status === 401) return "Sessão expirada. Faça login novamente.";
     if (status === 403) return "Sem permissão para esta ação.";
     if (status === 409) return "Já existe uma conexão ativa. Remova a atual primeiro.";
-    if (status === 422) return "Credenciais inválidas. Verifique os dados e tente novamente.";
+    if (status === 422) return "Não foi possível conectar. Verifique suas credenciais.";
     if (status >= 500) return "Erro interno. Tente novamente em alguns minutos.";
     return "Ocorreu um erro inesperado. Tente novamente.";
   }
@@ -67,7 +67,7 @@ export function statusBadge(status: string) {
   if (status === "error")
     return (
       <span className="badge bad" role="status" aria-live="polite">
-        <AlertCircle size={11} aria-hidden="true" /> Erro
+        <AlertCircle size={11} aria-hidden="true" /> Erro de conexão
       </span>
     );
   return (
@@ -204,7 +204,7 @@ function GatewayCard({
             aria-label={`Conectar ${name}`}
           >
             <ExternalLink size={14} aria-hidden="true" />
-            {isMyConnecting ? "Conectando..." : "Conectar"}
+            {isMyConnecting ? "Conectando..." : "Conectar provedor"}
             <ArrowRight size={14} aria-hidden="true" />
           </button>
         )}
@@ -280,7 +280,7 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
         const idx = prev.findIndex((c) => c.id === updated.id);
         return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
       });
-      setAlert({ message: "Stripe sincronizado.", kind: "success" });
+      setAlert({ message: "Provedor conectado com sucesso", kind: "success" });
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -312,7 +312,7 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
         const idx = prev.findIndex((c) => c.id === updated.id);
         return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
       });
-      setAlert({ message: "Asaas sincronizado.", kind: "success" });
+      setAlert({ message: "Conexão verificada", kind: "success" });
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -360,7 +360,7 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
           <span className="eyebrow">Conta</span>
           <h1>Conexões de pagamento</h1>
           <p className="page-lead">
-            Conecte contas de recebimento para processar transações no checkout.
+            Conecte provedores de pagamento para processar vendas diretamente no checkout.
           </p>
         </div>
         <button
@@ -448,7 +448,7 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
               <div className="provider-icon provider-icon--muted">
                 <PlugZap size={15} aria-hidden="true" />
               </div>
-              <h2>Outras conexões</h2>
+              <h2>Provedores conectados</h2>
             </div>
             <span className="badge muted">{otherConns.length}</span>
           </div>
@@ -509,10 +509,9 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
             <div className="empty-state-icon">
               <PlugZap size={22} aria-hidden="true" />
             </div>
-            <h3>Nenhuma conexão configurada</h3>
+            <h3>Nenhum provedor conectado</h3>
             <p>
-              Conecte pelo menos um gateway de pagamento para que o widget
-              possa processar transações no checkout.
+              Nenhum provedor conectado. Adicione um provedor de pagamento para aceitar cobranças no checkout.
             </p>
           </div>
         </div>

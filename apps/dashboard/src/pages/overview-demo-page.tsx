@@ -438,7 +438,7 @@ export function OverviewDemoPage(props: {
         <div>
           <h1>Visão geral</h1>
           <p className="page-lead">
-            Desempenho do checkout assistido, ofertas autorizadas e saúde do agente em tempo real.
+            Acompanhe sessões, receita e desempenho do checkout em tempo real.
           </p>
         </div>
         <div className="ov-head-actions">
@@ -449,7 +449,7 @@ export function OverviewDemoPage(props: {
           </span>
           <button type="button" onClick={() => void load()} disabled={loading} className="ov-sync">
             <RefreshCw size={14} className={loading ? "ov-spin" : undefined} />
-            {loading ? "Sincronizando" : "Atualizar"}
+            {loading ? "Sincronizando" : "Atualizar dados"}
           </button>
         </div>
       </div>
@@ -466,7 +466,7 @@ export function OverviewDemoPage(props: {
         <article className="ov-kpi-primary" aria-live="polite">
           <div className="ov-kpi-primary-top">
             <div>
-              <span className="ov-kpi-eyebrow">Receita atribuída ao agente</span>
+              <span className="ov-kpi-eyebrow">Receita gerada</span>
               <strong className="ov-kpi-figure">
                 {loading || errored ? "--" : formatCurrency(revenue)}
               </strong>
@@ -474,7 +474,7 @@ export function OverviewDemoPage(props: {
                 <span className="ov-kpi-context-note">
                   {loading || errored
                     ? "aguardando sincronização"
-                    : `${formatCompactCurrency(m.incrementalRevenue)} no período`}
+                    : `Valor total dos pedidos fechados · ${formatCompactCurrency(m.incrementalRevenue)} no período`}
                 </span>
               </div>
             </div>
@@ -485,15 +485,18 @@ export function OverviewDemoPage(props: {
           </div>
           <div className="ov-kpi-primary-foot">
             <div className="ov-kpi-mini">
-              <span className="ov-kpi-mini-label">Pedidos aprovados</span>
+              <span className="ov-kpi-mini-label">Sessões</span>
+              <span className="ov-kpi-mini-sub">Conversas iniciadas no checkout</span>
               <strong>{loading || errored ? "--" : m.completedOrders}</strong>
             </div>
             <div className="ov-kpi-mini">
-              <span className="ov-kpi-mini-label">Conversão com agente</span>
+              <span className="ov-kpi-mini-label">Conversões</span>
+              <span className="ov-kpi-mini-sub">Compradores que concluíram o pedido</span>
               <strong>{loading || errored ? "--" : formatPercent(m.conversionRate)}</strong>
             </div>
             <div className="ov-kpi-mini">
-              <span className="ov-kpi-mini-label">Frete médio</span>
+              <span className="ov-kpi-mini-label">Ticket médio</span>
+              <span className="ov-kpi-mini-sub">Valor médio por pedido</span>
               <strong>{loading || errored ? "--" : formatCurrency(m.averageSelectedShipping)}</strong>
             </div>
           </div>
@@ -572,12 +575,12 @@ export function OverviewDemoPage(props: {
       </section>
 
       {/* ── Activity feed ────────────────────────────────────────── */}
-      <section className="ov-panel ov-activity" aria-label="Atividade recente">
+      <section className="ov-panel ov-activity" aria-label="Sessões recentes">
         <header className="ov-panel-head ov-activity-head">
           <div className="ov-activity-title">
-            <h2>Atividade recente</h2>
+            <h2>Sessões recentes</h2>
             <span className="ov-panel-sub">
-              Ofertas e sessões em ordem cronológica
+              Resumo dos últimos 7 dias
               {lastSync ? ` · atualizado ${relativeTime(lastSync.toISOString())}` : ""}
             </span>
           </div>
@@ -602,10 +605,9 @@ export function OverviewDemoPage(props: {
             <span className="ov-empty-icon" aria-hidden>
               <Activity size={20} strokeWidth={1.6} />
             </span>
-            <strong>Nenhuma atividade ainda</strong>
+            <strong>Nenhuma sessão registrada ainda</strong>
             <p>
-              Assim que o agente iniciar sessões de checkout ou autorizar ofertas, elas aparecem
-              aqui em tempo real.
+              As conversas aparecerão aqui quando compradores interagirem com o checkout.
             </p>
           </div>
         )}
@@ -753,6 +755,13 @@ export function OverviewDemoPage(props: {
           font-weight: 700;
           letter-spacing: 0.03em;
           text-transform: uppercase;
+        }
+        .ov-kpi-mini-sub {
+          display: block;
+          color: rgba(240,253,250,0.52);
+          font-size: 10px;
+          font-weight: 500;
+          margin-top: 1px;
         }
         .ov-kpi-mini strong {
           display: block;

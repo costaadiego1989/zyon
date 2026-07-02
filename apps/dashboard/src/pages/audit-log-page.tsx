@@ -157,7 +157,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
         <header className="page-head">
           <div>
             <h1>Auditoria</h1>
-            <p className="page-lead">Login necessário para acessar o log de auditoria.</p>
+            <p className="page-lead">Login necessário para acompanhar as ações do painel.</p>
           </div>
         </header>
       </>
@@ -171,17 +171,17 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <span className="eyebrow">Conta</span>
           <h1>Log de Auditoria</h1>
           <p className="page-lead">
-            Registro de ações administrativas do tenant para compliance/segurança.
+            Acompanhe todas as ações realizadas no painel.
           </p>
         </div>
         <div className="button-row">
           <button
             type="button"
             onClick={() => exportCsv(filteredEvents)}
-            aria-label="Exportar auditoria em CSV"
+            aria-label="Exportar registros"
           >
             <Download size={16} />
-            Exportar CSV
+            Exportar registros
           </button>
           <button
             type="button"
@@ -208,27 +208,27 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
             value={filters.dateRange}
             onChange={e => setFilters(f => ({ ...f, dateRange: e.target.value as AuditFilters["dateRange"] }))}
           >
-            <option value="all">Todos os períodos</option>
-            <option value="7d">Últimos 7 dias</option>
-            <option value="30d">Últimos 30 dias</option>
-            <option value="90d">Últimos 90 dias</option>
+            <option value="all">Período</option>
+            <option value="7d">7 dias</option>
+            <option value="30d">30 dias</option>
+            <option value="90d">90 dias</option>
           </select>
           <select
             value={filters.actionCategory}
             onChange={e => setFilters(f => ({ ...f, actionCategory: e.target.value as AuditFilters["actionCategory"] }))}
           >
-            <option value="all">Todas as ações</option>
-            <option value="destructive">Destrutivas</option>
-            <option value="constructive">Construtivas</option>
-            <option value="update">Atualizações</option>
+            <option value="all">Tipo de ação</option>
+            <option value="destructive">Exclusão</option>
+            <option value="constructive">Criação</option>
+            <option value="update">Alteração</option>
           </select>
           <select
             value={filters.actorType}
             onChange={e => setFilters(f => ({ ...f, actorType: e.target.value as AuditFilters["actorType"] }))}
           >
-            <option value="all">Todos os atores</option>
-            <option value="human">Humano</option>
-            <option value="service">Serviço</option>
+            <option value="all">Autor</option>
+            <option value="human">Pessoa</option>
+            <option value="service">Sistema</option>
           </select>
           <span className="audit-summary">
             Exibindo {filteredEvents.length} de {events.length} eventos
@@ -290,7 +290,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                             </td>
                             <td>
                               <span className={`actor-badge ${evt.actor_type}`}>
-                                {evt.actor_type === "human" ? "Humano" : "Serviço"}
+                                {evt.actor_type === "human" ? "Pessoa" : "Sistema"}
                               </span>
                             </td>
                             <td>
@@ -348,9 +348,9 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                   <div className="empty-state-icon">
                     <ShieldCheck size={32} />
                   </div>
-                  <h3>Nenhum evento de auditoria</h3>
+                  <h3>Nenhuma atividade registrada</h3>
                   <p>
-                    Ações administrativas do tenant serão registradas aqui para fins de compliance.
+                    Nenhuma atividade registrada no período selecionado.
                   </p>
                 </div>
               )}

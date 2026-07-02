@@ -22,7 +22,7 @@ export function sanitizeError(e: unknown): string {
     if (status === 401) return "Sessão expirada. Faça login novamente.";
     if (status === 403) return "Sem permissão para esta ação.";
     if (status === 409) return "Já existe uma conexão ativa. Remova a atual primeiro.";
-    if (status === 422) return "Credenciais inválidas. Verifique os dados e tente novamente.";
+    if (status === 422) return "Não foi possível conectar. Verifique as credenciais e tente novamente.";
     if (status >= 500) return "Erro interno. Tente novamente em alguns minutos.";
     return "Ocorreu um erro inesperado. Tente novamente.";
   }
@@ -55,7 +55,7 @@ function statusBadge(status: string) {
   if (status === "healthy")
     return <span className="badge ok"><CheckCircle2 size={11} /> Ativo</span>;
   if (status === "degraded")
-    return <span className="badge bad"><AlertCircle size={11} /> Com problemas</span>;
+    return <span className="badge bad"><AlertCircle size={11} /> Erro de sincronização</span>;
   return <span className="badge warn"><Clock size={11} /> Pendente</span>;
 }
 
@@ -211,7 +211,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
         <header className="page-head">
           <div>
             <h1>Conexões de Commerce</h1>
-            <p className="page-lead">Integre com Shopify e WooCommerce.</p>
+            <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente.</p>
           </div>
         </header>
         <div className="panel stacked">
@@ -234,7 +234,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
         <div>
           <span className="eyebrow">Commerce</span>
           <h1>Conexões de Plataforma</h1>
-          <p className="page-lead">Conecte sua loja Shopify ou WooCommerce para sincronizar pedidos.</p>
+          <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente.</p>
         </div>
         <button type="button" disabled={isLoading || isBusy} onClick={() => void load()}>
           <RefreshCw size={15} className={isLoading ? "spin" : undefined} />
@@ -363,7 +363,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             {provider === "shopify" ? (
               <>
                 <label>
-                  Token de acesso admin
+                  Token de acesso
                   <input
                     type="password"
                     placeholder="shpat_..."
@@ -396,7 +396,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                   />
                 </label>
                 <label>
-                  Versão da API (opcional)
+                  Versão da API
                   <select
                     value={apiVersion}
                     onChange={(e) => setApiVersion(e.target.value)}
@@ -454,7 +454,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
 
             <button type="submit" className="btn-primary commerce-submit-btn" disabled={isBusy}>
               <Zap size={15} />
-              {operation === "connecting" ? "Conectando..." : "Conectar"}
+              {operation === "connecting" ? "Conectando..." : "Conectar loja"}
             </button>
           </form>
         </section>
@@ -473,7 +473,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             <div className="empty-state">
               <div className="empty-state-icon"><Link2 size={22} /></div>
               <h3>Nenhuma conexão configurada</h3>
-              <p>Conecte sua plataforma de e-commerce usando o formulário acima.</p>
+              <p>Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos.</p>
             </div>
           </div>
         ) : (
@@ -552,7 +552,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                           onClick={() => void syncConnection()}
                         >
                           <RefreshCw size={14} />
-                          {operation === "syncing" ? "Sincronizando..." : "Sincronizar"}
+                          {operation === "syncing" ? "Sincronizando..." : "Sincronizar agora"}
                         </button>
                         <button
                           type="button"
@@ -561,7 +561,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                           onClick={() => setConfirmingDelete(true)}
                         >
                           <Trash2 size={14} />
-                          Remover
+                          Remover conexão
                         </button>
                       </>
                     )}

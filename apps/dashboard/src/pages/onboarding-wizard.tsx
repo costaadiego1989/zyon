@@ -38,10 +38,10 @@ type StepMeta = {
 };
 
 const STEPS: StepMeta[] = [
-  { id: 1, label: "Identidade", caption: "Aparência e voz do agente", icon: Palette },
-  { id: 2, label: "Descontos", caption: "Limites que o agente respeita", icon: Percent },
-  { id: 3, label: "Checkout", caption: "Como o agente intervém", icon: ShieldCheck },
-  { id: 4, label: "Integração", caption: "Snippet para a sua loja", icon: Code2 },
+  { id: 1, label: "Configure sua loja", caption: "Informe os dados da sua loja para personalizar a experiência do comprador", icon: Palette },
+  { id: 2, label: "Personalize o checkout", caption: "Adapte cores, logo e mensagens para combinar com sua marca", icon: Percent },
+  { id: 3, label: "Conecte sua plataforma", caption: "Conecte sua plataforma de e-commerce para sincronizar produtos e pedidos", icon: ShieldCheck },
+  { id: 4, label: "Ative e publique", caption: "Revise suas configurações e ative o checkout assistido", icon: Code2 },
 ];
 
 const TOTAL_STEPS = STEPS.length;
@@ -81,9 +81,9 @@ const DEFAULT_CHECKOUT_DRAFT: CheckoutDraft = {
 };
 
 const CHECKOUT_MODE_OPTIONS: [CheckoutSettingsMode, string, string][] = [
-  ["silent_until_trigger", "Silencioso até gatilho", "Aguarda um sinal de intenção antes de aparecer."],
-  ["proactive", "Proativo", "Abre por conta própria em momentos-chave do checkout."],
-  ["manual_only", "Somente manual", "Só aparece quando o comprador aciona o widget."],
+  ["silent_until_trigger", "Silencioso até intenção de compra", "Aguarda um sinal de intenção antes de aparecer."],
+  ["proactive", "Proativo", "Aparece em momentos-chave do checkout para ajudar o comprador."],
+  ["manual_only", "Somente quando acionado", "Só aparece quando o comprador clica no widget."],
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -285,7 +285,7 @@ export function OnboardingWizard(props: {
     return (
       <div className="onb-loading" role="status" aria-live="polite">
         <span className="onb-loading-dot" aria-hidden="true" />
-        {message ?? "Carregando onboarding..."}
+        {message ?? "Preparando sua configuração..."}
         <OnboardingStyles />
       </div>
     );
@@ -304,16 +304,16 @@ export function OnboardingWizard(props: {
           </span>
           <span className="onb-kicker onb-kicker-ok">
             <Sparkles size={12} strokeWidth={2.5} />
-            Onboarding concluído
+            Tudo pronto!
           </span>
-          <h1 className="onb-complete-title">Tudo pronto, {props.me.name}.</h1>
+          <h1 className="onb-complete-title">Tudo pronto, {props.me.name}!</h1>
           <p className="onb-complete-lead">
-            Seu checkout assistido está no ar e pronto para converter.
+            Seu checkout assistido está ativo. Compradores já podem interagir.
           </p>
           <button type="button" className="onb-cta" onClick={props.onFinished}>
             <span className="onb-cta-face">
               <Rocket size={15} />
-              Ir para o painel
+              Acessar o painel
             </span>
           </button>
         </div>
@@ -332,8 +332,8 @@ export function OnboardingWizard(props: {
         <div className="onb-rail-head">
           <span className="onb-rail-mark" aria-hidden="true">Z</span>
           <div>
-            <strong>Primeiros passos</strong>
-            <small>{props.me.name}</small>
+            <strong>Ative seu checkout assistido</strong>
+            <small>Configure tudo em poucos minutos. Você pode alterar qualquer configuração depois.</small>
           </div>
         </div>
 
@@ -354,7 +354,7 @@ export function OnboardingWizard(props: {
                 <span className="onb-rail-text">
                   <span className="onb-rail-index">
                     Etapa {String(step.id).padStart(2, "0")}
-                    {state === "done" ? " · concluída" : state === "active" ? " · em curso" : ""}
+                    {state === "done" ? " · concluída" : state === "active" ? " · atual" : ""}
                   </span>
                   <span className="onb-rail-label">{step.label}</span>
                   <span className="onb-rail-caption">{step.caption}</span>
@@ -393,7 +393,7 @@ export function OnboardingWizard(props: {
               {currentStep === 1 && (
                 <div className="onb-fields">
                   <div className="onb-field">
-                    <label className="onb-field-label" htmlFor="onb-accent">Cor de destaque</label>
+                    <label className="onb-field-label" htmlFor="onb-accent">Cor principal da marca</label>
                     <div className="onb-color-field">
                       <input
                         id="onb-accent"
@@ -408,11 +408,11 @@ export function OnboardingWizard(props: {
                   </div>
 
                   <div className="onb-field">
-                    <label className="onb-field-label" htmlFor="onb-logo">URL do logotipo</label>
+                    <label className="onb-field-label" htmlFor="onb-logo">Logotipo da loja</label>
                     <input
                       id="onb-logo"
                       type="text"
-                      placeholder="https://..."
+                      placeholder="https://suamarca.com/logo.png"
                       value={themeDraft.logoUrl ?? ""}
                       onChange={(e) => setThemeDraft((d) => ({ ...d, logoUrl: e.target.value }))}
                     />
@@ -420,11 +420,11 @@ export function OnboardingWizard(props: {
                   </div>
 
                   <div className="onb-field">
-                    <label className="onb-field-label" htmlFor="onb-header">Título do cabeçalho</label>
+                    <label className="onb-field-label" htmlFor="onb-header">Nome exibido no widget</label>
                     <input
                       id="onb-header"
                       type="text"
-                      placeholder="Ex: Loja XYZ"
+                      placeholder="Ex: Minha Loja Official"
                       value={themeDraft.headerTitle ?? ""}
                       onChange={(e) => setThemeDraft((d) => ({ ...d, headerTitle: e.target.value }))}
                     />
@@ -432,11 +432,11 @@ export function OnboardingWizard(props: {
                   </div>
 
                   <div className="onb-field">
-                    <label className="onb-field-label" htmlFor="onb-agent">Nome do agente</label>
+                    <label className="onb-field-label" htmlFor="onb-agent">Nome do assistente de vendas</label>
                     <input
                       id="onb-agent"
                       type="text"
-                      placeholder="Ex: Zara"
+                      placeholder="Ex: Luna, Max, Sofia"
                       value={themeDraft.agentName ?? ""}
                       onChange={(e) => setThemeDraft((d) => ({ ...d, agentName: e.target.value }))}
                     />
@@ -449,7 +449,7 @@ export function OnboardingWizard(props: {
                 <div className="onb-fields">
                   <div className="onb-field">
                     <div className="onb-field-header">
-                      <label className="onb-field-label" htmlFor="onb-maxdisc">Desconto máximo</label>
+                      <label className="onb-field-label" htmlFor="onb-maxdisc">Desconto máximo permitido</label>
                       <span className="onb-value onb-value-ok">{rulesDraft.maxDiscountPercent}%</span>
                     </div>
                     <input
@@ -466,13 +466,13 @@ export function OnboardingWizard(props: {
                       <span>0%</span>
                       <span>30%</span>
                     </div>
-                    <p className="onb-field-help">Teto que o agente nunca ultrapassa em uma negociação.</p>
+                    <p className="onb-field-help">Limite que o assistente nunca ultrapassa em uma negociação.</p>
                     {fieldErrors.maxDiscountPercent && <span className="onb-field-error">{fieldErrors.maxDiscountPercent}</span>}
                   </div>
 
                   <div className="onb-field">
                     <div className="onb-field-header">
-                      <label className="onb-field-label" htmlFor="onb-margin">Margem mínima</label>
+                      <label className="onb-field-label" htmlFor="onb-margin">Margem mínima de lucro</label>
                       <span className="onb-value onb-value-warn">{rulesDraft.minimumMarginPercent}%</span>
                     </div>
                     <input
@@ -489,14 +489,14 @@ export function OnboardingWizard(props: {
                       <span>20%</span>
                       <span>60%</span>
                     </div>
-                    <p className="onb-field-help">Ofertas abaixo dessa margem são recusadas automaticamente.</p>
+                    <p className="onb-field-help">Ofertas abaixo dessa margem são recusadas automaticamente pelo assistente.</p>
                     {fieldErrors.minimumMarginPercent && <span className="onb-field-error">{fieldErrors.minimumMarginPercent}</span>}
                   </div>
 
                   <label className="onb-switch">
                     <span className="onb-switch-text">
-                      <strong>Frete grátis permitido</strong>
-                      <span>Permite que o agente ofereça frete grátis como incentivo.</span>
+                      <strong>Permitir frete grátis</strong>
+                      <span>Permite que o assistente ofereça frete grátis como incentivo de conversão.</span>
                     </span>
                     <input
                       type="checkbox"
@@ -511,7 +511,7 @@ export function OnboardingWizard(props: {
               {currentStep === 3 && (
                 <div className="onb-fields">
                   <div className="onb-field">
-                    <span className="onb-field-label">Modo de operação</span>
+                    <span className="onb-field-label">Como o assistente deve agir</span>
                     <div className="onb-options">
                       {CHECKOUT_MODE_OPTIONS.map(([value, label, help]) => {
                         const selected = checkoutDraft.mode === value;
@@ -537,8 +537,8 @@ export function OnboardingWizard(props: {
 
                   <label className="onb-switch">
                     <span className="onb-switch-text">
-                      <strong>Abrir widget ao detectar gatilho</strong>
-                      <span>O widget se expande sozinho quando um gatilho é detectado.</span>
+                      <strong>Abrir widget automaticamente</strong>
+                      <span>O widget se expande sozinho quando detecta intenção de compra.</span>
                     </span>
                     <input
                       type="checkbox"
@@ -555,7 +555,7 @@ export function OnboardingWizard(props: {
                   {!embedSession && (
                     <div className="onb-embed-empty">
                       <p className="onb-field-help">
-                        Gere um token de sessão e cole o snippet no <code>&lt;head&gt;</code> da sua loja.
+                        Gere um token de integração e cole o snippet no <code>&lt;head&gt;</code> do seu e-commerce.
                       </p>
                       <button
                         type="button"
@@ -565,7 +565,7 @@ export function OnboardingWizard(props: {
                       >
                         <span className="onb-cta-face">
                           <Code2 size={15} />
-                          {busy ? "Gerando..." : "Gerar snippet"}
+                          {busy ? "Gerando..." : "Gerar código de integração"}
                         </span>
                       </button>
                     </div>
@@ -576,7 +576,7 @@ export function OnboardingWizard(props: {
                       <div className="onb-snippet-head">
                         <span className="onb-snippet-title">
                           <span className="onb-dot onb-dot-live" aria-hidden="true" />
-                          Snippet de integração
+                          Código de integração
                         </span>
                         <button type="button" className="onb-copy" onClick={copySnippet}>
                           {copied ? <Check size={13} strokeWidth={3} /> : <Copy size={13} />}
@@ -584,7 +584,7 @@ export function OnboardingWizard(props: {
                         </button>
                       </div>
                       <pre className="onb-snippet-code"><code>{snippet}</code></pre>
-                      <span className="onb-value onb-value-ok onb-snippet-ttl">Token válido por 15 min</span>
+                      <span className="onb-value onb-value-ok onb-snippet-ttl">Token válido por 15 minutos</span>
                     </div>
                   )}
                 </div>
@@ -594,7 +594,7 @@ export function OnboardingWizard(props: {
 
           <aside className="onb-preview">
             <div className="onb-preview-frame">
-              <span className="onb-preview-tag">Pré-visualização ao vivo</span>
+              <span className="onb-preview-tag">Visualização em tempo real</span>
               <LivePreviewPanel
                 ref={currentStep === 1 ? previewRef : undefined}
                 apiBaseUrl={props.apiBaseUrl}
@@ -631,8 +631,8 @@ export function OnboardingWizard(props: {
             <span className="onb-cta-face">
               {currentStep === TOTAL_STEPS ? <Rocket size={15} /> : null}
               {busy
-                ? currentStep === TOTAL_STEPS ? "Finalizando..." : "Salvando..."
-                : currentStep === TOTAL_STEPS ? "Ir para o painel" : "Continuar"}
+                ? currentStep === TOTAL_STEPS ? "Ativando..." : "Salvando..."
+                : currentStep === TOTAL_STEPS ? "Ativar checkout" : "Continuar"}
               {!busy && currentStep < TOTAL_STEPS ? <ArrowRight size={15} /> : null}
             </span>
           </button>
@@ -646,17 +646,17 @@ export function OnboardingWizard(props: {
 }
 
 const STEP_TITLE: Record<number, string> = {
-  1: "Identidade da loja",
-  2: "Regras de desconto",
-  3: "Comportamento do checkout",
-  4: "Integração com a loja",
+  1: "Configure sua loja",
+  2: "Personalize o checkout",
+  3: "Conecte sua plataforma",
+  4: "Ative e publique",
 };
 
 const STEP_LEAD: Record<number, string> = {
-  1: "Defina a cor, o logotipo e a voz do agente. Você vê o resultado ao lado, ao vivo.",
-  2: "Estabeleça os limites que o agente respeita em qualquer negociação.",
-  3: "Escolha quando e como o agente intervém durante o checkout.",
-  4: "Gere o snippet e conecte o checkout assistido a sua loja.",
+  1: "Informe os dados da sua loja para personalizar a experiência do comprador",
+  2: "Adapte cores, logo e mensagens para combinar com sua marca",
+  3: "Conecte sua plataforma de e-commerce para sincronizar produtos e pedidos",
+  4: "Revise suas configurações e ative o checkout assistido",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

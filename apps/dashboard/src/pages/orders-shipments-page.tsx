@@ -24,7 +24,9 @@ const PAGE_SIZE = 50;
 export const STATUS_LABELS: Record<string, string> = {
   approved: "Aprovado",
   cancelled: "Cancelado",
-  pending: "Pendente",
+  pending: "Aguardando",
+  shipped: "Em trânsito",
+  delivered: "Entregue",
   processing: "Processando",
   failed: "Falhou",
   refunded: "Reembolsado",
@@ -222,7 +224,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
         <div>
           <span className="eyebrow">Pedidos</span>
           <h1>Pedidos e Envios</h1>
-          <p className="page-lead">Gerencie pedidos, acompanhe envios e monitore o status financeiro.</p>
+          <p className="page-lead">Acompanhe pedidos e envios gerados pelo checkout assistido.</p>
         </div>
         <div className="button-row">
           <button
@@ -294,7 +296,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
         <div className="orders-toolbar">
           <nav className="filter-tabs" role="tablist" aria-label="Filtrar por status">
             {(["all", "approved", "cancelled"] as const).map((value) => {
-              const labels = { all: "Todos", approved: "Aprovados", cancelled: "Cancelados" };
+              const labels = { all: "Todos os pedidos", approved: "Aprovados", cancelled: "Cancelados" };
               return (
                 <button
                   key={value}
@@ -336,11 +338,11 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
               <thead>
                 <tr>
                   <th>Pedido</th>
-                  <th>Cliente</th>
-                  <th>Total</th>
-                  <th>Rastreamento</th>
+                  <th>Comprador</th>
+                  <th>Valor</th>
+                  <th>Rastreio</th>
                   <th>Status</th>
-                  <th>Concluído</th>
+                  <th>Data</th>
                   <th></th>
                 </tr>
               </thead>
@@ -360,7 +362,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                       <td><code>{order.external_order_id}</code></td>
                       <td>{customerLabel(order.customer)}</td>
                       <td>{formatMinor(order.total, order.currency)}</td>
-                      <td><code>{order.tracking_code ?? "Pendente"}</code></td>
+                      <td><code>{order.tracking_code ?? "Aguardando"}</code></td>
                       <td>
                         <span className={orderBadgeClass(order.status)}>
                           {STATUS_LABELS[order.status] ?? order.status}
@@ -398,8 +400,8 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
             <div className="empty-state-icon">
               <PackageSearch size={32} />
             </div>
-            <h3>Nenhum pedido encontrado</h3>
-            <p>Os pedidos aparecerão aqui assim que forem sincronizados com sua loja.</p>
+            <h3>Nenhum pedido registrado</h3>
+            <p>Pedidos aparecerão aqui quando compradores concluírem o checkout.</p>
           </div>
         ) : null}
 
