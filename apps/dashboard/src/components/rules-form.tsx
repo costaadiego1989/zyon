@@ -58,274 +58,293 @@ export function RulesForm({
   return (
     <div className="rules-grid">
       {/* ── Descontos ── */}
-      <fieldset>
-        <legend>Descontos</legend>
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Descontos</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Limites de desconto que o agente pode oferecer</p>
 
-        <label htmlFor="slider-max-discount">
-          Desconto máximo: <strong id="value-max-discount">{rules.maxDiscountPercent}%</strong>
-          <input
-            id="slider-max-discount"
-            type="range"
-            min={0}
-            max={30}
-            step={1}
-            value={rules.maxDiscountPercent}
-            onChange={(e) => patch({ maxDiscountPercent: Number(e.target.value) })}
-            aria-valuemin={0}
-            aria-valuemax={30}
-            aria-valuenow={rules.maxDiscountPercent}
-            aria-valuetext={`${rules.maxDiscountPercent}%`}
-            aria-describedby="value-max-discount"
-          />
-        </label>
-        {validationErrors.marginConsistency && (
-          <span className="field-error">{validationErrors.marginConsistency}</span>
-        )}
+          <label htmlFor="slider-max-discount">
+            Desconto máximo: <strong id="value-max-discount">{rules.maxDiscountPercent}%</strong>
+            <input
+              id="slider-max-discount"
+              type="range"
+              min={0}
+              max={30}
+              step={1}
+              value={rules.maxDiscountPercent}
+              onChange={(e) => patch({ maxDiscountPercent: Number(e.target.value) })}
+              aria-valuemin={0}
+              aria-valuemax={30}
+              aria-valuenow={rules.maxDiscountPercent}
+              aria-valuetext={`${rules.maxDiscountPercent}%`}
+              aria-describedby="value-max-discount"
+            />
+          </label>
+          {validationErrors.marginConsistency && (
+            <span className="field-error">{validationErrors.marginConsistency}</span>
+          )}
 
-        <label htmlFor="slider-min-margin">
-          Margem mínima: <strong id="value-min-margin">{rules.minimumMarginPercent}%</strong>
-          <input
-            id="slider-min-margin"
-            type="range"
-            min={20}
-            max={60}
-            step={1}
-            value={rules.minimumMarginPercent}
-            onChange={(e) => patch({ minimumMarginPercent: Number(e.target.value) })}
-            aria-valuemin={20}
-            aria-valuemax={60}
-            aria-valuenow={rules.minimumMarginPercent}
-            aria-valuetext={`${rules.minimumMarginPercent}%`}
-            aria-describedby="value-min-margin"
-          />
-        </label>
+          <label htmlFor="slider-min-margin">
+            Margem mínima: <strong id="value-min-margin">{rules.minimumMarginPercent}%</strong>
+            <input
+              id="slider-min-margin"
+              type="range"
+              min={20}
+              max={60}
+              step={1}
+              value={rules.minimumMarginPercent}
+              onChange={(e) => patch({ minimumMarginPercent: Number(e.target.value) })}
+              aria-valuemin={20}
+              aria-valuemax={60}
+              aria-valuenow={rules.minimumMarginPercent}
+              aria-valuetext={`${rules.minimumMarginPercent}%`}
+              aria-describedby="value-min-margin"
+            />
+          </label>
 
-        <div
-          className={`panel ${marginOk ? "panel-info" : "panel-warn"}`}
-        >
-          <strong>Simulação — produto R${SAMPLE_PRICE.toFixed(2)}</strong>
-          <div>Desconto máximo: R${maxDiscountValue} ({rules.maxDiscountPercent}%)</div>
-          <div>Preço final: R${priceAfterDiscount}</div>
-          <div>Custo estimado (50%): R${costEstimate.toFixed(2)}</div>
-          <div>Taxa pagamento (4%): R${paymentFee.toFixed(2)}</div>
-          <div>
-            Margem estimada: R${marginValue.toFixed(2)} ({marginPercent}%)
-            {" "}
-            {marginOk ? "✓ dentro do limite" : "✗ abaixo da margem mínima"}
+          <div
+            className={`panel ${marginOk ? "panel-info" : "panel-warn"}`}
+          >
+            <strong>Simulação — produto R${SAMPLE_PRICE.toFixed(2)}</strong>
+            <div>Desconto máximo: R${maxDiscountValue} ({rules.maxDiscountPercent}%)</div>
+            <div>Preço final: R${priceAfterDiscount}</div>
+            <div>Custo estimado (50%): R${costEstimate.toFixed(2)}</div>
+            <div>Taxa pagamento (4%): R${paymentFee.toFixed(2)}</div>
+            <div>
+              Margem estimada: R${marginValue.toFixed(2)} ({marginPercent}%)
+              {" "}
+              {marginOk ? "✓ dentro do limite" : "✗ abaixo da margem mínima"}
+            </div>
           </div>
         </div>
-      </fieldset>
+      </div>
 
       {/* ── Frete ── */}
-      <fieldset>
-        <legend>Frete</legend>
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Frete</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Opções de frete grátis e subsídio</p>
 
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={rules.allowFreeShipping}
-            onChange={(e) => patch({ allowFreeShipping: e.target.checked })}
-            role="switch"
-            aria-checked={rules.allowFreeShipping}
-          />
-          Permitir frete grátis
-        </label>
-
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={rules.allowShippingDiscount}
-            onChange={(e) => patch({ allowShippingDiscount: e.target.checked })}
-            role="switch"
-            aria-checked={rules.allowShippingDiscount}
-          />
-          Permitir desconto parcial no frete
-        </label>
-
-        {rules.allowFreeShipping && (
           <label className="toggle">
             <input
               type="checkbox"
-              checked={rules.allowStackDiscountAndFreeShipping}
-              onChange={(e) => patch({ allowStackDiscountAndFreeShipping: e.target.checked })}
+              checked={rules.allowFreeShipping}
+              onChange={(e) => patch({ allowFreeShipping: e.target.checked })}
               role="switch"
-              aria-checked={rules.allowStackDiscountAndFreeShipping}
+              aria-checked={rules.allowFreeShipping}
             />
-            Permitir desconto + frete grátis combinados
+            Permitir frete grátis
           </label>
-        )}
 
-        <label>
-          Valor mínimo carrinho para frete grátis (R$)
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={rules.freeShippingMinCartValue}
-            onChange={(e) => patch({ freeShippingMinCartValue: Number(e.target.value) })}
-          />
-          {validationErrors.freeShippingMinCartValue && (
-            <span className="field-error">{validationErrors.freeShippingMinCartValue}</span>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={rules.allowShippingDiscount}
+              onChange={(e) => patch({ allowShippingDiscount: e.target.checked })}
+              role="switch"
+              aria-checked={rules.allowShippingDiscount}
+            />
+            Permitir desconto parcial no frete
+          </label>
+
+          {rules.allowFreeShipping && (
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={rules.allowStackDiscountAndFreeShipping}
+                onChange={(e) => patch({ allowStackDiscountAndFreeShipping: e.target.checked })}
+                role="switch"
+                aria-checked={rules.allowStackDiscountAndFreeShipping}
+              />
+              Permitir desconto + frete grátis combinados
+            </label>
           )}
-        </label>
 
-        <label>
-          Subsídio máximo de frete (R$)
-          <input
-            type="number"
-            min={0}
-            step={1}
-            value={rules.maxShippingSubsidy}
-            onChange={(e) => patch({ maxShippingSubsidy: Number(e.target.value) })}
-          />
-          {validationErrors.maxShippingSubsidy && (
-            <span className="field-error">{validationErrors.maxShippingSubsidy}</span>
-          )}
-        </label>
+          <label>
+            Valor mínimo carrinho para frete grátis (R$)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={rules.freeShippingMinCartValue}
+              onChange={(e) => patch({ freeShippingMinCartValue: Number(e.target.value) })}
+            />
+            {validationErrors.freeShippingMinCartValue && (
+              <span className="field-error">{validationErrors.freeShippingMinCartValue}</span>
+            )}
+          </label>
 
-        <label htmlFor="slider-partial-shipping">
-          Desconto parcial máximo no frete: <strong id="value-partial-shipping">{rules.maxPartialShippingDiscount}%</strong>
-          <input
-            id="slider-partial-shipping"
-            type="range"
-            min={0}
-            max={100}
-            step={5}
-            value={rules.maxPartialShippingDiscount}
-            onChange={(e) => patch({ maxPartialShippingDiscount: Number(e.target.value) })}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={rules.maxPartialShippingDiscount}
-            aria-valuetext={`${rules.maxPartialShippingDiscount}%`}
-            aria-describedby="value-partial-shipping"
-          />
-        </label>
-      </fieldset>
+          <label>
+            Subsídio máximo de frete (R$)
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={rules.maxShippingSubsidy}
+              onChange={(e) => patch({ maxShippingSubsidy: Number(e.target.value) })}
+            />
+            {validationErrors.maxShippingSubsidy && (
+              <span className="field-error">{validationErrors.maxShippingSubsidy}</span>
+            )}
+          </label>
+
+          <label htmlFor="slider-partial-shipping">
+            Desconto parcial máximo no frete: <strong id="value-partial-shipping">{rules.maxPartialShippingDiscount}%</strong>
+            <input
+              id="slider-partial-shipping"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={rules.maxPartialShippingDiscount}
+              onChange={(e) => patch({ maxPartialShippingDiscount: Number(e.target.value) })}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={rules.maxPartialShippingDiscount}
+              aria-valuetext={`${rules.maxPartialShippingDiscount}%`}
+              aria-describedby="value-partial-shipping"
+            />
+          </label>
+        </div>
+      </div>
 
       {/* ── Bônus e Cupons ── */}
-      <fieldset>
-        <legend>Bônus e Cupons</legend>
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Bônus e Cupons</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Ofertas de bônus e campo de cupom</p>
 
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={rules.allowBonusItem}
-            onChange={(e) => patch({ allowBonusItem: e.target.checked })}
-            role="switch"
-            aria-checked={rules.allowBonusItem}
-          />
-          Permitir item bônus como oferta
-        </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={rules.allowBonusItem}
+              onChange={(e) => patch({ allowBonusItem: e.target.checked })}
+              role="switch"
+              aria-checked={rules.allowBonusItem}
+            />
+            Permitir item bônus como oferta
+          </label>
 
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={rules.couponBoxEnabled}
-            onChange={(e) => patch({ couponBoxEnabled: e.target.checked })}
-            role="switch"
-            aria-checked={rules.couponBoxEnabled}
-          />
-          Exibir campo de cupom no checkout
-        </label>
-      </fieldset>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={rules.couponBoxEnabled}
+              onChange={(e) => patch({ couponBoxEnabled: e.target.checked })}
+              role="switch"
+              aria-checked={rules.couponBoxEnabled}
+            />
+            Exibir campo de cupom no checkout
+          </label>
+        </div>
+      </div>
 
       {/* ── Ofertas ── */}
-      <fieldset>
-        <legend>Ofertas</legend>
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Ofertas</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Configuração de expiração de ofertas</p>
 
-        <label>
-          Expiração da oferta (minutos)
-          <input
-            type="number"
-            min={5}
-            max={60}
-            step={1}
-            value={rules.offerExpirationMinutes}
-            onChange={(e) => patch({ offerExpirationMinutes: Number(e.target.value) })}
-          />
-        </label>
-      </fieldset>
+          <label>
+            Expiração da oferta (minutos)
+            <input
+              type="number"
+              min={5}
+              max={60}
+              step={1}
+              value={rules.offerExpirationMinutes}
+              onChange={(e) => patch({ offerExpirationMinutes: Number(e.target.value) })}
+            />
+          </label>
+        </div>
+      </div>
 
       {/* ── Identidade do Agente ── */}
-      <fieldset>
-        <legend>Identidade do Agente</legend>
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Identidade do Agente</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Tom de voz e personalidade do agente</p>
 
-        <label>
-          Voz da marca
-          <select
-            value={rules.brandVoice}
-            onChange={(e) => patch({ brandVoice: e.target.value as MerchantRules["brandVoice"] })}
-          >
-            {(Object.keys(BRAND_VOICE_DESC) as MerchantRules["brandVoice"][]).map((v) => (
-              <option key={v} value={v}>
-                {v.charAt(0).toUpperCase() + v.slice(1)}
-              </option>
-            ))}
-          </select>
-          <span className="page-lead">
-            {BRAND_VOICE_DESC[rules.brandVoice]}
-          </span>
-        </label>
+          <label>
+            Voz da marca
+            <select
+              value={rules.brandVoice}
+              onChange={(e) => patch({ brandVoice: e.target.value as MerchantRules["brandVoice"] })}
+            >
+              {(Object.keys(BRAND_VOICE_DESC) as MerchantRules["brandVoice"][]).map((v) => (
+                <option key={v} value={v}>
+                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                </option>
+              ))}
+            </select>
+            <span className="page-lead">
+              {BRAND_VOICE_DESC[rules.brandVoice]}
+            </span>
+          </label>
 
-        <label>
-          CEP de origem (cálculo de frete)
-          <input
-            type="text"
-            maxLength={9}
-            placeholder="00000-000"
-            value={rules.originZip ?? ""}
-            onChange={(e) => patch({ originZip: e.target.value || undefined })}
-            onBlur={handleOriginZipBlur}
-          />
-          {validationErrors.originZip && (
-            <span className="field-error">{validationErrors.originZip}</span>
-          )}
-        </label>
-      </fieldset>
+          <label>
+            CEP de origem (cálculo de frete)
+            <input
+              type="text"
+              maxLength={9}
+              placeholder="00000-000"
+              value={rules.originZip ?? ""}
+              onChange={(e) => patch({ originZip: e.target.value || undefined })}
+              onBlur={handleOriginZipBlur}
+            />
+            {validationErrors.originZip && (
+              <span className="field-error">{validationErrors.originZip}</span>
+            )}
+          </label>
+        </div>
+      </div>
 
       {/* ── Pagamento Crypto ── */}
-      <fieldset className="rules-crypto">
-        <legend>Pagamento crypto (USDC)</legend>
-        <label className="toggle">
-          <input
-            type="checkbox"
-            checked={rules.cryptoPayments?.enabled === true}
-            onChange={(e) =>
-              patch({
-                cryptoPayments: {
-                  ...rules.cryptoPayments,
-                  enabled: e.target.checked,
-                  treasuryAddress: rules.cryptoPayments?.treasuryAddress ?? "",
-                } as any,
-              })
-            }
-            role="switch"
-            aria-checked={rules.cryptoPayments?.enabled === true}
-          />
-          Aceitar pagamento com crypto (USDC)
-        </label>
-        <label>
-          Endereço da carteira
-          <input
-            type="text"
-            value={rules.cryptoPayments?.treasuryAddress ?? ""}
-            onChange={(e) =>
-              patch({
-                cryptoPayments: {
-                  ...rules.cryptoPayments,
-                  enabled: rules.cryptoPayments?.enabled ?? false,
-                  treasuryAddress: e.target.value,
-                } as any,
-              })
-            }
-            onBlur={handleTreasuryAddressBlur}
-            placeholder="0x..."
-          />
-          {validationErrors.treasuryAddress && (
-            <span className="field-error">{validationErrors.treasuryAddress}</span>
-          )}
-        </label>
-      </fieldset>
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Pagamento crypto</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Pagamento com criptomoeda</p>
+
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={rules.cryptoPayments?.enabled === true}
+              onChange={(e) =>
+                patch({
+                  cryptoPayments: {
+                    ...rules.cryptoPayments,
+                    enabled: e.target.checked,
+                    treasuryAddress: rules.cryptoPayments?.treasuryAddress ?? "",
+                  } as any,
+                })
+              }
+              role="switch"
+              aria-checked={rules.cryptoPayments?.enabled === true}
+            />
+            Aceitar pagamento com crypto (USDC)
+          </label>
+          <label>
+            Endereço da carteira
+            <input
+              type="text"
+              value={rules.cryptoPayments?.treasuryAddress ?? ""}
+              onChange={(e) =>
+                patch({
+                  cryptoPayments: {
+                    ...rules.cryptoPayments,
+                    enabled: rules.cryptoPayments?.enabled ?? false,
+                    treasuryAddress: e.target.value,
+                  } as any,
+                })
+              }
+              onBlur={handleTreasuryAddressBlur}
+              placeholder="0x..."
+            />
+            {validationErrors.treasuryAddress && (
+              <span className="field-error">{validationErrors.treasuryAddress}</span>
+            )}
+          </label>
+        </div>
+      </div>
     </div>
   );
 }

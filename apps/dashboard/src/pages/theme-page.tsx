@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Palette, RotateCcw, Save, X } from "lucide-react";
+import { RotateCcw, Save, X } from "lucide-react";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
@@ -261,7 +261,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       <header className="page-head">
         <div>
           <span className="eyebrow">Personalização</span>
-          <h1>Personalize a aparência do checkout para combinar com sua marca</h1>
+          <h1>Aparência</h1>
+          <p className="page-lead">Personalize cores, fontes e imagens para combinar com sua marca.</p>
           <p className="page-lead">
             {props.me.name ?? props.me.id}
             {dirty ? (
@@ -317,14 +318,24 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           {/* ── controls column ── */}
           <div className="split-panel-controls">
 
-            {/* 1 — Identidade e tipografia */}
-            <section className="panel stacked">
-              <div className="panel-title">
-                <h2>Identidade e tipografia</h2>
-                <Palette size={15} />
+            {/* Panel 1 — Identidade */}
+            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
+              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
+                <h3>Identidade</h3>
               </div>
 
-              <div className="form-grid">
+              <div className="cfg-field" style={{ marginBottom: 'var(--space-4)' }}>
+                <label>Nome do assistente</label>
+                <small className="field-hint">Este nome aparece no cabeçalho do widget durante a conversa</small>
+                <input
+                  type="text"
+                  value={theme.agentName ?? ""}
+                  onChange={(e) => patch({ agentName: e.target.value })}
+                  placeholder="Ex: Pulse, Luna, Max"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                 <label>
                   {LABELS.fontUi}
                   <span className="field-hint">Fonte usada nos textos e botões do widget</span>
@@ -347,7 +358,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                     ))}
                   </select>
                 </label>
+              </div>
 
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
                 <label>
                   {LABELS.headerTitle}
                   <span className="field-hint">Nome exibido no topo do widget</span>
@@ -367,17 +380,6 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                     placeholder="Finalize sua compra com o melhor preço"
                   />
                 </label>
-
-                <div className="cfg-field">
-                  <label>Nome do assistente</label>
-                  <small className="field-hint">Este nome aparece no cabeçalho do widget durante a conversa</small>
-                  <input
-                    type="text"
-                    value={theme.agentName ?? ""}
-                    onChange={(e) => patch({ agentName: e.target.value })}
-                    placeholder="Ex: Pulse, Luna, Max"
-                  />
-                </div>
               </div>
 
               {/* Badges chip UX */}
@@ -416,16 +418,15 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </div>
                 <span className="field-hint">{parseBadges(badgesText).length} de 4</span>
               </div>
-            </section>
+            </div>
 
-            {/* 2 — Paleta de cores */}
-            <section className="panel stacked">
-              <div className="panel-title">
-                <h2>Paleta de cores</h2>
-                <span className="badge">{COLOR_FIELDS.length} cores</span>
+            {/* Panel 2 — Cores */}
+            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
+              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
+                <h3>Cores</h3>
               </div>
 
-              <div className="theme-color-grid">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
                 {COLOR_FIELDS.map((field) => (
                   <label key={String(field.key)} className="swatch-field">
                     <span>{field.label}</span>
@@ -439,98 +440,103 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   </label>
                 ))}
               </div>
-            </section>
+            </div>
 
-            {/* 3 — Imagens e layout */}
-            <section className="panel stacked">
-              <div className="panel-title">
-                <h2>{LABELS.assetsLayout}</h2>
+            {/* Panel 3 — Imagens */}
+            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
+              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
+                <h3>Imagens</h3>
               </div>
 
-              <div className="form-grid">
-                <div className="cfg-field">
-                  <label>Logo da marca</label>
-                  <span className="field-hint">Cole a URL da imagem ou faça upload</span>
-                  <div className="image-input-row">
+              <div className="cfg-field" style={{ marginBottom: 'var(--space-4)' }}>
+                <label>Logo da marca</label>
+                <span className="field-hint">Cole a URL da imagem ou faça upload</span>
+                <div className="image-input-row">
+                  <input
+                    value={theme.logoUrl ?? ""}
+                    onChange={(e) => patch({ logoUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                  <label className="upload-btn">
+                    Fazer upload
                     <input
-                      value={theme.logoUrl ?? ""}
-                      onChange={(e) => patch({ logoUrl: e.target.value })}
-                      placeholder="https://..."
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, (url) => patch({ logoUrl: url }));
+                      }}
                     />
-                    <label className="upload-btn">
-                      Fazer upload
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, (url) => patch({ logoUrl: url }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {!isValidUrl(theme.logoUrl ?? "") && (
-                    <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
-                  )}
+                  </label>
                 </div>
-
-                <div className="cfg-field">
-                  <label>Avatar do assistente</label>
-                  <span className="field-hint">Cole a URL da imagem ou faça upload</span>
-                  <div className="image-input-row">
-                    <input
-                      value={theme.agentAvatarUrl ?? ""}
-                      onChange={(e) => patch({ agentAvatarUrl: e.target.value })}
-                      placeholder="https://..."
-                    />
-                    <label className="upload-btn">
-                      Fazer upload
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, (url) => patch({ agentAvatarUrl: url }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {!isValidUrl(theme.agentAvatarUrl ?? "") && (
-                    <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
-                  )}
-                </div>
-
-                <div className="cfg-field">
-                  <label>Imagem de fundo</label>
-                  <span className="field-hint">Cole a URL da imagem ou faça upload</span>
-                  <div className="image-input-row">
-                    <input
-                      value={theme.backgroundImageUrl ?? ""}
-                      onChange={(e) => patch({ backgroundImageUrl: e.target.value })}
-                      placeholder="https://..."
-                    />
-                    <label className="upload-btn">
-                      Fazer upload
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, (url) => patch({ backgroundImageUrl: url }));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {!isValidUrl(theme.backgroundImageUrl ?? "") && (
-                    <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
-                  )}
-                </div>
+                {!isValidUrl(theme.logoUrl ?? "") && (
+                  <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
+                )}
               </div>
 
-              <div className="slider-row">
+              <div className="cfg-field" style={{ marginBottom: 'var(--space-4)' }}>
+                <label>Avatar do assistente</label>
+                <span className="field-hint">Cole a URL da imagem ou faça upload</span>
+                <div className="image-input-row">
+                  <input
+                    value={theme.agentAvatarUrl ?? ""}
+                    onChange={(e) => patch({ agentAvatarUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                  <label className="upload-btn">
+                    Fazer upload
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, (url) => patch({ agentAvatarUrl: url }));
+                      }}
+                    />
+                  </label>
+                </div>
+                {!isValidUrl(theme.agentAvatarUrl ?? "") && (
+                  <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
+                )}
+              </div>
+
+              <div className="cfg-field">
+                <label>Imagem de fundo</label>
+                <span className="field-hint">Cole a URL da imagem ou faça upload</span>
+                <div className="image-input-row">
+                  <input
+                    value={theme.backgroundImageUrl ?? ""}
+                    onChange={(e) => patch({ backgroundImageUrl: e.target.value })}
+                    placeholder="https://..."
+                  />
+                  <label className="upload-btn">
+                    Fazer upload
+                    <input
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, (url) => patch({ backgroundImageUrl: url }));
+                      }}
+                    />
+                  </label>
+                </div>
+                {!isValidUrl(theme.backgroundImageUrl ?? "") && (
+                  <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Panel 4 — Layout */}
+            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
+              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
+                <h3>Layout</h3>
+              </div>
+
+              <div className="slider-row" style={{ marginBottom: 'var(--space-4)' }}>
                 <label>{LABELS.borderRadius}</label>
                 <input
                   type="range"
@@ -561,12 +567,12 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   ))}
                 </div>
               </div>
-            </section>
+            </div>
 
           </div>
 
           {/* ── Pré-visualização em tempo real ── */}
-          <div className="split-panel-preview">
+          <div className="split-panel-preview" style={{ position: 'sticky', top: 'var(--space-4)', alignSelf: 'start' }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
               Pré-visualização em tempo real
             </p>

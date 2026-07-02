@@ -56,7 +56,7 @@ export function statusBadge(status: string) {
     return (
       <span className="badge ok" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-ok)", flexShrink: 0 }} />
-        Ativo
+        Conectado
       </span>
     );
   if (status === "pending")
@@ -153,15 +153,15 @@ function GatewayCard({
       </div>
 
       {isConnected && connection ? (
-        <div className="panel-body" style={{ padding: "12px 16px", borderTop: "1px solid var(--color-border)" }}>
+        <div className="panel" style={{ padding: "var(--space-5)", borderTop: "1px solid var(--color-border)" }}>
           {connection.account_id ? (
             <div className="detail-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-              <span style={{ fontSize: 13, color: "var(--color-muted)", fontWeight: 500 }}>Conta</span>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>Conta</span>
               <code className="mono text-sm">{connection.account_id}</code>
             </div>
           ) : null}
           <div className="detail-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-            <span style={{ fontSize: 13, color: "var(--color-muted)", fontWeight: 500 }}>Última sincronização</span>
+            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>Última sincronização</span>
             <span className="mono text-sm">{formatDate(connection.updated_at)}</span>
           </div>
         </div>
@@ -177,7 +177,7 @@ function GatewayCard({
         </div>
       )}
 
-      <div className="panel-footer">
+      <div className="button-row panel-footer">
         {comingSoon && !configureUrl ? null : comingSoon && configureUrl ? (
           <a
             href={configureUrl}

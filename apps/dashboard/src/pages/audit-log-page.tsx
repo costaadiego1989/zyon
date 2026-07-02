@@ -204,7 +204,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <ShieldCheck size={18} />
         </div>
 
-        <div className="audit-filter-bar" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div className="audit-filter-bar" style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
           <select
             value={filters.dateRange}
             onChange={e => setFilters(f => ({ ...f, dateRange: e.target.value as AuditFilters["dateRange"] }))}
@@ -286,7 +286,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                     <tbody>
                       {filteredEvents.map((evt, idx) => (
                         <React.Fragment key={evt.id}>
-                          <tr style={{ backgroundColor: idx % 2 === 1 ? "var(--color-surface-alt, rgba(0,0,0,0.02))" : undefined, borderBottom: "1px solid var(--color-border)" }}>
+                          <tr style={{ background: idx % 2 === 0 ? "var(--color-surface-raised)" : undefined, borderBottom: "1px solid var(--color-border)" }}>
                             <td>
                               <time dateTime={evt.occurred_at} title={formatAbsoluteTime(evt.occurred_at)}>
                                 {formatRelativeTime(evt.occurred_at)}
@@ -298,7 +298,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                               </span>
                             </td>
                             <td>
-                              <span className={actionBadgeClass(evt.action)} style={{ display: "inline-block", fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                              <span className={actionBadgeClass(evt.action)} style={{ display: "inline-block", fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap", minWidth: 72, textAlign: "center" }}>
                                 <code>{evt.action}</code>
                               </span>
                             </td>
