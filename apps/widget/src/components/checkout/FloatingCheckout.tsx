@@ -10,15 +10,17 @@ export function FloatingCheckout({ vm }: { vm: CheckoutAgentViewModel }) {
   return <FloatingCheckoutView model={model} />;
 }
 
+const isPreview = typeof window !== "undefined" && window.self !== window.top;
+
 export function FloatingCheckoutView({ model }: { model: FloatingCheckoutModel }) {
   return (
     <section
-      className="zyon-widget fixed bottom-5 right-5 z-50 font-merchant"
+      className={isPreview ? "zyon-widget relative inset-0 z-50 font-merchant w-full h-full" : "zyon-widget fixed bottom-5 right-5 z-50 font-merchant"}
       style={model.style}
       data-theme={model.colorMode}
     >
       {model.open ? (
-        <div className="zyon-panel flex h-[560px] w-[min(380px,calc(100vw-32px))] flex-col overflow-hidden rounded-[var(--aacp-radius-lg)] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-[var(--aacp-shadow-lg)]">
+        <div className={isPreview ? "zyon-panel flex flex-col overflow-hidden bg-[var(--aacp-surface)] text-[var(--aacp-fg)] w-full h-full" : "zyon-panel flex h-[560px] w-[min(380px,calc(100vw-32px))] flex-col overflow-hidden rounded-[var(--aacp-radius-lg)] border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] text-[var(--aacp-fg)] shadow-[var(--aacp-shadow-lg)]"}>
           <header className="flex items-center justify-between gap-3 border-b border-[var(--aacp-line-strong)] px-4 py-4 bg-[var(--aacp-panel-bg)]">
             <div>
               <strong className="block text-sm font-black">Assistente de checkout</strong>
