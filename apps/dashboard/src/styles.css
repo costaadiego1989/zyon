@@ -755,7 +755,9 @@ label {
 }
 
 .metric span {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   color: var(--color-text-muted);
   font-size: 10.5px;
   font-weight: 700;

@@ -105,32 +105,20 @@ export function NegotiationOverviewTab({ api }: { api: NegotiationApi }) {
       {statsError && <p className="panel-warn">{statsError}</p>}
       <div className="metrics">
         <div className="metric">
-          <div className="metric-icon"><BarChart3 size={18} /></div>
-          <div className="metric-value">
-            {statsLoading ? "—" : stats?.total_sessions ?? 0}
-          </div>
-          <div className="metric-label">Total de Sessões</div>
+          <span><BarChart3 size={14} /> Sessões</span>
+          <strong>{statsLoading ? "—" : stats?.total_sessions ?? 0}</strong>
         </div>
         <div className="metric">
-          <div className="metric-icon"><DollarSign size={18} /></div>
-          <div className="metric-value">
-            {statsLoading ? "—" : formatCurrency(stats?.total_ai_cost_cents ?? 0)}
-          </div>
-          <div className="metric-label">Custo IA Acumulado</div>
+          <span><DollarSign size={14} /> Custo IA</span>
+          <strong>{statsLoading ? "—" : formatCurrency(stats?.total_ai_cost_cents ?? 0)}</strong>
         </div>
         <div className="metric">
-          <div className="metric-icon"><TrendingUp size={18} /></div>
-          <div className="metric-value">
-            {statsLoading ? "—" : formatPercent(stats?.agreement_rate ?? 0)}
-          </div>
-          <div className="metric-label">Taxa de Acordo</div>
+          <span><TrendingUp size={14} /> Acordo</span>
+          <strong>{statsLoading ? "—" : formatPercent(stats?.agreement_rate ?? 0)}</strong>
         </div>
         <div className="metric">
-          <div className="metric-icon"><Percent size={18} /></div>
-          <div className="metric-value">
-            {statsLoading ? "—" : `${(stats?.avg_discount_percent ?? 0).toFixed(1)}%`}
-          </div>
-          <div className="metric-label">Desconto Médio</div>
+          <span><Percent size={14} /> Desconto médio</span>
+          <strong>{statsLoading ? "—" : `${(stats?.avg_discount_percent ?? 0).toFixed(1)}%`}</strong>
         </div>
       </div>
 

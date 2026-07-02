@@ -245,34 +245,30 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
       {/* Connection KPIs */}
       {!isLoading && hasConnection && connections[0] ? (
         <div className="metrics">
-          <article className="metric">
-            <Link2 size={18} aria-hidden />
-            <span className="metric-value">{connections[0].provider === "shopify" ? "Shopify" : "WooCommerce"}</span>
-            <span className="metric-label">Plataforma</span>
-          </article>
-          <article className="metric">
-            <ShoppingBag size={18} aria-hidden />
-            <span className="metric-value">{(connections[0] as any).product_count ?? "—"}</span>
-            <span className="metric-label">Produtos sincronizados</span>
-          </article>
-          <article className="metric">
-            <Clock size={18} aria-hidden />
-            <span className="metric-value">
+          <div className="metric">
+            <span><Link2 size={14} /> Plataforma</span>
+            <strong>{connections[0].provider === "shopify" ? "Shopify" : "WooCommerce"}</strong>
+          </div>
+          <div className="metric">
+            <span><ShoppingBag size={14} /> Produtos</span>
+            <strong>{(connections[0] as any).product_count ?? "—"}</strong>
+          </div>
+          <div className="metric">
+            <span><Clock size={14} /> Último sync</span>
+            <strong>
               {connections[0].last_synced_at
                 ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(connections[0].last_synced_at))
                 : "Nunca"}
-            </span>
-            <span className="metric-label">Último sync</span>
-          </article>
-          <article className="metric">
-            <Zap size={18} aria-hidden />
-            <span className="metric-value">
+            </strong>
+          </div>
+          <div className="metric">
+            <span><Zap size={14} /> Status</span>
+            <strong>
               <span className={connections[0].status === "active" ? "badge ok" : "badge warn"}>
                 {connections[0].status === "active" ? "Ativa" : connections[0].status}
               </span>
-            </span>
-            <span className="metric-label">Status</span>
-          </article>
+            </strong>
+          </div>
         </div>
       ) : null}
 

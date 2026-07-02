@@ -236,34 +236,33 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       {message ? <p className="panel panel-error">{message}</p> : null}
 
       <div className="metrics">
-        <article className="metric">
-          <UsersRound size={18} />
-          <span className="metric-value">{metrics.total}</span>
-          <span className="metric-label">Compradores identificados</span>
-        </article>
-        <article className="metric">
-          <UserPlus size={18} />
-          <span className="metric-value">{metrics.newLast7Days}</span>
-          <span className="metric-label">Novos nos últimos 7 dias</span>
-        </article>
-        <article className="metric">
-          <Repeat size={18} />
-          <span className="metric-value">{Math.round(metrics.returningRate * 100)}%</span>
-          <span className="metric-label">Compradores que voltaram</span>
-        </article>
+        <div className="metric">
+          <span><UsersRound size={14} /> Total</span>
+          <strong>{metrics.total}</strong>
+        </div>
+        <div className="metric">
+          <span><UserPlus size={14} /> Novos (7d)</span>
+          <strong>{metrics.newLast7Days}</strong>
+        </div>
+        <div className="metric">
+          <span><Repeat size={14} /> Retorno</span>
+          <strong>{Math.round(metrics.returningRate * 100)}%</strong>
+        </div>
       </div>
 
       <section className="panel stacked">
-        <div className="panel-title">
-          <h2>Clientes recentes</h2>
+        <div className="section-header">
+          <h2>Clientes</h2>
+          <UsersRound size={18} />
+        </div>
+        <div className="orders-toolbar">
           <input
             type="search"
-            className="table-search"
+            className="search-input"
             placeholder="Buscar por nome, e-mail ou telefone..."
             aria-label="Buscar por nome, e-mail ou telefone"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ marginLeft: "auto", maxWidth: 280 }}
           />
         </div>
 
