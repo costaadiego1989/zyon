@@ -146,10 +146,10 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <div className="dashboard-content">
       <header className="page-head">
         <div>
-          <span className="eyebrow">Integração</span>
-          <h1>Instale o widget no seu site em minutos</h1>
+          <span className="eyebrow">Embed Zone</span>
+          <h1>Instale o checkout no seu site</h1>
           <p className="page-lead">
-            Gere tokens seguros para autenticar sessões do checkout no seu storefront.
+            Gere um token, escolha as permissões e cole o código no HTML da sua loja.
           </p>
         </div>
         <button type="button" className="btn-primary" disabled={busy} onClick={() => void issue()}>
@@ -175,7 +175,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel-title">
               <div>
                 <Shield size={16} className="icon-brand" />
-                <h2>Configuração do token</h2>
+                <h2>Dados da sessão</h2>
               </div>
               {hasToken && (
                 <span className="badge ok">
@@ -186,8 +186,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             </div>
 
             <label htmlFor="embed-origin">
-              Domínio do seu site
-              <span className="field-hint">Endereço onde o widget será exibido</span>
+              Onde o widget vai aparecer
+              <span className="field-hint">Informe o domínio exato da página de checkout da sua loja</span>
               <input
                 id="embed-origin"
                 type="url"
@@ -204,8 +204,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             </label>
 
             <label htmlFor="embed-cart-ref">
-              Identificador do carrinho
-              <span className="field-hint">Referência única do carrinho do comprador</span>
+              ID do carrinho
+              <span className="field-hint">Identificador único da sessão de compra (ex: ID do carrinho no seu sistema)</span>
               <input
                 id="embed-cart-ref"
                 value={cartRef}
@@ -221,8 +221,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             </label>
 
             <label htmlFor="embed-ttl">
-              Duração do token
-              <span className="field-hint">Tempo que o comprador pode usar a sessão</span>
+              Validade da sessão (segundos)
+              <span className="field-hint">Por quanto tempo o comprador pode usar o checkout após abrir a página</span>
               <input
                 id="embed-ttl"
                 type="number"
@@ -236,7 +236,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 {Math.round(ttl / 60)} min — máximo 24 horas
               </span>
               <span className="field-hint">
-                Recomendado: 900s (15 min) para sessões curtas, 3600s (1h) para integrações server-side
+                15 min (900s) para lojas normais · 1h (3600) para apps server-side
               </span>
               {validationErrors.ttl && (
                 <span className="field-error" id="embed-ttl-error" role="alert">
@@ -262,12 +262,12 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel-title">
               <div>
                 <Code2 size={16} className="icon-brand" />
-                <h2>Permissões do widget</h2>
+                <h2>O que o widget pode fazer</h2>
               </div>
               <span className="badge muted">{selectedScopes.length} ativas</span>
             </div>
             <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 var(--space-3)" }}>
-              Escolha o que o widget pode fazer durante a sessão do comprador.
+              Ative apenas as permissões que seu checkout precisa. Menos permissões = mais segurança.
             </p>
 
             {/* Master toggle */}
@@ -391,7 +391,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   </div>
                   <h3>Aguardando token</h3>
                   <p>
-                    Configure os campos ao lado e clique em "Gerar token" para obter o código pronto para uso.
+                    Preencha os campos ao lado e clique em "Gerar token". O snippet ficará pronto para colar no seu HTML.
                   </p>
                 </div>
               </div>
