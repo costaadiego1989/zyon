@@ -104,7 +104,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" />',
         '<meta name="viewport" content="width=device-width, initial-scale=1" />',
         `<link rel="stylesheet" href="${bundleBase}/widget.css" />`,
-        "<style>html,body{margin:0;padding:16px;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;}</style>",
+        `<style>html,body{margin:0;padding:0;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;height:100%} .zyon-widget{position:relative!important;inset:0!important;width:100%!important;height:100%!important} .zyon-panel{width:100%!important;height:100%!important;max-width:none!important;border-radius:0!important;border:none!important}</style>`,
         "</head><body>",
         `<script defer src="${bundleBase}/aacp.js"></script>`,
         "<zyon-checkout-agent",
