@@ -201,21 +201,17 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
           </div>
         </div>
 
-        {/* Theme color */}
-        {theme && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginLeft: 'auto' }}>
-            <span style={{ width: 14, height: 14, borderRadius: 4, background: theme.accentColor ?? 'var(--color-brand)', border: '1px solid var(--color-border)' }} />
-            <button type="button" onClick={reloadTheme} style={{ fontSize: 11, minHeight: 28, padding: '0 var(--space-2)' }}>
-              <RefreshCw size={11} /> Tema
-            </button>
-          </div>
-        )}
+        {/* Theme indicator */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginLeft: 'auto' }}>
+          {theme && <span style={{ width: 14, height: 14, borderRadius: 4, background: theme.accentColor ?? 'var(--color-brand)', border: '1px solid var(--color-border)' }} />}
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Edite na aba Tema</span>
+        </div>
       </div>
 
       {/* ── Preview Stage ── */}
       <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: presentation === 'conversational' ? 'var(--space-2)' : 'var(--space-4)', display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Browser chrome */}
-        <div style={{ width: '100%', maxWidth: presentation === 'floating' ? 420 : '100%', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
+        <div style={{ width: '100%', margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#1e293b', borderRadius: '12px 12px 0 0' }}>
             <div style={{ display: 'flex', gap: 6 }}>
               {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
