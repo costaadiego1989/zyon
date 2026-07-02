@@ -2619,7 +2619,7 @@ button.dash-tab.active {
 /* ── Orders — Filter Tabs ────────────────────────────────────── */
 .filter-tabs {
   display: flex;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .filter-tab {
