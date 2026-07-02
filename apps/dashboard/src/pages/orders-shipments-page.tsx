@@ -231,8 +231,8 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
             type="button"
             onClick={() => {
               const header = "ID,Status,Valor,Moeda,Email,Criado em";
-              const rows = filteredOrders.map((o) =>
-                [o.id, o.financial_status ?? "", o.total_price_cents ?? 0, o.currency ?? "BRL", o.customer_email ?? "", o.created_at ?? ""].join(",")
+              const rows = filteredOrders.map((o: any) =>
+                [o.id, o.financial_status ?? o.status ?? "", o.total_price_cents ?? o.amount ?? 0, o.currency ?? "BRL", o.customer_email ?? o.buyer_email ?? "", o.created_at ?? o.placed_at ?? ""].join(",")
               );
               const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
               const url = URL.createObjectURL(blob);

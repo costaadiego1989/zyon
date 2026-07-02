@@ -96,15 +96,17 @@ export function NegotiationSimulatorTab({ api }: { api: SimulatorApi }) {
       const payload = JSON.parse(jsonText) as Record<string, unknown>;
       const res = await api.evaluateNegotiation(payload);
       setPretty(JSON.stringify(res, null, 2));
-    } catch (e) {
+    } catch (e: any) {
       const msg =
         e instanceof SyntaxError
           ? `JSON inválido: ${e.message}`
-          : e instanceof DashboardHttpError
-            ? `HTTP ${e.status} — ${e.responseBody.slice(0, 480)}`
-            : e instanceof Error
-              ? e.message
-              : String(e);
+          : (e instanceof DashboardHttpError && e.status === 404)
+            ? "Endpoint de simulação não disponível. Configure o motor de negociação primeiro."
+            : e instanceof DashboardHttpError
+              ? `HTTP ${e.status} — ${e.responseBody.slice(0, 480)}`
+              : e instanceof Error
+                ? e.message
+                : String(e);
       setPretty(msg);
     } finally {
       setBusy(false);

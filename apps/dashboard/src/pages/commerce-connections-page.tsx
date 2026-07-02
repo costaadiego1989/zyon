@@ -252,7 +252,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
           </article>
           <article className="metric">
             <ShoppingBag size={18} aria-hidden />
-            <span className="metric-value">{connections[0].product_count ?? "—"}</span>
+            <span className="metric-value">{(connections[0] as any).product_count ?? "—"}</span>
             <span className="metric-label">Produtos sincronizados</span>
           </article>
           <article className="metric">

@@ -253,19 +253,18 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         </article>
       </div>
 
-      <input
-        type="search"
-        className="table-search"
-        placeholder="Buscar por nome, e-mail ou telefone..."
-        aria-label="Buscar por nome, e-mail ou telefone"
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-      />
-
       <section className="panel stacked">
         <div className="panel-title">
           <h2>Clientes recentes</h2>
-          <UsersRound size={18} />
+          <input
+            type="search"
+            className="table-search"
+            placeholder="Buscar por nome, e-mail ou telefone..."
+            aria-label="Buscar por nome, e-mail ou telefone"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            style={{ marginLeft: "auto", maxWidth: 280 }}
+          />
         </div>
 
         {loading ? (

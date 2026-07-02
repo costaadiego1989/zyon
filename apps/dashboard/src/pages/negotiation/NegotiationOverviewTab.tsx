@@ -35,8 +35,12 @@ export function NegotiationOverviewTab({ api }: { api: NegotiationApi }) {
     try {
       const result = await api.getNegotiationStats(period);
       setStats(result && typeof result === "object" && !Array.isArray(result) ? result : null);
-    } catch (e) {
-      setStatsError(e instanceof Error ? e.message : String(e));
+    } catch (e: any) {
+      if (e?.status === 404 || e?.message?.includes("404")) {
+        setStats(null);
+      } else {
+        setStatsError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setStatsLoading(false);
     }
@@ -55,8 +59,12 @@ export function NegotiationOverviewTab({ api }: { api: NegotiationApi }) {
       }
       setSessionsCursor(result?.next_cursor ?? undefined);
       setHasMore(result?.has_more ?? false);
-    } catch (e) {
-      setSessionsError(e instanceof Error ? e.message : String(e));
+    } catch (e: any) {
+      if (e?.status === 404 || e?.message?.includes("404")) {
+        setSessions([]);
+      } else {
+        setSessionsError(e instanceof Error ? e.message : String(e));
+      }
     } finally {
       setSessionsLoading(false);
     }

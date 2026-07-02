@@ -364,12 +364,13 @@ export function OverviewDemoPage(props: {
       try {
         data = await api.getDashboardOverview(merchantId);
       } catch {
-        const [orders, payments] = await Promise.all([api.getOrders(100), api.getPayments(100)]);
+        const [ordersPage, payments] = await Promise.all([api.getOrders(100), api.getPayments(100)]);
+        const orders = Array.isArray(ordersPage) ? ordersPage : (ordersPage?.data ?? []);
         const approvedPayments = payments.filter((p) => p.status === "approved");
         data = {
           merchant_id: merchantId,
           conversations_started: 0,
-          orders_completed: orders.filter((o) => o.status === "approved").length,
+          orders_completed: orders.filter((o: any) => o.status === "approved").length,
           conversion_rate_with_agent: 0,
           offers_viewed: 0,
           offers_accepted: 0,

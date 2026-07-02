@@ -107,11 +107,15 @@ export function NegotiationPolicyTab({ api }: { api: PolicyApi }) {
       const response = await api.getNegotiationPolicy();
       setHasCustomPolicy(response.has_custom_policy);
       populateForm(response.policy);
-    } catch (e) {
-      const msg = e instanceof DashboardHttpError
-        ? e.responseBody.slice(0, 240) || `HTTP ${e.status}`
-        : e instanceof Error ? e.message : String(e);
-      setPolicyMessage({ type: "error", text: msg });
+    } catch (e: any) {
+      if (e?.status === 404 || (e instanceof DashboardHttpError && e.status === 404)) {
+        setHasCustomPolicy(false);
+      } else {
+        const msg = e instanceof DashboardHttpError
+          ? e.responseBody.slice(0, 240) || `HTTP ${e.status}`
+          : e instanceof Error ? e.message : String(e);
+        setPolicyMessage({ type: "error", text: msg });
+      }
     } finally {
       setPolicyLoading(false);
     }
