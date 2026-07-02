@@ -261,25 +261,16 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       <header className="page-head">
         <div>
           <span className="eyebrow">Personalização</span>
-          <h1>Aparência</h1>
-          <p className="page-lead">Personalize cores, fontes e imagens para combinar com sua marca.</p>
-          <p className="page-lead">
-            {props.me.name ?? props.me.id}
-            {dirty ? (
-              <span className="badge warn" style={{ marginLeft: 8 }} aria-label={LABELS.unsavedChanges}>
-                não salvo
-              </span>
-            ) : null}
-          </p>
+          <h1>Aparência do checkout</h1>
+          <p className="page-lead">Adapte cores, fontes e imagens para combinar com sua marca.</p>
         </div>
         <div className="button-row">
-          <button type="button" onClick={reset} disabled={busy}>
-            <RotateCcw size={15} />
-            {LABELS.reset}
+          {dirty && <span className="badge warn">Alterações não salvas</span>}
+          <button type="button" onClick={reset} disabled={busy} style={{ minHeight: 36 }}>
+            <RotateCcw size={14} /> Resetar
           </button>
-          <button type="button" className="primary-action" onClick={() => void save()} disabled={busy}>
-            <Save size={15} />
-            Salvar tema
+          <button type="button" className="btn-primary" onClick={() => void save()} disabled={busy} style={{ minHeight: 36 }}>
+            <Save size={14} /> Salvar
           </button>
         </div>
       </header>
@@ -319,36 +310,31 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           <div className="split-panel-controls">
 
             {/* Panel 1 — Identidade */}
-            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
-              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
-                <h3>Identidade</h3>
-              </div>
+            <div className="panel stacked">
+              <div className="section-header"><h3>Identidade e tipografia</h3></div>
 
-              <div className="cfg-field" style={{ marginBottom: 'var(--space-4)' }}>
-                <label>Nome do assistente</label>
-                <small className="field-hint">Este nome aparece no cabeçalho do widget durante a conversa</small>
+              <label>
+                Nome do assistente
                 <input
                   type="text"
                   value={theme.agentName ?? ""}
                   onChange={(e) => patch({ agentName: e.target.value })}
                   placeholder="Ex: Pulse, Luna, Max"
                 />
-              </div>
+                <span className="field-hint">Aparece no cabeçalho do widget</span>
+              </label>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+              <div className="theme-grid-2">
                 <label>
-                  {LABELS.fontUi}
-                  <span className="field-hint">Fonte usada nos textos e botões do widget</span>
+                  Fonte principal
                   <select value={theme.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })}>
                     {FONT_OPTIONS.map((font) => (
                       <option key={font} value={font}>{font.split(",")[0]}</option>
                     ))}
                   </select>
                 </label>
-
                 <label>
-                  {LABELS.fontDisplay}
-                  <span className="field-hint">Fonte para títulos e valores em destaque</span>
+                  Fonte de destaque
                   <select
                     value={theme.fontDisplay ?? theme.fontFamily}
                     onChange={(e) => patch({ fontDisplay: e.target.value })}
@@ -360,20 +346,17 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </label>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+              <div className="theme-grid-2">
                 <label>
-                  {LABELS.headerTitle}
-                  <span className="field-hint">Nome exibido no topo do widget</span>
+                  Título do widget
                   <input
                     value={theme.headerTitle ?? ""}
                     onChange={(e) => patch({ headerTitle: e.target.value })}
                     placeholder="Minha Loja"
                   />
                 </label>
-
                 <label>
-                  {LABELS.headerSubtitle}
-                  <span className="field-hint">Frase curta abaixo do nome</span>
+                  Subtítulo
                   <input
                     value={theme.headerSubtitle ?? ""}
                     onChange={(e) => patch({ headerSubtitle: e.target.value })}
@@ -382,162 +365,98 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </label>
               </div>
 
-              {/* Badges chip UX */}
-              <div className="form-grid" style={{ marginTop: "var(--space-4)" }}>
-                <label>{LABELS.badges} ({LABELS.badgesMax})</label>
-                <div className="chip-list">
-                  {parseBadges(badgesText).map((badge, i) => (
-                    <span key={`${badge}-${i}`} className="chip">
-                      {badge}
-                      <button
-                        type="button"
-                        className="chip-remove"
-                        onClick={() => removeBadge(i)}
-                        aria-label={`Remover badge ${badge}`}
-                      >
-                        <X size={12} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="badge-input-row">
-                  <input
-                    value={badgeInput}
-                    onChange={(e) => setBadgeInput(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBadge(); } }}
-                    placeholder="Novo badge..."
-                    disabled={!canAddBadge(badgesText)}
-                  />
-                  <button
-                    type="button"
-                    onClick={addBadge}
-                    disabled={!badgeInput.trim() || !canAddBadge(badgesText)}
-                  >
-                    {LABELS.addBadge}
-                  </button>
-                </div>
-                <span className="field-hint">{parseBadges(badgesText).length} de 4</span>
+              <label>
+                Selos de confiança
+                <span className="field-hint">Máximo 4 — exibidos no rodapé do widget</span>
+              </label>
+              <div className="chip-list">
+                {parseBadges(badgesText).map((badge, i) => (
+                  <span key={`${badge}-${i}`} className="chip">
+                    {badge}
+                    <button type="button" className="chip-remove" onClick={() => removeBadge(i)} aria-label={`Remover ${badge}`}>
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <div className="theme-grid-2">
+                <input
+                  value={badgeInput}
+                  onChange={(e) => setBadgeInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBadge(); } }}
+                  placeholder="Novo selo..."
+                  disabled={!canAddBadge(badgesText)}
+                />
+                <button type="button" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)} style={{ minHeight: 40 }}>
+                  {LABELS.addBadge}
+                </button>
               </div>
             </div>
 
             {/* Panel 2 — Cores */}
-            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
-              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
-                <h3>Cores</h3>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+            <div className="panel stacked">
+              <div className="section-header"><h3>Paleta de cores</h3></div>
+              <div className="theme-grid-2">
                 {COLOR_FIELDS.map((field) => (
                   <label key={String(field.key)} className="swatch-field">
                     <span>{field.label}</span>
-                    <input
-                      type="color"
-                      aria-label={`Cor: ${field.label}`}
-                      value={String(theme[field.key] ?? "#000000")}
-                      onChange={(e) => patch({ [field.key]: e.target.value } as Partial<MerchantTheme>)}
-                    />
-                    <code>{String(theme[field.key] ?? "")}</code>
+                    <div className="swatch-row">
+                      <input
+                        type="color"
+                        aria-label={`Cor: ${field.label}`}
+                        value={String(theme[field.key] ?? "#000000")}
+                        onChange={(e) => patch({ [field.key]: e.target.value } as Partial<MerchantTheme>)}
+                      />
+                      <code>{String(theme[field.key] ?? "")}</code>
+                    </div>
                   </label>
                 ))}
               </div>
             </div>
 
             {/* Panel 3 — Imagens */}
-            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
-              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
-                <h3>Imagens</h3>
-              </div>
+            <div className="panel stacked">
+              <div className="section-header"><h3>Imagens</h3></div>
 
-              <div className="cfg-field" style={{ marginBottom: 'var(--space-4)' }}>
-                <label>Logo da marca</label>
-                <span className="field-hint">Cole a URL da imagem ou faça upload</span>
-                <div className="image-input-row">
-                  <input
-                    value={theme.logoUrl ?? ""}
-                    onChange={(e) => patch({ logoUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                  <label className="upload-btn">
-                    Fazer upload
+              {[
+                { label: "Logo da marca", key: "logoUrl" as const, hint: "Exibida no topo do widget" },
+                { label: "Avatar do assistente", key: "agentAvatarUrl" as const, hint: "Foto do agente na conversa" },
+                { label: "Imagem de fundo", key: "backgroundImageUrl" as const, hint: "Background do painel principal" },
+              ].map((img) => (
+                <label key={img.key}>
+                  {img.label}
+                  <span className="field-hint">{img.hint}</span>
+                  <div className="theme-upload-row">
                     <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, (url) => patch({ logoUrl: url }));
-                      }}
+                      value={String(theme[img.key] ?? "")}
+                      onChange={(e) => patch({ [img.key]: e.target.value } as Partial<MerchantTheme>)}
+                      placeholder="https://..."
                     />
-                  </label>
-                </div>
-                {!isValidUrl(theme.logoUrl ?? "") && (
-                  <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
-                )}
-              </div>
-
-              <div className="cfg-field" style={{ marginBottom: 'var(--space-4)' }}>
-                <label>Avatar do assistente</label>
-                <span className="field-hint">Cole a URL da imagem ou faça upload</span>
-                <div className="image-input-row">
-                  <input
-                    value={theme.agentAvatarUrl ?? ""}
-                    onChange={(e) => patch({ agentAvatarUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                  <label className="upload-btn">
-                    Fazer upload
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, (url) => patch({ agentAvatarUrl: url }));
-                      }}
-                    />
-                  </label>
-                </div>
-                {!isValidUrl(theme.agentAvatarUrl ?? "") && (
-                  <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
-                )}
-              </div>
-
-              <div className="cfg-field">
-                <label>Imagem de fundo</label>
-                <span className="field-hint">Cole a URL da imagem ou faça upload</span>
-                <div className="image-input-row">
-                  <input
-                    value={theme.backgroundImageUrl ?? ""}
-                    onChange={(e) => patch({ backgroundImageUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
-                  <label className="upload-btn">
-                    Fazer upload
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, (url) => patch({ backgroundImageUrl: url }));
-                      }}
-                    />
-                  </label>
-                </div>
-                {!isValidUrl(theme.backgroundImageUrl ?? "") && (
-                  <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
-                )}
-              </div>
+                    <label className="theme-upload-btn">
+                      Upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, (url) => patch({ [img.key]: url } as Partial<MerchantTheme>));
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {!isValidUrl(String(theme[img.key] ?? "")) && <span className="field-error">{LABELS.urlInvalid}</span>}
+                </label>
+              ))}
             </div>
 
             {/* Panel 4 — Layout */}
-            <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
-              <div className="section-header" style={{ marginBottom: 'var(--space-4)' }}>
-                <h3>Layout</h3>
-              </div>
+            <div className="panel stacked">
+              <div className="section-header"><h3>Layout e espaçamento</h3></div>
 
-              <div className="slider-row" style={{ marginBottom: 'var(--space-4)' }}>
-                <label>{LABELS.borderRadius}</label>
+              <label>
+                Arredondamento dos cantos
+                <span className="field-hint">{theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}px</span>
                 <input
                   type="range"
                   min={0}
@@ -546,41 +465,38 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   value={theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}
                   onChange={(e) => patch({ borderRadius: Number(e.target.value) })}
                 />
-                <output>{theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}px</output>
-              </div>
+              </label>
 
-              <div>
-                <p style={{ marginBottom: 8, fontWeight: 600, color: "var(--color-text-secondary)", fontSize: 13 }}>
-                  Espaçamento
-                </p>
-                <span className="field-hint" style={{ display: "block", marginBottom: 8 }}>Distância entre elementos no widget</span>
-                <div className="segmented-control" role="group" aria-label="Espaçamento">
-                  {DENSITY_OPTIONS.map((opt) => (
-                    <button
-                      type="button"
-                      key={opt.value}
-                      className={theme.density === opt.value ? "active" : ""}
-                      onClick={() => patch({ density: opt.value })}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
+              <label>
+                Espaçamento
+                <span className="field-hint">Distância entre elementos no widget</span>
+              </label>
+              <div className="filter-tabs">
+                {DENSITY_OPTIONS.map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    className={`filter-tab${theme.density === opt.value ? " active" : ""}`}
+                    onClick={() => patch({ density: opt.value })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
           </div>
 
-          {/* ── Pré-visualização em tempo real ── */}
+          {/* ── Preview ── */}
           <div className="split-panel-preview" style={{ position: 'sticky', top: 'var(--space-4)', alignSelf: 'start' }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Pré-visualização em tempo real
-            </p>
-            <LivePreviewPanel
-              ref={previewRef}
-              apiBaseUrl={props.apiBaseUrl}
-              me={props.me}
-            />
+            <div className="panel stacked" style={{ overflow: 'hidden' }}>
+              <div className="section-header"><h3>Preview</h3></div>
+              <LivePreviewPanel
+                ref={previewRef}
+                apiBaseUrl={props.apiBaseUrl}
+                me={props.me}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -1547,6 +1547,50 @@ button.dash-tab.active {
 .swatch-field input[type="color"] { width: 36px; height: 30px; padding: 2px; border-radius: var(--radius-sm); cursor: pointer; }
 .swatch-field code { grid-column: 1 / -1; color: var(--color-text-faint); font-size: 11px; font-family: var(--font-mono); }
 
+.swatch-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.theme-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.theme-upload-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.theme-upload-row input {
+  flex: 1;
+}
+
+.theme-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 var(--space-4);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease);
+}
+
+.theme-upload-btn:hover {
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+}
+
 /* ── Segmented Control ────────────────────────────────────────── */
 .segmented-control {
   display: inline-grid;
