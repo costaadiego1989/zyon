@@ -146,16 +146,12 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <div className="dashboard-content">
       <header className="page-head">
         <div>
-          <span className="eyebrow">Embed Zone</span>
+          <span className="eyebrow">Embed</span>
           <h1>Instale o checkout no seu site</h1>
           <p className="page-lead">
-            Gere um token, escolha as permissões e cole o código no HTML da sua loja.
+            Três passos: configure a sessão, escolha permissões e cole o snippet.
           </p>
         </div>
-        <button type="button" className="btn-primary" disabled={busy} onClick={() => void issue()}>
-          <KeyRound size={15} />
-          {busy ? "Gerando…" : "Gerar token"}
-        </button>
       </header>
 
       {message && (
@@ -168,250 +164,154 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         </div>
       )}
 
-      <div className="split-panel">
-        {/* Left — form */}
-        <div className="split-panel-controls">
-          <section className="panel stacked">
-            <div className="panel-title">
-              <div>
-                <Shield size={16} className="icon-brand" />
-                <h2>Dados da sessão</h2>
-              </div>
-              {hasToken && (
-                <span className="badge ok">
-                  <CheckCircle2 size={11} />
-                  Ativo
-                </span>
-              )}
-            </div>
-
-            <label htmlFor="embed-origin">
-              Onde o widget vai aparecer
-              <span className="field-hint">Informe o domínio exato da página de checkout da sua loja</span>
-              <input
-                id="embed-origin"
-                type="url"
-                value={allowedOrigin}
-                placeholder="https://minha-loja.com"
-                onChange={(e) => setAllowedOrigin(e.target.value)}
-                aria-describedby={validationErrors.allowedOrigin ? "embed-origin-error" : undefined}
-              />
-              {validationErrors.allowedOrigin && (
-                <span className="field-error" id="embed-origin-error" role="alert">
-                  {validationErrors.allowedOrigin}
-                </span>
-              )}
-            </label>
-
-            <label htmlFor="embed-cart-ref">
-              ID do carrinho
-              <span className="field-hint">Identificador único da sessão de compra (ex: ID do carrinho no seu sistema)</span>
-              <input
-                id="embed-cart-ref"
-                value={cartRef}
-                placeholder="cart_abc123"
-                onChange={(e) => setCartRef(e.target.value)}
-                aria-describedby={validationErrors.cartRef ? "embed-cart-ref-error" : undefined}
-              />
-              {validationErrors.cartRef && (
-                <span className="field-error" id="embed-cart-ref-error" role="alert">
-                  {validationErrors.cartRef}
-                </span>
-              )}
-            </label>
-
-            <label htmlFor="embed-ttl">
-              Validade da sessão (segundos)
-              <span className="field-hint">Por quanto tempo o comprador pode usar o checkout após abrir a página</span>
-              <input
-                id="embed-ttl"
-                type="number"
-                min={60}
-                max={86400}
-                value={ttl}
-                onChange={(e) => setTtl(Number(e.target.value))}
-                aria-describedby={validationErrors.ttl ? "embed-ttl-error" : "embed-ttl-hint"}
-              />
-              <span className="field-hint" id="embed-ttl-hint">
-                {Math.round(ttl / 60)} min — máximo 24 horas
-              </span>
-              <span className="field-hint">
-                15 min (900s) para lojas normais · 1h (3600) para apps server-side
-              </span>
-              {validationErrors.ttl && (
-                <span className="field-error" id="embed-ttl-error" role="alert">
-                  {validationErrors.ttl}
-                </span>
-              )}
-            </label>
-
-            {session && (
-              <div className="embed-token-active">
-                <span className="token-label">Token ativo</span>
-                <code className="token-value" aria-label="Token de embed ativo">
-                  {session.embed_session_token.slice(0, 40)}…
-                </code>
-                <span className="token-expiry">
-                  {formatExpiry(session.expires_at_unix)}
-                </span>
-              </div>
-            )}
-          </section>
-
-          <section className="panel stacked">
-            <div className="panel-title">
-              <div>
-                <Code2 size={16} className="icon-brand" />
-                <h2>O que o widget pode fazer</h2>
-              </div>
-              <span className="badge muted">{selectedScopes.length} ativas</span>
-            </div>
-            <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 var(--space-3)" }}>
-              Ative apenas as permissões que seu checkout precisa. Menos permissões = mais segurança.
-            </p>
-
-            {/* Master toggle */}
-            <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
-              <button
-                type="button"
-                className="btn-secondary btn-xs"
-                onClick={() => setSelectedScopes([...EMBED_SCOPES])}
-              >
-                Selecionar todas
-              </button>
-              <button
-                type="button"
-                className="btn-secondary btn-xs"
-                onClick={() => setSelectedScopes([])}
-              >
-                Limpar seleção
-              </button>
-            </div>
-
-            {/* Read scopes group */}
-            <h3 style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-secondary)", margin: "0 0 var(--space-2)" }}>
-              Leitura
-            </h3>
-            <div className="list" style={{ marginBottom: "var(--space-4)" }}>
-              {READ_SCOPES.map((scope) => {
-                const meta = SCOPE_META[scope];
-                const isSelected = selectedScopes.includes(scope);
-                return (
-                  <article key={scope} className="scope-item">
-                    <input
-                      type="checkbox"
-                      className="scope-checkbox"
-                      id={`scope-${scope}`}
-                      checked={isSelected}
-                      onChange={() => {
-                        setSelectedScopes((prev) =>
-                          isSelected ? prev.filter((s) => s !== scope) : [...prev, scope]
-                        );
-                      }}
-                      aria-label={scope}
-                    />
-                    <span className="status-dot green" aria-hidden="true" />
-                    <div>
-                      <strong className="scope-name">{meta?.label ?? scope}</strong>
-                      <span className="scope-description">{meta.description}</span>
-                    </div>
-                    <span className="badge ok">leitura</span>
-                  </article>
-                );
-              })}
-            </div>
-
-            {/* Write scopes group */}
-            <h3 style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-secondary)", margin: "0 0 var(--space-2)" }}>
-              Escrita
-            </h3>
-            <div className="list">
-              {WRITE_SCOPES.map((scope) => {
-                const meta = SCOPE_META[scope];
-                const isSelected = selectedScopes.includes(scope);
-                return (
-                  <article key={scope} className="scope-item">
-                    <input
-                      type="checkbox"
-                      className="scope-checkbox"
-                      id={`scope-${scope}`}
-                      checked={isSelected}
-                      onChange={() => {
-                        setSelectedScopes((prev) =>
-                          isSelected ? prev.filter((s) => s !== scope) : [...prev, scope]
-                        );
-                      }}
-                      aria-label={scope}
-                    />
-                    <span className="status-dot amber" aria-hidden="true" />
-                    <div>
-                      <strong className="scope-name">{meta?.label ?? scope}</strong>
-                      <span className="scope-description">{meta.description}</span>
-                    </div>
-                    <span className="badge warn">escrita</span>
-                  </article>
-                );
-              })}
-            </div>
-
-            {validationErrors.scopes && (
-              <span className="field-error" role="alert">
-                {validationErrors.scopes}
-              </span>
-            )}
-          </section>
+      {/* ── Step 1: Session config ── */}
+      <div className="panel" style={{ padding: 'var(--space-6)', marginBottom: 'var(--space-4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>1</div>
+          <div>
+            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Configurar sessão</h2>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Defina origem, carrinho e validade do token</p>
+          </div>
+          {hasToken && <span className="badge ok" style={{ marginLeft: 'auto' }}><CheckCircle2 size={11} /> Token ativo</span>}
         </div>
 
-        {/* Right — snippet */}
-        <div className="split-panel-preview">
-          <div className="developer-code">
-            <div className="panel-title">
-              <span>
-                <Terminal size={13} />
-                Código de instalação
-              </span>
-              <button
-                type="button"
-                onClick={handleCopy}
-                aria-label="Copiar código de instalação"
-              >
-                {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
-                {copied ? "Copiado!" : "Copiar"}
-              </button>
-            </div>
-            <pre className="code-block" aria-label="Código de integração do widget">
-              <code>{snippet}</code>
-            </pre>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>
+          <label htmlFor="embed-origin">
+            Domínio permitido
+            <input
+              id="embed-origin"
+              type="url"
+              value={allowedOrigin}
+              placeholder="https://minha-loja.com"
+              onChange={(e) => setAllowedOrigin(e.target.value)}
+            />
+            {validationErrors.allowedOrigin && <span className="field-error" role="alert">{validationErrors.allowedOrigin}</span>}
+          </label>
 
-            {!hasToken && (
-              <div className="embed-code-empty">
-                <div className="empty-state">
-                  <div className="empty-state-icon">
-                    <KeyRound size={20} />
-                  </div>
-                  <h3>Aguardando token</h3>
-                  <p>
-                    Preencha os campos ao lado e clique em "Gerar token". O snippet ficará pronto para colar no seu HTML.
-                  </p>
-                </div>
-              </div>
-            )}
+          <label htmlFor="embed-cart-ref">
+            ID do carrinho
+            <input
+              id="embed-cart-ref"
+              value={cartRef}
+              placeholder="cart_abc123"
+              onChange={(e) => setCartRef(e.target.value)}
+            />
+            {validationErrors.cartRef && <span className="field-error" role="alert">{validationErrors.cartRef}</span>}
+          </label>
+        </div>
 
-            {hasToken && (
-              <div className="embed-code-footer">
-                <div className="status-line">
-                  <span className="status-dot green" aria-hidden="true" />
-                  <span>Token incorporado — pronto para produção</span>
-                </div>
-              </div>
-            )}
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+          <label htmlFor="embed-ttl">
+            Validade (segundos)
+            <input
+              id="embed-ttl"
+              type="number"
+              min={60}
+              max={86400}
+              value={ttl}
+              onChange={(e) => setTtl(Number(e.target.value))}
+            />
+            <span className="field-hint">{Math.round(ttl / 60)} min · 15min para lojas, 1h para server-side</span>
+            {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
+          </label>
 
-          <div className="panel-info">
-            <strong>Como instalar</strong>
-            Cole este código no HTML do seu site, antes do <code>&lt;/body&gt;</code>. O widget aparece automaticamente para o comprador.
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <button type="button" className="btn-primary" style={{ height: 40, width: '100%' }} disabled={busy} onClick={() => void issue()}>
+              <KeyRound size={15} />
+              {busy ? "Gerando…" : "Gerar token"}
+            </button>
           </div>
         </div>
+
+        {session && (
+          <div style={{ marginTop: 'var(--space-4)', padding: 'var(--space-3) var(--space-4)', background: 'var(--color-success-bg)', border: '1px solid var(--color-success-border)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
+            <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
+            <code style={{ fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.embed_session_token.slice(0, 48)}…</code>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{formatExpiry(session.expires_at_unix)}</span>
+          </div>
+        )}
+      </div>
+
+      {/* ── Step 2: Permissions ── */}
+      <div className="panel" style={{ padding: 'var(--space-6)', marginBottom: 'var(--space-4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>2</div>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Permissões</h2>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Menos permissões = mais segurança para o comprador</p>
+          </div>
+          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+            <button type="button" className="btn-secondary btn-xs" onClick={() => setSelectedScopes([...EMBED_SCOPES])}>Todas</button>
+            <button type="button" className="btn-secondary btn-xs" onClick={() => setSelectedScopes([])}>Nenhuma</button>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
+          {EMBED_SCOPES.map((scope) => {
+            const meta = SCOPE_META[scope];
+            const isSelected = selectedScopes.includes(scope);
+            return (
+              <label
+                key={scope}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
+                  padding: 'var(--space-3) var(--space-4)',
+                  border: `1px solid ${isSelected ? 'var(--color-brand)' : 'var(--color-border)'}`,
+                  borderRadius: 'var(--radius-sm)',
+                  background: isSelected ? 'var(--color-brand-subtle)' : 'var(--color-surface)',
+                  cursor: 'pointer',
+                  transition: 'border-color 0.15s, background 0.15s',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  onChange={() => setSelectedScopes((prev) => isSelected ? prev.filter((s) => s !== scope) : [...prev, scope])}
+                  style={{ width: 16, height: 16, accentColor: 'var(--color-brand)' }}
+                />
+                <div style={{ flex: 1 }}>
+                  <strong style={{ fontSize: 13, display: 'block' }}>{meta.label}</strong>
+                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{meta.description}</span>
+                </div>
+                <span className={`badge ${meta.group === 'read' ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>{meta.group === 'read' ? 'leitura' : 'escrita'}</span>
+              </label>
+            );
+          })}
+        </div>
+        {validationErrors.scopes && <span className="field-error" role="alert" style={{ marginTop: 'var(--space-2)' }}>{validationErrors.scopes}</span>}
+      </div>
+
+      {/* ── Step 3: Code snippet ── */}
+      <div className="panel" style={{ padding: 'var(--space-6)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
+          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>3</div>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Cole no seu HTML</h2>
+            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Antes do &lt;/body&gt; — o widget carrega automaticamente</p>
+          </div>
+          <button type="button" onClick={handleCopy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+            {copied ? "Copiado!" : "Copiar"}
+          </button>
+        </div>
+
+        <pre style={{ background: '#0B0F1A', color: '#e2e8f0', padding: 'var(--space-5)', borderRadius: 'var(--radius-sm)', fontSize: 12, lineHeight: 1.7, overflow: 'auto', margin: 0 }}>
+          <code>{snippet}</code>
+        </pre>
+
+        {!hasToken && (
+          <p style={{ marginTop: 'var(--space-3)', fontSize: 12, color: 'var(--color-text-muted)' }}>
+            <KeyRound size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+            Gere o token acima para ativar o snippet com credenciais reais.
+          </p>
+        )}
+
+        {hasToken && (
+          <div style={{ marginTop: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 12, color: 'var(--color-success)' }}>
+            <CheckCircle2 size={13} />
+            Token incorporado — pronto para produção
+          </div>
+        )}
       </div>
     </div>
   );
