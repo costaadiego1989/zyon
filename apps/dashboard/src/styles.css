@@ -2712,6 +2712,12 @@ button.dash-tab.active {
   color: #fff;
 }
 
+.filter-tab.active:hover {
+  background: var(--color-brand-hover);
+  border-color: var(--color-brand-hover);
+  color: #fff;
+}
+
 /* ── Pagination ────────────────────────────────────────────────── */
 .pagination {
   display: flex;

@@ -213,7 +213,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
       </div>
 
       {/* ── Preview Stage ── */}
-      <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: presentation === 'conversational' ? 'var(--space-2)' : 'var(--space-4)', display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Browser chrome */}
         <div style={{ width: '100%', maxWidth: presentation === 'floating' ? 420 : '100%', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#1e293b', borderRadius: '12px 12px 0 0' }}>
