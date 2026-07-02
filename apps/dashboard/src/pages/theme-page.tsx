@@ -81,13 +81,30 @@ export function computeDirty(
 
 const FONT_OPTIONS = [
   "Inter, ui-sans-serif, system-ui, sans-serif",
-  "Manrope, Inter, ui-sans-serif, system-ui, sans-serif",
-  "Plus Jakarta Sans, Inter, ui-sans-serif, system-ui, sans-serif",
   "DM Sans, Inter, ui-sans-serif, system-ui, sans-serif",
-  "Sora, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Plus Jakarta Sans, Inter, ui-sans-serif, system-ui, sans-serif",
   "Outfit, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Space Grotesk, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Nunito, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Poppins, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Manrope, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Sora, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Geist, Inter, ui-sans-serif, system-ui, sans-serif",
   "Montserrat, Inter, ui-sans-serif, system-ui, sans-serif",
 ];
+
+function handleImageUpload(
+  file: File,
+  onResult: (dataUrl: string) => void
+): void {
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (typeof reader.result === "string") {
+      onResult(reader.result);
+    }
+  };
+  reader.readAsDataURL(file);
+}
 
 function mergeTheme(theme?: Partial<MerchantTheme> | null): MerchantTheme {
   return {
@@ -351,15 +368,16 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   />
                 </label>
 
-                <label>
-                  Nome do assistente
-                  <span className="field-hint">Como o agente se apresenta ao comprador</span>
+                <div className="cfg-field">
+                  <label>Nome do assistente</label>
+                  <small className="field-hint">Este nome aparece no cabeçalho do widget durante a conversa</small>
                   <input
+                    type="text"
                     value={theme.agentName ?? ""}
                     onChange={(e) => patch({ agentName: e.target.value })}
-                    placeholder="Ana"
+                    placeholder="Ex: Pulse, Luna, Max"
                   />
-                </label>
+                </div>
               </div>
 
               {/* Badges chip UX */}
@@ -430,44 +448,86 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               </div>
 
               <div className="form-grid">
-                <label>
-                  Logo da marca
-                  <span className="field-hint">Imagem exibida no topo do widget</span>
-                  <input
-                    value={theme.logoUrl ?? ""}
-                    onChange={(e) => patch({ logoUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
+                <div className="cfg-field">
+                  <label>Logo da marca</label>
+                  <span className="field-hint">Cole a URL da imagem ou faça upload</span>
+                  <div className="image-input-row">
+                    <input
+                      value={theme.logoUrl ?? ""}
+                      onChange={(e) => patch({ logoUrl: e.target.value })}
+                      placeholder="https://..."
+                    />
+                    <label className="upload-btn">
+                      Fazer upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, (url) => patch({ logoUrl: url }));
+                        }}
+                      />
+                    </label>
+                  </div>
                   {!isValidUrl(theme.logoUrl ?? "") && (
                     <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
                   )}
-                </label>
+                </div>
 
-                <label>
-                  Avatar do assistente
-                  <span className="field-hint">Foto que aparece nas mensagens do agente</span>
-                  <input
-                    value={theme.agentAvatarUrl ?? ""}
-                    onChange={(e) => patch({ agentAvatarUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
+                <div className="cfg-field">
+                  <label>Avatar do assistente</label>
+                  <span className="field-hint">Cole a URL da imagem ou faça upload</span>
+                  <div className="image-input-row">
+                    <input
+                      value={theme.agentAvatarUrl ?? ""}
+                      onChange={(e) => patch({ agentAvatarUrl: e.target.value })}
+                      placeholder="https://..."
+                    />
+                    <label className="upload-btn">
+                      Fazer upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, (url) => patch({ agentAvatarUrl: url }));
+                        }}
+                      />
+                    </label>
+                  </div>
                   {!isValidUrl(theme.agentAvatarUrl ?? "") && (
                     <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
                   )}
-                </label>
+                </div>
 
-                <label>
-                  Imagem de fundo
-                  <span className="field-hint">Background decorativo do widget</span>
-                  <input
-                    value={theme.backgroundImageUrl ?? ""}
-                    onChange={(e) => patch({ backgroundImageUrl: e.target.value })}
-                    placeholder="https://..."
-                  />
+                <div className="cfg-field">
+                  <label>Imagem de fundo</label>
+                  <span className="field-hint">Cole a URL da imagem ou faça upload</span>
+                  <div className="image-input-row">
+                    <input
+                      value={theme.backgroundImageUrl ?? ""}
+                      onChange={(e) => patch({ backgroundImageUrl: e.target.value })}
+                      placeholder="https://..."
+                    />
+                    <label className="upload-btn">
+                      Fazer upload
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleImageUpload(file, (url) => patch({ backgroundImageUrl: url }));
+                        }}
+                      />
+                    </label>
+                  </div>
                   {!isValidUrl(theme.backgroundImageUrl ?? "") && (
                     <span className="field-error" role="alert">{LABELS.urlInvalid}</span>
                   )}
-                </label>
+                </div>
               </div>
 
               <div className="slider-row">

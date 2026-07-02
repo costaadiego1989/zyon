@@ -4,14 +4,17 @@ import { createDashboardApi, DashboardHttpError, type EmbedSessionResponse, type
 
 const EMBED_SCOPES = ["checkout:start", "checkout:track", "checkout:chat", "offers:apply", "coupons:apply", "payment:intents:create"];
 
-const SCOPE_META: Record<string, { ok: boolean; label: string; description: string }> = {
-  "checkout:start":        { ok: true,  label: "Iniciar sessão", description: "Permite abrir uma nova sessão de checkout para o comprador" },
-  "checkout:track":        { ok: true,  label: "Rastrear progresso", description: "Acompanha em que etapa do checkout o comprador está" },
-  "checkout:chat":         { ok: true,  label: "Chat do agente", description: "Habilita a conversa com o assistente de compras" },
-  "offers:apply":          { ok: true,  label: "Aplicar ofertas", description: "Permite que ofertas aprovadas sejam aplicadas ao carrinho" },
-  "coupons:apply":         { ok: true,  label: "Cupons", description: "Permite aplicar cupons de desconto durante o checkout" },
-  "payment:intents:create":{ ok: false, label: "Criar pagamentos", description: "Autoriza a criação de intenções de pagamento (sensível)" },
+const SCOPE_META: Record<string, { group: "read" | "write"; label: string; description: string }> = {
+  "checkout:start":        { group: "write", label: "Iniciar sessão", description: "Iniciar sessão de checkout" },
+  "checkout:track":        { group: "read",  label: "Rastrear progresso", description: "Acompanhar progresso da compra" },
+  "checkout:chat":         { group: "read",  label: "Chat do agente", description: "Enviar e receber mensagens" },
+  "offers:apply":          { group: "write", label: "Aplicar ofertas", description: "Aplicar ofertas e descontos" },
+  "coupons:apply":         { group: "write", label: "Cupons", description: "Resgatar cupons" },
+  "payment:intents:create":{ group: "write", label: "Criar pagamentos", description: "Processar pagamentos" },
 };
+
+const READ_SCOPES = EMBED_SCOPES.filter((s) => SCOPE_META[s]?.group === "read");
+const WRITE_SCOPES = EMBED_SCOPES.filter((s) => SCOPE_META[s]?.group === "write");
 
 // ── Utility Functions (exported for testing) ─────────────────────────────────
 
@@ -232,6 +235,9 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               <span className="field-hint" id="embed-ttl-hint">
                 {Math.round(ttl / 60)} min — máximo 24 horas
               </span>
+              <span className="field-hint">
+                Recomendado: 900s (15 min) para sessões curtas, 3600s (1h) para integrações server-side
+              </span>
               {validationErrors.ttl && (
                 <span className="field-error" id="embed-ttl-error" role="alert">
                   {validationErrors.ttl}
@@ -263,8 +269,31 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <p style={{ fontSize: 12, color: "var(--color-text-secondary)", margin: "0 0 var(--space-3)" }}>
               Escolha o que o widget pode fazer durante a sessão do comprador.
             </p>
-            <div className="list">
-              {EMBED_SCOPES.map((scope) => {
+
+            {/* Master toggle */}
+            <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+              <button
+                type="button"
+                className="btn-secondary btn-xs"
+                onClick={() => setSelectedScopes([...EMBED_SCOPES])}
+              >
+                Selecionar todas
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-xs"
+                onClick={() => setSelectedScopes([])}
+              >
+                Limpar seleção
+              </button>
+            </div>
+
+            {/* Read scopes group */}
+            <h3 style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-secondary)", margin: "0 0 var(--space-2)" }}>
+              Leitura
+            </h3>
+            <div className="list" style={{ marginBottom: "var(--space-4)" }}>
+              {READ_SCOPES.map((scope) => {
                 const meta = SCOPE_META[scope];
                 const isSelected = selectedScopes.includes(scope);
                 return (
@@ -281,18 +310,50 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                       }}
                       aria-label={scope}
                     />
-                    <span className={`status-dot ${meta?.ok ? "green" : "amber"}`} aria-hidden="true" />
+                    <span className="status-dot green" aria-hidden="true" />
                     <div>
                       <strong className="scope-name">{meta?.label ?? scope}</strong>
-                      {meta && <span className="scope-description">{meta.description}</span>}
+                      <span className="scope-description">{meta.description}</span>
                     </div>
-                    <span className={`badge ${meta?.ok ? "ok" : "warn"}`}>
-                      {meta?.ok ? "leitura" : "escrita"}
-                    </span>
+                    <span className="badge ok">leitura</span>
                   </article>
                 );
               })}
             </div>
+
+            {/* Write scopes group */}
+            <h3 style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--color-text-secondary)", margin: "0 0 var(--space-2)" }}>
+              Escrita
+            </h3>
+            <div className="list">
+              {WRITE_SCOPES.map((scope) => {
+                const meta = SCOPE_META[scope];
+                const isSelected = selectedScopes.includes(scope);
+                return (
+                  <article key={scope} className="scope-item">
+                    <input
+                      type="checkbox"
+                      className="scope-checkbox"
+                      id={`scope-${scope}`}
+                      checked={isSelected}
+                      onChange={() => {
+                        setSelectedScopes((prev) =>
+                          isSelected ? prev.filter((s) => s !== scope) : [...prev, scope]
+                        );
+                      }}
+                      aria-label={scope}
+                    />
+                    <span className="status-dot amber" aria-hidden="true" />
+                    <div>
+                      <strong className="scope-name">{meta?.label ?? scope}</strong>
+                      <span className="scope-description">{meta.description}</span>
+                    </div>
+                    <span className="badge warn">escrita</span>
+                  </article>
+                );
+              })}
+            </div>
+
             {validationErrors.scopes && (
               <span className="field-error" role="alert">
                 {validationErrors.scopes}
@@ -348,7 +409,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           <div className="panel-info">
             <strong>Como instalar</strong>
-            Cole este código no <code>&lt;head&gt;</code> ou antes do <code>&lt;/body&gt;</code> do seu site. O widget aparece automaticamente para o comprador.
+            Cole este código no HTML do seu site, antes do <code>&lt;/body&gt;</code>. O widget aparece automaticamente para o comprador.
           </div>
         </div>
       </div>

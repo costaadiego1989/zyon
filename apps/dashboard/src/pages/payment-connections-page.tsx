@@ -54,24 +54,28 @@ export function formatDate(iso: string): string {
 export function statusBadge(status: string) {
   if (status === "active")
     return (
-      <span className="badge ok" role="status" aria-live="polite">
-        <CheckCircle2 size={11} aria-hidden="true" /> Ativo
+      <span className="badge ok" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-ok)", flexShrink: 0 }} />
+        Ativo
       </span>
     );
   if (status === "pending")
     return (
-      <span className="badge warn" role="status" aria-live="polite">
-        <AlertCircle size={11} aria-hidden="true" /> Pendente
+      <span className="badge warn" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warn)", flexShrink: 0 }} />
+        Pendente
       </span>
     );
   if (status === "error")
     return (
-      <span className="badge bad" role="status" aria-live="polite">
-        <AlertCircle size={11} aria-hidden="true" /> Erro de conexão
+      <span className="badge bad" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-bad)", flexShrink: 0 }} />
+        Erro de conexão
       </span>
     );
   return (
-    <span className="badge muted" role="status" aria-live="polite">
+    <span className="badge muted" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-muted)", flexShrink: 0 }} />
       Desconectado
     </span>
   );
@@ -149,15 +153,15 @@ function GatewayCard({
       </div>
 
       {isConnected && connection ? (
-        <div className="panel-body">
+        <div className="panel-body" style={{ padding: "12px 16px", borderTop: "1px solid var(--color-border)" }}>
           {connection.account_id ? (
-            <div className="detail-row">
-              <span>Conta</span>
+            <div className="detail-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
+              <span style={{ fontSize: 13, color: "var(--color-muted)", fontWeight: 500 }}>Conta</span>
               <code className="mono text-sm">{connection.account_id}</code>
             </div>
           ) : null}
-          <div className="detail-row">
-            <span>Última sincronização</span>
+          <div className="detail-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
+            <span style={{ fontSize: 13, color: "var(--color-muted)", fontWeight: 500 }}>Última sincronização</span>
             <span className="mono text-sm">{formatDate(connection.updated_at)}</span>
           </div>
         </div>
@@ -357,21 +361,23 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
       {/* ── Page Head ── */}
       <header className="page-head">
         <div>
-          <span className="eyebrow">Conta</span>
+          <span className="eyebrow"><CreditCard size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
           <h1>Conexões de pagamento</h1>
           <p className="page-lead">
             Conecte provedores de pagamento para processar vendas diretamente no checkout.
           </p>
         </div>
-        <button
-          type="button"
-          disabled={operation !== "idle"}
-          onClick={() => void load()}
-          aria-label="Atualizar conexões"
-        >
-          <RefreshCw size={14} aria-hidden="true" className={isLoading ? "spin" : undefined} />
-          Atualizar
-        </button>
+        <div className="button-row">
+          <button
+            type="button"
+            disabled={operation !== "idle"}
+            onClick={() => void load()}
+            aria-label="Atualizar conexões"
+          >
+            <RefreshCw size={14} aria-hidden="true" className={isLoading ? "spin" : undefined} />
+            Atualizar
+          </button>
+        </div>
       </header>
 
       {/* ── Alert ── */}

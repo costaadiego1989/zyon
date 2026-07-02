@@ -168,21 +168,13 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
     <>
       <header className="page-head">
         <div>
-          <span className="eyebrow">Conta</span>
+          <span className="eyebrow"><ShieldCheck size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
           <h1>Log de Auditoria</h1>
           <p className="page-lead">
             Acompanhe todas as ações realizadas no painel.
           </p>
         </div>
-        <div className="button-row">
-          <button
-            type="button"
-            onClick={() => exportCsv(filteredEvents)}
-            aria-label="Exportar registros"
-          >
-            <Download size={16} />
-            Exportar registros
-          </button>
+        <div className="button-row" style={{ marginLeft: "auto" }}>
           <button
             type="button"
             disabled={loading}
@@ -191,6 +183,15 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           >
             <RefreshCw size={16} />
             Atualizar
+          </button>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => exportCsv(filteredEvents)}
+            aria-label="Exportar registros"
+          >
+            <Download size={16} />
+            Exportar
           </button>
         </div>
       </header>
@@ -203,10 +204,11 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <ShieldCheck size={18} />
         </div>
 
-        <div className="audit-filter-bar">
+        <div className="audit-filter-bar" style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <select
             value={filters.dateRange}
             onChange={e => setFilters(f => ({ ...f, dateRange: e.target.value as AuditFilters["dateRange"] }))}
+            style={{ flex: 1, minWidth: 120 }}
           >
             <option value="all">Período</option>
             <option value="7d">7 dias</option>
@@ -216,6 +218,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <select
             value={filters.actionCategory}
             onChange={e => setFilters(f => ({ ...f, actionCategory: e.target.value as AuditFilters["actionCategory"] }))}
+            style={{ flex: 1, minWidth: 120 }}
           >
             <option value="all">Tipo de ação</option>
             <option value="destructive">Exclusão</option>
@@ -225,12 +228,13 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <select
             value={filters.actorType}
             onChange={e => setFilters(f => ({ ...f, actorType: e.target.value as AuditFilters["actorType"] }))}
+            style={{ flex: 1, minWidth: 120 }}
           >
             <option value="all">Autor</option>
             <option value="human">Pessoa</option>
             <option value="service">Sistema</option>
           </select>
-          <span className="audit-summary">
+          <span className="audit-summary" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
             Exibindo {filteredEvents.length} de {events.length} eventos
           </span>
         </div>
@@ -280,9 +284,9 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredEvents.map(evt => (
+                      {filteredEvents.map((evt, idx) => (
                         <React.Fragment key={evt.id}>
-                          <tr>
+                          <tr style={{ backgroundColor: idx % 2 === 1 ? "var(--color-surface-alt, rgba(0,0,0,0.02))" : undefined, borderBottom: "1px solid var(--color-border)" }}>
                             <td>
                               <time dateTime={evt.occurred_at} title={formatAbsoluteTime(evt.occurred_at)}>
                                 {formatRelativeTime(evt.occurred_at)}
@@ -294,7 +298,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                               </span>
                             </td>
                             <td>
-                              <span className={actionBadgeClass(evt.action)}>
+                              <span className={actionBadgeClass(evt.action)} style={{ display: "inline-block", fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap" }}>
                                 <code>{evt.action}</code>
                               </span>
                             </td>
@@ -344,12 +348,12 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                   </table>
                 </div>
               ) : (
-                <div className="empty-state">
-                  <div className="empty-state-icon">
-                    <ShieldCheck size={32} />
+                <div className="empty-state" style={{ textAlign: "center", padding: "48px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
+                  <div className="empty-state-icon" style={{ background: "var(--color-surface-alt, rgba(0,0,0,0.04))", borderRadius: "50%", width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <ShieldCheck size={32} style={{ color: "var(--color-muted)" }} />
                   </div>
-                  <h3>Nenhuma atividade registrada</h3>
-                  <p>
+                  <h3 style={{ margin: 0 }}>Nenhuma atividade registrada</h3>
+                  <p style={{ margin: 0, color: "var(--color-muted)" }}>
                     Nenhuma atividade registrada no período selecionado.
                   </p>
                 </div>

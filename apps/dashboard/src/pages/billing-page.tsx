@@ -274,7 +274,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         <p className="page-lead">Escolha o plano ideal para seu volume de vendas</p>
       </div>
 
-      <div className="ops-grid three-col">
+      <div className="ops-grid three-col" style={{ alignItems: "stretch" }}>
         {PLANS.map((plan) => {
           const isCurrent = subscription?.plan?.toLowerCase() === plan.key;
           return (
@@ -282,19 +282,29 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
               key={plan.key}
               className={`panel stacked${plan.highlight ? " plan-highlighted" : ""}`}
               aria-labelledby={`plan-${plan.key}-title`}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                ...(isCurrent ? { borderColor: "var(--color-ok)", borderWidth: 2, borderStyle: "solid" } : {}),
+              }}
             >
               {plan.highlight ? (
                 <div className="plan-badge-popular">
                   <Sparkles size={13} />
-                  Mais popular
+                  Recomendado
                 </div>
               ) : null}
               <div className="panel-title">
                 <h2 id={`plan-${plan.key}-title`}>{plan.name}</h2>
-                {isCurrent ? <span className="badge ok">Plano atual</span> : null}
+                {isCurrent ? (
+                  <span className="badge ok" style={{ fontWeight: 600 }}>
+                    <CheckCircle2 size={12} style={{ marginRight: 4 }} />
+                    Seu plano atual
+                  </span>
+                ) : null}
               </div>
               <p className="plan-price">{plan.price}</p>
-              <ul className="plan-features" aria-label={`Recursos do plano ${plan.name}`}>
+              <ul className="plan-features" aria-label={`Recursos do plano ${plan.name}`} style={{ flex: 1 }}>
                 {plan.features.map((feat) => (
                   <li key={feat}>
                     <CheckCircle2 size={14} style={{ color: "var(--color-brand)", flexShrink: 0 }} />
@@ -309,12 +319,18 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
                   disabled={busy}
                   onClick={() => void openCheckout(plan.priceId)}
                   aria-label={`Ativar plano ${plan.name}`}
-                  style={{ width: "100%", justifyContent: "center" }}
+                  style={{ width: "100%", justifyContent: "center", marginTop: "auto" }}
                 >
                   {subscription ? "Fazer upgrade" : "Ativar plano"}
                 </button>
               ) : (
-                <button type="button" disabled style={{ width: "100%", justifyContent: "center" }}>
+                <button
+                  type="button"
+                  disabled
+                  className="btn-secondary"
+                  style={{ width: "100%", justifyContent: "center", marginTop: "auto", opacity: 0.6 }}
+                >
+                  <CheckCircle2 size={14} />
                   Plano atual
                 </button>
               )}
