@@ -200,7 +200,7 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           </label>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 'var(--space-4)', marginTop: 'var(--space-4)', alignItems: 'start' }}>
           <label htmlFor="embed-ttl">
             Validade (segundos)
             <input
@@ -215,13 +215,10 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
           </label>
 
-          <div style={{ display: 'grid', gap: 'var(--space-1)', alignContent: 'end' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, visibility: 'hidden' }}>&nbsp;</span>
-            <button type="button" className="btn-primary" style={{ height: 40, width: '100%' }} disabled={busy} onClick={() => void issue()}>
-              <KeyRound size={15} />
-              {busy ? "Gerando…" : "Gerar token"}
-            </button>
-          </div>
+          <button type="button" className="btn-primary" style={{ height: 40, marginTop: 18, padding: '0 var(--space-6)' }} disabled={busy} onClick={() => void issue()}>
+            <KeyRound size={15} />
+            {busy ? "Gerando…" : "Gerar token"}
+          </button>
         </div>
 
         {session && (

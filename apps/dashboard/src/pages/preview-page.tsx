@@ -155,223 +155,65 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
 
   return (
     <div className="dashboard-content">
-      <header style={{ marginBottom: "var(--space-6)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-          <div className="page-icon"><Eye size={18} /></div>
-          <div>
-            <h1>Visualize como seus clientes verão o checkout</h1>
-            <p className="page-lead">Simule a experiência de compra em diferentes dispositivos e modos de apresentação.</p>
-          </div>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Preview</span>
+          <h1>Visualize o checkout</h1>
+          <p className="page-lead">Veja como o widget aparece para o comprador em tempo real.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <button type="button" onClick={() => previewRef.current?.reload()} style={{ minHeight: 36 }}>
+            <RefreshCw size={13} /> Reiniciar
+          </button>
+          <button type="button" onClick={() => setIsFullscreen(true)} style={{ minHeight: 36 }}>
+            <Maximize2 size={13} /> Tela cheia
+          </button>
         </div>
       </header>
 
-      <div className="split-panel preview-split-panel" style={{ gap: "var(--space-5)" }}>
-        {/* Left — Controls Sidebar */}
-        <div className="split-panel-controls">
-          {/* Token Status Card */}
-          <section className="panel stacked">
-            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Sessão de preview
-            </h2>
-            <div
-              aria-live="polite"
-              aria-atomic="true"
-              style={{
-                padding: "var(--space-3)",
-                borderRadius: "var(--radius-sm)",
-                background: tokenStatus === "active" ? "var(--color-success-bg)"
-                  : tokenStatus === "expired" ? "var(--color-error-bg)" : "var(--color-bg)",
-                border: `1px solid ${tokenStatus === "active" ? "var(--color-success-border)"
-                  : tokenStatus === "expired" ? "var(--color-error-border)" : "var(--color-border)"}`,
-                display: "flex",
-                alignItems: "center",
-                gap: "var(--space-2)"
-              }}
-            >
-              <span className={`status-dot ${statusDotClass}`} aria-hidden="true" />
-              <span style={{ fontSize: 12, fontWeight: 600 }}>{statusText}</span>
-              {countdown && tokenStatus === "active" && (
-                <span
-                  className="preview-countdown"
-                  aria-label={`Expira em ${countdown}`}
-                  style={{ marginLeft: "auto", color: "var(--color-success)" }}
-                >
-                  {countdown}
-                </span>
-              )}
-            </div>
-          </section>
-
-          {/* Presentation Mode Selector */}
-          <section className="panel stacked">
-            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Modo de apresentação
-            </h2>
-            <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 var(--space-2)" }}>
-              Como o widget aparece para o comprador
-            </p>
-            <div role="radiogroup" aria-label="Modo de apresentação" style={{ display: "grid", gap: "var(--space-2)" }}>
-              {(["floating", "conversational"] as Presentation[]).map((mode) => {
-                const active = presentation === mode;
-                return (
-                  <button
-                    key={mode}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setPresentation(mode)}
-                    style={{
-                      justifyContent: "flex-start",
-                      gap: "var(--space-3)",
-                      padding: "var(--space-3)",
-                      minHeight: 44,
-                      borderRadius: "var(--radius-sm)",
-                      background: active ? "var(--color-brand-subtle)" : "var(--color-surface-raised)",
-                      borderColor: active ? "var(--color-brand)" : "var(--color-border)",
-                      color: active ? "var(--color-brand)" : "var(--color-text-secondary)",
-                      fontWeight: active ? 700 : 500,
-                      transition: "all var(--duration-fast) var(--ease)"
-                    }}
-                  >
-                    <div style={{ textAlign: "left" }}>
-                      <span style={{ display: "block", fontSize: 13 }}>
-                        {mode === "floating" ? "Flutuante" : "Tela cheia"}
-                      </span>
-                      <span style={{ display: "block", fontSize: 11, fontWeight: 400, color: "var(--color-text-muted)", marginTop: 1 }}>
-                        {mode === "floating"
-                          ? "Botão no canto da tela com chat expansível"
-                          : "Experiência de conversa em tela inteira"}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Device Viewport Selector */}
-          <section className="panel stacked">
-            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Dispositivo
-            </h2>
-            <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "0 0 var(--space-2)" }}>
-              Simule a largura de tela dos seus compradores
-            </p>
-            <div role="radiogroup" aria-label="Tamanho de dispositivo" style={{ display: "flex", gap: "var(--space-2)" }}>
-              {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
-                const active = device === size;
-                const IconComponent = size === "desktop" ? Monitor : size === "tablet" ? Tablet : Smartphone;
-                return (
-                  <button
-                    key={size}
-                    type="button"
-                    role="radio"
-                    aria-checked={active}
-                    onClick={() => setDevice(size)}
-                    style={{
-                      flex: 1,
-                      justifyContent: "center",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: "var(--space-1)",
-                      padding: "var(--space-3)",
-                      minHeight: 52,
-                      borderRadius: "var(--radius-sm)",
-                      background: active ? "var(--color-brand-subtle)" : "var(--color-surface-raised)",
-                      borderColor: active ? "var(--color-brand)" : "var(--color-border)",
-                      color: active ? "var(--color-brand)" : "var(--color-text-muted)",
-                      fontWeight: active ? 700 : 500,
-                      transition: "all var(--duration-fast) var(--ease)"
-                    }}
-                  >
-                    <IconComponent size={16} />
-                    <span style={{ fontSize: 11 }}>{DEVICE_SIZES[size].label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Scopes Info Card */}
-          <section className="panel stacked">
-            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Permissões ativas
-            </h2>
-            <div style={{ display: "grid", gap: "var(--space-1)" }}>
-              {PREVIEW_SCOPES.map((scope) => (
-                <div key={scope} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <span className="status-dot green" style={{ flexShrink: 0 }} />
-                  <code style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-text-muted)" }}>
-                    {scope}
-                  </code>
-                </div>
-              ))}
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: "var(--space-1)" }}>
-                <span className="status-dot" style={{ background: "var(--color-border-strong)", flexShrink: 0 }} />
-                <code style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--color-text-faint)", textDecoration: "line-through" }}>
-                  payment:intents:create
-                </code>
-              </div>
-            </div>
-          </section>
-
-          {/* Theme Applied Card */}
-          <section className="panel stacked">
-            <h2 style={{ fontSize: 13, color: "var(--color-text-secondary)", marginBottom: "var(--space-2)" }}>
-              Tema atual
-            </h2>
-            {themeError ? (
-              <p style={{ fontSize: 12, color: "var(--color-error)", margin: 0 }}>{themeError}</p>
-            ) : theme ? (
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <span
-                  style={{
-                    width: 16,
-                    height: 16,
-                    borderRadius: "var(--radius-sm)",
-                    background: theme.accentColor ?? "var(--color-brand)",
-                    border: "1px solid var(--color-border)",
-                    flexShrink: 0
-                  }}
-                />
-                <span style={{ fontSize: 12, color: "var(--color-text-muted)", fontFamily: "var(--font-mono)" }}>
-                  {theme.accentColor ?? "padrão"}
-                </span>
-              </div>
-            ) : (
-              <p style={{ fontSize: 12, color: "var(--color-text-faint)", margin: 0 }}>Carregando...</p>
-            )}
-            <button
-              type="button"
-              onClick={reloadTheme}
-              style={{ marginTop: "var(--space-2)", width: "100%", justifyContent: "center" }}
-            >
-              <RefreshCw size={13} /> Atualizar tema
-            </button>
-          </section>
-
-          {/* Action Buttons */}
-          <button
-            type="button"
-            onClick={() => previewRef.current?.reload()}
-            style={{ width: "100%", justifyContent: "center", minHeight: 40 }}
-          >
-            <RefreshCw size={14} /> Reiniciar sessão
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(true)}
-            aria-expanded={isFullscreen}
-            aria-label="Tela cheia"
-            style={{ width: "100%", justifyContent: "center", minHeight: 40 }}
-          >
-            <Maximize2 size={14} /> Tela cheia
-          </button>
+      {/* ── Compact control strip ── */}
+      <div className="panel" style={{ padding: 'var(--space-4) var(--space-5)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
+        {/* Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <span className={`status-dot ${statusDotClass}`} />
+          <span style={{ fontSize: 12, fontWeight: 600 }}>{statusText}</span>
+          {countdown && tokenStatus === "active" && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{countdown}</span>}
         </div>
 
-        {/* Right — Preview Stage */}
-        <div className="split-panel-preview" style={{ minWidth: 0, background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-5)", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+        {/* Mode */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Modo</span>
+          <div className="filter-tabs">
+            <button type="button" className={`filter-tab${presentation === 'floating' ? ' active' : ''}`} onClick={() => setPresentation('floating')}>Flutuante</button>
+            <button type="button" className={`filter-tab${presentation === 'conversational' ? ' active' : ''}`} onClick={() => setPresentation('conversational')}>Tela cheia</button>
+          </div>
+        </div>
+
+        {/* Device */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Device</span>
+          <div className="filter-tabs">
+            {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => (
+              <button key={size} type="button" className={`filter-tab${device === size ? ' active' : ''}`} onClick={() => setDevice(size)}>
+                {DEVICE_SIZES[size].label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Theme color */}
+        {theme && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginLeft: 'auto' }}>
+            <span style={{ width: 14, height: 14, borderRadius: 4, background: theme.accentColor ?? 'var(--color-brand)', border: '1px solid var(--color-border)' }} />
+            <button type="button" onClick={reloadTheme} style={{ fontSize: 11, minHeight: 28, padding: '0 var(--space-2)' }}>
+              <RefreshCw size={11} /> Tema
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* ── Preview Stage (full width) ── */}
+      <div style={{ minWidth: 0, background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-5)", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
           <div
             className="preview-device-frame"
             style={{
@@ -439,7 +281,6 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
             </div>
           </div>
         </div>
-      </div>
     </div>
   );
 }
