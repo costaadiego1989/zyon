@@ -213,7 +213,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
       </div>
 
       {/* ── Preview Stage (full width) ── */}
-      <div style={{ background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-5)", display: "flex", justifyContent: "center", minHeight: 680 }}>
+      <div style={{ background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-6)", display: "flex", justifyContent: "center", alignItems: "stretch" }}>
           <div
             className="preview-device-frame"
             style={{
@@ -229,7 +229,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
               } : {})
             } as React.CSSProperties}
           >
-            <div className="preview-stage" style={{ margin: 0, borderRadius: "var(--radius-lg)", overflow: "hidden", background: "#fff" }}>
+            <div className="preview-stage" style={{ margin: 0, borderRadius: "var(--radius-lg)", overflow: "visible", background: "#fff", display: 'flex', flexDirection: 'column' }}>
               {/* Chrome Bar */}
               <div style={{
                 display: "flex",
@@ -267,7 +267,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
               </div>
 
               {/* LivePreviewPanel */}
-              <div style={{ height: presentation === "conversational" ? 700 : 600, width: "100%" }}>
+              <div style={{ height: presentation === "conversational" ? 750 : 650, width: "100%", overflow: "hidden", borderRadius: "0 0 var(--radius-lg) var(--radius-lg)" }}>
                 <LivePreviewPanel
                   ref={previewRef}
                   apiBaseUrl={props.apiBaseUrl}

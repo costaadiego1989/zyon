@@ -200,27 +200,28 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           </label>
         </div>
 
-        <div style={{ display: 'flex', gap: 'var(--space-4)', marginTop: 'var(--space-4)', alignItems: 'flex-end' }}>
-          <div style={{ flex: 1 }}>
-            <label htmlFor="embed-ttl">
-              Validade (segundos)
-              <input
-                id="embed-ttl"
-                type="number"
-                min={60}
-                max={86400}
-                value={ttl}
-                onChange={(e) => setTtl(Number(e.target.value))}
-              />
-            </label>
-            <span className="field-hint" style={{ marginTop: 4 }}>{Math.round(ttl / 60)} min · 15min para lojas, 1h para server-side</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
+          <label htmlFor="embed-ttl">
+            Validade (segundos)
+            <input
+              id="embed-ttl"
+              type="number"
+              min={60}
+              max={86400}
+              value={ttl}
+              onChange={(e) => setTtl(Number(e.target.value))}
+            />
+            <span className="field-hint">{Math.round(ttl / 60)} min · 15min para lojas, 1h para server-side</span>
             {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
-          </div>
+          </label>
 
-          <button type="button" className="btn-primary" style={{ height: 40, padding: '0 var(--space-6)', whiteSpace: 'nowrap' }} disabled={busy} onClick={() => void issue()}>
-            <KeyRound size={15} />
-            {busy ? "Gerando…" : "Gerar token"}
-          </button>
+          <label style={{ visibility: 'hidden', fontSize: 12 }}>
+            &nbsp;
+            <button type="button" className="btn-primary" style={{ height: 40, padding: '0 var(--space-6)', whiteSpace: 'nowrap', visibility: 'visible' }} disabled={busy} onClick={() => void issue()}>
+              <KeyRound size={15} />
+              {busy ? "Gerando…" : "Gerar token"}
+            </button>
+          </label>
         </div>
 
         {session && (
