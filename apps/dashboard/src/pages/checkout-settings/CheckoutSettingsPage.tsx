@@ -88,6 +88,7 @@ interface Draft {
   handoffEnabled: boolean;
   handoffMessage: string;
   handoffChannels: Array<"email" | "whatsapp" | "chat">;
+  crossSellEnabled: boolean;
 }
 
 function settingsToDraft(s: CheckoutSettings): Draft {
@@ -116,6 +117,7 @@ function settingsToDraft(s: CheckoutSettings): Draft {
     handoffEnabled: s.handoff.enabled,
     handoffMessage: s.handoff.message,
     handoffChannels: s.handoff.channels,
+    crossSellEnabled: (s as any).crossSellEnabled ?? false,
   };
 }
 
@@ -156,7 +158,8 @@ function draftToPatch(d: Draft): CheckoutSettingsPatch {
       message: d.handoffMessage,
       channels: d.handoffChannels,
     },
-  };
+    crossSellEnabled: d.crossSellEnabled,
+  } as CheckoutSettingsPatch;
 }
 
 // ── defaults (for genuine "Restore defaults") ────────────────────────────────
@@ -186,6 +189,7 @@ const DEFAULT_DRAFT: Draft = {
   handoffMessage:
     "Vou transferir você para um atendente humano. Um momento, por favor.",
   handoffChannels: ["chat"],
+  crossSellEnabled: false,
 };
 
 function draftsEqual(a: Draft, b: Draft): boolean {
@@ -1087,6 +1091,35 @@ export function CheckoutSettingsPage(props: {
                   </div>
                 </div>
               ) : null}
+            </SectionRail>
+
+            {/* 6 — Cross-sell */}
+            <SectionRail
+              icon={<Zap size={16} strokeWidth={1.75} />}
+              index="06"
+              title="Cross-sell"
+              desc="Sugira produtos complementares durante o checkout para aumentar o ticket médio."
+              aside={
+                <span className={`badge ${draft.crossSellEnabled ? "ok" : "muted"}`}>
+                  {draft.crossSellEnabled ? "ativo" : "inativo"}
+                </span>
+              }
+            >
+              <div className="cfg-rows">
+                <SettingRow
+                  id="toggle-cross-sell"
+                  title="Habilitar cross-sell"
+                  desc="O agente sugere produtos relacionados quando o comprador avança para pagamento."
+                  control={
+                    <ToggleSwitch
+                      id="toggle-cross-sell"
+                      checked={draft.crossSellEnabled}
+                      disabled={busy}
+                      onChange={(v) => patchDraft({ crossSellEnabled: v })}
+                    />
+                  }
+                />
+              </div>
             </SectionRail>
 
             {/* Footer actions */}

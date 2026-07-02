@@ -371,12 +371,23 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
         </div>
 
         {/* Right — Preview Stage */}
-        <div className="split-panel-preview" style={{ minWidth: 0 }}>
+        <div className="split-panel-preview" style={{ minWidth: 0, background: "#f1f5f9", borderRadius: "var(--radius-lg)", padding: "var(--space-5)", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
           <div
             className="preview-device-frame"
-            style={{ "--preview-device-width": DEVICE_SIZES[device].width } as React.CSSProperties}
+            style={{
+              width: device === "desktop" ? "100%" : DEVICE_SIZES[device].width,
+              maxWidth: device === "desktop" ? 1200 : undefined,
+              margin: "0 auto",
+              transition: "width 0.3s ease, box-shadow 0.3s ease",
+              ...(presentation === "floating" ? {
+                width: device === "desktop" ? 400 : Math.min(400, parseInt(DEVICE_SIZES[device].width)),
+                maxWidth: 400,
+                boxShadow: "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)",
+                borderRadius: "var(--radius-lg)",
+              } : {})
+            } as React.CSSProperties}
           >
-            <div className="preview-stage" style={{ margin: 0, borderRadius: "var(--radius-lg)" }}>
+            <div className="preview-stage" style={{ margin: 0, borderRadius: "var(--radius-lg)", overflow: "hidden", background: "#fff" }}>
               {/* Chrome Bar */}
               <div style={{
                 display: "flex",
@@ -409,20 +420,22 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   </span>
                 </div>
                 <span className="badge muted" style={{ fontSize: 10, flexShrink: 0 }}>
-                  {DEVICE_SIZES[device].label}
+                  {DEVICE_SIZES[device].label} · {presentation === "floating" ? "Flutuante" : "Tela cheia"}
                 </span>
               </div>
 
               {/* LivePreviewPanel */}
-              <LivePreviewPanel
-                ref={previewRef}
-                apiBaseUrl={props.apiBaseUrl}
-                me={props.me}
-                presentation={presentation}
-                hideControls
-                width="100%"
-                onTokenIssued={handleTokenIssued}
-              />
+              <div style={{ height: presentation === "conversational" ? 700 : 600, width: "100%" }}>
+                <LivePreviewPanel
+                  ref={previewRef}
+                  apiBaseUrl={props.apiBaseUrl}
+                  me={props.me}
+                  presentation={presentation}
+                  hideControls
+                  width="100%"
+                  onTokenIssued={handleTokenIssued}
+                />
+              </div>
             </div>
           </div>
         </div>

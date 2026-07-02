@@ -285,7 +285,7 @@ export function RulesForm({
 
       {/* ── Pagamento Crypto ── */}
       <fieldset className="rules-crypto">
-        <legend>Pagamento crypto (USDC / EVM)</legend>
+        <legend>Pagamento crypto (USDC)</legend>
         <label className="toggle">
           <input
             type="checkbox"
@@ -293,141 +293,37 @@ export function RulesForm({
             onChange={(e) =>
               patch({
                 cryptoPayments: {
+                  ...rules.cryptoPayments,
                   enabled: e.target.checked,
-                  chain: rules.cryptoPayments?.chain ?? "polygon",
-                  network: rules.cryptoPayments?.network ?? "testnet",
                   treasuryAddress: rules.cryptoPayments?.treasuryAddress ?? "",
-                  token: "USDC",
-                  quoteTtlSeconds: rules.cryptoPayments?.quoteTtlSeconds ?? 900,
-                  brlPerUsdc: rules.cryptoPayments?.brlPerUsdc ?? 5.5,
-                },
+                } as any,
               })
             }
             role="switch"
             aria-checked={rules.cryptoPayments?.enabled === true}
           />
-          Aceitar pagamento com crypto
+          Aceitar pagamento com crypto (USDC)
         </label>
         <label>
-          Rede
-          <select
-            value={rules.cryptoPayments?.chain ?? "polygon"}
-            onChange={(e) =>
-              patch({
-                cryptoPayments: {
-                  ...(rules.cryptoPayments ?? {
-                    enabled: false,
-                    network: "testnet",
-                    treasuryAddress: "",
-                    token: "USDC",
-                    quoteTtlSeconds: 900,
-                    brlPerUsdc: 5.5,
-                  }),
-                  chain: e.target.value as "polygon" | "base",
-                },
-              })
-            }
-          >
-            <option value="polygon">Polygon</option>
-            <option value="base">Base</option>
-          </select>
-        </label>
-        <label>
-          Ambiente
-          <select
-            value={rules.cryptoPayments?.network ?? "testnet"}
-            onChange={(e) =>
-              patch({
-                cryptoPayments: {
-                  ...(rules.cryptoPayments ?? {
-                    enabled: false,
-                    chain: "polygon",
-                    treasuryAddress: "",
-                    token: "USDC",
-                    quoteTtlSeconds: 900,
-                    brlPerUsdc: 5.5,
-                  }),
-                  network: e.target.value as "mainnet" | "testnet",
-                },
-              })
-            }
-          >
-            <option value="testnet">Testnet</option>
-            <option value="mainnet">Mainnet</option>
-          </select>
-        </label>
-        <label>
-          Endereço treasury (0x...)
+          Endereço da carteira
           <input
             type="text"
             value={rules.cryptoPayments?.treasuryAddress ?? ""}
             onChange={(e) =>
               patch({
                 cryptoPayments: {
-                  ...(rules.cryptoPayments ?? {
-                    enabled: false,
-                    chain: "polygon",
-                    network: "testnet",
-                    token: "USDC",
-                    quoteTtlSeconds: 900,
-                    brlPerUsdc: 5.5,
-                  }),
+                  ...rules.cryptoPayments,
+                  enabled: rules.cryptoPayments?.enabled ?? false,
                   treasuryAddress: e.target.value,
-                },
+                } as any,
               })
             }
             onBlur={handleTreasuryAddressBlur}
-            placeholder="0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb0"
+            placeholder="0x..."
           />
           {validationErrors.treasuryAddress && (
             <span className="field-error">{validationErrors.treasuryAddress}</span>
           )}
-        </label>
-        <label>
-          Taxa BRL por 1 USDC
-          <input
-            type="number"
-            step={0.01}
-            value={rules.cryptoPayments?.brlPerUsdc ?? 5.5}
-            onChange={(e) =>
-              patch({
-                cryptoPayments: {
-                  ...(rules.cryptoPayments ?? {
-                    enabled: false,
-                    chain: "polygon",
-                    network: "testnet",
-                    treasuryAddress: "",
-                    token: "USDC",
-                    quoteTtlSeconds: 900,
-                  }),
-                  brlPerUsdc: Number(e.target.value),
-                },
-              })
-            }
-          />
-        </label>
-        <label>
-          TTL da cotação (segundos)
-          <input
-            type="number"
-            step={1}
-            value={rules.cryptoPayments?.quoteTtlSeconds ?? 900}
-            onChange={(e) =>
-              patch({
-                cryptoPayments: {
-                  ...(rules.cryptoPayments ?? {
-                    enabled: false,
-                    chain: "polygon",
-                    network: "testnet",
-                    treasuryAddress: "",
-                    token: "USDC",
-                    brlPerUsdc: 5.5,
-                  }),
-                  quoteTtlSeconds: Number(e.target.value),
-                },
-              })
-            }
-          />
         </label>
       </fieldset>
     </div>

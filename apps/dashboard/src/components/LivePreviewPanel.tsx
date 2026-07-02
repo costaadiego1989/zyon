@@ -139,7 +139,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
     return (
       <section
         className={className}
-        style={{ display: "flex", flexDirection: "column", gap: 12, width: width ?? "100%" }}
+        style={{ display: "flex", flexDirection: "column", gap: 12, width: width ?? "100%", height: "100%" }}
       >
         {!hideControls && (
           <div className="preview-controls" style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -169,7 +169,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
 
         <div
           className="preview-stage"
-          style={{ height: 600, width: "100%", borderRadius: 8, overflow: "hidden" }}
+          style={{ height: "100%", minHeight: 600, width: "100%", borderRadius: 8, overflow: "hidden" }}
         >
           {srcDoc ? (
             <iframe

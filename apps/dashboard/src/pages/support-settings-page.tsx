@@ -317,6 +317,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                 </p>
                 <button
                   type="button"
+                  className="btn-secondary"
                   disabled={busy}
                   onClick={() => setItems([newItem()])}
                 >
@@ -450,6 +451,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
             {settings && items.length > 0 && items.length < 20 ? (
               <button
                 type="button"
+                className="btn-secondary"
                 disabled={busy}
                 onClick={() => setItems((prev) => [...prev, newItem()])}
                 style={{ alignSelf: "flex-start" }}
