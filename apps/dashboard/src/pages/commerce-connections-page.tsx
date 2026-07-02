@@ -39,14 +39,30 @@ function formatDate(iso: string): string {
   );
 }
 
-type Provider = "shopify" | "woocommerce";
+type Provider = "shopify" | "woocommerce" | "nuvemshop" | "tray";
 type Operation = "idle" | "loading" | "testing" | "connecting" | "syncing" | "deleting";
 
-const PROVIDERS: Provider[] = ["shopify", "woocommerce"];
+const PROVIDERS: Provider[] = ["shopify", "woocommerce", "nuvemshop", "tray"];
 
 const PROVIDER_LABELS: Record<string, string> = {
   shopify: "Shopify",
   woocommerce: "WooCommerce",
+  nuvemshop: "Nuvemshop",
+  tray: "Tray Commerce",
+};
+
+const PROVIDER_DOCS: Record<string, string> = {
+  shopify: "https://shopify.dev/docs/api/admin-rest",
+  woocommerce: "https://woocommerce.github.io/woocommerce-rest-api-docs/",
+  nuvemshop: "https://tiendanube.github.io/api-documentation/intro",
+  tray: "https://developers.tray.com.br",
+};
+
+const PROVIDER_HELP: Record<string, string> = {
+  shopify: "Gere o token em Settings → Apps → Develop apps → Admin API",
+  woocommerce: "Gere as chaves em WooCommerce → Settings → Advanced → REST API",
+  nuvemshop: "Obtenha o token via Partner Portal ou app autorizado no painel Nuvemshop",
+  tray: "Cadastre o app no painel Tray e autorize via OAuth para obter o access_token",
 };
 
 const API_VERSIONS = ["2024-10", "2024-07", "2024-04", "2024-01", "2023-10"];
@@ -83,6 +99,10 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
   const [storeUrl, setStoreUrl] = useState("");
   const [consumerKey, setConsumerKey] = useState("");
   const [consumerSecret, setConsumerSecret] = useState("");
+  const [nuvemshopStoreId, setNuvemshopStoreId] = useState("");
+  const [nuvemshopToken, setNuvemshopToken] = useState("");
+  const [trayApiAddress, setTrayApiAddress] = useState("");
+  const [trayAccessToken, setTrayAccessToken] = useState("");
 
   // Delete confirmation
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -128,21 +148,37 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
     setOperation("connecting");
     setAlert(null);
     try {
-      const payload: ConnectCommercePayload =
-        provider === "shopify"
-          ? {
-              provider,
-              shop_domain: shopDomain.trim(),
-              admin_access_token: adminToken.trim(),
-              ...(storefrontToken.trim() ? { storefront_access_token: storefrontToken.trim() } : {}),
-              ...(apiVersion ? { api_version: apiVersion } : {}),
-            }
-          : {
-              provider,
-              store_url: storeUrl.trim(),
-              consumer_key: consumerKey.trim(),
-              consumer_secret: consumerSecret.trim(),
-            };
+      let payload: ConnectCommercePayload;
+      if (provider === "shopify") {
+        payload = {
+          provider: "shopify",
+          shop_domain: shopDomain.trim(),
+          admin_access_token: adminToken.trim(),
+          ...(storefrontToken.trim() ? { storefront_access_token: storefrontToken.trim() } : {}),
+          ...(apiVersion ? { api_version: apiVersion } : {}),
+        };
+      } else if (provider === "nuvemshop") {
+        payload = {
+          provider: "nuvemshop" as any,
+          store_url: nuvemshopStoreId.trim(),
+          consumer_key: nuvemshopToken.trim(),
+          consumer_secret: "",
+        } as any;
+      } else if (provider === "tray") {
+        payload = {
+          provider: "tray" as any,
+          store_url: trayApiAddress.trim(),
+          consumer_key: trayAccessToken.trim(),
+          consumer_secret: "",
+        } as any;
+      } else {
+        payload = {
+          provider: "woocommerce",
+          store_url: storeUrl.trim(),
+          consumer_key: consumerKey.trim(),
+          consumer_secret: consumerSecret.trim(),
+        };
+      }
       const created = await api.createCommerceConnection(payload);
       setConnections([created]);
       setShopDomain("");
@@ -450,6 +486,90 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
               </div>
             )}
 
+            {provider === "nuvemshop" ? (
+              <>
+                <label>
+                  ID da loja (store_id)
+                  <input
+                    type="text"
+                    placeholder="1234567"
+                    value={nuvemshopStoreId}
+                    onChange={(e) => setNuvemshopStoreId(e.target.value)}
+                    disabled={isBusy}
+                    required
+                    minLength={3}
+                  />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Encontre em Nuvemshop Admin → Configurações → Identificação</small>
+                </label>
+                <label>
+                  Access Token
+                  <input
+                    type="password"
+                    placeholder="Token gerado via Partner Portal ou app OAuth"
+                    value={nuvemshopToken}
+                    onChange={(e) => setNuvemshopToken(e.target.value)}
+                    disabled={isBusy}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    data-1p-ignore
+                    data-lpignore="true"
+                  />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Gere via app autorizado no Partner Portal Nuvemshop</small>
+                </label>
+              </>
+            ) : null}
+
+            {provider === "tray" ? (
+              <>
+                <label>
+                  URL da API (api_address)
+                  <input
+                    type="url"
+                    placeholder="https://minhaloja.com.br/web_api"
+                    value={trayApiAddress}
+                    onChange={(e) => setTrayApiAddress(e.target.value)}
+                    disabled={isBusy}
+                    required
+                  />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Endereço retornado após autorização OAuth no painel Tray</small>
+                </label>
+                <label>
+                  Access Token
+                  <input
+                    type="password"
+                    placeholder="Token retornado pelo fluxo OAuth"
+                    value={trayAccessToken}
+                    onChange={(e) => setTrayAccessToken(e.target.value)}
+                    disabled={isBusy}
+                    required
+                    minLength={8}
+                    autoComplete="new-password"
+                    spellCheck={false}
+                    data-1p-ignore
+                    data-lpignore="true"
+                  />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Obtido após autorizar o app via OAuth na loja Tray</small>
+                </label>
+              </>
+            ) : null}
+
+            {/* Documentation link */}
+            <div style={{ marginTop: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
+              <a
+                href={PROVIDER_DOCS[provider]}
+                target="_blank"
+                rel="noreferrer"
+                style={{ fontSize: '12px', color: 'var(--color-brand)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                Documentação {PROVIDER_LABELS[provider]} ↗
+              </a>
+              <span style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                {PROVIDER_HELP[provider]}
+              </span>
+            </div>
+
             <button type="submit" className="btn-primary commerce-submit-btn" disabled={isBusy}>
               <Zap size={15} />
               {operation === "connecting" ? "Conectando..." : "Conectar loja"}
@@ -461,13 +581,11 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
       {/* Upcoming integrations */}
       {!hasConnection ? (
         <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
-          <div className="section-header" style={{ marginBottom: 'var(--space-3)' }}><h3>Outras plataformas (em breve)</h3></div>
-          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Estamos trabalhando na integração com mais plataformas.</p>
+          <div className="section-header" style={{ marginBottom: 'var(--space-3)' }}><h3>Em breve</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Estamos trabalhando em mais integrações nativas.</p>
           <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <span className="badge muted">Nuvemshop</span>
             <span className="badge muted">VTEX</span>
             <span className="badge muted">Magento</span>
-            <span className="badge muted">Tray</span>
             <span className="badge muted">Yampi</span>
             <span className="badge muted">Loja Integrada</span>
           </div>
