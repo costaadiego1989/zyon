@@ -155,61 +155,46 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
 
   return (
     <div className="dashboard-content">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Preview</span>
-          <h1>Visualize o checkout</h1>
-          <p className="page-lead">Veja como o widget aparece para o comprador em tempo real.</p>
-        </div>
-        <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-          <button type="button" onClick={() => previewRef.current?.reload()} style={{ minHeight: 36 }}>
-            <RefreshCw size={13} /> Reiniciar
-          </button>
-          <button type="button" onClick={() => setIsFullscreen(true)} style={{ minHeight: 36 }}>
-            <Maximize2 size={13} /> Tela cheia
-          </button>
-        </div>
-      </header>
-
-      {/* ── Compact control strip ── */}
-      <div className="panel" style={{ padding: 'var(--space-4) var(--space-5)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-6)', flexWrap: 'wrap' }}>
+      {/* ── Control bar ── */}
+      <div className="panel" style={{ padding: 'var(--space-3) var(--space-5)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
         {/* Status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <span className={`status-dot ${statusDotClass}`} />
           <span style={{ fontSize: 12, fontWeight: 600 }}>{statusText}</span>
-          {countdown && tokenStatus === "active" && <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{countdown}</span>}
+          {countdown && tokenStatus === "active" && <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>{countdown}</span>}
         </div>
+
+        <div style={{ width: 1, height: 24, background: 'var(--color-border)' }} />
 
         {/* Mode */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Eye size={11} /> Modo</span>
-          <div className="filter-tabs">
-            <button type="button" className={`filter-tab${presentation === 'floating' ? ' active' : ''}`} onClick={() => setPresentation('floating')}>Flutuante</button>
-            <button type="button" className={`filter-tab${presentation === 'conversational' ? ' active' : ''}`} onClick={() => setPresentation('conversational')}>Tela cheia</button>
-          </div>
+        <div className="filter-tabs">
+          <button type="button" className={`filter-tab${presentation === 'floating' ? ' active' : ''}`} onClick={() => setPresentation('floating')}>Flutuante</button>
+          <button type="button" className={`filter-tab${presentation === 'conversational' ? ' active' : ''}`} onClick={() => setPresentation('conversational')}>Tela cheia</button>
         </div>
+
+        <div style={{ width: 1, height: 24, background: 'var(--color-border)' }} />
 
         {/* Device */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Monitor size={11} /> Tela</span>
-          <div className="filter-tabs">
-            {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => (
-              <button key={size} type="button" className={`filter-tab${device === size ? ' active' : ''}`} onClick={() => setDevice(size)}>
-                {DEVICE_SIZES[size].label}
-              </button>
-            ))}
-          </div>
+        <div className="filter-tabs">
+          {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => (
+            <button key={size} type="button" className={`filter-tab${device === size ? ' active' : ''}`} onClick={() => setDevice(size)}>
+              {DEVICE_SIZES[size].label}
+            </button>
+          ))}
         </div>
 
-        {/* Theme indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)', marginLeft: 'auto' }}>
-          {theme && <span style={{ width: 14, height: 14, borderRadius: 4, background: theme.accentColor ?? 'var(--color-brand)', border: '1px solid var(--color-border)' }} />}
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>Edite na aba Tema</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-2)' }}>
+          <button type="button" onClick={() => previewRef.current?.reload()} style={{ minHeight: 32 }}>
+            <RefreshCw size={12} />
+          </button>
+          <button type="button" onClick={() => setIsFullscreen(true)} style={{ minHeight: 32 }}>
+            <Maximize2 size={12} />
+          </button>
         </div>
       </div>
 
       {/* ── Preview Stage ── */}
-      <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: presentation === 'conversational' ? 'var(--space-2)' : 'var(--space-4)', display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: 'var(--space-4)', display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Browser chrome */}
         <div style={{ width: device === 'desktop' ? '100%' : DEVICE_SIZES[device].width, maxWidth: '100%', margin: '0 auto', transition: 'width 0.3s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#1e293b', borderRadius: '12px 12px 0 0' }}>
