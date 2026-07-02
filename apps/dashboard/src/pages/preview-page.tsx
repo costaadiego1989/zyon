@@ -182,7 +182,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
 
         {/* Mode */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Modo</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Eye size={11} /> Modo</span>
           <div className="filter-tabs">
             <button type="button" className={`filter-tab${presentation === 'floating' ? ' active' : ''}`} onClick={() => setPresentation('floating')}>Flutuante</button>
             <button type="button" className={`filter-tab${presentation === 'conversational' ? ' active' : ''}`} onClick={() => setPresentation('conversational')}>Tela cheia</button>
@@ -191,7 +191,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
 
         {/* Device */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Device</span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Monitor size={11} /> Tela</span>
           <div className="filter-tabs">
             {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => (
               <button key={size} type="button" className={`filter-tab${device === size ? ' active' : ''}`} onClick={() => setDevice(size)}>
@@ -215,7 +215,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
       {/* ── Preview Stage ── */}
       <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: "var(--space-4)", display: "flex", flexDirection: "column", alignItems: "center" }}>
         {/* Browser chrome */}
-        <div style={{ width: '100%', maxWidth: presentation === 'floating' ? 420 : (device === 'desktop' ? 900 : device === 'tablet' ? 768 : 375), margin: '0 auto', transition: 'max-width 0.3s ease' }}>
+        <div style={{ width: '100%', maxWidth: presentation === 'floating' ? 420 : '100%', margin: '0 auto', transition: 'max-width 0.3s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#1e293b', borderRadius: '12px 12px 0 0' }}>
             <div style={{ display: 'flex', gap: 6 }}>
               {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
@@ -226,7 +226,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
           </div>
 
           {/* Widget iframe container */}
-          <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', overflow: 'hidden', height: presentation === 'conversational' ? 720 : 620 }}>
+          <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', overflow: 'hidden', height: 'calc(100vh - 320px)', minHeight: 500 }}>
             <LivePreviewPanel
               ref={previewRef}
               apiBaseUrl={props.apiBaseUrl}
