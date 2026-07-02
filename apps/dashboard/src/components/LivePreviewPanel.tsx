@@ -112,7 +112,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         `  api-base-url="${apiBase}"`,
         `  ui-presentation="${presentation}"`,
         "></zyon-checkout-agent>",
-        `<style>.zyon-widget,.zyon-widget *[class*="fixed"]{position:relative!important;inset:auto!important;width:100%!important;height:100%!important;max-width:none!important} .zyon-panel,[class*="zyon-panel"]{width:100%!important;height:100%!important;max-width:none!important;border-radius:0!important;border:none!important;box-shadow:none!important} section.zyon-widget{position:relative!important;bottom:auto!important;right:auto!important;width:100%!important;height:100%!important}</style>`,
+        `<style>.zyon-widget{position:relative!important;inset:auto!important;width:100%!important;height:100%!important} .zyon-panel{width:100%!important;height:100%!important;max-width:none!important;border-radius:0!important;border:none!important;box-shadow:none!important} .zyon-channel-gate{position:absolute!important;inset:0!important;padding:0!important} .zyon-channel-gate__panel{width:100%!important;max-width:none!important;border-radius:0!important;height:100%!important;border:none!important}</style>`,
         "</body></html>",
       ].join("\n");
     }, [token, apiBase, bundleBase, presentation]);
