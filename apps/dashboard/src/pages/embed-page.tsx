@@ -215,7 +215,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
           </label>
 
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ display: 'grid', gap: 'var(--space-1)', alignContent: 'end' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, visibility: 'hidden' }}>&nbsp;</span>
             <button type="button" className="btn-primary" style={{ height: 40, width: '100%' }} disabled={busy} onClick={() => void issue()}>
               <KeyRound size={15} />
               {busy ? "Gerando…" : "Gerar token"}
