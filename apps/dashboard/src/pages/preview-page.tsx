@@ -40,7 +40,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   const previewRef = useRef<LivePreviewPanelRef>(null);
 
   const [presentation, setPresentation] = useState<Presentation>("floating");
-  const [device, setDevice] = useState<DeviceSize>("desktop");
+  const [device, setDevice] = useState<DeviceSize>("mobile");
   const [tokenExpiresAt, setTokenExpiresAt] = useState<number | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [theme, setTheme] = useState<MerchantTheme | null>(null);
@@ -156,7 +156,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   return (
     <div className="dashboard-content">
       {/* ── Control bar ── */}
-      <div className="panel" style={{ padding: 'var(--space-3) var(--space-5)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'wrap' }}>
+      <div className="panel" style={{ padding: 'var(--space-3) var(--space-5)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'nowrap', overflowX: 'auto' }}>
         {/* Status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
           <span className={`status-dot ${statusDotClass}`} />
