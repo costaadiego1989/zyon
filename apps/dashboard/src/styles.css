@@ -2178,8 +2178,8 @@ button.dash-tab.active {
 .commerce-form-grid input,
 .commerce-form-grid select {
   width: 100%;
-  max-width: 480px;
-  height: 38px;
+  max-width: none;
+  height: 40px;
   padding: 0 var(--space-3);
   font-size: 13px;
   border: 1px solid var(--color-border);
@@ -2198,9 +2198,8 @@ button.dash-tab.active {
 
 .commerce-credential-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 2fr;
   gap: var(--space-4);
-  max-width: 480px;
 }
 
 .commerce-submit-btn {
