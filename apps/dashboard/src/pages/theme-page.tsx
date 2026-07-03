@@ -437,30 +437,37 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 { label: "Avatar do assistente", key: "agentAvatarUrl" as const, hint: "Foto do agente na conversa" },
                 { label: "Imagem de fundo", key: "backgroundImageUrl" as const, hint: "Background do painel principal" },
               ].map((img) => (
-                <label key={img.key}>
-                  {img.label}
-                  <span className="field-hint">{img.hint}</span>
-                  <div className="theme-upload-row">
+                <div key={img.key} style={{ marginBottom: 'var(--space-4)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 'var(--space-1)' }}>{img.label}</span>
+                  <span className="field-hint" style={{ marginBottom: 'var(--space-2)', display: 'block' }}>{img.hint}</span>
+                  <label
+                    style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      gap: 'var(--space-2)', padding: 'var(--space-5)',
+                      border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)',
+                      background: 'var(--color-surface-raised)', cursor: 'pointer',
+                      transition: 'border-color 0.15s, background 0.15s',
+                    }}
+                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-brand)'; e.currentTarget.style.background = 'var(--color-brand-subtle)'; }}
+                    onDragLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-surface-raised)'; }}
+                    onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-surface-raised)'; const file = e.dataTransfer.files?.[0]; if (file && file.type.startsWith('image/')) handleImageUpload(file, (url) => patch({ [img.key]: url } as Partial<MerchantTheme>)); }}
+                  >
+                    {theme[img.key] ? (
+                      <img src={String(theme[img.key])} alt={img.label} style={{ maxHeight: 48, maxWidth: 120, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
+                    ) : (
+                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Arraste uma imagem ou clique para enviar</span>
+                    )}
                     <input
-                      value={String(theme[img.key] ?? "")}
-                      onChange={(e) => patch({ [img.key]: e.target.value } as Partial<MerchantTheme>)}
-                      placeholder="https://..."
+                      type="file"
+                      accept="image/*"
+                      style={{ display: "none" }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleImageUpload(file, (url) => patch({ [img.key]: url } as Partial<MerchantTheme>));
+                      }}
                     />
-                    <label className="theme-upload-btn">
-                      Upload
-                      <input
-                        type="file"
-                        accept="image/*"
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, (url) => patch({ [img.key]: url } as Partial<MerchantTheme>));
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {!isValidUrl(String(theme[img.key] ?? "")) && <span className="field-error">{LABELS.urlInvalid}</span>}
-                </label>
+                  </label>
+                </div>
               ))}
             </div>
 
@@ -503,13 +510,15 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           {/* ── Preview ── */}
           <div className="split-panel-preview" style={{ position: 'sticky', top: 'var(--space-4)', alignSelf: 'start' }}>
-            <div className="panel stacked" style={{ overflow: 'hidden' }}>
-              <div className="section-header"><h3>Preview</h3></div>
-              <LivePreviewPanel
-                ref={previewRef}
-                apiBaseUrl={props.apiBaseUrl}
-                me={props.me}
-              />
+            <div className="panel" style={{ padding: 'var(--space-4)', background: '#0f172a', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 'var(--space-2)', textAlign: 'center' }}>Pré-visualização em tempo real</div>
+              <div style={{ background: '#fff', borderRadius: 'var(--radius-sm)', overflow: 'hidden', height: 520 }}>
+                <LivePreviewPanel
+                  ref={previewRef}
+                  apiBaseUrl={props.apiBaseUrl}
+                  me={props.me}
+                />
+              </div>
             </div>
           </div>
         </div>
