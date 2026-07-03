@@ -519,7 +519,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   Preview — {props.me?.name || 'Widget'}
                 </div>
               </div>
-              <div style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', height: 520 }}>
+              <div style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', height: 680 }}>
                 <LivePreviewPanel
                   ref={previewRef}
                   apiBaseUrl={props.apiBaseUrl}
