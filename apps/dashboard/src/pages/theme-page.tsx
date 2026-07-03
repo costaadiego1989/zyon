@@ -510,13 +510,21 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           {/* ── Preview ── */}
           <div className="split-panel-preview" style={{ position: 'sticky', top: 'var(--space-4)', alignSelf: 'start' }}>
-            <div className="panel" style={{ padding: 'var(--space-4)', background: '#0f172a', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              <div style={{ fontSize: 11, color: '#94a3b8', marginBottom: 'var(--space-2)', textAlign: 'center' }}>Pré-visualização em tempo real</div>
-              <div style={{ background: '#fff', borderRadius: 'var(--radius-sm)', overflow: 'hidden', height: 520 }}>
+            <div style={{ background: '#0f172a', borderRadius: 'var(--radius-lg)', padding: 'var(--space-2)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#1e293b', borderRadius: '10px 10px 0 0' }}>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />)}
+                </div>
+                <div style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#64748b', fontFamily: 'var(--font-mono)' }}>
+                  Preview — {props.me?.name || 'Widget'}
+                </div>
+              </div>
+              <div style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'hidden', height: 520 }}>
                 <LivePreviewPanel
                   ref={previewRef}
                   apiBaseUrl={props.apiBaseUrl}
                   me={props.me}
+                  hideControls
                 />
               </div>
             </div>
