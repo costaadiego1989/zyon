@@ -225,200 +225,136 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
     );
   }
 
-  return (
-    <div className="dashboard-content">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Pedidos</span>
-          <h1>Pedidos e Envios</h1>
-          <p className="page-lead">Acompanhe pedidos e envios gerados pelo checkout assistido.</p>
-        </div>
-        <div className="button-row">
-          <button
-            type="button"
-            onClick={() => {
-              const header = "ID,Status,Valor,Moeda,Email,Criado em";
-              const rows = filteredOrders.map((o: any) =>
-                [o.id, o.financial_status ?? o.status ?? "", o.total_price_cents ?? o.amount ?? 0, o.currency ?? "BRL", o.customer_email ?? o.buyer_email ?? "", o.created_at ?? o.placed_at ?? ""].join(",")
-              );
-              const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
-              a.href = url;
-              a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            disabled={filteredOrders.length === 0}
-            aria-label="Exportar pedidos em CSV"
-          >
-            <Download size={16} />
-            Exportar
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void load()}
-            aria-label="Atualizar lista de pedidos"
-          >
-            <RefreshCw size={16} className={busy ? "spin" : ""} />
-            Atualizar
-          </button>
-        </div>
-      </header>
+  const exportCsv = () => {
+    const header = "ID,Status,Valor,Moeda,Email,Criado em";
+    const rows = filteredOrders.map((o: any) =>
+      [o.id, o.financial_status ?? o.status ?? "", o.total_price_cents ?? o.amount ?? 0, o.currency ?? "BRL", o.customer_email ?? o.buyer_email ?? "", o.created_at ?? o.placed_at ?? ""].join(",")
+    );
+    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
-      {/* KPI Metrics Strip */}
-      <div className="metrics">
-        <div className="metric">
-          <span><Package size={14} /> Pedidos</span>
-          <strong>{hasLoaded ? metrics.totalOrders : "—"}</strong>
-        </div>
-        <div className="metric">
-          <span><ShieldCheck size={14} /> Aprovados</span>
-          <strong>{hasLoaded ? Math.round(metrics.approvalRate * 100) + "%" : "—"}</strong>
-        </div>
-        <div className="metric">
-          <span><Activity size={14} /> Receita</span>
-          <strong>{hasLoaded ? formatMinor(metrics.totalRevenue, "BRL") : "—"}</strong>
-        </div>
-        <div className="metric">
-          <span><Truck size={14} /> Rastreados</span>
-          <strong>{hasLoaded ? metrics.trackedCount : "—"}</strong>
-        </div>
-        <div className="metric">
-          <span><Sparkles size={14} /> Ticket médio</span>
-          <strong>{hasLoaded ? formatMinor(metrics.averageOrderValue, "BRL") : "—"}</strong>
-        </div>
+  return (
+    <div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>COMÉRCIO</div>
+        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Pedidos e Envios</h1>
+        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Acompanhe pedidos e envios gerados pelo checkout agêntico.</div>
       </div>
 
-      {message ? <p className="panel panel-error">{message}</p> : null}
+      {/* Stats strip */}
+      <div style={{ display: "flex", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, marginBottom: 20 }}>
+        {[
+          { label: "PEDIDOS", value: hasLoaded ? metrics.totalOrders : "—" },
+          { label: "APROVADOS", value: hasLoaded ? Math.round(metrics.approvalRate * 100) + "%" : "—" },
+          { label: "RECEITA", value: hasLoaded ? formatMinor(metrics.totalRevenue, "BRL") : "—" },
+          { label: "RASTREADOS", value: hasLoaded ? metrics.trackedCount : "—" },
+          { label: "TICKET MÉDIO", value: hasLoaded ? formatMinor(metrics.averageOrderValue, "BRL") : "—" },
+        ].map((st) => (
+          <div key={st.label} style={{ flex: 1, padding: "18px 22px", borderRight: "1px solid var(--border)" }}>
+            <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.07em", color: "var(--faint)", marginBottom: 9 }}>{st.label}</div>
+            <div style={{ font: "500 25px var(--serif)", color: "var(--ink)", letterSpacing: "-0.01em" }}>{String(st.value)}</div>
+          </div>
+        ))}
+      </div>
 
-      <section className="panel stacked">
-        <div className="section-header">
-          <h2>Pedidos</h2>
-          <PackageSearch size={18} />
-        </div>
+      {message ? <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>{message}</div> : null}
 
-        {/* Toolbar: filter tabs + search */}
-        <div className="orders-toolbar">
-          <nav className="filter-tabs" role="tablist" aria-label="Filtrar por status">
+      {/* Orders table card */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+        {/* Toolbar: tabs + search */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {(["all", "approved", "cancelled"] as const).map((value) => {
               const labels = { all: "Todos os pedidos", approved: "Aprovados", cancelled: "Cancelados" };
+              const active = statusFilter === value;
               return (
-                <button
+                <div
                   key={value}
-                  role="tab"
-                  className={`filter-tab${statusFilter === value ? " active" : ""}`}
-                  aria-selected={statusFilter === value}
                   onClick={() => setStatusFilter(value)}
-                  type="button"
+                  style={{ padding: "7px 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}` }}
                 >
                   {labels[value]}
-                </button>
+                </div>
               );
             })}
-          </nav>
+          </div>
           <input
-            type="search"
-            className="search-input"
             placeholder="Buscar por ID do pedido ou cliente..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            aria-label="Buscar pedidos por ID ou nome do cliente"
+            style={{ width: 280, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
           />
         </div>
 
-        {/* Accessible loading announcer */}
-        <div aria-live="polite" className="sr-only">
-          {busy && !hasLoaded ? "Carregando pedidos..." : ""}
-          {hasLoaded ? `${filteredOrders.length} pedidos exibidos` : ""}
-        </div>
-
         {busy && !hasLoaded ? (
-          <div className="empty-state">
-            <div className="skeleton" style={{ width: "100%", height: 200 }} />
-          </div>
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando pedidos...</div>
         ) : (
-          <div className="table-wrap">
-            <table className="data-table">
-              <caption className="sr-only">Lista de pedidos do merchant</caption>
-              <thead>
-                <tr>
-                  <th>Pedido</th>
-                  <th>Comprador</th>
-                  <th>Valor</th>
-                  <th>Rastreio</th>
-                  <th>Status</th>
-                  <th>Data</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedOrders.map((order) => (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              {["PEDIDO", "COMPRADOR", "VALOR", "RASTREIO", "STATUS", "DATA"].map((c) => (
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {paginatedOrders.map((order) => {
+                const initial = customerLabel(order.customer).charAt(0).toUpperCase();
+                const statusBg = order.status === "approved" ? "var(--good-soft)" : order.status === "cancelled" ? "var(--danger-soft)" : "var(--accent-soft)";
+                const statusColor = order.status === "approved" ? "var(--good)" : order.status === "cancelled" ? "var(--danger)" : "var(--accent-dark)";
+                return (
                   <React.Fragment key={order.id}>
                     <tr
-                      className="order-row-clickable"
-                      onClick={() =>
-                        setExpandedOrderId(
-                          expandedOrderId === order.id ? null : order.id,
-                        )
-                      }
-                      aria-expanded={expandedOrderId === order.id}
-                      aria-controls={`order-detail-${order.id}`}
+                      onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                      style={{ cursor: "pointer" }}
                     >
-                      <td><code>{order.external_order_id}</code></td>
-                      <td>{customerLabel(order.customer)}</td>
-                      <td>{formatMinor(order.total, order.currency)}</td>
-                      <td><code>{order.tracking_code ?? "Aguardando"}</code></td>
-                      <td>
-                        <span className={orderBadgeClass(order.status)}>
-                          {STATUS_LABELS[order.status] ?? order.status}
-                        </span>
+                      <td style={{ padding: "12px 22px", font: "600 13px var(--mono)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{order.external_order_id}</td>
+                      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                          <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent-dark)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 10px var(--sans)", flex: "none" }}>{initial}</div>
+                          <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{customerLabel(order.customer)}</span>
+                        </div>
                       </td>
-                      <td>{formatDate(order.completed_at)}</td>
-                      <td>{expandedOrderId === order.id ? "▲" : "▼"}</td>
+                      <td style={{ padding: "12px 22px", font: "600 13px var(--mono)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{formatMinor(order.total, order.currency)}</td>
+                      <td style={{ padding: "12px 22px", font: "12.5px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{order.tracking_code ?? "Aguardando"}</td>
+                      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                        <span style={{ font: "600 11px var(--sans)", padding: "4px 9px", borderRadius: 99, background: statusBg, color: statusColor }}>{STATUS_LABELS[order.status] ?? order.status}</span>
+                      </td>
+                      <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(order.completed_at)}</td>
                     </tr>
                     {expandedOrderId === order.id ? (
-                      <tr
-                        className="order-detail-panel"
-                        id={`order-detail-${order.id}`}
-                      >
-                        <td colSpan={7}>
+                      <tr>
+                        <td colSpan={6} style={{ padding: "16px 22px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
                           <OrderDetailGrid order={order} />
                         </td>
                       </tr>
                     ) : null}
                   </React.Fragment>
-                ))}
-                {busy && hasLoaded ? (
-                  <tr>
-                    <td colSpan={7} className="muted">Carregando...</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                );
+              })}
+              {busy && hasLoaded ? (
+                <tr><td colSpan={6} style={{ padding: "12px 22px", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando...</td></tr>
+              ) : null}
+            </tbody>
+          </table>
         )}
 
-        {/* BUG-COM-1 fix: show empty-state only after a successful load with zero
-            results, never during fetch, never when there's an error. */}
         {hasLoaded && orders.length === 0 && !message && !busy ? (
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <PackageSearch size={32} />
-            </div>
-            <h3>Nenhum pedido registrado</h3>
-            <p>Pedidos aparecerão aqui quando compradores concluírem o checkout.</p>
+          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
+            <PackageSearch size={32} />
+            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhum pedido registrado</strong>
+            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Pedidos aparecerão aqui quando compradores concluírem o checkout.</p>
           </div>
         ) : null}
 
-        {/* No results from active filter */}
         {hasLoaded && orders.length > 0 && filteredOrders.length === 0 && !busy ? (
-          <div className="empty-state">
-            <h3>Nenhum pedido corresponde ao filtro</h3>
-          </div>
+          <div style={{ padding: "30px 22px", textAlign: "center", font: "13px var(--sans)", color: "var(--faint)" }}>Nenhum pedido corresponde ao filtro</div>
         ) : null}
-      </section>
+      </div>
 
       {/* Pagination */}
       {hasLoaded && filteredOrders.length > 0 ? (

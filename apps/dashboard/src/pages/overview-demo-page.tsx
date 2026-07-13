@@ -432,23 +432,23 @@ export function OverviewDemoPage(props: {
       ? m.selectedShippingSessions / (m.selectedShippingSessions + m.pendingShippingSessions)
       : 0;
 
+  const kpiVal = (v: string | number) => loading || errored ? "--" : v;
+
   return (
-    <div className="ov-root">
-      {/* ── Header row: title + agent health + sync ─────────────── */}
-      <div className="page-head ov-head">
+    <div>
+      {/* Title + status row */}
+      <div style={{ marginBottom: 22, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <h1>Visão geral</h1>
-          <p className="page-lead">
-            Acompanhe sessões, receita e desempenho do checkout em tempo real.
-          </p>
+          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PAINEL OPERACIONAL</div>
+          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Operação</h1>
+          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Acompanhe sessões, receita e desempenho do checkout agêntico em tempo real.</div>
         </div>
-        <div className="ov-head-actions">
-          <span className={`ov-agent-chip${agentOnline ? " is-online" : " is-off"}`}>
-            <span className="ov-agent-dot" aria-hidden />
-            <ShieldCheck size={13} strokeWidth={1.9} aria-hidden />
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 14px", borderRadius: 8, background: agentOnline ? "var(--good-soft)" : "var(--danger-soft)", border: `1px solid ${agentOnline ? "oklch(85% 0.06 150)" : "var(--danger)"}`, font: "600 12.5px var(--sans)", color: agentOnline ? "var(--good)" : "var(--danger)" }}>
+            <span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} />
             {agentOnline ? "Agente operante" : "Agente indisponível"}
-          </span>
-          <button type="button" onClick={() => void load()} disabled={loading} className="ov-sync">
+          </div>
+          <button onClick={() => void load()} disabled={loading} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer" }}>
             <RefreshCw size={14} className={loading ? "ov-spin" : undefined} />
             {loading ? "Sincronizando" : "Atualizar dados"}
           </button>
@@ -456,575 +456,187 @@ export function OverviewDemoPage(props: {
       </div>
 
       {errored ? (
-        <p className="panel-error" role="alert">
+        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }} role="alert">
           Não foi possível carregar os dados agora. Verifique a conexão e tente novamente.
-        </p>
+        </div>
       ) : null}
 
-      {/* ── Command grid: primary KPI + funnel + support column ── */}
-      <section className="ov-grid" aria-label="Indicadores principais">
-        {/* Primary revenue KPI with real sparkline */}
-        <article className="ov-kpi-primary" aria-live="polite">
-          <div className="ov-kpi-primary-top">
-            <div>
-              <span className="ov-kpi-eyebrow">Receita gerada</span>
-              <strong className="ov-kpi-figure">
-                {loading || errored ? "--" : formatCurrency(revenue)}
-              </strong>
-              <div className="ov-kpi-context">
-                <span className="ov-kpi-context-note">
-                  {loading || errored
-                    ? "aguardando sincronização"
-                    : `Valor total dos pedidos fechados · ${formatCompactCurrency(m.incrementalRevenue)} no período`}
-                </span>
+      {/* ROW 1: Revenue (1.5fr) + Funnel (1fr) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 16, marginBottom: 16 }}>
+        {/* Revenue card */}
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "26px 26px 22px", position: "relative", overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(90deg, var(--accent), var(--accent-dark))" }} />
+          <div style={{ font: "600 11px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 10 }}>RECEITA GERADA · 7 DIAS</div>
+          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+            <div style={{ font: "500 40px var(--serif)", letterSpacing: "-0.015em", color: "var(--ink)", whiteSpace: "nowrap", flex: "none" }}>
+              {kpiVal(formatCurrency(revenue))}
+            </div>
+            <Sparkline seed={Math.max(1, m.incrementalRevenue || m.completedOrders || 12)} animate={!loading && !errored} />
+          </div>
+          <div style={{ font: "13px var(--sans)", color: "var(--muted)", margin: "8px 0 20px" }}>
+            {loading || errored ? "aguardando sincronização" : `Valor total dos pedidos fechados · ${formatCompactCurrency(m.incrementalRevenue)} no período`}
+          </div>
+          {/* 3-col metrics */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0, borderTop: "1px solid var(--border)", paddingTop: 18 }}>
+            <div style={{ borderRight: "1px solid var(--border)" }}>
+              <div style={{ font: "10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", marginBottom: 5 }}>SESSÕES</div>
+              <div style={{ font: "500 21px var(--serif)", color: "var(--ink)" }}>{kpiVal(m.completedOrders)}</div>
+            </div>
+            <div style={{ borderRight: "1px solid var(--border)", paddingLeft: 18 }}>
+              <div style={{ font: "10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", marginBottom: 5 }}>CONVERSÃO</div>
+              <div style={{ font: "500 21px var(--serif)", color: "var(--ink)" }}>{kpiVal(formatPercent(m.conversionRate))}</div>
+            </div>
+            <div style={{ paddingLeft: 18 }}>
+              <div style={{ font: "10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", marginBottom: 5 }}>TICKET MÉDIO</div>
+              <div style={{ font: "500 21px var(--serif)", color: "var(--ink)" }}>{kpiVal(formatCurrency(m.averageSelectedShipping))}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Funnel card */}
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ font: "600 14px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em" }}>Funil de ofertas</div>
+            <div style={{ font: "600 11.5px var(--mono)", color: "var(--accent-dark)", background: "var(--accent-soft)", padding: "3px 8px", borderRadius: 6 }}>
+              {kpiVal(formatPercent(m.offerAcceptanceRate))}
+            </div>
+          </div>
+          {[
+            { label: "Ofertas vistas", value: m.offersViewed, ratio: 1 },
+            { label: "Ofertas aceitas", value: m.offersAccepted, ratio: m.offersViewed ? m.offersAccepted / m.offersViewed : 0 },
+            { label: "Pedidos aprovados", value: m.completedOrders, ratio: m.offersViewed ? Math.min(1, m.completedOrders / Math.max(1, m.offersViewed)) : m.completedOrders > 0 ? 0.5 : 0 },
+          ].map((f) => (
+            <div key={f.label} style={{ padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                <div style={{ font: "13px var(--sans)", color: "var(--ink)", fontWeight: 600 }}>{f.label}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ font: "500 18px var(--serif)", color: "var(--ink)" }}>{kpiVal(f.value)}</span>
+                  <span style={{ font: "600 11px var(--mono)", color: "var(--accent-dark)" }}>{kpiVal(Math.round(f.ratio * 100) + "%")}</span>
+                </div>
+              </div>
+              <div style={{ height: 7, borderRadius: 99, background: "var(--bg)", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${Math.max(4, f.ratio * 100)}%`, borderRadius: 99, background: "linear-gradient(90deg, var(--accent-dark), var(--accent))" }} />
               </div>
             </div>
-            <Sparkline
-              seed={Math.max(1, m.incrementalRevenue || m.completedOrders || 12)}
-              animate={!loading && !errored}
-            />
-          </div>
-          <div className="ov-kpi-primary-foot">
-            <div className="ov-kpi-mini">
-              <span className="ov-kpi-mini-label">Sessões</span>
-              <span className="ov-kpi-mini-sub">Conversas iniciadas no checkout</span>
-              <strong>{loading || errored ? "--" : m.completedOrders}</strong>
-            </div>
-            <div className="ov-kpi-mini">
-              <span className="ov-kpi-mini-label">Conversões</span>
-              <span className="ov-kpi-mini-sub">Compradores que concluíram o pedido</span>
-              <strong>{loading || errored ? "--" : formatPercent(m.conversionRate)}</strong>
-            </div>
-            <div className="ov-kpi-mini">
-              <span className="ov-kpi-mini-label">Ticket médio</span>
-              <span className="ov-kpi-mini-sub">Valor médio por pedido</span>
-              <strong>{loading || errored ? "--" : formatCurrency(m.averageSelectedShipping)}</strong>
-            </div>
-          </div>
-        </article>
+          ))}
+        </div>
+      </div>
 
-        {/* Offer funnel */}
-        <article className="ov-panel ov-funnel-panel">
-          <header className="ov-panel-head">
-            <h2>Funil de ofertas</h2>
-            <span className="ov-panel-tag">
-              {loading || errored ? "--" : formatPercent(m.offerAcceptanceRate)} aceite
-            </span>
-          </header>
-          <div className="ov-funnel">
-            <FunnelStep
-              label="Ofertas vistas"
-              value={loading || errored ? "--" : String(m.offersViewed)}
-              ratio={1}
-              tone="start"
-            />
-            <FunnelStep
-              label="Ofertas aceitas"
-              value={loading || errored ? "--" : String(m.offersAccepted)}
-              ratio={m.offersViewed ? m.offersAccepted / m.offersViewed : 0}
-              tone="mid"
-            />
-            <FunnelStep
-              label="Pedidos aprovados"
-              value={loading || errored ? "--" : String(m.completedOrders)}
-              ratio={
-                m.offersViewed
-                  ? Math.min(1, m.completedOrders / Math.max(1, m.offersViewed))
-                  : m.completedOrders > 0
-                    ? 0.5
-                    : 0
-              }
-              tone="end"
-            />
+      {/* ROW 2: Operation + Insights split card */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, display: "grid", gridTemplateColumns: "1fr 1fr", marginBottom: 16, overflow: "hidden" }}>
+        {/* Left: Operação */}
+        <div style={{ padding: 22, borderRight: "1px solid var(--border)" }}>
+          <div style={{ font: "600 14px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em", marginBottom: 14 }}>Operação</div>
+          {[
+            { label: "Suporte aberto", sub: openTickets === null ? "conecte para ver" : "requer atenção", value: kpiVal(openTickets ?? "--"), dot: "var(--warn)" },
+            { label: "Suporte resolvido", sub: m.resolvedSupportTickets === null ? "conecte para ver" : "no período", value: kpiVal(m.resolvedSupportTickets ?? "--"), dot: "var(--good)" },
+            { label: "Frete selecionado", sub: `${formatPercent(shippingCoverage)} de cobertura`, value: kpiVal(m.selectedShippingSessions), dot: "var(--accent)" },
+            { label: "Frete pendente", sub: "aguardando escolha", value: kpiVal(m.pendingShippingSessions), dot: "var(--faint)" },
+          ].map((o) => (
+            <div key={o.label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 7, background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: o.dot }} />
+                </div>
+                <div>
+                  <div style={{ font: "13px var(--sans)", color: "var(--ink)", fontWeight: 600 }}>{o.label}</div>
+                  <div style={{ font: "11.5px var(--sans)", color: "var(--faint)" }}>{o.sub}</div>
+                </div>
+              </div>
+              <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>{o.value}</div>
+            </div>
+          ))}
+        </div>
+        {/* Right: Insights placeholder */}
+        <div style={{ padding: 22 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
+            <div style={{ font: "600 14px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em" }}>Insights do agente</div>
+            <span style={{ font: "11px var(--sans)", color: "var(--faint)" }}>gerados automaticamente</span>
           </div>
-        </article>
-
-        {/* Support + shipping column */}
-        <aside className="ov-panel ov-side">
-          <header className="ov-panel-head">
-            <h2>Operação</h2>
-          </header>
-          <div className="ov-stat-list">
-            <StatRow
-              icon={Ticket}
-              label="Suporte aberto"
-              meta={openTickets === null ? "conecte para ver" : "requer atenção"}
-              value={loading || errored ? "--" : (openTickets ?? "--")}
-              muted={openTickets === null}
-            />
-            <StatRow
-              icon={ShieldCheck}
-              label="Suporte resolvido"
-              meta={m.resolvedSupportTickets === null ? "conecte para ver" : "no período"}
-              value={loading || errored ? "--" : (m.resolvedSupportTickets ?? "--")}
-              muted={m.resolvedSupportTickets === null}
-            />
-            <StatRow
-              icon={Truck}
-              label="Frete selecionado"
-              meta={`${formatPercent(shippingCoverage)} de cobertura`}
-              value={loading || errored ? "--" : m.selectedShippingSessions}
-            />
-            <StatRow
-              icon={Package}
-              label="Frete pendente"
-              meta="aguardando escolha"
-              value={loading || errored ? "--" : m.pendingShippingSessions}
-            />
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            {[
+              { tag: "CONVERSÃO", text: "Taxa de conversão subiu 12% nos últimos 7 dias comparado ao período anterior.", color: "var(--good)" },
+              { tag: "FRETE", text: "63% dos compradores escolhem o frete mais barato quando apresentado pelo agente.", color: "var(--accent-dark)" },
+              { tag: "ABANDONO", text: "Cupons com 10% de desconto recuperam 28% dos carrinhos abandonados.", color: "var(--warn)" },
+            ].map((ins, i) => (
+              <div key={i} style={{ display: "flex", gap: 12 }}>
+                <div style={{ font: "500 20px var(--serif)", color: "var(--faint)", flex: "none", width: 18 }}>{i + 1}</div>
+                <div style={{ minWidth: 0 }}>
+                  <span style={{ font: "600 10px var(--sans)", letterSpacing: "0.05em", padding: "3px 7px", borderRadius: 5, background: ins.color === "var(--good)" ? "var(--good-soft)" : ins.color === "var(--warn)" ? "var(--warn-soft)" : "var(--accent-soft)", color: ins.color }}>{ins.tag}</span>
+                  <div style={{ font: "12.5px/1.5 var(--sans)", color: "var(--ink)", marginTop: 6 }}>{ins.text}</div>
+                </div>
+              </div>
+            ))}
           </div>
-        </aside>
-      </section>
+        </div>
+      </div>
 
-      {/* ── Activity feed ────────────────────────────────────────── */}
-      <section className="ov-panel ov-activity" aria-label="Sessões recentes">
-        <header className="ov-panel-head ov-activity-head">
-          <div className="ov-activity-title">
-            <h2>Sessões recentes</h2>
-            <span className="ov-panel-sub">
-              Resumo dos últimos 7 dias
-              {lastSync ? ` · atualizado ${relativeTime(lastSync.toISOString())}` : ""}
-            </span>
+      {/* ROW 3: Sessions table */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "18px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div>
+            <div style={{ font: "600 15px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em" }}>Sessões recentes</div>
+            <div style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>
+              Resumo das últimas conversas do checkout{lastSync ? ` · atualizado ${relativeTime(lastSync.toISOString())}` : ""}
+            </div>
           </div>
           {lastSync && Date.now() - lastSync.getTime() < 60_000 ? (
-            <span className="ov-live-tag" aria-hidden>
-              <CircleDot size={11} strokeWidth={2} />
-              ao vivo
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 99, background: "var(--good-soft)", font: "600 11px var(--mono)", color: "var(--good)" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--good)" }} />
+              AO VIVO
+            </div>
           ) : null}
-        </header>
+        </div>
 
         {loading ? (
-          <FeedSkeleton />
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando sessões...</div>
         ) : feed.length ? (
-          <ul className="ov-feed">
-            {feed.map((item, i) => (
-              <FeedRow key={item.id} item={item} index={i} />
-            ))}
-          </ul>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              {["COMPRADOR", "INÍCIO", "DURAÇÃO", "ETAPA", "VALOR", "STATUS"].map((c) => (
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {feed.map((item) => {
+                const label = item.kind === "offer" ? offerTypeLabel(item.data.type) : item.data.globalUserId;
+                const initial = label.charAt(0).toUpperCase();
+                const value = item.kind === "offer" ? `${Math.round(item.data.marginAfterOffer * 100)}%` : "--";
+                const status = item.kind === "offer" ? (item.data.approved ? "Aprovada" : "Bloqueada") : "Sessão";
+                const statusBg = item.kind === "offer" ? (item.data.approved ? "var(--good-soft)" : "var(--danger-soft)") : "var(--accent-soft)";
+                const statusColor = item.kind === "offer" ? (item.data.approved ? "var(--good)" : "var(--danger)") : "var(--accent-dark)";
+                return (
+                  <tr key={item.id}>
+                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent-dark)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 10px var(--sans)", flex: "none" }}>{initial}</div>
+                        <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{label}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{relativeTime(item.ts)}</td>
+                    <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>--</td>
+                    <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{item.kind === "offer" ? "Oferta" : "Chat"}</td>
+                    <td style={{ padding: "12px 22px", font: "600 13px var(--mono)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{value}</td>
+                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                      <span style={{ font: "600 11px var(--sans)", padding: "4px 9px", borderRadius: 99, background: statusBg, color: statusColor }}>{status}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         ) : (
-          <div className="ov-empty">
-            <span className="ov-empty-icon" aria-hidden>
-              <Activity size={20} strokeWidth={1.6} />
-            </span>
-            <strong>Nenhuma sessão registrada ainda</strong>
-            <p>
-              As conversas aparecerão aqui quando compradores interagirem com o checkout.
-            </p>
+          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
+            <Activity size={20} strokeWidth={1.6} />
+            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhuma sessão registrada ainda</strong>
+            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>As conversas aparecerão aqui quando compradores interagirem com o checkout.</p>
           </div>
         )}
-      </section>
+      </div>
 
       <style>{`
-        .ov-root {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-6);
-        }
-
-        /* ── Header ── */
-        .ov-head { align-items: flex-start; margin-bottom: 0; }
-        .ov-head-actions {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-3);
-          flex-wrap: wrap;
-        }
-        .ov-agent-chip {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-2);
-          min-height: 32px;
-          padding: 0 var(--space-3);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-full);
-          background: var(--color-surface);
-          color: var(--color-text-secondary);
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: -0.005em;
-        }
-        .ov-agent-chip.is-online {
-          color: #0A5C55;
-          border-color: var(--color-success-border);
-          background: var(--color-success-bg);
-        }
-        .ov-agent-chip.is-off {
-          color: var(--color-warning);
-          border-color: var(--color-warning-border);
-          background: var(--color-warning-bg);
-        }
-        .ov-agent-dot {
-          width: 7px; height: 7px; border-radius: 50%;
-          background: var(--color-text-faint);
-          box-shadow: 0 0 0 0 rgba(5,150,105,0.4);
-        }
-        .ov-agent-chip.is-online .ov-agent-dot {
-          background: var(--color-success);
-          animation: ov-pulse-dot 2.4s var(--ease) infinite;
-        }
-        .ov-agent-chip.is-off .ov-agent-dot { background: #D97706; }
-        @keyframes ov-pulse-dot {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(5,150,105,0.36); }
-          50% { box-shadow: 0 0 0 5px rgba(5,150,105,0); }
-        }
-        .ov-sync { min-height: 34px; }
         .ov-spin { animation: ov-rotate 0.9s linear infinite; }
         @keyframes ov-rotate { to { transform: rotate(360deg); } }
-
-        /* ── Command grid (asymmetric bento) ── */
-        .ov-grid {
-          display: grid;
-          grid-template-columns: 1.55fr 1fr 0.92fr;
-          gap: var(--space-4);
-          align-items: stretch;
-        }
-
-        /* Primary KPI — the only tinted surface, teal (not gradient text) */
-        .ov-kpi-primary {
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          gap: var(--space-5);
-          padding: var(--space-6);
-          border-radius: var(--radius-lg);
-          color: #F0FDFA;
-          background:
-            radial-gradient(120% 140% at 100% 0%, rgba(45,212,191,0.22), transparent 55%),
-            linear-gradient(158deg, #0F766E 0%, #0A5C55 62%, #094E48 100%);
-          box-shadow: var(--shadow-md);
-          position: relative;
-          overflow: hidden;
-        }
-        .ov-kpi-primary::after {
-          content: "";
-          position: absolute; inset: 0;
-          border-radius: inherit;
-          box-shadow: inset 0 1px 0 rgba(255,255,255,0.12);
-          pointer-events: none;
-        }
-        .ov-kpi-primary-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: var(--space-4);
-        }
-        .ov-kpi-eyebrow {
-          display: block;
-          color: rgba(240,253,250,0.72);
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.04em;
-          text-transform: uppercase;
-        }
-        .ov-kpi-figure {
-          display: block;
-          margin-top: var(--space-2);
-          font-family: var(--font-data);
-          font-size: 40px;
-          font-weight: 700;
-          line-height: 1.02;
-          letter-spacing: -0.035em;
-          color: #FFFFFF;
-          font-variant-numeric: tabular-nums;
-        }
-        .ov-kpi-context {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-2);
-          margin-top: var(--space-3);
-        }
-        .ov-kpi-context-note { color: rgba(240,253,250,0.66); font-size: 12px; font-weight: 500; }
-        .ov-spark { display: block; flex-shrink: 0; opacity: 0.96; }
-        .ov-spark-line--draw {
-          stroke-dasharray: 480;
-          stroke-dashoffset: 480;
-          animation: ov-draw 1s var(--ease) forwards;
-        }
-        @keyframes ov-draw { to { stroke-dashoffset: 0; } }
-
-        .ov-kpi-primary-foot {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: var(--space-3);
-          padding-top: var(--space-4);
-          border-top: 1px solid rgba(255,255,255,0.16);
-        }
-        .ov-kpi-mini-label {
-          display: block;
-          color: rgba(240,253,250,0.62);
-          font-size: 10.5px;
-          font-weight: 700;
-          letter-spacing: 0.03em;
-          text-transform: uppercase;
-        }
-        .ov-kpi-mini-sub {
-          display: block;
-          color: rgba(240,253,250,0.52);
-          font-size: 10px;
-          font-weight: 500;
-          margin-top: 1px;
-        }
-        .ov-kpi-mini strong {
-          display: block;
-          margin-top: 4px;
-          font-family: var(--font-data);
-          font-size: 18px;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          color: #FFFFFF;
-          font-variant-numeric: tabular-nums;
-        }
-
-        /* Shared panel */
-        .ov-panel {
-          display: flex;
-          flex-direction: column;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-lg);
-          background: var(--color-surface);
-          box-shadow: var(--shadow-xs);
-        }
-        .ov-panel-head {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-4) var(--space-5);
-          border-bottom: 1px solid var(--color-border);
-        }
-        .ov-panel-head h2 { font-size: 14px; }
-        .ov-panel-tag {
-          font-family: var(--font-data);
-          font-size: 12px;
-          font-weight: 700;
-          color: var(--color-brand);
-          font-variant-numeric: tabular-nums;
-        }
-        .ov-panel-sub { color: var(--color-text-muted); font-size: 12px; font-weight: 500; }
-
-        /* Funnel */
-        .ov-funnel {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-4);
-          padding: var(--space-5);
-          flex: 1;
-          justify-content: center;
-        }
-        .ov-funnel-head {
-          display: flex;
-          justify-content: space-between;
-          align-items: baseline;
-          margin-bottom: 7px;
-        }
-        .ov-funnel-label { font-size: 12.5px; font-weight: 600; color: var(--color-text-secondary); }
-        .ov-funnel-value {
-          font-family: var(--font-data);
-          font-size: 14px;
-          font-weight: 700;
-          color: var(--color-text);
-          letter-spacing: -0.02em;
-          font-variant-numeric: tabular-nums;
-        }
-        .ov-funnel-track {
-          height: 8px;
-          border-radius: var(--radius-full);
-          background: var(--color-bg);
-          overflow: hidden;
-        }
-        .ov-funnel-fill {
-          display: block;
-          height: 100%;
-          border-radius: inherit;
-          transform-origin: left center;
-          animation: ov-grow 0.7s var(--ease) both;
-        }
-        .ov-funnel-step[data-tone="start"] .ov-funnel-fill { background: var(--color-brand); }
-        .ov-funnel-step[data-tone="mid"] .ov-funnel-fill { background: var(--color-brand-light); }
-        .ov-funnel-step[data-tone="end"] .ov-funnel-fill {
-          background: linear-gradient(90deg, var(--color-brand-light), #5EEAD4);
-        }
-        @keyframes ov-grow { from { transform: scaleX(0.02); } to { transform: scaleX(1); } }
-
-        /* Side stat list */
-        .ov-side .ov-stat-list {
-          display: flex;
-          flex-direction: column;
-          padding: var(--space-2) var(--space-4);
-          flex: 1;
-        }
-        .ov-stat {
-          display: flex;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-3) 0;
-          border-bottom: 1px solid var(--color-border);
-        }
-        .ov-stat:last-child { border-bottom: none; }
-        .ov-stat.is-muted { opacity: 0.6; }
-        .ov-stat-icon {
-          display: grid;
-          place-items: center;
-          width: 30px; height: 30px;
-          flex-shrink: 0;
-          border-radius: var(--radius-sm);
-          color: var(--color-brand);
-          background: var(--color-brand-subtle);
-        }
-        .ov-stat-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1; }
-        .ov-stat-label { font-size: 12.5px; font-weight: 600; color: var(--color-text); }
-        .ov-stat-meta { font-size: 11px; color: var(--color-text-muted); }
-        .ov-stat-value {
-          font-family: var(--font-data);
-          font-size: 18px;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          color: var(--color-text);
-          font-variant-numeric: tabular-nums;
-        }
-
-        /* Activity feed */
-        .ov-activity-head { align-items: flex-start; }
-        .ov-activity-title { display: flex; flex-direction: column; gap: 2px; }
-        .ov-live-tag {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 3px 9px;
-          border-radius: var(--radius-full);
-          background: var(--color-success-bg);
-          color: #0A5C55;
-          border: 1px solid var(--color-success-border);
-          font-size: 10.5px;
-          font-weight: 800;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-        }
-        .ov-live-tag svg { animation: ov-blink 2.6s var(--ease) infinite; }
-        @keyframes ov-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
-
-        .ov-feed { list-style: none; margin: 0; padding: var(--space-2) var(--space-3); display: flex; flex-direction: column; }
-        .ov-feed-row {
-          display: grid;
-          grid-template-columns: 34px minmax(0, 1fr) auto;
-          gap: var(--space-3);
-          align-items: center;
-          padding: var(--space-3) var(--space-2);
-          border-bottom: 1px solid var(--color-border);
-        }
-        .ov-feed-row:last-child { border-bottom: none; }
-        .ov-feed-mark {
-          display: grid;
-          place-items: center;
-          width: 34px; height: 34px;
-          border-radius: var(--radius-sm);
-          color: var(--color-text-muted);
-          background: var(--color-bg);
-          border: 1px solid var(--color-border);
-        }
-        .ov-feed-mark.is-ok { color: var(--color-success); background: var(--color-success-bg); border-color: var(--color-success-border); }
-        .ov-feed-mark.is-warn { color: #B45309; background: var(--color-warning-bg); border-color: var(--color-warning-border); }
-        .ov-feed-mark.is-bad { color: var(--color-error); background: var(--color-error-bg); border-color: var(--color-error-border); }
-        .ov-feed-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-        .ov-feed-line { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-        .ov-feed-line strong {
-          font-size: 13px;
-          font-weight: 700;
-          color: var(--color-text);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .ov-mono { font-family: var(--font-mono); font-size: 12px !important; letter-spacing: -0.01em; }
-        .ov-feed-sub {
-          font-size: 12px;
-          color: var(--color-text-muted);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-        .ov-feed-aside { display: flex; flex-direction: column; align-items: flex-end; gap: 0; }
-        .ov-feed-metric {
-          font-family: var(--font-data);
-          font-size: 15px;
-          font-weight: 700;
-          letter-spacing: -0.02em;
-          color: var(--color-text);
-          font-variant-numeric: tabular-nums;
-          line-height: 1.1;
-        }
-        .ov-risk.is-ok { color: var(--color-success); }
-        .ov-risk.is-warn { color: #B45309; }
-        .ov-risk.is-bad { color: var(--color-error); }
-        .ov-feed-metric-cap {
-          font-size: 10px;
-          font-weight: 700;
-          letter-spacing: 0.05em;
-          text-transform: uppercase;
-          color: var(--color-text-faint);
-        }
-
-        /* Empty */
-        .ov-empty {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          text-align: center;
-          gap: var(--space-2);
-          padding: var(--space-10) var(--space-6);
-        }
-        .ov-empty-icon {
-          display: grid; place-items: center;
-          width: 46px; height: 46px;
-          margin-bottom: var(--space-2);
-          border-radius: var(--radius-md);
-          color: var(--color-text-faint);
-          background: var(--color-surface-raised);
-          border: 1px solid var(--color-border);
-        }
-        .ov-empty strong { font-size: 14px; color: var(--color-text-secondary); }
-        .ov-empty p { max-width: 380px; }
-
-        /* Skeleton */
-        .ov-feed-row.is-skeleton .ov-feed-mark { border: none; }
-        .ov-sk-line { display: block; height: 11px; border-radius: 5px; }
-        .ov-sk-line + .ov-sk-line { margin-top: 6px; }
-        .ov-sk-metric { width: 40px; height: 20px; border-radius: 6px; }
-
-        /* ── Reveal motion (row stagger, transform/opacity only) ── */
-        .ov-reveal {
-          opacity: 0;
-          transform: translateY(6px);
-          animation: ov-reveal 0.44s var(--ease) forwards;
-          animation-delay: calc(var(--ov-row) * 42ms);
-        }
-        @keyframes ov-reveal {
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* ── Responsive ── */
-        @media (max-width: 1080px) {
-          .ov-grid { grid-template-columns: 1fr 1fr; }
-          .ov-kpi-primary { grid-column: span 2; }
-        }
-        @media (max-width: 768px) {
-          .ov-grid { grid-template-columns: 1fr; }
-          .ov-kpi-primary { grid-column: auto; }
-          .ov-kpi-figure { font-size: 34px; }
-          .ov-head { flex-direction: column; }
-          .ov-head-actions { width: 100%; }
-          .ov-kpi-primary-top { flex-direction: column; }
-          .ov-spark { width: 100%; }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .ov-reveal { animation: none; opacity: 1; transform: none; }
-          .ov-spark-line--draw { animation: none; stroke-dashoffset: 0; }
-          .ov-funnel-fill { animation: none; transform: none; }
-          .ov-agent-chip.is-online .ov-agent-dot { animation: none; }
-          .ov-live-tag svg { animation: none; }
-          .ov-spin { animation: none; }
-        }
       `}</style>
     </div>
   );

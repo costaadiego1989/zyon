@@ -219,150 +219,94 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   }
 
   return (
-    <>
-      <header className="page-head">
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <span className="eyebrow">Clientes</span>
-          <h1>Clientes</h1>
-          <p className="page-lead">Visualize e gerencie os compradores que interagiram com seu checkout.</p>
+          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>COMPRADORES</div>
+          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Clientes</h1>
+          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Visualize e gerencie os compradores que interagiram com seu checkout.</div>
         </div>
-        <div className="button-row">
-          <button
-            type="button"
-            onClick={exportCsv}
-            disabled={filteredRows.length === 0}
-            aria-label="Exportar clientes em CSV"
-          >
-            <Download size={16} />
-            Exportar lista
-          </button>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void load()}
-            aria-label="Atualizar lista de clientes"
-          >
-            <RefreshCw size={16} />
-            Atualizar dados
-          </button>
-        </div>
-      </header>
-
-      {message ? <p className="panel panel-error">{message}</p> : null}
-
-      <div className="metrics">
-        <div className="metric">
-          <span><UsersRound size={14} /> Total</span>
-          <strong>{metrics.total}</strong>
-        </div>
-        <div className="metric">
-          <span><UserPlus size={14} /> Novos (7d)</span>
-          <strong>{metrics.newLast7Days}</strong>
-        </div>
-        <div className="metric">
-          <span><Repeat size={14} /> Retorno</span>
-          <strong>{Math.round(metrics.returningRate * 100)}%</strong>
-        </div>
+        <button onClick={exportCsv} disabled={filteredRows.length === 0} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer", flex: "none" }}>
+          <Download size={14} /> Exportar CSV
+        </button>
       </div>
 
-      <section className="panel stacked">
-        <div className="section-header">
-          <h2>Clientes</h2>
-          <UsersRound size={18} />
-        </div>
-        <div className="orders-toolbar">
-          <nav className="filter-tabs" role="tablist" aria-label="Filtrar por período">
+      {message ? <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>{message}</div> : null}
+
+      {/* 4-col stat cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
+        {[
+          { label: "TOTAL", value: metrics.total },
+          { label: "NOVOS (7D)", value: metrics.newLast7Days },
+          { label: "RETORNO", value: Math.round(metrics.returningRate * 100) + "%" },
+        ].map((st) => (
+          <div key={st.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
+            <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.07em", color: "var(--faint)", marginBottom: 12 }}>{st.label}</div>
+            <div style={{ font: "500 26px var(--serif)", color: "var(--ink)", letterSpacing: "-0.01em" }}>{st.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Customers table card */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: 8 }}>
             {(["all", "7d", "30d"] as const).map((value) => {
               const labels = { all: "Todos", "7d": "Últimos 7 dias", "30d": "Últimos 30 dias" };
+              const active = dateFilter === value;
               return (
-                <button
-                  key={value}
-                  role="tab"
-                  className={`filter-tab${dateFilter === value ? " active" : ""}`}
-                  aria-selected={dateFilter === value}
-                  onClick={() => { setDateFilter(value); setPage(1); }}
-                  type="button"
-                >
+                <div key={value} onClick={() => { setDateFilter(value); setPage(1); }} style={{ padding: "7px 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}` }}>
                   {labels[value]}
-                </button>
+                </div>
               );
             })}
-          </nav>
+          </div>
           <input
-            type="search"
-            className="search-input"
             placeholder="Buscar por nome, e-mail ou telefone..."
-            aria-label="Buscar por nome, e-mail ou telefone"
             value={searchTerm}
             onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+            style={{ width: 280, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
           />
         </div>
 
         {loading ? (
-          <div className="empty-state" aria-hidden="true">
-            <div className="skeleton" style={{ width: "100%", height: 200 }} />
-          </div>
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando clientes...</div>
         ) : (
-          <>
-            <div className="table-wrap">
-              <table
-                className="data-table"
-                aria-busy={loading || loadingMore}
-                aria-label="Lista de clientes"
-              >
-                <thead>
-                  <tr>
-                    <th scope="col"></th>
-                    <th scope="col" className="sortable" onClick={() => toggleSort("name")} aria-sort={sortCol === "name" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
-                      Nome <ArrowUpDown size={12} />
-                    </th>
-                    <th scope="col" className="sortable" onClick={() => toggleSort("email")} aria-sort={sortCol === "email" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
-                      E-mail <ArrowUpDown size={12} />
-                    </th>
-                    <th scope="col">Telefone</th>
-                    <th scope="col">Primeira visita</th>
-                    <th scope="col" className="sortable" onClick={() => toggleSort("lastSeen")} aria-sort={sortCol === "lastSeen" ? sortDir === "asc" ? "ascending" : "descending" : undefined}>
-                      Última visita <ArrowUpDown size={12} />
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedRows.map((row) => (
-                    <tr key={row.globalUserId}>
-                      <td>
-                        <div className="customer-avatar">{row.initials}</div>
-                      </td>
-                      <td>{row.name}</td>
-                      <td><code>{row.email}</code></td>
-                      <td>{row.phone}</td>
-                      <td>{formatDate(row.firstSeen)}</td>
-                      <td>{formatDate(row.lastSeen)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <Pagination
-              page={page}
-              pageSize={PAGE_SIZE}
-              total={filteredRows.length}
-              onChange={setPage}
-              disabled={loading}
-            />
-
-            {filteredRows.length === 0 && !loading ? (
-              <div className="empty-state" role="status">
-                <div className="empty-state-icon">
-                  <UsersRound size={32} />
-                </div>
-                <h3>Nenhum comprador registrado ainda.</h3>
-                <p>Clientes aparecerão aqui após a primeira interação no checkout.</p>
-              </div>
-            ) : null}
-          </>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              {["", "NOME", "E-MAIL", "TELEFONE", "PRIMEIRA VISITA", "ÚLTIMA VISITA"].map((c) => (
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)", cursor: c ? "pointer" : "default" }}>{c}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {paginatedRows.map((row) => (
+                <tr key={row.globalUserId}>
+                  <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent-dark)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 11px var(--sans)" }}>{row.initials}</div>
+                  </td>
+                  <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{row.name}</td>
+                  <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{row.email}</td>
+                  <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{row.phone}</td>
+                  <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(row.firstSeen)}</td>
+                  <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(row.lastSeen)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
-      </section>
-    </>
+
+        {filteredRows.length === 0 && !loading ? (
+          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
+            <UsersRound size={32} />
+            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhum comprador registrado ainda.</strong>
+            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Clientes aparecerão aqui após a primeira interação no checkout.</p>
+          </div>
+        ) : null}
+
+        {filteredRows.length > 0 ? (
+          <Pagination page={page} pageSize={PAGE_SIZE} total={filteredRows.length} onChange={setPage} disabled={loading} />
+        ) : null}
+      </div>
+    </div>
   );
 }
