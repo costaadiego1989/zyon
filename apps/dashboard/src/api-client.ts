@@ -725,6 +725,10 @@ export function createDashboardApi(options: {
       return dashboardJson(base, "/payments/connections/asaas/sync", { method: "POST" }, f);
     },
 
+    enableCryptoPayments(payload: { network: string; walletAddress: string }): Promise<{ success: boolean }> {
+      return dashboardJson(base, "/merchant/crypto-payments/enable", { method: "POST", jsonBody: { merchantPublicKey: payload.walletAddress, merchantSecretKey: payload.network } }, f);
+    },
+
     async getAuditEvents(options?: {
       limit?: number;
       cursor?: string;

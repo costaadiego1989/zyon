@@ -51,42 +51,39 @@ export function formatDate(iso: string): string {
   );
 }
 
+const BADGE_FONT = "600 11px var(--mono)";
+
 export function statusBadge(status: string) {
-  if (status === "active")
+  if (status === "active") {
     return (
-      <span className="badge ok" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-ok)", flexShrink: 0 }} />
+      <span role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--good-soft)", color: "var(--good)", border: "1px solid var(--good)" }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--good)", flexShrink: 0 }} />
         Conectado
       </span>
     );
-  if (status === "pending")
+  }
+  if (status === "pending") {
     return (
-      <span className="badge warn" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warn)", flexShrink: 0 }} />
+      <span role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--warn-soft)", color: "var(--warn)", border: "1px solid var(--warn)" }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--warn)", flexShrink: 0 }} />
         Pendente
       </span>
     );
-  if (status === "error")
+  }
+  if (status === "error") {
     return (
-      <span className="badge bad" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-bad)", flexShrink: 0 }} />
+      <span role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid var(--danger)" }}>
+        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", flexShrink: 0 }} />
         Erro de conexão
       </span>
     );
+  }
   return (
-    <span className="badge muted" role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-muted)", flexShrink: 0 }} />
+    <span role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid var(--danger)" }}>
+      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--danger)", flexShrink: 0 }} />
       Desconectado
     </span>
   );
-}
-
-// ── Internal helpers ─────────────────────────────────────────────────────────
-
-function statusAccentClass(status: string): string {
-  if (status === "active") return "payment-status-accent--active";
-  if (status === "pending") return "payment-status-accent--pending";
-  return "payment-status-accent--error";
 }
 
 // ── GatewayCard ──────────────────────────────────────────────────────────────
@@ -130,22 +127,22 @@ function GatewayCard({
 
   return (
     <section
-      className={`panel stacked ${isConnected ? statusAccentClass(status) : ""}`}
+      style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }}
       aria-labelledby={`gateway-${provider}`}
     >
-      <div className="panel-title">
-        <div className="panel-title-group">
-          <div className="provider-icon" style={{ background: iconBg }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, background: iconBg }}>
             {icon}
           </div>
           <div>
-            <h3 id={`gateway-${provider}`}>{name}</h3>
-            <p className="text-muted text-sm">{description}</p>
+            <h3 id={`gateway-${provider}`} style={{ font: "600 14px var(--mono)", color: "var(--ink)", margin: 0 }}>{name}</h3>
+            <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "4px 0 0 0" }}>{description}</p>
           </div>
         </div>
         <div>
           {comingSoon ? (
-            <span className="badge muted" role="status" aria-live="polite">Em breve</span>
+            <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }}>Em breve</span>
           ) : (
             statusBadge(status)
           )}
@@ -153,35 +150,35 @@ function GatewayCard({
       </div>
 
       {isConnected && connection ? (
-        <div className="panel" style={{ padding: "var(--space-5)", borderTop: "1px solid var(--color-border)" }}>
+        <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "14px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
           {connection.account_id ? (
-            <div className="detail-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>Conta</span>
-              <code className="mono text-sm">{connection.account_id}</code>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase" }}>Conta</span>
+              <code style={{ font: "12px var(--mono)", color: "var(--ink)" }}>{connection.account_id}</code>
             </div>
           ) : null}
-          <div className="detail-row" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
-            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 'var(--space-1)' }}>Última sincronização</span>
-            <span className="mono text-sm">{formatDate(connection.updated_at)}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase" }}>Última sincronização</span>
+            <span style={{ font: "12px var(--mono)", color: "var(--ink)" }}>{formatDate(connection.updated_at)}</span>
           </div>
         </div>
       ) : !comingSoon ? (
-        <div className="empty-state">
+        <div style={{ padding: "20px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--muted)" }}>
           <PlugZap size={18} aria-hidden="true" />
-          <p>Não conectado</p>
+          <p style={{ margin: 0, font: "13px var(--sans)" }}>Não conectado</p>
         </div>
       ) : (
-        <div className="empty-state">
+        <div style={{ padding: "20px 0", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--muted)" }}>
           <Settings size={18} aria-hidden="true" />
-          <p>Disponível em breve</p>
+          <p style={{ margin: 0, font: "13px var(--sans)" }}>Disponível em breve</p>
         </div>
       )}
 
-      <div className="button-row panel-footer">
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: "auto" }}>
         {comingSoon && !configureUrl ? null : comingSoon && configureUrl ? (
           <a
             href={configureUrl}
-            className="btn-primary"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", font: "600 13px var(--mono)", textDecoration: "none" }}
             aria-label={`Configurar ${name}`}
           >
             <Settings size={14} aria-hidden="true" />
@@ -190,18 +187,19 @@ function GatewayCard({
         ) : isConnected ? (
           <button
             type="button"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", font: "600 13px var(--mono)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
             disabled={!!disabled}
             onClick={onSync}
             aria-busy={isMySyncing}
             aria-label={`Sincronizar ${name}`}
           >
-            <RefreshCw size={14} aria-hidden="true" className={isMySyncing ? "spin" : undefined} />
+            <RefreshCw size={14} aria-hidden="true" />
             {isMySyncing ? "Sincronizando..." : "Sincronizar"}
           </button>
         ) : (
           <button
             type="button"
-            className="primary-action"
+            style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "none", background: "linear-gradient(180deg, var(--accent), var(--accent-dark))", color: "var(--bg)", font: "600 13px var(--mono)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
             disabled={!!disabled}
             onClick={onConnect}
             aria-busy={isMyConnecting}
@@ -221,10 +219,10 @@ function GatewayCard({
 
 function ConnectionSkeleton() {
   return (
-    <div className="payment-grid" role="status" aria-label="Carregando conexões de pagamento">
-      <div className="skeleton panel skeleton-card" />
-      <div className="skeleton panel skeleton-card" />
-      <div className="skeleton panel skeleton-card" />
+    <div role="status" aria-label="Carregando conexões de pagamento" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, height: 200, opacity: 0.5 }} />
+      ))}
     </div>
   );
 }
@@ -236,6 +234,10 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
   const [connections, setConnections] = useState<PaymentConnection[]>([]);
   const [operation, setOperation] = useState<Operation>("idle");
   const [alert, setAlert] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
+  const [cryptoNetwork, setCryptoNetwork] = useState("polygon");
+  const [cryptoWallet, setCryptoWallet] = useState("");
+  const [cryptoSaving, setCryptoSaving] = useState(false);
+  const [cryptoSaved, setCryptoSaved] = useState(false);
 
   useEffect(() => {
     if (!props.me) {
@@ -325,23 +327,35 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
     }
   }
 
+  async function saveCryptoWallet() {
+    setCryptoSaving(true);
+    setCryptoSaved(false);
+    try {
+      await api.enableCryptoPayments({ network: cryptoNetwork, walletAddress: cryptoWallet.trim() });
+      setCryptoSaved(true);
+      setAlert({ message: "Wallet crypto salva com sucesso.", kind: "success" });
+      setTimeout(() => setCryptoSaved(false), 4000);
+    } catch (e) {
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setCryptoSaving(false);
+    }
+  }
+
   // ── Unauthenticated state ─────────────────────────────────────────────────
 
   if (!props.me) {
     return (
-      <div className="dashboard-content">
-        <header className="page-head">
-          <div>
-            <h1>Conexões de pagamento</h1>
-            <p className="page-lead">Faça login para gerenciar suas conexões de pagamento.</p>
-          </div>
-        </header>
-        <div className="panel stacked">
-          <div className="empty-state">
-            <div className="empty-state-icon"><CreditCard size={22} aria-hidden="true" /></div>
-            <h3>Login necessário</h3>
-            <p>Faça login para gerenciar suas conexões de pagamento.</p>
-          </div>
+      <div>
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PAGAMENTOS</div>
+          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Conexões de pagamento</h1>
+          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Faça login para gerenciar suas conexões de pagamento.</div>
+        </div>
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--muted)" }}>
+          <CreditCard size={22} aria-hidden="true" />
+          <h3 style={{ font: "600 13px var(--mono)", color: "var(--ink)", margin: 0 }}>Login necessário</h3>
+          <p style={{ margin: 0, font: "13px var(--sans)" }}>Faça login para gerenciar suas conexões de pagamento.</p>
         </div>
       </div>
     );
@@ -357,36 +371,27 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
   const isLoading = operation === "loading";
 
   return (
-    <div className="dashboard-content">
-      {/* ── Page Head ── */}
-      <header className="page-head">
+    <div>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16 }}>
         <div>
-          <span className="eyebrow"><CreditCard size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
-          <h1>Conexões de pagamento</h1>
-          <p className="page-lead">
-            Conecte provedores de pagamento para processar vendas diretamente no checkout.
-          </p>
+          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PAGAMENTOS</div>
+          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Conexões de pagamento</h1>
+          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Conecte provedores de pagamento para processar vendas diretamente no checkout.</div>
         </div>
-        <div className="button-row">
-          <button
-            type="button"
-            disabled={operation !== "idle"}
-            onClick={() => void load()}
-            aria-label="Atualizar conexões"
-          >
-            <RefreshCw size={14} aria-hidden="true" className={isLoading ? "spin" : undefined} />
-            Atualizar
-          </button>
-        </div>
-      </header>
-
-      {/* ── Alert ── */}
-      {alert ? (
-        <div
-          role="alert"
-          aria-live="assertive"
-          className={`panel ${alert.kind === "error" ? "panel-error" : "panel-info"}`}
+        <button
+          type="button"
+          style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", font: "600 13px var(--mono)", cursor: operation !== "idle" ? "not-allowed" : "pointer", opacity: operation !== "idle" ? 0.5 : 1 }}
+          disabled={operation !== "idle"}
+          onClick={() => void load()}
+          aria-label="Atualizar conexões"
         >
+          <RefreshCw size={14} aria-hidden="true" />
+          Atualizar
+        </button>
+      </div>
+
+      {alert ? (
+        <div role="alert" aria-live="assertive" style={{ display: "flex", alignItems: "center", gap: 10, background: alert.kind === "error" ? "var(--danger-soft)" : "var(--accent-soft)", border: `1px solid ${alert.kind === "error" ? "var(--danger)" : "var(--accent-line)"}`, borderRadius: 14, padding: "14px 18px", marginBottom: 20, color: alert.kind === "error" ? "var(--danger)" : "var(--accent)", font: "13px var(--sans)" }}>
           {alert.kind === "error" ? (
             <AlertCircle size={15} aria-hidden="true" />
           ) : (
@@ -396,12 +401,10 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
         </div>
       ) : null}
 
-      {/* ── Loading ── */}
       {isLoading ? <ConnectionSkeleton /> : null}
 
-      {/* ── Gateway cards ── */}
       {!isLoading ? (
-        <div className="payment-grid">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20, marginBottom: 20 }}>
           <GatewayCard
             provider="stripe"
             name="Stripe"
@@ -419,7 +422,7 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
             provider="asaas"
             name="Asaas"
             description="PIX, boleto e cartão Brasil"
-            iconBg="var(--color-brand)"
+            iconBg="var(--accent)"
             icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
             connection={asaasConn}
             operation={operation}
@@ -446,37 +449,88 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
         </div>
       ) : null}
 
-      {/* ── Other connections table ── */}
+      {/* ── Crypto Wallet Configuration ── */}
+      {!isLoading ? (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: "#627EEA20", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#627EEA" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v12M6 12h12" /></svg>
+            </div>
+            <div>
+              <h3 style={{ font: "600 13px var(--mono)", color: "var(--ink)", margin: 0 }}>Carteira Crypto</h3>
+              <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: 0, marginTop: 2 }}>Receba pagamentos em USDC diretamente na sua wallet</p>
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14, alignItems: "end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Rede</label>
+              <select
+                value={cryptoNetwork}
+                onChange={(e) => setCryptoNetwork(e.target.value)}
+                style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--sans)", color: "var(--ink)", outline: "none" }}
+              >
+                <option value="polygon">Polygon (MATIC)</option>
+                <option value="base">Base (L2)</option>
+                <option value="ethereum">Ethereum Mainnet</option>
+                <option value="arbitrum">Arbitrum One</option>
+                <option value="optimism">Optimism</option>
+                <option value="bsc">BNB Smart Chain</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Endereço da Wallet</label>
+              <input
+                type="text"
+                value={cryptoWallet}
+                onChange={(e) => setCryptoWallet(e.target.value)}
+                placeholder="0x1234...abcd"
+                style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }}
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
+            <button
+              type="button"
+              disabled={!cryptoWallet.trim() || cryptoSaving}
+              onClick={() => void saveCryptoWallet()}
+              style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "linear-gradient(150deg, var(--accent), var(--accent-dark))", font: "600 12px var(--sans)", color: "white", cursor: cryptoWallet.trim() && !cryptoSaving ? "pointer" : "not-allowed", opacity: cryptoWallet.trim() && !cryptoSaving ? 1 : 0.5 }}
+            >
+              {cryptoSaving ? "Salvando..." : "Salvar wallet"}
+            </button>
+            {cryptoSaved ? <span style={{ font: "12px var(--sans)", color: "var(--good)" }}>✓ Wallet salva</span> : null}
+          </div>
+        </div>
+      ) : null}
+
       {!isLoading && otherConns.length > 0 ? (
-        <section className="panel stacked">
-          <div className="panel-title">
-            <div className="panel-title-group">
-              <div className="provider-icon provider-icon--muted">
+        <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--muted)" }}>
                 <PlugZap size={15} aria-hidden="true" />
               </div>
-              <h2>Provedores conectados</h2>
+              <h2 style={{ font: "600 13px var(--mono)", color: "var(--ink)", margin: 0 }}>Provedores conectados</h2>
             </div>
-            <span className="badge muted">{otherConns.length}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }}>{otherConns.length}</span>
           </div>
-          <div className="table-wrap">
-            <table className="data-table">
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", font: "13px var(--sans)", color: "var(--ink)" }}>
               <thead>
                 <tr>
-                  <th>Provedor</th>
-                  <th>Status</th>
-                  <th>Conta</th>
-                  <th>Criado</th>
+                  {["Provedor", "Status", "Conta", "Criado"].map((h) => (
+                    <th key={h} style={{ textAlign: "left", padding: "10px 12px", borderBottom: "1px solid var(--border)", font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase" }}>{h}</th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {otherConns.map((conn) => (
                   <tr key={conn.id}>
-                    <td>{conn.provider}</td>
-                    <td>{statusBadge(conn.status)}</td>
-                    <td>
-                      <code className="mono text-sm">{conn.account_id ?? "—"}</code>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>{conn.provider}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>{statusBadge(conn.status)}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
+                      <code style={{ font: "12px var(--mono)" }}>{conn.account_id ?? "—"}</code>
                     </td>
-                    <td className="mono text-sm">{formatDate(conn.created_at)}</td>
+                    <td style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", font: "12px var(--mono)" }}>{formatDate(conn.created_at)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -485,12 +539,11 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
         </section>
       ) : null}
 
-      {/* ── Summary strip ── */}
       {!isLoading && connections.length > 0 ? (
         <div
-          className={`panel ${activeCount === connections.length ? "panel-success" : "panel-warning"}`}
           role="status"
           aria-live="polite"
+          style={{ display: "flex", alignItems: "center", gap: 10, background: activeCount === connections.length ? "var(--good-soft)" : "var(--warn-soft)", border: `1px solid ${activeCount === connections.length ? "var(--good)" : "var(--warn)"}`, borderRadius: 14, padding: "14px 18px", marginBottom: 20, color: activeCount === connections.length ? "var(--good)" : "var(--warn)", font: "13px var(--sans)" }}
         >
           {activeCount === connections.length ? (
             <CheckCircle2 size={16} aria-hidden="true" />
@@ -508,18 +561,13 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
         </div>
       ) : null}
 
-      {/* ── Empty state ── */}
       {!isLoading && connections.length === 0 ? (
-        <div className="panel">
-          <div className="empty-state">
-            <div className="empty-state-icon">
-              <PlugZap size={22} aria-hidden="true" />
-            </div>
-            <h3>Nenhum provedor conectado</h3>
-            <p>
-              Nenhum provedor conectado. Adicione um provedor de pagamento para aceitar cobranças no checkout.
-            </p>
-          </div>
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "var(--muted)" }}>
+          <PlugZap size={22} aria-hidden="true" />
+          <h3 style={{ font: "600 13px var(--mono)", color: "var(--ink)", margin: 0 }}>Nenhum provedor conectado</h3>
+          <p style={{ margin: 0, font: "13px var(--sans)", textAlign: "center" }}>
+            Adicione um provedor de pagamento para aceitar cobranças no checkout.
+          </p>
         </div>
       ) : null}
     </div>
