@@ -15,6 +15,8 @@ const DEV_DEFAULT_ORIGINS = [
 export interface CorsConfig {
   origin: string[] | false;
   credentials: true;
+  allowedHeaders: string[];
+  exposedHeaders: string[];
 }
 
 /**
@@ -27,14 +29,14 @@ export function resolveCorsConfig(env: NodeJS.ProcessEnv = process.env): CorsCon
   const configured = parseOrigins(env.CORS_ALLOWED_ORIGINS);
 
   if (configured.length > 0) {
-    return { origin: configured, credentials: true };
+    return { origin: configured, credentials: true, allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "If-Match", "If-None-Match"], exposedHeaders: ["ETag", "Idempotency-Replayed"] };
   }
 
   if (isProduction(env.NODE_ENV)) {
-    return { origin: false, credentials: true };
+    return { origin: false, credentials: true, allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "If-Match", "If-None-Match"], exposedHeaders: ["ETag", "Idempotency-Replayed"] };
   }
 
-  return { origin: DEV_DEFAULT_ORIGINS, credentials: true };
+  return { origin: DEV_DEFAULT_ORIGINS, credentials: true, allowedHeaders: ["Content-Type", "Authorization", "Idempotency-Key", "If-Match", "If-None-Match"], exposedHeaders: ["ETag", "Idempotency-Replayed"] };
 }
 
 function parseOrigins(raw: string | undefined): string[] {

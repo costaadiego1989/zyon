@@ -35,6 +35,8 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
       for (const claim of claims) {
         await this.processOne(claim);
       }
+    } catch (err) {
+      this.logger.warn(`Outbox dispatch failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       this.running = false;
     }
