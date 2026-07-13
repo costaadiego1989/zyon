@@ -580,33 +580,28 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
 
       {/* Upcoming integrations */}
       {!hasConnection ? (
-        <div className="panel" style={{ padding: 'var(--space-5)', marginBottom: 'var(--space-4)' }}>
-          <div className="section-header" style={{ marginBottom: 'var(--space-3)' }}><h3>Em breve</h3></div>
-          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Estamos trabalhando em mais integrações nativas.</p>
-          <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-            <span className="badge muted">VTEX</span>
-            <span className="badge muted">Magento</span>
-            <span className="badge muted">Yampi</span>
-            <span className="badge muted">Loja Integrada</span>
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
+          <h3 style={{ font: "600 14px var(--serif)", color: "var(--ink)", marginBottom: 12 }}>Em breve</h3>
+          <p style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)", marginBottom: 14 }}>Estamos trabalhando em mais integrações nativas.</p>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {["VTEX", "Magento", "Yampi", "Loja Integrada"].map(name => (
+              <span key={name} style={{ font: "500 11px var(--mono)", padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)" }}>{name}</span>
+            ))}
           </div>
         </div>
       ) : null}
 
       {/* Active connection */}
-      <section>
-        <div className="section-header">
-          <h2>Conexão Ativa</h2>
-        </div>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
+        <h2 style={{ font: "600 14px var(--serif)", color: "var(--ink)", marginBottom: 16 }}>Conexão Ativa</h2>
 
         {isLoading ? (
-          <div className="panel skeleton" style={{ height: 88 }} />
+          <div style={{ height: 88, borderRadius: 8, background: "var(--bg)" }} />
         ) : !hasConnection ? (
-          <div className="panel stacked">
-            <div className="empty-state">
-              <div className="empty-state-icon"><Link2 size={22} /></div>
-              <h3>Nenhuma conexão configurada</h3>
-              <p>Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos.</p>
-            </div>
+          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}><Link2 size={22} color="var(--faint)" /></div>
+            <strong style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>Nenhuma conexão configurada</strong>
+            <p style={{ font: "13px var(--sans)", color: "var(--faint)", maxWidth: 360 }}>Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos.</p>
           </div>
         ) : (
           <div className="commerce-connection-list">
@@ -703,7 +698,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             ))}
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

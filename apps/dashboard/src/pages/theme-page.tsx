@@ -509,24 +509,22 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           </div>
 
           {/* ── Preview ── */}
-          <div className="split-panel-preview" style={{ position: 'sticky', top: 'var(--space-4)', alignSelf: 'start' }}>
-            <div style={{ background: '#0f172a', borderRadius: 'var(--radius-lg)', padding: 'var(--space-2)', overflow: 'hidden' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', background: '#1e293b', borderRadius: '10px 10px 0 0' }}>
-                <div style={{ display: 'flex', gap: 5 }}>
-                  {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 9, height: 9, borderRadius: '50%', background: c }} />)}
-                </div>
-                <div style={{ flex: 1, textAlign: 'center', fontSize: 10, color: '#64748b', fontFamily: 'var(--font-mono)' }}>
-                  Preview — {props.me?.name || 'Widget'}
-                </div>
+          <div className="split-panel-preview">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--bg)", borderRadius: "14px 14px 0 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", gap: 5 }}>
+                {["oklch(60% 0.2 25)", "oklch(76% 0.15 80)", "oklch(70% 0.17 149)"].map(c => <span key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}
               </div>
-              <div style={{ background: '#fff', borderRadius: '0 0 8px 8px', overflow: 'auto', height: 680 }}>
-                <LivePreviewPanel
-                  ref={previewRef}
-                  apiBaseUrl={props.apiBaseUrl}
-                  me={props.me}
-                  hideControls
-                />
+              <div style={{ flex: 1, textAlign: "center", font: "11px var(--mono)", color: "var(--faint)" }}>
+                Preview — {props.me?.name || "Widget"}
               </div>
+            </div>
+            <div style={{ overflow: "hidden", height: 600 }}>
+              <LivePreviewPanel
+                ref={previewRef}
+                apiBaseUrl={props.apiBaseUrl}
+                me={props.me}
+                hideControls
+              />
             </div>
           </div>
         </div>

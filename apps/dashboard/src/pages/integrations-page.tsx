@@ -438,7 +438,12 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                 ))}
                 {apiKeys.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>Nenhuma chave criada. Gere uma chave para começar a integrar.</td>
+                    <td colSpan={5} style={{ padding: "32px 22px", textAlign: "center" }}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" /></svg>
+                        <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Nenhuma chave criada. Gere uma chave para começar a integrar.</span>
+                      </div>
+                    </td>
                   </tr>
                 ) : null}
               </tbody>
@@ -488,7 +493,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               </article>
             ))}
             {webhooks.length === 0 ? (
-              <p className="developer-empty">Nenhum webhook configurado. Adicione um endpoint para receber eventos.</p>
+              <div style={{ padding: "32px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" /><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></svg>
+                <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Nenhum webhook configurado. Adicione um endpoint para receber eventos.</span>
+              </div>
             ) : null}
           </div>
         </section>
@@ -536,7 +544,12 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               ))}
               {deliveries.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>As tentativas de entrega aparecerão aqui após o primeiro evento.</td>
+                  <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>As tentativas de entrega aparecerão aqui após o primeiro evento.</span>
+                    </div>
+                  </td>
                 </tr>
               ) : null}
             </tbody>
@@ -599,7 +612,12 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               ))}
               {installations.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={6}>Nenhuma instalação encontrada.</td>
+                  <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center" }}>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+                      <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Nenhuma instalação encontrada.</span>
+                    </div>
+                  </td>
                 </tr>
               ) : null}
             </tbody>

@@ -154,60 +154,73 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   }
 
   return (
-    <div className="dashboard-content">
+    <div>
+      {/* ── Title ── */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PREVIEW AO VIVO</div>
+        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Preview do Checkout</h1>
+        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Visualize o widget exatamente como seus compradores verão.</div>
+      </div>
+
       {/* ── Control bar ── */}
-      <div className="panel" style={{ padding: 'var(--space-3) var(--space-5)', marginBottom: 'var(--space-4)', display: 'flex', alignItems: 'center', gap: 'var(--space-4)', flexWrap: 'nowrap', overflowX: 'auto' }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 16 }}>
         {/* Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-          <span className={`status-dot ${statusDotClass}`} />
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{statusText}</span>
-          {countdown && tokenStatus === "active" && <span style={{ fontSize: 11, color: 'var(--color-text-muted)', fontFamily: 'var(--font-mono)' }}>{countdown}</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: tokenStatus === "active" ? "var(--good)" : tokenStatus === "expired" ? "var(--danger)" : "var(--warn)" }} />
+          <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>{statusText}</span>
+          {countdown && tokenStatus === "active" && <span style={{ font: "11px var(--mono)", color: "var(--faint)" }}>{countdown}</span>}
         </div>
 
-        <div style={{ width: 1, height: 24, background: 'var(--color-border)' }} />
+        <div style={{ width: 1, height: 20, background: "var(--border)" }} />
 
-        {/* Mode */}
-        <div className="filter-tabs">
-          <button type="button" className={`filter-tab${presentation === 'floating' ? ' active' : ''}`} onClick={() => setPresentation('floating')}>Flutuante</button>
-          <button type="button" className={`filter-tab${presentation === 'conversational' ? ' active' : ''}`} onClick={() => setPresentation('conversational')}>Tela cheia</button>
-        </div>
-
-        <div style={{ width: 1, height: 24, background: 'var(--color-border)' }} />
-
-        {/* Device */}
-        <div className="filter-tabs">
-          {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => (
-            <button key={size} type="button" className={`filter-tab${device === size ? ' active' : ''}`} onClick={() => setDevice(size)}>
-              {DEVICE_SIZES[size].label}
+        {/* Mode toggle */}
+        <div style={{ display: "flex", gap: 4, background: "var(--bg)", borderRadius: 8, padding: 3 }}>
+          {(["floating", "conversational"] as const).map(mode => (
+            <button key={mode} type="button" onClick={() => setPresentation(mode)} style={{ padding: "6px 12px", borderRadius: 6, border: "none", font: "600 11px var(--sans)", cursor: "pointer", background: presentation === mode ? "var(--card)" : "transparent", color: presentation === mode ? "var(--ink)" : "var(--faint)", boxShadow: presentation === mode ? "0 1px 3px rgba(0,0,0,0.2)" : "none" }}>
+              {mode === "floating" ? "Flutuante" : "Tela cheia"}
             </button>
           ))}
         </div>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 'var(--space-2)' }}>
-          <button type="button" onClick={() => previewRef.current?.reload()} style={{ minHeight: 32 }}>
-            <RefreshCw size={12} />
+        <div style={{ width: 1, height: 20, background: "var(--border)" }} />
+
+        {/* Device toggle */}
+        <div style={{ display: "flex", gap: 4, background: "var(--bg)", borderRadius: 8, padding: 3 }}>
+          {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map(size => {
+            const Icon = size === "desktop" ? Monitor : size === "tablet" ? Tablet : Smartphone;
+            return (
+              <button key={size} type="button" onClick={() => setDevice(size)} style={{ padding: "6px 10px", borderRadius: 6, border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 5, font: "600 11px var(--sans)", background: device === size ? "var(--card)" : "transparent", color: device === size ? "var(--ink)" : "var(--faint)", boxShadow: device === size ? "0 1px 3px rgba(0,0,0,0.2)" : "none" }}>
+                <Icon size={13} /> {DEVICE_SIZES[size].label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          <button type="button" onClick={() => previewRef.current?.reload()} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--muted)" }}>
+            <RefreshCw size={13} />
           </button>
-          <button type="button" onClick={() => setIsFullscreen(true)} style={{ minHeight: 32 }}>
-            <Maximize2 size={12} />
+          <button type="button" onClick={() => setIsFullscreen(true)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "var(--muted)" }}>
+            <Maximize2 size={13} />
           </button>
         </div>
       </div>
 
       {/* ── Preview Stage ── */}
-      <div style={{ background: "#0f172a", borderRadius: "var(--radius-lg)", padding: 'var(--space-4)', display: "flex", flexDirection: "column", alignItems: "center" }}>
-        {/* Browser chrome */}
-        <div style={{ width: device === 'desktop' ? '100%' : DEVICE_SIZES[device].width, maxWidth: '100%', margin: '0 auto', transition: 'width 0.3s ease' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#1e293b', borderRadius: '12px 12px 0 0' }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {['#ef4444','#f59e0b','#22c55e'].map(c => <span key={c} style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />)}
+      <div style={{ display: "flex", justifyContent: "center", padding: 0 }}>
+        <div style={{ width: device === "desktop" ? "100%" : DEVICE_SIZES[device].width, maxWidth: "100%", transition: "width 0.25s ease", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+          {/* Browser chrome bar */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", gap: 5 }}>
+              {["oklch(60% 0.2 25)", "oklch(76% 0.15 80)", "oklch(70% 0.17 149)"].map(c => <span key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}
             </div>
-            <div style={{ flex: 1, textAlign: 'center', fontSize: 11, color: '#94a3b8', fontFamily: 'var(--font-mono)' }}>
-              {props.me.name || 'Preview'} — {DEVICE_SIZES[device].label} · {presentation === 'floating' ? 'Flutuante' : 'Fullscreen'}
+            <div style={{ flex: 1, textAlign: "center", font: "11px var(--mono)", color: "var(--faint)" }}>
+              {props.me.name || "Preview"} — {DEVICE_SIZES[device].label} · {presentation === "floating" ? "Flutuante" : "Fullscreen"}
             </div>
           </div>
 
-          {/* Widget iframe container */}
-          <div style={{ background: '#fff', borderRadius: '0 0 12px 12px', overflow: 'hidden', height: 'calc(100vh - 320px)', minHeight: 500 }}>
+          {/* Widget iframe — full height, no extra wrapper */}
+          <div style={{ height: "calc(100vh - 280px)", minHeight: 520 }}>
             <LivePreviewPanel
               ref={previewRef}
               apiBaseUrl={props.apiBaseUrl}

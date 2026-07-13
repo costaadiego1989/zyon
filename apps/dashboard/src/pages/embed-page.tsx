@@ -252,11 +252,11 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               <label
                 key={scope}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 'var(--space-3)',
-                  padding: 'var(--space-3) var(--space-4)',
-                  border: `1px solid ${isSelected ? 'var(--color-brand)' : 'var(--color-border)'}`,
-                  borderRadius: 'var(--radius-sm)',
-                  background: isSelected ? 'var(--color-brand-subtle)' : 'var(--color-surface)',
+                  display: 'flex', alignItems: 'center', gap: 12,
+                  padding: '12px 16px',
+                  border: `1px solid ${isSelected ? 'var(--accent-line)' : 'var(--border)'}`,
+                  borderRadius: 10,
+                  background: isSelected ? 'oklch(20% 0.02 149)' : 'var(--card)',
                   cursor: 'pointer',
                   transition: 'border-color 0.15s, background 0.15s',
                 }}
@@ -265,13 +265,13 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   type="checkbox"
                   checked={isSelected}
                   onChange={() => setSelectedScopes((prev) => isSelected ? prev.filter((s) => s !== scope) : [...prev, scope])}
-                  style={{ width: 16, height: 16, accentColor: 'var(--color-brand)' }}
+                  style={{ width: 16, height: 16, accentColor: 'var(--accent-dark)' }}
                 />
                 <div style={{ flex: 1 }}>
                   <strong style={{ fontSize: 13, display: 'block' }}>{meta.label}</strong>
                   <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{meta.description}</span>
                 </div>
-                <span className={`badge ${meta.group === 'read' ? 'ok' : 'warn'}`} style={{ fontSize: 10 }}>{meta.group === 'read' ? 'leitura' : 'escrita'}</span>
+                <span style={{ font: "500 10px var(--mono)", padding: "3px 8px", borderRadius: 5, border: `1px solid ${meta.group === 'read' ? 'var(--accent-line)' : 'oklch(45% 0.1 80)'}`, color: meta.group === 'read' ? 'var(--accent)' : 'var(--warn)' }}>{meta.group === 'read' ? 'leitura' : 'escrita'}</span>
               </label>
             );
           })}
