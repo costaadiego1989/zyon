@@ -758,11 +758,11 @@ export function createDashboardApi(options: {
     },
 
     getNegotiationPolicy(): Promise<NegotiationPolicyResponse> {
-      return dashboardJson(base, "/negotiations/policy", { method: "GET" }, f);
+      return dashboardJson(base, "/merchant-negotiation-policy", { method: "GET" }, f);
     },
 
     putNegotiationPolicy(payload: NegotiationPolicy): Promise<NegotiationPolicyResponse> {
-      return dashboardJson(base, "/negotiations/policy", { method: "PUT", jsonBody: payload }, f);
+      return dashboardJson(base, "/merchant-negotiation-policy", { method: "PUT", jsonBody: payload }, f);
     },
 
     getNegotiationSessions(params?: { limit?: number; cursor?: string }): Promise<CursorPage<NegotiationSession>> {
