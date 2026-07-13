@@ -3,15 +3,15 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CI = !!process.env.CI;
-const DASHBOARD_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5174";
+const DASHBOARD_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5175";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   testDir: "./e2e",
-  fullyParallel: true,
+  fullyParallel: false,
   forbidOnly: CI,
   retries: CI ? 2 : 0,
-  workers: CI ? 1 : undefined,
+  workers: 1,
   reporter: [
     ["list"],
     ["html", { open: "never" }],
@@ -30,9 +30,9 @@ export default defineConfig({
     }
   ],
   webServer: {
-    command: "node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5174 --strictPort",
+    command: "node node_modules/vite/bin/vite.js --host localhost --port 5175 --strictPort",
     cwd: __dirname,
-    url: "http://127.0.0.1:5174",
+    url: "http://localhost:5175",
     reuseExistingServer: !CI,
     stdout: "pipe",
     stderr: "pipe",
