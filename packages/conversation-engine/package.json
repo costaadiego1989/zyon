@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm build && node dist/index.spec.js && node dist/langgraph/openrouter-provider.spec.js && node dist/langgraph/safety-validator.spec.js && node dist/langgraph/cost-tracker.spec.js && node dist/langgraph/context-manager.spec.js && node dist/langgraph/chat-tools.spec.js && node dist/langgraph/langgraph-agent.spec.js"
+    "test": "pnpm build && node dist/index.spec.js && node dist/langgraph/openrouter-provider.spec.js && node dist/langgraph/safety-validator.spec.js && node dist/langgraph/cost-tracker.spec.js && node dist/langgraph/context-manager.spec.js && node dist/langgraph/chat-tools.spec.js && node dist/langgraph/langgraph-agent.spec.js && node dist/config-context/__tests__/config-to-agent.e2e.spec.js"
   },
   "dependencies": {
     "@langchain/core": "^0.3.0",

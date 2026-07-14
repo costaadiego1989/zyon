@@ -26,7 +26,7 @@ export function toPromoCreateInput(entity: CrossSellPromotionEntity) {
     id: snap.id,
     merchantId: snap.merchant_id,
     name: snap.name,
-    trigger: snap.trigger as unknown,
+    trigger: snap.trigger as any,
     recommendedSkus: snap.recommended_skus,
     discountPercent: snap.discount_percent,
     maxDiscountPercent: snap.max_discount_percent,
@@ -40,7 +40,7 @@ export function toPromoUpdateInput(entity: CrossSellPromotionEntity) {
   const snap = entity.snapshot();
   return {
     name: snap.name,
-    trigger: snap.trigger as unknown,
+    trigger: snap.trigger as any,
     recommendedSkus: snap.recommended_skus,
     discountPercent: snap.discount_percent,
     maxDiscountPercent: snap.max_discount_percent,
