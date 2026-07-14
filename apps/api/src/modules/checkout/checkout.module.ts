@@ -43,6 +43,7 @@ import { AgentRulesContextAdapter } from "./infrastructure/adapters/agent-rules-
 import { BuyerPurchaseHistoryAdapter } from "./infrastructure/adapters/buyer-purchase-history.adapter.js";
 import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-settings.adapter.js";
 import { DeterministicConversationAdapter } from "./infrastructure/adapters/deterministic-conversation.adapter.js";
+import { LangGraphConversationAdapter } from "./infrastructure/adapters/langgraph-conversation.adapter.js";
 import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";

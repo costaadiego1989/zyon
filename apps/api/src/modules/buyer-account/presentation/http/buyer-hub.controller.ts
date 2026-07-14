@@ -28,17 +28,17 @@ function conversationToDto(c: BuyerConversation) {
 @UseGuards(BuyerJwtAuthGuard)
 export class BuyerHubController {
   constructor(
-    private readonly listConversations: ListBuyerConversationsUseCase,
-    private readonly getConversation: GetBuyerConversationUseCase,
+    private readonly listConversationsUC: ListBuyerConversationsUseCase,
+    private readonly getConversationUC: GetBuyerConversationUseCase,
     private readonly rateMessage: RateBuyerConversationMessageUseCase,
-    private readonly deleteAccount: DeleteBuyerAccountUseCase,
-    private readonly exportData: ExportBuyerDataUseCase
+    private readonly deleteAccountUC: DeleteBuyerAccountUseCase,
+    private readonly exportDataUC: ExportBuyerDataUseCase
   ) {}
 
   @Get("conversations")
   async listConversations(@Req() req: { user?: unknown }) {
     const buyer = currentBuyer(req);
-    const list = await this.listConversations.execute({ globalUserId: buyer.globalUserId });
+    const list = await this.listConversationsUC.execute({ globalUserId: buyer.globalUserId });
     return {
       items: list.map(conversationToDto),
     };
@@ -47,7 +47,7 @@ export class BuyerHubController {
   @Get("conversations/:id")
   async getConversation(@Req() req: { user?: unknown }, @Param("id") id: string) {
     const buyer = currentBuyer(req);
-    const c = await this.getConversation.execute({
+    const c = await this.getConversationUC.execute({
       globalUserId: buyer.globalUserId,
       id,
     });
@@ -73,13 +73,13 @@ export class BuyerHubController {
   @Get("export")
   async exportData(@Req() req: { user?: unknown }) {
     const buyer = currentBuyer(req);
-    return this.exportData.execute({ globalUserId: buyer.globalUserId });
+    return this.exportDataUC.execute({ globalUserId: buyer.globalUserId });
   }
 
   @Delete("account")
   async deleteAccount(@Req() req: { user?: unknown }) {
     const buyer = currentBuyer(req);
-    const result = await this.deleteAccount.execute({ globalUserId: buyer.globalUserId });
+    const result = await this.deleteAccountUC.execute({ globalUserId: buyer.globalUserId });
     return {
       deleted: result.deleted,
       anonymized_purchases: result.anonymizedPurchases,

@@ -59,11 +59,12 @@ test(
 
       // M3 fix: E2E test validates DTO path (whitelist, transform, validation)
       // by calling controller (which applies ValidationPipe) rather than use-case directly.
-      const dto: AgentRulesPatchDto = {
+      const dto = {
         identity: { agentName: "Maya" },
         capabilities: { machineToMachineNegotiation: true },
-        checkoutSettings: { maxInterventionsPerSession: 4 }
-      };
+        checkoutSettings: { maxInterventionsPerSession: 4 },
+        hasAnySection: () => true
+      } as unknown as AgentRulesPatchDto;
       await controller.updateDefault(request, dto);
       const context = await controller.defaultContext(request);
 

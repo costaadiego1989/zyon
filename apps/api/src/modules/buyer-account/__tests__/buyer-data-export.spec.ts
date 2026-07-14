@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { buildBuyerDataExport } from "../domain/services/build-buyer-data-export.service.js";
+import { BuyerAddress } from "../domain/entities/buyer-address.entity.js";
 
 test("buildBuyerDataExport includes profile, addresses, agent profile, conversations, purchases (LGPD)", () => {
   const exportPayload = buildBuyerDataExport({
@@ -13,11 +14,10 @@ test("buildBuyerDataExport includes profile, addresses, agent profile, conversat
       createdAt: new Date("2026-01-01T00:00:00Z"),
     },
     addresses: [
-      {
+      BuyerAddress.create({
         id: "addr_1",
         globalUserId: "guser_1",
-        zip: "01310100",
-        zipFormatted: "01310-100",
+        zip: "01310-100",
         street: "Avenida Paulista",
         number: "1000",
         complement: "Apto 12",
@@ -26,7 +26,7 @@ test("buildBuyerDataExport includes profile, addresses, agent profile, conversat
         state: "SP",
         isDefault: true,
         createdAt: new Date("2026-01-15T00:00:00Z"),
-      },
+      }),
     ],
     agentProfile: {
       globalUserId: "guser_1",

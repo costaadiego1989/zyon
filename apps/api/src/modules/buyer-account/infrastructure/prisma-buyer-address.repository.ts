@@ -52,7 +52,7 @@ export class PrismaBuyerAddressRepository implements BuyerAddressRepository {
     await (this.prisma.buyerAddress as unknown as {
       upsert: (args: {
         where: { id: string };
-        create: typeof data;
+        create: typeof data & { id: string };
         update: Partial<typeof data>;
       }) => Promise<unknown>;
     }).upsert({

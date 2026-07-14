@@ -107,7 +107,6 @@ test("DeleteBuyerAccountUseCase throws when buyer has no account (not found)", a
 });
 
 test("DeleteBuyerAccountUseCase enforces globalUserId presence (LGPD requires explicit subject)", async () => {
-  // @ts-expect-error - intentional invalid input
   await assert.rejects(
     () => new DeleteBuyerAccountUseCase({} as PrismaClient).execute({ globalUserId: "" }),
     /buyer_account_missing_global_user_id/

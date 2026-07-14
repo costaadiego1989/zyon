@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req, UseGuards } from "@nestjs/common";
-import { ulid } from "ulid";
+import { randomUUID } from "node:crypto";
 import type { BuyerAddress } from "../../domain/entities/buyer-address.entity.js";
 import { ListBuyerAddressesUseCase } from "../../application/use-cases/list-buyer-addresses.use-case.js";
 import { AddBuyerAddressUseCase } from "../../application/use-cases/list-buyer-addresses.use-case.js";
@@ -57,10 +57,9 @@ export class BuyerAddressesController {
     }
   ) {
     const buyer = currentBuyer(req);
-    const crypto = await import("crypto");
     const addr = await this.addAddress.execute({
       globalUserId: buyer.globalUserId,
-      id: crypto.randomUUID(),
+      id: randomUUID(),
       zip: body.zip,
       street: body.street,
       number: body.number,

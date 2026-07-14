@@ -120,7 +120,7 @@ export class ExportBuyerDataUseCase {
         createdAt: account.createdAt,
       },
       addresses,
-      agentProfile: agentProfile ?? undefined,
+      agentProfile: agentProfile ? { globalUserId: input.globalUserId, ...agentProfile } : undefined,
       conversations,
       purchases,
     });

@@ -31,6 +31,14 @@ class InMemoryBuyerAddressRepository implements BuyerAddressRepository {
   async count(globalUserId: string): Promise<number> {
     return (this.rows.get(globalUserId) ?? []).length;
   }
+
+  async clearDefaults(globalUserId: string): Promise<void> {
+    const list = this.rows.get(globalUserId) ?? [];
+    this.rows.set(
+      globalUserId,
+      list.map((a) => a.withUpdates({ isDefault: false }))
+    );
+  }
 }
 
 const validInput = {
