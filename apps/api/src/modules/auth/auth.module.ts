@@ -32,7 +32,6 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     PasswordHasher,
     JwtService,
     AuthCookieService,
-    LoginRateLimiter,
     // Guards
     AuthGuard,
     TenantRoleGuard,
@@ -48,7 +47,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     },
     {
       provide: RATE_LIMITER,
-      useClass: LoginRateLimiter
+      useFactory: () => new LoginRateLimiter(),
     }
   ],
   exports: [
