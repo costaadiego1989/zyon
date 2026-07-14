@@ -37,32 +37,47 @@ export class InMemoryCommerceConnectionRepository
   ): Promise<void> {
     const merchantId = input.merchantId.trim();
     const now = new Date().toISOString();
-    const credentials: MerchantCommerceCredentials =
-      input.provider === "shopify"
-        ? {
-            merchantId,
-            provider: "shopify",
-            shopDomain: input.shopDomain.trim(),
-            adminAccessToken: input.adminAccessToken.trim(),
-            storefrontAccessToken:
-              input.storefrontAccessToken?.trim() || undefined,
-            apiVersion: input.apiVersion?.trim() || undefined,
-          }
-        : {
-            merchantId,
-            provider: "woocommerce",
-            storeUrl: input.storeUrl.trim(),
-            consumerKey: input.consumerKey.trim(),
-            consumerSecret: input.consumerSecret.trim(),
-          };
+    let credentials: MerchantCommerceCredentials;
+    let storeUrl: string;
+    if (input.provider === "shopify") {
+      credentials = {
+        merchantId,
+        provider: "shopify",
+        shopDomain: input.shopDomain.trim(),
+        adminAccessToken: input.adminAccessToken.trim(),
+        storefrontAccessToken:
+          input.storefrontAccessToken?.trim() || undefined,
+        apiVersion: input.apiVersion?.trim() || undefined,
+      };
+      storeUrl = `https://${input.shopDomain.trim().replace(/^https?:\/\//, "")}`;
+    } else if (input.provider === "nuvemshop") {
+      credentials = {
+        merchantId,
+        provider: "nuvemshop",
+        storeId: input.storeId.trim(),
+        accessToken: input.accessToken.trim(),
+        userAgent: input.userAgent?.trim() || undefined,
+      };
+      storeUrl = `https://api.tiendanube.com/v1/${input.storeId.trim()}`;
+    } else if (input.provider === "woocommerce") {
+      credentials = {
+        merchantId,
+        provider: "woocommerce",
+        storeUrl: input.storeUrl.trim(),
+        consumerKey: input.consumerKey.trim(),
+        consumerSecret: input.consumerSecret.trim(),
+      };
+      storeUrl = input.storeUrl.trim();
+    } else {
+      // Tray or future providers — store minimal credential placeholder.
+      credentials = undefined as unknown as MerchantCommerceCredentials;
+      storeUrl = "";
+    }
     this.credentials.set(merchantId, credentials);
     this.connections.set(merchantId, {
       merchantId,
-      provider: input.provider,
-      storeUrl:
-        input.provider === "shopify"
-          ? `https://${input.shopDomain.trim().replace(/^https?:\/\//, "")}`
-          : input.storeUrl.trim(),
+      provider: input.provider as "shopify" | "woocommerce" | "nuvemshop",
+      storeUrl,
       status: "pending",
       apiVersion:
         input.provider === "shopify"

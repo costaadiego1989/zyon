@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
   ShopifyCommerceAdapter,
   WooCommerceCommerceAdapter,
+  NuvemshopCommerceAdapter,
 } from "@zyon/commerce-adapters";
 import type {
   CommerceCatalogPage,
@@ -107,7 +108,10 @@ export class TenantCommerceAdapterFactory
           shopDomain: tenant.shopDomain,
           adminAccessToken: tenant.adminAccessToken,
           storefrontAccessToken: tenant.storefrontAccessToken,
-          apiVersion: tenant.apiVersion
+          apiVersion: tenant.apiVersion,
+          // GraphQL Admin API is the default (REST sunset 2025-04-01).
+          // Set to `false` only for merchants on pre-2024-10 API versions.
+          useGraphqlAdminApi: true,
         },
         this.http.toFetch()
       );
@@ -122,6 +126,17 @@ export class TenantCommerceAdapterFactory
         this.http.toFetch(),
       );
     }
+    if (tenant?.provider === "nuvemshop") {
+      return new NuvemshopCommerceAdapter(
+        {
+          storeId: tenant.storeId,
+          accessToken: tenant.accessToken,
+          userAgent: tenant.userAgent,
+        },
+        this.http.toFetch(),
+      );
+    }
+    // Tray adapter not yet implemented — fall through to "not configured".
 
     if (isProduction()) {
       throw new BadRequestException("commerce_connection_not_configured_for_merchant");

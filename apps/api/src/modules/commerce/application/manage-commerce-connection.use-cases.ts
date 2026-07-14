@@ -209,6 +209,40 @@ function assertSafeConnectionInput(
     return;
   }
 
+  if (input.provider === "nuvemshop") {
+    if (!input.storeId.trim() || !/^\d+$/.test(input.storeId.trim())) {
+      throw new BadRequestException("invalid_nuvemshop_store_id");
+    }
+    if (!input.accessToken.trim() || input.accessToken.trim().length < 20) {
+      throw new BadRequestException("invalid_nuvemshop_access_token");
+    }
+    return;
+  }
+
+  if (input.provider === "tray") {
+    let trayUrl: URL;
+    try {
+      trayUrl = new URL(input.apiAddress.trim());
+    } catch {
+      throw new BadRequestException("invalid_tray_api_address");
+    }
+    const trayHost = trayUrl.hostname.toLowerCase();
+    if (
+      trayUrl.protocol !== "https:" ||
+      trayHost === "localhost" ||
+      trayHost.endsWith(".localhost") ||
+      trayHost.endsWith(".local") ||
+      /^\d{1,3}(?:\.\d{1,3}){3}$/.test(trayHost) ||
+      !input.accessToken.trim() ||
+      !input.refreshToken.trim() ||
+      !input.consumerKey.trim() ||
+      !input.consumerSecret.trim()
+    ) {
+      throw new BadRequestException("invalid_tray_connection");
+    }
+    return;
+  }
+
   let url: URL;
   try {
     url = new URL(input.storeUrl.trim());

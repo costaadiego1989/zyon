@@ -1,4 +1,4 @@
-export type CommerceProvider = "shopify" | "woocommerce";
+export type CommerceProvider = "shopify" | "woocommerce" | "nuvemshop" | "tray";
 export type CommerceConnectionStatus = "pending" | "healthy" | "degraded";
 
 export interface ShopifyCommerceCredentials {
@@ -18,9 +18,30 @@ export interface WooCommerceCredentials {
   consumerSecret: string;
 }
 
+export interface NuvemshopCommerceCredentials {
+  merchantId: string;
+  provider: "nuvemshop";
+  storeId: string;
+  accessToken: string;
+  userAgent?: string;
+}
+
+export interface TrayCommerceCredentials {
+  merchantId: string;
+  provider: "tray";
+  apiAddress: string;
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: number;
+  consumerKey: string;
+  consumerSecret: string;
+}
+
 export type MerchantCommerceCredentials =
   | ShopifyCommerceCredentials
-  | WooCommerceCredentials;
+  | WooCommerceCredentials
+  | NuvemshopCommerceCredentials
+  | TrayCommerceCredentials;
 
 export interface SaveShopifyCommerceCredentialsInput {
   merchantId: string;
@@ -39,9 +60,30 @@ export interface SaveWooCommerceCredentialsInput {
   consumerSecret: string;
 }
 
+export interface SaveNuvemshopCommerceCredentialsInput {
+  merchantId: string;
+  provider: "nuvemshop";
+  storeId: string;
+  accessToken: string;
+  userAgent?: string;
+}
+
+export interface SaveTrayCommerceCredentialsInput {
+  merchantId: string;
+  provider: "tray";
+  apiAddress: string;
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiresAt: number;
+  consumerKey: string;
+  consumerSecret: string;
+}
+
 export type SaveMerchantCommerceCredentialsInput =
   | SaveShopifyCommerceCredentialsInput
-  | SaveWooCommerceCredentialsInput;
+  | SaveWooCommerceCredentialsInput
+  | SaveNuvemshopCommerceCredentialsInput
+  | SaveTrayCommerceCredentialsInput;
 
 export interface MerchantCommerceConnection {
   merchantId: string;

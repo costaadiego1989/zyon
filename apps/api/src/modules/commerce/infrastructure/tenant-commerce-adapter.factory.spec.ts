@@ -159,6 +159,60 @@ test("P2 — global-env fallback only serves the declared demo merchant", async 
   }
 });
 
+test("routes Tray orders to the merchant's api_address with access_token query param", async () => {
+  const seen: { url: string; accessTokenInUrl?: boolean }[] = [];
+  const http = new HttpClientService({
+    fetchFn: async (input) => {
+      const url = typeof input === "string" ? input : (input as URL).href;
+      seen.push({
+        url,
+        accessTokenInUrl: url.includes("access_token="),
+      });
+      return new Response(
+        JSON.stringify({
+          result: [
+            {
+              id: 1,
+              name: "Test Product",
+              price: "99.90",
+              cost: "50.00",
+              quantity: 10,
+              image: "",
+              url: "",
+            },
+          ],
+          paging: { current: 1 },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    },
+  });
+  // Tray adapter is not yet implemented — test is a placeholder for future work.
+  const credentials = {
+    merchantId: "m_tray_1",
+    provider: "tray",
+    apiAddress: "https://store.com.br/web_api",
+    accessToken: "tray_token_secret",
+    refreshToken: "tray_refresh_secret",
+    accessTokenExpiresAt: Math.floor(Date.now() / 1000) + 86400,
+    consumerKey: "tray_ck",
+    consumerSecret: "tray_cs",
+  } as unknown as MerchantCommerceCredentials;
+  const connections = new StubConnections({ m_tray_1: credentials });
+  const factory = new TenantCommerceAdapterFactory(connections, http);
+
+  const catalog = await factory.searchCatalog({
+    merchantId: "m_tray_1",
+    limit: 1,
+  });
+
+  assert.equal(catalog.products.length, 1);
+  assert.equal(catalog.products[0]?.title, "Test Product");
+  assert.ok(seen.length > 0);
+  assert.ok(seen[0]?.url.includes("https://store.com.br/web_api"));
+  assert.equal(seen[0]?.accessTokenInUrl, true);
+});
+
 // P2 regression: global-env fallback must be disabled when SHOPIFY_DEMO_MERCHANT_ID
 // is not set, even in development.
 test("P2 — global-env fallback disabled when no demo merchant opt-in configured", async () => {

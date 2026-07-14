@@ -121,6 +121,18 @@ function toCredentials(
       apiVersion: body.api_version,
     };
   }
+  if (body.provider === "tray") {
+    return {
+      merchantId,
+      provider: "tray",
+      apiAddress: body.api_address ?? "",
+      accessToken: body.tray_access_token ?? "",
+      refreshToken: body.tray_refresh_token ?? "",
+      consumerKey: body.tray_consumer_key ?? "",
+      consumerSecret: body.tray_consumer_secret ?? "",
+      accessTokenExpiresAt: Number(body.tray_access_token_expires_at ?? 0),
+    };
+  }
   return {
     merchantId,
     provider: "woocommerce",
