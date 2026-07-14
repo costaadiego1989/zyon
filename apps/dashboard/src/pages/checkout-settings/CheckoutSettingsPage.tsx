@@ -1148,9 +1148,9 @@ export function CheckoutSettingsPage(props: {
           </div>
 
           {/* ── Preview column ── */}
-          <div className="split-panel-preview">
+          <div className="split-panel-preview" style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
             {dirty ? (
-              <span className="cfg-preview-notice">Mostrando configuração salva</span>
+              <div style={{ padding: "8px 14px", background: "var(--warn-soft)", borderBottom: "1px solid var(--border)", font: "11px var(--mono)", color: "var(--warn)", textAlign: "center" }}>Mostrando configuração salva</div>
             ) : null}
             <LivePreviewPanel ref={previewRef} apiBaseUrl={props.apiBaseUrl} me={props.me} />
           </div>

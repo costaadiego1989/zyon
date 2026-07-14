@@ -193,22 +193,22 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
             {settings?.updatedAt ? (
               <> · FAQ atualizado em{" "}
                 <span style={{ fontFamily: "var(--font-data)", fontSize: 12 }}>
-                  {settings.updatedAt}
+                  {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(settings.updatedAt))}
                 </span>
               </>
             ) : null}
           </p>
         </div>
-        <div className="button-row">
-          <button type="button" disabled={loading || busy} onClick={() => void load()}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button type="button" disabled={loading || busy} onClick={() => void load()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer", height: 36 }}>
             <RefreshCw size={14} />
             Atualizar
           </button>
           <button
             type="button"
-            className="primary-action"
             disabled={busy || !settings}
             onClick={() => void save()}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: "linear-gradient(150deg, var(--accent), var(--accent-dark))", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", height: 36 }}
           >
             <Save size={14} />
             {busy ? "Salvando…" : "Salvar FAQ"}

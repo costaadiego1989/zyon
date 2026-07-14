@@ -104,7 +104,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8" />',
         '<meta name="viewport" content="width=device-width, initial-scale=1" />',
         `<link rel="stylesheet" href="${bundleBase}/widget.css" />`,
-        '<style>html,body{margin:0;padding:0;background:#f8fafc;font-family:ui-sans-serif,system-ui,sans-serif;height:100%;overflow:hidden}</style>',
+        '<style>html,body{margin:0;padding:0;background:#0d1117;font-family:ui-sans-serif,system-ui,sans-serif;height:100%;overflow:hidden;display:flex;align-items:stretch}</style>',
         "</head><body>",
         `<script defer src="${bundleBase}/aacp.js"></script>`,
         "<zyon-checkout-agent",
@@ -144,52 +144,44 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
     return (
       <section
         className={className}
-        style={{ display: "flex", flexDirection: "column", gap: 12, width: width ?? "100%", height: "100%" }}
+        style={{ display: "flex", flexDirection: "column", gap: 0, width: width ?? "100%", height: "100%" }}
       >
         {!hideControls && (
-          <div className="preview-controls" style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <div className="segmented">
-              <button
-                type="button"
-                className={presentation === "floating" ? "active" : ""}
-                onClick={() => setPresentation("floating")}
-              >
-                Flutuante
-              </button>
-              <button
-                type="button"
-                className={presentation === "conversational" ? "active" : ""}
-                onClick={() => setPresentation("conversational")}
-              >
-                Conversacional
-              </button>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "10px 14px", background: "var(--bg)", borderRadius: "12px 12px 0 0", borderBottom: "1px solid var(--border)" }}>
+            <div style={{ display: "flex", gap: 3, background: "var(--card)", borderRadius: 7, padding: 3 }}>
+              {(["floating", "conversational"] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPresentation(mode)}
+                  style={{ padding: "6px 12px", borderRadius: 6, border: "none", font: "600 11px var(--sans)", cursor: "pointer", background: presentation === mode ? "var(--accent-soft)" : "transparent", color: presentation === mode ? "var(--accent)" : "var(--faint)" }}
+                >
+                  {mode === "floating" ? "Flutuante" : "Conversacional"}
+                </button>
+              ))}
             </div>
-            <button type="button" disabled={busy} onClick={() => void issueToken()}>
-              <RefreshCw size={15} /> Renovar token
+            <button type="button" disabled={busy} onClick={() => void issueToken()} style={{ marginLeft: "auto", padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", font: "600 11px var(--sans)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+              <RefreshCw size={12} /> Renovar token
             </button>
           </div>
         )}
 
-        {errorMsg ? <p className="panel panel-info">{errorMsg}</p> : null}
+        {errorMsg ? <p style={{ padding: "10px 14px", font: "12px var(--sans)", color: "var(--danger)", background: "var(--danger-soft)", margin: 0 }}>{errorMsg}</p> : null}
 
-        <div
-          className="preview-stage"
-          style={{ height: "100%", minHeight: 600, width: "100%", borderRadius: 8, overflow: "hidden" }}
-        >
+        <div style={{ flex: 1, minHeight: 520, width: "100%", overflow: "hidden", borderRadius: hideControls ? 0 : "0 0 12px 12px" }}>
           {srcDoc ? (
             <iframe
               ref={iframeRef}
               key={`${presentation}:${token}`}
-              className="preview-frame"
               title="Live preview do checkout"
               srcDoc={srcDoc}
               sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-              style={{ width: "100%", height: "100%", border: "none" }}
+              style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             />
           ) : (
-            <p className="page-lead" style={{ padding: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", font: "13px var(--sans)", color: "var(--faint)" }}>
               {busy ? "Emitindo token de preview..." : "Sem preview."}
-            </p>
+            </div>
           )}
         </div>
       </section>
