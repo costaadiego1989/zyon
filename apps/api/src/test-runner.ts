@@ -140,6 +140,8 @@ import "./modules/fulfillment/application/use-cases/fulfillment.use-cases.spec.j
 import "./modules/scraping-agent/application/use-cases/request-price-quote.use-case.spec.js";
 import "./modules/checkout/presentation/http/checkout.shipping-evaluate.e2e-spec.js";
 import "./modules/checkout/infrastructure/adapters/deterministic-chat.e2e-spec.js";
+import "./modules/payment/__tests__/payment-gateway-e2e.spec.js";
+import "./modules/commerce/__tests__/commerce-webhook-e2e.spec.js";
 if (process.env.E2E_SEED_ENABLED === "true") {
   await import("./modules/__test__/test-seed.controller.spec.js");
 }
