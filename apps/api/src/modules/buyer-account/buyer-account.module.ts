@@ -85,7 +85,7 @@ import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
           { rpId: process.env.WEBAUTHN_RP_ID ?? "localhost", rpName: process.env.WEBAUTHN_RP_NAME ?? "Zyon" },
           buyerRepo,
         ),
-      inject: [WebAuthnChallengeService, "BUYER_ACCOUNT_REPOSITORY"],
+      inject: [WebAuthnChallengeService, BUYER_ACCOUNT_REPOSITORY],
     },
     WebAuthnRegisterVerifyUseCase,
     {
