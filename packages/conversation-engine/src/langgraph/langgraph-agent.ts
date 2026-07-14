@@ -22,6 +22,7 @@ import { buildExecutableTools, buildChatTools } from "./chat-tools.js";
 import { ContextManager, type ContextMessage, DEFAULT_CONTEXT_WINDOW } from "./context-manager.js";
 import { CostTracker } from "./cost-tracker.js";
 import { classifyObjection, type Objection } from "../index.js";
+import { injectConfigDocument } from "../config-context/context-injection.js";
 
 export type AgentState =
   | "greeting"
@@ -51,6 +52,7 @@ export interface ChatAgentDeps {
   budgetCents?: number;
   maxTurns?: number;
   systemPrompt?: string;
+  configDocument?: string; // Merchant config context (never trimmed)
 }
 
 export interface ChatAgentInput {
@@ -91,6 +93,7 @@ export class LangGraphChatAgent {
   private readonly contextManager: ContextManager;
   private readonly maxTurns: number;
   private readonly baseSystemPrompt: string;
+  private readonly configDocument?: string;
 
   constructor(deps: ChatAgentDeps) {
     this.provider = deps.provider;
@@ -98,6 +101,7 @@ export class LangGraphChatAgent {
     this.safety = deps.safety;
     this.maxTurns = deps.maxTurns ?? DEFAULT_MAX_TURNS;
     this.baseSystemPrompt = deps.systemPrompt ?? "";
+    this.configDocument = deps.configDocument;
 
     this.costTracker = new CostTracker({
       budgetCents: deps.budgetCents ?? DEFAULT_BUDGET_CENTS,
@@ -134,7 +138,9 @@ export class LangGraphChatAgent {
       ...input.history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
       { role: "user" as const, content: input.userMessage }
     ];
-    const trimmed = this.contextManager.fromMessages(rawMessages);
+    // Inject merchant config document if available (placed as first system message, never trimmed).
+    const withConfig = injectConfigDocument(this.configDocument, rawMessages);
+    const trimmed = this.contextManager.fromMessages(withConfig);
 
     const messages: OpenRouterChatMessage[] = trimmed.map((m) => ({
       role: m.role,

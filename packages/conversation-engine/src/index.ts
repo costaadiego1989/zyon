@@ -32,6 +32,28 @@ export type { CostTrackerOptions, CostTrackerSnapshot } from "./langgraph/index.
 export { ContextManager, DEFAULT_CONTEXT_WINDOW } from "./langgraph/index.js";
 export type { ContextMessage, ContextManagerOptions } from "./langgraph/index.js";
 
+// Config Context Embedding exports
+export {
+  ConfigDocumentBuilder,
+  EmbeddingService,
+  ConfigRegenerationHandler,
+  injectConfigDocument,
+  InMemoryConfigEmbeddingRepository,
+  CONFIG_EMBEDDING_REPOSITORY
+} from "./config-context/index.js";
+export type {
+  MerchantConfigDocument,
+  EmbeddingResult,
+  EmbeddingServicePort,
+  EmbeddingServiceOptions,
+  ConfigEventType,
+  ConfigRegenerationHandlerDeps,
+  ConfigDocumentBuilderPort,
+  ConfigEmbeddingRepository,
+  MerchantConfigEmbeddingRecord,
+  ConfigSources
+} from "./config-context/index.js";
+
 export interface ConversationInput {
   userMessage: string;
   brandVoice: MerchantRules["brandVoice"];

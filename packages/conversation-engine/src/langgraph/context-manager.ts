@@ -61,8 +61,9 @@ export class ContextManager {
   }
 
   /**
-   * Trim messages to fit under maxTokens. System messages are always retained;
-   * non-system messages are kept newest-first until the budget is full.
+   * Trim messages to fit under maxTokens. System messages are always retained
+   * and NEVER truncated (per spec: config context is never trimmed).
+   * Non-system messages are kept newest-first until the budget is full.
    */
   trim(messages: ContextMessage[]): ContextMessage[] {
     if (messages.length === 0) return [];
@@ -76,8 +77,8 @@ export class ContextManager {
       0
     );
 
-    // If even system messages blow the budget, still keep them (the agent must
-    // see the rules), but cut everything else.
+    // System messages are ALWAYS retained in full, even if they exceed maxTokens.
+    // This ensures merchant config context and safety rules are never trimmed.
     if (systemTokens >= this.maxTokens) {
       return [...systemMessages];
     }
