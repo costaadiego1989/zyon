@@ -519,7 +519,8 @@ export type FulfillmentDomainEventType =
   | "shipment.created"
   | "shipment.label-generated"
   | "shipment.status-updated"
-  | "shipment.delivered";
+  | "shipment.delivered"
+  | "shipment.cancelled";
 
 export type CommerceDomainEventType =
   | "commerce.order.pending"

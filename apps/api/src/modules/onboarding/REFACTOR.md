@@ -220,10 +220,11 @@ Coupling is minimal and appropriate. No cross-module dependencies (good isolatio
 
 ## Priority Execution Order
 
-1. **ONB-H1** — Add merchant existence validation
-2. **ONB-H2** — Fix withAccount() mutation
-3. **ONB-M1** — Fix GetOnboardingState mutation
-4. **ONB-H3** — Derive or document event_id idempotency
-5. **ONB-M5** — Make OutboxRepository @Optional with graceful degradation
-6. **ONB-M4** — Add @CurrentMerchant decorator
-7. Remaining items
+1. **[DONE] ONB-H1** — Add merchant existence validation
+2. **[DONE] ONB-H2** — Fix withAccount() mutation
+3. **[DONE] ONB-M1** — Fix GetOnboardingState mutation
+4. **[DONE] ONB-H3** — Derive or document event_id idempotency
+5. **[DONE] ONB-M2** — Log when backfilling missing steps
+6. **[DONE] ONB-M4** — Use currentTenantPrincipal decorator
+7. **ONB-M5** — Make OutboxRepository @Optional with graceful degradation
+8. Remaining items

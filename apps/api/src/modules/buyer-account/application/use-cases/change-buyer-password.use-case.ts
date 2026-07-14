@@ -21,6 +21,10 @@ export class ChangeBuyerPasswordUseCase {
     }
     const account = await this.repo.findByGlobalUserId(input.globalUserId);
     if (!account) throw new NotFoundException("buyer_account_not_found");
+    // C2 fix: phone-only accounts (null passwordHash) cannot change password — they must set one first
+    if (account.passwordHash === null) {
+      throw new UnauthorizedException("phone_only_account_cannot_change_password");
+    }
     const valid = await this.hasher.verify(input.currentPassword, account.passwordHash);
     if (!valid) throw new UnauthorizedException("invalid_current_password");
     const newHash = await this.hasher.hash(input.newPassword);

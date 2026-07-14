@@ -3,6 +3,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
@@ -22,6 +23,8 @@ import {
 
 @Injectable()
 export class CancelOrderUseCase {
+  private readonly logger = new Logger(CancelOrderUseCase.name);
+
   constructor(
     @Inject(OPERATIONS_READ_REPOSITORY)
     private readonly readRepository: OperationsReadRepository,
@@ -44,8 +47,10 @@ export class CancelOrderUseCase {
     const reason = required(input.reason, "cancellation_reason").slice(0, 500);
     const order = await this.readRepository.getOrder(merchantId, orderId);
     if (!order) throw new NotFoundException("order_not_found");
+
+    // C2 fix: idempotency guard — if already cancelled, return cached result
     if (order.status === "cancelled") {
-      return cancellationResponse(order, true, false);
+      return cancellationResponse(order, true, false, null);
     }
 
     // P1 fix: commit the local status change FIRST so the system stays
@@ -61,42 +66,69 @@ export class CancelOrderUseCase {
     });
     if (!cancelled) throw new NotFoundException("order_not_found");
 
-    // Then call the provider.  If this call fails, the local record is
-    // already cancelled and ops can retry the provider side manually.
+    // C2 fix: if another request already cancelled (race condition), return idempotently
+    if (cancelled.idempotent) {
+      return cancellationResponse(
+        { ...order, status: "cancelled", cancelledAt: cancelled.order.cancelledAt, cancellationReason: cancelled.order.cancellationReason },
+        true,
+        false,
+        null,
+      );
+    }
+
+    // C3 fix: wrap provider call in try-catch; emit retry event on failure
     let providerCancellationRequested = false;
+    let providerError: string | null = null;
     if (order.commerceOrderId) {
       if (!this.commerce.cancelOrder) {
         throw new BadRequestException(
           "commerce_order_cancellation_not_supported",
         );
       }
-      await this.commerce.cancelOrder({
-        merchantId,
-        commerceOrderId: order.commerceOrderId,
-        reason,
-        notifyCustomer: input.notifyCustomer,
-        restock: input.restock,
-      });
-      providerCancellationRequested = true;
+      try {
+        await this.commerce.cancelOrder({
+          merchantId,
+          commerceOrderId: order.commerceOrderId,
+          reason,
+          notifyCustomer: input.notifyCustomer,
+          restock: input.restock,
+        });
+        providerCancellationRequested = true;
+      } catch (error) {
+        // C3: do NOT throw — local cancellation is committed; publish retry event
+        providerError = error instanceof Error ? error.message : String(error);
+        this.logger.warn(
+          `[CancelOrder] provider cancellation failed for order=${orderId}: ${providerError}`,
+        );
+        await this.webhooks.publish({
+          merchantId,
+          eventType: "order.cancellation_provider_failed",
+          data: {
+            order_id: orderId,
+            external_order_id: order.externalOrderId,
+            commerce_order_id: order.commerceOrderId,
+            error: providerError,
+          },
+        });
+      }
     }
 
-    if (!cancelled.idempotent) {
-      await this.webhooks.publish({
-        merchantId,
-        eventType: "order.cancelled",
-        occurredAt: cancelled.order.cancelledAt,
-        data: {
-          order: {
-            id: order.id,
-            external_order_id: order.externalOrderId,
-            session_id: order.sessionId,
-            status: "cancelled",
-            cancellation_reason: reason,
-            cancelled_at: cancelled.order.cancelledAt,
-          },
+    // M1 fix: emit audit-grade webhook for cancellation (who/why/when)
+    await this.webhooks.publish({
+      merchantId,
+      eventType: "order.cancelled",
+      occurredAt: cancelled.order.cancelledAt,
+      data: {
+        order: {
+          id: order.id,
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          status: "cancelled",
+          cancellation_reason: reason,
+          cancelled_at: cancelled.order.cancelledAt,
         },
-      });
-    }
+      },
+    });
 
     return cancellationResponse(
       {
@@ -105,8 +137,9 @@ export class CancelOrderUseCase {
         cancelledAt: cancelled.order.cancelledAt,
         cancellationReason: cancelled.order.cancellationReason,
       },
-      cancelled.idempotent,
+      false,
       providerCancellationRequested,
+      providerError,
     );
   }
 }
@@ -171,6 +204,7 @@ function cancellationResponse(
   },
   idempotent: boolean,
   providerCancellationRequested: boolean,
+  providerError: string | null,
 ) {
   return {
     id: order.id,
@@ -180,6 +214,7 @@ function cancellationResponse(
     cancellation_reason: order.cancellationReason ?? null,
     idempotent,
     provider_cancellation_requested: providerCancellationRequested,
+    provider_error: providerError ? { message: providerError } : null,
     payment_action_required:
       order.paymentStatus === "approved" ? "refund_separately" : null,
   };

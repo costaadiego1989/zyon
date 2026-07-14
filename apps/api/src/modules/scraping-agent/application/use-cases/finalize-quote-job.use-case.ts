@@ -1,6 +1,6 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
 import { PRICE_QUOTE_JOB_REPOSITORY, type PriceQuoteJobRepository } from "../../domain/ports/price-quote-job-repository.port.js";
-import { rankResults } from "../../domain/services/result-ranker.service.js";
+import { rankResults, NoAvailableSourcesError } from "../../domain/services/result-ranker.service.js";
 import { decidePurchaseRouting } from "../../domain/policies/purchase-routing.policy.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createScrapingEventEnvelope } from "../../domain/events/scraping-domain-event.js";
@@ -17,7 +17,20 @@ export class FinalizeQuoteJobUseCase {
     if (!job) throw new NotFoundException("price_quote_job_not_found");
 
     const snap = job.snapshot();
-    const rankedIds = rankResults(snap.results);
+
+    // P1 fix: rankResults now throws if no results are in stock. Fail the job instead of completing with empty results.
+    let rankedIds: string[];
+    try {
+      rankedIds = rankResults(snap.results);
+    } catch (err) {
+      if (err instanceof NoAvailableSourcesError) {
+        const failed = job.fail();
+        await this.repo.save(failed);
+        throw new ConflictException("no_available_sources");
+      }
+      throw err;
+    }
+
     const topResult = snap.results.find((r) => r.id === rankedIds[0]);
 
     // P1 fix: was `topResult ? "external" : "external"` — both branches hardcoded "external".

@@ -1,19 +1,35 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { GetOnboardingStateUseCase } from "./get-onboarding-state.use-case.js";
 import { CompleteOnboardingStepUseCase } from "./complete-onboarding-step.use-case.js";
 import { InMemoryOnboardingStateRepository } from "../infrastructure/in-memory-onboarding-state.repository.js";
 import { InMemoryOutboxRepository } from "../../../shared/messaging/infrastructure/in-memory-outbox.repository.js";
+import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
+
+/** Stub merchant repo: all merchants with "mrc_" prefix exist. */
+class StubMerchantRepository {
+  async getProfile(merchantId: string) {
+    if (merchantId.startsWith("mrc_")) return { name: "Test Merchant" };
+    return undefined;
+  }
+  async getRules() { return {}; }
+  async getStripeConnectAccountId() { return undefined; }
+  async setStripeConnectAccountId() {}
+  async updateRules() { return {}; }
+  async updateTheme() { return {}; }
+  async enableCrypto() {}
+}
 
 function setup() {
   const repo = new InMemoryOnboardingStateRepository();
   const outbox = new InMemoryOutboxRepository();
+  const merchants = new StubMerchantRepository() as unknown as MerchantRepository;
   return {
     repo,
     outbox,
     get: new GetOnboardingStateUseCase(repo),
-    complete: new CompleteOnboardingStepUseCase(repo, outbox)
+    complete: new CompleteOnboardingStepUseCase(repo, outbox, merchants)
   };
 }
 
@@ -121,4 +137,15 @@ test("CompleteOnboardingStep allows steps completed in canonical order", async (
   // embed second — predecessors satisfied
   const s2 = await complete.execute({ merchantId: "mrc_1", step: "embed" });
   assert.equal(s2.steps.find((s) => s.id === "embed")?.status, "completed");
+});
+
+test("ONB-H1: CompleteOnboardingStep rejects non-existent merchant", async () => {
+  const { complete } = setup();
+  await assert.rejects(
+    () => complete.execute({ merchantId: "nonexistent", step: "checkout_config" }),
+    (err: unknown) => {
+      assert.ok(err instanceof NotFoundException);
+      return true;
+    }
+  );
 });

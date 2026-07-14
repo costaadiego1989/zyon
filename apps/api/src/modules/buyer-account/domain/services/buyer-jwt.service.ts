@@ -4,6 +4,7 @@ import { requireSecret } from "../../../../shared/config/secret-config.js";
 export interface BuyerJwtPayload {
   sub: string;
   email: string;
+  merchantId?: string; // H3 fix: bind buyer to merchant when issued via session
   role: "buyer";
   aud: "buyer";
   iat: number;
@@ -13,6 +14,7 @@ export interface BuyerJwtPayload {
 export interface BuyerPrincipal {
   globalUserId: string;
   email: string;
+  merchantId?: string; // H3 fix: present when JWT was issued for a specific merchant
 }
 
 export class BuyerJwtService {
@@ -28,6 +30,7 @@ export class BuyerJwtService {
     const payload: BuyerJwtPayload = {
       sub: principal.globalUserId,
       email: principal.email,
+      ...(principal.merchantId ? { merchantId: principal.merchantId } : {}), // H3 fix
       role: "buyer",
       aud: "buyer",
       iat: nowSeconds,
@@ -49,7 +52,8 @@ export class BuyerJwtService {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as BuyerJwtPayload;
     if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
     if (decoded.aud !== "buyer" || decoded.role !== "buyer") throw new Error("jwt_wrong_audience");
-    return { globalUserId: decoded.sub, email: decoded.email };
+    // H3 fix: include merchantId if present in claims
+    return { globalUserId: decoded.sub, email: decoded.email, merchantId: decoded.merchantId };
   }
 
   expiresIn(): number {

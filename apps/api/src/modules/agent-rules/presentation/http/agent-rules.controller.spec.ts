@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { InMemoryAgentRulesRepository } from "../../infrastructure/in-memory-agent-rules.repository.js";
+import type { CheckoutSettingsContextPort } from "../../domain/ports/checkout-settings-context.port.js";
 import {
   GetAgentContextUseCase,
   GetAgentRulesUseCase,
@@ -10,10 +11,11 @@ import { AgentRulesController } from "./agent-rules.controller.js";
 
 test("AgentRulesController manages authenticated user's agent rules", async () => {
   const repository = new InMemoryAgentRulesRepository();
+  const noopCheckoutPort: CheckoutSettingsContextPort = { async getContext() { return undefined; } };
   const controller = new AgentRulesController(
     new GetAgentRulesUseCase(repository),
     new UpdateAgentRulesUseCase(repository),
-    new GetAgentContextUseCase(repository)
+    new GetAgentContextUseCase(repository, noopCheckoutPort)
   );
   const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
 

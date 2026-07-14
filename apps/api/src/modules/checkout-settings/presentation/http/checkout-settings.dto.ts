@@ -1,0 +1,170 @@
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+} from "@nestjs/swagger";
+import { Type } from "class-transformer";
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+  MinLength,
+  ValidateNested,
+} from "class-validator";
+
+/**
+ * CSS-H3: Dedicated DTO with bounds validation.
+ * Ensures API rejects invalid input with 400, not 500 from entity validation.
+ */
+
+class InterventionPolicyDto {
+  @ApiPropertyOptional({ minimum: 0, maximum: 1 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  minimumAbandonmentScore?: number;
+
+  @ApiPropertyOptional({ minimum: 30 })
+  @IsOptional()
+  @IsNumber()
+  @Min(30)
+  cooldownSeconds?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 10 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  maxInterventionsPerSession?: number;
+}
+
+class WidgetBehaviorDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  openWidgetOnTrigger?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  startMinimized?: boolean;
+
+  @ApiPropertyOptional({ enum: ["bottom_right", "bottom_left", "top_right", "top_left"] })
+  @IsOptional()
+  @IsIn(["bottom_right", "bottom_left", "top_right", "top_left"])
+  position?: string;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  initialDelaySeconds?: number;
+}
+
+class TriggerRuleDto {
+  @ApiProperty()
+  @IsString()
+  trigger!: string;
+
+  @ApiProperty()
+  @IsBoolean()
+  enabled!: boolean;
+
+  @ApiProperty({ minimum: 0, maximum: 100 })
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  priority!: number;
+}
+
+class SuppressionRulesDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  suppressedSteps?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  blockedRegions?: string[];
+
+  @ApiPropertyOptional({ minimum: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minimumCartValue?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  suppressAfterOfferAccepted?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  respectBuyerOptOut?: boolean;
+}
+
+class HandoffDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional({ minLength: 1, maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(500)
+  message?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  channels?: string[];
+}
+
+export class CheckoutSettingsPatchDto {
+  @ApiPropertyOptional({ enum: ["silent_until_trigger", "proactive", "manual_only"] })
+  @IsOptional()
+  @IsIn(["silent_until_trigger", "proactive", "manual_only"])
+  mode?: "silent_until_trigger" | "proactive" | "manual_only";
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => WidgetBehaviorDto)
+  widgetBehavior?: WidgetBehaviorDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => InterventionPolicyDto)
+  interventionPolicy?: InterventionPolicyDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TriggerRuleDto)
+  triggerRules?: TriggerRuleDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => SuppressionRulesDto)
+  suppressionRules?: SuppressionRulesDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => HandoffDto)
+  handoff?: HandoffDto;
+}

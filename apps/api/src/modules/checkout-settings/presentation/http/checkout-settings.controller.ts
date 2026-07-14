@@ -8,6 +8,7 @@ import {
   Req,
   Res,
   UseGuards,
+  ValidationPipe,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -28,6 +29,7 @@ import {
   ResetCheckoutSettingsUseCase,
   UpdateCheckoutSettingsUseCase
 } from "../../application/checkout-settings.use-cases.js";
+import { CheckoutSettingsPatchDto } from "./checkout-settings.dto.js";
 
 @ApiTags("Checkout configuration")
 @ApiBearerAuth("service_api_key")
@@ -52,6 +54,7 @@ export class CheckoutSettingsController {
     const settings = await this.getSettings.execute(
       tenantId(request),
     );
+    // CSS-C2: Set ETag header on GET so clients can use it for conditional PUT
     this.entityTags.set(response, settings);
     return settings;
   }
@@ -63,14 +66,14 @@ export class CheckoutSettingsController {
     @Req() request: unknown,
     @Res({ passthrough: true }) response: Response,
     @Headers("if-match") ifMatch: string | undefined,
-    @Body() body: CheckoutSettingsPatch,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true })) body: CheckoutSettingsPatchDto,
   ) {
     const merchantId = tenantId(request);
     const current = await this.getSettings.execute(merchantId);
     this.entityTags.assertIfMatch(ifMatch, current);
     const updated = await this.updateSettings.execute(
       merchantId,
-      body,
+      body as unknown as CheckoutSettingsPatch,
       current.updatedAt,
     );
     this.entityTags.set(response, updated);

@@ -57,6 +57,7 @@ export type TenantWebhookEventType =
   | "order.created"
   | "order.approved"
   | "order.cancelled"
+  | "order.cancellation_provider_failed"
   | "payment.pending"
   | "payment.approved"
   | "customer.upserted"

@@ -31,7 +31,8 @@ test("agent rules use cases create defaults and update user-specific agent conte
   const repository = new InMemoryAgentRulesRepository();
   const getRules = new GetAgentRulesUseCase(repository);
   const updateRules = new UpdateAgentRulesUseCase(repository);
-  const getContext = new GetAgentContextUseCase(repository);
+  const noopCheckoutPort: CheckoutSettingsContextPort = { async getContext() { return undefined; } };
+  const getContext = new GetAgentContextUseCase(repository, noopCheckoutPort);
   const principal = { merchantId: "mrc_1", userId: "usr_1" };
 
   const defaults = await getRules.execute(principal);
@@ -51,7 +52,8 @@ test("agent rules use cases create defaults and update user-specific agent conte
 test("agent rules use cases can manage named merchant agents", async () => {
   const repository = new InMemoryAgentRulesRepository();
   const updateRules = new UpdateAgentRulesUseCase(repository);
-  const getContext = new GetAgentContextUseCase(repository);
+  const noopCheckoutPort: CheckoutSettingsContextPort = { async getContext() { return undefined; } };
+  const getContext = new GetAgentContextUseCase(repository, noopCheckoutPort);
 
   await updateRules.execute(
     { merchantId: "mrc_1", userId: "usr_1" },
@@ -66,7 +68,8 @@ test("agent rules use cases can manage named merchant agents", async () => {
 
 test("agent rules context can create a merchant default without user identity", async () => {
   const repository = new InMemoryAgentRulesRepository();
-  const getContext = new GetAgentContextUseCase(repository);
+  const noopCheckoutPort: CheckoutSettingsContextPort = { async getContext() { return undefined; } };
+  const getContext = new GetAgentContextUseCase(repository, noopCheckoutPort);
 
   const context = await getContext.execute({ merchantId: "mrc_1" });
 
@@ -118,8 +121,6 @@ test("UpdateAgentRules rejects disabling forbidUnauthorizedFreeShipping", async 
   );
 });
 
-// --- Regression tests for BUG P3: GET read path must NOT persist ---
-
 test("GetAgentRules does NOT persist on read (side-effect-free)", async () => {
   const repository = new InMemoryAgentRulesRepository();
   const getRules = new GetAgentRulesUseCase(repository);
@@ -127,19 +128,18 @@ test("GetAgentRules does NOT persist on read (side-effect-free)", async () => {
 
   await getRules.execute(principal);
 
-  // Nothing should have been saved — getDefault returns undefined
   const saved = await repository.getDefault("mrc_new", "usr_new");
   assert.equal(saved, undefined);
 });
 
 test("GetAgentContext does NOT persist on read (side-effect-free)", async () => {
   const repository = new InMemoryAgentRulesRepository();
-  const getContext = new GetAgentContextUseCase(repository);
+  const noopCheckoutPort: CheckoutSettingsContextPort = { async getContext() { return undefined; } };
+  const getContext = new GetAgentContextUseCase(repository, noopCheckoutPort);
   const principal = { merchantId: "mrc_new2", userId: "usr_new2" };
 
   await getContext.execute(principal);
 
-  // Nothing should have been saved — getDefault returns undefined
   const saved = await repository.getDefault("mrc_new2", "usr_new2");
   assert.equal(saved, undefined);
 });

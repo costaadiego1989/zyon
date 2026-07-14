@@ -26,20 +26,20 @@ test("MerchantController reads and updates rules scoped by authenticated merchan
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
   const controller = buildController(repository);
-  const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
+  const merchantId = "mrc_1";
 
-  assert.equal((await controller.profile(request)).id, "mrc_1");
-  assert.equal((await controller.update(request, { maxDiscountPercent: 15 })).maxDiscountPercent, 15);
-  assert.equal((await controller.rules(request)).maxDiscountPercent, 15);
+  assert.equal((await controller.profile(merchantId)).id, "mrc_1");
+  assert.equal((await controller.update(merchantId, { maxDiscountPercent: 15 })).maxDiscountPercent, 15);
+  assert.equal((await controller.rules(merchantId)).maxDiscountPercent, 15);
 });
 
 test("MerchantController returns default theme and persists overrides per merchant", async () => {
   const repository = new InMemoryMerchantRepository();
   repository.seedProfile({ id: "mrc_1", name: "Demo Store" });
   const controller = buildController(repository);
-  const request = { user: { userId: "usr_1", merchantId: "mrc_1", email: "owner@example.com", role: "owner" } };
+  const merchantId = "mrc_1";
 
-  const initial = await controller.theme(request);
+  const initial = await controller.theme(merchantId);
   assert.deepEqual(initial, DEFAULT_MERCHANT_THEME);
 
   const next = {
@@ -48,10 +48,10 @@ test("MerchantController returns default theme and persists overrides per mercha
     fontFamily: "Manrope, system-ui, sans-serif",
     logoUrl: "https://cdn.example/logo.png"
   };
-  const saved = await controller.putTheme(request, next);
+  const saved = await controller.putTheme(merchantId, next);
   assert.equal(saved.accentColor, "#FF0066");
 
-  const reloaded = await controller.theme(request);
+  const reloaded = await controller.theme(merchantId);
   assert.equal(reloaded.fontFamily, "Manrope, system-ui, sans-serif");
 });
 

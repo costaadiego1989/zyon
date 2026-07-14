@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { TRACKING_EVENT_REPOSITORY, type TrackingEventRepository } from "../../domain/ports/tracking-event-repository.port.js";
 import { TrackingEventEntity } from "../../domain/entities/tracking-event.entity.js";
@@ -23,6 +23,14 @@ export class RecordTrackingEventUseCase {
     carrier_raw?: Record<string, unknown>;
     occurred_at: Date;
   }) {
+    // L3 fix: validate carrier_raw size to prevent unbounded JSON payloads.
+    if (input.carrier_raw) {
+      const rawSize = JSON.stringify(input.carrier_raw).length;
+      if (rawSize > 16384) {
+        throw new BadRequestException("carrier_raw_payload_too_large");
+      }
+    }
+
     const shipment = await this.shipments.findById(input.shipment_id, input.merchant_id);
     if (!shipment) throw new NotFoundException("shipment_not_found");
 
@@ -33,7 +41,24 @@ export class RecordTrackingEventUseCase {
     // Accept it idempotently: record the tracking event for observability but
     // skip the entity transition (which would throw INVALID_TRANSITION).
     const isSameStatus = oldStatus === input.new_status;
-    const updated = isSameStatus ? shipment : shipment.transition(input.new_status);
+
+    // H2 fix: pre-validate transition before calling entity.transition().
+    // If the status change is invalid, return 400 Bad Request instead of
+    // letting the domain throw an Error that surfaces as 500.
+    let updated: typeof shipment;
+    if (isSameStatus) {
+      updated = shipment;
+    } else {
+      try {
+        updated = shipment.transition(input.new_status);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "shipment_transition_failed";
+        if (msg.startsWith("INVALID_TRANSITION")) {
+          throw new BadRequestException(`invalid_shipment_transition: ${oldStatus} → ${input.new_status}`);
+        }
+        throw err;
+      }
+    }
 
     if (!isSameStatus) {
       await this.shipments.save(updated);

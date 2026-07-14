@@ -223,11 +223,11 @@ catalog
 
 ## Priority Execution Order
 
-1. **CAT-H1** — Introduce AddItemToCartPort
-2. **CAT-H3** — Introduce CrossSellResolverPort
-3. **CAT-H4** — Reduce module imports (only import what's needed)
-4. **CAT-M3** — Extract shared mapper `toSuggestedProduct`
-5. **CAT-H5** — Extract CartItemUpdater class
+1. **[DONE] CAT-H1** — Introduce AddItemToCartPort
+2. **[DONE] CAT-H3** — Introduce CrossSellResolverPort
+3. **[DONE] CAT-H4** — Reduce module imports (only import what's needed)
+4. **[DONE] CAT-M3** — Extract shared mapper `toSuggestedProduct`
+5. **[DONE] CAT-H5** — Extract CartItemUpdater class
 6. **CAT-M6** — Move CROSS_SELL_SKUS to config
 7. **CAT-M1** — Add validation decorators to widget API
 8. **CAT-H2** — Evaluate and remove or enrich adapter

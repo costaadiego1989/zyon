@@ -51,11 +51,12 @@ export class RegisterBuyerUseCase {
   }
 }
 
-export function toBuyerAuthResponse(account: BuyerAccount, jwt: BuyerJwtService): BuyerAuthResponse {
+export function toBuyerAuthResponse(account: BuyerAccount, jwt: BuyerJwtService, merchantId?: string): BuyerAuthResponse {
   return {
     globalUserId: account.globalUserId,
     email: account.email,
-    accessToken: jwt.sign({ globalUserId: account.globalUserId, email: account.email }),
+    // H3 fix: include merchantId in JWT claims when issued via session
+    accessToken: jwt.sign({ globalUserId: account.globalUserId, email: account.email, merchantId }),
     tokenType: "Bearer",
     expiresIn: jwt.expiresIn(),
   };

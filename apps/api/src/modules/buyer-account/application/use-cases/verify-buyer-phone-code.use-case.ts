@@ -9,6 +9,7 @@ import { toBuyerAuthResponse, type BuyerAuthResponse } from "./register-buyer.us
 export interface VerifyBuyerPhoneCodeRequest {
   phone: string;
   code: string;
+  countryCode?: string; // C3 fix: optional country code for disambiguating phone numbers
 }
 
 @Injectable()
@@ -21,9 +22,11 @@ export class VerifyBuyerPhoneCodeUseCase {
 
   async execute(input: VerifyBuyerPhoneCodeRequest): Promise<BuyerAuthResponse> {
     const normalized = input.phone.replace(/\D/g, "");
+    const countryCode = input.countryCode ?? "BR"; // C3 fix: default country code
+    const phoneKey = `${countryCode}:${normalized}`; // C3 fix: include country for unambiguous OTP lookup
 
     // B3 (P1): Fetch from persistent store (not in-process Map).
-    const record = await this.otpStore.findActive(normalized);
+    const record = await this.otpStore.findActive(phoneKey);
     if (!record) throw new UnauthorizedException("otp_expired");
 
     // B2 (P0): Enforce per-OTP attempt lockout before checking the code.
@@ -37,25 +40,24 @@ export class VerifyBuyerPhoneCodeUseCase {
     const inputHash = createHash("sha256").update(input.code.trim()).digest("hex");
     if (inputHash !== record.codeHash) {
       // Increment attempt counter before throwing so lockout is enforced.
-      await this.otpStore.incrementAttempts(normalized);
+      await this.otpStore.incrementAttempts(phoneKey);
       throw new UnauthorizedException("otp_invalid");
     }
 
     // Success: mark the OTP consumed so it cannot be reused.
-    await this.otpStore.consume(normalized);
+    await this.otpStore.consume(phoneKey);
 
     let account = await this.repo.findByPhone(normalized);
     if (!account) {
       const now = new Date();
-      // B6 (P3): Phone-only accounts use a sentinel passwordHash instead of a
-      // raw UUID so code inspections make the intent unambiguous. The hash is
-      // never compared during login (phone path uses OTP, not password).
+      // C2 fix: use null passwordHash for phone-only accounts instead of sentinel
       account = new BuyerAccount({
         globalUserId: `buyer_${crypto.randomUUID().replace(/-/g, "")}`,
         email: `phone_${normalized}@buyer.aacp`,
-        passwordHash: "phone_only_no_password",
+        passwordHash: null,
         displayName: `+${normalized}`,
         phone: normalized,
+        phoneCountryCode: countryCode, // C3 fix: store country code
         createdAt: now,
         updatedAt: now,
       });

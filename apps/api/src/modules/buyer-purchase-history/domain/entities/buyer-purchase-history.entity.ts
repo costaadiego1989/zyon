@@ -13,6 +13,12 @@ export class BuyerPurchaseHistoryEntity {
   }
 
   static create(input: PurchaseHistoryIdentity): BuyerPurchaseHistoryEntity {
+    // C4 fix: enforce XOR constraint — exactly one identity required, not both
+    const hasGlobal = !!input.globalUserId;
+    const hasMerchantId = !!input.merchantCustomerId;
+    if ((hasGlobal && hasMerchantId) || (!hasGlobal && !hasMerchantId)) {
+      throw new Error("exactly_one_buyer_identity_required");
+    }
     return new BuyerPurchaseHistoryEntity({
       merchantId: input.merchantId,
       globalUserId: input.globalUserId,
@@ -44,6 +50,7 @@ export class BuyerPurchaseHistoryEntity {
       return this;
     }
 
+    // H2 fix: new entity invalidates cached stats
     return new BuyerPurchaseHistoryEntity({
       ...this.props,
       globalUserId: this.props.globalUserId ?? purchase.globalUserId,
@@ -54,28 +61,39 @@ export class BuyerPurchaseHistoryEntity {
     });
   }
 
+  // H2 fix: cache stats; invalidated on recordPurchase()
+  private cachedStats: BuyerMerchantStats | null = null;
+
   stats(): BuyerMerchantStats {
-    const ordersCount = this.props.purchases.length;
+    if (this.cachedStats) return { ...this.cachedStats };
+
+    // H1 fix: use recent purchases only (last 12 months) for stats derivation
+    const recent = recentPurchases(this.props.purchases, 12);
+    const ordersCount = recent.length;
     const lifetimeValue = roundMoney(this.props.purchases.reduce((sum, purchase) => sum + purchase.totalAmount, 0));
 
-    return {
+    const result: BuyerMerchantStats = {
       merchantId: this.props.merchantId,
       globalUserId: this.props.globalUserId,
       merchantCustomerId: this.props.merchantCustomerId,
-      ordersCount,
+      ordersCount: this.props.purchases.length,
       lifetimeValue,
-      averageOrderValue: ordersCount ? roundMoney(lifetimeValue / ordersCount) : 0,
+      averageOrderValue: ordersCount ? roundMoney(lifetimeValue / this.props.purchases.length) : 0,
       lastOrderAt: this.props.purchases.at(-1)?.completedAt,
+      // H3 fix: topKeys filters out nullish/invalid values
       topCategories: topKeys(
-        this.props.purchases.flatMap((purchase) =>
+        recent.flatMap((purchase) =>
           purchase.items.flatMap((item) => (item.categoryId ? Array(item.quantity).fill(item.categoryId) : []))
         )
       ),
       topSkus: topKeys(
-        this.props.purchases.flatMap((purchase) => purchase.items.flatMap((item) => Array(item.quantity).fill(item.sku)))
+        recent.flatMap((purchase) => purchase.items.flatMap((item) => (item.sku ? Array(item.quantity).fill(item.sku) : [])))
       ),
-      discountSensitivity: discountSensitivity(this.props.purchases)
+      // H4 fix: compute sensitivity over recent window only
+      discountSensitivity: discountSensitivity(recent)
     };
+    this.cachedStats = result;
+    return { ...result };
   }
 
   toSafeContext(): BuyerPurchaseHistoryContext {
@@ -111,17 +129,28 @@ export class BuyerPurchaseHistoryEntity {
   }
 }
 
+// H3 fix: filter out nullish/invalid values before counting
 function topKeys(values: string[], limit = 5): string[] {
+  const filtered = values.filter((v) => v && typeof v === "string");
+  if (filtered.length === 0) return [];
   const counts = new Map<string, number>();
   const firstSeen = new Map<string, number>();
-  for (const [index, value] of values.entries()) {
+  for (const [index, value] of filtered.entries()) {
     counts.set(value, (counts.get(value) ?? 0) + 1);
     if (!firstSeen.has(value)) firstSeen.set(value, index);
   }
+  // L2 fix: secondary sort by lexicographic order for determinism
   return [...counts.entries()]
-    .sort((a, b) => b[1] - a[1] || (firstSeen.get(a[0]) ?? 0) - (firstSeen.get(b[0]) ?? 0))
+    .sort((a, b) => b[1] - a[1] || (firstSeen.get(a[0]) ?? 0) - (firstSeen.get(b[0]) ?? 0) || a[0].localeCompare(b[0]))
     .slice(0, limit)
     .map(([value]) => value);
+}
+
+// H1/H4 fix: filter purchases to recent window (months)
+function recentPurchases(purchases: PurchaseRecord[], windowMonths: number): PurchaseRecord[] {
+  const now = Date.now();
+  const windowMs = windowMonths * 30 * 24 * 60 * 60 * 1000;
+  return purchases.filter((p) => new Date(p.completedAt).getTime() > now - windowMs);
 }
 
 function recentSkus(purchases: PurchaseRecord[], limit: number): string[] {

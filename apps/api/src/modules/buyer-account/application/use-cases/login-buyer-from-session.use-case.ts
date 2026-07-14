@@ -39,7 +39,8 @@ export class LoginBuyerFromSessionUseCase {
         cpf: customer.cpf
       });
       if (hydrated !== existing) await this.buyers.save(hydrated);
-      return toBuyerAuthResponse(hydrated, this.jwt);
+      // H3 fix: include merchant_id in JWT claims so buyer is bound to merchant
+      return toBuyerAuthResponse(hydrated, this.jwt, input.merchant_id);
     }
 
     // Auto-create buyer account reusing the checkout session's globalUserId
@@ -59,7 +60,8 @@ export class LoginBuyerFromSessionUseCase {
       updatedAt: now,
     });
     await this.buyers.save(account);
-    return toBuyerAuthResponse(account, this.jwt);
+    // H3 fix: include merchant_id in JWT claims so buyer is bound to merchant
+    return toBuyerAuthResponse(account, this.jwt, input.merchant_id);
   }
 }
 

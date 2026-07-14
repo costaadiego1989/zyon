@@ -16,9 +16,9 @@ export interface QuoteShippingInput {
   destination_zip: string;
   cart_total: number;
   /**
-   * @deprecated Ignored — the free-shipping threshold is always sourced from
-   * merchant rules (shipping-engine invariant). Kept in the interface for
-   * backward-compat with existing callers; will be removed in a follow-up.
+   * @deprecated C1 fix: IGNORED at runtime. Free-shipping threshold is always
+   * derived from merchant rules. Field kept only for type-level backward compat
+   * with existing callers; will be removed once all callers drop it.
    */
   free_shipping_threshold?: number;
   origin_zip?: string;
@@ -41,22 +41,32 @@ export class QuoteShippingUseCase {
 
   async execute(input: QuoteShippingInput) {
     const cartTotalCents = Math.round(input.cart_total * 100);
-    const quoteKey = buildQuoteKey({
+    const baseKey = buildQuoteKey({
       merchantId: input.merchant_id,
       destinationZip: input.destination_zip,
       cartTotalCents,
       items: input.items
     });
 
+    // M1 fix: append merchant rules hash to quote key so that cache invalidates
+    // when merchant updates free-shipping configuration.
+    const rules = this.merchantRules
+      ? await this.merchantRules.getRules(input.merchant_id)
+      : null;
+    const rulesHash = rules ? computeRulesHash(rules) : "none";
+    const quoteKey = `${baseKey}:rules:${rulesHash}`;
+
     const reusable = await this.quotes.findValidByKey(quoteKey, input.merchant_id);
     if (reusable) {
-      // P3 fix (session_id leak): rebind session_id to the requesting session
-      // so that a reused quote snapshot never carries a foreign session_id.
+      // C2 fix (session_id leak): do NOT rebind session_id on quote reuse.
+      // If the quote belongs to a different session, it is stale in the current
+      // session context and should not be reused. Validate session_id matches;
+      // if not, fall through to generate a fresh quote.
       const snap = reusable.snapshot();
-      if (snap.session_id !== input.session_id) {
-        return { ...snap, session_id: input.session_id };
+      if (snap.session_id === input.session_id) {
+        return snap; // Same session; safe to reuse
       }
-      return snap;
+      // Quote belongs to a different session; ignore cache and create fresh
     }
 
     let quote = ShippingQuoteEntity.create({
@@ -106,10 +116,7 @@ export class QuoteShippingUseCase {
     // P0 fix: always derive the free-shipping threshold from merchant rules,
     // never from the caller-supplied input field (which would let a client
     // bypass the shipping-engine subsidy invariant).
-    const rules = this.merchantRules
-      ? await this.merchantRules.getRules(input.merchant_id)
-      : null;
-
+    // Note: `rules` already fetched above (M1 fix) — reuse cached result.
     const freeShippingEnabled = rules?.allowFreeShipping ?? false;
     const freeThreshold = rules?.freeShippingMinCartValue ?? Infinity;
 
@@ -195,4 +202,14 @@ function normalize(value: string): string {
     .replace(/\p{Diacritic}/gu, "")
     .toLowerCase()
     .trim();
+}
+
+/**
+ * M1: Simple deterministic hash from merchant rules relevant to shipping.
+ * Used to bust quote cache when merchant changes free-shipping config.
+ */
+function computeRulesHash(rules: { allowFreeShipping?: boolean; freeShippingMinCartValue?: number }): string {
+  const enabled = rules.allowFreeShipping ? "1" : "0";
+  const threshold = rules.freeShippingMinCartValue ?? 0;
+  return `${enabled}:${threshold}`;
 }

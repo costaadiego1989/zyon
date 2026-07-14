@@ -61,10 +61,19 @@ export class OnboardingStateEntity {
 
   static rehydrate(snapshot: OnboardingStateSnapshot): OnboardingStateEntity {
     // Backfill any step missing from persisted data (forward-compatible).
+    // ONB-M2: Log warning if backfilling occurs — helps detect data corruption.
     const steps = emptySteps();
+    let backfilled = false;
     for (const id of ONBOARDING_STEP_ORDER) {
       const persisted = snapshot.steps?.[id];
-      if (persisted) steps[id] = { status: persisted.status, completedAt: persisted.completedAt };
+      if (persisted) {
+        steps[id] = { status: persisted.status, completedAt: persisted.completedAt };
+      } else {
+        backfilled = true;
+      }
+    }
+    if (backfilled) {
+      console.warn(`[OnboardingState] Backfilled missing steps for merchant ${snapshot.merchantId}`);
     }
     return new OnboardingStateEntity({ ...snapshot, steps });
   }

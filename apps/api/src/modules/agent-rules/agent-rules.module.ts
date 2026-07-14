@@ -29,6 +29,7 @@ import { AgentRulesController } from "./presentation/http/agent-rules.controller
     },
     { provide: CHECKOUT_SETTINGS_CONTEXT_PORT, useExisting: CheckoutSettingsContextAdapter }
   ],
-  exports: [GetAgentContextUseCase]
+  // M2 fix: export all three use-cases for composability from other modules.
+  exports: [GetAgentRulesUseCase, UpdateAgentRulesUseCase, GetAgentContextUseCase]
 })
 export class AgentRulesModule {}

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, BadRequestException } from "@nestjs/common";
 import type { CarrierPort, ShippingContext } from "../../domain/ports/carrier.port.js";
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 
@@ -29,17 +29,19 @@ export class MelhorEnvioCarrierAdapter implements CarrierPort {
     const fromZip = fromZipRaw.replace(/\D/g, "");
     if (toZip.length < 8 || fromZip.length < 8) return [];
 
-    const weightKg = Math.max(0.1, (ctx.packages ?? []).reduce((sum, p) => sum + (p.weightKg ?? 0.3) * (p.quantity ?? 1), 0));
+    // H2 fix: require at least one package or fail.
+    // Arbitrary defaults lead to wrong quotes; better to error than guess.
+    if (!ctx.packages || ctx.packages.length === 0) {
+      throw new BadRequestException("shipping_packages_required_for_quote");
+    }
 
-    const products = (ctx.packages ?? []).length > 0
-      ? ctx.packages.map((p) => ({
-          weight: Math.max(0.1, p.weightKg ?? 0.3),
-          width: Math.max(1, p.widthCm ?? 15),
-          height: Math.max(1, p.heightCm ?? 10),
-          length: Math.max(1, p.lengthCm ?? 20),
-          quantity: p.quantity ?? 1
-        }))
-      : [{ weight: weightKg, width: 15, height: 10, length: 20, quantity: 1 }];
+    const products = ctx.packages.map((p) => ({
+      weight: Math.max(0.1, p.weightKg ?? 0.3),
+      width: Math.max(1, p.widthCm ?? 15),
+      height: Math.max(1, p.heightCm ?? 10),
+      length: Math.max(1, p.lengthCm ?? 20),
+      quantity: p.quantity ?? 1
+    }));
 
     const body = {
       from: { postal_code: fromZip },

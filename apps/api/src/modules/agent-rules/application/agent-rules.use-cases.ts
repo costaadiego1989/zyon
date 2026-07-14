@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { AgentRulesEntity } from "../domain/entities/agent-rules.entity.js";
 import type { AgentContext, AgentRules, AgentRulesPatch } from "../domain/agent-rules.types.js";
 import {
@@ -64,9 +64,8 @@ export class UpdateAgentRulesUseCase {
 export class GetAgentContextUseCase {
   constructor(
     @Inject(AGENT_RULES_REPOSITORY) private readonly repository: AgentRulesRepository,
-    @Optional()
     @Inject(CHECKOUT_SETTINGS_CONTEXT_PORT)
-    private readonly checkoutSettings?: CheckoutSettingsContextPort
+    private readonly checkoutSettings: CheckoutSettingsContextPort
   ) {}
 
   async execute(principal: AgentRulesPrincipal, agentId?: string): Promise<AgentContext> {
@@ -80,13 +79,15 @@ export class GetAgentContextUseCase {
         merchantId: principal.merchantId,
         userId: principal.userId
       }).snapshot();
-      return this.withCheckoutContext(AgentRulesEntity.rehydrate(defaultRules).toContext(), principal.merchantId);
+      return this.enrichWithCheckoutContext(AgentRulesEntity.rehydrate(defaultRules).toContext(), principal.merchantId);
     }
-    return this.withCheckoutContext(AgentRulesEntity.rehydrate(rules).toContext(), principal.merchantId);
+    return this.enrichWithCheckoutContext(AgentRulesEntity.rehydrate(rules).toContext(), principal.merchantId);
   }
 
-  private async withCheckoutContext(context: AgentContext, merchantId: string): Promise<AgentContext> {
-    const checkoutContext = await this.checkoutSettings?.getContext(merchantId);
+  private async enrichWithCheckoutContext(context: AgentContext, merchantId: string): Promise<AgentContext> {
+    // Adapter is required (not optional). Call may still return undefined at runtime — that is an explicit
+    // no-op and does not silently degrade the agent context.
+    const checkoutContext = await this.checkoutSettings.getContext(merchantId);
     if (!checkoutContext) return context;
     return {
       ...context,

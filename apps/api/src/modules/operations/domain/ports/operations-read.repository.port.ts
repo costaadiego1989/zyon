@@ -21,6 +21,8 @@ export interface OrderSummary {
   completedAt: string;
   cancelledAt?: string;
   cancellationReason?: string;
+  /** C1 fix: ISO timestamp of last event processed for this order */
+  lastEventAt?: string;
 }
 
 export interface OrderTimelineEntry {

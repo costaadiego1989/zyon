@@ -22,8 +22,10 @@ export class GetOnboardingStateUseCase {
     // First read: the merchant already exists (authenticated), so the account
     // step is satisfied. Return computed default in-memory — do NOT persist on
     // read (lazy-persist on first write is intentional, keeps GET side-effect-free).
-    const created = OnboardingStateEntity.create(id);
-    created.completeStep("account");
-    return created.toResponse();
+    // ONB-M1: Use snapshot approach to avoid mutating the entity reference.
+    const now = new Date();
+    const snapshot = OnboardingStateEntity.create(id, now).toSnapshot();
+    snapshot.steps["account"] = { status: "completed", completedAt: now.toISOString() };
+    return OnboardingStateEntity.rehydrate(snapshot).toResponse();
   }
 }

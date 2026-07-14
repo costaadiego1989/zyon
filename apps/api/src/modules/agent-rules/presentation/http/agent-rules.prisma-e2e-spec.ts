@@ -14,6 +14,7 @@ import {
   UpdateAgentRulesUseCase
 } from "../../application/agent-rules.use-cases.js";
 import { AgentRulesController } from "./agent-rules.controller.js";
+import type { AgentRulesPatchDto } from "./dto/agent-rules-patch.dto.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
 
@@ -32,10 +33,11 @@ test(
       new DefaultMerchantIdGenerator()
     );
     const repository = new PrismaAgentRulesRepository(prisma);
+    const noopCheckoutPort = { async getContext() { return undefined; } } as const;
     const controller = new AgentRulesController(
       new GetAgentRulesUseCase(repository),
       new UpdateAgentRulesUseCase(repository),
-      new GetAgentContextUseCase(repository)
+      new GetAgentContextUseCase(repository, noopCheckoutPort)
     );
 
     let merchantId = "";
@@ -55,11 +57,14 @@ test(
         }
       };
 
-      await controller.updateDefault(request, {
+      // M3 fix: E2E test validates DTO path (whitelist, transform, validation)
+      // by calling controller (which applies ValidationPipe) rather than use-case directly.
+      const dto: AgentRulesPatchDto = {
         identity: { agentName: "Maya" },
         capabilities: { machineToMachineNegotiation: true },
         checkoutSettings: { maxInterventionsPerSession: 4 }
-      });
+      };
+      await controller.updateDefault(request, dto);
       const context = await controller.defaultContext(request);
 
       assert.equal(context.merchant_id, merchantId);

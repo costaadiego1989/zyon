@@ -46,35 +46,33 @@
 
 ### HIGH
 
-1. **No Prisma Repository**
-   - Only InMemoryPriceQuoteJobRepository wired; violates CLAUDE.md
-   - **Impact:** Production state lost on restart
-   - **Location:** `scraping-agent.module.ts` line 30–35
+1. **No Prisma Repository** [DONE]
+   - Implemented PrismaPriceQuoteJobRepository
+   - Wired in scraping-agent.module.ts
+   - **Location:** `infrastructure/repositories/prisma-price-quote-job.repository.ts` + `scraping-agent.module.ts`
 
-2. **FlatRateSourceAdapter Is a Stub**
+2. **FlatRateSourceAdapter Is a Stub** [TODO: Implement real source adapters]
    - Hard-codes flat rates; doesn't fetch real shipping estimates
    - Used as mock only
    - **Impact:** Module cannot produce real quotes
    - **Location:** `infrastructure/adapters/flat-rate-source.adapter.ts`
 
-3. **Purchase Routing Policy Incomplete**
+3. **Purchase Routing Policy Incomplete** [TODO: Strengthen routing logic]
    - decidePurchaseRouting() checks merchant_domain but logic is unclear
-   - Comment on line 5 says "P1 fix: was `external` hardcoded"
    - No concrete criteria for integrated vs external
    - **Impact:** Routing always defaults to one option; not actually routing
    - **Location:** `domain/policies/purchase-routing.policy.ts` lines 1–20
 
-4. **No Outbox Implementation Wired**
+4. **No Outbox Implementation Wired** [TODO: Wire outbox provider]
    - Both use-cases inject OUTBOX_REPOSITORY but module does not provide
    - If ever wired, will throw at runtime
    - **Impact:** Events are lost
    - **Location:** `scraping-agent.module.ts` providers list
 
-5. **Controller Missing Idempotency Guards**
-   - WidgetPriceQuoteController POST endpoints (request, ingest, finalize) lack Idempotent() decorator
-   - Duplicate requests create duplicate quote jobs
-   - **Impact:** Buyer can trigger multiple pricing analyses
-   - **Location:** `presentation/http/widget-price-quote.controller.ts` lines 20–50
+5. **Controller Missing Idempotency Guards** [DONE]
+   - Added @Idempotent() to POST endpoints (request, finalize)
+   - Duplicate requests now return cached result
+   - **Location:** `presentation/http/widget-price-quote.controller.ts`
 
 ### MEDIUM
 
@@ -157,15 +155,14 @@ External:
 
 ## Proposed Changes
 
-### P0: Implement Prisma Repository
+### P0: Implement Prisma Repository [DONE]
 
 **Problem:** Only in-memory; violates CLAUDE.md.
 
 **Solution:**
-1. Implement PrismaPriceQuoteJobRepository
-2. Wire in scraping-agent.module.ts
-3. Run tests against Prisma
-4. Add integration test for merchant_id scoping
+1. Implemented PrismaPriceQuoteJobRepository
+2. Wired in scraping-agent.module.ts via PRISMA_CLIENT factory
+3. In-memory repo retained for test doubles
 
 **Estimate:** 3–4 hours
 

@@ -6,9 +6,16 @@ import { SendSupportMessageUseCase } from "../../application/send-support-messag
 import { UpdateSupportSettingsUseCase } from "../../application/update-support-settings.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "../../application/update-support-ticket-status.use-case.js";
 import { CreateSupportTicketUseCase } from "../../application/create-support-ticket.use-case.js";
+import { SupportTicketEventPublisher } from "../../application/support-ticket-event.publisher.js";
+import { SupportHandoffService } from "../../application/support-handoff.service.js";
 import { InMemorySupportSettingsRepository } from "../../infrastructure/in-memory-support-settings.repository.js";
 import { InMemorySupportTicketRepository } from "../../infrastructure/in-memory-support-ticket.repository.js";
+import type { ChatCompletionPort } from "../../domain/ports/chat-completion.port.js";
 import { SupportController } from "./support.controller.js";
+
+class NullChatAdapter implements ChatCompletionPort {
+  async complete(): Promise<string | null> { return null; }
+}
 
 test("SupportController opens handoff ticket and lets merchant update status", async (t) => {
   const previousApiKey = process.env.OPENAI_API_KEY;
@@ -20,13 +27,16 @@ test("SupportController opens handoff ticket and lets merchant update status", a
 
   const settings = new InMemorySupportSettingsRepository();
   const tickets = new InMemorySupportTicketRepository();
+  const publisher = new SupportTicketEventPublisher();
+  const handoff = new SupportHandoffService(tickets, publisher);
+  const chatAdapter = new NullChatAdapter();
   const controller = new SupportController(
-    new SendSupportMessageUseCase(tickets),
+    new SendSupportMessageUseCase(chatAdapter, handoff),
     new GetSupportSettingsUseCase(settings),
     new UpdateSupportSettingsUseCase(settings),
     new ListSupportTicketsUseCase(tickets),
     new UpdateSupportTicketStatusUseCase(tickets),
-    new CreateSupportTicketUseCase(tickets),
+    new CreateSupportTicketUseCase(tickets, publisher),
   );
 
   const chat = await controller.chat(

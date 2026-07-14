@@ -25,18 +25,19 @@
 
 ### CRITICAL
 
-1. **In-Memory Repositories Only**
-   - All 3 repos in-memory; CLAUDE.md violation
-   - **Impact:** Production state volatile; wallet/tokens lost on restart
-   - **Location:** `infrastructure/repositories/in-memory-*.ts` (3 files)
+1. **In-Memory Repositories Only** [DONE]
+   - Implemented PrismaBuyerUserRepository, PrismaBuyerWalletRepository, PrismaBuyerTemplateRepository
+   - Module now wires Prisma via PRISMA_CLIENT injection
+   - In-memory repos retained as test doubles only
+   - **Location:** `infrastructure/repositories/prisma-buyer-*.repository.ts` + `self-checkout.module.ts`
 
-2. **StubPaymentTokenizerAdapter Is Hard-Coded Mock**
+2. **StubPaymentTokenizerAdapter Is Hard-Coded Mock** [TODO: Implement real payment tokenizer]
    - Generates fake tokens (deterministic, not PCI-compliant)
    - Cannot integrate with real payment gateway
    - **Impact:** No real payment flows in production
    - **Location:** `infrastructure/adapters/stub-payment-tokenizer.adapter.ts`
 
-3. **No Atomic Transaction For Wallet + Outbox**
+3. **No Atomic Transaction For Wallet + Outbox** [TODO: Wire Prisma transactional outbox]
    - AddSavedPaymentMethodUseCase: save wallet, then append outbox — two awaits
    - If second fails, wallet has payment method but no audit event
    - **Impact:** Payment methods persisted without audit trail
@@ -44,24 +45,23 @@
 
 ### HIGH
 
-1. **No Prisma Repositories Implemented**
-   - Same as coupons, cross-sell, scraping-agent; major blocker
-   - **Impact:** Cannot deploy to production
+1. **No Prisma Repositories Implemented** [DONE]
+   - Prisma repos wired in module via useFactory pattern
    - **Location:** Module file `self-checkout.module.ts`
 
-2. **Optimistic Locking Not Yet Wired**
+2. **Optimistic Locking Not Yet Wired** [TODO: Add version check to Prisma repository]
    - SelfCheckoutWallet has `version` field for optimistic locking (ADR noted)
    - But InMemoryBuyerWalletRepository does not check/increment version
    - **Impact:** Concurrent wallet mutations can lose data (last-write-wins)
    - **Location:** `in-memory-buyer-wallet.repository.ts` save() method
 
-3. **Consent Policy Manual Version Bump Required**
+3. **Consent Policy Manual Version Bump Required** [TODO: Move to config/env]
    - CURRENT_CONSENT_VERSION = "v1" hard-coded
    - No schema versioning; changing policy requires code change
    - **Impact:** Cannot evolve consent policy without redeployment
    - **Location:** `domain/policies/consent.policy.ts` line 2
 
-4. **Multiple Repositories With Same Pattern**
+4. **Multiple Repositories With Same Pattern** [TODO: Consolidate after Prisma impl]
    - 3 in-memory repos (user, wallet, template)
    - 9 use-cases each inject appropriate repo subset
    - Manual integration tests for cross-tenant, IDOR protection
@@ -95,11 +95,10 @@
    - **Impact:** Controller is doing too much
    - **Location:** `presentation/http/buyer-me.controller.ts`
 
-5. **Update Consent Lacks Version Validation**
-   - UpdateConsentUseCase accepts any consent_version string
-   - No check that it's the CURRENT_CONSENT_VERSION
-   - **Impact:** Buyer can mark consent for a non-existent version
-   - **Location:** `application/use-cases/update-consent.use-case.ts` line 15–20
+5. **Update Consent Lacks Version Validation** [DONE]
+   - UpdateConsentUseCase now validates against CURRENT_CONSENT_VERSION
+   - Throws BadRequestException if version mismatch
+   - **Location:** `application/use-cases/update-consent.use-case.ts`
 
 6. **No DTO Validation Layer**
    - Controller accepts raw JSON; no class-validator enforcement

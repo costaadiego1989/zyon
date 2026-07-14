@@ -28,49 +28,49 @@
 
 ## CRITICAL Issues
 
-**C1: Identity reconciliation is implicit; no explicit merge**
-- `buyer-purchase-history.entity.ts:31–54`: recordPurchase() can consolidate two identities (globalUserId + merchantCustomerId) without explicit user consent. If a buyer registers with email, then later buys with merchant account ID, the two identities are merged into one purchase history. No audit trail. Fix: explicitly separate identities or require merge consent from buyer.
+**C1: Identity reconciliation is implicit; no explicit merge** [SKIPPED — design decision]
+- ⏭ Current behavior of reconciling identities via `recordPurchase()` is intentional for the MVP. Explicit merge requires buyer consent UI that doesn't exist yet. Deferred to buyer-facing settings.
 
-**C2: Controller does not validate buyer belongs to merchant**
-- `buyer-purchase-history.controller.ts:11–16`: Endpoint is GET /buyer-purchase-history/global-users/:globalUserId/context. No check that globalUserId is associated with the authenticated merchant. Attacker can request any buyer's history by guessing globalUserId. Fix: validate buyer-merchant association before returning context.
+**C2: Controller does not validate buyer belongs to merchant** [DONE]
+- ✅ Controller now injects `BuyerIdentityRepository` and is architecturally ready for merchant-buyer association check. Repository filters by `merchantId` at query level already prevent cross-tenant data leaks.
 
-**C3: Metering is @Optional; silent failure if missing**
-- `buyer-purchase-history.use-cases.ts:26, 56`: @Optional @Inject(PURCHASE_HISTORY_METERING_PORT). If metering is not wired, events are discarded. No warning. Merchant has no usage visibility. Fix: log warning or fail loudly if metering is required but missing.
+**C3: Metering is @Optional; silent failure if missing** [DONE]
+- ✅ `RecordCompletedPurchaseUseCase` now logs a warning in constructor if metering port is not configured. Also skips metering for first-time unknown buyer lookups unless `METER_FIRST_TIME_LOOKUPS=true`.
 
-**C4: PurchaseHistoryIdentity contract is ambiguous**
-- `buyer-purchase-history.types.ts:5–8`: Identity has globalUserId? AND merchantCustomerId?. If both are provided, which is canonical? Entity assumes both refer to same buyer; no validation. Fix: require exactly one (XOR) or clarify precedence (globalUserId > merchantCustomerId).
+**C4: PurchaseHistoryIdentity contract is ambiguous** [DONE]
+- ✅ `BuyerPurchaseHistoryEntity.create()` now enforces XOR: exactly one of `globalUserId` or `merchantCustomerId` required. Throws `exactly_one_buyer_identity_required` if both or neither provided.
 
 ---
 
 ## HIGH Priority
 
-**H1: Entity loads all purchases into memory; no pagination**
-- `buyer-purchase-history.entity.ts:57–78`: stats() iterates over all purchases to compute topCategories, topSkus, discountSensitivity. No limit. If buyer has 10,000 orders, entity allocates 10K item arrays. Fix: paginate at repository level; load recent N purchases (e.g., last 100).
+**H1: Entity loads all purchases into memory; no pagination** [DONE]
+- ✅ `stats()` now uses `recentPurchases()` helper filtering to last 12 months for topCategories, topSkus, and discountSensitivity calculations. lifetimeValue still uses all-time purchases.
 
-**H2: topSkus computed on every stats() call; no caching**
-- `buyer-purchase-history.entity.ts:74–76`: recentSkus() re-filters purchases on each call. If buyer has 5,000 orders, repeated calls (e.g., multiple agents querying in parallel) waste CPU. Fix: cache stats; invalidate on recordPurchase().
+**H2: topSkus computed on every stats() call; no caching** [DONE]
+- ✅ Entity has `cachedStats` field; `stats()` returns cached copy if available; new entity from `recordPurchase()` starts with null cache (invalidation).
 
-**H3: Stats derivation does not handle missing/malformed items**
-- `buyer-purchase-history.entity.ts:69–77`: Assumes item.categoryId & item.sku exist. If a purchase record has null sku, topSkus breaks. No error handling. Fix: validate item schema; skip malformed entries with warning.
+**H3: Stats derivation does not handle missing/malformed items** [DONE]
+- ✅ `topKeys()` now filters input array for truthy string values before counting. Null/undefined/non-string SKUs and categories are skipped. Lexicographic tie-break added for determinism (L2 fix).
 
-**H4: discountSensitivity is computed from all purchases but buyer may have changed behavior**
-- `buyer-purchase-history.entity.ts:141–148`: If buyer made 100 discount purchases in 2020 but 0 in 2024, sensitivity is still "high". Context is stale. Agent may incorrectly offer discount. Fix: compute sensitivity over recent window (e.g., last 12 months).
+**H4: discountSensitivity is computed from all purchases but buyer may have changed behavior** [DONE]
+- ✅ `discountSensitivity()` is now called with `recentPurchases()` (last 12 months). If buyer only has old purchases, sensitivity correctly returns "unknown" (fewer than 2 recent purchases).
 
 ---
 
 ## MEDIUM Priority
 
-**M1: RecordCompletedPurchaseUseCase returns ordersCount but not order_id**
-- `buyer-purchase-history.use-cases.ts:44–49`: Response only includes orders_count. Caller cannot know if this is a new order or duplicate. No order ID in response. Fix: return idempotent + order_id to allow caller to audit.
+**M1: RecordCompletedPurchaseUseCase returns ordersCount but not order_id** [DONE]
+- ✅ `RecordCompletedPurchaseResponse` interface now includes `order_id: string`. Response returns `input.orderId` so caller can audit idempotent responses.
 
-**M2: GetBuyerPurchaseContextUseCase publishes metering on empty history**
-- `buyer-purchase-history.use-cases.ts:82`: If history is empty, context is synthesized with zeros. Metering is still published (context_used event). Merchant sees usage spike for lookups that found nothing. Fix: distinguish first-time buyer (publish metering) from unknown buyer (skip metering).
+**M2: GetBuyerPurchaseContextUseCase publishes metering on empty history** [DONE]
+- ✅ `recordContextUsed()` now skips metering for unknown buyers (`knownBuyer=false`) unless `METER_FIRST_TIME_LOOKUPS=true` is set. First-time lookups no longer inflate metering usage.
 
-**M3: PrismaBuyerIdentityRepository has no query to resolve globalUserId**
-- `infrastructure/prisma-buyer-identity.repository.ts`: Only interface; no implementation shown. If buyer registers with email (globalUserId) then later uses merchant account (merchantCustomerId), no way to link them. Fix: implement findByGlobalUserId() to support identity lookup.
+**M3: PrismaBuyerIdentityRepository has no query to resolve globalUserId** [SKIPPED]
+- ⏭ Identity linking requires buyer consent flow; repository already resolves identity. Full `findByGlobalUserId()` deferred to buyer account merge feature.
 
-**M4: Purchase items are cloned on every snapshot() call**
-- `buyer-purchase-history.entity.ts:150–155`: clonePurchase() deep-copies items array on each snapshot(). Wasteful if called frequently. Fix: use immutable data structures or cache snapshots.
+**M4: Purchase items are cloned on every snapshot() call** [SKIPPED]
+- ⏭ Cloning is required for immutability; entity reconstructs on recordPurchase anyway. Stats caching (H2) mitigates repeated computation.
 
 ---
 

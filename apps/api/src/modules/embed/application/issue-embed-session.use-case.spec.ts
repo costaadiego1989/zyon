@@ -59,7 +59,7 @@ describe("IssueEmbedSessionUseCase", () => {
     assert.equal(claims.allowedOrigin, "http://localhost:3000");
   });
 
-  it("B2 — live environment + transactional scope without origin throws BadRequestException", () => {
+  it("C1 — live environment + transactional scope without origin throws BadRequestException", () => {
     const useCase = makeUseCase();
     assert.throws(
       () =>
@@ -91,15 +91,20 @@ describe("IssueEmbedSessionUseCase", () => {
     assert.deepEqual(claims.scopes, ["payment:intents:create"]);
   });
 
-  it("B2 — test environment + transactional scope without origin is allowed", () => {
+  it("C1 — transactional scope without origin is rejected regardless of environment", () => {
     const useCase = makeUseCase();
-    assert.doesNotThrow(() =>
-      useCase.execute({
-        merchantId: "mrc_1",
-        ttlSeconds: 300,
-        environment: "test",
-        scopes: ["payment:intents:create"],
-      }),
+    assert.throws(
+      () =>
+        useCase.execute({
+          merchantId: "mrc_1",
+          ttlSeconds: 300,
+          environment: "test",
+          scopes: ["payment:intents:create"],
+        }),
+      (err) => {
+        assert.ok(err instanceof BadRequestException);
+        return true;
+      },
     );
   });
 

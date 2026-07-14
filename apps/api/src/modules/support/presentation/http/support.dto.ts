@@ -37,7 +37,7 @@ class SupportFaqItemDto {
 export class UpdateSupportSettingsDto {
   @ApiProperty({ type: [SupportFaqItemDto] })
   @IsArray()
-  @ArrayMaxSize(50)
+  @ArrayMaxSize(20) // SUPP-L3: Unified with entity MAX_FAQ_ITEMS = 20
   @ValidateNested({ each: true })
   @Type(() => SupportFaqItemDto)
   faqItems!: SupportFaqItemDto[];

@@ -25,8 +25,10 @@ export function applyFreeShippingPolicy(
   cartTotal: number,
   config: FreeShippingConfig
 ): ShippingQuoteResult[] {
-  if (!config.enabled || cartTotal < config.min_cart_total) return results;
-  if (results.length === 0) return results;
+  // C3 fix: return empty when not qualifying — caller (mergeFreeShipping)
+  // handles the merge. Empty array = no free variants to merge.
+  if (!config.enabled || cartTotal < config.min_cart_total) return [];
+  if (results.length === 0) return [];
 
   // Pick the single cheapest eligible carrier as the free/recommended option.
   const cheapest = results.reduce((best, r) => {
@@ -35,8 +37,8 @@ export function applyFreeShippingPolicy(
     return r.label.localeCompare(best.label, "pt-BR") < 0 ? r : best;
   });
 
-  // Only that carrier becomes free; the others are left untouched (paid).
-  return results.map((r) =>
-    r === cheapest ? { ...r, price: 0, is_free: true } : r
-  );
+  // C3 fix: return ONLY the free variant (single cheapest carrier).
+  // The caller (mergeFreeShipping) merges this over the paid set.
+  // This prevents confusing the contract: "exactly ONE recommended option".
+  return [{ ...cheapest, price: 0, is_free: true }];
 }

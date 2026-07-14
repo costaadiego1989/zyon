@@ -26,5 +26,10 @@ export interface AuditRepository {
     merchantId: string;
     limit: number;
     cursor?: AuditCursor;
+    action?: string;
+    resourceType?: string;
+    actorId?: string;
+    since?: string;
+    until?: string;
   }): Promise<MerchantAuditEvent[]>;
 }

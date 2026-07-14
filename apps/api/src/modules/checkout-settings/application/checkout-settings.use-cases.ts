@@ -1,5 +1,6 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { CheckoutSettings, CheckoutSettingsContext, CheckoutSettingsPatch } from "@zyon/shared-types";
+import { CheckoutSettingsValidationError } from "../domain/checkout-settings.errors.js";
 import { CheckoutSettingsEntity } from "../domain/entities/checkout-settings.entity.js";
 import {
   CHECKOUT_SETTINGS_REPOSITORY,
@@ -27,10 +28,16 @@ export class UpdateCheckoutSettingsUseCase {
     expectedUpdatedAt?: string,
   ): Promise<CheckoutSettings> {
     const current = (await this.repository.get(merchantId)) ?? CheckoutSettingsEntity.createDefault({ merchantId }).snapshot();
-    return this.repository.save(
-      CheckoutSettingsEntity.rehydrate(current).update(patch).snapshot(),
-      expectedUpdatedAt,
-    );
+    try {
+      const updated = CheckoutSettingsEntity.rehydrate(current).update(patch).snapshot();
+      return this.repository.save(updated, expectedUpdatedAt);
+    } catch (error) {
+      // CSS-M1: Map domain validation errors to 400 Bad Request
+      if (error instanceof CheckoutSettingsValidationError) {
+        throw new BadRequestException(error.code);
+      }
+      throw error;
+    }
   }
 }
 

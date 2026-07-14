@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Param,
   Post,
   Put,
@@ -16,7 +17,10 @@ import {
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
-import { UpdateTenantOrderTrackingUseCase } from "../../../integrations/application/integrations.use-cases.js";
+import {
+  ORDER_TRACKING_UPDATER,
+  type OrderTrackingUpdater,
+} from "../../domain/ports/order-tracking.port.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
@@ -54,7 +58,8 @@ export class OrdersController {
   constructor(
     private readonly listOrders: ListOrdersUseCase,
     private readonly getOrder: GetOrderUseCase,
-    private readonly updateOrderTracking: UpdateTenantOrderTrackingUseCase,
+    @Inject(ORDER_TRACKING_UPDATER)
+    private readonly updateOrderTracking: OrderTrackingUpdater,
     private readonly cancelOrder: CancelOrderUseCase,
     private readonly createOrder: CreateOrderFromPaymentUseCase,
   ) {}

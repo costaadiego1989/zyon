@@ -51,9 +51,9 @@ test(
 
       assert.equal(registered.merchant_id, merchantId);
       assert.equal(principal.merchantId, merchantId);
-      assert.equal((await merchantController.profile(request)).name, "Auth Demo");
-      assert.equal((await merchantController.update(request, { maxDiscountPercent: 17 })).maxDiscountPercent, 17);
-      assert.equal((await merchantController.rules(request)).maxDiscountPercent, 17);
+      assert.equal((await merchantController.profile(merchantId)).name, "Auth Demo");
+      assert.equal((await merchantController.update(merchantId, { maxDiscountPercent: 17 })).maxDiscountPercent, 17);
+      assert.equal((await merchantController.rules(merchantId)).maxDiscountPercent, 17);
     } finally {
       if (merchantId) {
         await prisma.merchantRule.deleteMany({ where: { merchantId } });

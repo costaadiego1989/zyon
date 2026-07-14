@@ -22,7 +22,21 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
     EmbedTokenService,
     EmbedAuthGuard,
     FlatRateCarrierAdapter,
-    MelhorEnvioCarrierAdapter,
+    // H1 fix: validate MelhorEnvio config on module init
+    {
+      provide: MelhorEnvioCarrierAdapter,
+      useFactory: () => {
+        const token = process.env.MELHOR_ENVIO_TOKEN;
+        // Warn but don't fail if token is missing; adapter will return [] safely
+        if (!token) {
+          console.warn(
+            "[shipping] MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; " +
+            "quotes will only use flat-rate carrier"
+          );
+        }
+        return new MelhorEnvioCarrierAdapter();
+      }
+    },
     {
       provide: SHIPPING_QUOTE_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaShippingQuoteRepository(prisma),

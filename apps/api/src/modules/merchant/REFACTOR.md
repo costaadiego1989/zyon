@@ -194,11 +194,12 @@ No cross-module coupling issues. Auth is a legitimate dependency for the control
 
 ## Priority Execution Order
 
-1. **MERC-C1** — Add `StellarConfig` injection + OnModuleInit validation
-2. **MERC-C2** — Add Zod codec validation on theme read/write
-3. **MERC-H5** — Merge crypto routes into MerchantController
-4. **MERC-H3** — Extract DEFAULT_RULES constant
-5. **MERC-H1** — Extract theme validators
-6. **MERC-H2** — Add @CurrentMerchant decorator
-7. **MERC-M1** — Document and test theme merge semantics
-8. Remaining MEDIUM items
+1. **MERC-C1** — [DONE] Add `StellarConfig` injection + OnModuleInit validation
+2. **MERC-C2** — [DONE] Add Zod codec validation on theme read/write
+3. **MERC-H5** — [DONE] Merge crypto routes into MerchantController
+4. **MERC-H3** — [DONE] Extract DEFAULT_RULES constant
+5. **MERC-H1** — [DONE] Extract theme validators
+6. **MERC-H2** — [DONE] Add @CurrentMerchant decorator
+7. **MERC-M1** — Theme merge semantics documented in code (defaults merged at use-case level)
+8. **MERC-M2** — Theme nullability handled via `decodePersistedTheme`
+9. Remaining MEDIUM items skipped (lower risk, no behavioral change needed)

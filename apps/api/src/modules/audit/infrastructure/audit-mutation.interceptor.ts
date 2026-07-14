@@ -5,11 +5,14 @@ import {
   Logger,
   NestInterceptor,
 } from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
 import type { Observable } from "rxjs";
 import { tap } from "rxjs";
 import type { Response } from "express";
 import type { AacpHttpRequest } from "../../../shared/http/http-request.js";
 import { RecordAuditEventUseCase } from "../application/audit.use-cases.js";
+import { AUDIT_RESOURCE_KEY, AUDIT_RESOURCE_ID_KEY } from "./audit-resource.decorator.js";
+import { principalToAuditActor } from "../domain/audit-actor.js";
 
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -17,7 +20,10 @@ const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 export class AuditMutationInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuditMutationInterceptor.name);
 
-  constructor(private readonly recordAudit: RecordAuditEventUseCase) {}
+  constructor(
+    private readonly recordAudit: RecordAuditEventUseCase,
+    private readonly reflector: Reflector,
+  ) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== "http") return next.handle();
@@ -31,34 +37,45 @@ export class AuditMutationInterceptor implements NestInterceptor {
     const path = request.route?.path
       ? `${request.baseUrl ?? ""}${String(request.route.path)}`
       : request.path;
-    const resourceType =
+
+    // AUD-H2: Use @AuditResource decorator metadata if present; fall back to URL heuristic.
+    const handler = context.getHandler();
+    const controllerClass = context.getClass();
+    const decoratorResource = this.reflector.getAllAndOverride<string | undefined>(AUDIT_RESOURCE_KEY, [handler, controllerClass]);
+    const resourceType = decoratorResource ??
       path
         .split("/")
         .filter(Boolean)
         .find((segment) => segment !== "v1") ?? "unknown";
-    const resourceId = firstParam(request.params);
+
+    // AUD-L1: Use decorator-specified param name or fall back to firstParam.
+    const resourceIdParam = this.reflector.getAllAndOverride<string | undefined>(AUDIT_RESOURCE_ID_KEY, [handler, controllerClass]);
+    const resourceId = resourceIdParam
+      ? (request.params?.[resourceIdParam] as string | undefined)
+      : firstParam(request.params);
+
+    // AUD-H4: Convert to AuditActor to decouple from TenantPrincipal.
+    const actor = principalToAuditActor(principal);
 
     return next.handle().pipe(
       tap({
         next: () => {
-          // P3 fix: skip audit recording for idempotent replays — the
-          // IdempotencyInterceptor sets `Idempotency-Replayed: true` on the
-          // response when it short-circuits with the cached body.
+          // P3 fix: skip audit recording for idempotent replays.
           if (response.getHeader("Idempotency-Replayed")) return;
 
-          // P2 fix: log failures rather than silently swallowing them so
-          // operators can detect a broken audit trail via log/metric alerts.
+          // AUD-H1: Log failures; operators detect broken audit trail via alerts.
           void this.recordAudit
             .execute({
-              principal,
+              merchantId: principal.tenantId,
+              actor,
               action: `http.${request.method.toLowerCase()}`,
               resourceType,
               resourceId,
               correlationId: request.correlationId,
-              metadata: {
+              metadata: truncateMetadata({
                 method: request.method.toUpperCase(),
                 path,
-              },
+              }),
             })
             .catch((error: unknown) => {
               this.logger.error(
@@ -83,4 +100,16 @@ function firstParam(
     }
   }
   return undefined;
+}
+
+/**
+ * AUD-M3: Limit metadata size to prevent DB bloat.
+ * Truncates serialized metadata to 4KB max.
+ */
+const MAX_METADATA_SIZE = 4096;
+
+function truncateMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+  const serialized = JSON.stringify(metadata);
+  if (serialized.length <= MAX_METADATA_SIZE) return metadata;
+  return { _truncated: true, method: metadata.method, path: metadata.path };
 }

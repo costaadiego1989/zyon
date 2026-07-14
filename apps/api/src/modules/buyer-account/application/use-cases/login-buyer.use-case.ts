@@ -20,7 +20,8 @@ export class LoginBuyerUseCase {
   async execute(input: LoginBuyerRequest): Promise<BuyerAuthResponse> {
     const email = input.email.trim().toLowerCase();
     const account = await this.repo.findByEmail(email);
-    if (!account) throw new UnauthorizedException("invalid_credentials");
+    // C2 fix: reject phone-only accounts (passwordHash === null)
+    if (!account || account.passwordHash === null) throw new UnauthorizedException("invalid_credentials");
     const valid = await this.hasher.verify(input.password, account.passwordHash);
     if (!valid) throw new UnauthorizedException("invalid_credentials");
     return toBuyerAuthResponse(account, this.jwt);

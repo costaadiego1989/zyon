@@ -258,3 +258,36 @@ Coupling to `integrations.use-cases.TenantWebhookPublisher` is appropriate (publ
 6. **SUPP-H4** — Move smartFallback to dictionary
 7. **SUPP-M6** — Add ETag + If-Match for support settings
 8. Remaining items
+
+## Implementation Status
+
+1. **SUPP-H1** — [DONE] Split SendSupportMessage into:
+   - support-faq.service.ts (FAQ matching)
+   - support-fallback.service.ts (keyword-routed fallback)
+   - support-handoff.service.ts (ticket creation + formatting)
+   - support-ticket-event.publisher.ts (webhook publish)
+
+2. **SUPP-H2** — [DONE] ChatCompletionPort abstraction
+   - Domain port: chat-completion.port.ts
+   - Production adapter: openai-chat.adapter.ts
+   - Injected at module boot
+
+3. **SUPP-H3** — [DONE] Handoff formatting extracted to support-handoff.service.ts
+   - Uses last 6 chars of ticket ID (human-readable reference)
+
+4. **SUPP-H4** — [DONE] Fallback logic moved to support-fallback.service.ts
+   - Rule-based mapping (pattern → response)
+   - Extensible for future i18n
+
+5. **SUPP-H5** — [DONE] XSS defense-in-depth
+   - stripHtmlFromReply() strips HTML/JS/style tags before return
+
+6. **SUPP-M3** — [DONE] FAQ bounds unified to 20 (entity + DTO)
+
+7. **SUPP-M4** — [DONE] Webhook publish deduplicated in SupportTicketEventPublisher
+
+8. **SUPP-M5** — Skipped (controller pattern consistent with module)
+
+9. **SUPP-M2** — Skipped (observability enhancement, no critical path)
+
+10. **SUPP-L1-L4** — Skipped (LOW priority, no runtime impact)

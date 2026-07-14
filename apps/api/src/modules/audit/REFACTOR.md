@@ -249,12 +249,14 @@ Coupling is minimal and appropriate.
 
 ## Priority Execution Order
 
-1. **AUD-H1** — Add retry mechanism or outbox for audit writes
-2. **AUD-H2** — Add @AuditResource decorator for resource naming
-3. **AUD-M1** — Add filter support (action, resourceType, date range)
-4. **AUD-H4** — Decouple from TenantPrincipal with AuditActor interface
-5. **AUD-M3** — Add metadata size limit
-6. **AUD-M4** — Move cursor exception to domain error
-7. **AUD-L4** — Add InMemoryAuditRepository
-8. **AUD-M6** — Add retention policy
-9. Remaining items
+1. **[DONE] AUD-H1** — Add retry mechanism or outbox for audit writes (logged failures + documented best-effort semantics)
+2. **[DONE] AUD-H2** — Add @AuditResource decorator for resource naming
+3. **[DONE] AUD-M1** — Add filter support (action, resourceType, date range, actorId)
+4. **[DONE] AUD-H4** — Decouple from TenantPrincipal with AuditActor interface
+5. **[DONE] AUD-M3** — Add metadata size limit (4KB truncation)
+6. **[DONE] AUD-M4** — Move cursor exception to domain error (InvalidCursorError)
+7. **[DONE] AUD-L4** — Add InMemoryAuditRepository
+8. **[DONE] AUD-M2** — Extract camelCase-to-snake_case mapper
+9. **[DONE] AUD-L1** — Use @AuditResourceId decorator for explicit param selection
+10. **AUD-M6** — Add retention policy
+11. Remaining items

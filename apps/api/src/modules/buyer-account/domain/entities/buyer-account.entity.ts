@@ -3,9 +3,10 @@ import type { CustomerAddress } from "@zyon/shared-types";
 export interface BuyerAccountProps {
   globalUserId: string;
   email: string;
-  passwordHash: string;
+  passwordHash: string | null; // C2 fix: null for phone-only accounts
   displayName: string;
   phone?: string;
+  phoneCountryCode?: string; // C3 fix: country code for phone
   cpf?: string;
   address?: CustomerAddress;
   createdAt: Date;
@@ -15,9 +16,10 @@ export interface BuyerAccountProps {
 export class BuyerAccount {
   readonly globalUserId: string;
   readonly email: string;
-  readonly passwordHash: string;
+  readonly passwordHash: string | null; // C2 fix: null for phone-only
   readonly displayName: string;
   readonly phone?: string;
+  readonly phoneCountryCode?: string; // C3 fix: country code
   readonly cpf?: string;
   readonly address?: CustomerAddress;
   readonly createdAt: Date;
@@ -30,14 +32,18 @@ export class BuyerAccount {
     if (!props.displayName || props.displayName.trim().length === 0) {
       throw new Error("buyer_account_invalid_display_name");
     }
-    if (!props.passwordHash) {
-      throw new Error("buyer_account_missing_password_hash");
+    // C2 fix: require password OR phone, but not neither
+    const hasPassword = !!props.passwordHash && props.passwordHash !== "phone_only_no_password";
+    const hasPhone = !!props.phone;
+    if (!hasPassword && !hasPhone) {
+      throw new Error("buyer_account_needs_password_or_phone");
     }
     this.globalUserId = props.globalUserId;
     this.email = props.email.toLowerCase().trim();
-    this.passwordHash = props.passwordHash;
+    this.passwordHash = props.passwordHash ?? null; // C2 fix: store null, not sentinel
     this.displayName = props.displayName.trim();
     this.phone = props.phone;
+    this.phoneCountryCode = props.phoneCountryCode; // C3 fix: store country code
     this.cpf = normalizeCpf(props.cpf);
     this.address = props.address;
     this.createdAt = props.createdAt;
@@ -55,7 +61,7 @@ export class BuyerAccount {
     });
   }
 
-  withNewPasswordHash(passwordHash: string): BuyerAccount {
+  withNewPasswordHash(passwordHash: string | null): BuyerAccount {
     return new BuyerAccount({ ...this, passwordHash, updatedAt: new Date() });
   }
 }

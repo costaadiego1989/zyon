@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Req, UseGuards } from "@nestjs/common";
+import { Body, Controller, Post, UseGuards, ValidationPipe } from "@nestjs/common";
 import { IsNotEmpty, IsString } from "class-validator";
-import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { CurrentTenant } from "../../../../shared/tenant/current-tenant.decorator.js";
 import { EnableCryptoPaymentsUseCase } from "../../application/use-cases/enable-crypto-payments.use-case.js";
 
 export class EnableCryptoPaymentsDto {
@@ -13,17 +14,21 @@ export class EnableCryptoPaymentsDto {
   merchantSecretKey!: string;
 }
 
+/**
+ * MERC-H5: Route aligned to /merchants/me/crypto-payments/enable (consistent plural).
+ * MERC-H2: Uses @CurrentTenant() instead of unsafe request casting.
+ */
 @UseGuards(AuthGuard)
-@Controller("merchant/crypto-payments")
+@Controller("merchants/me/crypto-payments")
 export class CryptoPaymentsController {
   constructor(private readonly enableCrypto: EnableCryptoPaymentsUseCase) {}
 
   @Post("enable")
   enable(
-    @Req() request: unknown,
-    @Body() dto: EnableCryptoPaymentsDto
+    @CurrentTenant() merchantId: string,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))
+    dto: EnableCryptoPaymentsDto
   ) {
-    const { merchantId } = currentUser(request as { user?: unknown });
     return this.enableCrypto.execute({
       merchantId,
       merchantPublicKey: dto.merchantPublicKey,

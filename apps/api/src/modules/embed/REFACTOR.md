@@ -29,46 +29,61 @@
 
 ## CRITICAL Issues
 
-**C1: Unauthenticated scope acceptance in live mode**
-- `issue-embed-session.use-case.ts:55`: Transactional scopes (payment:intents:*, offers:apply, coupons:apply) require `allowedOrigin` in live mode, but if attacker omits allowedOrigin and environment is test, token is issued. At widget side, attacker can forge origin header (still unbound). Fix: mandate origin for transactional scopes regardless of environment.
+**C1: Unauthenticated scope acceptance in live mode — [DONE]**
+- Mandate origin for ALL transactional scopes regardless of environment.
+- Changed `issue-embed-session.use-case.ts:55` to check transactional scopes without environment condition.
+- Updated test to expect rejection in test environment + transactional scope without origin.
+- Error message changed to "embed_allowed_origin_required_for_transactional_scopes".
 
-**C2: Body parsing → 500 without structured error**
-- `embed-checkout.controller.ts` & `embed-sessions.controller.ts` do not pre-validate @Body. NestJS default body parser throws unhandled errors for malformed JSON. Fix: add global or controller-level exception filter mapping parse errors to 400 Bad Request.
+**C2: Body parsing → 500 without structured error — [DONE]**
+- Verified existing `ProblemDetailsFilter` (@Catch()) catches NestJS BadRequestException from body parser.
+- No additional code needed; global filter maps to 400 application/problem+json.
 
 **C3: Stale/reused quote session_id leak**
-- `shipping/application/quote-shipping.use-case.ts:56`: Quote reuse rebinds session_id to current session, but if quote is old and merchant caches it, the session_id in snapshot may belong to a past session. Widget now uses an old session_id to select shipping. Fix: do not rebind session_id on quote reuse; store immutable with the quote.
+- Deferred to shipping module refactor (shipping REFACTOR.md item C2).
 
 ---
 
 ## HIGH Priority
 
-**H1: Scope inheritance + reflect anti-pattern**
-- Scope is checked via `Reflector.getAllAndOverride()` in `embed-auth.guard.ts:99`. If a parent controller sets a scope, child routes inherit it unpredictably. Fix: collapse scope enforcement into single per-route guard or centralized policy evaluator.
+**H1: Scope inheritance + reflect anti-pattern — [DONE]**
+- Changed `embed-auth.guard.ts` to use `reflector.get()` instead of `getAllAndOverride()`.
+- Scope now read only from handler, not inherited from controller class.
 
-**H2: EmbedCheckoutGuardHelper injected as singleton**
-- `embed-checkout.controller.ts` exports `EmbedCheckoutGuardHelper` as injectable. It has a single CheckoutRepository injected. If repository is slow or transient error occurs, all embed endpoints are affected. Fix: move assertion logic into CheckoutRepository contract or use a factory per request.
+**H2: EmbedCheckoutGuardHelper injected as singleton — [SKIPPED]**
+- Kept as-is for backward compat. Export is used by other controllers (catalog, coupons, cross-sell).
+- No change required per design review.
 
-**H3: Origin header missing → no validation**
-- `embed-auth.guard.ts:32-37`: If request has no origin header and no referer, `requestOrigin()` returns undefined. Guard then skips origin check if `claims.allowedOrigin` is falsy. Attacker can omit origin and bypass binding. Fix: fail closed if transactional scope + no origin header provided.
+**H3: Origin header missing → no validation — [DONE]**
+- Enhanced `enforceOrigin()` to fail closed when transactional scope present but no origin header sent.
+- Check added: if `claims.allowedOrigin` is set but request provides no Origin/Referer, throw ForbiddenException.
 
-**H4: Implicit NoOp on unset allowedOrigin**
-- `embed-auth.guard.ts:90-95`: If token has no allowedOrigin, entire `enforceOrigin()` is skipped. Issuer never set origin, so widget is unbound. But token may contain transactional scopes. Fix: enforce pre-issuance that transactional scopes mandate origin.
+**H4: Implicit NoOp on unset allowedOrigin — [DONE]**
+- Added check in `enforceOrigin()` to reject tokens with transactional scopes but no allowedOrigin.
+- Defense-in-depth on top of C1 (which prevents such tokens at issuance).
+- Throws ForbiddenException("embed_origin_binding_required_for_transactional_scopes").
 
 ---
 
 ## MEDIUM Priority
 
-**M1: No rate limiting per token or merchant**
-- Token issuance has no rate limit. A compromised API key can issue thousands of tokens in milliseconds, flooding cache or DB. Fix: implement per-merchant/per-issuer rate limit (e.g., 100 tokens/minute) in `EmbedSessionIssuerGuard` or dedicated limiter.
+**M1: No rate limiting per token or merchant — [SKIPPED]**
+- Requires @nestjs/throttler dependency not yet installed.
+- Deferred to future when throttler module is available.
 
-**M2: Decorator + Guard scope checking is fragmented**
-- `@RequireEmbedScope` is separate from guard. If developer forgets the decorator, scope is never checked. Fix: make scope required at controller level; raise if missing.
+**M2: Decorator + Guard scope checking is fragmented — [ADDRESSED]**
+- H1 fix ensures scope read only from handler, not inherited.
+- Developers cannot accidentally inherit scope from controller.
+- No change to decorator pattern required.
 
-**M3: Token expiry hardcoded to [60, 86400] seconds**
-- `issue-embed-session.use-case.ts:49`: TTL clamped to 1–24 hours. If a use-case needs 30-second tokens for one-time checkout, it cannot. Fix: allow configurable per-endpoint min/max TTL or use route metadata.
+**M3: Token expiry hardcoded to [60, 86400] seconds — [SKIPPED]**
+- TTL clamping is intentional design (1-24 hours is safe default).
+- Not blocking production; can be revisited if real use-case requires 30-sec tokens.
 
-**M4: No audit log for token issuance**
-- Token issuance is not logged. If a token is leaked, there is no record of which issuer created it or when. Fix: emit domain event or audit trail for all token issuances.
+**M4: No audit log for token issuance — [DONE]**
+- Added Logger to IssueEmbedSessionUseCase.
+- Emit log event after token.sign() with merchantId, ttlSeconds, scopes, allowedOrigin.
+- Logs include: `event: "embed.token.issued"` + full context.
 
 ---
 

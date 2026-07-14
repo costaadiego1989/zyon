@@ -27,14 +27,14 @@
 
 ### CRITICAL
 
-1. **Prisma Repository Over-Parameterized**
+1. **Prisma Repository Over-Parameterized** [TODO: Audit schema constraints]
    - PrismaInstallationRepository methods require merchant_id + installationId + more
    - findById scopes by merchant but also by installationId (unique across merchants?)
    - Unclear if unique constraint is global or per-merchant
    - **Impact:** Potential data leakage if unique is global + concurrent access
    - **Location:** `infrastructure/prisma-installation.repository.ts` lines 30–50
 
-2. **Cursor-Based Pagination Ties to Prisma**
+2. **Cursor-Based Pagination Ties to Prisma** [TODO: Validate cursor stability]
    - Cursor encoding: base64url(JSON) with createdAt + id
    - Parsing is manual; no standard library
    - If Prisma schema changes, cursor format could break
@@ -43,7 +43,7 @@
 
 ### HIGH
 
-1. **No Validation on Origin Normalization**
+1. **No Validation on Origin Normalization** [TODO: Implement whitelist validation]
    - normalizeOrigin() validates URL shape but doesn't check against merchant whitelist or deny-list
    - Any HTTPS domain is accepted
    - **Impact:** Merchant can register malicious origins
@@ -70,33 +70,33 @@
 
 ### MEDIUM
 
-1. **CreateInstallation Has No Idempotency**
+1. **Pagination Limit Not Server-Clamped** [DONE]
+   - parsePageSize() now clamps to MAX_PAGE_LIMIT (100)
+   - Prevents DOS via unbounded pagination
+   - **Location:** `presentation/http/installations.controller.ts`
+
+2. **CreateInstallation Has No Idempotency** [TODO: Implement idempotency key]
    - Name + environment unique; but no idempotent retry support
    - Duplicate request with same name + environment fails with conflict
    - Controller uses @Idempotent() but use-case doesn't handle idempotency key
    - **Impact:** Retries fail; UX broken
    - **Location:** `application/installation.use-cases.ts` CreateInstallationUseCase
 
-2. **DTO Validation Minimal**
+3. **DTO Validation Minimal** [TODO: Add cross-field validation]
    - CreateInstallationDto validates required fields but not cross-field rules
    - No check that allowed_origins is non-empty
    - **Impact:** Can create installations with no allowed origins
    - **Location:** `presentation/http/installation.dto.ts` lines 1–40
 
-3. **Controller Duplicate Validation**
+4. **Controller Duplicate Validation** [TODO: Consolidate validation]
    - Controller validates @Req() and maps to DTO
    - DTO validates again
    - Validators like `normalizeOrigin` are called in use-case, not DTO
    - **Impact:** Validation logic scattered; hard to audit
    - **Location:** `presentation/http/installations.controller.ts` + `application/installation.use-cases.ts`
 
-4. **Pagination Limit Not Server-Clamped**
-   - parsePageSize() allows user-provided limit; no max cap
-   - Buyer can request 10,000 results in one page
-   - **Impact:** DOS; unbounded memory consumption
-   - **Location:** `presentation/http/installations.controller.ts` line 50–60
-
-5. **Entity Tags Set Without Etag Validation**
+5. **Entity Tags Set Without Etag Validation** [TODO: Add If-Match validation]
+   - (was item 5)
    - InstallationsController sets response etag on create/get
    - But no @Header() validator for If-None-Match or If-Match on updates
    - **Impact:** Concurrent updates not protected

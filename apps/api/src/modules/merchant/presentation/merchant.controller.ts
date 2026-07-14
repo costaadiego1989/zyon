@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Put, Req, UseGuards, ValidationPipe } from "@nestjs/common";
+import { Body, Controller, Get, Put, UseGuards, ValidationPipe } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
-import { AuthGuard, currentUser } from "../../auth/presentation/auth.guard.js";
+import { AuthGuard } from "../../auth/presentation/auth.guard.js";
+import { CurrentTenant } from "../../../shared/tenant/current-tenant.decorator.js";
 import {
   GetMerchantProfileUseCase,
   GetMerchantRulesUseCase,
@@ -10,6 +11,10 @@ import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-c
 import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";
 import { UpdateMerchantRulesDto } from "./dto/update-merchant-rules.dto.js";
 
+/**
+ * MERC-H2: Uses @CurrentTenant() decorator instead of unsafe request casting.
+ * MERC-H5: Crypto payments route merged into this controller.
+ */
 @UseGuards(AuthGuard)
 @Controller("merchants/me")
 export class MerchantController {
@@ -22,31 +27,31 @@ export class MerchantController {
   ) {}
 
   @Get()
-  profile(@Req() request: unknown) {
-    return this.getProfile.execute(currentUser(request as { user?: unknown }).merchantId);
+  profile(@CurrentTenant() merchantId: string) {
+    return this.getProfile.execute(merchantId);
   }
 
   @Get("rules")
-  rules(@Req() request: unknown) {
-    return this.getRules.execute(currentUser(request as { user?: unknown }).merchantId);
+  rules(@CurrentTenant() merchantId: string) {
+    return this.getRules.execute(merchantId);
   }
 
   @Put("rules")
   update(
-    @Req() request: unknown,
+    @CurrentTenant() merchantId: string,
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
     body: UpdateMerchantRulesDto
   ) {
-    return this.updateRules.execute(currentUser(request as { user?: unknown }).merchantId, body);
+    return this.updateRules.execute(merchantId, body);
   }
 
   @Get("theme")
-  theme(@Req() request: unknown) {
-    return this.getTheme.execute(currentUser(request as { user?: unknown }).merchantId);
+  theme(@CurrentTenant() merchantId: string) {
+    return this.getTheme.execute(merchantId);
   }
 
   @Put("theme")
-  putTheme(@Req() request: unknown, @Body() body: MerchantTheme) {
-    return this.updateTheme.execute(currentUser(request as { user?: unknown }).merchantId, body);
+  putTheme(@CurrentTenant() merchantId: string, @Body() body: MerchantTheme) {
+    return this.updateTheme.execute(merchantId, body);
   }
 }

@@ -5,6 +5,18 @@ import { EmbedTokenService } from "../../domain/embed-token.service.js";
 import { EMBED_REQUIRED_SCOPE_KEY } from "./embed-scope.decorator.js";
 import { setTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 
+/**
+ * Scopes that handle real monetary operations — origin enforcement is mandatory
+ * for these even at the guard level (defense-in-depth on top of issuance check).
+ */
+const TRANSACTIONAL_SCOPES = new Set<string>([
+  "payment:intents:create",
+  "payment:intents:confirm",
+  "payment:intents:read",
+  "offers:apply",
+  "coupons:apply",
+]);
+
 type EmbedRequest = {
   headers?: Record<string, string | string[] | undefined>;
   embedClaims?: EmbedTokenClaims;
@@ -88,18 +100,29 @@ export class EmbedAuthGuard implements CanActivate {
   }
 
   private enforceOrigin(claims: EmbedTokenClaims, headers: Record<string, string | string[] | undefined>): void {
-    if (!claims.allowedOrigin) return;
+    // H4 fix: if no allowedOrigin is set on the token but it carries
+    // transactional scopes, fail closed — the token should never have been
+    // issued without an origin (C1 prevents this at issuance, but guard is
+    // defense-in-depth).
+    if (!claims.allowedOrigin) {
+      if (claims.scopes?.some((s) => TRANSACTIONAL_SCOPES.has(s))) {
+        throw new ForbiddenException("embed_origin_binding_required_for_transactional_scopes");
+      }
+      return;
+    }
     const origin = requestOrigin(headers);
+    // H3 fix: if the request provides no Origin/Referer header but the token
+    // demands origin binding, reject (fail closed).
     if (!origin || origin !== claims.allowedOrigin) {
       throw new ForbiddenException("embed_origin_not_allowed");
     }
   }
 
   private enforceScope(claims: EmbedTokenClaims, context: ExecutionContext): void {
-    const required = this.reflector?.getAllAndOverride<EmbedScope>(EMBED_REQUIRED_SCOPE_KEY, [
-      context.getHandler(),
-      context.getClass()
-    ]);
+    // H1 fix: Only read scope from the handler (route method), not from the
+    // controller class. This prevents parent-level scope declarations from
+    // being inherited unpredictably by child routes.
+    const required = this.reflector?.get<EmbedScope>(EMBED_REQUIRED_SCOPE_KEY, context.getHandler());
     if (!required) return;
     if (!claims.scopes || !claims.scopes.includes(required)) {
       throw new ForbiddenException("embed_scope_not_granted");
