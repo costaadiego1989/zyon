@@ -9,6 +9,14 @@ import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domai
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 import { InMemoryCommercePaidWebhookDedup } from "../../commerce/infrastructure/in-memory-commerce-paid-webhook-dedup.js";
 
+const TEST_ASAAS_TOKEN = "test-asaas-webhook-token";
+const WEBHOOK_HEADER = TEST_ASAAS_TOKEN;
+
+// Configure webhook token for all tests in this file (fail-closed requires it).
+test.before(() => {
+  process.env.ASAAS_WEBHOOK_TOKEN = TEST_ASAAS_TOKEN;
+});
+
 class RecordingCheckoutPayment implements CheckoutPaymentPort {
   public approved: CheckoutPaymentApprovedInput[] = [];
   public failures: Array<{ merchantId: string; sessionId: string }> = [];
@@ -51,7 +59,7 @@ test("duplicate provider event id short-circuits", async () => {
   const uc = new HandleAsaasWebhookUseCase(payments, dispatch);
   await payments.recordProcessedProviderEvent({ provider: "asaas", merchantId: null, eventId: "evt_dup_1" });
 
-  const r = await uc.execute(undefined, {
+  const r = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_dup_1",
     event: "PAYMENT_RECEIVED",
     payment: {
@@ -83,12 +91,12 @@ test("PAYMENT_RECEIVED approves intent and completes checkout once", async () =>
   await payments.saveIntent({ intent });
   const ext = intent.snapshot().id;
 
-  const first = await uc.execute(undefined, {
+  const first = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_1",
     event: "PAYMENT_RECEIVED",
     payment: { id: "pay_asaas_1", value: 300, externalReference: ext }
   });
-  const second = await uc.execute(undefined, {
+  const second = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_2",
     event: "PAYMENT_RECEIVED",
     payment: { id: "pay_asaas_1", value: 300, externalReference: ext }
@@ -139,12 +147,12 @@ test("PAYMENT_RECEIVED marks linked commerce order paid idempotently", async () 
   await payments.saveIntent({ intent });
   const ext = intent.snapshot().id;
 
-  const first = await uc.execute(undefined, {
+  const first = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_1",
     event: "PAYMENT_RECEIVED",
     payment: { id: "pay_asaas_1", value: 300, externalReference: ext }
   });
-  const second = await uc.execute(undefined, {
+  const second = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_2",
     event: "PAYMENT_RECEIVED",
     payment: { id: "pay_asaas_1", value: 300, externalReference: ext }
@@ -201,12 +209,12 @@ test("PAYMENT_RECEIVED retries commerce paid sync after post-approval failure", 
     payment: { id: "pay_retry", value: 500, externalReference: ext }
   };
 
-  await assert.rejects(() => uc.execute(undefined, webhookBody), /commerce_paid_sync_failed/);
+  await assert.rejects(() => uc.execute(WEBHOOK_HEADER, webhookBody), /commerce_paid_sync_failed/);
 
   assert.equal(await payments.hasProcessedProviderEvent({ provider: "asaas", merchantId: "mrc_1", eventId: "evt_retry" }), false);
   assert.equal(checkoutPort.approved.length, 1);
 
-  const retried = await uc.execute(undefined, webhookBody);
+  const retried = await uc.execute(WEBHOOK_HEADER, webhookBody);
 
   assert.equal(retried.outcome, "processed");
   if (retried.outcome === "processed") assert.equal(retried.effect, "already_approved");
@@ -233,7 +241,7 @@ test("PAYMENT_DELETED marks failed and records payment_failed event", async () =
   await payments.saveIntent({ intent });
   const ext = intent.snapshot().id;
 
-  const r = await uc.execute(undefined, {
+  const r = await uc.execute(WEBHOOK_HEADER, {
     id: "evt_del_1",
     event: "PAYMENT_DELETED",
     payment: { id: "pay_del", value: 1, externalReference: ext }

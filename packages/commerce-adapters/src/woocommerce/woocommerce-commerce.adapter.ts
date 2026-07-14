@@ -117,14 +117,25 @@ export class WooCommerceCommerceAdapter
   }
 
   async testConnection(): Promise<CommerceConnectionHealth> {
-    const [site, currency] = await Promise.all([
-      this.publicRequest<WooSite>("/wp-json", "woocommerce_site"),
-      this.currency(),
-    ]);
+    // Use authenticated /system_status endpoint to validate API credentials
+    // (not just the public /wp-json root which doesn't require auth).
+    const systemStatus = await this.request<WooSystemStatus>(
+      "/system_status",
+      { method: "GET" },
+      "woocommerce_system_status",
+    );
+    const storeName =
+      systemStatus.environment?.site_title ??
+      systemStatus.settings?.store_name ??
+      "";
+    const storeUrl =
+      systemStatus.environment?.site_url ?? this.#storeUrl;
+    const currency =
+      systemStatus.settings?.currency ?? await this.currency();
     return {
       provider: "woocommerce",
-      storeName: site.name,
-      storeUrl: site.url || this.#storeUrl,
+      storeName,
+      storeUrl,
       currency,
     };
   }
@@ -331,6 +342,17 @@ function variationTitle(variation: WooVariation): string {
 
 type WooSite = { name: string; url: string };
 type WooSetting = { value?: string };
+type WooSystemStatus = {
+  environment?: {
+    site_title?: string;
+    site_url?: string;
+    wc_version?: string;
+  };
+  settings?: {
+    store_name?: string;
+    currency?: string;
+  };
+};
 type WooOrder = {
   id: number;
   currency: string;

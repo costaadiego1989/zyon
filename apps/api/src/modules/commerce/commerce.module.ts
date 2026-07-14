@@ -24,10 +24,11 @@ import {
   TestCommerceConnectionUseCase,
 } from "./application/manage-commerce-connection.use-cases.js";
 import { CommerceConnectionsController } from "./presentation/http/commerce-connections.controller.js";
+import { WooCommerceWebhookController } from "./presentation/http/woocommerce-webhook.controller.js";
 
 @Module({
   imports: [IntegrationsModule],
-  controllers: [CommerceConnectionsController],
+  controllers: [CommerceConnectionsController, WooCommerceWebhookController],
   providers: [
     TenantCommerceAdapterFactory,
     {

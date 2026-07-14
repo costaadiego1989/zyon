@@ -9,8 +9,11 @@ test("WooCommerce adapter authenticates and reads live catalog data", async () =
     const headers = new Headers(init?.headers);
     seen.push({ url, authorization: headers.get("authorization") ?? undefined });
 
-    if (url.endsWith("/wp-json")) {
-      return json({ name: "AACP Store", url: "https://shop.example.com" });
+    if (url.includes("/system_status")) {
+      return json({
+        environment: { site_title: "AACP Store", site_url: "https://shop.example.com", wc_version: "8.0.0" },
+        settings: { store_name: "AACP Store", currency: "BRL" },
+      });
     }
     if (url.includes("/settings/general/woocommerce_currency")) {
       return json({ value: "BRL" });

@@ -33,7 +33,12 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
   ) {
     const { secretKey } = readStripeConnection();
-    this.stripe = new Stripe(secretKey ?? "__missing__", { apiVersion: "2026-04-22.dahlia" });
+    if (!secretKey) {
+      throw new Error(
+        "STRIPE_SECRET_KEY is not configured. HandleStripeWebhookUseCase cannot start without it."
+      );
+    }
+    this.stripe = new Stripe(secretKey, { apiVersion: "2026-04-22.dahlia" });
   }
 
   async execute(rawBody: Buffer, signature: string | undefined): Promise<HandleStripeWebhookResult> {
@@ -118,6 +123,15 @@ export class HandleStripeWebhookUseCase {
         return this.handleCheckoutCompleted(
           event.data.object as Stripe.Checkout.Session,
         );
+
+      case "charge.refunded":
+        return this.handleChargeRefunded(event.data.object as Stripe.Charge);
+
+      case "charge.dispute.created":
+        return this.handleDisputeCreated(event.data.object as Stripe.Dispute);
+
+      case "payment_intent.canceled":
+        return this.handleCanceled(event.data.object as Stripe.PaymentIntent);
 
       case "customer.subscription.created":
       case "customer.subscription.updated":
@@ -227,6 +241,59 @@ export class HandleStripeWebhookUseCase {
       cancelAtPeriodEnd: subscription.cancel_at_period_end,
     });
     return "billing_subscription_updated";
+  }
+
+  private async handleChargeRefunded(charge: Stripe.Charge): Promise<string> {
+    const pi = charge.payment_intent;
+    const piId = typeof pi === "string" ? pi : pi?.id;
+    if (!piId) return "ignored_missing_payment_intent";
+    const metaMerchantId = charge.metadata?.merchant_id;
+    const intentId = charge.metadata?.intent_id;
+    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
+
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    await this.paymentDispatch.markRefunded(intentEntity, "charge.refunded");
+    return "payment_refunded";
+  }
+
+  private async handleDisputeCreated(dispute: Stripe.Dispute): Promise<string> {
+    const charge = dispute.charge;
+    const chargeId = typeof charge === "string" ? charge : charge?.id;
+    const piObj = typeof charge === "object" && charge ? charge.payment_intent : undefined;
+    const piId = typeof piObj === "string" ? piObj : piObj?.id;
+    // Try metadata from the dispute's payment_intent if accessible
+    const metaMerchantId = dispute.metadata?.merchant_id;
+    const intentId = dispute.metadata?.intent_id;
+    if (!intentId || !metaMerchantId) {
+      return "ignored_missing_intent_id";
+    }
+
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    const reason = `dispute_created:${dispute.reason ?? "unknown"}`;
+    await this.paymentDispatch.markRefunded(intentEntity, reason);
+    return "payment_disputed";
+  }
+
+  private async handleCanceled(pi: Stripe.PaymentIntent): Promise<string> {
+    const intentId = pi.metadata?.intent_id;
+    const metaMerchantId = pi.metadata?.merchant_id;
+    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
+
+    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    if (!intentEntity) return "intent_not_found";
+
+    const snap = intentEntity.snapshot();
+    if (snap.status === "approved" || snap.status === "failed" || snap.status === "cancelled") {
+      return "already_terminal";
+    }
+
+    intentEntity.markCancelled("payment_intent.canceled");
+    await this.payments.saveIntent({ intent: intentEntity });
+    return "payment_canceled";
   }
 }
 

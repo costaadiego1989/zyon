@@ -59,7 +59,8 @@ export class UnauthorizedWebhookError extends Error {
 
 export function assertWebhookToken(expectedToken: string | undefined, inboundHeader?: string): void {
   const expected = expectedToken?.trim();
-  if (!expected) return;
+  // FAIL-CLOSED: if no webhook token is configured, reject all incoming webhooks.
+  if (!expected) throw new UnauthorizedWebhookError();
   const got = inboundHeader?.trim() ?? "";
   // M5 fix: constant-time comparison to prevent timing oracle
   if (got.length !== expected.length) throw new UnauthorizedWebhookError();
@@ -160,6 +161,7 @@ export class HandleAsaasWebhookUseCase {
         return "noop_created";
 
       case "PAYMENT_RECEIVED":
+      case "PAYMENT_CONFIRMED":
         return await this.handlePaymentReceived(intentEntity, paymentSlice);
 
       case "PAYMENT_REFUNDED": {

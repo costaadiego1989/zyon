@@ -108,7 +108,12 @@ import {
       provide: StripePaymentAdapter,
       useFactory: () => {
         const { secretKey, publishableKey } = readStripeConnection();
-        return new StripePaymentAdapter(secretKey ?? "__missing__", publishableKey ?? "");
+        if (!secretKey) {
+          throw new Error(
+            "STRIPE_SECRET_KEY is not configured. Stripe payment adapter cannot start without it."
+          );
+        }
+        return new StripePaymentAdapter(secretKey, publishableKey ?? "");
       }
     },
     {
@@ -153,7 +158,12 @@ import {
       provide: STRIPE_PLATFORM_PORT,
       useFactory: () => {
         const { secretKey } = readStripeConnection();
-        return new StripePlatformAdapter(secretKey ?? "__missing__");
+        if (!secretKey) {
+          throw new Error(
+            "STRIPE_SECRET_KEY is not configured. Stripe platform adapter cannot start without it."
+          );
+        }
+        return new StripePlatformAdapter(secretKey);
       },
     },
     {

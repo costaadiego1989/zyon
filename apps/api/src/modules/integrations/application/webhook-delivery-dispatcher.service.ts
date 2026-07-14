@@ -121,7 +121,8 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
           "X-AACP-Timestamp": timestamp,
           "X-AACP-Signature": signature
         },
-        body
+        body,
+        signal: AbortSignal.timeout(5000),
       };
       if (pinnedAddresses) {
         fetchOptions.dispatcher = createPinnedAgent(pinnedAddresses);
@@ -140,6 +141,26 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
           nextAttemptAt: undefined,
           deliveredAt: completedAt,
           updatedAt: completedAt
+        });
+        return;
+      }
+      // 4xx (except 408 Request Timeout and 429 Too Many Requests) are
+      // terminal — the endpoint explicitly rejected the payload.
+      const isNonRetryable4xx =
+        response.status >= 400 &&
+        response.status < 500 &&
+        response.status !== 408 &&
+        response.status !== 429;
+      if (isNonRetryable4xx) {
+        await this.repo.updateWebhookDelivery({
+          ...claimed,
+          status: "failed",
+          attempts: claimed.attempts + 1,
+          responseStatus: response.status,
+          responseBody: responseBody.slice(0, 2000),
+          error: `http_${response.status}_non_retryable`,
+          nextAttemptAt: undefined,
+          updatedAt: new Date().toISOString(),
         });
         return;
       }
@@ -167,7 +188,10 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
     const attempts = delivery.attempts + 1;
     const failed = attempts >= MAX_ATTEMPTS;
     const now = new Date();
-    const delaySeconds = Math.min(3600, Math.pow(2, attempts) * 30);
+    const baseDelaySeconds = Math.min(3600, Math.pow(2, attempts) * 30);
+    // Add ±20% random jitter to prevent thundering herd on retries.
+    const jitter = baseDelaySeconds * (0.8 + Math.random() * 0.4);
+    const delaySeconds = Math.round(jitter);
     await this.repo.updateWebhookDelivery({
       ...delivery,
       status: failed ? "failed" : "pending",
