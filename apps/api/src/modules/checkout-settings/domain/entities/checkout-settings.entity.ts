@@ -40,7 +40,10 @@ export class CheckoutSettingsEntity {
         openWidgetOnTrigger: true,
         startMinimized: true,
         position: "bottom_right",
-        initialDelaySeconds: 0
+        initialDelaySeconds: 0,
+        presentationMode: "fab",
+        showCartBadge: true,
+        inviteText: "Posso ajudar?"
       },
       interventionPolicy: {
         minimumAbandonmentScore: 0.7,

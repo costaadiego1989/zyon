@@ -674,11 +674,22 @@ export type CheckoutTriggerName =
   | "exit_intent_detected"
   | "idle_30_seconds";
 
+export type CheckoutWidgetPresentationMode =
+  | "fab"
+  | "mini_card"
+  | "bottom_banner"
+  | "trigger_only"
+  | "inline";
+
 export interface CheckoutWidgetBehavior {
   openWidgetOnTrigger: boolean;
   startMinimized: boolean;
   position: CheckoutWidgetPosition;
   initialDelaySeconds: number;
+  presentationMode: CheckoutWidgetPresentationMode;
+  fabColor?: string;
+  inviteText?: string;
+  showCartBadge?: boolean;
 }
 
 export interface CheckoutInterventionPolicy {

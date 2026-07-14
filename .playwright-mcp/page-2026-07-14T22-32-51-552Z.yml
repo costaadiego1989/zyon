@@ -1,0 +1,24 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - heading "Zyon Widget Test" [level=1] [ref=f2e3]
+    - paragraph [ref=f2e4]: O widget deve aparecer no canto inferior direito. Se não aparecer, verifique se a API está rodando em localhost:3009.
+    - paragraph [ref=f2e5]: "Token origin: http://localhost:5173 — sirva esta página nessa porta."
+  - generic [ref=f2e6]:
+    - generic [ref=f2e7]:
+      - generic [ref=f2e8]: 👕
+      - heading "Camiseta Premium Algodão" [level=3] [ref=f2e9]
+      - generic [ref=f2e10]: R$ 89,90 ou 3x de R$ 29,97
+      - generic [ref=f2e11]: Frete grátis
+    - generic [ref=f2e12]:
+      - generic [ref=f2e13]: 👟
+      - heading "Tênis Running Ultra" [level=3] [ref=f2e14]
+      - generic [ref=f2e15]: R$ 349,00 ou 6x de R$ 58,17
+      - generic [ref=f2e16]: "-15% PIX"
+    - generic [ref=f2e17]:
+      - generic [ref=f2e18]: 🎧
+      - heading "Fone Bluetooth NC Pro" [level=3] [ref=f2e19]
+      - generic [ref=f2e20]: R$ 279,90 ou 4x de R$ 69,98
+      - generic [ref=f2e21]: Lançamento
+  - generic [ref=f2e22]:
+    - paragraph [ref=f2e23]: Zyon Demo Store — Checkout Agêntico com IA
+    - paragraph [ref=f2e24]: Widget carrega automaticamente no canto inferior direito →

@@ -124,12 +124,6 @@ function settingsToDraft(s: CheckoutSettings): Draft {
 function draftToPatch(d: Draft): CheckoutSettingsPatch {
   return {
     mode: d.mode,
-    widgetBehavior: {
-      openWidgetOnTrigger: d.openWidgetOnTrigger,
-      startMinimized: d.startMinimized,
-      position: d.position,
-      initialDelaySeconds: d.initialDelaySeconds,
-    },
     interventionPolicy: {
       minimumAbandonmentScore: d.minimumAbandonmentScore,
       cooldownSeconds: d.cooldownSeconds,
@@ -157,6 +151,16 @@ function draftToPatch(d: Draft): CheckoutSettingsPatch {
       enabled: d.handoffEnabled,
       message: d.handoffMessage,
       channels: d.handoffChannels,
+    },
+    widgetBehavior: {
+      openWidgetOnTrigger: d.openWidgetOnTrigger,
+      startMinimized: d.startMinimized,
+      position: d.position,
+      initialDelaySeconds: d.initialDelaySeconds,
+      presentationMode: d.presentationMode,
+      fabColor: d.fabColor,
+      inviteText: d.inviteText,
+      showCartBadge: d.showCartBadge,
     },
     crossSellEnabled: d.crossSellEnabled,
   } as CheckoutSettingsPatch;
@@ -190,6 +194,10 @@ const DEFAULT_DRAFT: Draft = {
     "Vou transferir você para um atendente humano. Um momento, por favor.",
   handoffChannels: ["chat"],
   crossSellEnabled: false,
+  presentationMode: "fab",
+  fabColor: "#3b82f6",
+  inviteText: "Posso ajudar?",
+  showCartBadge: true,
 };
 
 function draftsEqual(a: Draft, b: Draft): boolean {
