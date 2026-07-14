@@ -87,7 +87,12 @@ import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
         ),
       inject: [WebAuthnChallengeService, BUYER_ACCOUNT_REPOSITORY],
     },
-    WebAuthnRegisterVerifyUseCase,
+    {
+      provide: WebAuthnRegisterVerifyUseCase,
+      useFactory: (verifier: WebAuthnVerifierService, challenges: WebAuthnChallengeService, credStore: any, buyerRepo: any) =>
+        new WebAuthnRegisterVerifyUseCase({ verifier, challengeService: challenges, credentialStore: credStore, buyerRepo }),
+      inject: [WebAuthnVerifierService, WebAuthnChallengeService, WEBAUTHN_CREDENTIAL_STORE, BUYER_ACCOUNT_REPOSITORY],
+    },
     {
       provide: WebAuthnLoginOptionsUseCase,
       useFactory: (challenges: WebAuthnChallengeService, credStore: any, buyerRepo: any) =>
@@ -99,7 +104,12 @@ import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
         }),
       inject: [WebAuthnChallengeService, WEBAUTHN_CREDENTIAL_STORE, BUYER_ACCOUNT_REPOSITORY],
     },
-    WebAuthnLoginVerifyUseCase,
+    {
+      provide: WebAuthnLoginVerifyUseCase,
+      useFactory: (verifier: WebAuthnVerifierService, challenges: WebAuthnChallengeService, credStore: any, buyerRepo: any, jwt: any) =>
+        new WebAuthnLoginVerifyUseCase({ verifier, challengeService: challenges, credentialStore: credStore, buyerRepo, jwt }),
+      inject: [WebAuthnVerifierService, WebAuthnChallengeService, WEBAUTHN_CREDENTIAL_STORE, BUYER_ACCOUNT_REPOSITORY, BuyerJwtService],
+    },
     // --- end WebAuthn ---
     BuyerJwtService,
     BuyerJwtAuthGuard,
