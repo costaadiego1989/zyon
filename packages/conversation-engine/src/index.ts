@@ -2,6 +2,36 @@ import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, Merchant
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
 
+// LangGraph exports
+export { OpenRouterProvider, LangGraphChatAgent } from "./langgraph/index.js";
+export type {
+  OpenRouterProviderOptions,
+  OpenRouterChatMessage,
+  OpenRouterChatRequest,
+  OpenRouterChatResult,
+  ChatAgentDeps,
+  ChatAgentInput,
+  ChatAgentResult,
+  AgentState,
+  SafetyValidator,
+  ChatAgentCallbacks,
+  ToolDefinition,
+  ToolResult,
+  ToolContext,
+  ToolHandlers,
+  ExecutableTool
+} from "./langgraph/index.js";
+export { buildChatTools, buildExecutableTools } from "./langgraph/index.js";
+export {
+  validateAssistantMessage,
+  isSafeGeneratedMessage as isSafeGeneratedMessageV2
+} from "./langgraph/index.js";
+export type { ValidationResult, SafetyValidatorOptions } from "./langgraph/index.js";
+export { CostTracker, estimateTokens, PRICING } from "./langgraph/index.js";
+export type { CostTrackerOptions, CostTrackerSnapshot } from "./langgraph/index.js";
+export { ContextManager, DEFAULT_CONTEXT_WINDOW } from "./langgraph/index.js";
+export type { ContextMessage, ContextManagerOptions } from "./langgraph/index.js";
+
 export interface ConversationInput {
   userMessage: string;
   brandVoice: MerchantRules["brandVoice"];

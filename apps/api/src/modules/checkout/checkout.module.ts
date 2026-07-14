@@ -91,6 +91,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     BuyerPurchaseHistoryAdapter,
     CheckoutSettingsAdapter,
     DeterministicConversationAdapter,
+    LangGraphConversationAdapter,
     BrevoBuyerEmailNotifier,
     ShopifyCommerceOfferAdapter,
     {
@@ -105,7 +106,11 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
-    { provide: CONVERSATION_PORT, useExisting: DeterministicConversationAdapter },
+    {
+      provide: CONVERSATION_PORT,
+      useFactory: () =>
+        process.env.OPENROUTER_API_KEY ? new LangGraphConversationAdapter() : new DeterministicConversationAdapter()
+    },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
     PaymentApprovedHandler
   ],

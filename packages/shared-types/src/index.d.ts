@@ -241,6 +241,8 @@ export interface ChatMessageResponse {
     objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
     authorized_offer?: AuthorizedOffer;
     actions: ChatAction[];
+    ssml?: string;
+    voice_config?: { speed: number; pitch: number };
 }
 export interface ShippingEvaluateRequest {
     merchant_id: string;

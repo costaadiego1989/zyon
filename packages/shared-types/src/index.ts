@@ -758,6 +758,8 @@ export interface ChatMessageResponse {
   stage?: ChatStage;
   missing_fields?: string[];
   expected_input_type?: string;
+  ssml?: string;
+  voice_config?: { speed: number; pitch: number };
 }
 
 export interface ShippingEvaluateRequest {

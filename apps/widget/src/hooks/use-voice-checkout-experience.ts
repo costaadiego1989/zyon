@@ -96,7 +96,7 @@ export function useVoiceCheckoutExperience(vm: CheckoutAgentViewModel) {
         }
       }
 
-      await vm.sendMessageWithOverride(text);
+      await vm.sendMessageWithOverride(text, { input_modality: "voice" });
     },
     [vm],
   );

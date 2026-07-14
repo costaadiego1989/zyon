@@ -13,11 +13,27 @@ import { RevokeM2mAgentUseCase } from "./application/use-cases/revoke-m2m-agent.
 import { GetBuyerSummaryUseCase } from "./application/use-cases/get-buyer-summary.use-case.js";
 import { SendBuyerPhoneCodeUseCase } from "./application/use-cases/send-buyer-phone-code.use-case.js";
 import { VerifyBuyerPhoneCodeUseCase } from "./application/use-cases/verify-buyer-phone-code.use-case.js";
+import { ListBuyerAddressesUseCase, AddBuyerAddressUseCase, UpdateBuyerAddressUseCase, DeleteBuyerAddressUseCase } from "./application/use-cases/list-buyer-addresses.use-case.js";
+import { ListBuyerConversationsUseCase, GetBuyerConversationUseCase, RateBuyerConversationMessageUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
+import { DeleteBuyerAccountUseCase } from "./application/use-cases/delete-buyer-account.use-case.js";
+import { ExportBuyerDataUseCase } from "./application/use-cases/export-buyer-data.use-case.js";
+import { WebAuthnRegisterOptionsUseCase } from "./application/use-cases/webauthn-register-options.use-case.js";
+import { WebAuthnRegisterVerifyUseCase } from "./application/use-cases/webauthn-register-verify.use-case.js";
+import { WebAuthnLoginOptionsUseCase } from "./application/use-cases/webauthn-login-options.use-case.js";
+import { WebAuthnLoginVerifyUseCase } from "./application/use-cases/webauthn-login-verify.use-case.js";
+import { WebAuthnChallengeService } from "./domain/services/webauthn-challenge.service.js";
+import { WebAuthnVerifierService } from "./domain/services/webauthn-verifier.service.js";
+import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
+import { BUYER_ACCOUNT_REPOSITORY } from "./domain/ports/buyer-account-repository.port.js";
+import { InMemoryWebAuthnCredentialStore } from "./infrastructure/in-memory-webauthn-credential-store.js";
 import { BuyerJwtService } from "./domain/services/buyer-jwt.service.js";
 import { M2mTokenService } from "./domain/services/m2m-token.service.js";
 import { BuyerJwtAuthGuard } from "./presentation/http/buyer-jwt-auth.guard.js";
 import { BuyerAccountController } from "./presentation/http/buyer-account.controller.js";
 import { BuyerAgentController } from "./presentation/http/buyer-agent.controller.js";
+import { BuyerAddressesController } from "./presentation/http/buyer-addresses.controller.js";
+import { BuyerHubController } from "./presentation/http/buyer-hub.controller.js";
+import { BuyerWebAuthnController } from "./presentation/http/buyer-webauthn.controller.js";
 import { BuyerAccountRepositoryModule } from "./buyer-account-repository.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
@@ -27,7 +43,7 @@ import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
-  controllers: [BuyerAccountController, BuyerAgentController],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerAddressesController, BuyerHubController, BuyerWebAuthnController],
   providers: [
     RegisterBuyerUseCase,
     LoginBuyerUseCase,
@@ -42,6 +58,49 @@ import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
     GetBuyerSummaryUseCase,
     SendBuyerPhoneCodeUseCase,
     VerifyBuyerPhoneCodeUseCase,
+    ListBuyerAddressesUseCase,
+    AddBuyerAddressUseCase,
+    UpdateBuyerAddressUseCase,
+    DeleteBuyerAddressUseCase,
+    ListBuyerConversationsUseCase,
+    GetBuyerConversationUseCase,
+    RateBuyerConversationMessageUseCase,
+    DeleteBuyerAccountUseCase,
+    ExportBuyerDataUseCase,
+    // --- WebAuthn biometric login ---
+    WebAuthnChallengeService,
+    {
+      provide: WebAuthnVerifierService,
+      useFactory: () => new WebAuthnVerifierService({
+        rpId: process.env.WEBAUTHN_RP_ID ?? "localhost",
+        origin: process.env.WEBAUTHN_ORIGIN ?? "https://localhost",
+      }),
+    },
+    { provide: WEBAUTHN_CREDENTIAL_STORE, useClass: InMemoryWebAuthnCredentialStore },
+    {
+      provide: WebAuthnRegisterOptionsUseCase,
+      useFactory: (challenges: WebAuthnChallengeService, buyerRepo: any) =>
+        new WebAuthnRegisterOptionsUseCase(
+          challenges,
+          { rpId: process.env.WEBAUTHN_RP_ID ?? "localhost", rpName: process.env.WEBAUTHN_RP_NAME ?? "Zyon" },
+          buyerRepo,
+        ),
+      inject: [WebAuthnChallengeService, "BUYER_ACCOUNT_REPOSITORY"],
+    },
+    WebAuthnRegisterVerifyUseCase,
+    {
+      provide: WebAuthnLoginOptionsUseCase,
+      useFactory: (challenges: WebAuthnChallengeService, credStore: any, buyerRepo: any) =>
+        new WebAuthnLoginOptionsUseCase({
+          challengeService: challenges,
+          credentialStore: credStore,
+          rpId: process.env.WEBAUTHN_RP_ID ?? "localhost",
+          buyerRepo,
+        }),
+      inject: [WebAuthnChallengeService, WEBAUTHN_CREDENTIAL_STORE, BUYER_ACCOUNT_REPOSITORY],
+    },
+    WebAuthnLoginVerifyUseCase,
+    // --- end WebAuthn ---
     BuyerJwtService,
     BuyerJwtAuthGuard,
     M2mTokenService,

@@ -725,9 +725,74 @@ model BuyerAccount {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  agentProfile BuyerAgentProfile?
+  agentProfile       BuyerAgentProfile?
+  addresses          BuyerAddress[]
+  conversations      BuyerConversation[]
+  buyerPreferences   BuyerPreference[]
+  webauthnCredentials WebAuthnCredential[]
 
   @@map("buyer_accounts")
+}
+
+/// Saved delivery addresses for a buyer (buyer-hub REQ-BH-004). One default
+/// address per buyer (is_default=true). Hard cap of 5 enforced at the
+/// use-case layer.
+model BuyerAddress {
+  id            String   @id @default(cuid())
+  globalUserId  String   @map("global_user_id")
+  zip           String
+  street        String
+  number        String
+  complement    String?
+  neighborhood  String
+  city          String
+  state         String
+  isDefault     Boolean  @default(false) @map("is_default")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@index([globalUserId])
+  @@map("buyer_addresses")
+}
+
+/// Past conversation a buyer had with the agent in a merchant checkout
+/// session (buyer-hub REQ-BH-007). Messages stored as JSONB; rating is
+/// up/down/null per agent message.
+model BuyerConversation {
+  id            String   @id @default(cuid())
+  globalUserId  String   @map("global_user_id")
+  sessionId     String   @map("session_id")
+  merchantId    String   @map("merchant_id")
+  messages      Json
+  startedAt     DateTime @default(now()) @map("started_at")
+  lastMessageAt DateTime @default(now()) @map("last_message_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@index([globalUserId, lastMessageAt])
+  @@index([merchantId, sessionId])
+  @@map("buyer_conversations")
+}
+
+/// Buyer communication preferences, agent negotiation preferences and
+/// notification toggles (buyer-hub REQ-BH-006). One row per buyer (global).
+model BuyerPreference {
+  id                       String   @id @default(cuid())
+  globalUserId             String   @unique @map("global_user_id")
+  emailOptIn               Boolean  @default(true) @map("email_opt_in")
+  smsOptIn                 Boolean  @default(false) @map("sms_opt_in")
+  whatsappOptIn            Boolean  @default(false) @map("whatsapp_opt_in")
+  m2mNegotiationEnabled    Boolean  @default(false) @map("m2m_negotiation_enabled")
+  language                 String   @default("pt-BR")
+  pushNotificationsEnabled Boolean  @default(true) @map("push_notifications_enabled")
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@map("buyer_preferences")
 }
 
 model BuyerAgentProfile {
@@ -769,6 +834,29 @@ model BuyerPhoneOtp {
 
   @@index([expiresAt])
   @@map("buyer_phone_otps")
+}
+
+/// WebAuthn (FIDO2) credential store. Each row is a registered authenticator
+/// bound to a buyer account and origin. The public key material is stored as
+/// a raw ECDSA P-256 uncompressed point (65 bytes). Per spec REQ-WA-005 the
+/// column should be encrypted at rest via Prisma field-level encryption or
+/// column-level database encryption.
+model WebAuthnCredential {
+  id           String    @id @default(cuid())
+  credentialId String    @unique @map("credential_id")
+  globalUserId String    @map("global_user_id")
+  publicKey    Bytes     @map("public_key")
+  counter      Int       @default(0)
+  transports   String[]  @default([])
+  aaguid       String    @default("00000000-0000-0000-0000-000000000000")
+  origin       String
+  createdAt    DateTime  @default(now()) @map("created_at")
+  lastUsedAt   DateTime? @map("last_used_at")
+
+  account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
+
+  @@index([globalUserId])
+  @@map("webauthn_credentials")
 }
 
 /// Persistent, shared login-abuse counter. Replaces the per-instance Map so the

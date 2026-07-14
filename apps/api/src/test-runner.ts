@@ -108,6 +108,11 @@ import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-hi
 import "./modules/buyer-purchase-history/presentation/http/buyer-purchase-history.controller.spec.js";
 import "./modules/buyer-account/application/use-cases/login-buyer-from-session.use-case.spec.js";
 import "./modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.spec.js";
+import "./modules/buyer-account/__tests__/webauthn-challenge.spec.js";
+import "./modules/buyer-account/__tests__/webauthn-credential-store.spec.js";
+import "./modules/buyer-account/__tests__/webauthn-assertion-verifier.spec.js";
+import "./modules/buyer-account/__tests__/webauthn-register.integration.spec.js";
+import "./modules/buyer-account/__tests__/webauthn-login.integration.spec.js";
 import "./modules/checkout/__tests__/update-order-tracking.use-case.spec.js";
 import "./modules/checkout/application/use-cases/update-cart.use-case.spec.js";
 import "./modules/onboarding/application/onboarding.use-cases.spec.js";

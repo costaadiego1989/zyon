@@ -402,15 +402,16 @@ export function useCheckoutChat(
     }
   }
 
-  async function sendMessageWithOverride(userText: string): Promise<void> {
+  async function sendMessageWithOverride(userText: string, opts?: { input_modality?: "voice" | "text" }): Promise<void> {
     if (!session || networkError || !userText.trim() || composerLocked) return;
     setBusy(true);
     setTurns((current) => [...current, { role: "buyer", text: userText.trim(), occurredAt: new Date().toISOString() }]);
     try {
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
-      const body = config.mode === "embed"
+      const baseBody = config.mode === "embed"
         ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: userText.trim() }
         : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: userText.trim() };
+      const body = opts?.input_modality ? { ...baseBody, input_modality: opts.input_modality } : baseBody;
       const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
         ...embedOpts,
         body,
