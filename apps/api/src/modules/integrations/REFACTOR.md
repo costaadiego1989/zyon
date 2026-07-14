@@ -14,7 +14,7 @@ structural issues remain.
 
 ### CRITICAL
 
-#### INT-C1 — SSRF via DNS rebinding (TOCTOU in webhook dispatch)
+#### INT-C1 — SSRF via DNS rebinding (TOCTOU in webhook dispatch) [DONE]
 
 - **File:** `infrastructure/dns-webhook-target-policy.ts`, `application/webhook-delivery-dispatcher.service.ts`
 - **Category:** Security
@@ -32,7 +32,7 @@ structural issues remain.
   only delivers the pre-validated addresses. Re-validate on every delivery
   attempt (addresses may rotate).
 
-#### INT-C2 — Webhook delivery duplicate dispatch (no atomic claim before ADR-0002 fix)
+#### INT-C2 — Webhook delivery duplicate dispatch (no atomic claim before ADR-0002 fix) [DONE]
 
 - **File:** `application/webhook-delivery-dispatcher.service.ts`, `application/integrations.use-cases.ts`
 - **Category:** Concurrency / Reliability
@@ -86,7 +86,7 @@ structural issues remain.
   `hash(merchantId + externalOrderId + eventType)`) or accept a caller-supplied
   idempotency key.
 
-#### INT-H3 — Signing secret stored in delivery record
+#### INT-H3 — Signing secret stored in delivery record [DONE]
 
 - **File:** `application/integrations.use-cases.ts` (`TenantWebhookPublisher`)
 - **Category:** Security

@@ -1,8 +1,10 @@
-import { Injectable } from "@nestjs/common";
 import type { AuthMerchant, AuthUser } from "../domain/auth.types.js";
 import type { AuthRepository } from "../domain/ports/auth-repository.port.js";
 
-@Injectable()
+/**
+ * L8: Removed @Injectable() — test double, never wired via module root.
+ * Constructed directly in specs, per CLAUDE.md.
+ */
 export class InMemoryAuthRepository implements AuthRepository {
   private merchants = new Map<string, AuthMerchant>();
   private users = new Map<string, AuthUser>();

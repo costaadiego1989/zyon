@@ -49,6 +49,22 @@ export class PrismaCommercePaidWebhookDedup implements CommercePaidWebhookDedupP
   }
 
   /**
+   * Releases an incomplete reserve (commerceOrderId still empty sentinel) so the
+   * same paymentReference can be re-attempted. Used for manual recovery.
+   * Only releases if commerceOrderId is still the empty sentinel (not yet processed).
+   */
+  async releaseReserve(merchantId: string, paymentReference: string): Promise<boolean> {
+    const result = await this.prisma.commercePaidEvent.deleteMany({
+      where: {
+        merchantId: merchantId.trim(),
+        paymentReference: paymentReference.trim(),
+        commerceOrderId: ""
+      }
+    });
+    return result.count > 0;
+  }
+
+  /**
    * Updates the reserved row with the resolved commerceOrderId and appends the
    * domain event to the outbox in the same transaction.
    * Also idempotent as a standalone create (P2002 is swallowed) for callers

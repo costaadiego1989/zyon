@@ -20,6 +20,15 @@ export interface CommercePaidWebhookDedupPort {
   tryReserve(merchantId: string, paymentReference: string): Promise<boolean>;
 
   /**
+   * Releases an incomplete reserve (commerceOrderId still empty) so the
+   * same paymentReference can be re-attempted. Used for manual recovery
+   * or automatic TTL-based stale-claim cleanup.
+   * Returns true if the reserve was released, false if it didn't exist or
+   * was already completed.
+   */
+  releaseReserve(merchantId: string, paymentReference: string): Promise<boolean>;
+
+  /**
    * Updates the dedup row with the resolved commerce order id and appends the
    * domain event to the outbox in the SAME transaction (atomically).
    * Safe to call after `tryReserve` returned `true`; idempotent on re-call

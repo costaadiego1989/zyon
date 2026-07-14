@@ -16,7 +16,7 @@ encryption key derivation.
 
 ### CRITICAL
 
-#### COM-C1 — Static salt in scrypt key derivation weakens encryption
+#### COM-C1 — Static salt in scrypt key derivation weakens encryption [DONE]
 
 - **File:** `infrastructure/commerce-secret-cipher.ts`
 - **Category:** Security / Crypto
@@ -62,7 +62,7 @@ encryption key derivation.
      resolved adapter with retry/no-retry policy per operation.
   Alternatively, use a proper Strategy pattern with provider-specific factories.
 
-#### COM-H2 — No adapter instance caching (new adapter per request)
+#### COM-H2 — No adapter instance caching (new adapter per request) [DONE]
 
 - **File:** `infrastructure/tenant-commerce-adapter.factory.ts`
 - **Category:** Performance / KISS
@@ -78,7 +78,7 @@ encryption key derivation.
   Invalidate on credential update. Or use request-scoped caching via NestJS
   `REQUEST` scope or a `CLS` context.
 
-#### COM-H3 — `MarkCommerceOrderPaidUseCase` has no rollback on provider failure after reserve
+#### COM-H3 — `MarkCommerceOrderPaidUseCase` has no rollback on provider failure after reserve [DONE]
 
 - **File:** `application/mark-commerce-order-paid.use-case.ts`
 - **Category:** Reliability / Data Consistency
@@ -97,7 +97,7 @@ encryption key derivation.
   "in-progress" (allow the same caller to retry), OR
   (c) Add a TTL-based expiry on uncompleted reserves.
 
-#### COM-H4 — `SyncPendingOrderUseCase` has same reserve-without-rollback issue
+#### COM-H4 — `SyncPendingOrderUseCase` has same reserve-without-rollback issue [DONE]
 
 - **File:** `application/sync-pending-order.use-case.ts`
 - **Category:** Reliability / Data Consistency
@@ -156,7 +156,7 @@ encryption key derivation.
 - **Remediation:** Split into `CommerceCredentialReader` (getCredentials) and
   `CommerceConnectionManager` (save, update, delete, getConnection).
 
-#### COM-M4 — `retryWithBackoff` has no jitter
+#### COM-M4 — `retryWithBackoff` has no jitter [DONE]
 
 - **File:** `infrastructure/commerce-retry.ts`
 - **Category:** Reliability

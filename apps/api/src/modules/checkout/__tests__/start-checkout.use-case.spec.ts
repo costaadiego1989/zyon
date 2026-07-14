@@ -7,6 +7,9 @@ import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-me
 import { startCheckoutRequest } from "./checkout-test-fixtures.js";
 import { StartCheckoutUseCase } from "../application/use-cases/start-checkout.use-case.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
+import { OtpService } from "../application/services/otp.service.js";
+import { BuyerRecognitionService } from "../application/services/buyer-recognition.service.js";
+import { BuyerAccountPersistenceService } from "../application/services/buyer-account-persistence.service.js";
 import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
 
@@ -219,7 +222,10 @@ test("StartCheckoutUseCase hydrates returning buyer from embed email hint and op
   const repository = new InMemoryCheckoutRepository();
   const buyerAccounts = new InMemoryBuyerAccountRepository();
   await buyerAccounts.save(returningBuyerAccount());
-  const customerService = new CheckoutCustomerService(repository, undefined, buyerAccounts);
+  const otpService = new OtpService();
+  const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
+  const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
+  const customerService = new CheckoutCustomerService(repository, undefined, otpService, recognitionService, persistenceService);
   const useCase = new StartCheckoutUseCase(
     repository,
     repository,

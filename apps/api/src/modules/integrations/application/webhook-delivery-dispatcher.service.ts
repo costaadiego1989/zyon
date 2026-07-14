@@ -6,6 +6,7 @@ import {
   OnModuleInit,
   Optional,
 } from "@nestjs/common";
+import { Agent as HttpsAgent } from "node:https";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../domain/ports/integrations.repository.port.js";
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
 import type { MerchantWebhookDelivery } from "../domain/integrations.types.js";
@@ -85,11 +86,17 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
 
     const body = JSON.stringify(claimed.envelope);
     const timestamp = Math.floor(Date.now() / 1000).toString();
-    const signature = this.signatures.sign({ secret: claimed.signingSecret, timestamp, body });
+    // Look up the signing secret from the endpoint at dispatch time to avoid
+    // persisting secrets in the delivery table (INT-H3).
+    const signingSecret = await this.resolveSigningSecret(claimed);
+    const signature = this.signatures.sign({ secret: signingSecret, timestamp, body });
     let endpointUrl = claimed.endpointUrl;
+    let pinnedAddresses: string[] | undefined;
     if (this.targetPolicy) {
       try {
-        endpointUrl = await this.targetPolicy.assertAllowed(endpointUrl);
+        const resolved = await this.targetPolicy.assertAllowed(endpointUrl);
+        endpointUrl = resolved.url;
+        pinnedAddresses = resolved.pinnedAddresses;
       } catch {
         await this.repo.updateWebhookDelivery({
           ...claimed,
@@ -104,7 +111,7 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
     }
 
     try {
-      const response = await fetch(endpointUrl, {
+      const fetchOptions: RequestInit & { dispatcher?: unknown } = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -115,7 +122,11 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
           "X-AACP-Signature": signature
         },
         body
-      });
+      };
+      if (pinnedAddresses) {
+        fetchOptions.dispatcher = createPinnedAgent(pinnedAddresses);
+      }
+      const response = await fetch(endpointUrl, fetchOptions);
       const responseBody = await response.text().catch(() => "");
       if (response.ok) {
         const completedAt = new Date().toISOString();
@@ -137,6 +148,19 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
       this.logger.warn(`Webhook delivery ${claimed.id} failed: ${String(error)}`);
       await this.retryOrFail(claimed, "network_error");
     }
+  }
+
+  /**
+   * Resolves the signing secret for a delivery by looking up the endpoint.
+   * Falls back to the delivery's own signingSecret for backward compatibility
+   * with records created before INT-H3 fix.
+   */
+  private async resolveSigningSecret(delivery: MerchantWebhookDelivery): Promise<string> {
+    const endpoint = await this.repo.getWebhookEndpoint(delivery.merchantId, delivery.endpointId);
+    if (endpoint?.signingSecret) return endpoint.signingSecret;
+    // Backward compat: old delivery records still carry the secret.
+    if (delivery.signingSecret) return delivery.signingSecret;
+    throw new Error(`webhook_signing_secret_not_found:${delivery.endpointId}`);
   }
 
   private async retryOrFail(delivery: MerchantWebhookDelivery, error: string, status?: number, responseBody?: string): Promise<void> {
@@ -176,4 +200,22 @@ function errorMessage(error: unknown): string {
 
 function errorStack(error: unknown): string | undefined {
   return error instanceof Error ? error.stack : undefined;
+}
+
+/**
+ * Creates an HTTP(S) Agent that locks DNS resolution to the pre-validated
+ * addresses, preventing SSRF via DNS rebinding (INT-C1).
+ */
+function createPinnedAgent(pinnedAddresses: string[]): HttpsAgent {
+  // Use the first pinned address; in production, consider round-robin or randomization.
+  const primaryAddress = pinnedAddresses[0];
+  if (!primaryAddress) throw new Error("no_pinned_addresses");
+
+  // Custom lookup that returns only the pinned address, ignoring DNS.
+  const customLookup = (hostname: string, options: unknown, callback: (err: Error | null, address: string, family: number) => void): void => {
+    const isIpv6 = primaryAddress.includes(":");
+    callback(null, primaryAddress, isIpv6 ? 6 : 4);
+  };
+
+  return new HttpsAgent({ lookup: customLookup as any });
 }

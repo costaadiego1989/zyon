@@ -1,17 +1,13 @@
 import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import Stripe from "stripe";
-import type { CurrencyCode } from "@zyon/shared-types";
 import {
   PAYMENT_REPOSITORY,
   type PaymentRepository,
   type ProviderEventKey
 } from "../domain/ports/payment-repository.port.js";
-import type { PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
-import type { CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
-import { CHECKOUT_PAYMENT_PORT } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { readStripeConnection } from "../infrastructure/stripe-env.js";
-import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
 
 export type HandleStripeWebhookResult =
@@ -32,9 +28,8 @@ export class HandleStripeWebhookUseCase {
 
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
-    @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
+    private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
   ) {
     const { secretKey } = readStripeConnection();
@@ -145,77 +140,15 @@ export class HandleStripeWebhookUseCase {
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();
-    if (snap.status === "approved") {
-      await this.markLinkedCommerceOrderPaid(snap, pi.id);
-      return "already_approved";
-    }
 
-    // Authoritative amount check BEFORE approval, mirroring the Asaas
-    // PAYMENT_RECEIVED path: a value mismatch is a clean failure + alert, not a
-    // poison event that throws out of dispatch forever (ADR 0001 #5).
-    if (pi.amount_received !== snap.amountCents) {
+    // Authoritative amount check BEFORE approval (ADR 0001 #5).
+    if (snap.status !== "approved" && pi.amount_received !== snap.amountCents) {
       this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "value_mismatch" });
-      intentEntity.markFailed("stripe_value_mismatch");
-      await this.payments.saveIntent({ intent: intentEntity });
-      await this.checkoutPayment.recordPaymentStatusChanged({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        paymentIntentId: snap.id,
-        status: "failed",
-        reason: "stripe_value_mismatch",
-        commerceOrderId: snap.commerceOrderId
-      });
-      await this.checkoutPayment.recordPaymentFailure({
-        merchantId: snap.merchantId,
-        sessionId: snap.sessionId,
-        reason: "stripe_value_mismatch"
-      });
+      await this.paymentDispatch.markFailed(intentEntity, "stripe_value_mismatch");
       return "stripe_value_mismatch";
     }
 
-    intentEntity.markApproved({
-      providerPaymentId: pi.id,
-      approvedAmountCents: snap.amountCents
-    });
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "approved",
-      commerceOrderId: snap.commerceOrderId
-    });
-
-    this.metrics?.paymentApproved.inc({ merchant_id: snap.merchantId });
-
-    await this.checkoutPayment.completeAfterApproval({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      externalOrderId: pi.id,
-      orderTotalMajorUnits: snap.amountCents / 100,
-      currency: snap.currency as CurrencyCode,
-      acceptedOfferId: snap.acceptedOfferId
-    });
-
-    const commerceSynced = await this.markLinkedCommerceOrderPaid(snap, pi.id);
-
-    return commerceSynced ? "checkout_completed_after_payment_and_commerce_paid" : "checkout_completed_after_payment";
-  }
-
-  private async markLinkedCommerceOrderPaid(
-    snap: PaymentIntentSnapshot,
-    paymentReference: string
-  ): Promise<boolean> {
-    const commerceOrderId = snap.commerceOrderId?.trim();
-    if (!commerceOrderId || !this.markCommerceOrderPaid) return false;
-
-    const result = await this.markCommerceOrderPaid.execute({
-      merchantId: snap.merchantId,
-      commerceOrderId,
-      paymentReference
-    });
-    return result.invokedCommerceSync;
+    return this.paymentDispatch.markApprovedAndComplete(intentEntity, pi.id);
   }
 
   private async handleFailed(pi: Stripe.PaymentIntent): Promise<string> {
@@ -230,24 +163,7 @@ export class HandleStripeWebhookUseCase {
     if (snap.status === "approved" || snap.status === "failed") return "already_terminal";
 
     const reason = pi.last_payment_error?.message ?? "stripe_payment_failed";
-    intentEntity.markFailed(reason);
-    await this.payments.saveIntent({ intent: intentEntity });
-
-    await this.checkoutPayment.recordPaymentStatusChanged({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      paymentIntentId: snap.id,
-      status: "failed",
-      reason,
-      commerceOrderId: snap.commerceOrderId
-    });
-
-    await this.checkoutPayment.recordPaymentFailure({
-      merchantId: snap.merchantId,
-      sessionId: snap.sessionId,
-      reason
-    });
-
+    await this.paymentDispatch.markFailed(intentEntity, reason);
     return "payment_failed";
   }
 

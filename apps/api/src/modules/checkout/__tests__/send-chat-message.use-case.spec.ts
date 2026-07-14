@@ -20,6 +20,9 @@ import { CompleteOrderUseCase } from "../application/use-cases/complete-order.us
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../application/services/checkout-offer.service.js";
+import { OtpService } from "../application/services/otp.service.js";
+import { BuyerRecognitionService } from "../application/services/buyer-recognition.service.js";
+import { BuyerAccountPersistenceService } from "../application/services/buyer-account-persistence.service.js";
 import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
 
@@ -32,7 +35,10 @@ function createTestUseCase(
   crossSellUseCase?: { execute(input: unknown): Promise<unknown[]> },
   buyerAccounts?: InMemoryBuyerAccountRepository
 ) {
-  const custService = new CheckoutCustomerService(repository, brevoNotifier, buyerAccounts);
+  const otpService = new OtpService();
+  const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
+  const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
+  const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   return new SendChatMessageUseCase(
@@ -202,7 +208,10 @@ test("SendChatMessageUseCase skips OTP for embed prefilled email when buyer acco
     createdAt: new Date(),
     updatedAt: new Date()
   }));
-  const customerService = new CheckoutCustomerService(repository, undefined, buyerAccounts);
+  const otpService = new OtpService();
+  const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
+  const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
+  const customerService = new CheckoutCustomerService(repository, undefined, otpService, recognitionService, persistenceService);
   await new StartCheckoutUseCase(
     repository,
     repository,

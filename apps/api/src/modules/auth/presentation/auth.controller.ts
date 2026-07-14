@@ -1,18 +1,25 @@
 import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
-import { LoginUseCase } from "../application/login.use-case.js";
+import { LoginWithRateLimitUseCase } from "../application/login-with-rate-limit.use-case.js";
+import { RefreshTokenUseCase } from "../application/refresh-token.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
-import { JwtService } from "../domain/services/jwt.service.js";
-import { LoginRateLimiter } from "../domain/services/login-rate-limiter.service.js";
+import { InvalidCredentialsError, LoginRateLimitedError, RefreshTokenExpiredError } from "../domain/errors.js";
+import { normalizeEmail } from "../domain/validators.js";
+import type { LoginAttemptScope } from "../domain/ports/rate-limiter.port.js";
 
+/**
+ * H1: Controller is now a thin HTTP layer. Orchestration lives in use-cases.
+ * L13: Maps domain errors to HTTP exceptions.
+ * H8: Sets Retry-After header on 429.
+ * L6: Register rate limiting via same limiter (separate scope).
+ */
 @Controller("auth")
 export class AuthController {
   constructor(
     private readonly registerMerchant: RegisterMerchantUseCase,
-    private readonly login: LoginUseCase,
-    private readonly jwt: JwtService,
-    private readonly cookies: AuthCookieService,
-    private readonly rateLimiter: LoginRateLimiter
+    private readonly loginWithRateLimit: LoginWithRateLimitUseCase,
+    private readonly refreshToken: RefreshTokenUseCase,
+    private readonly cookies: AuthCookieService
   ) {}
 
   @Post("register")
@@ -28,17 +35,26 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    // B2 (P1): Key by IP + normalized email. x-device-id header is NOT used
-    // because it is client-controlled and was trivially rotatable to bypass limits.
-    const scope = { ip: ip || "unknown", email: body.email ?? "" };
-    this.rateLimiter.assertAllowed(scope);
+    // Build scope from trusted identifiers
+    const scope: LoginAttemptScope = { ip: ip || "unknown", email: normalizeEmail(body.email ?? "") };
     try {
-      const auth = await this.login.execute(body);
-      this.rateLimiter.recordSuccess(scope);
+      const auth = await this.loginWithRateLimit.execute(body, scope);
       response.setHeader("Set-Cookie", this.cookies.create(auth));
       return auth;
     } catch (error) {
-      this.rateLimiter.recordFailure(scope);
+      // H8, L13: Map domain errors to appropriate HTTP responses
+      if (error instanceof LoginRateLimitedError) {
+        const retryAfterSec = Math.ceil(error.retryAfterMs / 1000);
+        response.setHeader("Retry-After", String(retryAfterSec));
+        throw new UnauthorizedException({
+          statusCode: 429,
+          message: "login_rate_limited",
+          retryAfter: retryAfterSec
+        });
+      }
+      if (error instanceof InvalidCredentialsError) {
+        throw new UnauthorizedException("invalid_credentials");
+      }
       throw error;
     }
   }
@@ -48,7 +64,7 @@ export class AuthController {
     @Req() request: { headers?: { cookie?: string; authorization?: string } },
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    // Lê token do cookie ou header
+    // Extract token from header or cookie
     const header = request.headers?.authorization;
     const token = typeof header === "string" && header.startsWith("Bearer ")
       ? header.slice("Bearer ".length)
@@ -59,19 +75,7 @@ export class AuthController {
     }
 
     try {
-      // Verifica assinatura, aceita expirado dentro da janela de graça (7 dias)
-      const principal = this.jwt.verifyForRefresh(token);
-      // Emite novo token
-      const newToken = this.jwt.sign(principal);
-      const expiresIn = this.jwt.expiresIn();
-      const auth = {
-        merchant_id: principal.merchantId,
-        user_id: principal.userId,
-        email: principal.email,
-        access_token: newToken,
-        token_type: "Bearer" as const,
-        expires_in: expiresIn
-      };
+      const auth = this.refreshToken.execute(token);
       response.setHeader("Set-Cookie", this.cookies.create(auth));
       return auth;
     } catch {

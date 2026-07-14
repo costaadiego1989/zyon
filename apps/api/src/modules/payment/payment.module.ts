@@ -12,6 +12,7 @@ import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
+import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
@@ -74,6 +75,7 @@ import {
     BillingController,
   ],
   providers: [
+    PaymentDispatchService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,

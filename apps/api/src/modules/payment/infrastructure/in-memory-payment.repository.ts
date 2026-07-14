@@ -136,4 +136,9 @@ export class InMemoryPaymentRepository implements PaymentRepository {
   async deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void> {
     this.cryptoTransfers.delete(keyCryptoTransfer(key.chain, key.txHash));
   }
+
+  async reapExpiredCryptoReservations(): Promise<number> {
+    // In-memory implementation: no-op (in-memory doesn't track expires_at)
+    return 0;
+  }
 }

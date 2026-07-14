@@ -6,6 +6,7 @@ import { CompleteOrderUseCase } from "../../../checkout/application/use-cases/co
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { CreatePaymentIntentUseCase } from "../../application/create-payment-intent.use-case.js";
 import { HandleStripeWebhookUseCase } from "../../application/handle-stripe-webhook.use-case.js";
+import { PaymentDispatchService } from "../../application/services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../../infrastructure/in-memory-payment.repository.js";
 import { CheckoutPaymentAdapter } from "../../infrastructure/checkout-payment.adapter.js";
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
@@ -105,7 +106,8 @@ test("Stripe webhook: payment_intent.succeeded → intent aprovado + pedido comp
   assert.ok(intentSnap.providerPaymentId?.startsWith("pi_test_"));
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhookUC = new HandleStripeWebhookUseCase(payments, checkoutPayment);
+  const dispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.succeeded", {
     id: intentSnap.providerPaymentId!,
@@ -150,7 +152,8 @@ test("Stripe webhook: payment_intent.payment_failed → intent failed + chat atu
   const intentSnap = await setupSession(checkout, payments, provider, merchantId, sessionId, 200);
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhookUC = new HandleStripeWebhookUseCase(payments, checkoutPayment);
+  const dispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.payment_failed", {
     id: intentSnap.providerPaymentId!,
@@ -190,7 +193,8 @@ test("Stripe webhook: evento duplicado retorna outcome=duplicate", async () => {
   const intentSnap = await setupSession(checkout, payments, provider, merchantId, sessionId, 100);
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhookUC = new HandleStripeWebhookUseCase(payments, checkoutPayment);
+  const dispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.succeeded", {
     id: intentSnap.providerPaymentId!,
@@ -213,7 +217,8 @@ test("Stripe webhook: metadata.intent_id ausente → ignored", async () => {
   const checkout = new InMemoryCheckoutRepository();
   const payments = new InMemoryPaymentRepository();
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhookUC = new HandleStripeWebhookUseCase(payments, checkoutPayment);
+  const dispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhookUC = new HandleStripeWebhookUseCase(payments, dispatch);
 
   const event = stripeEvent("payment_intent.succeeded", {
     id: "pi_test_no_meta",

@@ -588,11 +588,14 @@ model NegotiationCostLedgerEntry {
   merchantId           String   @map("merchant_id")
   negotiationSessionId String   @map("negotiation_session_id")
   eventType            String   @map("event_type")
-  amountCents          Int      @map("amount_cents")
+  amountCents          Int      @map("amount_cents") // C3 fix: deprecated — use aiCostCents or discountBasisPoints
+  aiCostCents          Int?     @map("ai_cost_cents") // For negotiation.evaluated entries
+  discountBasisPoints  Int?     @map("discount_basis_points") // For negotiation.offer_applied entries
   createdAt            DateTime @default(now()) @map("created_at")
 
   session NegotiationSession @relation(fields: [negotiationSessionId], references: [id], onDelete: Cascade)
 
+  @@unique([negotiationSessionId, eventType]) // H2 fix: concurrent-apply protection
   @@index([merchantId, negotiationSessionId])
   @@map("negotiation_cost_ledger_entries")
 }
@@ -703,9 +706,11 @@ model PaymentCryptoTransfer {
   merchantId String   @map("merchant_id")
   intentId   String   @map("intent_id")
   observedAt DateTime @default(now()) @map("observed_at")
+  expiresAt  DateTime @default(dbgenerated("CURRENT_TIMESTAMP + INTERVAL '5 minutes'")) @map("expires_at") // H1 fix: reaper pattern
 
   @@unique([chain, txHash])
   @@index([merchantId, intentId])
+  @@index([expiresAt])
   @@map("payment_crypto_transfers")
 }
 

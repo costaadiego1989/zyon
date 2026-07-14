@@ -12,6 +12,7 @@ import { COMMERCE_OFFER_PORT, type CommerceOfferPort } from "../../domain/ports/
 import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { TenantBoundaryGuard } from "../../infrastructure/tenant-boundary.guard.js";
 
 @Injectable()
 export class ApplyOfferUseCase {
@@ -28,6 +29,11 @@ export class ApplyOfferUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const offer = await this.offers.getOffer(input.merchant_id, input.offer_id);
     if (!offer || !offer.approved) return { success: false, reason: "offer_not_found_or_not_approved" };
+    // Tenant boundary guard: reject cross-merchant offer reuse.
+    // This enforces the invariant that offers are scoped to (merchantId, sessionId) tuples.
+    if (!TenantBoundaryGuard.matches(offer.merchantId, input.merchant_id)) {
+      return { success: false, reason: "offer_not_found_or_not_approved" };
+    }
     // Invariant: an offer is scoped to the session it was authorized for.
     // Reject cross-session reuse even within the same merchant.
     if (offer.sessionId !== input.session_id) return { success: false, reason: "offer_not_found_or_not_approved" };

@@ -25,6 +25,9 @@ import { UpdateCartUseCase } from "./application/use-cases/update-cart.use-case.
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
+import { OtpService } from "./application/services/otp.service.js";
+import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
+import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
 import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
 import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.repository.port.js";
@@ -64,6 +67,9 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     GetCheckoutSessionUseCase,
     GetDecisionUseCase,
     SendChatMessageUseCase,
+    OtpService,
+    BuyerRecognitionService,
+    BuyerAccountPersistenceService,
     CheckoutCustomerService,
     CheckoutShippingService,
     CheckoutOfferService,

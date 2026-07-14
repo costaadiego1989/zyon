@@ -15,7 +15,7 @@
 
 ### CRITICAL
 
-#### 1. CheckoutCustomerService: God Service (460 LOC, 70+ if statements)
+#### [DONE] 1. CheckoutCustomerService: God Service (460 LOC, 70+ if statements)
 **Finding:** Single service handling customer extraction, OTP validation, email capture notification, returning buyer hydration, buyer account persistence, profile merging, address merging, address validation, and scoring.
 
 **Violations:**
@@ -44,7 +44,7 @@
 
 ---
 
-#### 2. SendChatMessageUseCase: Orchestration God (208 LOC, 5 constructor deps)
+#### [DONE] 2. SendChatMessageUseCase: Orchestration God (208 LOC, 5 constructor deps)
 **Finding:** Single use-case chaining 4 services in sequence with custom cross-sell and action routing.
 
 **Flow:**
@@ -132,7 +132,7 @@
 
 ---
 
-#### 5. Offer Authorization Flow: Missing Invariant Enforcement
+#### [DONE] 5. Offer Authorization Flow: Missing Invariant Enforcement
 **Finding:** LLM never authorizes offers (CLAUDE.md invariant); rules-engine + shipping-engine approve. But `CheckoutOfferService.authorizeOffer()` calls engine directly, bypassing validation of generated messages.
 
 **Violations:**
@@ -209,7 +209,7 @@
 
 ---
 
-#### 8. Tenant Isolation: merchant_id Scoping Inconsistent
+#### [DONE] 8. Tenant Isolation: merchant_id Scoping Inconsistent
 **Finding:** merchant_id boundary enforced in queries but NOT in cached agent contexts or offer validations.
 
 **Violations:**

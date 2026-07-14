@@ -91,8 +91,11 @@ export class ApplyNegotiationAgreementToCheckoutUseCase {
     if (!evaluation.approved) {
       throw new BadRequestException(`merchant_rules_reject:${evaluation.reason}`);
     }
+    // C2 fix: explicit cap-down error message instead of opaque "not_reproducible"
     if (evaluation.value !== input.requestedDiscountPercent) {
-      throw new BadRequestException("negotiation_discount_not_reproducible_under_rules");
+      throw new BadRequestException(
+        `discount_capped: requested ${input.requestedDiscountPercent}%, rules allow max ${evaluation.value}%`
+      );
     }
 
     const offer = createAuthorizedOffer({

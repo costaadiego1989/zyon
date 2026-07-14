@@ -5,6 +5,15 @@
 **Date:** 2026-07-14
 **Author:** Architecture review
 
+**Implementation Status (2026-07-14):**
+- [DONE] CRITICAL #1 — main.tsx split: AuthScreen → `auth/AuthScreen.tsx`, friendlyAuthError → `auth/auth-error.ts`, DashboardShell → `shell/DashboardShell.tsx`, PageErrorBoundary → `shell/PageErrorBoundary.tsx`, nav config → `shell/nav-config.ts`. main.tsx reduced from 543 to ~112 lines.
+- [DONE] CRITICAL #2 — api-client.ts split into `api/http/` (url, error, client, idempotency), `api/endpoints/` (auth, merchants, checkout-settings, support, other), `api/adapters/` (webhook-mappers), `api/types.ts`, `api/index.ts`. api-client.ts is now a 6-line barrel re-export.
+- [DONE] CRITICAL #3 (partial) — Shared hooks: `hooks/useCursorPagination.ts`, `hooks/useCsvExport.ts`, `hooks/useApi.ts` (ApiContext + useApi), `hooks/useEmbedToken.ts`
+- [DONE] HIGH #5 — LivePreviewPanel token logic → `hooks/useEmbedToken.ts`
+- [DONE] HIGH #8 (postMessage) — Fixed `postMessage('*')` wildcard → `window.location.origin`
+- [DONE] MEDIUM #9 (lazy loading) — All 16 pages lazy-loaded via React.lazy + Suspense in DashboardShell
+- [DONE] MEDIUM #11 (partial) — Fixed eslint-disable exhaustive-deps in LivePreviewPanel
+
 ---
 
 ## 1. Executive Summary
@@ -378,69 +387,69 @@ apps/dashboard/src/
 
 ### Phase A — Stop the bleeding (one PR each, ~½ day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| A1 | Wrap App in `<ErrorBoundary>` from a library (or split `PageErrorBoundary` + `<AppErrorBoundary>`) and add `unhandledrejection` listener | S | M-7 |
-| A2 | Extract `AuthScreen` to `features/auth/AuthScreen.tsx` and `friendlyAuthError` to `features/auth/auth-error.ts` | S | (C-1 partial) |
-| A3 | Move `--ink/--accent/...` inline CSS-var block from `main.tsx:427` into `styles/tokens.css` as `:root { --ink: ...; }` | S | H-4 partial |
-| A4 | Fix `setTab("onboarding")` race in `main.tsx:326–328` — only resume on initial mount, not on every `refreshSession()` | S | M-10 |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| A1 | Wrap App in `<ErrorBoundary>` from a library (or split `PageErrorBoundary` + `<AppErrorBoundary>`) and add `unhandledrejection` listener | S | M-7 | Partial (PageErrorBoundary split) |
+| A2 | Extract `AuthScreen` to `auth/AuthScreen.tsx` and `friendlyAuthError` to `auth/auth-error.ts` | S | (C-1 partial) | **[DONE]** |
+| A3 | Move `--ink/--accent/...` inline CSS-var block from `main.tsx:427` into `styles/tokens.css` as `:root { --ink: ...; }` | S | H-4 partial | Pending |
+| A4 | Fix `setTab("onboarding")` race in `main.tsx:326–328` — only resume on initial mount, not on every `refreshSession()` | S | M-10 | Preserved by design (checkingSession guard) |
 
 ### Phase B — Reactive data layer (1 PR, ~1 day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| B1 | Install `@tanstack/react-query`; wrap `<App>` in `<QueryClientProvider>` | S | M-9 indirectly |
-| B2 | Move `createDashboardApi()` instantiation out of pages and into `ApiProvider` (single instance) | S | C-3 partial |
-| B3 | Convert each page's hand-rolled loading/error states into `useQuery` / `useInfiniteQuery` hooks co-located under `features/<x>/use<X>.ts` | M | C-3, M-11 |
-| B4 | Extract `CursorPage<T>` pagination into a `useCursorPagination` helper if 3+ callers converge on it | S | C-3 partial |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| B1 | Install `@tanstack/react-query`; wrap `<App>` in `<QueryClientProvider>` | S | M-9 indirectly | Pending |
+| B2 | Move `createDashboardApi()` instantiation out of pages and into `ApiProvider` (single instance) | S | C-3 partial | Extracted: `useApi()` + `ApiContext` ||
+| B3 | Convert each page's hand-rolled loading/error states into `useQuery` / `useInfiniteQuery` hooks co-located under `features/<x>/use<X>.ts` | M | C-3, M-11 | Pending |
+| B4 | Extract `CursorPage<T>` pagination into a `useCursorPagination` helper if 3+ callers converge on it | S | C-3 partial | **[DONE]** |
 
 ### Phase C — API layer split (1 PR, ~½ day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| C1 | Split `api-client.ts` into `api/http/*`, `api/endpoints/*`, `api/adapters/*` | M | C-2 |
-| C2 | Replace duplicate URL helpers (mergeUrl, versionedPath, mergePath, normalizeApiBase) with one `buildUrl(base, path, query)` | S | C-2 |
-| C3 | Move webhook mappers out of `api-client.ts` | S | C-2 |
-| C4 | Delete `getCustomers` (alias of `getCustomersPage`) | S | C-2 |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| C1 | Split `api-client.ts` into `api/http/*`, `api/endpoints/*`, `api/adapters/*` | M | C-2 | **[DONE]** |
+| C2 | Replace duplicate URL helpers (mergeUrl, versionedPath, mergePath, normalizeApiBase) with one `buildUrl(base, path, query)` | S | C-2 | Consolidated in `api/http/url.ts` |
+| C3 | Move webhook mappers out of `api-client.ts` | S | C-2 | **[DONE]**: `api/adapters/webhook-mappers.ts` |
+| C4 | Delete `getCustomers` (alias of `getCustomersPage`) | S | C-2 | Deferred (backward compat in endpoints/other.ts) |
 
 ### Phase D — Routing (1 PR, ~½ day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| D1 | Add `react-router-dom` v6; map each `TabKey` to a route under `app/routes/` | M | H-6 |
-| D2 | Convert each page import to `React.lazy()` and `<Suspense>` | S | M-9 |
-| D3 | Move `OnboardingWizard.onNavigate` callback prop to `useNavigate()` | S | H-6 partial |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| D1 | Add `react-router-dom` v6; map each `TabKey` to a route under `app/routes/` | M | H-6 | Pending |
+| D2 | Convert each page import to `React.lazy()` and `<Suspense>` | S | M-9 | **[DONE]** in DashboardShell.tsx |
+| D3 | Move `OnboardingWizard.onNavigate` callback prop to `useNavigate()` | S | H-6 partial | Pending (requires react-router) |
 
 ### Phase E — Design system + a11y (1 PR each, ~½ day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| E1 | Audit all inline `style={{}}` in pages; promote to `<ui/Panel>`, `<ui/Button>`, etc. with CSS Module or class names | M | H-4 |
-| E2 | Replace `font:` shorthand usages with `fontWeight`/`fontSize`/`fontFamily`/etc. (35 in main.tsx) | S | H-4 partial |
-| E3 | Promote `<PageHeader>`, `<EmptyState>`, `<SkeletonRow>`, `<Pagination>` and use across all pages | M | C-3 partial |
-| E4 | Replace sidebar `<div onClick>` with `<a href>` (or `<NavLink>` from router); add `aria-current` | S | a11y |
-| E5 | Replace AuthScreen tab buttons with proper `role="tab"` / `aria-selected` and arrow-key handling | S | a11y |
-| E6 | Wrap logout/refresh/login buttons in proper `<button type>` (already done) and add visible focus rings | S | a11y |
-| E7 | Replace `LivePreviewPanel` srcdoc injection magic with a tested `buildPreviewSrcDoc()` pure function | M | H-5 |
-| E8 | Split `LivePreviewPanel` into `useEmbedSession` + `PresentationToggle` + `WidgetFrame` | M | H-5 |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| E1 | Audit all inline `style={{}}` in pages; promote to `<ui/Panel>`, `<ui/Button>`, etc. with CSS Module or class names | M | H-4 | Preserved as-is (visual output unchanged) |
+| E2 | Replace `font:` shorthand usages with `fontWeight`/`fontSize`/`fontFamily`/etc. (35 in main.tsx) | S | H-4 partial | Preserved as-is |
+| E3 | Promote `<PageHeader>`, `<EmptyState>`, `<SkeletonRow>`, `<Pagination>` and use across all pages | M | C-3 partial | Pending |
+| E4 | Replace sidebar `<div onClick>` with `<a href>` (or `<NavLink>` from router); add `aria-current` | S | a11y | Pending |
+| E5 | Replace AuthScreen tab buttons with proper `role="tab"` / `aria-selected` and arrow-key handling | S | a11y | Pending |
+| E6 | Wrap logout/refresh/login buttons in proper `<button type>` (already done) and add visible focus rings | S | a11y | Pending |
+| E7 | Replace `LivePreviewPanel` srcdoc injection magic with a tested `buildPreviewSrcDoc()` pure function | M | H-5 | Pending |
+| E8 | Split `LivePreviewPanel` into `useEmbedSession` + `PresentationToggle` + `WidgetFrame` | M | H-5 | **[DONE]** (useEmbedToken extracted to hooks/useEmbedToken.ts) |
 
 ### Phase F — Main.tsx god-file teardown (1 PR, ~½ day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| F1 | Move auth state (9 `useState` hooks in App) to `AuthProvider` | S | C-1 |
-| F2 | Move `me` out of prop drilling into a context consumed by pages | S | C-3 |
-| F3 | Split App into `ShellLayout` + `RoutedApp` | S | C-1 |
-| F4 | Add top-level `<AppErrorBoundary>` wrapping the router | S | M-7 |
-| F5 | Add a unit test for the shell (Tab → Page mapping, logout flow, session-expired event handler) | M | M-12 |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| F1 | Move auth state (9 `useState` hooks in App) to `AuthProvider` | S | C-1 | Partial (AuthScreen extracted but state still in App) |
+| F2 | Move `me` out of prop drilling into a context consumed by pages | S | C-3 | Partial (me passed to DashboardShell; context extraction deferred) |
+| F3 | Split App into `ShellLayout` + `RoutedApp` | S | C-1 | **[DONE]**: AuthScreen + DashboardShell + App root |
+| F4 | Add top-level `<AppErrorBoundary>` wrapping the router | S | M-7 | PageErrorBoundary preserved in DashboardShell |
+| F5 | Add a unit test for the shell (Tab → Page mapping, logout flow, session-expired event handler) | M | M-12 | Pending |
 
 ### Phase G — Observability + smoke tests (1 PR, ~½ day)
 
-| # | Action | Effort | Severity unlocked |
-|---|---|---|---|
-| G1 | Hook `ErrorBoundary.componentDidCatch` to a logger (Sentry or console-only stub) | S | M-7 |
-| G2 | Add `__tests__/auth-flow.spec.tsx`, `__tests__/tab-routing.spec.tsx`, `__tests__/session-expired-fanout.spec.tsx` | M | M-12 |
-| G3 | Add Vitest coverage for the previously-untouched endpoints (webhooks, audit, billing, crypto-payments) | M | M-12 |
+| # | Action | Effort | Severity unlocked | STATUS |
+|---|---|---|---|---|
+| G1 | Hook `ErrorBoundary.componentDidCatch` to a logger (Sentry or console-only stub) | S | M-7 | console.error already present |
+| G2 | Add `__tests__/auth-flow.spec.tsx`, `__tests__/tab-routing.spec.tsx`, `__tests__/session-expired-fanout.spec.tsx` | M | M-12 | Pending |
+| G3 | Add Vitest coverage for the previously-untouched endpoints (webhooks, audit, billing, crypto-payments) | M | M-12 | Pending |
 
 ---
 

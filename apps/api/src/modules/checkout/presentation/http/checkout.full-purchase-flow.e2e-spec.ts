@@ -6,6 +6,7 @@ import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-
 import { RecordCompletedPurchaseUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
+import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { CheckoutPaymentAdapter } from "../../../payment/infrastructure/checkout-payment.adapter.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
@@ -436,7 +437,9 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
 
     const eventBus = new InMemoryDomainEventBus();
     new PaymentApprovedHandler(eventBus, completeOrder).onModuleInit();
-    const webhook = new HandleAsaasWebhookUseCase(payments, new CheckoutPaymentAdapter(repo, repo, eventBus));
+    const checkoutPayment = new CheckoutPaymentAdapter(repo, repo, eventBus);
+    const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+    const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
     const processed = await webhook.execute(undefined, {
       id: "evt_full_flow_paid",
       event: "PAYMENT_RECEIVED",

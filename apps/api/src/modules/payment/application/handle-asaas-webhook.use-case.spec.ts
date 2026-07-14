@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { CommerceOrderPort } from "@zyon/commerce-adapters";
 import { PaymentIntentEntity, type PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import { HandleAsaasWebhookUseCase, UnauthorizedWebhookError, assertWebhookToken } from "./handle-asaas-webhook.use-case.js";
+import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
@@ -46,7 +47,8 @@ test("assertWebhookToken rejects wrong asaas-access-token", () => {
 test("duplicate provider event id short-circuits", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
-  const uc = new HandleAsaasWebhookUseCase(payments, checkoutPort);
+  const dispatch = new PaymentDispatchService(payments, checkoutPort);
+  const uc = new HandleAsaasWebhookUseCase(payments, dispatch);
   await payments.recordProcessedProviderEvent({ provider: "asaas", merchantId: null, eventId: "evt_dup_1" });
 
   const r = await uc.execute(undefined, {
@@ -64,7 +66,8 @@ test("duplicate provider event id short-circuits", async () => {
 test("PAYMENT_RECEIVED approves intent and completes checkout once", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
-  const uc = new HandleAsaasWebhookUseCase(payments, checkoutPort);
+  const dispatch = new PaymentDispatchService(payments, checkoutPort);
+  const uc = new HandleAsaasWebhookUseCase(payments, dispatch);
 
   const intent = PaymentIntentEntity.create({
     merchantId: "mrc_1",
@@ -120,7 +123,8 @@ test("PAYMENT_RECEIVED marks linked commerce order paid idempotently", async () 
     commerceOrders,
     new InMemoryCommercePaidWebhookDedup()
   );
-  const uc = new HandleAsaasWebhookUseCase(payments, checkoutPort, undefined, commercePaid);
+  const dispatch = new PaymentDispatchService(payments, checkoutPort, undefined, commercePaid);
+  const uc = new HandleAsaasWebhookUseCase(payments, dispatch);
 
   const intent = PaymentIntentEntity.create({
     merchantId: "mrc_1",
@@ -167,11 +171,15 @@ test("PAYMENT_RECEIVED retries commerce paid sync after post-approval failure", 
       return { invokedCommerceSync: true };
     }
   };
-  const uc = new HandleAsaasWebhookUseCase(
+  const dispatch = new PaymentDispatchService(
     payments,
     checkoutPort,
     undefined,
     commercePaid as unknown as MarkCommerceOrderPaidUseCase
+  );
+  const uc = new HandleAsaasWebhookUseCase(
+    payments,
+    dispatch
   );
 
   const intent = PaymentIntentEntity.create({
@@ -210,7 +218,8 @@ test("PAYMENT_RECEIVED retries commerce paid sync after post-approval failure", 
 test("PAYMENT_DELETED marks failed and records payment_failed event", async () => {
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
-  const uc = new HandleAsaasWebhookUseCase(payments, checkoutPort);
+  const dispatch = new PaymentDispatchService(payments, checkoutPort);
+  const uc = new HandleAsaasWebhookUseCase(payments, dispatch);
 
   const intent = PaymentIntentEntity.create({
     merchantId: "mrc_1",
@@ -247,7 +256,9 @@ test("HandleAsaasWebhookUseCase rejects when ASAAS_WEBHOOK_TOKEN mismatches head
 
   process.env.ASAAS_WEBHOOK_TOKEN = "webhook-shared-secret-fixed";
 
-  const uc = new HandleAsaasWebhookUseCase(new InMemoryPaymentRepository(), new RecordingCheckoutPayment());
+  const checkoutPayment = new RecordingCheckoutPayment();
+  const dispatch = new PaymentDispatchService(new InMemoryPaymentRepository(), checkoutPayment);
+  const uc = new HandleAsaasWebhookUseCase(new InMemoryPaymentRepository(), dispatch);
   await assert.rejects(
     () => uc.execute("wrong", { id: "evt_x", event: "PAYMENT_CREATED" }),
     UnauthorizedWebhookError

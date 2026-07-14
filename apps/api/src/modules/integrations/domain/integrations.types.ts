@@ -117,7 +117,8 @@ export interface MerchantWebhookDelivery {
   status: WebhookDeliveryStatus;
   attempts: number;
   envelope: TenantWebhookEnvelope;
-  signingSecret: string;
+  /** @deprecated Signing secret is now looked up per-dispatch from the endpoint. */
+  signingSecret?: string;
   nextAttemptAt?: string;
   responseStatus?: number;
   responseBody?: string;

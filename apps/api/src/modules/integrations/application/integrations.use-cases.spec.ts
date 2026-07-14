@@ -223,7 +223,7 @@ test("WebhookDeliveryDispatcher signs and marks successful deliveries", async ()
   assert.equal(capturedHeaders?.get("X-AACP-Event-Type"), "order.approved");
   assert.equal(
     signatures.verify({
-      secret: delivery.signingSecret,
+      secret: delivery.signingSecret!,
       timestamp: capturedHeaders?.get("X-AACP-Timestamp") ?? "",
       body: capturedBody,
       signature: capturedHeaders?.get("X-AACP-Signature") ?? ""

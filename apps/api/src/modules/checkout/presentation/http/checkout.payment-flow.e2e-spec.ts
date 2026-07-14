@@ -6,6 +6,7 @@ import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-o
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
+import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { CheckoutPaymentAdapter } from "../../../payment/infrastructure/checkout-payment.adapter.js";
@@ -47,7 +48,8 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   assert.equal(intentSnap.amountCents / 100, 300);
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
   const processed = await webhook.execute(undefined, {
     id: `evt_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 22)}`,
@@ -124,7 +126,8 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   assert.equal(intentSnap.amountCents / 100, 450);
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
   const processed = await webhook.execute(undefined, {
     id: `evt_boleto_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
@@ -173,7 +176,8 @@ test("checkout payment: webhook PAYMENT_RECEIVED duplicado completa pedido uma �
 
   const providerPaymentId = intentSnap.providerPaymentId!;
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
   const payload = {
     event: "PAYMENT_RECEIVED" as const,
@@ -220,7 +224,8 @@ test("checkout payment: PAYMENT_REFUNDED → intent refunded após aprovação",
   });
 
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
   const eventBase = `evt_ref_${crypto.randomUUID().replace(/-/g, "").slice(0, 18)}`;
 
   // First approve
@@ -277,7 +282,8 @@ test("checkout payment: PAYMENT_DELETED não completa ordem", async () => {
 
   const providerPaymentId = intentSnap.providerPaymentId!;
   const checkoutPayment = makeCheckoutPaymentAdapter(checkout);
-  const webhook = new HandleAsaasWebhookUseCase(payments, checkoutPayment);
+  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
+  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
 
   await webhook.execute(undefined, {
     id: `evt_del_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,

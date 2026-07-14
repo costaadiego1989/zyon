@@ -22,6 +22,8 @@ import { CheckoutShippingService } from "../services/checkout-shipping.service.j
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
+import { TenantBoundaryGuard } from "../../infrastructure/tenant-boundary.guard.js";
+import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -112,6 +114,13 @@ export class SendChatMessageUseCase {
 
     const offer = await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
 
+    // Tenant boundary: ensure agent context is scoped to the correct merchant.
+    // The port is scoped by merchantId in the request, but we verify the session matches.
+    TenantBoundaryGuard.assert.merchantIdMatches(
+      working.merchantId,
+      input.merchant_id,
+      "agent context lookup"
+    );
     const agentContext = await this.agentContext?.get({
       merchantId: input.merchant_id,
       userId: input.agent_user_id,
@@ -133,6 +142,13 @@ export class SendChatMessageUseCase {
       shippingOptions: working.shippingOptions
     });
 
+    // INVARIANT: Validate generated message does not contain unauthorized offer claims.
+    // The conversation port generates copy only; it must never claim to authorize discounts.
+    const safetyCheck = isSafeGeneratedMessage(reply.message);
+    const safeMessage = safetyCheck.safe
+      ? reply.message
+      : "Como posso ajudar com o seu pedido?";
+
     const now = new Date().toISOString();
     await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
       role: "buyer",
@@ -141,7 +157,7 @@ export class SendChatMessageUseCase {
     });
     const updated = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
       role: "agent",
-      text: reply.message,
+      text: safeMessage,
       occurredAt: new Date().toISOString(),
       authorizedOfferId: offer.approved ? offer.id : undefined
     });
@@ -193,10 +209,14 @@ export class SendChatMessageUseCase {
       }
     }
 
+    // Convert SafeAuthorizedOffer back to plain AuthorizedOffer for the response contract.
+    // The type barrier ensured authorization came from rules-engine/shipping-engine only.
+    const authorizedOfferResponse = offer.toAuthorizedOffer();
+
     return {
-      message: reply.message,
+      message: safeMessage,
       objection: reply.objection,
-      authorized_offer: offer,
+      authorized_offer: authorizedOfferResponse,
       actions: chatActions,
       turns: updated.chatHistory,
       experience: responseExperience,

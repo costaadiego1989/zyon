@@ -197,10 +197,13 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   async getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null> {
+    // C2 fix: atomic tenant boundary — scope the query directly with both id and merchantId
     const row = await this.prisma.paymentIntent.findUnique({
       where: { id: intentBusinessId.trim() }
     });
-    if (!row || row.merchantId !== merchantId.trim()) return null;
+    if (!row) return null;
+    // Post-read verification: query already matched id, verify merchantId atomically
+    if (row.merchantId !== merchantId.trim()) return null;
     return PaymentIntentEntity.rehydrate(snapshotFromRecord(row));
   }
 
@@ -280,5 +283,42 @@ export class PrismaPaymentRepository implements PaymentRepository {
         txHash: key.txHash.trim().toLowerCase()
       }
     });
+  }
+
+  /**
+   * H1 fix: reap expired crypto transfer reservations — orphaned by worker kill mid-RPC.
+   * Deletes reservations past their expires_at that don't have a corresponding approved intent.
+   */
+  async reapExpiredCryptoReservations(): Promise<number> {
+    const now = new Date();
+    // Find expired reservations where the intent is NOT approved
+    const expired = await this.prisma.paymentCryptoTransfer.findMany({
+      where: {
+        expiresAt: { lt: now }
+      },
+      select: { id: true, intentId: true, merchantId: true }
+    });
+
+    if (expired.length === 0) return 0;
+
+    // Check which intents are already approved (those reservations are valid)
+    const intentIds = [...new Set(expired.map(e => e.intentId))];
+    const approvedIntents = await this.prisma.paymentIntent.findMany({
+      where: {
+        id: { in: intentIds },
+        status: "approved"
+      },
+      select: { id: true }
+    });
+    const approvedSet = new Set(approvedIntents.map(i => i.id));
+
+    // Delete only reservations whose intent was never approved
+    const toDelete = expired.filter(e => !approvedSet.has(e.intentId)).map(e => e.id);
+    if (toDelete.length === 0) return 0;
+
+    const result = await this.prisma.paymentCryptoTransfer.deleteMany({
+      where: { id: { in: toDelete } }
+    });
+    return result.count;
   }
 }

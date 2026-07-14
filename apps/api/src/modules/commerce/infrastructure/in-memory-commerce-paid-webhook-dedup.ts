@@ -27,6 +27,13 @@ export class InMemoryCommercePaidWebhookDedup implements CommercePaidWebhookDedu
     return true;
   }
 
+  async releaseReserve(merchantId: string, paymentReference: string): Promise<boolean> {
+    const key = dedupKey(merchantId, paymentReference);
+    if (!this.processed.has(key)) return false;
+    this.processed.delete(key);
+    return true;
+  }
+
   async markProcessed(
     merchantId: string,
     paymentReference: string,

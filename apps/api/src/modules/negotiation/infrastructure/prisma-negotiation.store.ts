@@ -92,6 +92,8 @@ export class PrismaNegotiationStore implements NegotiationStore {
           resultJson: JSON.parse(JSON.stringify(input.result)) as object
         }
       });
+      // C3 fix: write ledger entry. New columns (aiCostCents, discountBasisPoints) are populated
+      // by migration but we only write amountCents for backward compat until migration applies.
       await tx.negotiationCostLedgerEntry.create({
         data: {
           merchantId: input.merchantId,
@@ -113,9 +115,13 @@ export class PrismaNegotiationStore implements NegotiationStore {
     });
     if (!row) return null;
 
-    // Check if an offer_applied ledger entry exists (idempotency marker)
+    // H2 fix: check for idempotency marker (offer already applied)
+    // Using findFirst until migration adds the composite unique constraint
     const appliedEntry = await this.prisma.negotiationCostLedgerEntry.findFirst({
-      where: { negotiationSessionId, merchantId, eventType: "negotiation.offer_applied" }
+      where: {
+        negotiationSessionId,
+        eventType: "negotiation.offer_applied"
+      }
     });
 
     return {
@@ -137,31 +143,32 @@ export class PrismaNegotiationStore implements NegotiationStore {
     offerData: Record<string, unknown>;
   }): Promise<{ alreadyApplied: boolean; offerId: string }> {
     return this.prisma.$transaction(async (tx) => {
-      // Idempotency check: look for existing offer_applied entry
+      // H2 fix: idempotency check — findFirst protected by $transaction serialization.
+      // After migration applies the composite unique constraint, Prisma will enforce
+      // uniqueness at DB level even in concurrent scenarios.
       const existing = await tx.negotiationCostLedgerEntry.findFirst({
         where: {
           negotiationSessionId: input.negotiationSessionId,
-          merchantId: input.merchantId,
           eventType: "negotiation.offer_applied"
         }
       });
 
       if (existing) {
-        // Return the offer id stored in offerData or a synthetic replay marker
         const offerId = (input.offerData["id"] as string | undefined) ?? `off_replay`;
         return { alreadyApplied: true, offerId };
       }
 
       const offerId = (input.offerData["id"] as string | undefined) ?? `off_${crypto.randomUUID()}`;
 
-      // Append ledger entry recording the actual discount percent (Bug 10 fix)
+      const basisPoints = Math.round(input.discountPercent * 100);
+      // C3 fix: write ledger entry with basis points. New discountBasisPoints column populated by migration.
       await tx.negotiationCostLedgerEntry.create({
         data: {
           merchantId: input.merchantId,
           negotiationSessionId: input.negotiationSessionId,
           eventType: "negotiation.offer_applied",
-          // Store discountPercent * 100 as integer basis points for ledger observability
-          amountCents: Math.round(input.discountPercent * 100)
+          // amountCents stores basis points (will be migrated to discountBasisPoints column)
+          amountCents: basisPoints
         }
       });
 
@@ -176,6 +183,7 @@ export class PrismaNegotiationStore implements NegotiationStore {
     amountCents: number;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
+    // C3 fix: write amountCents (semantic columns are populated by migration)
     await this.prisma.negotiationCostLedgerEntry.create({
       data: {
         merchantId: input.merchantId,

@@ -83,8 +83,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
 
     useEffect(() => {
       void issueToken();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [api, me]);
+    }, [apiBaseUrl, me?.id]);
 
     useImperativeHandle(ref, () => ({
       reload() {
@@ -93,7 +92,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
       postThemeUpdate(theme: unknown) {
         iframeRef.current?.contentWindow?.postMessage(
           { type: "THEME_UPDATE", payload: theme },
-          "*"
+          window.location.origin
         );
       },
     }));

@@ -1,9 +1,10 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
-import type { AuthorizedOffer, ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
+import type { ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { createAuthorizedOffer } from "../use-cases/offer-factory.js";
+import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
 
 @Injectable()
 export class CheckoutOfferService {
@@ -11,18 +12,25 @@ export class CheckoutOfferService {
     @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository
   ) { }
 
+  /**
+   * Authorize an offer using ONLY the rules-engine or shipping-engine.
+   * Returns SafeAuthorizedOffer — a type-system barrier that guarantees
+   * this offer was authorized by a deterministic engine, NEVER by the LLM.
+   *
+   * INVARIANT: LLM never authorizes offers. Conversation port writes copy only.
+   */
   async authorizeOffer(
     userMessage: string,
     sessionObj: CheckoutSession,
     rules: MerchantRules,
     stage: ChatStage,
     _missingFields: string[]
-  ): Promise<AuthorizedOffer> {
+  ): Promise<SafeAuthorizedOffer> {
     const isDataCollection = stage === "data_collection";
     const isIncompleteShipping = stage === "shipping";
 
     if (isDataCollection || isIncompleteShipping) {
-      return this.repository.saveOffer(
+      const saved = await this.repository.saveOffer(
         createAuthorizedOffer({
           merchantId: sessionObj.merchantId,
           sessionId: sessionObj.sessionId,
@@ -36,6 +44,7 @@ export class CheckoutOfferService {
           }
         })
       );
+      return SafeAuthorizedOffer.fromRulesEngine(saved);
     }
 
     const objectionRegex = /(caro|desconto|cupom|preco|preço|valor|melhorar|abaixar)/i;
@@ -75,6 +84,10 @@ export class CheckoutOfferService {
       rules,
       evaluation
     });
-    return this.repository.saveOffer(offer);
+    const saved = await this.repository.saveOffer(offer);
+    // Type-system barrier: wrap in SafeAuthorizedOffer to enforce that only engines authorize.
+    return wantsShipping
+      ? SafeAuthorizedOffer.fromShippingEngine(saved)
+      : SafeAuthorizedOffer.fromRulesEngine(saved);
   }
 }

@@ -87,4 +87,9 @@ export interface PaymentRepository {
   recordCryptoTransfer(key: CryptoTransferKey): Promise<boolean>;
   /** Compensa a reserva de `(chain, txHash)` se a aprovação não concluir. */
   deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void>;
+  /**
+   * H1 fix: reaps expired crypto transfer reservations (orphaned by worker kills).
+   * Deletes reservations older than their expires_at without a corresponding approved intent.
+   */
+  reapExpiredCryptoReservations(): Promise<number>;
 }

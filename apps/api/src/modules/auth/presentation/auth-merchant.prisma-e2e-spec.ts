@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
 import { JwtService } from "../domain/services/jwt.service.js";
 import { PasswordHasher } from "../domain/services/password-hasher.service.js";
+import { DefaultMerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
 import { PrismaAuthRepository } from "../infrastructure/prisma-auth.repository.js";
 import { LoginUseCase } from "../application/login.use-case.js";
 import { RegisterMerchantUseCase } from "../application/register-merchant.use-case.js";
@@ -23,7 +24,8 @@ test(
     const merchantRepository = new PrismaMerchantRepository(prisma);
     const jwt = new JwtService("test-secret", 3600);
     const hasher = new PasswordHasher();
-    const register = new RegisterMerchantUseCase(authRepository, hasher, jwt);
+    const idGen = new DefaultMerchantIdGenerator();
+    const register = new RegisterMerchantUseCase(authRepository, hasher, jwt, idGen);
     const login = new LoginUseCase(authRepository, hasher, jwt);
     const merchantController = new MerchantController(
       new GetMerchantProfileUseCase(merchantRepository),
@@ -32,17 +34,18 @@ test(
       new GetMerchantThemeUseCase(merchantRepository),
       new UpdateMerchantThemeUseCase(merchantRepository)
     );
-    const merchantId = `mrc_auth_${crypto.randomUUID()}`;
-    const email = `${merchantId}@example.com`;
+    const email = `mrc_auth_${crypto.randomUUID()}@example.com`;
+    let merchantId = "";
 
     try {
       const registered = await register.execute({
-        merchant_id: merchantId,
         merchant_name: "Auth Demo",
         email,
-        password: "secret"
+        password: "secret-password-123"
       });
-      const logged = await login.execute({ email, password: "secret" });
+      merchantId = registered.merchant_id;
+
+      const logged = await login.execute({ email, password: "secret-password-123" });
       const principal = jwt.verify(logged.access_token);
       const request = { user: principal };
 
@@ -52,9 +55,11 @@ test(
       assert.equal((await merchantController.update(request, { maxDiscountPercent: 17 })).maxDiscountPercent, 17);
       assert.equal((await merchantController.rules(request)).maxDiscountPercent, 17);
     } finally {
-      await prisma.merchantRule.deleteMany({ where: { merchantId } });
-      await prisma.merchantUser.deleteMany({ where: { merchantId } });
-      await prisma.merchant.deleteMany({ where: { id: merchantId } });
+      if (merchantId) {
+        await prisma.merchantRule.deleteMany({ where: { merchantId } });
+        await prisma.merchantUser.deleteMany({ where: { merchantId } });
+        await prisma.merchant.deleteMany({ where: { id: merchantId } });
+      }
       await prisma.$disconnect();
     }
   }

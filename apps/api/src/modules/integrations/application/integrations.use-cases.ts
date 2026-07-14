@@ -199,7 +199,7 @@ export class UpsertWebhookEndpointUseCase {
     const existing = input.endpointId ? await this.repo.getWebhookEndpoint(input.merchantId, input.endpointId) : undefined;
     if (input.endpointId && !existing) throw new NotFoundException("webhook_endpoint_not_found");
     const endpointUrl = this.targetPolicy
-      ? await this.targetPolicy.assertAllowed(input.url)
+      ? (await this.targetPolicy.assertAllowed(input.url)).url
       : validateEndpointUrl(input.url);
     const endpoint: MerchantWebhookEndpoint = {
       id: existing?.id ?? `wh_${randomUUID()}`,
@@ -299,7 +299,8 @@ export class TenantWebhookPublisher {
           status: "pending",
           attempts: 0,
           envelope,
-          signingSecret: endpoint.signingSecret,
+          // INT-H3: signing secret no longer persisted in delivery records.
+          // The dispatcher looks up the endpoint's current secret at dispatch time.
           nextAttemptAt: now,
           createdAt: now,
           updatedAt: now

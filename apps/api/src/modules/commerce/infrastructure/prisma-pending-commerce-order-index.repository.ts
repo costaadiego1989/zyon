@@ -44,4 +44,19 @@ export class PrismaPendingCommerceOrderIndex implements PendingCommerceOrderInde
       throw error;
     }
   }
+
+  /**
+   * Releases a pending order index entry so the same session can be re-attempted.
+   * Only releases if the entry has status "pending" (not yet completed).
+   */
+  async release(merchantId: string, sessionId: string): Promise<boolean> {
+    const result = await this.prisma.commercePendingOrder.deleteMany({
+      where: {
+        merchantId: merchantId.trim(),
+        sessionId: sessionId.trim(),
+        status: "pending"
+      }
+    });
+    return result.count > 0;
+  }
 }

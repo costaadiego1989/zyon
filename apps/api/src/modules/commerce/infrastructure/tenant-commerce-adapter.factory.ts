@@ -56,17 +56,50 @@ function globalEnvCredentials(merchantId: string):
   };
 }
 
+/** Simple TTL cache entry for resolved adapters. */
+interface CachedAdapter {
+  adapter: CommerceProviderPort;
+  expiresAt: number;
+}
+
+const ADAPTER_CACHE_TTL_MS = 30_000; // 30 seconds
+const ADAPTER_CACHE_MAX_SIZE = 100;
+
 @Injectable()
 export class TenantCommerceAdapterFactory
   implements CommerceCartPort, CommerceOrderPort, CommerceCatalogPort
 {
+  private readonly adapterCache = new Map<string, CachedAdapter>();
+
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
     private readonly connections: CommerceConnectionPort,
     private readonly http: HttpClientService
   ) {}
 
+  /** Invalidate the adapter cache for a merchant (e.g., on credential update). */
+  invalidateAdapter(merchantId: string): void {
+    this.adapterCache.delete(merchantId.trim());
+  }
+
   private async resolve(merchantId: string): Promise<CommerceProviderPort> {
+    const key = merchantId.trim();
+    const now = Date.now();
+    const cached = this.adapterCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.adapter;
+    }
+    const adapter = await this.resolveFromSource(key);
+    // Evict oldest entries when cache is full.
+    if (this.adapterCache.size >= ADAPTER_CACHE_MAX_SIZE) {
+      const oldest = this.adapterCache.keys().next().value;
+      if (oldest) this.adapterCache.delete(oldest);
+    }
+    this.adapterCache.set(key, { adapter, expiresAt: now + ADAPTER_CACHE_TTL_MS });
+    return adapter;
+  }
+
+  private async resolveFromSource(merchantId: string): Promise<CommerceProviderPort> {
     const tenant = await this.connections.getCredentials(merchantId.trim());
     if (tenant?.provider === "shopify") {
       return new ShopifyCommerceAdapter(

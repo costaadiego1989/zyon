@@ -22,4 +22,8 @@ export class InMemoryPendingCommerceOrderIndex implements PendingCommerceOrderIn
   ): Promise<void> {
     this.rows.set(keyOf(merchantId, sessionId), commerceOrderId.trim());
   }
+
+  async release(merchantId: string, sessionId: string): Promise<boolean> {
+    return this.rows.delete(keyOf(merchantId, sessionId));
+  }
 }

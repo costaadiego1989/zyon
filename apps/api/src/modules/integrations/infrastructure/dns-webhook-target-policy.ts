@@ -1,11 +1,11 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
 import { lookup } from "node:dns/promises";
 import ipaddr from "ipaddr.js";
-import type { WebhookTargetPolicy } from "../domain/ports/webhook-target-policy.port.js";
+import type { ResolvedWebhookTarget, WebhookTargetPolicy } from "../domain/ports/webhook-target-policy.port.js";
 
 @Injectable()
 export class DnsWebhookTargetPolicy implements WebhookTargetPolicy {
-  async assertAllowed(rawUrl: string): Promise<string> {
+  async assertAllowed(rawUrl: string): Promise<ResolvedWebhookTarget> {
     let url: URL;
     try {
       url = new URL(rawUrl);
@@ -23,7 +23,7 @@ export class DnsWebhookTargetPolicy implements WebhookTargetPolicy {
       url.protocol === "http:" &&
       ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
     if (isLoopbackHttp && process.env.NODE_ENV !== "production") {
-      return url.toString();
+      return { url: url.toString(), pinnedAddresses: [url.hostname] };
     }
 
     if (url.protocol !== "https:") {
@@ -34,7 +34,7 @@ export class DnsWebhookTargetPolicy implements WebhookTargetPolicy {
     }
     if (ipaddr.isValid(url.hostname)) {
       assertPublicAddress(url.hostname);
-      return url.toString();
+      return { url: url.toString(), pinnedAddresses: [url.hostname] };
     }
 
     let addresses: Array<{ address: string }>;
@@ -49,7 +49,8 @@ export class DnsWebhookTargetPolicy implements WebhookTargetPolicy {
     for (const resolved of addresses) {
       assertPublicAddress(resolved.address);
     }
-    return url.toString();
+    const pinnedAddresses = addresses.map((a) => a.address);
+    return { url: url.toString(), pinnedAddresses };
   }
 }
 

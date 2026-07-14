@@ -6,6 +6,7 @@ import { PasswordHasher } from "../../../auth/domain/services/password-hasher.se
 import { PrismaAuthRepository } from "../../../auth/infrastructure/prisma-auth.repository.js";
 import { PrismaMerchantRepository } from "../../../merchant/infrastructure/prisma-merchant.repository.js";
 import { RegisterMerchantUseCase } from "../../../auth/application/register-merchant.use-case.js";
+import { DefaultMerchantIdGenerator } from "../../../auth/domain/ports/merchant-id-generator.port.js";
 import { PrismaAgentRulesRepository } from "../../infrastructure/prisma-agent-rules.repository.js";
 import {
   GetAgentContextUseCase,
@@ -28,6 +29,7 @@ test(
       authRepository,
       new PasswordHasher(),
       jwt,
+      new DefaultMerchantIdGenerator()
     );
     const repository = new PrismaAgentRulesRepository(prisma);
     const controller = new AgentRulesController(
@@ -35,19 +37,19 @@ test(
       new UpdateAgentRulesUseCase(repository),
       new GetAgentContextUseCase(repository)
     );
-    const merchantId = `mrc_agent_${crypto.randomUUID()}`;
 
+    let merchantId = "";
     try {
       const auth = await register.execute({
-        merchant_id: merchantId,
         merchant_name: "Agent Store",
-        email: `${merchantId}@example.com`,
-        password: "secret"
+        email: `agent_${crypto.randomUUID()}@example.com`,
+        password: "secret-password-123"
       });
+      merchantId = auth.merchant_id;
       const request = {
         user: {
           userId: auth.user_id,
-          merchantId,
+          merchantId: auth.merchant_id,
           email: auth.email,
           role: "owner" as const
         }
