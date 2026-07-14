@@ -5,11 +5,10 @@ ADD COLUMN "expires_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP + INTERV
 -- Create index for reaper: find expired reservations
 CREATE INDEX "payment_crypto_transfers_expires_at_idx" ON "payment_crypto_transfers"("expires_at");
 
--- Refactor: Add unique constraint for negotiation concurrent-apply protection (NEGOTIATION H2)
+-- Refactor: Add unique partial index for negotiation concurrent-apply protection (NEGOTIATION H2)
 -- This ensures only one offer_applied entry per session, blocking concurrent applies
-ALTER TABLE "negotiation_cost_ledger_entries"
-ADD CONSTRAINT "negotiation_cost_ledger_entries_session_offer_applied_unique"
-UNIQUE ("negotiation_session_id", "event_type")
+CREATE UNIQUE INDEX "negotiation_cost_ledger_entries_session_offer_applied_unique"
+ON "negotiation_cost_ledger_entries" ("negotiation_session_id")
 WHERE "event_type" = 'negotiation.offer_applied';
 
 -- Refactor: Change ledger semantics — split amountCents into semantic columns (NEGOTIATION C3)
