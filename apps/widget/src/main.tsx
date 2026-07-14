@@ -167,6 +167,21 @@ class AacpCheckoutAgentElement extends HTMLElement {
       this.root = createRoot(this.host);
     }
     const config = readConfig(this);
+    // Apply floating position when in floating mode
+    if (config.uiPresentation === "floating") {
+      Object.assign(this.host.style, {
+        position: "fixed",
+        bottom: "24px",
+        right: "24px",
+        zIndex: "2147483647",
+        width: "380px",
+        height: "640px",
+        maxHeight: "calc(100vh - 48px)",
+        borderRadius: "28px",
+        overflow: "hidden",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
+      });
+    }
     this.root!.render(<CheckoutAgent key={widgetReloadKey(config)} config={config} />);
   }
 }
