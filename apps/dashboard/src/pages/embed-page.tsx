@@ -125,8 +125,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
   }
 
   const snippet = session
-    ? `<script src="${props.apiBaseUrl}/widget/aacp.js"\n  data-aacp-token="${session.embed_session_token}"\n  async>\n</script>`
-    : `<script src="${props.apiBaseUrl}/widget/aacp.js"\n  data-aacp-token="EMBED_SESSION_TOKEN"\n  async>\n</script>`;
+    ? `<script src="${props.apiBaseUrl}/widget/aacp.js" async></script>\n<zyon-checkout-agent\n  embed-session-token="${session.embed_session_token}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`
+    : `<script src="${props.apiBaseUrl}/widget/aacp.js" async></script>\n<zyon-checkout-agent\n  embed-session-token="EMBED_SESSION_TOKEN"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`;
 
   if (!props.me) {
     return (
