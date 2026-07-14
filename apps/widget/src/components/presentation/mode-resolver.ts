@@ -1,4 +1,8 @@
-import type { CheckoutWidgetPosition, CheckoutWidgetPresentationMode } from "@zyon/shared-types";
+import type {
+  CheckoutFabClickAction,
+  CheckoutWidgetPosition,
+  CheckoutWidgetPresentationMode
+} from "@zyon/shared-types";
 
 export type PresentationMode = CheckoutWidgetPresentationMode;
 export type Position = CheckoutWidgetPosition | "top_right" | "top_left";
@@ -10,6 +14,8 @@ export interface PresentationConfigInput {
   inviteText?: string;
   showCartBadge?: boolean;
   accentColor?: string;
+  fabClickAction?: CheckoutFabClickAction;
+  fabRedirectUrl?: string;
 }
 
 export const VALID_MODES: readonly PresentationMode[] = [
@@ -60,4 +66,16 @@ export function resolveInviteText(input: PresentationConfigInput): string {
 
 export function resolveShowCartBadge(input: PresentationConfigInput): boolean {
   return input.showCartBadge !== false;
+}
+
+export function resolveFabClickAction(input: PresentationConfigInput): CheckoutFabClickAction {
+  const value = input.fabClickAction;
+  if (value === "redirect_to_cart" || value === "open_new_tab" || value === "open_widget") {
+    return value;
+  }
+  return "open_widget";
+}
+
+export function resolveFabRedirectUrl(input: PresentationConfigInput): string {
+  return input.fabRedirectUrl ?? "";
 }

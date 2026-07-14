@@ -11,6 +11,7 @@ const FULL_SETTINGS: CheckoutSettings = {
     startMinimized: false,
     position: "bottom_left",
     initialDelaySeconds: 5,
+    presentationMode: "fab",
   },
   interventionPolicy: {
     minimumAbandonmentScore: 0.7,

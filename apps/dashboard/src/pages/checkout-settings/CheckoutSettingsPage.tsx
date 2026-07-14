@@ -27,6 +27,7 @@ import type {
   CheckoutSettingsPatch,
   CheckoutTriggerName,
   CheckoutWidgetPosition,
+  CheckoutFabClickAction,
 } from "@zyon/shared-types";
 import {
   createDashboardApi,
@@ -89,6 +90,12 @@ interface Draft {
   handoffMessage: string;
   handoffChannels: Array<"email" | "whatsapp" | "chat">;
   crossSellEnabled: boolean;
+  presentationMode: string;
+  fabColor: string;
+  inviteText: string;
+  showCartBadge: boolean;
+  fabClickAction: CheckoutFabClickAction;
+  fabRedirectUrl: string;
 }
 
 function settingsToDraft(s: CheckoutSettings): Draft {
@@ -118,6 +125,12 @@ function settingsToDraft(s: CheckoutSettings): Draft {
     handoffMessage: s.handoff.message,
     handoffChannels: s.handoff.channels,
     crossSellEnabled: (s as any).crossSellEnabled ?? false,
+    presentationMode: s.widgetBehavior.presentationMode ?? "fab",
+    fabColor: s.widgetBehavior.fabColor ?? "#3b82f6",
+    inviteText: s.widgetBehavior.inviteText ?? "Posso ajudar?",
+    showCartBadge: s.widgetBehavior.showCartBadge !== false,
+    fabClickAction: s.widgetBehavior.fabClickAction ?? "open_widget",
+    fabRedirectUrl: s.widgetBehavior.fabRedirectUrl ?? "",
   };
 }
 
@@ -161,6 +174,8 @@ function draftToPatch(d: Draft): CheckoutSettingsPatch {
       fabColor: d.fabColor,
       inviteText: d.inviteText,
       showCartBadge: d.showCartBadge,
+      fabClickAction: d.fabClickAction,
+      fabRedirectUrl: d.fabRedirectUrl,
     },
     crossSellEnabled: d.crossSellEnabled,
   } as CheckoutSettingsPatch;
@@ -198,6 +213,8 @@ const DEFAULT_DRAFT: Draft = {
   fabColor: "#3b82f6",
   inviteText: "Posso ajudar?",
   showCartBadge: true,
+  fabClickAction: "open_widget",
+  fabRedirectUrl: "",
 };
 
 function draftsEqual(a: Draft, b: Draft): boolean {
@@ -866,6 +883,54 @@ export function CheckoutSettingsPage(props: {
                   display={`${draft.initialDelaySeconds}s`}
                   onChange={(v) => patchDraft({ initialDelaySeconds: v })}
                 />
+              </div>
+
+              <div className="cfg-subhead">
+                <MousePointerClick size={14} strokeWidth={1.75} />
+                <span>Ação do botão FAB</span>
+              </div>
+
+              <div className="cfg-grid-2">
+                <div className="cfg-field">
+                  <label htmlFor="cfg-fab-action">Comportamento ao clicar</label>
+                  <div className="cfg-select">
+                    <select
+                      id="cfg-fab-action"
+                      value={draft.fabClickAction}
+                      disabled={busy}
+                      onChange={(e) =>
+                        patchDraft({
+                          fabClickAction: e.target.value as CheckoutFabClickAction
+                        })
+                      }
+                    >
+                      <option value="open_widget">Abrir o widget</option>
+                      <option value="redirect_to_cart">Redirecionar para URL</option>
+                      <option value="open_new_tab">Abrir URL em nova aba</option>
+                    </select>
+                  </div>
+                </div>
+
+                {draft.fabClickAction !== "open_widget" ? (
+                  <div className="cfg-field">
+                    <label htmlFor="cfg-fab-redirect-url">URL de destino</label>
+                    <div className="cfg-number">
+                      <input
+                        id="cfg-fab-redirect-url"
+                        type="text"
+                        value={draft.fabRedirectUrl}
+                        disabled={busy}
+                        placeholder="/cart, /checkout, https://…"
+                        onChange={(e) => patchDraft({ fabRedirectUrl: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="cfg-field">
+                    <label>URL de destino</label>
+                    <p className="cfg-help">Não se aplica — ação atual abre o widget.</p>
+                  </div>
+                )}
               </div>
             </SectionRail>
 

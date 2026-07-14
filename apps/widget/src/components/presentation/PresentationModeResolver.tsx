@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import {
   resolvePresentationMode,
   resolveFabColor,
+  resolveFabClickAction,
+  resolveFabRedirectUrl,
   resolveInviteText,
   resolveShowCartBadge,
   type PresentationConfigInput
@@ -63,6 +65,8 @@ export const PresentationModeResolver: React.FC<PresentationModeResolverProps> =
         badgeCount={cartItemCount}
         showCartBadge={resolveShowCartBadge(config)}
         delayMs={defaultDelayMs}
+        clickAction={resolveFabClickAction(config)}
+        redirectUrl={resolveFabRedirectUrl(config)}
       />
     );
   }

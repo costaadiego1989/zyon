@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import type { Position } from "./mode-resolver.js";
 import { resolvePositionStyles } from "./mode-resolver.js";
 
+export type FabClickAction = "redirect_to_cart" | "open_widget" | "open_new_tab";
+
 export interface WidgetFABProps {
   color: string;
   position: Position;
@@ -9,6 +11,8 @@ export interface WidgetFABProps {
   badgeCount?: number;
   showCartBadge?: boolean;
   delayMs?: number;
+  clickAction?: FabClickAction;
+  redirectUrl?: string;
 }
 
 export const WidgetFAB: React.FC<WidgetFABProps> = ({
@@ -17,7 +21,9 @@ export const WidgetFAB: React.FC<WidgetFABProps> = ({
   onClick,
   badgeCount = 0,
   showCartBadge = true,
-  delayMs = 0
+  delayMs = 0,
+  clickAction = "open_widget",
+  redirectUrl = ""
 }) => {
   const [visible, setVisible] = useState(delayMs <= 0);
 
@@ -35,12 +41,28 @@ export const WidgetFAB: React.FC<WidgetFABProps> = ({
   const positionStyle = resolvePositionStyles(position);
   const showBadge = showCartBadge && badgeCount > 0;
 
+  const handleClick = () => {
+    if (clickAction === "redirect_to_cart") {
+      if (typeof window !== "undefined") {
+        window.location.href = redirectUrl || "/";
+      }
+      return;
+    }
+    if (clickAction === "open_new_tab") {
+      if (typeof window !== "undefined" && redirectUrl) {
+        window.open(redirectUrl, "_blank");
+      }
+      return;
+    }
+    onClick();
+  };
+
   return (
     <button
       type="button"
       className="zyon-presentation-fab zyon-presentation-fab--pulse"
       aria-label="Abrir checkout"
-      onClick={onClick}
+      onClick={handleClick}
       style={{
         ...positionStyle,
         width: "56px",

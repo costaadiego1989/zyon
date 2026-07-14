@@ -1,5 +1,5 @@
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, fireEvent, act } from "@testing-library/react";
 import { WidgetFAB } from "../../components/presentation/WidgetFAB.js";
 
@@ -32,9 +32,24 @@ describe("WidgetFAB", () => {
     expect(btn.style.left).toBe("24px");
   });
 
-  it("calls onClick when clicked", () => {
+  it("calls onClick when clicked (default open_widget action)", () => {
     const onClick = vi.fn();
     const { container } = render(<WidgetFAB color="#000" position="bottom_right" onClick={onClick} />);
+    fireEvent.click(container.querySelector("button.zyon-presentation-fab")!);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls onClick when clickAction is explicitly 'open_widget'", () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <WidgetFAB
+        color="#000"
+        position="bottom_right"
+        onClick={onClick}
+        clickAction="open_widget"
+        redirectUrl="https://example.com/cart"
+      />
+    );
     fireEvent.click(container.querySelector("button.zyon-presentation-fab")!);
     expect(onClick).toHaveBeenCalledTimes(1);
   });
@@ -91,5 +106,85 @@ describe("WidgetFAB", () => {
   it("has aria-label 'Abrir checkout'", () => {
     const { container } = render(<WidgetFAB color="#000" position="bottom_right" onClick={() => {}} />);
     expect(container.querySelector("button.zyon-presentation-fab")!.getAttribute("aria-label")).toBe("Abrir checkout");
+  });
+});
+
+describe("WidgetFAB click actions", () => {
+  const originalLocation = window.location;
+
+  beforeEach(() => {
+    delete (window as any).location;
+    (window as any).location = { href: "http://localhost/" };
+    window.open = vi.fn();
+  });
+
+  afterEach(() => {
+    (window as any).location = originalLocation;
+    vi.restoreAllMocks();
+  });
+
+  it("redirects via window.location.href when clickAction is 'redirect_to_cart'", () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <WidgetFAB
+        color="#000"
+        position="bottom_right"
+        onClick={onClick}
+        clickAction="redirect_to_cart"
+        redirectUrl="/cart"
+      />
+    );
+    fireEvent.click(container.querySelector("button.zyon-presentation-fab")!);
+    expect(window.location.href).toBe("/cart");
+    expect(onClick).not.toHaveBeenCalled();
+    expect(window.open).not.toHaveBeenCalled();
+  });
+
+  it("falls back to '/' when redirect_to_cart has empty redirectUrl", () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <WidgetFAB
+        color="#000"
+        position="bottom_right"
+        onClick={onClick}
+        clickAction="redirect_to_cart"
+        redirectUrl=""
+      />
+    );
+    fireEvent.click(container.querySelector("button.zyon-presentation-fab")!);
+    expect(window.location.href).toBe("/");
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("opens redirectUrl in a new tab when clickAction is 'open_new_tab'", () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <WidgetFAB
+        color="#000"
+        position="bottom_right"
+        onClick={onClick}
+        clickAction="open_new_tab"
+        redirectUrl="https://shop.example.com/checkout"
+      />
+    );
+    fireEvent.click(container.querySelector("button.zyon-presentation-fab")!);
+    expect(window.open).toHaveBeenCalledWith("https://shop.example.com/checkout", "_blank");
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when clickAction is 'open_new_tab' but redirectUrl is empty", () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <WidgetFAB
+        color="#000"
+        position="bottom_right"
+        onClick={onClick}
+        clickAction="open_new_tab"
+        redirectUrl=""
+      />
+    );
+    fireEvent.click(container.querySelector("button.zyon-presentation-fab")!);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

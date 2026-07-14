@@ -43,7 +43,9 @@ export class CheckoutSettingsEntity {
         initialDelaySeconds: 0,
         presentationMode: "fab",
         showCartBadge: true,
-        inviteText: "Posso ajudar?"
+        inviteText: "Posso ajudar?",
+        fabClickAction: "open_widget",
+        fabRedirectUrl: ""
       },
       interventionPolicy: {
         minimumAbandonmentScore: 0.7,

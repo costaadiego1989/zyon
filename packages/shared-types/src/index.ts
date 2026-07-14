@@ -681,6 +681,8 @@ export type CheckoutWidgetPresentationMode =
   | "trigger_only"
   | "inline";
 
+export type CheckoutFabClickAction = "redirect_to_cart" | "open_widget" | "open_new_tab";
+
 export interface CheckoutWidgetBehavior {
   openWidgetOnTrigger: boolean;
   startMinimized: boolean;
@@ -690,6 +692,8 @@ export interface CheckoutWidgetBehavior {
   fabColor?: string;
   inviteText?: string;
   showCartBadge?: boolean;
+  fabClickAction?: CheckoutFabClickAction;
+  fabRedirectUrl?: string;
 }
 
 export interface CheckoutInterventionPolicy {
