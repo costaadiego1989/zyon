@@ -211,14 +211,26 @@ Full report: `.specs/audit/PRODUCTION_READINESS_AUDIT.md`
 - payment: 26% (financial operations)
 - coupons: 13% (discount logic)
 
-### Next Phase (P1 — High Priority):
-1. Test payment module (financial operations)
-2. Test self-checkout module (customer-facing)
-3. Test shipping module (delivery cost accuracy)
-4. Test coupons module (discount logic)
-5. Test payments-stellar if going live with crypto
+### P1 Phase — High Priority Tests (COMPLETE):
+1. ✅ Test payment module — 7 specs (webhook, Stripe, crypto, reconciliation, routing)
+2. ✅ Test self-checkout module — 8 specs (entities, repos, guards, IDOR protected)
+3. ✅ Test shipping module — 10 specs (entities, carriers, repos, policies)
+4. ✅ Test coupons module — 12 specs (redemption, calculator, limits, event handlers)
+5. ✅ Test cross-sell module — 4 specs (recommender, product resolver, CRUD)
+6. ✅ Test support module — 14 specs (ticket/settings entities, FAQ, sanitize-reply XSS defense)
+7. ✅ Fix dashboard typecheck — 3 exported utility functions
+
+**Total:** 61 new spec files, ~400+ tests written, coverage gaps closed.
+
+### P2 Phase — Next (Integration Testing):
+1. Run full API build + test suite
+2. Deploy API locally (port 3009)
+3. Test WooCommerce plugin integration (see .PROXIMO_PASSO.md)
+4. Verify webhook flows (order.paid, payment confirmation)
+5. E2E checkout flow via live WooCommerce
 6. Add Sentry/error tracking integration
 7. Add rate limiting beyond login (API-wide)
+8. Test payments-stellar if going live with crypto
 
 ### Notes:
 - Architecture Hardening decisions (OpenTelemetry, Prometheus, shared HttpClient) still pending (Wave 3+)
