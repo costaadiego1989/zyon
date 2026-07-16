@@ -42,6 +42,47 @@ export function validateFaqItems(items: SupportFaqItem[]): Array<{ question: boo
   }));
 }
 
+export function moveItemInList<T extends { id: string }>(
+  items: T[],
+  id: string,
+  direction: "up" | "down",
+): T[] {
+  const idx = items.findIndex((it) => it.id === id);
+  if (idx === -1) return items.slice();
+  const swapWith = direction === "up" ? idx - 1 : idx + 1;
+  if (swapWith < 0 || swapWith >= items.length) return items.slice();
+  const next = items.slice();
+  const a = next[idx]!;
+  const b = next[swapWith]!;
+  next[idx] = b;
+  next[swapWith] = a;
+  return next;
+}
+
+export function filterTickets<T extends { id: string; buyerMessage: string }>(
+  tickets: T[],
+  query: string,
+): T[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return tickets.slice();
+  return tickets.filter(
+    (t) =>
+      t.id.toLowerCase().includes(q) ||
+      (t.buyerMessage ?? "").toLowerCase().includes(q),
+  );
+}
+
+export function paginateItems<T>(
+  items: T[],
+  page: number,
+  pageSize: number,
+): { paginated: T[]; hasMore: boolean } {
+  const start = (page - 1) * pageSize;
+  const paginated = items.slice(start, start + pageSize);
+  const hasMore = start + paginated.length < items.length;
+  return { paginated, hasMore };
+}
+
 const SUPPORT_STATUS_LABELS: Record<SupportTicketStatus, string> = {
   open: "Aberto",
   in_progress: "Em atendimento",
