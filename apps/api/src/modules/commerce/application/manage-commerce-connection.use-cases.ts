@@ -250,13 +250,17 @@ function assertSafeConnectionInput(
     throw new BadRequestException("invalid_woocommerce_store_url");
   }
   const hostname = url.hostname.toLowerCase();
+  // Dev-mode escape: allow http://localhost:8080 for local testing.
+  const isLocalDev = process.env.NODE_ENV === "development" &&
+    (hostname === "localhost" || hostname === "127.0.0.1") &&
+    url.port === "8080";
   if (
-    url.protocol !== "https:" ||
-    hostname === "localhost" ||
-    hostname.endsWith(".localhost") ||
-    hostname.endsWith(".local") ||
-    hostname.includes(":") ||
-    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) ||
+    (!isLocalDev && url.protocol !== "https:") ||
+    (!isLocalDev && (hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname.endsWith(".local") ||
+      hostname.includes(":"))) ||
+    (!isLocalDev && /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname)) ||
     !input.consumerKey.trim() ||
     !input.consumerSecret.trim()
   ) {

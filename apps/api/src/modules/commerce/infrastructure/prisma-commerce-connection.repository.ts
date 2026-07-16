@@ -281,7 +281,11 @@ function normalizeShopDomain(value: string): string {
 
 function normalizeStoreUrl(value: string): string {
   const url = new URL(value.trim());
-  if (url.protocol !== "https:") {
+  // Dev-mode escape: allow http://localhost:8080 for local testing.
+  const isLocalDev = process.env.NODE_ENV === "development" &&
+    (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+    url.port === "8080";
+  if (!isLocalDev && url.protocol !== "https:") {
     throw new Error("woocommerce_https_required");
   }
   return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
