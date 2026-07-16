@@ -222,15 +222,18 @@ Full report: `.specs/audit/PRODUCTION_READINESS_AUDIT.md`
 
 **Total:** 61 new spec files, ~400+ tests written, coverage gaps closed.
 
-### P2 Phase — Next (Integration Testing):
-1. Run full API build + test suite
-2. Deploy API locally (port 3009)
-3. Test WooCommerce plugin integration (see .PROXIMO_PASSO.md)
-4. Verify webhook flows (order.paid, payment confirmation)
-5. E2E checkout flow via live WooCommerce
-6. Add Sentry/error tracking integration
-7. Add rate limiting beyond login (API-wide)
-8. Test payments-stellar if going live with crypto
+### P2 Phase — Next:
+1. Add Sentry/error tracking integration
+2. Add rate limiting beyond login (API-wide)
+3. Test/refactor crypto payments → universal EVM provider (NOT Stellar)
+4. OpenTelemetry + Prometheus /metrics endpoint
+5. Shared HttpClient with circuit breaker (per Architecture Hardening)
+6. Test integrations module (18% coverage)
+7. Test fulfillment module (13% coverage)
+8. Test scraping-agent module (12% coverage)
+9. Test onboarding module (13% coverage)
+
+Note: WooCommerce integration handled by separate agent. Stellar removed — using universal EVM provider.
 
 ### Notes:
 - Architecture Hardening decisions (OpenTelemetry, Prometheus, shared HttpClient) still pending (Wave 3+)
