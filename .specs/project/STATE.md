@@ -175,3 +175,52 @@
 - Machine negotiation persistence and APIs (`MN-T004`–`MN-T007`): `GET`/`PUT /merchant-negotiation-policy`; `GET`/`PUT /buyer-agent/preferences`; `POST /negotiations/evaluate` loads stored policy/preferences when omitted, returns `negotiation_session_id`, appends ledger; `POST /negotiations/apply-checkout-offer` writes `AuthorizedOffer` when fingerprint and discount match snapshot and rules-engine approves; Prisma migration `20260503140000_negotiation_persistence`; in-memory negotiation store default, Prisma when `NEGOTIATION_REPOSITORY=prisma` and `DATABASE_URL`.
 - Secure embed (**API slice**, `SEW-T002`–`SEW-T004` backend): **`POST /embed-sessions`** (JWT) issues signed embed token; public **`POST /embed/start|track|chat`** accept `X-AACP-Embed-Token` / Bearer and bind `merchant_id` from claims; **`EMBED_TOKEN_SECRET`** required in production.
 - `pnpm --filter @aacp/api test` and `pnpm --filter @aacp/api typecheck` passed after negotiation persistence + embed API slice.
+
+## Production Readiness Audit (2026-07-16)
+
+Full report: `.specs/audit/PRODUCTION_READINESS_AUDIT.md`
+
+### P0 Blockers Status: ✅ ALL COMPLETE
+
+**Commits (7):**
+1. `de3c185d` feat(health): add liveness and readiness probe endpoints
+2. `b3303d11` feat(logging): add pino structured logger with correlation IDs
+3. `ebd0b2e2` chore(docker): add production multi-stage Dockerfile
+4. `47ba8458` ci(workflows): add GitHub Actions CI/CD pipeline
+5. `9a8a3a33` docs(env): create .env.example with all required vars documented
+6. `97424ff5` test(rules-engine): add unit tests for discount authorization (30 tests, 100% coverage)
+7. `01f3441f` test(decision-engine): add unit tests for checkout orchestration (51 tests, 100% coverage)
+
+**Implementations:**
+- P0-001: `/health` (instant) + `/ready` (DB ping) endpoints, no auth required, 6 unit tests pass
+- P0-002: pino + nestjs-pino + CorrelationIdMiddleware + AsyncLocalStorage, JSON output, typecheck pass
+- P0-003: Multi-stage Dockerfile (builder + runner), node:20-alpine, Prisma + migrate embedded
+- P0-004: `.github/workflows/ci.yml` with 20 steps, postgres service, lint → typecheck → test → build
+- P0-005: 71 env vars across 16 sections, all safe placeholders, matches assertRequiredSecretsInProduction
+- P0-006: rules-engine — 30 tests, all 4 discount branches covered, safety-critical authorization logic
+- P0-007: decision-engine — 51 tests, 100% coverage (statement/branch/function/line), checkout orchestration
+
+### Remaining Test Coverage Gaps (informational):
+- **API test coverage: 24%** (131 specs / 543 source files) — rules-engine + decision-engine now added
+- **Widget test coverage:** 45 unit specs (centralized `__tests__/`) + 26 E2E Playwright specs
+- **Dashboard test coverage: 42%** + 16 E2E Playwright specs
+- **Still 0%:** payments-stellar (crypto), contracts (interfaces)
+
+### Module Risk (lowest coverage on critical paths):
+- self-checkout: 6%, shipping: 6%, cross-sell: 8%, scraping-agent: 12%
+- payment: 26% (financial operations)
+- coupons: 13% (discount logic)
+
+### Next Phase (P1 — High Priority):
+1. Test payment module (financial operations)
+2. Test self-checkout module (customer-facing)
+3. Test shipping module (delivery cost accuracy)
+4. Test coupons module (discount logic)
+5. Test payments-stellar if going live with crypto
+6. Add Sentry/error tracking integration
+7. Add rate limiting beyond login (API-wide)
+
+### Notes:
+- Architecture Hardening decisions (OpenTelemetry, Prometheus, shared HttpClient) still pending (Wave 3+)
+- Widget has `pnpm test:coverage` threshold at 70% — passes
+- 3 empty scaffold packages: discovery-engine, learning-engine, recomendation-engine
