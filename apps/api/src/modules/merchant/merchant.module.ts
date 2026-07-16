@@ -12,7 +12,7 @@ import { UpdateMerchantThemeUseCase } from "./application/update-merchant-theme.
 import { EnableCryptoPaymentsUseCase } from "./application/use-cases/enable-crypto-payments.use-case.js";
 import { MERCHANT_REPOSITORY } from "./domain/ports/merchant-repository.port.js";
 import { MERCHANT_RULES_REPOSITORY } from "./domain/ports/merchant-rules.repository.port.js";
-import { STELLAR_CONFIG, createStellarConfig, type StellarConfig } from "./domain/services/stellar-config.js";
+import { EVM_PAYMENTS_CONFIG, createEvmPaymentsConfig, type EvmPaymentsConfig } from "./domain/services/evm-payments-config.js";
 import { PrismaMerchantRepository } from "./infrastructure/prisma-merchant.repository.js";
 import { MerchantController } from "./presentation/merchant.controller.js";
 import { CryptoPaymentsController } from "./presentation/http/crypto-payments.controller.js";
@@ -20,7 +20,7 @@ import { CryptoPaymentsController } from "./presentation/http/crypto-payments.co
 const logger = new Logger("MerchantModule");
 
 /**
- * MERC-C1: StellarConfig validated at module init. Logs warning if env var missing
+ * EVM payments config validated at module init. Logs warning if env var missing
  * instead of crashing at first crypto-payments request.
  */
 @Module({
@@ -34,8 +34,8 @@ const logger = new Logger("MerchantModule");
     UpdateMerchantThemeUseCase,
     EnableCryptoPaymentsUseCase,
     {
-      provide: STELLAR_CONFIG,
-      useFactory: () => createStellarConfig(),
+      provide: EVM_PAYMENTS_CONFIG,
+      useFactory: () => createEvmPaymentsConfig(),
     },
     {
       provide: MERCHANT_REPOSITORY,
@@ -50,10 +50,10 @@ export class MerchantModule implements OnModuleInit {
   constructor() {}
 
   onModuleInit(): void {
-    const config = createStellarConfig();
+    const config = createEvmPaymentsConfig();
     if (!config.enabled) {
       logger.warn(
-        "STELLAR_PLATFORM_SECRET not set — crypto payments disabled. " +
+        "EVM_PLATFORM_PRIVATE_KEY not set — crypto payments disabled. " +
         "Set the env var to enable the POST /merchants/me/crypto-payments/enable endpoint."
       );
     }

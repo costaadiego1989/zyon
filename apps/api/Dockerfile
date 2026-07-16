@@ -30,7 +30,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/contracts/package.json        packages/contracts/package.json
 COPY packages/shared-types/package.json     packages/shared-types/package.json
 COPY packages/commerce-adapters/package.json packages/commerce-adapters/package.json
-COPY packages/payments-stellar/package.json  packages/payments-stellar/package.json
+COPY packages/payments-stellar/package.json  packages/payments-evm/package.json
 COPY packages/conversation-engine/package.json packages/conversation-engine/package.json
 COPY packages/decision-engine/package.json   packages/decision-engine/package.json
 COPY packages/negotiation-engine/package.json packages/negotiation-engine/package.json
@@ -54,7 +54,7 @@ RUN pnpm install --frozen-lockfile \
       --filter @zyon/contracts... \
       --filter @zyon/shared-types... \
       --filter @zyon/commerce-adapters... \
-      --filter @zyon/payments-stellar... \
+      --filter @zyon/payments-evm... \
       --filter @zyon/conversation-engine... \
       --filter @zyon/decision-engine... \
       --filter @zyon/negotiation-engine... \
@@ -75,7 +75,7 @@ RUN pnpm install --frozen-lockfile --prod \
       --filter @zyon/contracts... \
       --filter @zyon/shared-types... \
       --filter @zyon/commerce-adapters... \
-      --filter @zyon/payments-stellar... \
+      --filter @zyon/payments-evm... \
       --filter @zyon/conversation-engine... \
       --filter @zyon/decision-engine... \
       --filter @zyon/negotiation-engine... \

@@ -1,40 +1,42 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { activateMerchantStellarAccount } from "@zyon/payments-stellar";
+import { isAddress } from "viem";
 import {
   MERCHANT_REPOSITORY,
   type MerchantRepository
 } from "../../domain/ports/merchant-repository.port.js";
-import { STELLAR_CONFIG, type StellarConfig } from "../../domain/services/stellar-config.js";
+import { EVM_PAYMENTS_CONFIG, type EvmPaymentsConfig } from "../../domain/services/evm-payments-config.js";
 
 export interface EnableCryptoPaymentsInput {
   merchantId: string;
-  merchantPublicKey: string;
-  merchantSecretKey: string;
+  /** EIP-55 checksummed address (0x...) the merchant controls. */
+  merchantAddress: `0x${string}`;
 }
 
 /**
- * MERC-C1: StellarConfig is injected — validated at module startup.
- * If crypto is not configured, returns a clear 400 instead of crashing at runtime.
+ * Enables EVM-based crypto payments for a merchant.
+ *
+ * Validates that the provided merchant address is a valid EVM address and
+ * then marks the merchant as crypto-enabled. Per-order payment intents are
+ * built later via @zyon/payments-evm's createPaymentIntent when checkout
+ * finalises.
  */
 @Injectable()
 export class EnableCryptoPaymentsUseCase {
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly repository: MerchantRepository,
-    @Inject(STELLAR_CONFIG) private readonly stellarConfig: StellarConfig,
+    @Inject(EVM_PAYMENTS_CONFIG) private readonly config: EvmPaymentsConfig,
   ) {}
 
   async execute(input: EnableCryptoPaymentsInput): Promise<{ success: boolean }> {
-    if (!this.stellarConfig.enabled) {
+    if (!this.config.enabled) {
       throw new BadRequestException("crypto_payments_not_configured");
     }
 
-    await activateMerchantStellarAccount({
-      merchantPublicKey: input.merchantPublicKey,
-      merchantSecretKey: input.merchantSecretKey,
-      platformSecretKey: this.stellarConfig.platformSecretKey,
-    });
+    if (!isAddress(input.merchantAddress)) {
+      throw new BadRequestException("invalid_merchant_address");
+    }
 
-    await this.repository.enableCrypto(input.merchantId, input.merchantPublicKey);
+    await this.repository.enableCrypto(input.merchantId, input.merchantAddress);
 
     return { success: true };
   }
