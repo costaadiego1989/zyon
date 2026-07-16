@@ -1,0 +1,82 @@
+# Dependencies (reinstalled inside the image)
+node_modules
+**/node_modules
+
+# Build outputs (rebuilt inside the image)
+dist
+**/dist
+.tsbuildinfo
+**/*.tsbuildinfo
+
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Coverage / test artifacts
+coverage
+**/coverage
+.nyc_output
+**/.nyc_output
+*.lcov
+
+# Spec / test sources — not shipped
+**/*.spec.ts
+**/*.spec.tsx
+**/*.test.ts
+**/*.test.tsx
+**/__tests__
+**/__mocks__
+test-embed.html
+
+# E2E projects
+e2e
+**/e2e
+playwright-report
+test-results
+**/playwright.config.*
+
+# Env files (NEVER bake secrets into images)
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+**/!.env.example
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Logs and caches
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+.turbo
+.cache
+.parcel-cache
+.eslintcache
+**/.eslintcache
+
+# Docs that don't need to ship in the image
+README.md
+CHANGELOG.md
+*.md
+docs
+**/docs
+
+# Docker meta (avoid recursive copy)
+Dockerfile*
+.dockerignore
+
+# Tooling we don't need at runtime
+docker-compose*.yml
+scripts
+**/scripts
+plugins
+**/plugins
