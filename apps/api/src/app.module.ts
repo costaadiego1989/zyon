@@ -1,7 +1,8 @@
 import { Module } from "@nestjs/common";
-import { LoggerModule } from "nestjs-pino";
+import { LoggerModule } from "./shared/logger/logger.module.js";
 import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { ObservabilityModule } from "./shared/observability/observability.module.js";
+import { HealthModule } from "./shared/health/health.module.js";
 import { HttpModule } from "./shared/http/http.module.js";
 import { PersistenceModule } from "./shared/persistence/persistence.module.js";
 import { MessagingModule } from "./shared/messaging/messaging.module.js";
@@ -26,24 +27,10 @@ import { OperationsModule } from "./modules/operations/operations.module.js";
 
 @Module({
   imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        autoLogging: true,
-        quietReqLogger: true,
-        customProps: (req: import("http").IncomingMessage) => ({
-          correlationId:
-            (req as import("http").IncomingMessage & { correlationId?: string })
-              .correlationId ??
-            (req.headers["x-correlation-id"] as string | undefined) ??
-            crypto.randomUUID(),
-        }),
-        transport: process.env.NODE_ENV !== "production"
-          ? { target: "pino-pretty", options: { colorize: true, singleLine: true } }
-          : undefined,
-      },
-    }),
+    LoggerModule,
     TenantModule,
     ObservabilityModule,
+    HealthModule,
     HttpModule,
     PersistenceModule,
     MessagingModule,

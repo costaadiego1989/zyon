@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module.js";
 import { E2eAppModule } from "./e2e-app.module.js";
 import { resolveCorsConfig } from "./shared/config/cors-config.js";
@@ -29,7 +30,11 @@ async function bootstrap() {
     process.env.E2E_SEED_ENABLED === "true" && process.env.NODE_ENV !== "production";
   const rootModule = useE2eComposition ? E2eAppModule : AppModule;
 
-  const app = await NestFactory.create(rootModule, { rawBody: true });
+  const app = await NestFactory.create(rootModule, {
+    rawBody: true,
+    bufferLogs: true,
+  });
+  app.useLogger(app.get(Logger));
   app.enableCors(resolveCorsConfig());
   app.use(apiVersioningMiddleware);
 
@@ -51,11 +56,12 @@ async function bootstrap() {
   configureApiDocumentation(app);
 
   const port = Number(process.env.PORT ?? 3001);
+  const logger = app.get(Logger);
   await app.listen(port);
-  console.log(`AI Checkout API listening on http://localhost:${port}`);
-  console.log(`OpenAPI reference available at http://localhost:${port}/docs`);
-  console.log(`DeepSeek key loaded: ${Boolean(process.env.DEEPSEEK_API_KEY)}`);
-  console.log(`OpenAI key loaded: ${Boolean(process.env.OPENAI_API_KEY)}`);
+  logger.log(`AI Checkout API listening on http://localhost:${port}`);
+  logger.log(`OpenAPI reference available at http://localhost:${port}/docs`);
+  logger.log(`DeepSeek key loaded: ${Boolean(process.env.DEEPSEEK_API_KEY)}`);
+  logger.log(`OpenAI key loaded: ${Boolean(process.env.OPENAI_API_KEY)}`);
 }
 
 void bootstrap();
