@@ -8,7 +8,6 @@
  * Author URI: https://zyon.com
  * License: GPL v3
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
- * Requires Plugins: woocommerce
  * Requires PHP: 7.4
  * Requires at least: 6.0
  * Domain Path: /languages
