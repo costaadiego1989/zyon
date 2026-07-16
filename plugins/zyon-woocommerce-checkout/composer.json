@@ -1,0 +1,32 @@
+{
+  "name": "zyon/woocommerce-checkout",
+  "description": "Zyon Agentic Checkout integration for WooCommerce",
+  "type": "wordpress-plugin",
+  "license": "GPL-3.0-or-later",
+  "authors": [
+    {
+      "name": "Zyon AI",
+      "email": "dev@zyon.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "ext-json": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.5",
+    "wp-phpunit/wp-phpunit": "*",
+    "wordpress/wordpress": "*",
+    "woocommerce/woocommerce": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "Zyon\\": "includes/"
+    }
+  },
+  "scripts": {
+    "test": "phpunit",
+    "test:coverage": "phpunit --coverage-html=coverage",
+    "test:watch": "phpunit --watch"
+  }
+}

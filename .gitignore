@@ -38,3 +38,9 @@ scripts/*
 .codex/
 .cursor/
 .github/
+
+# Local WooCommerce installation (E2E test environment)
+woocommerce/
+wp-content/
+wp-config.php
+.wp-cli/
