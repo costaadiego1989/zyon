@@ -2,10 +2,12 @@ import { Module } from "@nestjs/common";
 import { LoggerModule } from "./shared/logger/logger.module.js";
 import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { ObservabilityModule } from "./shared/observability/observability.module.js";
+import { SentryModule } from "./shared/observability/sentry.module.js";
 import { HealthModule } from "./shared/health/health.module.js";
 import { HttpModule } from "./shared/http/http.module.js";
 import { PersistenceModule } from "./shared/persistence/persistence.module.js";
 import { MessagingModule } from "./shared/messaging/messaging.module.js";
+import { RateLimitModule } from "./shared/rate-limit/rate-limit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "./modules/buyer-purchase-history/buyer-purchase-history.module.js";
@@ -30,10 +32,12 @@ import { OperationsModule } from "./modules/operations/operations.module.js";
     LoggerModule,
     TenantModule,
     ObservabilityModule,
+    SentryModule.forRoot(),
     HealthModule,
     HttpModule,
     PersistenceModule,
     MessagingModule,
+    RateLimitModule,
     AuthModule,
     MerchantModule,
     AgentRulesModule,
