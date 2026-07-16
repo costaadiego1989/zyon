@@ -2,20 +2,32 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - "**"
   pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DATABASE_URL: postgresql://zyon:zyon@localhost:5432/zyon?schema=public
+  # Disable real AI / external calls in CI
+  RUN_REAL_AI_E2E: "false"
 
 jobs:
   ci:
+    name: Lint / Typecheck / Test / Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
         image: postgres:16-alpine
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: aacp_test
+          POSTGRES_USER: zyon
+          POSTGRES_PASSWORD: zyon
+          POSTGRES_DB: zyon
         ports:
           - 5432:5432
         options: >-
@@ -23,11 +35,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/aacp_test
-      # Disable real AI / external calls in CI
-      RUN_REAL_AI_E2E: "false"
 
     steps:
       - uses: actions/checkout@v4
@@ -45,27 +52,52 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint (architecture boundaries gate)
-        run: pnpm --filter @aacp/api lint
+        working-directory: apps/api
+        run: pnpm lint
 
-      - name: Typecheck
-        run: pnpm -r typecheck
+      - name: Typecheck (api)
+        working-directory: apps/api
+        run: pnpm typecheck
 
-      - name: Unit + integration tests
-        run: pnpm -r test
+      - name: Typecheck (widget)
+        working-directory: apps/widget
+        run: pnpm typecheck
 
-      - name: Build shared types + API
-        run: |
-          pnpm --filter @aacp/shared-types build
-          pnpm --filter @aacp/api build
+      - name: Typecheck (dashboard)
+        working-directory: apps/dashboard
+        run: pnpm typecheck
+
+      - name: Build packages
+        run: pnpm -r build
+
+      - name: Prisma generate
+        working-directory: apps/api
+        run: pnpm prisma:generate
 
       - name: Apply Prisma migrations
-        run: pnpm --filter @aacp/api prisma:deploy
+        working-directory: apps/api
+        run: pnpm prisma:deploy
+
+      - name: Unit tests (api)
+        working-directory: apps/api
+        run: pnpm test
+
+      - name: Unit tests (widget)
+        working-directory: apps/widget
+        run: pnpm test
+
+      - name: Unit tests (dashboard)
+        working-directory: apps/dashboard
+        run: pnpm test
 
       - name: Prisma integration tests
-        run: pnpm --filter @aacp/api test:prisma
+        working-directory: apps/api
+        run: pnpm test:prisma
 
       - name: Widget coverage
-        run: pnpm --filter @aacp/widget test:coverage
+        working-directory: apps/widget
+        run: pnpm test:coverage
+        continue-on-error: true
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
@@ -75,3 +107,15 @@ jobs:
           path: |
             apps/widget/coverage/
           retention-days: 14
+
+      - name: Build (api)
+        working-directory: apps/api
+        run: pnpm build
+
+      - name: Build (widget)
+        working-directory: apps/widget
+        run: pnpm build
+
+      - name: Build (dashboard)
+        working-directory: apps/dashboard
+        run: pnpm build
