@@ -6,6 +6,8 @@ import type { ProductSelectionLine, WidgetConfig } from "./lib/widget-types.js";
 import { themeStyle } from "./hooks/checkout-presentation.js";
 import { PulseCheckoutView } from "./features/pulse/views/PulseCheckoutView.js";
 import type { CheckoutProps } from "./features/pulse/model/types.js";
+import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model.js";
+import { ChatCheckoutExperience } from "./app/ChatCheckoutExperience.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
@@ -32,8 +34,16 @@ function widgetConfigToCheckoutProps(config: WidgetConfig): CheckoutProps {
 }
 
 export function CheckoutAgent({ config }: { config: WidgetConfig }) {
+  if (config.uiPresentation === "conversational") {
+    return <ConversationalCheckoutAgent config={config} />;
+  }
   const props = useMemo(() => widgetConfigToCheckoutProps(config), [config]);
   return <PulseCheckoutView {...props} />;
+}
+
+function ConversationalCheckoutAgent({ config }: { config: WidgetConfig }) {
+  const vm = useCheckoutAgentViewModel(config);
+  return <ChatCheckoutExperience vm={vm} />;
 }
 
 const WIDGET_CE_NAME = "zyon-checkout-agent";

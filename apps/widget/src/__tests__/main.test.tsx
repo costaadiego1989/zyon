@@ -1085,7 +1085,7 @@ describe("CheckoutAgent (conversational)", () => {
 
     // At this point, customer is verified! Check that the login button in header reflects verified client state
     await waitFor(() => {
-      const loginBtn = container.querySelector("#aacp-login-btn");
+      const loginBtn = container.querySelector("#zyon-login-btn");
       expect(loginBtn?.textContent).toContain("Olá, Diego");
       expect(loginBtn?.textContent).toContain("Cliente");
     });
@@ -1157,8 +1157,8 @@ describe("CheckoutAgent (conversational)", () => {
 
     // 5. Completion clears the transactional cart and preserves the store fallback.
     await waitFor(() => {
-      expect(container.querySelector("#aacp-empty-cart-redirect-btn")).not.toBeNull();
-      expect(container.querySelector("#aacp-empty-cart-redirect-btn")?.getAttribute("href")).toBe(
+      expect(container.querySelector("#zyon-empty-cart-redirect-btn")).not.toBeNull();
+      expect(container.querySelector("#zyon-empty-cart-redirect-btn")?.getAttribute("href")).toBe(
         "https://minhaloja.com.br/fallback"
       );
     });

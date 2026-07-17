@@ -152,10 +152,11 @@ export function selectExperienceHeader(
 export function selectCheckoutExperiencePresentation(
   vm: CheckoutAgentViewModel,
 ): CheckoutExperiencePresentation {
+  const skin = vm.isConversational ? "default" : "pulse";
   return {
     colorMode: vm.colorMode,
     stage: vm.checkoutStage,
-    style: themeStyle(vm.theme, true, vm.colorMode, "pulse"),
+    style: themeStyle(vm.theme, true, vm.colorMode, skin),
     header: selectExperienceHeader(vm),
     journey: selectJourneyProtocol(vm.checkoutStage),
   };
