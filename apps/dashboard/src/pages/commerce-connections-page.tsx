@@ -159,18 +159,16 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
         };
       } else if (provider === "nuvemshop") {
         payload = {
-          provider: "nuvemshop" as any,
+          provider: "nuvemshop",
           store_url: nuvemshopStoreId.trim(),
-          consumer_key: nuvemshopToken.trim(),
-          consumer_secret: "",
-        } as any;
+          access_token: nuvemshopToken.trim(),
+        };
       } else if (provider === "tray") {
         payload = {
-          provider: "tray" as any,
+          provider: "tray",
           store_url: trayApiAddress.trim(),
-          consumer_key: trayAccessToken.trim(),
-          consumer_secret: "",
-        } as any;
+          access_token: trayAccessToken.trim(),
+        };
       } else {
         payload = {
           provider: "woocommerce",
@@ -287,7 +285,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
           </div>
           <div className="metric">
             <span><ShoppingBag size={14} /> Produtos</span>
-            <strong>{(connections[0] as any).product_count ?? "—"}</strong>
+            <strong>{"product_count" in connections[0] && typeof (connections[0] as { product_count?: unknown }).product_count === "number" ? (connections[0] as { product_count: number }).product_count : "—"}</strong>
           </div>
           <div className="metric">
             <span><Clock size={14} /> Último sync</span>

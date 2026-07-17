@@ -251,7 +251,7 @@ export type CommerceConnection = {
 };
 
 export type ConnectCommercePayload = {
-  provider: "shopify" | "woocommerce";
+  provider: "shopify" | "woocommerce" | "nuvemshop" | "tray";
   shop_domain?: string;
   admin_access_token?: string;
   storefront_access_token?: string;
@@ -259,6 +259,7 @@ export type ConnectCommercePayload = {
   store_url?: string;
   consumer_key?: string;
   consumer_secret?: string;
+  access_token?: string;
 };
 
 export type CommerceConnectionTestResult = {

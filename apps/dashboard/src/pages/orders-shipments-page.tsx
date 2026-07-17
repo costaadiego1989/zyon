@@ -226,10 +226,15 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
   }
 
   const exportCsv = () => {
-    const header = "ID,Status,Valor,Moeda,Email,Criado em";
-    const rows = filteredOrders.map((o: any) =>
-      [o.id, o.financial_status ?? o.status ?? "", o.total_price_cents ?? o.amount ?? 0, o.currency ?? "BRL", o.customer_email ?? o.buyer_email ?? "", o.created_at ?? o.placed_at ?? ""].join(",")
-    );
+    const header = "ID,Status,Valor,Moeda,Cliente,Criado em";
+    const rows = filteredOrders.map((o: TenantOrder) => {
+      const customer = o.customer as { full_name?: unknown; email?: unknown } | null;
+      const name = typeof customer?.full_name === "string" ? customer.full_name : "";
+      const email = typeof customer?.email === "string" ? customer.email : "";
+      const label = name || email || "-";
+      const createdAt = o.completed_at ?? o.cancelled_at ?? "";
+      return [o.id, o.status, String(o.total), o.currency, label, createdAt].join(",");
+    });
     const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

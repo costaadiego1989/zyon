@@ -1,8 +1,17 @@
 import { useEffect, useState, useCallback } from "react";
-import type { MerchantProfile } from "../api-client.js";
+import type { EmbedSessionResponse, MerchantProfile } from "../api-client.js";
 
 const PREVIEW_SCOPES = ["checkout:start", "checkout:chat", "checkout:track", "offers:apply"];
 const PREVIEW_TTL_SECONDS = 900;
+
+interface EmbedTokenApi {
+  createEmbedSession(payload: {
+    ttl_seconds?: number;
+    allowed_origin?: string;
+    scopes?: string[];
+    cart_ref?: string;
+  }): Promise<EmbedSessionResponse>;
+}
 
 interface UseEmbedTokenResult {
   token: string | null;
@@ -16,7 +25,7 @@ interface UseEmbedTokenResult {
  * Issues a token when the merchant profile becomes available and updates the caller on expiration.
  */
 export function useEmbedToken(
-  api: any,
+  api: EmbedTokenApi | null | undefined,
   me: MerchantProfile | null,
   onTokenIssued?: (expiresAtUnix: number) => void
 ): UseEmbedTokenResult {
