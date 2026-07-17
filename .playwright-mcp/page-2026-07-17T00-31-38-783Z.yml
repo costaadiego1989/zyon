@@ -1,0 +1,40 @@
+- main [ref=f2e3]:
+  - region "AACP" [ref=f2e4]:
+    - generic [ref=f2e5]:
+      - generic [ref=f2e6]:
+        - generic [ref=f2e7]: Z
+        - generic [ref=f2e8]:
+          - generic [ref=f2e9]: Zyon Console
+          - generic [ref=f2e10]: Merchant Platform
+      - heading "Controle operacional para vender, integrar e acompanhar pedidos." [level=1] [ref=f2e11]
+      - paragraph [ref=f2e12]: Checkout agêntico com IA que negocia, oferece e converte — tudo em um painel unificado.
+      - generic [ref=f2e13]:
+        - generic [ref=f2e14]: Webhooks assinados
+        - generic [ref=f2e15]: Tracking por API
+        - generic [ref=f2e16]: Embed seguro
+        - generic [ref=f2e17]: Multi-gateway
+      - generic [ref=f2e18]: Dados criptografados em trânsito e repouso · SOC 2 em andamento
+  - region "Entrar" [ref=f2e21]:
+    - tablist "Acesso" [ref=f2e22]:
+      - button "Entrar" [ref=f2e23] [cursor=pointer]
+      - button "Criar conta" [ref=f2e27] [cursor=pointer]
+    - generic [ref=f2e31]:
+      - generic [ref=f2e32]:
+        - paragraph [ref=f2e33]: Sessão merchant
+        - heading "Acesse seu painel" [level=2] [ref=f2e34]
+      - generic [ref=f2e35]:
+        - generic [ref=f2e36]: Email
+        - textbox "owner@loja.com" [ref=f2e37]
+      - generic [ref=f2e38]:
+        - generic [ref=f2e39]:
+          - generic [ref=f2e40]: Senha
+          - button "Esqueceu a senha?" [ref=f2e41] [cursor=pointer]
+        - textbox "••••••••" [ref=f2e42]
+      - paragraph [ref=f2e43]: Verificando sessão...
+      - button "Aguarde..." [disabled] [ref=f2e44]
+    - generic [ref=f2e48]:
+      - generic [ref=f2e49]: © 2026 Zyon
+      - generic [ref=f2e50]: ·
+      - generic [ref=f2e51] [cursor=pointer]: Docs
+      - generic [ref=f2e52]: ·
+      - generic [ref=f2e53] [cursor=pointer]: Status

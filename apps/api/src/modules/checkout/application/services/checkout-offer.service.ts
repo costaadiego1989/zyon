@@ -47,26 +47,12 @@ export class CheckoutOfferService {
       return SafeAuthorizedOffer.fromRulesEngine(saved);
     }
 
-    const objectionRegex = /(caro|desconto|cupom|preco|preço|valor|melhorar|abaixar)/i;
-    let objectionCount = 0;
-    if (Array.isArray(sessionObj.chatHistory)) {
-      for (const turn of sessionObj.chatHistory) {
-        if (turn.role === "buyer" && objectionRegex.test(turn.text)) {
-          objectionCount++;
-        }
-      }
-    }
-    if (objectionRegex.test(userMessage)) objectionCount++;
-
-    let dynamicMaxPercent = rules.maxDiscountPercent;
-    if (rules.maxDiscountPercent > 0) {
-      if (objectionCount <= 1) {
-        dynamicMaxPercent = Math.round(rules.maxDiscountPercent * 0.33);
-      } else if (objectionCount === 2) {
-        dynamicMaxPercent = Math.round(rules.maxDiscountPercent * 0.66);
-      }
-    }
-    dynamicMaxPercent = Math.min(dynamicMaxPercent, rules.maxDiscountPercent);
+    // INVARIANT: discount cap comes from `rules.maxDiscountPercent` only.
+    // The rules-engine is the sole authority for approving discounts.
+    // Conversation-derived signals (objection count, chat history) MUST NOT
+    // shape the cap — that would let LLM-influenced state leak into offer math.
+    // Objection handling belongs to `conversation-engine` (copy only).
+    const discountCapPercent = rules.maxDiscountPercent;
 
     const wantsShipping = /(frete|envio|shipping)/.test(userMessage.toLowerCase());
     const evaluation = wantsShipping
@@ -76,7 +62,7 @@ export class CheckoutOfferService {
         rules,
         abandonmentScore: Math.max(sessionObj.abandonmentScore, 0.7)
       })
-      : evaluateDiscountOffer(sessionObj.cart, rules, dynamicMaxPercent);
+      : evaluateDiscountOffer(sessionObj.cart, rules, discountCapPercent);
 
     const offer = createAuthorizedOffer({
       merchantId: sessionObj.merchantId,

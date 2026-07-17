@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Bot, Save } from "lucide-react";
 import type { MerchantRules } from "@zyon/shared-types";
 import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
-import { createDashboardApi, DashboardHttpError } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
 import { QuickRepliesSection } from "../components/quick-replies-section.js";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
@@ -15,14 +14,8 @@ import {
   validateNonNegative,
   validateMarginConsistency,
 } from "../utils/rules-validation.js";
-
-function readError(e: unknown): string {
-  return e instanceof DashboardHttpError
-    ? e.responseBody || e.message
-    : e instanceof Error
-      ? e.message
-      : "Erro desconhecido";
-}
+import { useApi } from "../hooks/useApi.js";
+import { readError } from "../utils/read-error.js";
 
 function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -32,7 +25,7 @@ export function MerchantRulesAuthenticatedPage(props: {
   apiBaseUrl: string;
   me: MerchantMeProfile | null;
 }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const previewRef = useRef<LivePreviewPanelRef>(null);
 
   const [rules, setRules] = useState<MerchantRules | null>(null);

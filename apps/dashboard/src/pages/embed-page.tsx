@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { CheckCircle2, Code2, Copy, KeyRound, Shield, Terminal } from "lucide-react";
-import { createDashboardApi, DashboardHttpError, type EmbedSessionResponse, type MerchantProfile } from "../api-client.js";
+import { type EmbedSessionResponse, type MerchantProfile } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
 
 const EMBED_SCOPES = ["checkout:start", "checkout:track", "checkout:chat", "offers:apply", "coupons:apply", "payment:intents:create"];
 
@@ -82,7 +83,7 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [allowedOrigin, setAllowedOrigin] = useState("https://");
   const [cartRef, setCartRef] = useState("");
   const [ttl, setTtl] = useState(900);

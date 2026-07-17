@@ -30,10 +30,10 @@ import type {
   CheckoutFabClickAction,
 } from "@zyon/shared-types";
 import {
-  createDashboardApi,
   DashboardHttpError,
   type MerchantProfile as MerchantMeProfile,
 } from "../../api-client.js";
+import { useApi } from "../../hooks/useApi.js";
 import { LivePreviewPanel } from "../../components/LivePreviewPanel.js";
 import type { LivePreviewPanelRef } from "../../components/LivePreviewPanel.js";
 import "./checkout-settings-page.css";
@@ -548,10 +548,7 @@ export function CheckoutSettingsPage(props: {
   apiBaseUrl: string;
   me: MerchantMeProfile | null;
 }) {
-  const api = useMemo(
-    () => createDashboardApi({ baseUrl: props.apiBaseUrl }),
-    [props.apiBaseUrl]
-  );
+  const api = useApi();
 
   const [settings, setSettings] = useState<CheckoutSettings | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);

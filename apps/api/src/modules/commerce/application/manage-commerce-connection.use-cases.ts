@@ -135,6 +135,7 @@ async function testAndRecord(
     });
     return health;
   } catch (error) {
+    console.error("[commerce] testConnection FAILED:", (error as Error).message, (error as Error).stack?.split("\n").slice(0, 3).join(" "));
     await connections.updateHealth({
       merchantId,
       status: "degraded",

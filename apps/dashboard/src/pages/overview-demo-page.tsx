@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Activity,
   CircleDot,
@@ -16,7 +16,8 @@ import type {
   DashboardOverview,
   SupportTicket,
 } from "@zyon/shared-types";
-import { createDashboardApi, type MerchantProfile } from "../api-client.js";
+import { type MerchantProfile } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
 
 export interface PilotDashboardMetrics {
   completedOrders: number;

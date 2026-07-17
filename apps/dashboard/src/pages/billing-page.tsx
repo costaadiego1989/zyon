@@ -1,19 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { CreditCard, ExternalLink, RefreshCw, Sparkles, CheckCircle2, Receipt, Activity, Zap, BarChart3 } from "lucide-react";
 import {
-  createDashboardApi,
-  DashboardHttpError,
   type BillingSubscription,
   type MerchantProfile,
 } from "../api-client.js";
-
-function readError(e: unknown): string {
-  return e instanceof DashboardHttpError
-    ? e.responseBody.slice(0, 240) || `HTTP ${e.status}`
-    : e instanceof Error
-      ? e.message
-      : String(e);
-}
+import { useApi } from "../hooks/useApi.js";
+import { readError } from "../utils/read-error.js";
 
 function formatDate(iso: string | null): string {
   if (!iso) return "—";
@@ -101,7 +93,7 @@ const PLANS = [
 ];
 
 export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);

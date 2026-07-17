@@ -41,7 +41,7 @@ export class ConnectCommerceDto {
 
   @ApiPropertyOptional({ example: "https://store.example.com" })
   @ValidateIf((value: ConnectCommerceDto) => value.provider === "woocommerce")
-  @IsUrl({ protocols: ["https"], require_protocol: true })
+  @IsUrl({ protocols: ["https", "http"], require_protocol: true, require_tld: false })
   store_url?: string;
 
   @ApiPropertyOptional({ writeOnly: true })

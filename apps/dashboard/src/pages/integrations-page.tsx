@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Activity,
   BookOpenCheck,
@@ -14,7 +14,6 @@ import {
   Webhook,
 } from "lucide-react";
 import {
-  createDashboardApi,
   DashboardHttpError,
   type Installation,
   type MerchantApiKey,
@@ -22,6 +21,8 @@ import {
   type WebhookDelivery,
   type WebhookEndpoint
 } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
+import { readError } from "../utils/read-error.js";
 
 const ALL_EVENTS = [
   "checkout.started",
@@ -70,7 +71,7 @@ const DEFAULT_SCOPES = [
 ];
 
 export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [apiKeys, setApiKeys] = useState<MerchantApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([]);
   const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
@@ -640,9 +641,6 @@ export function relativeTime(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
 }
 
-export function readError(error: unknown): string {
-  return error instanceof DashboardHttpError ? error.responseBody.slice(0, 180) : error instanceof Error ? error.message : String(error);
-}
 
 function apiDocumentationRoot(apiBaseUrl: string): string {
   return apiBaseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "");

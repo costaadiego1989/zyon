@@ -92,14 +92,18 @@ export class PrismaNegotiationStore implements NegotiationStore {
           resultJson: JSON.parse(JSON.stringify(input.result)) as object
         }
       });
-      // C3 fix: write ledger entry. New columns (aiCostCents, discountBasisPoints) are populated
-      // by migration but we only write amountCents for backward compat until migration applies.
+      // C3 fix: write ledger entry. Populate the semantic column (aiCostCents)
+      // for the negotiation.evaluated event type AND keep amountCents in sync
+      // for backward compatibility with legacy readers during the deprecation
+      // window.
+      const aiCostCents = input.result.estimatedAiCostCents;
       await tx.negotiationCostLedgerEntry.create({
         data: {
           merchantId: input.merchantId,
           negotiationSessionId: row.id,
           eventType: "negotiation.evaluated",
-          amountCents: input.result.estimatedAiCostCents
+          amountCents: aiCostCents,
+          aiCostCents
         }
       });
       return { id: row.id };
@@ -161,14 +165,20 @@ export class PrismaNegotiationStore implements NegotiationStore {
       const offerId = (input.offerData["id"] as string | undefined) ?? `off_${crypto.randomUUID()}`;
 
       const basisPoints = Math.round(input.discountPercent * 100);
-      // C3 fix: write ledger entry with basis points. New discountBasisPoints column populated by migration.
+      // C3 fix: write ledger entry with discount basis points. Populate the
+      // semantic column (discountBasisPoints) AND keep amountCents in sync
+      // for backward compatibility with legacy readers during the deprecation
+      // window. The amountCents column is named for money but historically
+      // held basis points for offer_applied entries; we preserve that legacy
+      // value so older dashboards/queries keep working while new readers
+      // prefer discountBasisPoints.
       await tx.negotiationCostLedgerEntry.create({
         data: {
           merchantId: input.merchantId,
           negotiationSessionId: input.negotiationSessionId,
           eventType: "negotiation.offer_applied",
-          // amountCents stores basis points (will be migrated to discountBasisPoints column)
-          amountCents: basisPoints
+          amountCents: basisPoints,
+          discountBasisPoints: basisPoints
         }
       });
 
@@ -183,13 +193,25 @@ export class PrismaNegotiationStore implements NegotiationStore {
     amountCents: number;
     metadata?: Record<string, unknown>;
   }): Promise<void> {
-    // C3 fix: write amountCents (semantic columns are populated by migration)
+    // C3 fix: route the legacy amountCents to the correct semantic column
+    // based on eventType so downstream readers (cost-tracker, billing) that
+    // prefer aiCostCents / discountBasisPoints get the right unit. The
+    // amountCents column is kept in sync for backward compatibility during
+    // the deprecation window.
+    const semanticData =
+      input.eventType === "negotiation.evaluated"
+        ? { aiCostCents: input.amountCents }
+        : input.eventType === "negotiation.offer_applied"
+        ? { discountBasisPoints: input.amountCents }
+        : {};
+
     await this.prisma.negotiationCostLedgerEntry.create({
       data: {
         merchantId: input.merchantId,
         negotiationSessionId: input.negotiationSessionId,
         eventType: input.eventType,
-        amountCents: input.amountCents
+        amountCents: input.amountCents,
+        ...semanticData
       }
     });
   }

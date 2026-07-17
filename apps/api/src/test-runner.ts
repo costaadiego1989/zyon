@@ -80,6 +80,7 @@ import "./modules/checkout/__tests__/accept-checkout-offer.use-case.spec.js";
 import "./modules/checkout/__tests__/apply-offer.use-case.spec.js";
 import "./modules/checkout/__tests__/complete-order.use-case.spec.js";
 import "./modules/checkout/__tests__/send-chat-message.use-case.spec.js";
+import "./modules/checkout/application/services/checkout-offer.service.spec.js";
 import "./modules/checkout/presentation/http/checkout.controller.spec.js";
 import "./modules/checkout/presentation/http/checkout.full-purchase-flow.e2e-spec.js";
 import "./modules/checkout/infrastructure/brevo-buyer-email.notifier.spec.js";
@@ -105,6 +106,7 @@ import "./modules/negotiation/presentation/http/merchant-negotiation-policy.cont
 import "./modules/negotiation/presentation/http/buyer-agent-negotiation-preferences.controller.spec.js";
 import "./modules/negotiation/presentation/http/negotiation.controller.spec.js";
 import "./modules/negotiation/presentation/http/negotiation.live-m2m.e2e-spec.js";
+import "./modules/negotiation/infrastructure/prisma-negotiation.store.spec.js";
 import "./modules/embed/domain/embed-token.service.spec.js";
 import "./modules/embed/presentation/http/embed-sessions.controller.spec.js";
 import "./modules/embed/presentation/http/embed-checkout.controller.spec.js";

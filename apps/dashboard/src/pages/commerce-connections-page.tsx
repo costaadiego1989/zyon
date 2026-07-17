@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Clock, Link2, PlugZap, RefreshCw, ShoppingBag, Trash2, X, Zap } from "lucide-react";
 import {
-  createDashboardApi,
   DashboardHttpError,
   type CommerceConnection,
   type ConnectCommercePayload,
   type MerchantProfile,
 } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
 
 // ── Exported constants for testing ──────────────────────────────────────────
 
@@ -84,7 +84,7 @@ function statusAccentClass(status: string): string {
 // ── Component ───────────────────────────────────────────────────────────────
 
 export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [connections, setConnections] = useState<CommerceConnection[]>([]);
   const [operation, setOperation] = useState<Operation>("idle");
   const [alert, setAlert] = useState<{ message: string; kind: "success" | "error" } | null>(null);

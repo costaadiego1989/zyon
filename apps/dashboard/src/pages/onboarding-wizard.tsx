@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   ArrowRight,
@@ -13,12 +13,12 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import {
-  createDashboardApi,
   type EmbedSessionResponse,
   type MerchantProfile,
   type OnboardingStateResponse,
   type OnboardingStepId,
 } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
 import type { CheckoutSettingsMode, MerchantRules, MerchantTheme } from "@zyon/shared-types";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
 import {
@@ -94,7 +94,7 @@ export function OnboardingWizard(props: {
   onNavigate: (tab: "settings" | "rules" | "theme" | "embed") => void;
   onFinished: () => void;
 }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
 
   // onboarding state (server-side progress)
   const [onboardingState, setOnboardingState] = useState<OnboardingStateResponse | null>(null);

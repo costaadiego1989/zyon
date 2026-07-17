@@ -1,7 +1,6 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
-  createDashboardApi,
   type MerchantProfile as MerchantDashboardProfile,
   DashboardHttpError,
   SESSION_EXPIRED_EVENT
@@ -10,12 +9,16 @@ import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import type { TabKey } from "./shell/nav-config.js";
+import { ApiContext, useApiInstance } from "./hooks/useApi.js";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3009";
 
-function App() {
-  const api = useMemo(() => createDashboardApi({ baseUrl: API_BASE_URL }), []);
+interface AppProps {
+  api: ReturnType<typeof useApiInstance>;
+}
+
+function App({ api }: AppProps) {
   const [me, setMe] = useState<MerchantDashboardProfile | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [email, setEmail] = useState("");
@@ -123,4 +126,13 @@ function App() {
   return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} />;
 }
 
-createRoot(document.getElementById("root")!).render(<App />);
+function AppRoot() {
+  const api = useApiInstance(API_BASE_URL);
+  return (
+    <ApiContext.Provider value={api}>
+      <App api={api} />
+    </ApiContext.Provider>
+  );
+}
+
+createRoot(document.getElementById("root")!).render(<AppRoot />);

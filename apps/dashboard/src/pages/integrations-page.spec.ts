@@ -3,7 +3,8 @@
  * TDD Phase: Tests written BEFORE implementation (RED → GREEN)
  */
 import { describe, expect, it } from "vitest";
-import { relativeTime, readError } from "./integrations-page.js";
+import { relativeTime } from "./integrations-page.js";
+import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
 
 // ── Phase 1: Portuguese Accent Verification ────────────────────────────────

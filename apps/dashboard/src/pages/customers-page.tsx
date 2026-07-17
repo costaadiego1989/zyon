@@ -1,13 +1,13 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { RefreshCw, UsersRound, UserPlus, Repeat, Download, ArrowUpDown } from "lucide-react";
 import {
-  createDashboardApi,
-  DashboardHttpError,
   type CursorPage,
   type MerchantProfile,
   type TenantCustomer,
 } from "../api-client.js";
 import { Pagination } from "../components/Pagination.js";
+import { useApi } from "../hooks/useApi.js";
+import { downloadCsv } from "../hooks/useCsvExport.js";
 
 export type CustomerRow = {
   globalUserId: string;
@@ -87,7 +87,7 @@ export function filterRows(rows: CustomerRow[], term: string): CustomerRow[] {
 const PAGE_SIZE = 30;
 
 export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [rows, setRows] = useState<CustomerRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -196,13 +196,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     const csvRows = filteredRows.map((r) =>
       [r.name, r.email, r.phone, r.firstSeen, r.lastSeen].join(",")
     );
-    const blob = new Blob([header + "\n" + csvRows.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `clientes-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(header, csvRows, `clientes-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
   if (!props.me) {

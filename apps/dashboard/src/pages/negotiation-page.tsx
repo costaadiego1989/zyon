@@ -1,16 +1,16 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from "react";
 import { FlaskConical } from "lucide-react";
 import type { MerchantProfile as MerchantMeProfile } from "../api-client.js";
-import { createDashboardApi } from "../api-client.js";
 import { NegotiationOverviewTab } from "./negotiation/NegotiationOverviewTab.js";
 import { NegotiationPolicyTab } from "./negotiation/NegotiationPolicyTab.js";
 import { NegotiationSimulatorTab } from "./negotiation/NegotiationSimulatorTab.js";
+import { useApi } from "../hooks/useApi.js";
 
 type ActiveTab = "overview" | "policy" | "simulator";
 
 export function NegotiationPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>("overview");
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
 
   if (!props.me) {
     return (

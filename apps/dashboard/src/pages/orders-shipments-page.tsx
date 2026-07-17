@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Activity,
   Download,
@@ -11,12 +11,12 @@ import {
 } from "lucide-react";
 import { Pagination } from "../components/Pagination.js";
 import {
-  createDashboardApi,
-  DashboardHttpError,
   type CursorPage,
   type MerchantProfile,
   type TenantOrder,
 } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
+import { downloadCsv } from "../hooks/useCsvExport.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -152,7 +152,7 @@ function formatDate(value: string | null | undefined): string {
 // ── Page Component ───────────────────────────────────────────────────────────
 
 export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [orders, setOrders] = useState<TenantOrder[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -235,13 +235,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       const createdAt = o.completed_at ?? o.cancelled_at ?? "";
       return [o.id, o.status, String(o.total), o.currency, label, createdAt].join(",");
     });
-    const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `pedidos-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadCsv(header, rows, `pedidos-${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
   return (

@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide-react";
 import {
-  createDashboardApi,
-  DashboardHttpError,
   type AuditEvent,
   type MerchantProfile,
 } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
+import { readError } from "../utils/read-error.js";
+import { downloadCsv } from "../hooks/useCsvExport.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,33 +67,19 @@ function formatAbsoluteTime(iso: string): string {
   );
 }
 
-function readError(e: unknown): string {
-  return e instanceof DashboardHttpError
-    ? e.responseBody.slice(0, 240) || `HTTP ${e.status}`
-    : e instanceof Error
-      ? e.message
-      : String(e);
-}
-
 function exportCsv(events: AuditEvent[]): void {
   const header = "Data,Tipo Ator,Ator,Ação,Recurso,ID Recurso,ID Correlação";
   const rows = events.map(e =>
     [e.occurred_at, e.actor_type, e.actor_id ?? "", e.action,
      e.resource_type, e.resource_id ?? "", e.correlation_id ?? ""].join(",")
   );
-  const blob = new Blob([header + "\n" + rows.join("\n")], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+  downloadCsv(header, rows, `auditoria-${new Date().toISOString().slice(0, 10)}.csv`);
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [events, setEvents] = useState<AuditEvent[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);

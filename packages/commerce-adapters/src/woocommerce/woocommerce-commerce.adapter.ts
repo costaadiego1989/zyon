@@ -308,7 +308,8 @@ function normalizeStoreUrl(value: string): string {
   const normalized = value.trim().replace(/\/+$/, "");
   if (!normalized) return "";
   const url = new URL(normalized);
-  if (url.protocol !== "https:") {
+  const isLocalDev = (url.hostname === "localhost" || url.hostname === "127.0.0.1") && url.port === "8080";
+  if (!isLocalDev && url.protocol !== "https:") {
     throw new Error("woocommerce_https_required");
   }
   return url.origin + url.pathname.replace(/\/+$/, "");

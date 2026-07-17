@@ -1,7 +1,9 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
-import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
-import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
+import {
+  BUYER_ACCOUNT_REPOSITORY,
+  type BuyerAccountRepository,
+} from "../../domain/ports/buyer-account-repository.port.js";
+import { BUYER_ACCOUNT_PORT, type BuyerAccountPort } from "../../domain/ports/buyer-account-port.js";
 import type { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import type { BuyerAgentProfile } from "../../domain/entities/buyer-agent-profile.entity.js";
 import {
@@ -28,7 +30,7 @@ type PurchaseStat = Pick<PurchaseRecord, "merchantId" | "totalAmount" | "discoun
 export class GetBuyerSummaryUseCase {
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
-    @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(BUYER_ACCOUNT_PORT) private readonly port: BuyerAccountPort,
     @Optional()
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY)
     private readonly purchaseHistory?: BuyerPurchaseHistoryRepository,
@@ -42,7 +44,7 @@ export class GetBuyerSummaryUseCase {
     if (!profile) throw new NotFoundException("buyer_account_not_found");
 
     const records = usesPrismaPurchaseHistory()
-      ? await this.loadRecordsFromPrisma(globalUserId)
+      ? await this.loadRecordsFromPort(globalUserId)
       : await this.loadRecordsFromRepository(globalUserId);
 
     const totalOrders = records.length;
@@ -61,12 +63,9 @@ export class GetBuyerSummaryUseCase {
 
     const merchantMap = usesPrismaPurchaseHistory()
       ? new Map(
-          (
-            await this.prisma.merchant.findMany({
-              where: { id: { in: topMerchantIds } },
-              select: { id: true, name: true },
-            })
-          ).map((m) => [m.id, m.name] as const),
+          (await this.port.listMerchantNames(topMerchantIds)).map(
+            (m) => [m.id, m.name] as const,
+          ),
         )
       : new Map<string, string>();
 
@@ -79,11 +78,13 @@ export class GetBuyerSummaryUseCase {
     return { profile, agent, stats: { totalOrders, totalSpent, totalSaved, topMerchants } };
   }
 
-  private async loadRecordsFromPrisma(globalUserId: string): Promise<PurchaseStat[]> {
-    return this.prisma.buyerPurchaseRecord.findMany({
-      where: { globalUserId },
-      select: { merchantId: true, totalAmount: true, discountAmount: true },
-    });
+  private async loadRecordsFromPort(globalUserId: string): Promise<PurchaseStat[]> {
+    const rows = await this.port.listPurchaseStatsForBuyer(globalUserId);
+    return rows.map((row) => ({
+      merchantId: row.merchantId,
+      totalAmount: row.totalAmount,
+      discountAmount: row.discountAmount,
+    }));
   }
 
   private async loadRecordsFromRepository(globalUserId: string): Promise<PurchaseStat[]> {
