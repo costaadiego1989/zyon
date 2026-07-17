@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { WidgetConfig } from "../lib/widget-types.js";
 import {
   checkoutErrorCode,
@@ -12,7 +12,13 @@ import { paymentIntentSnapshotSchema } from "../lib/widget-schemas.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { CheckoutChatState } from "./use-checkout-chat.js";
 
-import type { CryptoPaymentState } from "./crypto-payment.types.js";
+import { usePixPayment, PIX_WAIT_WINDOW_MS } from "./use-pix-payment.js";
+import { useStripePayment } from "./use-stripe-payment.js";
+import { useCryptoPayment } from "./use-crypto-payment.js";
+
+// Re-export sub-hook types so consumers importing from this module keep working.
+export type { StripeIntent } from "./use-stripe-payment.js";
+export type { PixWaitingStatus, PixWaitingState } from "./use-pix-payment.js";
 
 /**
  * Derives a stable idempotency key per payment attempt from immutable inputs
@@ -25,36 +31,6 @@ import type { CryptoPaymentState } from "./crypto-payment.types.js";
 function stableIdempotencyKey(sessionId: string, method: string, offerId?: string): string {
   return `${sessionId}::${method}::${offerId ?? "none"}`;
 }
-
-export interface StripeIntent {
-  intentId: string;
-  clientSecret: string;
-  publishableKey: string;
-  amountCents: number;
-  currency: string;
-}
-
-/**
- * Persistent "aguardando/escutando pagamento" state for PIX (ADR §9.2).
- *
- * Born `listening` the moment the charge is created in `requires_action`, it
- * carries the buyer-facing copy-paste / invoice references, the order amount and
- * a hard 10-minute `deadline` (epoch ms) for the countdown. The webhook-driven
- * poll flips it to `approved | failed | expired`. The widget never confirms PIX
- * optimistically — only the persisted status moves this machine forward.
- */
-export type PixWaitingStatus = "listening" | "approved" | "failed" | "expired";
-
-export interface PixWaitingState {
-  status: PixWaitingStatus;
-  copyPaste: string | null;
-  invoiceUrl: string | null;
-  amountCents?: number;
-  currency: string;
-  deadline: number;
-}
-
-const PIX_WAIT_WINDOW_MS = 1000 * 60 * 10;
 
 function paymentIntentErrorMessage(error: unknown, method: "pix" | "card" | "crypto"): string {
   const code = checkoutErrorCode(error);
@@ -99,6 +75,41 @@ function paymentIntentErrorMessage(error: unknown, method: "pix" | "card" | "cry
     : "Nao foi possivel gerar a cobranca. Verifique os dados de pagamento.";
 }
 
+type PaymentStatusResponse = {
+  status: string;
+  amount_cents: number;
+  approved_amount_cents?: number;
+  currency: string;
+  order_id?: string;
+  provider_payment_id?: string;
+  receipt_url?: string;
+};
+
+type PaySnapshot = {
+  id?: string;
+  amountCents?: number;
+  approvedAmountCents?: number;
+  currency?: string;
+  status?: string;
+  buyerFacing?: {
+    invoiceUrl?: string;
+    qrCodeCopyPaste?: string;
+    clientSecret?: string;
+    stripePublishableKey?: string;
+    chainId?: number;
+    chain?: string;
+    evmNetwork?: string;
+    chainLabel?: string;
+    tokenAddress?: string;
+    tokenSymbol?: string;
+    amountAtomic?: string;
+    amountDisplay?: string;
+    destinationAddress?: string;
+    quoteExpiresAt?: string;
+    walletConnectProjectId?: string;
+  };
+};
+
 export function useCheckoutPayment(
   config: WidgetConfig,
   sessionState: CheckoutSessionState,
@@ -106,11 +117,7 @@ export function useCheckoutPayment(
 ) {
   const { session, apiOrigin, embedOpts } = sessionState;
   const { appendAgentTurn, lastChat } = chatState;
-  const [stripeIntent, setStripeIntent] = useState<StripeIntent | null>(null);
-  const [cryptoPayment, setCryptoPayment] = useState<CryptoPaymentState | null>(null);
-  const [pixPolling, setPixPolling] = useState(false);
-  const [pixWaiting, setPixWaiting] = useState<PixWaitingState | null>(null);
-  const pollRef = useRef<{ active: boolean } | null>(null);
+
   // P1: in-flight lock prevents duplicate intent creation from rapid re-taps.
   const intentInFlightRef = useRef(false);
   // P3: ref always reflects the latest activeExperience so the long-running
@@ -120,33 +127,43 @@ export function useCheckoutPayment(
     activeExperienceRef.current = sessionState.activeExperience;
   }, [sessionState.activeExperience]);
 
-  function cancelPoll(): void {
-    if (pollRef.current) pollRef.current.active = false;
-    pollRef.current = null;
+  // --- shared completion callback ----------------------------------------
+
+  function markPaymentCompleted(
+    amountCents?: number,
+    currency = "BRL",
+    opts?: { orderId?: string; receiptUrl?: string }
+  ): void {
+    pix.cancelPoll();
+    stripe.clearStripeIntent();
+    crypto.clearCryptoPayment();
+    pix.setPixWaiting((prev) => (prev ? { ...prev, status: "approved" } : prev));
+    const total = typeof amountCents === "number"
+      ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
+      : "";
+    const orderLine = opts?.orderId ? ` Pedido ${opts.orderId}.` : "";
+    const receiptLine = opts?.receiptUrl ? ` Recibo: ${opts.receiptUrl}.` : "";
+    appendAgentTurn(
+      (total
+        ? `Pagamento confirmado (${total}). Pedido aprovado!`
+        : "Pagamento confirmado! Pedido aprovado.") +
+        `${orderLine}${receiptLine} Separei o resumo e o link de retorno logo abaixo.`,
+      { stream: true }
+    );
+    // P3: read the freshest activeExperience from the ref rather than the
+    // closure snapshot, avoiding overwrites of updates made during a long poll.
+    const freshExperience = activeExperienceRef.current;
+    sessionState.syncExperience({
+      ...freshExperience,
+      stage: "completed",
+      copy: {
+        ...freshExperience.copy,
+        quick_replies: [],
+        focus_input: false
+      }
+    });
   }
 
-  // Cancel any in-flight PIX poll when the widget unmounts.
-  useEffect(() => () => cancelPoll(), []);
-
-  function delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  type PaymentStatusResponse = {
-    status: string;
-    amount_cents: number;
-    approved_amount_cents?: number;
-    currency: string;
-    order_id?: string;
-    provider_payment_id?: string;
-    receipt_url?: string;
-  };
-
-  /**
-   * Read the authoritative status once and complete the confirmation with the
-   * real order id / receipt. Falls back to known amount/currency if the read
-   * fails so the buyer still gets a confirmation after an approved charge.
-   */
   async function finalizeConfirmation(
     intentId: string,
     fallbackAmountCents?: number,
@@ -172,132 +189,33 @@ export function useCheckoutPayment(
     }
   }
 
-  /**
-   * Poll the authoritative payment status until the provider webhook flips it
-   * to approved, or the charge fails/expires, or the deadline passes. PIX is
-   * never confirmed optimistically — only the persisted status drives completion.
-   */
-  async function pollPaymentStatus(
-    intentId: string,
-    opts?: { intervalMs?: number; timeoutMs?: number }
-  ): Promise<void> {
-    if (!session || !intentId) return;
-    const intervalMs = opts?.intervalMs ?? 4000;
-    const timeoutMs = opts?.timeoutMs ?? 1000 * 60 * 10;
-    const deadline = Date.now() + timeoutMs;
-    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
-    const base = paths.paymentStatus(intentId);
-    const query = config.mode === "embed"
-      ? `?session_id=${encodeURIComponent(session.session_id)}`
-      : `?session_id=${encodeURIComponent(session.session_id)}&merchant_id=${encodeURIComponent(config.merchantId)}`;
-    const path = `${base}${query}`;
+  // --- sub-hooks ---------------------------------------------------------
 
-    const controller = { active: true };
-    pollRef.current = controller;
-    setPixPolling(true);
-    try {
-      while (controller.active && Date.now() < deadline) {
-        await delay(intervalMs);
-        if (!controller.active) return;
-        try {
-          const res = await checkoutGet<PaymentStatusResponse>(apiOrigin, path, { ...embedOpts });
-          if (res.status === "approved") {
-            setPixWaiting((prev) => (prev ? { ...prev, status: "approved" } : prev));
-            markPaymentCompleted(res.approved_amount_cents ?? res.amount_cents, res.currency, {
-              orderId: res.order_id,
-              receiptUrl: res.receipt_url
-            });
-            return;
-          }
-          if (res.status === "failed" || res.status === "expired" || res.status === "canceled") {
-            setPixWaiting((prev) =>
-              prev ? { ...prev, status: res.status === "expired" ? "expired" : "failed" } : prev
-            );
-            appendAgentTurn(
-              "O pagamento PIX expirou ou foi recusado. Gere uma nova cobranca para tentar novamente.",
-              { stream: true }
-            );
-            return;
-          }
-        } catch {
-          // Transient read error; keep polling until the deadline.
-        }
-      }
-      if (controller.active) {
-        setPixWaiting((prev) => (prev ? { ...prev, status: "expired" } : prev));
-        appendAgentTurn(
-          "Ainda nao recebi a confirmacao do seu PIX. Assim que o pagamento for compensado, libero seu pedido aqui.",
-          { stream: true }
-        );
-      }
-    } finally {
-      controller.active = false;
-      if (pollRef.current === controller) pollRef.current = null;
-      setPixPolling(false);
-    }
-  }
+  const pix = usePixPayment({
+    config,
+    sessionState,
+    chatState,
+    onApproved: (amountCents, currency, opts) =>
+      markPaymentCompleted(amountCents, currency, opts),
+  });
 
-  type PaySnapshot = {
-    id?: string;
-    amountCents?: number;
-    approvedAmountCents?: number;
-    currency?: string;
-    status?: string;
-    buyerFacing?: {
-      invoiceUrl?: string;
-      qrCodeCopyPaste?: string;
-      clientSecret?: string;
-      stripePublishableKey?: string;
-      chainId?: number;
-      chain?: string;
-      evmNetwork?: string;
-      chainLabel?: string;
-      tokenAddress?: string;
-      tokenSymbol?: string;
-      amountAtomic?: string;
-      amountDisplay?: string;
-      destinationAddress?: string;
-      quoteExpiresAt?: string;
-      walletConnectProjectId?: string;
-    };
-  };
+  const stripe = useStripePayment({
+    config,
+    sessionState,
+    chatState,
+    onApproved: (_intentId, amountCents, currency) =>
+      finalizeConfirmation(_intentId, amountCents, currency),
+  });
 
-  function markPaymentCompleted(
-    amountCents?: number,
-    currency = "BRL",
-    opts?: { orderId?: string; receiptUrl?: string }
-  ): void {
-    cancelPoll();
-    setStripeIntent(null);
-    setCryptoPayment(null);
-    setPixWaiting((prev) => (prev ? { ...prev, status: "approved" } : prev));
-    const total = typeof amountCents === "number"
-      ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
-      : "";
-    // Confirmation is built from real, authoritative references: the order id and
-    // the provider receipt URL persisted server-side (never optimistic/synthetic).
-    const orderLine = opts?.orderId ? ` Pedido ${opts.orderId}.` : "";
-    const receiptLine = opts?.receiptUrl ? ` Recibo: ${opts.receiptUrl}.` : "";
-    appendAgentTurn(
-      (total
-        ? `Pagamento confirmado (${total}). Pedido aprovado!`
-        : "Pagamento confirmado! Pedido aprovado.") +
-        `${orderLine}${receiptLine} Separei o resumo e o link de retorno logo abaixo.`,
-      { stream: true }
-    );
-    // P3: read the freshest activeExperience from the ref rather than the
-    // closure snapshot, avoiding overwrites of updates made during a long poll.
-    const freshExperience = activeExperienceRef.current;
-    sessionState.syncExperience({
-      ...freshExperience,
-      stage: "completed",
-      copy: {
-        ...freshExperience.copy,
-        quick_replies: [],
-        focus_input: false
-      }
-    });
-  }
+  const crypto = useCryptoPayment({
+    config,
+    sessionState,
+    chatState,
+    onApproved: (intentId, amountCents, currency) =>
+      finalizeConfirmation(intentId, amountCents, currency),
+  });
+
+  // --- intent creation ---------------------------------------------------
 
   async function createPaymentIntent(method: "pix" | "card" | "crypto"): Promise<void> {
     if (!session) return;
@@ -306,8 +224,6 @@ export function useCheckoutPayment(
     intentInFlightRef.current = true;
     const offerNow = lastChat?.authorized_offer;
     const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
-    // P1: derive a stable key per (session, method, offer) so rapid double-taps
-    // produce the same idempotency_key and the backend de-duplicates them.
     const body: Record<string, unknown> = {
       session_id: session.session_id,
       idempotency_key: stableIdempotencyKey(session.session_id, method, offerNow?.id),
@@ -333,8 +249,6 @@ export function useCheckoutPayment(
       }
 
       if (method === "card" && bf?.clientSecret && bf?.stripePublishableKey) {
-        // P2: abort early if the API did not return a usable intent id.
-        // An empty intentId would cause confirmStripePayment to silently hang.
         if (!snap.id) {
           appendAgentTurn(
             "Não foi possível iniciar o pagamento por cartão: referência do intent ausente. Tente novamente ou use PIX.",
@@ -342,8 +256,8 @@ export function useCheckoutPayment(
           );
           return;
         }
-        setCryptoPayment(null);
-        setStripeIntent({
+        crypto.clearCryptoPayment();
+        stripe.setStripeIntent({
           intentId: snap.id,
           clientSecret: bf.clientSecret,
           publishableKey: bf.stripePublishableKey,
@@ -362,8 +276,8 @@ export function useCheckoutPayment(
         bf?.quoteExpiresAt &&
         snap.id
       ) {
-        setStripeIntent(null);
-        setCryptoPayment({
+        stripe.clearStripeIntent();
+        crypto.setCryptoPayment({
           intentId: snap.id,
           amountCents: snap.amountCents,
           currency: snap.currency,
@@ -399,21 +313,17 @@ export function useCheckoutPayment(
       appendAgentTurn(total ? `Cobranca gerada (${total}).${pixLine}` : `Cobranca criada.${pixLine}`, { stream: true });
 
       // Async charge (PIX/boleto): poll authoritative status; confirmation is webhook-driven.
-      cancelPoll();
+      pix.cancelPoll();
       if (snap.id) {
-        // Surface the persistent "aguardando/escutando pagamento" component
-        // (ADR §9.2) the instant the charge is born in requires_action.
         if (method === "pix") {
-          setPixWaiting({
-            status: "listening",
-            copyPaste: bf?.qrCodeCopyPaste ?? null,
-            invoiceUrl: bf?.invoiceUrl ?? null,
+          pix.surfacePixWaiting({
+            copyPaste: bf?.qrCodeCopyPaste,
+            invoiceUrl: bf?.invoiceUrl,
             amountCents: snap.amountCents,
-            currency: snap.currency ?? "BRL",
-            deadline: Date.now() + PIX_WAIT_WINDOW_MS
+            currency: snap.currency,
           });
         }
-        void pollPaymentStatus(snap.id);
+        void pix.pollPaymentStatus(snap.id);
       }
     } catch (error) {
       appendAgentTurn(
@@ -423,54 +333,6 @@ export function useCheckoutPayment(
     } finally {
       intentInFlightRef.current = false;
     }
-  }
-
-  function onStripePaymentConfirmed(amountCents: number, currency = "BRL"): Promise<void> {
-    return confirmStripePayment(amountCents, currency);
-  }
-
-  async function confirmStripePayment(amountCents: number, currency = "BRL"): Promise<void> {
-    if (!session || !stripeIntent?.intentId) {
-      appendAgentTurn(
-        "Recebi seu pagamento e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.",
-        { stream: true }
-      );
-      return;
-    }
-
-    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
-    const path = paths.stripePaymentConfirm(stripeIntent.intentId);
-    try {
-      const result = await checkoutJson<{ status: string }>(apiOrigin, path, {
-        ...embedOpts,
-        body: {
-          session_id: session.session_id,
-          ...(config.mode !== "embed" ? { merchant_id: config.merchantId } : {})
-        }
-      });
-      if (result.status === "approved") {
-        await finalizeConfirmation(stripeIntent.intentId, amountCents, currency);
-        return;
-      }
-      appendAgentTurn(
-        "Pagamento recebido. Estou aguardando a confirmacao final do provedor.",
-        { stream: true }
-      );
-    } catch {
-      const total = typeof amountCents === "number"
-        ? `${(amountCents / 100).toFixed(2)} ${currency}`.trim()
-        : "";
-      appendAgentTurn(
-        total
-          ? `Recebi seu pagamento (${total}) e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.`
-          : "Recebi seu pagamento e estou aguardando a confirmacao do provedor. Assim que ela chegar, libero seu pedido aqui.",
-        { stream: true }
-      );
-    }
-  }
-
-  function onStripePaymentError(message: string): void {
-    appendAgentTurn(message || "Pagamento recusado. Verifique os dados do cartao.", { stream: true });
   }
 
   async function createEmbedPaymentIntentDemo(): Promise<void> {
@@ -520,50 +382,21 @@ export function useCheckoutPayment(
     }
   }
 
-  async function confirmCryptoPayment(
-    intentId: string,
-    txHash: string,
-    walletAddress: string
-  ): Promise<void> {
-    if (!session) return;
-    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
-    const path = paths.cryptoPaymentConfirm(intentId);
-    try {
-      const result = await checkoutJson<{ status: string }>(apiOrigin, path, {
-        ...embedOpts,
-        body: {
-          session_id: session.session_id,
-          tx_hash: txHash,
-          wallet_address: walletAddress,
-          ...(config.mode !== "embed" && { merchant_id: config.merchantId })
-        },
-        schema: undefined
-      });
-      if (result.status === "approved") {
-        await finalizeConfirmation(intentId, cryptoPayment?.amountCents, cryptoPayment?.currency ?? "BRL");
-      }
-    } catch {
-      appendAgentTurn(
-        "Recebemos sua transação, mas a confirmação ainda não foi validada. Aguarde alguns segundos ou tente novamente.",
-        { stream: true }
-      );
-      throw new Error("crypto_confirm_failed");
-    }
-  }
+  // --- public API (unchanged from original) ------------------------------
 
   return {
     createPaymentIntent,
     createEmbedPaymentIntentDemo,
-    pollPaymentStatus,
-    pixPolling,
-    pixWaiting,
-    dismissPixWaiting: () => setPixWaiting(null),
-    stripeIntent,
-    cryptoPayment,
-    setCryptoPayment,
-    confirmCryptoPayment,
-    onStripePaymentConfirmed,
-    onStripePaymentError
+    pollPaymentStatus: pix.pollPaymentStatus,
+    pixPolling: pix.pixPolling,
+    pixWaiting: pix.pixWaiting,
+    dismissPixWaiting: pix.dismissPixWaiting,
+    stripeIntent: stripe.stripeIntent,
+    cryptoPayment: crypto.cryptoPayment,
+    setCryptoPayment: crypto.setCryptoPayment,
+    confirmCryptoPayment: crypto.confirmCryptoPayment,
+    onStripePaymentConfirmed: stripe.onStripePaymentConfirmed,
+    onStripePaymentError: stripe.onStripePaymentError
   };
 }
 
