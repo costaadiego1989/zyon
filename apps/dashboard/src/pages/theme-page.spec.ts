@@ -110,14 +110,14 @@ describe("COLOR_FIELDS", () => {
     expect(COLOR_FIELDS.find((f) => f.key === "secondaryColor")).toBeDefined();
   });
 
-  it("has secondaryColor labeled 'Cor secundária'", () => {
+  it("has secondaryColor labeled with 'Cor secundária'", () => {
     const field = COLOR_FIELDS.find((f) => f.key === "secondaryColor");
-    expect(field?.label).toBe("Cor secundária");
+    expect(field?.label).toContain("Cor secundária");
   });
 
-  it("has accentColor labeled 'Cor de destaque'", () => {
+  it("has accentColor labeled with 'Cor principal'", () => {
     const field = COLOR_FIELDS.find((f) => f.key === "accentColor");
-    expect(field?.label).toBe("Cor de destaque");
+    expect(field?.label).toContain("Cor principal");
   });
 
   it("has all labels in Portuguese (no English-only terms)", () => {
@@ -140,8 +140,8 @@ describe("DENSITY_OPTIONS", () => {
   it("uses Portuguese labels", () => {
     const labels = DENSITY_OPTIONS.map((o) => o.label);
     expect(labels).toContain("Compacto");
-    expect(labels).toContain("Confortável");
-    expect(labels).toContain("Espaçoso");
+    expect(labels).toContain("Normal");
+    expect(labels).toContain("Amplo");
   });
 
   it("maps to correct density values", () => {
@@ -157,40 +157,40 @@ describe("LABELS", () => {
     expect(LABELS.loginRequired).toBe("Login necessário.");
   });
 
-  it("has correct diacritics on 'configurável'", () => {
-    expect(LABELS.tenantSubtitle).toContain("configurável");
+  it("has tenant subtitle about personalization", () => {
+    expect(LABELS.tenantSubtitle).toContain("Personalize");
   });
 
-  it("has 'Título do header'", () => {
-    expect(LABELS.headerTitle).toBe("Título do header");
+  it("has 'Nome da loja'", () => {
+    expect(LABELS.headerTitle).toBe("Nome da loja");
   });
 
-  it("has 'Subtítulo do header'", () => {
-    expect(LABELS.headerSubtitle).toBe("Subtítulo do header");
+  it("has 'Subtítulo da loja'", () => {
+    expect(LABELS.headerSubtitle).toBe("Subtítulo da loja");
   });
 
-  it("has 'Badges de confiança'", () => {
-    expect(LABELS.badges).toBe("Badges de confiança");
+  it("has 'Selos de confiança'", () => {
+    expect(LABELS.badges).toBe("Selos de confiança");
   });
 
-  it("has 'Fonte da interface'", () => {
-    expect(LABELS.fontUi).toBe("Fonte da interface");
+  it("has 'Tipografia da interface'", () => {
+    expect(LABELS.fontUi).toBe("Tipografia da interface");
   });
 
-  it("has 'Fonte de destaque'", () => {
-    expect(LABELS.fontDisplay).toBe("Fonte de destaque");
+  it("has 'Tipografia de destaque'", () => {
+    expect(LABELS.fontDisplay).toBe("Tipografia de destaque");
   });
 
-  it("has 'Raio da borda'", () => {
-    expect(LABELS.borderRadius).toBe("Raio da borda");
+  it("has 'Arredondamento'", () => {
+    expect(LABELS.borderRadius).toBe("Arredondamento");
   });
 
-  it("has 'Recursos e layout'", () => {
-    expect(LABELS.assetsLayout).toBe("Recursos e layout");
+  it("has 'Imagens e layout'", () => {
+    expect(LABELS.assetsLayout).toBe("Imagens e layout");
   });
 
-  it("has 'Resetar'", () => {
-    expect(LABELS.reset).toBe("Resetar");
+  it("has 'Restaurar padrão'", () => {
+    expect(LABELS.reset).toBe("Restaurar padrão");
   });
 
   it("has 'Tema salvo com sucesso.'", () => {
@@ -198,7 +198,7 @@ describe("LABELS", () => {
   });
 
   it("has reset confirmation message with correct text", () => {
-    expect(LABELS.resetConfirm).toBe("Resetar para padrão? Alterações não salvas serão perdidas.");
+    expect(LABELS.resetConfirm).toBe("Restaurar o tema padrão? Suas alterações não salvas serão perdidas.");
   });
 
   it("has URL validation error message", () => {

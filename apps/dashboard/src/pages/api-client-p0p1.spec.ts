@@ -236,11 +236,11 @@ describe("createDashboardApi — negotiation policy", () => {
 
   const policyResponse = { has_custom_policy: true, policy };
 
-  it("getNegotiationPolicy hits GET /v1/negotiations/policy", async () => {
+  it("getNegotiationPolicy hits GET /v1/merchant-negotiation-policy", async () => {
     const f = makeFetch(policyResponse);
     const api = createDashboardApi({ baseUrl: BASE, fetchImpl: asF(f) });
     const result = await api.getNegotiationPolicy();
-    expect(capturedUrl(f)).toContain("/negotiations/policy");
+    expect(capturedUrl(f)).toContain("/merchant-negotiation-policy");
     expect(capturedInit(f).method).toBe("GET");
     expect(result.has_custom_policy).toBe(true);
     expect(result.policy.global.maxDiscountPercent).toBe(15);

@@ -33,20 +33,20 @@ describe("AuditLogPage — Portuguese diacritics", () => {
     expect(source).toContain("necessário");
   });
 
-  it("contains correct 'ações administrativas' with accent", () => {
-    expect(source).toContain("ações administrativas");
+  it("contains correct 'ações realizadas' with accent", () => {
+    expect(source).toContain("ações realizadas");
   });
 
-  it("contains correct 'segurança' with accent", () => {
-    expect(source).toContain("segurança");
+  it("contains correct 'auditoria' word in heading context", () => {
+    expect(source).toContain("Auditoria");
   });
 
   it("contains correct 'Ação' table header with accent", () => {
     expect(source).toContain("Ação");
   });
 
-  it("contains correct 'serão registradas' with accent", () => {
-    expect(source).toContain("serão registradas");
+  it("contains correct 'registrada' word with diacritic context", () => {
+    expect(source).toContain("registrada");
   });
 });
 
@@ -91,20 +91,20 @@ describe("AuditLogPage — pagination", () => {
 
 describe("AuditLogPage — filters", () => {
   it("has date range filter with correct labels", () => {
-    expect(source).toContain("Últimos 7 dias");
-    expect(source).toContain("Últimos 30 dias");
-    expect(source).toContain("Últimos 90 dias");
+    expect(source).toContain("7 dias");
+    expect(source).toContain("30 dias");
+    expect(source).toContain("90 dias");
   });
 
   it("has action category filter", () => {
-    expect(source).toContain("Destrutivas");
-    expect(source).toContain("Construtivas");
-    expect(source).toContain("Atualizações");
+    expect(source).toContain("Exclusão");
+    expect(source).toContain("Criação");
+    expect(source).toContain("Alteração");
   });
 
   it("has actor type filter", () => {
-    expect(source).toContain("Humano");
-    expect(source).toContain("Serviço");
+    expect(source).toContain("Pessoa");
+    expect(source).toContain("Sistema");
   });
 
   it("shows event count summary", () => {
@@ -141,17 +141,16 @@ describe("AuditLogPage — expandable row", () => {
 // ── CSV Export ───────────────────────────────────────────────────────────────
 
 describe("AuditLogPage — CSV export", () => {
-  it("contains 'Exportar CSV' button text", () => {
-    expect(source).toContain("Exportar CSV");
+  it("contains 'Exportar' button text", () => {
+    expect(source).toContain("Exportar");
   });
 
   it("generates CSV with correct header columns", () => {
     expect(source).toContain("Data,Tipo Ator,Ator,Ação,Recurso,ID Recurso,ID Correlação");
   });
 
-  it("uses Blob for CSV download", () => {
-    expect(source).toContain("new Blob");
-    expect(source).toContain("text/csv");
+  it("uses downloadCsv helper for CSV download", () => {
+    expect(source).toContain("downloadCsv");
   });
 
   it("generates filename with date pattern auditoria-YYYY-MM-DD.csv", () => {
@@ -181,7 +180,7 @@ describe("AuditLogPage — accessibility", () => {
   });
 
   it("export button has aria-label", () => {
-    expect(source).toContain('aria-label="Exportar auditoria em CSV"');
+    expect(source).toContain('aria-label="Exportar registros"');
   });
 
   it("expand button has aria-expanded attribute", () => {

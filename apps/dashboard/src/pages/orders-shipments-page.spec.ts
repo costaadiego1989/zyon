@@ -37,8 +37,8 @@ describe("STATUS_LABELS", () => {
     expect(STATUS_LABELS.cancelled).toBe("Cancelado");
   });
 
-  it("maps pending to Pendente", () => {
-    expect(STATUS_LABELS.pending).toBe("Pendente");
+  it("maps pending to Aguardando", () => {
+    expect(STATUS_LABELS.pending).toBe("Aguardando");
   });
 
   it("maps processing to Processando", () => {

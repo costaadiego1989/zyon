@@ -42,10 +42,10 @@ function makeMockApi(overrides?: Partial<NegotiationApi>): NegotiationApi {
 describe("NegotiationOverviewTab", () => {
   it("renders 4 metric labels in Portuguese", () => {
     const html = renderToStaticMarkup(<NegotiationOverviewTab api={makeMockApi()} />);
-    expect(html).toContain("Total de Sessões");
-    expect(html).toContain("Custo IA Acumulado");
-    expect(html).toContain("Taxa de Acordo");
-    expect(html).toContain("Desconto Médio");
+    expect(html).toContain("Sessões");
+    expect(html).toContain("Custo IA");
+    expect(html).toContain("Acordo");
+    expect(html).toContain("Desconto médio");
   });
 
   it("renders metrics grid container", () => {

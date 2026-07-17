@@ -56,7 +56,7 @@ describe("sanitizeError", () => {
 
   it("returns invalid credentials for 422", () => {
     const e = new DashboardHttpError(422, "Unprocessable");
-    expect(sanitizeError(e)).toBe("Credenciais inválidas. Verifique os dados e tente novamente.");
+    expect(sanitizeError(e)).toBe("Não foi possível conectar. Verifique suas credenciais.");
   });
 
   it("returns internal error for 500", () => {

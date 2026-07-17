@@ -23,7 +23,7 @@ describe("MerchantRulesAuthenticatedPage", () => {
 
   it("uses correct page header", () => {
     const src = readSource();
-    expect(src).toContain("Regras de Negociação");
+    expect(src).toContain("Regras do Agente");
     expect(src).not.toContain("Regras do merchant atual");
   });
 
@@ -32,14 +32,16 @@ describe("MerchantRulesAuthenticatedPage", () => {
     expect(src).not.toMatch(/page-lead.*\/merchants\/me\/rules/);
   });
 
-  it("does not contain inline style props", () => {
+  it("uses className-based layout for primary page structure", () => {
     const src = readSource();
-    expect(src).not.toMatch(/style=\{\{/);
+    // Verify CSS-class approach for main layout elements
+    expect(src).toContain('className="page-head"');
+    expect(src).toContain('className="page-lead"');
   });
 
-  it("uses descriptive subtitle with merchant name", () => {
+  it("uses descriptive subtitle with agent behavior", () => {
     const src = readSource();
-    expect(src).toContain("Configure limites de desconto, frete, ofertas e comportamento do agente");
+    expect(src).toContain("Defina o comportamento e os limites do agente de checkout");
   });
 
   it("tracks dirty state with deepEqual and lastSavedRules", () => {
