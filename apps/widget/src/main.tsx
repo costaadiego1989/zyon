@@ -17,27 +17,49 @@ import "./features/pulse/pulse-skin.css";
 import "./features/pulse/styles/animations.css";
 
 export { themeStyle };
-export type { WidgetConfig };
+export type { WidgetConfig, CheckoutProps };
 
-function widgetConfigToCheckoutProps(config: WidgetConfig): CheckoutProps {
-  return {
-    storeName: config.agent?.name ?? "Loja",
-    agentName: "Pulse",
-    theme: "dark",
-    faceLogin: false,
-    voiceEnabled: true,
-    supportFab: true,
-    apiBaseUrl: config.apiBaseUrl,
-    merchantId: config.merchantId,
-    sessionToken: config.embedSessionToken,
-  };
+// Route logic: embeds with real session token use PulseCheckoutView.
+// Legacy demo flows route through ConversationalCheckoutAgent.
+function shouldUseLegacyPath(config: WidgetConfig): boolean {
+  // Legacy demo: no embed token, or explicitly demo mode
+  if (config.mode !== "embed" || !config.embedSessionToken) return true;
+  // Conversational UI takes the legacy path for now (can be migrated to Pulse later)
+  if (config.uiPresentation === "conversational") return true;
+  return false;
 }
 
 export function CheckoutAgent({ config }: { config: WidgetConfig }) {
-  if (config.uiPresentation === "conversational") {
+  if (shouldUseLegacyPath(config)) {
     return <ConversationalCheckoutAgent config={config} />;
   }
-  const props = useMemo(() => widgetConfigToCheckoutProps(config), [config]);
+  // Embed with token → PulseCheckoutView (pulls from API real)
+  const cartItems = config.cart?.items;
+  const initialCart = cartItems?.[0] ? {
+    product: {
+      id: cartItems[0].sku ?? '',
+      title: cartItems[0].name ?? '',
+      subtitle: '',
+      price: cartItems[0].price ?? 0,
+      tags: [] as string[],
+    },
+    qty: cartItems[0].quantity ?? 1,
+  } : undefined;
+  const props = useMemo(
+    () => ({
+      storeName: "Loja",
+      agentName: "Pulse",
+      theme: "light" as const,
+      faceLogin: false,
+      voiceEnabled: true,
+      supportFab: true,
+      apiBaseUrl: config.apiBaseUrl,
+      merchantId: config.merchantId,
+      sessionToken: config.embedSessionToken,
+      initialCart,
+    }),
+    [config, initialCart]
+  );
   return <PulseCheckoutView {...props} />;
 }
 
@@ -177,8 +199,9 @@ class AacpCheckoutAgentElement extends HTMLElement {
       this.root = createRoot(this.host);
     }
     const config = readConfig(this);
-    // Apply floating position when in floating mode
-    if (config.uiPresentation === "floating") {
+    // Apply floating position only for true floating widgets (no embed token).
+    // Embeds use fullscreen takeover managed by CSS in the host document.
+    if (config.uiPresentation === "floating" && config.mode !== "embed") {
       Object.assign(this.host.style, {
         position: "fixed",
         bottom: "24px",

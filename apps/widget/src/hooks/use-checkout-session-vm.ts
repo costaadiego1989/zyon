@@ -19,8 +19,8 @@ export function useCheckoutSessionVM(config: WidgetConfig) {
   const buyerLoginAttemptedKey = useRef<string | null>(null);
 
   const sessionState = useCheckoutSession(config);
-  const panels = useCheckoutPanels();
   const { activeExperience, session, networkError, track, apiOrigin } = sessionState;
+  const panels = useCheckoutPanels(activeExperience.brand.theme?.mode);
 
   // --- auth --------------------------------------------------------------
 

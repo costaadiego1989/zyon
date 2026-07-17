@@ -22,7 +22,7 @@ function readInitialPurchaseChannel(): PurchaseChannel {
   return "pending";
 }
 
-export function useCheckoutPanels() {
+export function useCheckoutPanels(apiThemeMode?: "light" | "dark") {
   const [activeSurface, setActiveSurface] = useState<ActiveCheckoutSurface>({
     kind: "none",
   });
@@ -32,12 +32,22 @@ export function useCheckoutPanels() {
   const [showCardForm, setShowCardForm] = useState(false);
   const [showCryptoPanel, setShowCryptoPanel] = useState(false);
   const [cardError, setCardError] = useState<string | null>(null);
-  const [colorMode, setColorMode] = useState<"light" | "dark">(readStoredColorMode);
+  const [colorMode, setColorMode] = useState<"light" | "dark">(() =>
+    apiThemeMode ?? readStoredColorMode()
+  );
   const [purchaseChannel, setPurchaseChannel] = useState<PurchaseChannel>(readInitialPurchaseChannel);
 
+  // Sync colorMode to localStorage whenever it changes
   useEffect(() => {
     window.localStorage.setItem(COLOR_MODE_KEY, colorMode);
   }, [colorMode]);
+
+  // Sync colorMode when API theme mode changes (takes precedence on first load and updates)
+  useEffect(() => {
+    if (apiThemeMode && apiThemeMode !== colorMode) {
+      setColorMode(apiThemeMode);
+    }
+  }, [apiThemeMode, colorMode]);
 
   const setCartOpen = useCallback((open: boolean) => {
     setActiveSurface((current) =>

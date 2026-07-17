@@ -24,15 +24,7 @@ export class PulseAPI {
   private _buyerToken: string | null = null;
   private _initialCart: { product: Product; qty: number } | undefined;
   private _initialCustomer: Partial<Customer> | undefined;
-
-  private _fallbackCatalog: Product[] = [
-    { id: 'sd8', title: 'Smart Display 8', subtitle: 'Controla seu speaker por voz e vídeo.', price: 649, tags: ['display', 'tela', 'casa', 'smart'] },
-    { id: 'spk', title: 'Smart Speaker mini', subtitle: 'Som ambiente com assistente integrado.', price: 349, tags: ['speaker', 'som', 'casa', 'smart'] },
-    { id: 'bulb', title: 'Lâmpada inteligente RGB', subtitle: 'Mude a cor pelo app ou por voz.', price: 89, tags: ['lampada', 'luz', 'cor', 'smart'] },
-    { id: 'cam', title: 'Câmera de segurança HD', subtitle: 'Monitoramento 24h com visão noturna.', price: 299, tags: ['camera', 'segurança', 'hd', 'monitoramento'] },
-    { id: 'plug', title: 'Tomada inteligente Wi-Fi', subtitle: 'Automatize qualquer aparelho.', price: 99, tags: ['tomada', 'plug', 'energia'] },
-    { id: 'vac', title: 'Robô aspirador Lite', subtitle: 'Limpeza automática com mapeamento.', price: 1299, tags: ['robo', 'aspirador', 'limpeza'] },
-  ];
+  private _cachedExperience: any = null;
 
   constructor(config: PulseAPIConfig = {}) {
     this.storeName = config.storeName || 'Aurora Home';
@@ -135,11 +127,25 @@ export class PulseAPI {
         const r = await fetch(`${this.baseUrl}/embed/start`, {
           method: 'POST',
           headers: this._headers(),
-          body: JSON.stringify({ merchant_id: this.merchantId, cart: { items: [] }, customer_hints: {} }),
+          body: JSON.stringify({
+            merchant_id: this.merchantId,
+            cart: { items: [] },
+            customer_hints: {}
+          }),
         });
         if (r.ok) {
-          const data = await r.json() as { session_id?: string };
-          if (data.session_id) { this.sessionId = data.session_id; return this.sessionId; }
+          const data = await r.json() as any;
+          if (data.session_id) {
+            this.sessionId = data.session_id;
+            // Cache experience for later use
+            if (data.experience) {
+              this._cachedExperience = data.experience;
+              // Update from experience if available
+              if (data.experience.brand?.name) this.storeName = data.experience.brand.name;
+              if (data.experience.agent?.name) this.agentName = data.experience.agent.name;
+            }
+          }
+          return this.sessionId || 'sess_fallback';
         }
       } catch { /* fall through */ }
     }
@@ -148,22 +154,30 @@ export class PulseAPI {
   }
 
   async getCart(): Promise<{ product: Product; qty: number }> {
-    if (this._initialCart) return this._wait(this._initialCart, 200);
+    if (this._initialCart) return this._initialCart;
     if (this.sessionToken && this.baseUrl) {
       try {
-        const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/cart?session_id=${encodeURIComponent(sessionId)}`, { headers: this._headers() });
-        if (r.ok) {
-          const data = await r.json() as { items?: unknown[] };
-          const items = (data.items ?? []) as Array<{ sku: string; name: string; description?: string; price_cents?: number; quantity?: number; tags?: string[] }>;
-          if (items.length > 0) {
-            const first = items[0];
-            return { product: { id: first.sku, title: first.name, subtitle: first.description ?? '', price: (first.price_cents ?? 0) / 100, tags: first.tags ?? [] }, qty: first.quantity ?? 1 };
-          }
+        // Pull from cached experience first (set by ensureSession)
+        if (this._cachedExperience?.items?.length) {
+          const first = this._cachedExperience.items[0];
+          return {
+            product: {
+              id: first.sku,
+              title: first.name,
+              subtitle: first.description ?? '',
+              price: first.unit_price ?? 0,
+              tags: first.tags ?? []
+            },
+            qty: first.quantity ?? 1
+          };
         }
       } catch { /* fall through */ }
     }
-    return this._wait({ product: this._fallbackCatalog[0], qty: 1 });
+    // Fallback: empty product so ViewModel doesn't crash
+    return {
+      product: { id: 'empty', title: 'Seu pedido', subtitle: 'Nenhum item no carrinho', price: 0, tags: [] },
+      qty: 0
+    };
   }
 
   async searchProducts(query: string): Promise<Product[]> {
@@ -197,24 +211,38 @@ export class PulseAPI {
         // fall through to local search
       }
     }
-    const q = query.toLowerCase();
-    const results = this._fallbackCatalog.filter(
-      (p) => p.title.toLowerCase().includes(q) || p.tags.some((t) => t.includes(q)),
-    );
-    return this._wait(results.length ? results : this._fallbackCatalog.slice(0, 4), 300);
+    // No local fallback catalog — return empty when API is unavailable
+    return [];
   }
 
   async getRecommendation(): Promise<Bundle> {
-    return this._wait({
-      id: 'bulb-combo',
-      title: 'Lâmpadas inteligentes · 2 un',
-      subtitle: 'Controle por voz junto com o seu display.',
-      price: 159,
-      was: 199,
-    });
+    // In real flow, cross-sell comes from /embed/chat responses via experience.suggestedProducts
+    // For MVP, return empty bundle or cached suggestion
+    if (this._cachedExperience?.suggestedProducts?.length) {
+      const sug = this._cachedExperience.suggestedProducts[0];
+      return {
+        id: sug.sku,
+        title: sug.name,
+        subtitle: sug.description ?? '',
+        price: sug.unit_price ?? 0,
+        was: sug.unit_price ?? 0
+      };
+    }
+    // Safe fallback: empty bundle won't be added unless explicitly selected
+    return {
+      id: 'bundle-empty',
+      title: '',
+      subtitle: '',
+      price: 0,
+      was: 0
+    };
   }
 
   async getBestCoupon(productPrice: number, discount?: TenantDiscount): Promise<Coupon> {
+    // No coupon for empty carts
+    if (productPrice <= 0) {
+      return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0, pendingAmount: 0, urgencyMinutes: 0, totalPercent: 0 };
+    }
     const d = discount ? resolveTenantDiscount({ discount }) : this.discount;
     return this._wait(buildCouponFromTenant(productPrice, d));
   }
@@ -234,8 +262,8 @@ export class PulseAPI {
           }),
         });
         if (r.ok) {
-          const data = await r.json() as { options?: unknown[] };
-          const opts = (data.options ?? []) as Array<{ key?: string; carrier_name?: string; label?: string; tag?: string; sub?: string; price_cents?: number; delivery_days?: number }>;
+          const data = await r.json() as any;
+          const opts = (data.options ?? []) as Array<any>;
           if (opts.length > 0) {
             return opts.map((o) => ({
               key: o.key ?? o.carrier_name ?? 'shipping',
@@ -248,11 +276,11 @@ export class PulseAPI {
         }
       } catch { /* fall through */ }
     }
-    return this._wait([
+    // Safe fallback
+    return [
       { key: 'sedex', label: 'Sedex Express', tag: 'Mais rápido', sub: 'Chega amanhã até 12h', cost: 0 },
       { key: 'pac', label: 'PAC Econômico', tag: 'Mais barato', sub: 'Chega em 5-7 dias úteis', cost: 0 },
-      { key: 'jadlog', label: 'Jadlog Package', tag: 'Retirada fácil', sub: 'Chega em 3-4 dias úteis', cost: 9.9 },
-    ]);
+    ];
   }
 
   async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string }> {
@@ -270,16 +298,26 @@ export class PulseAPI {
           }),
         });
         if (r.ok) {
-          const data = await r.json() as { intent_id?: string; order_id?: string; pix_qr_code?: string; pix_copy_paste?: string; pix_expires_at?: string };
+          const data = await r.json() as any;
           const id = data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
-          return { id, pixQrCode: data.pix_qr_code, pixCopyPaste: data.pix_copy_paste, pixExpiresAt: data.pix_expires_at };
+          return {
+            id,
+            pixQrCode: data.pix_qr_code,
+            pixCopyPaste: data.pix_copy_paste,
+            pixExpiresAt: data.pix_expires_at
+          };
         }
-      } catch { /* fall through */ }
+      } catch { /* fall through to fallback */ }
     }
+    // Fallback: generate mock but mark clearly as demo
     if (payMethod === 'pix') {
-      return this._wait({ id: `ORD-${Date.now().toString(36).toUpperCase()}`, pixCopyPaste: '00020126580014BR.GOV.BCB.PIX0136mock-pix-key-uuid-6304ABCD', pixExpiresAt: new Date(Date.now() + 30 * 60000).toISOString() }, 800);
+      return {
+        id: `ORD-${Date.now().toString(36).toUpperCase()}`,
+        pixCopyPaste: '00020126580014BR.GOV.BCB.PIX0136demo-key-uuid',
+        pixExpiresAt: new Date(Date.now() + 30 * 60000).toISOString()
+      };
     }
-    return this._wait({ id: `ORD-${Date.now().toString(36).toUpperCase()}` }, 800);
+    return { id: `ORD-${Date.now().toString(36).toUpperCase()}` };
   }
 
   async checkPaymentStatus(intentId: string): Promise<'pending' | 'paid' | 'failed'> {

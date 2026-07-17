@@ -196,13 +196,17 @@ function applyPulseTokens(styles: Record<string, string>, isDark: boolean): void
   const line = isDark ? "rgba(255,255,255,0.1)" : "rgba(15,15,25,0.09)";
   const lineStrong = isDark ? "rgba(255,255,255,0.12)" : "rgba(15,15,25,0.1)";
 
+  // Extract primary font family from styles if already set (from theme), otherwise use Space Grotesk
+  const fontFamily = styles["--aacp-font"] || "'Space Grotesk', ui-sans-serif, system-ui, sans-serif";
+  const fontDisplay = styles["--aacp-font-display"] || fontFamily;
+
   Object.assign(styles, {
     "--pulse-g1": g1,
     "--pulse-g2": g2,
     "--pulse-g3": g3,
 
-    "--aacp-font": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
-    "--aacp-font-display": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    "--aacp-font": fontFamily,
+    "--aacp-font-display": fontDisplay,
     "--aacp-font-mono": "'Space Mono', ui-monospace, monospace",
 
     "--aacp-radius": "16px",
