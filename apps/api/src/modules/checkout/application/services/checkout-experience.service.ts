@@ -262,5 +262,5 @@ function roundMoney(value: number): number {
 }
 
 function formatMoney(value: number, currency: CurrencyCode): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(value);
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currency || "BRL" }).format(value);
 }
