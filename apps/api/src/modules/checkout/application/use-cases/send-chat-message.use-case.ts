@@ -23,6 +23,7 @@ import { CheckoutShippingService } from "../services/checkout-shipping.service.j
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
+import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import { TenantBoundaryGuard } from "../../infrastructure/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 
@@ -42,6 +43,7 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
+    @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
@@ -86,7 +88,6 @@ export class SendChatMessageUseCase {
           serviceFee: this.experienceConfig.platformFeeBrl
         });
 
-        // Override quick replies and missing_fields for OTP errors so composer shows correct state
         const isPhoneOtp = Boolean(updated.customer?.phone_otp_code && !updated.customer?.phone_verified);
         const otpMissingField = isPhoneOtp ? "código de verificação do celular" : "código de verificação";
         const otpQuickReplies = isPhoneOtp
@@ -114,11 +115,8 @@ export class SendChatMessageUseCase {
 
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
-
     const offer = await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
 
-    // Tenant boundary: ensure agent context is scoped to the correct merchant.
-    // The port is scoped by merchantId in the request, but we verify the session matches.
     TenantBoundaryGuard.assert.merchantIdMatches(
       working.merchantId,
       input.merchant_id,
@@ -130,6 +128,19 @@ export class SendChatMessageUseCase {
       agentId: input.agent_id,
       globalUserId: working.globalUserId
     });
+
+        // Detect product-search intent early when cart is empty
+    let preSearchedProducts: SuggestedProduct[] = [];
+    if (this.productSearch && isCartEmpty(working.cart)) {
+      const searchQuery = extractProductSearchIntent(input.user_message);
+      if (searchQuery) {
+        try {
+          preSearchedProducts = await this.productSearch.execute(input.merchant_id, searchQuery, 6);
+        } catch {
+          // catalog search non-critical
+        }
+      }
+    }
 
     const reply = await this.conversation.reply({
       userMessage: input.user_message,
@@ -145,8 +156,6 @@ export class SendChatMessageUseCase {
       shippingOptions: working.shippingOptions
     });
 
-    // INVARIANT: Validate generated message does not contain unauthorized offer claims.
-    // The conversation port generates copy only; it must never claim to authorize discounts.
     const safetyCheck = isSafeGeneratedMessage(reply.message);
     const safeMessage = safetyCheck.safe
       ? reply.message
@@ -179,7 +188,6 @@ export class SendChatMessageUseCase {
     const chatActions: any[] = [];
     let suggestedProducts: SuggestedProduct[] = [];
 
-    // Cross-sell via cart-trigger (shipping → payment transition)
     if (stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
       try {
         const suggestions = await this.crossSellUseCase.execute({
@@ -195,10 +203,14 @@ export class SendChatMessageUseCase {
       }
     }
 
-    // Cross-sell via LLM intelligence (purchase history based)
     if (reply.suggested_skus?.length && suggestedProducts.length === 0) {
       suggestedProducts = reply.suggested_skus.map((sku) => resolveCrossSellProduct(sku, "llm_suggestion"));
     }
+
+    if (suggestedProducts.length === 0 && preSearchedProducts.length > 0) {
+      suggestedProducts = preSearchedProducts;
+    }
+
 
     const responseExperience = suggestedProducts.length > 0
       ? {
@@ -219,8 +231,6 @@ export class SendChatMessageUseCase {
       }
     }
 
-    // Convert SafeAuthorizedOffer back to plain AuthorizedOffer for the response contract.
-    // The type barrier ensured authorization came from rules-engine/shipping-engine only.
     const authorizedOfferResponse = offer.toAuthorizedOffer();
 
     return {
@@ -234,4 +244,21 @@ export class SendChatMessageUseCase {
       missing_fields: missingFields
     };
   }
+}
+
+function isCartEmpty(cart: { items?: unknown[] }): boolean {
+  return !cart?.items?.length;
+}
+
+const SEARCH_PATTERNS = [
+  /(?:procur|busc|quer|quero|preciso|tem|vend|mostr)\w*\s+(.{3,60})/i,
+  /(?:looking for|show me|i want|do you have)\s+(.{3,60})/i,
+];
+
+function extractProductSearchIntent(message: string): string | null {
+  for (const pattern of SEARCH_PATTERNS) {
+    const match = message.match(pattern);
+    if (match?.[1]) return match[1].replace(/[?.!,;]+$/, "").trim();
+  }
+  return null;
 }

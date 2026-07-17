@@ -26,6 +26,7 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 import { InstallationsModule } from "./modules/installations/installations.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { OperationsModule } from "./modules/operations/operations.module.js";
+import { ProductSearchProviderModule } from "./modules/catalog/product-search-provider.module.js";
 
 @Module({
   imports: [
@@ -55,7 +56,8 @@ import { OperationsModule } from "./modules/operations/operations.module.js";
     OnboardingModule,
     InstallationsModule,
     AuditModule,
-    OperationsModule
+    OperationsModule,
+    ProductSearchProviderModule
   ]
 })
 export class AppModule {}

@@ -6,6 +6,8 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { LocalCatalogFallbackAdapter } from "../catalog/infrastructure/local-catalog-fallback.adapter.js";
+import { PRODUCT_SEARCH_PORT } from "./domain/ports/product-search.port.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
@@ -114,6 +116,11 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
       useClass: DeterministicConversationAdapter
     },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
+    {
+      provide: PRODUCT_SEARCH_PORT,
+      useFactory: (prisma: PrismaClient) => new LocalCatalogFallbackAdapter(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     {
       provide: CHECKOUT_EXPERIENCE_CONFIG,
       useFactory: () => createCheckoutExperienceConfig()
