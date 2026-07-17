@@ -35,6 +35,15 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
     this.profiles.set(merchantId, { ...existing, stripeConnectAccountId: accountId });
   }
 
+  /**
+   * Synchronous seed for test setup — avoids the microtask race that occurs
+   * when the async `updateRules` is fire-and-forget'd in test helpers.
+   */
+  seedRules(merchantId: string, overrides: Partial<MerchantRules>): void {
+    const base = this.rules.get(merchantId) ?? { ...DEFAULT_RULES };
+    this.rules.set(merchantId, { ...base, ...overrides });
+  }
+
   async getRules(merchantId: string): Promise<MerchantRules> {
     if (!this.rules.has(merchantId)) this.rules.set(merchantId, { ...DEFAULT_RULES });
     return this.rules.get(merchantId)!;

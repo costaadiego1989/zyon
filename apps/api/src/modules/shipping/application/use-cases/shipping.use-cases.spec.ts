@@ -48,7 +48,7 @@ function makeSetupWithRules(
 ) {
   const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
   const merchantRepo = new InMemoryMerchantRepository();
-  merchantRepo.updateRules(merchantId, {
+  merchantRepo.seedRules(merchantId, {
     allowFreeShipping: ruleOverrides.allowFreeShipping ?? true,
     freeShippingMinCartValue: ruleOverrides.freeShippingMinCartValue ?? 100
   });

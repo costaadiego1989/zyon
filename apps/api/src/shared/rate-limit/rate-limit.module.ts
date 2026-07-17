@@ -1,7 +1,8 @@
 import { Global, Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
-import { RateLimitGuard } from "./rate-limit.guard.js";
+import { RateLimitGuard, RATE_LIMIT_OPTIONS } from "./rate-limit.guard.js";
 import { RateLimitStore } from "./rate-limit.store.js";
+import { resolveRateLimitOptions } from "./rate-limit.options.js";
 
 /**
  * Wires the in-memory rate-limit store and registers the guard globally.
@@ -23,10 +24,14 @@ import { RateLimitStore } from "./rate-limit.store.js";
   providers: [
     RateLimitStore,
     {
+      provide: RATE_LIMIT_OPTIONS,
+      useFactory: () => resolveRateLimitOptions(),
+    },
+    {
       provide: APP_GUARD,
       useClass: RateLimitGuard,
     },
   ],
-  exports: [RateLimitStore],
+  exports: [RateLimitStore, RATE_LIMIT_OPTIONS],
 })
 export class RateLimitModule {}

@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   HttpException,
   HttpStatus,
+  Inject,
   Injectable,
   Logger,
 } from "@nestjs/common";
@@ -13,8 +14,10 @@ import {
   SKIP_RATE_LIMIT_KEY,
   type RateLimitOverride,
 } from "./rate-limit.decorators.js";
-import type { RateLimitStore } from "./rate-limit.store.js";
+import { RateLimitStore } from "./rate-limit.store.js";
 import type { RateLimitOptions } from "./rate-limit.options.js";
+
+export const RATE_LIMIT_OPTIONS = Symbol("RATE_LIMIT_OPTIONS");
 
 /**
  * Default paths excluded from rate limiting (health, readiness, metrics).
@@ -28,8 +31,8 @@ export class RateLimitGuard implements CanActivate {
 
   constructor(
     private readonly reflector: Reflector,
-    private readonly store: RateLimitStore,
-    private readonly options: RateLimitOptions,
+    @Inject(RateLimitStore) private readonly store: RateLimitStore,
+    @Inject(RATE_LIMIT_OPTIONS) private readonly options: RateLimitOptions,
   ) {}
 
   canActivate(context: ExecutionContext): boolean {
