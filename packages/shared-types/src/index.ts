@@ -257,6 +257,7 @@ export interface MerchantTheme {
   headerSubtitle?: string;
   agentName?: string;
   trustBadges?: string[];
+  mode?: "light" | "dark";
 }
 
 export const DEFAULT_MERCHANT_THEME: MerchantTheme = {

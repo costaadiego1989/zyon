@@ -2,26 +2,27 @@
 namespace Zyon;
 
 /**
- * Replaces WooCommerce checkout with Zyon Checkout Agent widget.
- * The widget takes over the entire checkout flow (cart review + payment + confirmation).
+ * Replaces WooCommerce cart/checkout with Zyon Checkout Agent widget.
+ * The widget takes over the entire checkout flow (cart + payment + confirmation).
+ * It renders fullscreen, hiding all native WooCommerce UI.
  */
 class CheckoutEmbed {
     private const WIDGET_SCRIPT_URL = 'http://localhost:3009/widget/aacp.js';
 
     public function __construct() {
-        // Load widget script on checkout page
         add_action('wp_enqueue_scripts', [$this, 'enqueue_widget_script']);
-        // Hide native WooCommerce checkout and replace with widget
-        add_action('wp_enqueue_scripts', [$this, 'hide_native_checkout']);
-        // Render widget in footer (works with both block and shortcode checkout)
+        add_action('wp_enqueue_scripts', [$this, 'inject_styles']);
         add_action('wp_footer', [$this, 'render_widget']);
     }
 
     /**
-     * Hide native WooCommerce checkout form via CSS
+     * Inject CSS to hide native WooCommerce and make widget fullscreen
      */
-    public function hide_native_checkout(): void {
-        if (!is_checkout() || is_wc_endpoint_url('order-received')) {
+    public function inject_styles(): void {
+        if (!is_cart() && !is_checkout()) {
+            return;
+        }
+        if (is_wc_endpoint_url('order-received')) {
             return;
         }
 
@@ -31,31 +32,72 @@ class CheckoutEmbed {
         }
 
         wp_add_inline_style('wp-block-library', '
+            /* Hide ALL native WooCommerce content */
             .wp-block-woocommerce-checkout,
             .woocommerce-checkout,
             .wc-block-checkout,
+            .wp-block-woocommerce-cart,
+            .wc-block-cart,
+            .woocommerce-cart-form,
+            .cart-collaterals,
             form.checkout,
             #order_review,
             .woocommerce-form-coupon-toggle,
-            .woocommerce-info {
+            .woocommerce-info,
+            .entry-content > *:not(.zyon-checkout-takeover),
+            .wp-block-post-content > *:not(.zyon-checkout-takeover) {
                 display: none !important;
             }
-            .zyon-checkout-wrapper {
-                max-width: 100%;
-                min-height: 600px;
-                margin: 0 auto;
-                padding: 20px 0;
+
+            /* Hide header and footer for immersive checkout */
+            header.wp-block-template-part,
+            footer.wp-block-template-part,
+            .wp-block-template-part[data-type="footer"],
+            .site-header,
+            .site-footer {
+                display: none !important;
             }
-            zyon-checkout-agent {
-                display: block;
-                width: 100%;
-                min-height: 500px;
+
+            /* Widget takeover: fullscreen */
+            .zyon-checkout-takeover {
+                position: fixed !important;
+                inset: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                z-index: 999999 !important;
+                background: #08080c !important;
+            }
+
+            /* Override widget internal fixed positioning to fill parent */
+            .zyon-checkout-takeover zyon-checkout-agent {
+                display: block !important;
+                width: 100% !important;
+                height: 100% !important;
+            }
+
+            .zyon-checkout-takeover zyon-checkout-agent > div,
+            .zyon-checkout-takeover zyon-checkout-agent > div > div,
+            .zyon-checkout-takeover zyon-checkout-agent > div > div > div {
+                position: absolute !important;
+                inset: 0 !important;
+                width: 100% !important;
+                height: 100% !important;
+                max-height: 100% !important;
+                max-width: 100% !important;
+                border-radius: 0 !important;
+                bottom: auto !important;
+                right: auto !important;
+                box-shadow: none !important;
+                overflow: visible !important;
             }
         ');
     }
 
     public function enqueue_widget_script(): void {
-        if (!is_checkout() || is_wc_endpoint_url('order-received')) {
+        if (!is_cart() && !is_checkout()) {
+            return;
+        }
+        if (is_wc_endpoint_url('order-received')) {
             return;
         }
 
@@ -64,6 +106,16 @@ class CheckoutEmbed {
             return;
         }
 
+        // Load widget CSS
+        $browser_api_url = get_option('zyon_browser_api_url', get_option('zyon_api_url', 'http://localhost:3009'));
+        wp_enqueue_style(
+            'zyon-checkout-widget-css',
+            rtrim($browser_api_url, '/') . '/widget/widget.css',
+            [],
+            ZYON_CHECKOUT_VERSION
+        );
+
+        // Load widget JS
         $script_url = get_option('zyon_widget_url', self::WIDGET_SCRIPT_URL);
         wp_enqueue_script(
             'zyon-checkout-widget',
@@ -75,7 +127,10 @@ class CheckoutEmbed {
     }
 
     public function render_widget(): void {
-        if (!is_checkout() || is_wc_endpoint_url('order-received')) {
+        if (!is_cart() && !is_checkout()) {
+            return;
+        }
+        if (is_wc_endpoint_url('order-received')) {
             return;
         }
 
@@ -96,13 +151,33 @@ class CheckoutEmbed {
             error_log('[Zyon] Could not fetch embed token, rendering widget without it');
         }
 
+        // Get WooCommerce cart items to pass to widget
+        $cart_json = '';
+        if (function_exists('WC') && WC()->cart) {
+            $cart_items = [];
+            foreach (WC()->cart->get_cart() as $item) {
+                $product = $item['data'];
+                $cart_items[] = [
+                    'sku' => $product->get_sku() ?: (string) $product->get_id(),
+                    'name' => $product->get_name(),
+                    'price' => (float) $product->get_price(),
+                    'quantity' => (int) $item['quantity'],
+                    'image' => wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') ?: '',
+                ];
+            }
+            if (!empty($cart_items)) {
+                $cart_json = wp_json_encode($cart_items);
+            }
+        }
+
         printf(
-            '<div class="zyon-checkout-wrapper">' .
-            '<zyon-checkout-agent data-merchant-id="%s" data-api-base-url="%s" embed-session-token="%s" presentation-mode="inline"></zyon-checkout-agent>' .
+            '<div class="zyon-checkout-takeover">' .
+            '<zyon-checkout-agent merchant-id="%s" api-base-url="%s" embed-session-token="%s" presentation-mode="inline" cart-json="%s"></zyon-checkout-agent>' .
             '</div>',
             esc_attr($merchant_id),
             esc_attr($browser_api_url),
-            esc_attr($embed_token ?? '')
+            esc_attr($embed_token ?? ''),
+            esc_attr($cart_json)
         );
     }
 }
