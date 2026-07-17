@@ -1,0 +1,88 @@
+- generic [ref=e54]:
+  - complementary [ref=e55]:
+    - generic [ref=e56]:
+      - generic [ref=e57]: Z
+      - generic [ref=e58]:
+        - generic [ref=e59]: Zyon Console
+        - generic [ref=e61]: Loja Teste
+    - generic [ref=e62]:
+      - generic [ref=e63]: PRODUÇÃO
+      - generic [ref=e64]: v2.4
+    - navigation "Módulos do painel" [ref=e65]:
+      - generic [ref=e66]:
+        - generic [ref=e67]: Começar
+        - generic [ref=e68] [cursor=pointer]: Primeiros passos
+      - generic [ref=e76]:
+        - generic [ref=e77]: Hoje
+        - generic [ref=e78] [cursor=pointer]: Operação
+        - generic [ref=e83] [cursor=pointer]: Pedidos e envios
+        - generic [ref=e92] [cursor=pointer]: Clientes
+      - generic [ref=e99]:
+        - generic [ref=e100]: Plataforma
+        - generic [ref=e101] [cursor=pointer]: Desenvolvedores
+        - generic [ref=e108] [cursor=pointer]: Loja / Commerce
+        - generic [ref=e116] [cursor=pointer]: Embed
+        - generic [ref=e123] [cursor=pointer]: Tema
+        - generic [ref=e132] [cursor=pointer]: Preview
+      - generic [ref=e138]:
+        - generic [ref=e139]: Atendimento
+        - generic [ref=e140] [cursor=pointer]: Suporte
+        - generic [ref=e145] [cursor=pointer]: Checkout
+        - generic [ref=e151] [cursor=pointer]: Agente
+        - generic [ref=e157] [cursor=pointer]: Negociação
+      - generic [ref=e161]:
+        - generic [ref=e162]: Conta
+        - generic [ref=e163] [cursor=pointer]: Faturamento
+        - generic [ref=e168] [cursor=pointer]: Pagamentos
+        - generic [ref=e173] [cursor=pointer]: Auditoria
+    - generic [ref=e179]: Sair
+  - main [ref=e185]:
+    - generic [ref=e186]:
+      - generic [ref=e191]:
+        - generic [ref=e192]:
+          - text: Hoje
+          - generic [ref=e193]: /
+          - generic [ref=e194]: Pedidos e envios
+        - generic [ref=e195]: Pedidos e envios
+      - generic [ref=e196]: Loja Teste
+    - generic [ref=e335]:
+      - generic [ref=e336]:
+        - generic [ref=e337]: COMÉRCIO
+        - heading "Pedidos e Envios" [level=1] [ref=e338]
+        - generic [ref=e339]: Acompanhe pedidos e envios gerados pelo checkout agêntico.
+      - generic [ref=e340]:
+        - generic [ref=e341]:
+          - generic [ref=e342]: PEDIDOS
+          - generic [ref=e343]: "0"
+        - generic [ref=e344]:
+          - generic [ref=e345]: APROVADOS
+          - generic [ref=e346]: 0%
+        - generic [ref=e347]:
+          - generic [ref=e348]: RECEITA
+          - generic [ref=e349]: R$ 0,00
+        - generic [ref=e350]:
+          - generic [ref=e351]: RASTREADOS
+          - generic [ref=e352]: "0"
+        - generic [ref=e353]:
+          - generic [ref=e354]: TICKET MÉDIO
+          - generic [ref=e355]: R$ 0,00
+      - generic [ref=e356]:
+        - generic [ref=e357]:
+          - generic [ref=e358]:
+            - generic [ref=e359] [cursor=pointer]: Todos os pedidos
+            - generic [ref=e360] [cursor=pointer]: Aprovados
+            - generic [ref=e361] [cursor=pointer]: Cancelados
+          - textbox "Buscar por ID do pedido ou cliente..." [ref=e362]
+        - table [ref=e363]:
+          - rowgroup [ref=e364]:
+            - row [ref=e365]:
+              - columnheader "PEDIDO" [ref=e366]
+              - columnheader "COMPRADOR" [ref=e367]
+              - columnheader "VALOR" [ref=e368]
+              - columnheader "RASTREIO" [ref=e369]
+              - columnheader "STATUS" [ref=e370]
+              - columnheader "DATA" [ref=e371]
+          - rowgroup
+        - generic [ref=e372]:
+          - strong [ref=e379]: Nenhum pedido registrado
+          - paragraph [ref=e380]: Pedidos aparecerão aqui quando compradores concluírem o checkout.

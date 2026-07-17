@@ -63,6 +63,7 @@ describe("NegotiationController", () => {
       getMerchantPolicy as unknown as GetMerchantNegotiationPolicyUseCase,
       getBuyerPreferences as unknown as GetBuyerAgentPreferencesUseCase,
       recordSession as unknown as RecordNegotiationSessionUseCase,
+      {} as never,
       {} as never
     );
 
@@ -129,6 +130,7 @@ describe("NegotiationController", () => {
       getMerchantPolicy as unknown as GetMerchantNegotiationPolicyUseCase,
       getBuyerPreferences as unknown as GetBuyerAgentPreferencesUseCase,
       recordSession as unknown as RecordNegotiationSessionUseCase,
+      {} as never,
       {} as never
     );
 
@@ -190,6 +192,7 @@ describe("NegotiationController", () => {
       getMerchantPolicy as unknown as GetMerchantNegotiationPolicyUseCase,
       getBuyerPreferences as unknown as GetBuyerAgentPreferencesUseCase,
       recordSession as unknown as RecordNegotiationSessionUseCase,
+      {} as never,
       {} as never
     );
 

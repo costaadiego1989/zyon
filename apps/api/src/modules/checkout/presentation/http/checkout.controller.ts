@@ -29,7 +29,7 @@ import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-c
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 
 @NonProductionRoute()
-@Controller()
+@Controller("checkout")
 export class CheckoutController {
   constructor(
     private readonly startCheckout: StartCheckoutUseCase,

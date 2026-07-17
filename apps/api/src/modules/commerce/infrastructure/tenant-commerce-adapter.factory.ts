@@ -125,7 +125,7 @@ export class TenantCommerceAdapterFactory
           consumerKey: tenant.consumerKey,
           consumerSecret: tenant.consumerSecret,
         },
-        this.http.toFetch(),
+        globalThis.fetch.bind(globalThis),
       );
     }
     if (tenant?.provider === "nuvemshop") {

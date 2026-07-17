@@ -1,0 +1,144 @@
+- generic [ref=e54]:
+  - complementary [ref=e55]:
+    - generic [ref=e56]:
+      - generic [ref=e57]: Z
+      - generic [ref=e58]:
+        - generic [ref=e59]: Zyon Console
+        - generic [ref=e61]: Loja Teste
+    - generic [ref=e62]:
+      - generic [ref=e63]: PRODUÇÃO
+      - generic [ref=e64]: v2.4
+    - navigation "Módulos do painel" [ref=e65]:
+      - generic [ref=e66]:
+        - generic [ref=e67]: Começar
+        - generic [ref=e68] [cursor=pointer]: Primeiros passos
+      - generic [ref=e76]:
+        - generic [ref=e77]: Hoje
+        - generic [ref=e78] [cursor=pointer]: Operação
+        - generic [ref=e83] [cursor=pointer]: Pedidos e envios
+        - generic [ref=e92] [cursor=pointer]: Clientes
+      - generic [ref=e99]:
+        - generic [ref=e100]: Plataforma
+        - generic [ref=e101] [cursor=pointer]: Desenvolvedores
+        - generic [ref=e108] [cursor=pointer]: Loja / Commerce
+        - generic [ref=e116] [cursor=pointer]: Embed
+        - generic [ref=e123] [cursor=pointer]: Tema
+        - generic [ref=e132] [cursor=pointer]: Preview
+      - generic [ref=e138]:
+        - generic [ref=e139]: Atendimento
+        - generic [ref=e140] [cursor=pointer]: Suporte
+        - generic [ref=e145] [cursor=pointer]: Checkout
+        - generic [ref=e151] [cursor=pointer]: Agente
+        - generic [ref=e157] [cursor=pointer]: Negociação
+      - generic [ref=e161]:
+        - generic [ref=e162]: Conta
+        - generic [ref=e163] [cursor=pointer]: Faturamento
+        - generic [ref=e168] [cursor=pointer]: Pagamentos
+        - generic [ref=e173] [cursor=pointer]: Auditoria
+    - generic [ref=e179]: Sair
+  - main [ref=e185]:
+    - generic [ref=e186]:
+      - generic [ref=e191]:
+        - generic [ref=e192]:
+          - text: Hoje
+          - generic [ref=e193]: /
+          - generic [ref=e194]: Operação
+        - generic [ref=e195]: Operação
+      - generic [ref=e196]: Loja Teste
+    - generic [ref=e202]:
+      - generic [ref=e203]:
+        - generic [ref=e204]:
+          - generic [ref=e205]: PAINEL OPERACIONAL
+          - heading "Operação" [level=1] [ref=e206]
+          - generic [ref=e207]: Acompanhe sessões, receita e desempenho do checkout agêntico em tempo real.
+        - generic [ref=e208]:
+          - generic [ref=e209]: Agente operante
+          - button "Atualizar dados" [ref=e211] [cursor=pointer]
+      - generic [ref=e217]:
+        - generic [ref=e218]:
+          - generic [ref=e220]: RECEITA GERADA · 7 DIAS
+          - generic [ref=e221]:
+            - generic [ref=e222]: R$ 0,00
+            - img "Tendência de receita nas últimas sessões" [ref=e223]
+          - generic [ref=e226]: Valor total dos pedidos fechados · R$ 0,00 no período
+          - generic [ref=e227]:
+            - generic [ref=e228]:
+              - generic [ref=e229]: SESSÕES
+              - generic [ref=e230]: "0"
+            - generic [ref=e231]:
+              - generic [ref=e232]: CONVERSÃO
+              - generic [ref=e233]: 0%
+            - generic [ref=e234]:
+              - generic [ref=e235]: TICKET MÉDIO
+              - generic [ref=e236]: R$ 0,00
+        - generic [ref=e237]:
+          - generic [ref=e238]:
+            - generic [ref=e239]: Funil de ofertas
+            - generic [ref=e240]: 0%
+          - generic [ref=e242]:
+            - generic [ref=e243]: Ofertas vistas
+            - generic [ref=e244]:
+              - generic [ref=e245]: "0"
+              - generic [ref=e246]: 100%
+          - generic [ref=e250]:
+            - generic [ref=e251]: Ofertas aceitas
+            - generic [ref=e252]:
+              - generic [ref=e253]: "0"
+              - generic [ref=e254]: 0%
+          - generic [ref=e258]:
+            - generic [ref=e259]: Pedidos aprovados
+            - generic [ref=e260]:
+              - generic [ref=e261]: "0"
+              - generic [ref=e262]: 0%
+      - generic [ref=e265]:
+        - generic [ref=e266]:
+          - generic [ref=e267]: Operação
+          - generic [ref=e268]:
+            - generic [ref=e272]:
+              - generic [ref=e273]: Suporte aberto
+              - generic [ref=e274]: requer atenção
+            - generic [ref=e275]: "0"
+          - generic [ref=e276]:
+            - generic [ref=e280]:
+              - generic [ref=e281]: Suporte resolvido
+              - generic [ref=e282]: no período
+            - generic [ref=e283]: "0"
+          - generic [ref=e284]:
+            - generic [ref=e288]:
+              - generic [ref=e289]: Frete selecionado
+              - generic [ref=e290]: 0% de cobertura
+            - generic [ref=e291]: "0"
+          - generic [ref=e292]:
+            - generic [ref=e296]:
+              - generic [ref=e297]: Frete pendente
+              - generic [ref=e298]: aguardando escolha
+            - generic [ref=e299]: "0"
+        - generic [ref=e300]:
+          - generic [ref=e301]:
+            - generic [ref=e302]: Insights do agente
+            - generic [ref=e303]: gerados automaticamente
+          - generic [ref=e304]:
+            - generic [ref=e305]:
+              - generic [ref=e306]: "1"
+              - generic [ref=e307]:
+                - text: CONVERSÃO
+                - generic [ref=e308]: Taxa de conversão subiu 12% nos últimos 7 dias comparado ao período anterior.
+            - generic [ref=e309]:
+              - generic [ref=e310]: "2"
+              - generic [ref=e311]:
+                - text: FRETE
+                - generic [ref=e312]: 63% dos compradores escolhem o frete mais barato quando apresentado pelo agente.
+            - generic [ref=e313]:
+              - generic [ref=e314]: "3"
+              - generic [ref=e315]:
+                - text: ABANDONO
+                - generic [ref=e316]: Cupons com 10% de desconto recuperam 28% dos carrinhos abandonados.
+      - generic [ref=e317]:
+        - generic [ref=e318]:
+          - generic [ref=e319]:
+            - generic [ref=e320]: Sessões recentes
+            - generic [ref=e321]: Resumo das últimas conversas do checkout · atualizado agora
+          - generic [ref=e322]: AO VIVO
+        - generic [ref=e324]:
+          - strong [ref=e327]: Nenhuma sessão registrada ainda
+          - paragraph [ref=e328]: As conversas aparecerão aqui quando compradores interagirem com o checkout.

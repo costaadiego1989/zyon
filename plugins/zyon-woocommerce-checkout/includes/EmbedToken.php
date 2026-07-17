@@ -24,11 +24,12 @@ class EmbedToken {
         }
 
         $response = wp_remote_post(
-            rtrim($this->api_url, '/') . '/embed-sessions',
+            rtrim($this->api_url, '/') . '/v1/embed-sessions',
             [
                 'headers' => [
                     'Content-Type' => 'application/json',
                     'x-aacp-api-key' => $this->api_key,
+                    'Idempotency-Key' => 'embed_' . wp_generate_uuid4(),
                 ],
                 'body' => wp_json_encode([
                     'ttl_seconds' => 900,
