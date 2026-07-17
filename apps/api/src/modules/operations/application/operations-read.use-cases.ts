@@ -159,14 +159,19 @@ function encodeCursor(cursor: OperationsCursor): string {
   const hmac = createHmac("sha256", cursorSecret)
     .update(json)
     .digest("hex");
-  return Buffer.from(`${json}.${hmac}`, "utf8").toString("base64url");
+  // Use "~" delimiter because JSON payloads (e.g. ISO timestamps with ".")
+  // may contain "." which would break a naive split.
+  return Buffer.from(`${json}~${hmac}`, "utf8").toString("base64url");
 }
 
 function decodeCursor(value?: string): OperationsCursor | undefined {
   if (!value) return undefined;
   try {
     const decoded = Buffer.from(value, "base64url").toString("utf8");
-    const [json, hmac] = decoded.split(".");
+    const sepIndex = decoded.lastIndexOf("~");
+    if (sepIndex <= 0) throw new Error("cursor_malformed");
+    const json = decoded.slice(0, sepIndex);
+    const hmac = decoded.slice(sepIndex + 1);
     if (!json || !hmac) throw new Error("cursor_malformed");
 
     const expected = createHmac("sha256", cursorSecret)

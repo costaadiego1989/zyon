@@ -212,7 +212,7 @@ export class UpsertWebhookEndpointUseCase {
       createdAt: existing?.createdAt ?? now,
       updatedAt: now
     };
-    return toEndpointPublic(await this.repo.upsertWebhookEndpoint(endpoint), { includeSecret: !existing });
+    return toEndpointPublic(await this.repo.upsertWebhookEndpoint(endpoint), { includeSecret: true });
   }
 }
 

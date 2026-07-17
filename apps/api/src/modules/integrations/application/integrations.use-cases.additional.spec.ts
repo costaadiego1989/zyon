@@ -175,7 +175,7 @@ test("UpsertWebhookEndpointUseCase updates existing endpoint preserving secret",
   assert.equal(updated.id, created.id);
   assert.equal(updated.signingSecret, originalSecret);
   assert.equal(updated.url, "https://new.example.com/webhooks");
-  assert.deepEqual(updated.events, ["order.approved", "payment.completed"]);
+  assert.deepEqual(updated.events, ["order.approved", "payment.approved"]);
 });
 
 test("UpsertWebhookEndpointUseCase throws 404 for nonexistent endpoint update", async () => {

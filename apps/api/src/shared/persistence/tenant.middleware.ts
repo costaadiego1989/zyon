@@ -12,6 +12,7 @@ export const TENANT_SCOPED_MODELS = [
   "CheckoutSession",
   "CheckoutEvent",
   "BuyerIdentity",
+  "BuyerConversation",
   "MerchantRule",
   "SupportSetting",
   "SupportTicket",

@@ -1,3 +1,8 @@
+// Global test environment setup
+if (!process.env.ASAAS_WEBHOOK_TOKEN) {
+  process.env.ASAAS_WEBHOOK_TOKEN = "test-asaas-webhook-token";
+}
+
 import "./modules/auth/domain/services/password-hasher.service.spec.js";
 import "./modules/auth/domain/services/jwt.service.spec.js";
 import "./modules/auth/domain/services/auth-cookie.service.spec.js";

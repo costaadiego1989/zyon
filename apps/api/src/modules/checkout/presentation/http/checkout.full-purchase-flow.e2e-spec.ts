@@ -28,6 +28,7 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
+import { OtpService } from "../../application/services/otp.service.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -256,7 +257,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     );
     const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
     const conv = new RecordingConversationPort();
-    const custService = new CheckoutCustomerService(repo);
+    const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
     const shipService = new CheckoutShippingService(repo, custService);
     const offerService = new CheckoutOfferService(repo);
     const controller = new CheckoutController(
@@ -440,7 +441,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
     const checkoutPayment = new CheckoutPaymentAdapter(repo, repo, eventBus);
     const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
     const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
-    const processed = await webhook.execute(undefined, {
+    const processed = await webhook.execute("test-token", {
       id: "evt_full_flow_paid",
       event: "PAYMENT_RECEIVED",
       payment: {
@@ -448,7 +449,7 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
         value: intent.amountCents / 100,
         externalReference: intent.id
       }
-    });
+    }, "test-token");
     assert.equal(processed.outcome, "processed");
 
     const paidIntent = await payments.getIntentById(MERCHANT, intent.id);

@@ -85,8 +85,9 @@ export class HandleAsaasWebhookUseCase {
     @Optional() private readonly metrics?: MetricsService,
   ) {}
 
-  async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown): Promise<HandleAsaasWebhookResult> {
-    assertWebhookToken(process.env.ASAAS_WEBHOOK_TOKEN, inboundAccessTokenHeader);
+  async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
+    const expectedToken = webhookToken ?? process.env.ASAAS_WEBHOOK_TOKEN;
+    assertWebhookToken(expectedToken, inboundAccessTokenHeader);
 
     const body = normalizeInbound(rawBody);
 

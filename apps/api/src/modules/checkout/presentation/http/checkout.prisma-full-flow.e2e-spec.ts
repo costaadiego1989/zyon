@@ -23,6 +23,7 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { CheckoutCustomerService } from "../../application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../../application/services/checkout-offer.service.js";
+import { OtpService } from "../../application/services/otp.service.js";
 import type { AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import type { CommerceOfferPort } from "../../domain/ports/commerce-offer.port.js";
 import type { ConversationPort } from "../../domain/ports/conversation.port.js";
@@ -82,7 +83,7 @@ function buildController(repo: InMemoryCheckoutRepository) {
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
   const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
   const conv = new FakeConv();
-  const custService = new CheckoutCustomerService(repo);
+  const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
   const shipService = new CheckoutShippingService(repo, custService);
   const offerService = new CheckoutOfferService(repo);
   const ctrl = new CheckoutController(
@@ -196,10 +197,10 @@ test("E2E Prisma Full Flow: data_collection → shipping → payment → complet
   const checkoutPayment = new CheckoutPaymentAdapter(repo, repo, eventBus);
   const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
   const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
-  const processed = await webhook.execute(undefined, {
+  const processed = await webhook.execute("test-token", {
     id: "evt_paid", event: "PAYMENT_RECEIVED",
     payment: { id: intent.providerPaymentId, value: intent.amountCents / 100, externalReference: intent.id }
-  });
+  }, "test-token");
   assert.equal(processed.outcome, "processed");
   const order = repo.getCompletedOrder(MERCHANT, sid, intent.providerPaymentId!);
   assert.equal(order?.trackingCode, undefined);
