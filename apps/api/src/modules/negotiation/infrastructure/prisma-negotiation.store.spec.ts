@@ -37,7 +37,19 @@ class FakePrisma {
       this.calls.push({ kind: "create", ...(data as LedgerCreateInput) });
       return data;
     },
-    findFirst: async () => null
+    findFirst: async ({ where }: any) => {
+      // Match the production semantics: findFirst on (session_id, event_type)
+      // returns the previously-applied ledger row, which is what the idempotent
+      // applyOfferWithLedger flow relies on. The unique partial index in the DB
+      // is the ultimate guard, but this mock simulates the findFirst contract.
+      return (
+        this.calls.find(
+          (c) =>
+            c.negotiationSessionId === where.negotiationSessionId &&
+            c.eventType === where.eventType
+        ) ?? null
+      );
+    }
   };
 
   $transaction = async (fn: (tx: FakePrisma) => Promise<unknown>) => {
