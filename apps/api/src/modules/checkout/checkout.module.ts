@@ -111,8 +111,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
     {
       provide: CONVERSATION_PORT,
-      useFactory: () =>
-        process.env.OPENROUTER_API_KEY ? new LangGraphConversationAdapter() : new DeterministicConversationAdapter()
+      useClass: DeterministicConversationAdapter
     },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
     {

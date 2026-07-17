@@ -18,5 +18,5 @@ export interface ConversationReplyInput {
 }
 
 export interface ConversationPort {
-  reply(input: ConversationReplyInput): Promise<{ message: string; objection: Objection }>;
+  reply(input: ConversationReplyInput): Promise<{ message: string; objection: Objection; suggested_skus?: string[] }>;
 }

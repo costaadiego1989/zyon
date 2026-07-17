@@ -2,6 +2,9 @@ import type { AgentContext, AuthorizedOffer, Cart, ChatStage, ChatTurn, Merchant
 
 export type Objection = "shipping_cost" | "price" | "trust" | "payment" | "unknown";
 
+import { extractSuggestedSkus, stripSuggestMarker } from "./cross-sell-extraction.js";
+export { extractSuggestedSkus, stripSuggestMarker };
+
 // LangGraph exports
 export { OpenRouterProvider, LangGraphChatAgent } from "./langgraph/index.js";
 export type {
@@ -78,6 +81,7 @@ export interface ConversationInput {
 export interface ConversationOutput {
   message: string;
   objection: Objection;
+  suggested_skus?: string[];
 }
 
 export function generateDeterministicReply(input: ConversationInput): ConversationOutput {
@@ -113,14 +117,17 @@ export async function generateSalesReply(input: ConversationInput): Promise<Conv
   if (!apiKey) return fb();
 
   try {
-    const text =
+    const rawText =
       input.provider === "openai_chat"
         ? await generateChatCompletion(input, apiKey, objection)
         : await generateOpenAiResponse(input, apiKey, objection);
-    if (!isSafeGeneratedMessage(text, input.authorizedOffer)) return fb();
+    if (!isSafeGeneratedMessage(rawText, input.authorizedOffer)) return fb();
+    const suggested_skus = extractSuggestedSkus(rawText);
+    const message = stripSuggestMarker(rawText).trim() || fb().message;
     return {
       objection,
-      message: text.trim() || fb().message
+      message,
+      ...(suggested_skus.length > 0 ? { suggested_skus } : {})
     };
   } catch (error) {
     if (input.failOnProviderError) throw error;
@@ -229,9 +236,22 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
   }
   if (input.agentContext) {
     lines.push(`Identidade do agente e guardrails: ${JSON.stringify(input.agentContext)}`);
+    const ph = input.agentContext.purchase_history;
+    if (ph && ph.known_buyer) {
+      lines.push(
+        "CROSS-SELL: Cliente recorrente. Use purchase_history (top_categories, recent_skus, discount_sensitivity) " +
+        "para sugerir produtos complementares. Adapte tom: LOW=exclusividade, MEDIUM=custo-benefício, HIGH=promoções futuras. " +
+        "NUNCA revele dados privados."
+      );
+    }
   }
   lines.push(
-    "Regras rígidas: nunca prometa frete grátis, prazo, estoque ou status de pagamento que não estejam explicitamente na oferta autorizada."
+    "Regras rígidas: " +
+    "(1) Nunca prometa frete grátis, prazo, estoque ou status de pagamento que não estejam na oferta autorizada. " +
+    "(2) Quando sugerir um produto, OBRIGATORIAMENTE termine a mensagem com o marcador [SUGGEST:sku1,sku2] contendo os SKUs recomendados. " +
+    "Se não souber o SKU exato, use o padrão da loja: lux_cinto_01, tech_hub_01, fash_tenis_01, etc. " +
+    "Exemplo correto: 'O cinto reversível combina perfeitamente. [SUGGEST:lux_cinto_01]' " +
+    "Esse marcador é INVISÍVEL para o comprador — ele gera cards de produto clicáveis automaticamente."
   );
   return lines.join("\n");
 }

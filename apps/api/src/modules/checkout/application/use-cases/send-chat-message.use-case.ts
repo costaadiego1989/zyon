@@ -179,6 +179,7 @@ export class SendChatMessageUseCase {
     const chatActions: any[] = [];
     let suggestedProducts: SuggestedProduct[] = [];
 
+    // Cross-sell via cart-trigger (shipping → payment transition)
     if (stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
       try {
         const suggestions = await this.crossSellUseCase.execute({
@@ -192,6 +193,11 @@ export class SendChatMessageUseCase {
       } catch {
         // cross-sell is non-critical; swallow errors
       }
+    }
+
+    // Cross-sell via LLM intelligence (purchase history based)
+    if (reply.suggested_skus?.length && suggestedProducts.length === 0) {
+      suggestedProducts = reply.suggested_skus.map((sku) => resolveCrossSellProduct(sku, "llm_suggestion"));
     }
 
     const responseExperience = suggestedProducts.length > 0
