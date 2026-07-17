@@ -6,6 +6,7 @@ import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -27,7 +28,8 @@ export class UpdateCartUseCase {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
-    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort
+    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -107,7 +109,8 @@ export class UpdateCartUseCase {
         theme: merchant?.theme,
         agent,
         couponBoxEnabled: rules?.couponBoxEnabled,
-        rules
+        rules,
+        serviceFee: this.experienceConfig.platformFeeBrl
       })
     };
   }

@@ -30,6 +30,10 @@ import { TenantAccessModule } from "./tenant-access.module.js";
 import { WebhookEndpointsController } from "./presentation/http/webhook-endpoints.controller.js";
 import { WEBHOOK_TARGET_POLICY } from "./domain/ports/webhook-target-policy.port.js";
 import { DnsWebhookTargetPolicy } from "./infrastructure/dns-webhook-target-policy.js";
+import {
+  WEBHOOK_DISPATCHER_CONFIG,
+  createWebhookDispatcherConfig
+} from "./domain/webhook-dispatcher.config.js";
 
 @Module({
   imports: [AuthModule, CheckoutModule, TenantAccessModule],
@@ -64,6 +68,10 @@ import { DnsWebhookTargetPolicy } from "./infrastructure/dns-webhook-target-poli
     TenantWebhooksOnCheckoutHandler,
     MerchantApiKeyGuard,
     ApiKeyScopeGuard,
+    {
+      provide: WEBHOOK_DISPATCHER_CONFIG,
+      useFactory: () => createWebhookDispatcherConfig()
+    },
   ],
   exports: [
     TenantAccessModule,

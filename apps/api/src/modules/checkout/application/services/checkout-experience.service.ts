@@ -29,6 +29,12 @@ export interface ExperienceDeps {
   chatStage?: ChatStage;
   missingFieldsPreview?: string[];
   rules?: MerchantRules;
+  /**
+   * Platform service fee in BRL. Resolved from the injected
+   * `CheckoutExperienceConfig.platformFeeBrl` by the caller; defaults to 1.99
+   * to preserve the prior `process.env.PLATFORM_FEE_BRL` fallback.
+   */
+  serviceFee?: number;
 }
 
 export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
@@ -113,10 +119,11 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
   }
 }
 
-function readPlatformServiceFee(): number {
-  const raw = process.env.PLATFORM_FEE_BRL?.trim() || "1.99";
-  const major = Number(raw.replace(",", "."));
-  return Number.isFinite(major) && major >= 0 ? major : 1.99;
+function readPlatformServiceFee(deps: ExperienceDeps): number {
+  if (typeof deps.serviceFee === "number" && Number.isFinite(deps.serviceFee) && deps.serviceFee >= 0) {
+    return deps.serviceFee;
+  }
+  return 1.99;
 }
 
 export function buildCheckoutExperience(input: ExperienceInputs, deps: ExperienceDeps): CheckoutExperienceSnapshot {
@@ -129,7 +136,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const discount = input.cart.currentDiscount ?? 0;
   const subtotal = input.cart.total;
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
-  const serviceFee = readPlatformServiceFee();
+  const serviceFee = readPlatformServiceFee(deps);
   const agentIdentity = deps.agent?.agent;
   const agentName = agentIdentity?.agentName ?? "Assistente AACP";
   const cartEmpty = input.cart.items.length === 0;

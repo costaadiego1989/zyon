@@ -29,6 +29,8 @@ import { OtpService } from "./application/services/otp.service.js";
 import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
 import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
+import { CHECKOUT_EXPERIENCE_CONFIG } from "./domain/checkout-experience.config.js";
+import { createCheckoutExperienceConfig } from "./infrastructure/checkout-experience.config.factory.js";
 import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY } from "./domain/ports/offer.repository.port.js";
@@ -113,6 +115,10 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
         process.env.OPENROUTER_API_KEY ? new LangGraphConversationAdapter() : new DeterministicConversationAdapter()
     },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
+    {
+      provide: CHECKOUT_EXPERIENCE_CONFIG,
+      useFactory: () => createCheckoutExperienceConfig()
+    },
     PaymentApprovedHandler
   ],
   exports: [
@@ -121,6 +127,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     OFFER_REPOSITORY,
     ORDER_REPOSITORY,
     DASHBOARD_READ_MODEL,
+    CHECKOUT_EXPERIENCE_CONFIG,
     CompleteOrderUseCase,
     UpdateOrderTrackingUseCase,
     UpdateCartUseCase,

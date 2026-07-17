@@ -17,6 +17,7 @@ import {
   missingFieldsForStage
 } from "../../domain/services/customer-extraction.service.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
@@ -40,7 +41,8 @@ export class SendChatMessageUseCase {
     private readonly offerService: CheckoutOfferService,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
-    @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase
+    @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -80,7 +82,8 @@ export class SendChatMessageUseCase {
           merchantName: merchant?.name,
           theme: merchant?.theme,
           couponBoxEnabled: rules.couponBoxEnabled,
-          rules
+          rules,
+          serviceFee: this.experienceConfig.platformFeeBrl
         });
 
         // Override quick replies and missing_fields for OTP errors so composer shows correct state
@@ -167,7 +170,8 @@ export class SendChatMessageUseCase {
       theme: merchant?.theme,
       agent: agentContext,
       couponBoxEnabled: rules.couponBoxEnabled,
-      rules
+      rules,
+      serviceFee: this.experienceConfig.platformFeeBrl
     });
 
     const wantsPix = /\b(pix|qr code)\b/i.test(input.user_message) && stage === "payment";

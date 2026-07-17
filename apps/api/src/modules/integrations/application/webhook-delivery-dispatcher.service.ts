@@ -14,8 +14,11 @@ import {
   WEBHOOK_TARGET_POLICY,
   type WebhookTargetPolicy,
 } from "../domain/ports/webhook-target-policy.port.js";
+import {
+  WEBHOOK_DISPATCHER_CONFIG,
+  type WebhookDispatcherConfig,
+} from "../domain/webhook-dispatcher.config.js";
 
-const DEFAULT_DISPATCH_INTERVAL_MS = 10_000;
 const MAX_ATTEMPTS = 5;
 
 @Injectable()
@@ -29,15 +32,20 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
     @Optional()
     @Inject(WEBHOOK_TARGET_POLICY)
     private readonly targetPolicy?: WebhookTargetPolicy,
+    @Inject(WEBHOOK_DISPATCHER_CONFIG) private readonly config: WebhookDispatcherConfig = {
+      dispatchIntervalMs: 10_000,
+      enabled: false,
+      nodeEnv: ""
+    },
   ) {}
 
   onModuleInit(): void {
-    if (!webhookDispatcherEnabled()) {
+    if (!this.config.enabled) {
       this.logger.log("Webhook dispatcher disabled. Set WEBHOOK_DISPATCHER_ENABLED=true to enable it.");
       return;
     }
 
-    this.timer = setInterval(() => void this.dispatchOnce(), dispatchIntervalMs());
+    this.timer = setInterval(() => void this.dispatchOnce(), this.config.dispatchIntervalMs);
   }
 
   onModuleDestroy(): void {
@@ -203,19 +211,6 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
       updatedAt: now.toISOString()
     });
   }
-}
-
-function dispatchIntervalMs(): number {
-  const configured = Number(process.env.WEBHOOK_DISPATCH_INTERVAL_MS);
-  if (Number.isFinite(configured) && configured >= 100) return configured;
-  return DEFAULT_DISPATCH_INTERVAL_MS;
-}
-
-function webhookDispatcherEnabled(): boolean {
-  const configured = process.env.WEBHOOK_DISPATCHER_ENABLED?.trim().toLowerCase();
-  if (["1", "true", "yes", "on"].includes(configured ?? "")) return true;
-  if (["0", "false", "no", "off"].includes(configured ?? "")) return false;
-  return process.env.NODE_ENV === "production";
 }
 
 function errorMessage(error: unknown): string {

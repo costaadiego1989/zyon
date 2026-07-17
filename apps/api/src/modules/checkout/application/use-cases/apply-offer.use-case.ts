@@ -12,6 +12,7 @@ import { COMMERCE_OFFER_PORT, type CommerceOfferPort } from "../../domain/ports/
 import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { TenantBoundaryGuard } from "../../infrastructure/tenant-boundary.guard.js";
 
 @Injectable()
@@ -21,7 +22,8 @@ export class ApplyOfferUseCase {
     @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,
     @Inject(COMMERCE_OFFER_PORT) private readonly commerce: CommerceOfferPort,
     private readonly acceptCheckoutOffer: AcceptCheckoutOfferUseCase,
-    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
   async execute(input: ApplyOfferRequest): Promise<ApplyOfferResponse> {
@@ -60,7 +62,8 @@ export class ApplyOfferUseCase {
     const experience = buildExperienceFromSession(sessionWithTurn, {
       merchantName: merchant?.name,
       theme: merchant?.theme,
-      couponBoxEnabled: merchantRules?.couponBoxEnabled
+      couponBoxEnabled: merchantRules?.couponBoxEnabled,
+      serviceFee: this.experienceConfig.platformFeeBrl
     });
 
     const subtotal = experience.totals.subtotal;

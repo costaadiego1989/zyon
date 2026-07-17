@@ -13,6 +13,7 @@ import { BUYER_IDENTITY_REPOSITORY, type BuyerIdentityRepository } from "../../.
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 
@@ -26,7 +27,8 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepository?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly customerService?: CheckoutCustomerService
+    @Optional() private readonly customerService?: CheckoutCustomerService,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
@@ -93,7 +95,8 @@ export class StartCheckoutUseCase {
         theme: merchant?.theme,
         agent,
         couponBoxEnabled: merchantRules?.couponBoxEnabled,
-        rules: merchantRules
+        rules: merchantRules,
+        serviceFee: this.experienceConfig.platformFeeBrl
       }),
       turns: session.chatHistory
     };
