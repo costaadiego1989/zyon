@@ -7,6 +7,11 @@ import { formatCurrency } from "../../hooks/checkout-presentation.js";
 
 export const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
 
+const PAYMENT_ELEMENT_OPTIONS = {
+  layout: "tabs" as const,
+  wallets: { applePay: "never" as const, googlePay: "never" as const },
+};
+
 function getStripePromise(publishableKey: string) {
   if (!stripePromiseCache.has(publishableKey)) {
     stripePromiseCache.set(publishableKey, loadStripe(publishableKey));
@@ -14,7 +19,10 @@ function getStripePromise(publishableKey: string) {
   return stripePromiseCache.get(publishableKey)!;
 }
 
-function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
+/** Payment provider adapter hook. Internal use: wraps Stripe SDK.
+ * To swap providers (e.g. Adyen), replace this implementation; the
+ * component contract (ready, submitting, error, handleSubmit, total) stays stable. */
+export function useStripePaymentForm(model: CreditCardFormModel) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +32,7 @@ function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
     ? formatCurrency(intent.amountCents / 100, intent.currency)
     : "";
 
-  async function handleSubmit(e: FormEvent) {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!stripe || !elements || !intent) return;
     setSubmitting(true);
@@ -45,7 +53,14 @@ function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
 
     await model.onStripePaymentConfirmed(intent.amountCents, intent.currency);
     model.onClose();
-  }
+  };
+
+  const ready = Boolean(stripe && elements && intent);
+  return { submitting, error, handleSubmit, total, ready };
+}
+
+function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
+  const { submitting, error, handleSubmit, total, ready } = useStripePaymentForm(model);
 
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
@@ -60,18 +75,13 @@ function StripePaymentForm({ model }: { model: CreditCardFormModel }) {
       ) : null}
 
       <div className="rounded-xl overflow-hidden border border-[var(--aacp-line-strong)] bg-[var(--aacp-surface)] p-3 zyon-stripe-element-wrap">
-        <PaymentElement
-          options={{
-            layout: "tabs",
-            wallets: { applePay: "never", googlePay: "never" },
-          }}
-        />
+        <PaymentElement options={PAYMENT_ELEMENT_OPTIONS} />
       </div>
 
       <div className="flex items-center gap-3">
         <button
           type="submit"
-          disabled={!stripe || submitting}
+          disabled={!ready || submitting}
           className="flex-1 flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-[var(--aacp-enterprise-ink,var(--continuum-primary,#14532d))] text-[var(--aacp-enterprise-surface,var(--continuum-on-primary,#fff))] shadow-[var(--aacp-shadow-md)]"
         >
           {submitting ? (

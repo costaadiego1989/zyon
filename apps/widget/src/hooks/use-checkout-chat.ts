@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type {
   ApplyOfferResponse,
   ChatMessageResponse,
@@ -85,6 +85,31 @@ export function useCheckoutChat(
   const [catalogResults, setCatalogResults] = useState<SuggestedProduct[]>([]);
 
   const isCartEmpty = activeExperience.items.length === 0;
+  const composerLocked = busy || Boolean(networkError);
+
+  // Encapsulates the busy toggle + try/catch/finally + networkError pattern
+  // shared by every checkout API call site in this hook. Returns the handler's
+  // resolved value on success, or undefined when the call was skipped (gate
+  // not satisfied) or threw (networkError already set). Callers that need a
+  // boolean return value for control flow should map undefined → false.
+  const runApiCall = useCallback(
+    async <T,>(
+      handler: () => Promise<T>,
+      errorMessage: string,
+    ): Promise<T | undefined> => {
+      if (!session || networkError || composerLocked) return undefined;
+      setBusy(true);
+      try {
+        return await handler();
+      } catch {
+        sessionState.setNetworkError?.(errorMessage);
+        return undefined;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [session, networkError, composerLocked, sessionState],
+  );
 
   const checkoutStage = useMemo(() => {
     if (activeExperience.stage === "completed") return "completed";
@@ -93,7 +118,6 @@ export function useCheckoutChat(
   }, [activeExperience.stage, lastChat?.stage]);
 
   const awaitingAgentPlayback = !disableStreamingByEnv() && streamingTurnKey !== null && streamingDoneKey !== streamingTurnKey;
-  const composerLocked = busy || Boolean(networkError);
 
   const quickReplies = useMemo((): QuickReplyChoice[] => {
     if (!isConversational || turns.length < 1 || busy) return [];
@@ -266,17 +290,15 @@ export function useCheckoutChat(
 
   async function runShippingBootstrap(sessionId: string): Promise<void> {
     if (shippingBootstrapped.current === sessionId) return;
-    if (!session || networkError || busy) return;
-    setBusy(true);
-    setTurns((current) => [
-      ...current,
-      { role: "buyer", text: "Quero escolher o frete", occurredAt: new Date().toISOString() }
-    ]);
-    try {
+    await runApiCall(async () => {
+      setTurns((current) => [
+        ...current,
+        { role: "buyer", text: "Quero escolher o frete", occurredAt: new Date().toISOString() }
+      ]);
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const body = config.mode === "embed"
-        ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Quero escolher o frete" }
-        : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Quero escolher o frete" };
+        ? { session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: "Quero escolher o frete" }
+        : { merchant_id: config.merchantId, session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: "Quero escolher o frete" };
       const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
         ...embedOpts,
         body,
@@ -285,11 +307,7 @@ export function useCheckoutChat(
       applyTurnResponse(response);
       shippingBootstrapped.current = sessionId;
       registrationBootstrapped.current = sessionId;
-    } catch {
-      sessionState.setNetworkError?.("Falha ao carregar opções de frete. Tente novamente em instantes.");
-    } finally {
-      setBusy(false);
-    }
+    }, "Falha ao carregar opções de frete. Tente novamente em instantes.");
   }
 
   async function runRegistrationBootstrap(
@@ -342,10 +360,8 @@ export function useCheckoutChat(
   }, [isCartEmpty]);
 
   async function searchCatalog(query: string): Promise<void> {
-    if (!session || networkError || composerLocked) return;
-    setBusy(true);
-    setTurns((current) => [...current, { role: "buyer", text: query, occurredAt: new Date().toISOString() }]);
-    try {
+    await runApiCall(async () => {
+      setTurns((current) => [...current, { role: "buyer", text: query, occurredAt: new Date().toISOString() }]);
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const response = await checkoutGet<{ products: SuggestedProduct[] }>(
         apiOrigin,
@@ -360,25 +376,19 @@ export function useCheckoutChat(
           : `Não encontrei produtos para "${query}". Tente outro termo, como bolsa ou carteira.`,
         { stream: true }
       );
-    } catch {
-      sessionState.setNetworkError?.("Falha ao buscar produtos na loja. Tente novamente em instantes.");
-    } finally {
-      setBusy(false);
-    }
+    }, "Falha ao buscar produtos na loja. Tente novamente em instantes.");
   }
 
   async function addCatalogProduct(product: SuggestedProduct): Promise<boolean> {
-    if (!session || networkError || composerLocked) return false;
-    setBusy(true);
-    setTurns((current) => [...current, { role: "buyer", text: `Adicionar ${product.name}`, occurredAt: new Date().toISOString() }]);
-    try {
+    const result = await runApiCall(async () => {
+      setTurns((current) => [...current, { role: "buyer", text: `Adicionar ${product.name}`, occurredAt: new Date().toISOString() }]);
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const response = await checkoutJson<{ experience?: typeof activeExperience; agent_turn?: ChatTurn }>(
         apiOrigin,
         paths.catalogAdd,
         {
           ...embedOpts,
-          body: { session_id: session.session_id, sku: product.sku, quantity: 1 },
+          body: { session_id: session!.session_id, sku: product.sku, quantity: 1 },
           schema: catalogAddResponseSchema
         }
       );
@@ -394,23 +404,18 @@ export function useCheckoutChat(
         appendAgentTurn(`${product.name} adicionado ao seu pedido.`, { stream: true });
       }
       return true;
-    } catch {
-      sessionState.setNetworkError?.("Falha ao adicionar o produto. Tente novamente em instantes.");
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    }, "Falha ao adicionar o produto. Tente novamente em instantes.");
+    return result === true;
   }
 
   async function sendMessageWithOverride(userText: string, opts?: { input_modality?: "voice" | "text" }): Promise<void> {
-    if (!session || networkError || !userText.trim() || composerLocked) return;
-    setBusy(true);
-    setTurns((current) => [...current, { role: "buyer", text: userText.trim(), occurredAt: new Date().toISOString() }]);
-    try {
+    if (!userText.trim()) return;
+    await runApiCall(async () => {
+      setTurns((current) => [...current, { role: "buyer", text: userText.trim(), occurredAt: new Date().toISOString() }]);
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const baseBody = config.mode === "embed"
-        ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: userText.trim() }
-        : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: userText.trim() };
+        ? { session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: userText.trim() }
+        : { merchant_id: config.merchantId, session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: userText.trim() };
       const body = opts?.input_modality ? { ...baseBody, input_modality: opts.input_modality } : baseBody;
       const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
         ...embedOpts,
@@ -419,11 +424,7 @@ export function useCheckoutChat(
       });
       applyTurnResponse(response);
       setMessage("");
-    } catch {
-      sessionState.setNetworkError?.("Falha ao falar com a IA. Tente novamente em instantes.");
-    } finally {
-      setBusy(false);
-    }
+    }, "Falha ao falar com a IA. Tente novamente em instantes.");
   }
 
   async function sendMessage(): Promise<void> {
@@ -438,13 +439,11 @@ export function useCheckoutChat(
   }
 
   async function autoTriggerRegistration(): Promise<boolean> {
-    if (!session || networkError || composerLocked) return false;
-    setBusy(true);
-    try {
+    const result = await runApiCall(async () => {
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const body = config.mode === "embed"
-        ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Iniciar cadastro" }
-        : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: "Iniciar cadastro" };
+        ? { session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: "Iniciar cadastro" }
+        : { merchant_id: config.merchantId, session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: "Iniciar cadastro" };
       const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
         ...embedOpts,
         body,
@@ -452,23 +451,17 @@ export function useCheckoutChat(
       });
       applyTurnResponse(response);
       return true;
-    } catch {
-      sessionState.setNetworkError?.("Falha ao falar com a IA. Tente novamente em instantes.");
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    }, "Falha ao falar com a IA. Tente novamente em instantes.");
+    return result === true;
   }
 
   async function bootstrapCustomerEmail(email: string): Promise<boolean> {
-    if (!session || networkError || composerLocked) return false;
-    setBusy(true);
-    setTurns((current) => [...current, { role: "buyer", text: email, occurredAt: new Date().toISOString() }]);
-    try {
+    const result = await runApiCall(async () => {
+      setTurns((current) => [...current, { role: "buyer", text: email, occurredAt: new Date().toISOString() }]);
       const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
       const body = config.mode === "embed"
-        ? { session_id: session.session_id, conversation_id: session.conversation_id, user_message: email }
-        : { merchant_id: config.merchantId, session_id: session.session_id, conversation_id: session.conversation_id, user_message: email };
+        ? { session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: email }
+        : { merchant_id: config.merchantId, session_id: session!.session_id, conversation_id: session!.conversation_id, user_message: email };
       const response = await checkoutJson<ChatMessageResponse>(apiOrigin, paths.chatMessage, {
         ...embedOpts,
         body,
@@ -476,12 +469,8 @@ export function useCheckoutChat(
       });
       applyTurnResponse(response);
       return true;
-    } catch {
-      sessionState.setNetworkError?.("Falha ao iniciar o cadastro. Tente novamente em instantes.");
-      return false;
-    } finally {
-      setBusy(false);
-    }
+    }, "Falha ao iniciar o cadastro. Tente novamente em instantes.");
+    return result === true;
   }
 
   async function applyOfferById(offerId?: string): Promise<void> {

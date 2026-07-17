@@ -10,6 +10,33 @@ import type { CreditCardFormModel } from "../models/credit-card-form.model.js";
 import type { CheckoutPanelsModel } from "../models/checkout-panels.model.js";
 import { selectCryptoPaymentPanelModel } from "./crypto-payment-panel.selector.js";
 
+// Memoization cache for selectCheckoutPanels. Keyed by vm reference (WeakMap)
+// so it cannot leak across consumers, then by a stable string key for the
+// options shape. Returned references stay stable when neither vm nor the
+// variant/hasPendingTurn inputs change, letting downstream React.memo
+// components skip re-render.
+const panelsCache = new WeakMap<
+  CheckoutAgentViewModel,
+  Map<string, CheckoutPanelsModel>
+>();
+
+function getCachedPanels(
+  vm: CheckoutAgentViewModel,
+  optionsKey: string,
+  build: () => CheckoutPanelsModel,
+): CheckoutPanelsModel {
+  let perVm = panelsCache.get(vm);
+  if (!perVm) {
+    perVm = new Map();
+    panelsCache.set(vm, perVm);
+  }
+  const existing = perVm.get(optionsKey);
+  if (existing) return existing;
+  const built = build();
+  perVm.set(optionsKey, built);
+  return built;
+}
+
 export function shouldShowShippingSelector(vm: CheckoutAgentViewModel): boolean {
   return (
     !vm.selectedShippingMethod &&
@@ -128,12 +155,23 @@ export function selectCheckoutPanels(
   options: CheckoutPanelsOptions,
 ): CheckoutPanelsModel {
   const { variant, hasPendingTurn = false } = options;
+  const optionsKey = `${variant}|${hasPendingTurn ? 1 : 0}`;
 
-  const quickRepliesVisible =
-    variant === "voice"
-      ? shouldShowVoiceQuickReplies(vm, hasPendingTurn)
-      : shouldShowThreadQuickReplies(vm);
+  return getCachedPanels(vm, optionsKey, () => {
+    const quickRepliesVisible =
+      variant === "voice"
+        ? shouldShowVoiceQuickReplies(vm, hasPendingTurn)
+        : shouldShowThreadQuickReplies(vm);
 
+    return buildCheckoutPanels(vm, variant, quickRepliesVisible);
+  });
+}
+
+function buildCheckoutPanels(
+  vm: CheckoutAgentViewModel,
+  variant: "thread" | "voice",
+  quickRepliesVisible: boolean,
+): CheckoutPanelsModel {
   return {
     networkError: selectNetworkErrorModel(vm),
     offerBanner: selectOfferBannerModel(vm),

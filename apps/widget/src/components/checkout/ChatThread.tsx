@@ -38,6 +38,8 @@ import { ShippingSelector } from "./ShippingSelector.js";
 import { PulseHero } from "../../features/pulse/PulseHero.js";
 import { quickReplyId } from "../../hooks/checkout-presentation.js";
 
+const THREAD_PANEL_OPTIONS = { variant: "thread" } as const;
+
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
   const stageLead = conversationLead(vm.checkoutStage);
@@ -45,7 +47,7 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
     (latest, turn, index) => (turn.role === "agent" ? index : latest),
     -1,
   );
-  const panels = selectCheckoutPanels(vm, { variant: "thread" });
+  const panels = selectCheckoutPanels(vm, THREAD_PANEL_OPTIONS);
   const composer = selectComposerModel(vm);
   const showPulseHero =
     vm.checkoutStage === "data_collection" &&
