@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Bot, Save } from "lucide-react";
 import type { MerchantRules } from "@zyon/shared-types";
 import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
@@ -16,6 +16,7 @@ import {
 } from "../utils/rules-validation.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
+import { DashboardHttpError } from "../api/http/index.js";
 
 function deepEqual(a: unknown, b: unknown): boolean {
   return JSON.stringify(a) === JSON.stringify(b);

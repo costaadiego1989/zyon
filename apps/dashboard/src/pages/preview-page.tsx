@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Eye, Maximize2, Minimize2, Monitor, Smartphone, Tablet, RefreshCw } from "lucide-react";
-import { createDashboardApi, type MerchantProfile, type MerchantTheme } from "../api-client.js";
+import { type MerchantProfile, type MerchantTheme } from "../api-client.js";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
+import { useApi } from "../hooks/useApi.js";
 
 type Presentation = "floating" | "conversational";
 type DeviceSize = keyof typeof DEVICE_SIZES;
@@ -36,7 +37,7 @@ export function useAutoRenewal(expiresAtUnix: number | null, reload: () => void)
 }
 
 export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantProfile }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const previewRef = useRef<LivePreviewPanelRef>(null);
 
   const [presentation, setPresentation] = useState<Presentation>("floating");

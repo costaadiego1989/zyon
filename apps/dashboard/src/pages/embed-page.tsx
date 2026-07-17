@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { CheckCircle2, Code2, Copy, KeyRound, Shield, Terminal } from "lucide-react";
 import { type EmbedSessionResponse, type MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
+import { DashboardHttpError } from "../api/http/index.js";
 
 const EMBED_SCOPES = ["checkout:start", "checkout:track", "checkout:chat", "offers:apply", "coupons:apply", "payment:intents:create"];
 

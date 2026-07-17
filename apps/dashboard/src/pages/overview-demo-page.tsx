@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   CircleDot,
@@ -348,7 +348,7 @@ export function OverviewDemoPage(props: {
   defaultMerchantId: string;
   me?: MerchantProfile | null;
 }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [overview, setOverview] = useState<DashboardOverview | null>(null);
   const [supportTickets, setSupportTickets] = useState<SupportTicket[] | null>(null);
   const [loading, setLoading] = useState(true);

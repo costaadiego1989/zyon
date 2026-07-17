@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { RefreshCw, UsersRound, UserPlus, Repeat, Download, ArrowUpDown } from "lucide-react";
 import {
   type CursorPage,
@@ -8,6 +8,7 @@ import {
 import { Pagination } from "../components/Pagination.js";
 import { useApi } from "../hooks/useApi.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
+import { DashboardHttpError } from "../api/http/index.js";
 
 export type CustomerRow = {
   globalUserId: string;

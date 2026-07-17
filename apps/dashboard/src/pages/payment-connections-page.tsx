@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   AlertCircle,
   ArrowRight,
@@ -11,11 +11,11 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  createDashboardApi,
   DashboardHttpError,
   type PaymentConnection,
   type MerchantProfile,
 } from "../api-client.js";
+import { useApi } from "../hooks/useApi.js";
 
 // ── Exported types ───────────────────────────────────────────────────────────
 
@@ -230,7 +230,7 @@ function ConnectionSkeleton() {
 // ── Component ────────────────────────────────────────────────────────────────
 
 export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
+  const api = useApi();
   const [connections, setConnections] = useState<PaymentConnection[]>([]);
   const [operation, setOperation] = useState<Operation>("idle");
   const [alert, setAlert] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   Download,
@@ -17,6 +17,7 @@ import {
 } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
+import { DashboardHttpError } from "../api/http/index.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
