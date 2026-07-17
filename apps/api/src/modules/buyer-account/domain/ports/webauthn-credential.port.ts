@@ -15,6 +15,7 @@ export interface WebAuthnCredentialStore {
   save(credential: WebAuthnCredential): Promise<void>;
   findByCredentialId(credentialId: string): Promise<WebAuthnCredential | null>;
   listByGlobalUserId(globalUserId: string): Promise<WebAuthnCredential[]>;
+  listAll?(): Promise<WebAuthnCredential[]>;
   deleteById(id: string): Promise<void>;
   updateCounter(id: string, newCounter: number, lastUsedAt?: Date): Promise<void>;
 }

@@ -26,6 +26,11 @@ export {
   type NuvemshopFetchFn,
 } from "./nuvemshop/nuvemshop-commerce.adapter.js";
 export { NuvemshopRateLimiter } from "./nuvemshop/nuvemshop-rate-limiter.js";
+export {
+  TrayCommerceAdapter,
+  type TrayCommerceCredentials,
+  type TrayFetchFn,
+} from "./tray/tray-commerce.adapter.js";
 
 export interface ShopifyConfig {
   shopDomain?: string;

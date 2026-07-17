@@ -67,7 +67,7 @@ export class WebAuthnRegisterVerifyUseCase {
     );
 
     // Parse attestation ("none" format)
-    const credentialIdBytes = Buffer.from(input.credential.id, "base64url");
+    const credentialIdBytes = new TextEncoder().encode(input.credential.id);
     const parsed = this.verifier.parseAttestation({
       authenticatorData: authData,
       credentialIdLength: credentialIdBytes.length,

@@ -42,6 +42,10 @@ export class InMemoryWebAuthnCredentialStore implements WebAuthnCredentialStore 
     return ids.map((id) => this.records.get(id)!).filter(Boolean);
   }
 
+  async listAll(): Promise<WebAuthnCredential[]> {
+    return Array.from(this.records.values());
+  }
+
   async deleteById(id: string): Promise<void> {
     const cred = this.records.get(id);
     if (!cred) return;

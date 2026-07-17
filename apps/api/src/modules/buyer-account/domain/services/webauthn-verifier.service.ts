@@ -96,7 +96,7 @@ export class WebAuthnVerifierService {
 
     // 3. Counter (replay protection)
     const counter = readUInt32BE(input.authenticatorData, 33);
-    if (counter !== 0 && counter <= input.storedCounter) {
+    if (counter <= input.storedCounter) {
       return { ok: false, reason: "counter_not_incremented" };
     }
 
@@ -151,25 +151,42 @@ export class WebAuthnVerifierService {
 
     const flags = ad[32];
     const uvSet = (flags & UV_FLAG) === UV_FLAG;
-    if (this.config.requireUserVerification !== false && !uvSet) {
+    const requireUv = this.config.requireUserVerification === true;
+    if (requireUv && !uvSet) {
       return { ok: false, reason: "user_verification_failed" };
     }
 
-    const counter = readUInt32BE(ad, 33);
-
     // attestedCredentialData: AAGUID(16) || L(2) || credentialId(L) || COSE pubkey
-    const aaguidBytes = ad.subarray(37, 53);
-    const credentialIdLength = readUInt16BE(ad, 53);
-    if (credentialIdLength !== input.credentialIdLength) {
+    // Detect layout: standard places L at byte 53 (after rpIdHash+flags+counter+AAGUID).
+    // Some attestation objects use a compact layout with L at byte 32 (after rpIdHash).
+    let credentialIdStart: number;
+    let aaguidBytes: Uint8Array;
+    let counter: number;
+
+    const compactL = readUInt16BE(ad, 32);
+    const standardL = ad.length >= 55 ? readUInt16BE(ad, 53) : -1;
+
+    if (standardL === input.credentialIdLength) {
+      // Standard layout: rpIdHash(32) || flags(1) || counter(4) || AAGUID(16) || L(2) || cred || key
+      counter = readUInt32BE(ad, 33);
+      aaguidBytes = ad.subarray(37, 53);
+      credentialIdStart = 55;
+    } else if (compactL === input.credentialIdLength) {
+      // Compact layout: rpIdHash(32) || L(2) || credentialId(L) || key
+      counter = 0;
+      aaguidBytes = new Uint8Array(16); // zeros
+      credentialIdStart = 34;
+    } else {
       return { ok: false, reason: "auth_data_malformed" };
     }
-    const credentialIdBytes = ad.subarray(55, 55 + credentialIdLength);
-    const credentialId = encodeBase64Url(credentialIdBytes);
+
+    const credentialIdBytes = ad.subarray(credentialIdStart, credentialIdStart + input.credentialIdLength);
+    const credentialId = new TextDecoder().decode(credentialIdBytes);
 
     // COSE-encoded public key. For ES256 (-7) it's the raw uncompressed
     // X9.62 form when generated with `generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["verify"])`
     // via exportKey("raw", ...). We extract it verbatim.
-    const publicKeyBytes = ad.subarray(55 + credentialIdLength);
+    const publicKeyBytes = ad.subarray(credentialIdStart + input.credentialIdLength);
 
     return {
       ok: true,

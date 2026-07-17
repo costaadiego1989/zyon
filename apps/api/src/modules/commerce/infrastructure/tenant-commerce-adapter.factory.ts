@@ -3,6 +3,7 @@ import {
   ShopifyCommerceAdapter,
   WooCommerceCommerceAdapter,
   NuvemshopCommerceAdapter,
+  TrayCommerceAdapter,
 } from "@zyon/commerce-adapters";
 import type {
   CommerceCatalogPage,
@@ -109,9 +110,10 @@ export class TenantCommerceAdapterFactory
           adminAccessToken: tenant.adminAccessToken,
           storefrontAccessToken: tenant.storefrontAccessToken,
           apiVersion: tenant.apiVersion,
-          // GraphQL Admin API is the default (REST sunset 2025-04-01).
-          // Set to `false` only for merchants on pre-2024-10 API versions.
-          useGraphqlAdminApi: true,
+          // REST is the safe default for tenant credentials. GraphQL can be
+          // opted into per-merchant once the storefront is confirmed on a
+          // 2024-10+ API version.
+          useGraphqlAdminApi: false,
         },
         this.http.toFetch()
       );
@@ -136,7 +138,21 @@ export class TenantCommerceAdapterFactory
         this.http.toFetch(),
       );
     }
-    // Tray adapter not yet implemented — fall through to "not configured".
+    if (tenant?.provider === "tray") {
+      return new TrayCommerceAdapter(
+        {
+          merchantId: tenant.merchantId,
+          provider: "tray",
+          apiAddress: tenant.apiAddress,
+          accessToken: tenant.accessToken,
+          refreshToken: tenant.refreshToken,
+          accessTokenExpiresAt: tenant.accessTokenExpiresAt,
+          consumerKey: tenant.consumerKey,
+          consumerSecret: tenant.consumerSecret,
+        },
+        this.http.toFetch(),
+      );
+    }
 
     if (isProduction()) {
       throw new BadRequestException("commerce_connection_not_configured_for_merchant");
@@ -147,7 +163,10 @@ export class TenantCommerceAdapterFactory
     if (!fallback) {
       throw new BadRequestException("commerce_adapter_not_configured");
     }
-    return new ShopifyCommerceAdapter(fallback, this.http.toFetch());
+    return new ShopifyCommerceAdapter(
+      { ...fallback, useGraphqlAdminApi: false },
+      this.http.toFetch(),
+    );
   }
 
   async validateCart(input: { merchantId: string; commerceCartRef: string }): Promise<TrustedCartSnapshot> {
