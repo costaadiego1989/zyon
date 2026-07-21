@@ -31,6 +31,56 @@ class TestWebhookHandler extends WP_UnitTestCase {
     }
 
     /**
+     * RED: Webhook should normalize AACP envelopes.
+     */
+    public function test_webhook_normalizes_aacp_order_approved_envelope() {
+        $handler = new Zyon\WebhookHandler();
+        $normalized = $handler->normalize_payload_for_test([
+            'event_type' => 'order.approved',
+            'data' => [
+                'order' => [
+                    'external_order_id' => 'ord_test123',
+                    'status' => 'paid',
+                ],
+                'payment' => [
+                    'status' => 'approved',
+                    'provider_reference' => 'pay_123',
+                    'amount' => 10000,
+                ],
+                'tracking' => [
+                    'tracking_code' => 'ME123',
+                ],
+            ],
+        ]);
+
+        $this->assertEquals('order.paid', $normalized['event']);
+        $this->assertEquals('ord_test123', $normalized['data']['order_id']);
+        $this->assertEquals('ME123', $normalized['data']['tracking_code']);
+    }
+
+    /**
+     * RED: Webhook should normalize tracking update envelope.
+     */
+    public function test_webhook_normalizes_aacp_tracking_envelope() {
+        $handler = new Zyon\WebhookHandler();
+        $normalized = $handler->normalize_payload_for_test([
+            'event_type' => 'order.tracking.updated',
+            'data' => [
+                'order' => ['external_order_id' => 'ord_test123'],
+                'tracking' => [
+                    'tracking_code' => 'ME123',
+                    'tracking_url' => 'https://label.test/me123.pdf',
+                    'status' => 'label_generated',
+                ],
+            ],
+        ]);
+
+        $this->assertEquals('order.tracking.updated', $normalized['event']);
+        $this->assertEquals('ME123', $normalized['data']['tracking_code']);
+        $this->assertEquals('https://label.test/me123.pdf', $normalized['data']['tracking_url']);
+    }
+
+    /**
      * RED: Webhook should accept POST requests
      */
     public function test_webhook_accepts_post() {

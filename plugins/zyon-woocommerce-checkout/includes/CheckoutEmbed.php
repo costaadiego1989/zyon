@@ -155,18 +155,26 @@ class CheckoutEmbed {
         $cart_json = '';
         if (function_exists('WC') && WC()->cart) {
             $cart_items = [];
+            $cart_total = 0;
             foreach (WC()->cart->get_cart() as $item) {
                 $product = $item['data'];
+                $price = (float) $product->get_price();
+                $qty = (int) $item['quantity'];
                 $cart_items[] = [
                     'sku' => $product->get_sku() ?: (string) $product->get_id(),
                     'name' => $product->get_name(),
-                    'price' => (float) $product->get_price(),
-                    'quantity' => (int) $item['quantity'],
-                    'image' => wp_get_attachment_image_url($product->get_image_id(), 'thumbnail') ?: '',
+                    'price' => $price,
+                    'quantity' => $qty,
                 ];
+                $cart_total += $price * $qty;
             }
             if (!empty($cart_items)) {
-                $cart_json = wp_json_encode($cart_items);
+                $cart_json = wp_json_encode([
+                    'currency' => get_woocommerce_currency(),
+                    'total' => $cart_total,
+                    'items' => $cart_items,
+                    'source' => 'storefront',
+                ]);
             }
         }
 
