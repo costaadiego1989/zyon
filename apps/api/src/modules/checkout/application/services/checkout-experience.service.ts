@@ -170,7 +170,8 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     },
     rules: {
       couponBoxEnabled: deps.couponBoxEnabled ?? true,
-      cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true
+      cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true,
+      cryptoPayments: deps.rules?.cryptoPayments
     },
     items,
     totals: {

@@ -248,17 +248,17 @@ export function otherEndpoints(base: string, f: typeof fetch) {
 
     // Payment Connections
     async getPaymentConnections(): Promise<PaymentConnection[]> {
-      const res = await dashboardJson<{ data: PaymentConnection[] } | PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
+      const res = await dashboardJson<{ data: PaymentConnection[] } | PaymentConnection[]>(base, "/merchants/me/payment-connections", { method: "GET" }, f);
       return Array.isArray(res) ? res : (res?.data ?? []);
     },
     createStripeOnboardingLink(payload: { return_url?: string; refresh_url?: string }): Promise<PaymentOnboardingLinkResponse> {
-      return dashboardJson(base, "/payments/connections/stripe/onboarding-link", { method: "POST", jsonBody: payload }, f);
+      return dashboardJson(base, "/merchants/me/payment-connections/stripe/connect", { method: "POST", jsonBody: payload }, f);
     },
     syncStripeConnection(): Promise<PaymentConnection> {
       return dashboardJson(base, "/payments/connections/stripe/sync", { method: "POST" }, f);
     },
-    connectAsaas(payload: { api_key: string }): Promise<PaymentConnection> {
-      return dashboardJson(base, "/payments/connections/asaas", { method: "POST", jsonBody: payload }, f);
+    connectAsaas(payload: { api_key: string; webhook_token?: string; sandbox?: boolean }): Promise<PaymentConnection> {
+      return dashboardJson(base, "/merchants/me/payment-connections/asaas", { method: "POST", jsonBody: payload }, f);
     },
     createAsaasOnboardingLink(payload: { return_url?: string }): Promise<PaymentOnboardingLinkResponse> {
       return dashboardJson(base, "/payments/connections/asaas/onboarding-link", { method: "POST", jsonBody: payload }, f);
@@ -266,8 +266,8 @@ export function otherEndpoints(base: string, f: typeof fetch) {
     syncAsaasConnection(): Promise<PaymentConnection> {
       return dashboardJson(base, "/payments/connections/asaas/sync", { method: "POST" }, f);
     },
-    enableCryptoPayments(payload: { network: string; walletAddress: string }): Promise<{ success: boolean }> {
-      return dashboardJson(base, "/merchant/crypto-payments/enable", { method: "POST", jsonBody: { merchantPublicKey: payload.walletAddress, merchantSecretKey: payload.network } }, f);
+    enableCryptoPayments(payload: { enabled: boolean; chain: "polygon" | "base"; network: "mainnet" | "testnet"; treasuryAddress: string; token: "USDC" }): Promise<{ success: boolean }> {
+      return dashboardJson(base, "/merchants/me/crypto-payments/enable", { method: "POST", jsonBody: payload }, f);
     },
 
     // Audit

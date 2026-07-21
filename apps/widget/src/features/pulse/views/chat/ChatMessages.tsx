@@ -29,14 +29,13 @@ import { PulseAgentOrb } from '../components/PulseAgentOrb';
 import { ShimmerBorder } from '../components/ShimmerBorder';
 import { useMetaMaskPayment } from '../../hooks/useMetaMaskPayment';
 
-// Demo merchant Stellar address — replace with real value from merchant config
-const DEMO_MERCHANT_STELLAR = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
+const DEMO_TREASURY_ADDRESS = '0x0000000000000000000000000000000000000001';
 
 const METAMASK_STATUS_LABEL: Record<string, string> = {
-  idle: 'Pagar com MetaMask (USDC · Polygon → Stellar)',
+  idle: 'Pagar com MetaMask (USDC)',
   connecting: 'Conectando carteira…',
   approving: 'Aprovando USDC…',
-  burning: 'Enviando USDC via CCTP…',
+  transferring: 'Transferindo USDC…',
   submitted: 'Enviado!',
   error: 'Tentar novamente',
 };
@@ -288,8 +287,7 @@ function CardForm({ m }: { m: MessageRender }) {
 export function ChatMessages({ s }: StageProps) {
   const { status: mmStatus, txHash: mmTxHash, error: mmError, explorerUrl: mmExplorerUrl, payWithMetaMask } = useMetaMaskPayment();
   const cryptoUsdc = stateStr(s, 'cryptoUsdc');
-  const merchantStellar = (s.merchantStellarAddress as string | undefined) ?? DEMO_MERCHANT_STELLAR;
-  // Merchant crypto config — chain/network from rules (defaults: polygon/testnet)
+  const treasuryAddress = (s.treasuryAddress as string | undefined) ?? DEMO_TREASURY_ADDRESS;
   const cryptoChain = (s.cryptoChain as string | undefined) ?? 'polygon';
   const cryptoNetwork = (s.cryptoNetwork as string | undefined) ?? 'testnet';
   const allMessages = s.messages as MessageRender[];
@@ -812,8 +810,8 @@ export function ChatMessages({ s }: StageProps) {
                     </svg>
                   </span>
                   <div>
-                    <div style={{ fontSize: '13.5px', fontWeight: 700 }}>Pagar com crypto · Stellar</div>
-                    <div style={{ fontSize: '10.5px', color: 'var(--mut)', marginTop: '1px' }}>Liquidação instantânea + cashback</div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700 }}>Pagar com crypto · EVM</div>
+                    <div style={{ fontSize: '10.5px', color: 'var(--mut)', marginTop: '1px' }}>USDC direto para a treasury do merchant</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 13px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--bd)', marginBottom: '9px' }}>
@@ -849,11 +847,11 @@ export function ChatMessages({ s }: StageProps) {
                   Cashback de {stateStr(s, 'cashbackStr')} em USDC após confirmar
                 </div>
 
-                {/* MetaMask CCTP button */}
+                {/* MetaMask EVM payment button */}
                 <button
                   type="button"
-                  disabled={mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning'}
-                  onClick={() => void payWithMetaMask(cryptoUsdc, merchantStellar, cryptoChain, cryptoNetwork)}
+                  disabled={mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'transferring'}
+                  onClick={() => void payWithMetaMask(cryptoUsdc, treasuryAddress, cryptoChain, cryptoNetwork)}
                   style={{
                     marginTop: '13px',
                     width: '100%',
@@ -864,13 +862,13 @@ export function ChatMessages({ s }: StageProps) {
                     padding: '11px 14px',
                     borderRadius: '13px',
                     border: 'none',
-                    cursor: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 'not-allowed' : 'pointer',
+                    cursor: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'transferring' ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
                     fontSize: '12.5px',
                     fontWeight: 700,
                     color: '#fff',
                     background: mmStatus === 'submitted' ? '#1ED760' : mmStatus === 'error' ? '#ff4c6c' : '#f6851b',
-                    opacity: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 0.72 : 1,
+                    opacity: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'transferring' ? 0.72 : 1,
                     transition: 'background .2s, opacity .2s',
                   }}
                 >
@@ -925,7 +923,7 @@ export function ChatMessages({ s }: StageProps) {
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
                   <span style={{ fontFamily: "'Space Mono',monospace", fontSize: '9.5px', letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--mut)' }}>
-                    Liquidação na Stellar
+                    Liquidação EVM
                   </span>
                   <span style={m.statusStyle}>{m.statusText}</span>
                 </div>

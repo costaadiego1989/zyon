@@ -46,15 +46,18 @@ import {
   CreateBillingCheckoutUseCase,
   CreateBillingPortalUseCase,
   CreateStripeConnectOnboardingLinkUseCase,
+  DeletePaymentConnectionUseCase,
   GetAsaasOnboardingLinkUseCase,
   GetBillingSubscriptionUseCase,
   GetPaymentConnectionsUseCase,
   HandleStripePlatformEventUseCase,
+  SaveAsaasConnectionConfigUseCase,
   SyncAsaasSubaccountUseCase,
   SyncStripeConnectUseCase,
 } from "./application/payment-platform.use-cases.js";
 import {
   BillingController,
+  MerchantPaymentConnectionsController,
   PaymentPlatformController,
 } from "./presentation/http/payment-platform.controller.js";
 
@@ -72,6 +75,7 @@ import {
     AsaasWebhookController,
     StripeWebhookController,
     PaymentPlatformController,
+    MerchantPaymentConnectionsController,
     BillingController,
   ],
   providers: [
@@ -86,6 +90,8 @@ import {
     GetPaymentConnectionsUseCase,
     CreateStripeConnectOnboardingLinkUseCase,
     SyncStripeConnectUseCase,
+    SaveAsaasConnectionConfigUseCase,
+    DeletePaymentConnectionUseCase,
     CreateAsaasSubaccountUseCase,
     GetAsaasOnboardingLinkUseCase,
     SyncAsaasSubaccountUseCase,

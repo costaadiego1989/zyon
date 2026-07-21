@@ -327,6 +327,7 @@ export interface CheckoutExperienceSnapshot {
   rules?: {
     couponBoxEnabled: boolean;
     cryptoPaymentsEnabled?: boolean;
+    cryptoPayments?: MerchantCryptoPayments;
   };
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;

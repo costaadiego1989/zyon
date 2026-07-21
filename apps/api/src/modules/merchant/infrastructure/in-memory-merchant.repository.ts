@@ -9,7 +9,6 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
   private profiles = new Map<string, MerchantProfile>();
   private rules = new Map<string, MerchantRules>();
   private stripeAccounts = new Map<string, string>();
-  private stellarKeys = new Map<string, string>();
 
   seedProfile(profile: MerchantProfile): void {
     this.profiles.set(profile.id, profile);
@@ -59,9 +58,5 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
     const existing = this.profiles.get(merchantId) ?? { id: merchantId, name: merchantId };
     this.profiles.set(merchantId, { ...existing, theme });
     return theme;
-  }
-
-  async enableCrypto(merchantId: string, stellarPublicKey: string): Promise<void> {
-    this.stellarKeys.set(merchantId, stellarPublicKey);
   }
 }

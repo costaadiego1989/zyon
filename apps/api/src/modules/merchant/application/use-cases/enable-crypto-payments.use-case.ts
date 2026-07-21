@@ -1,43 +1,40 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
-import { isAddress } from "viem";
+import { normalizeMerchantCryptoPayments } from "../../domain/services/merchant-crypto.validation.js";
 import {
-  MERCHANT_REPOSITORY,
-  type MerchantRepository
-} from "../../domain/ports/merchant-repository.port.js";
-import { EVM_PAYMENTS_CONFIG, type EvmPaymentsConfig } from "../../domain/services/evm-payments-config.js";
+  MERCHANT_RULES_REPOSITORY,
+  type MerchantRulesRepository,
+} from "../../domain/ports/merchant-rules.repository.port.js";
 
 export interface EnableCryptoPaymentsInput {
   merchantId: string;
-  /** EIP-55 checksummed address (0x...) the merchant controls. */
-  merchantAddress: `0x${string}`;
+  enabled: boolean;
+  chain: "polygon" | "base";
+  network: "mainnet" | "testnet";
+  treasuryAddress: string;
+  token?: "USDC";
 }
 
-/**
- * Enables EVM-based crypto payments for a merchant.
- *
- * Validates that the provided merchant address is a valid EVM address and
- * then marks the merchant as crypto-enabled. Per-order payment intents are
- * built later via @zyon/payments-evm's createPaymentIntent when checkout
- * finalises.
- */
 @Injectable()
 export class EnableCryptoPaymentsUseCase {
   constructor(
-    @Inject(MERCHANT_REPOSITORY) private readonly repository: MerchantRepository,
-    @Inject(EVM_PAYMENTS_CONFIG) private readonly config: EvmPaymentsConfig,
+    @Inject(MERCHANT_RULES_REPOSITORY)
+    private readonly rulesRepository: MerchantRulesRepository,
   ) {}
 
   async execute(input: EnableCryptoPaymentsInput): Promise<{ success: boolean }> {
-    if (!this.config.enabled) {
-      throw new BadRequestException("crypto_payments_not_configured");
+    try {
+      const cryptoPayments = normalizeMerchantCryptoPayments({
+        enabled: input.enabled,
+        chain: input.chain,
+        network: input.network,
+        treasuryAddress: input.treasuryAddress,
+        token: input.token ?? "USDC",
+        quoteTtlSeconds: 900,
+      });
+      await this.rulesRepository.updateRules(input.merchantId, { cryptoPayments });
+      return { success: true };
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : "crypto_payments_invalid");
     }
-
-    if (!isAddress(input.merchantAddress)) {
-      throw new BadRequestException("invalid_merchant_address");
-    }
-
-    await this.repository.enableCrypto(input.merchantId, input.merchantAddress);
-
-    return { success: true };
   }
 }

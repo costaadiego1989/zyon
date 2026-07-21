@@ -1,7 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
   Post,
   Req,
   UseGuards,
@@ -20,9 +23,11 @@ import {
   CreateBillingCheckoutUseCase,
   CreateBillingPortalUseCase,
   CreateStripeConnectOnboardingLinkUseCase,
+  DeletePaymentConnectionUseCase,
   GetAsaasOnboardingLinkUseCase,
   GetBillingSubscriptionUseCase,
   GetPaymentConnectionsUseCase,
+  SaveAsaasConnectionConfigUseCase,
   SyncAsaasSubaccountUseCase,
   SyncStripeConnectUseCase,
 } from "../../application/payment-platform.use-cases.js";
@@ -34,6 +39,12 @@ import {
   CreateAsaasSubaccountDto,
   CreateBillingCheckoutDto,
 } from "./payment-platform.dto.js";
+
+class SaveAsaasConfigDto {
+  api_key!: string;
+  webhook_token?: string;
+  sandbox?: boolean;
+}
 
 @ApiTags("Payment connections")
 @ApiCookieAuth("console_session")
@@ -131,6 +142,61 @@ export class PaymentPlatformController {
   }
 }
 
+@ApiTags("Merchant payment connections")
+@ApiCookieAuth("console_session")
+@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@RequireTenantAccess({
+  humanOnly: true,
+  humanRoles: ["owner", "admin"],
+})
+@Controller("merchants/me/payment-connections")
+export class MerchantPaymentConnectionsController {
+  constructor(
+    private readonly getConnections: GetPaymentConnectionsUseCase,
+    private readonly stripeOnboarding: CreateStripeConnectOnboardingLinkUseCase,
+    private readonly saveAsaas: SaveAsaasConnectionConfigUseCase,
+    private readonly deleteConnection: DeletePaymentConnectionUseCase,
+  ) {}
+
+  @Get()
+  async list(@Req() request: unknown) {
+    return {
+      data: (await this.getConnections.execute(humanPrincipal(request).tenantId)).map(toConnectionResponse),
+      next_cursor: null,
+      has_more: false,
+    };
+  }
+
+  @Post("asaas")
+  @Idempotent()
+  async asaas(@Req() request: unknown, @Body() body: SaveAsaasConfigDto) {
+    return toConnectionResponse(
+      await this.saveAsaas.execute(humanPrincipal(request).tenantId, {
+        apiKey: body.api_key,
+        webhookToken: body.webhook_token,
+        sandbox: body.sandbox !== false,
+      }),
+    );
+  }
+
+  @Post("stripe/connect")
+  @Idempotent()
+  async stripe(@Req() request: unknown) {
+    const principal = humanPrincipal(request);
+    const result = await this.stripeOnboarding.execute({
+      merchantId: principal.tenantId,
+      email: principal.email,
+    });
+    return { url: result.url, expires_at: result.expiresAt ?? null, connection: toConnectionResponse(result.connection) };
+  }
+
+  @Delete(":provider")
+  async disconnect(@Req() request: unknown, @Param("provider") provider: string) {
+    if (provider !== "stripe" && provider !== "asaas") throw new BadRequestException("payment_connection_provider_invalid");
+    return this.deleteConnection.execute(humanPrincipal(request).tenantId, provider);
+  }
+}
+
 @ApiTags("Billing")
 @ApiCookieAuth("console_session")
 @UseGuards(TenantCredentialGuard, TenantAccessGuard)
@@ -192,9 +258,11 @@ function humanPrincipal(
 
 function toConnectionResponse(connection: PaymentConnectionSnapshot) {
   return {
+    id: `${connection.merchantId}:${connection.provider}`,
     provider: connection.provider,
+    account_id: connection.externalAccountId ?? null,
+    status: connection.status === "degraded" ? "error" : connection.status,
     environment: connection.environment,
-    status: connection.status,
     external_account_id: connection.externalAccountId ?? null,
     wallet_id: connection.walletId ?? null,
     charges_enabled: connection.chargesEnabled,

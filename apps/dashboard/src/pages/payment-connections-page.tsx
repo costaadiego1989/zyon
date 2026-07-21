@@ -53,6 +53,13 @@ export function formatDate(iso: string): string {
 
 const BADGE_FONT = "600 11px var(--mono)";
 
+const USDC_TOKEN_BY_CHAIN_NETWORK = {
+  "polygon:mainnet": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+  "polygon:testnet": "0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582",
+  "base:mainnet": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  "base:testnet": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+} as const;
+
 export function statusBadge(status: string) {
   if (status === "active") {
     return (
@@ -234,7 +241,13 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
   const [connections, setConnections] = useState<PaymentConnection[]>([]);
   const [operation, setOperation] = useState<Operation>("idle");
   const [alert, setAlert] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
-  const [cryptoNetwork, setCryptoNetwork] = useState("polygon");
+  const [asaasApiKey, setAsaasApiKey] = useState("");
+  const [asaasWebhookToken, setAsaasWebhookToken] = useState("");
+  const [asaasSandbox, setAsaasSandbox] = useState(true);
+  const [asaasSaving, setAsaasSaving] = useState(false);
+  const [cryptoEnabled, setCryptoEnabled] = useState(false);
+  const [cryptoChain, setCryptoChain] = useState<"polygon" | "base">("polygon");
+  const [cryptoNetwork, setCryptoNetwork] = useState<"testnet" | "mainnet">("testnet");
   const [cryptoWallet, setCryptoWallet] = useState("");
   const [cryptoSaving, setCryptoSaving] = useState(false);
   const [cryptoSaved, setCryptoSaved] = useState(false);
@@ -251,7 +264,18 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
     setOperation("loading");
     setAlert(null);
     try {
-      setConnections(await api.getPaymentConnections());
+      const [paymentConnections, rules] = await Promise.all([
+        api.getPaymentConnections(),
+        api.getMerchantRules(),
+      ]);
+      setConnections(paymentConnections);
+      const crypto = rules.cryptoPayments;
+      if (crypto) {
+        setCryptoEnabled(crypto.enabled === true);
+        setCryptoChain(crypto.chain === "base" ? "base" : "polygon");
+        setCryptoNetwork(crypto.network === "mainnet" ? "mainnet" : "testnet");
+        setCryptoWallet(crypto.treasuryAddress ?? "");
+      }
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -309,6 +333,28 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
     }
   }
 
+  async function saveAsaasConfig() {
+    setAsaasSaving(true);
+    setAlert(null);
+    try {
+      const updated = await api.connectAsaas({
+        api_key: asaasApiKey.trim(),
+        webhook_token: asaasWebhookToken.trim(),
+        sandbox: asaasSandbox,
+      });
+      setConnections((prev) => {
+        const idx = prev.findIndex((c) => c.provider === "asaas");
+        return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
+      });
+      setAlert({ message: "Asaas configurado com sucesso", kind: "success" });
+    } catch (e) {
+      console.error("[payment-connections]", e);
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setAsaasSaving(false);
+    }
+  }
+
   async function syncAsaas() {
     setOperation("syncing-asaas");
     setAlert(null);
@@ -331,9 +377,19 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
     setCryptoSaving(true);
     setCryptoSaved(false);
     try {
-      await api.enableCryptoPayments({ network: cryptoNetwork, walletAddress: cryptoWallet.trim() });
+      await api.putMerchantRules({
+        cryptoPayments: {
+          enabled: cryptoEnabled,
+          chain: cryptoChain,
+          network: cryptoNetwork,
+          treasuryAddress: cryptoWallet.trim(),
+          token: "USDC",
+          quoteTtlSeconds: 900,
+          brlPerUsdc: 5.5,
+        },
+      });
       setCryptoSaved(true);
-      setAlert({ message: "Wallet crypto salva com sucesso.", kind: "success" });
+      setAlert({ message: "Configuração crypto salva com sucesso.", kind: "success" });
       setTimeout(() => setCryptoSaved(false), 4000);
     } catch (e) {
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -367,7 +423,18 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
   const otherConns = connections.filter(
     (c) => c.provider !== "stripe" && c.provider !== "asaas" && c.provider !== "crypto",
   );
-  const activeCount = connections.filter((c) => c.status === "active").length;
+  const tokenAddress = USDC_TOKEN_BY_CHAIN_NETWORK[`${cryptoChain}:${cryptoNetwork}`];
+  const cryptoConfiguredConnection: PaymentConnection | undefined = cryptoEnabled
+    ? {
+        id: "crypto-rules",
+        provider: "crypto",
+        status: "active",
+        account_id: `${cryptoChain}:${cryptoNetwork}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+    : cryptoConn;
+  const activeCount = connections.filter((c) => c.status === "active").length + (cryptoEnabled ? 1 : 0);
   const isLoading = operation === "loading";
 
   return (
@@ -437,15 +504,42 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
             description="Pagamentos em USDC via Polygon e Base"
             iconBg="#627EEA"
             icon={<Zap size={18} color="#fff" aria-hidden="true" />}
-            connection={cryptoConn}
+            connection={cryptoConfiguredConnection}
             operation={operation}
             connectingOperation="idle"
             syncingOperation="idle"
             onConnect={() => {}}
             onSync={() => {}}
-            comingSoon={!cryptoConn}
-            configureUrl={cryptoConn ? "/checkout-settings" : undefined}
           />
+        </div>
+      ) : null}
+
+      {!isLoading ? (
+        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 16 }}>
+            <div>
+              <h3 style={{ font: "600 13px var(--mono)", color: "var(--ink)", margin: 0 }}>Asaas</h3>
+              <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "4px 0 0 0" }}>Configure API Key, webhook token e ambiente.</p>
+            </div>
+            {statusBadge(asaasConn?.status ?? "disconnected")}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, alignItems: "end" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>API Key</label>
+              <input type="password" value={asaasApiKey} onChange={(e) => setAsaasApiKey(e.target.value)} placeholder="$aact_..." style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }} />
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Webhook Token</label>
+              <input type="password" value={asaasWebhookToken} onChange={(e) => setAsaasWebhookToken(e.target.value)} placeholder="token do webhook" style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }} />
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "600 12px var(--mono)", color: "var(--ink)", cursor: "pointer" }}>
+              <input type="checkbox" checked={asaasSandbox} onChange={(e) => setAsaasSandbox(e.target.checked)} />
+              Sandbox
+            </label>
+            <button type="button" disabled={!asaasApiKey.trim() || asaasSaving} onClick={() => void saveAsaasConfig()} style={{ padding: "10px 16px", borderRadius: 10, border: "none", background: "linear-gradient(180deg, var(--accent), var(--accent-dark))", color: "var(--bg)", font: "600 13px var(--mono)", cursor: asaasApiKey.trim() && !asaasSaving ? "pointer" : "not-allowed", opacity: asaasApiKey.trim() && !asaasSaving ? 1 : 0.5 }}>
+              {asaasSaving ? "Testando..." : "Testar conexão"}
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -461,24 +555,35 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
               <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: 0, marginTop: 2 }}>Receba pagamentos em USDC diretamente na sua wallet</p>
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 14, alignItems: "end" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14, alignItems: "end" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "600 12px var(--mono)", color: "var(--ink)", cursor: "pointer" }}>
+              <input type="checkbox" checked={cryptoEnabled} onChange={(e) => setCryptoEnabled(e.target.checked)} />
+              Habilitar crypto
+            </label>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Rede</label>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Chain</label>
               <select
-                value={cryptoNetwork}
-                onChange={(e) => setCryptoNetwork(e.target.value)}
+                value={cryptoChain}
+                onChange={(e) => setCryptoChain(e.target.value === "base" ? "base" : "polygon")}
                 style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--sans)", color: "var(--ink)", outline: "none" }}
               >
-                <option value="polygon">Polygon (MATIC)</option>
-                <option value="base">Base (L2)</option>
-                <option value="ethereum">Ethereum Mainnet</option>
-                <option value="arbitrum">Arbitrum One</option>
-                <option value="optimism">Optimism</option>
-                <option value="bsc">BNB Smart Chain</option>
+                <option value="polygon">Polygon</option>
+                <option value="base">Base</option>
               </select>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Endereço da Wallet</label>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Network</label>
+              <select
+                value={cryptoNetwork}
+                onChange={(e) => setCryptoNetwork(e.target.value === "mainnet" ? "mainnet" : "testnet")}
+                style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--sans)", color: "var(--ink)", outline: "none" }}
+              >
+                <option value="testnet">Testnet</option>
+                <option value="mainnet">Mainnet</option>
+              </select>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Treasury Address</label>
               <input
                 type="text"
                 value={cryptoWallet}
@@ -487,13 +592,22 @@ export function PaymentConnectionsPage(props: { apiBaseUrl: string; me: Merchant
                 style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }}
               />
             </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label style={{ font: "600 11px var(--mono)", letterSpacing: "0.03em", color: "var(--faint)" }}>Token</label>
+              <input
+                type="text"
+                value={`USDC · ${tokenAddress}`}
+                readOnly
+                style={{ padding: "10px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", font: "12px var(--mono)", color: "var(--ink)", outline: "none" }}
+              />
+            </div>
           </div>
           <div style={{ marginTop: 14, display: "flex", alignItems: "center", gap: 12 }}>
             <button
               type="button"
-              disabled={!cryptoWallet.trim() || cryptoSaving}
+              disabled={(cryptoEnabled && !cryptoWallet.trim()) || cryptoSaving}
               onClick={() => void saveCryptoWallet()}
-              style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "linear-gradient(150deg, var(--accent), var(--accent-dark))", font: "600 12px var(--sans)", color: "white", cursor: cryptoWallet.trim() && !cryptoSaving ? "pointer" : "not-allowed", opacity: cryptoWallet.trim() && !cryptoSaving ? 1 : 0.5 }}
+              style={{ padding: "9px 18px", borderRadius: 8, border: "none", background: "linear-gradient(150deg, var(--accent), var(--accent-dark))", font: "600 12px var(--sans)", color: "white", cursor: (!cryptoEnabled || cryptoWallet.trim()) && !cryptoSaving ? "pointer" : "not-allowed", opacity: (!cryptoEnabled || cryptoWallet.trim()) && !cryptoSaving ? 1 : 0.5 }}
             >
               {cryptoSaving ? "Salvando..." : "Salvar wallet"}
             </button>

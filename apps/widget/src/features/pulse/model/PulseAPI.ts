@@ -1,3 +1,4 @@
+import type { MerchantCryptoPayments } from '@zyon/shared-types';
 import type {
   Bundle,
   Coupon,
@@ -175,6 +176,12 @@ export class PulseAPI {
     }
     this.sessionId = 'sess_demo';
     return this.sessionId;
+  }
+
+  getCryptoPaymentsConfig(): MerchantCryptoPayments | undefined {
+    const config = this._cachedExperience?.rules?.cryptoPayments;
+    if (!config || config.enabled !== true || !config.treasuryAddress) return undefined;
+    return config as MerchantCryptoPayments;
   }
 
   async getCart(): Promise<{ product: Product; qty: number }> {
@@ -514,7 +521,7 @@ export class PulseAPI {
     const q = (question || '').toLowerCase();
     const faq = [
       { k: ['pedido', 'rastre', 'onde', 'entrega', 'chega', 'prazo'], a: 'Seu pedido mais recente está em separação e sai para entrega em até 24h. Você acompanha cada etapa em tempo real na aba "Pedidos" — eu te aviso assim que ele sair.' },
-      { k: ['cashback', 'usdc', 'crypto', 'stellar'], a: 'No pagamento com crypto a liquidação acontece na rede Stellar em segundos e você recebe 3% de cashback em USDC, já liberado para a sua próxima compra.' },
+      { k: ['cashback', 'usdc', 'crypto', 'evm'], a: 'No pagamento com crypto a liquidação acontece on-chain em Polygon ou Base e você recebe 3% de cashback em USDC, já liberado para a sua próxima compra.' },
       { k: ['parcel', 'juros', 'cartão', 'cartao', 'vezes', '12x'], a: 'Dá para parcelar em até 12x sem juros no cartão de crédito — é só escolher o número de parcelas na hora do pagamento.' },
       { k: ['segur', 'seguro', 'dados', 'privacidade', 'rosto', 'face'], a: 'Tudo é criptografado. O reconhecimento facial é processado no seu dispositivo e a imagem do seu rosto nunca é enviada para o servidor.' },
       { k: ['troca', 'devolu', 'reembolso', 'cancelar'], a: 'Você tem 7 dias para troca ou devolução. Posso abrir a solicitação agora mesmo — é só me dizer qual pedido.' },

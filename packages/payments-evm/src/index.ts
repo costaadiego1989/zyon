@@ -1,7 +1,7 @@
 /**
  * @zyon/payments-evm
  *
- * Universal EVM payments provider. Replaces the legacy @zyon/payments-stellar.
+ * Universal EVM payments provider for buyer wallet transactions.
  *
  * Capabilities:
  *   - createNativePaymentIntent / createErc20PaymentIntent / createPaymentIntent

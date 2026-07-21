@@ -1,7 +1,7 @@
 /**
  * EvmPaymentsConfig value object — injected at module load,
- * validated at startup (OnModuleInit). Replaces raw process.env reads
- * previously consumed from StellarConfig.
+ * validated at startup (OnModuleInit). Keeps raw process.env reads out of
+ * application use-cases.
  */
 export const EVM_PAYMENTS_CONFIG = Symbol("EVM_PAYMENTS_CONFIG");
 

@@ -178,7 +178,19 @@ const chatTurnSchema = z.object({
 export const checkoutExperienceSnapshotSchema = z.object({
   brand: checkoutBrandSnapshotSchema,
   stage: z.enum(["data_collection", "shipping", "payment", "completed"]).optional(),
-  rules: z.object({ couponBoxEnabled: z.boolean(), cryptoPaymentsEnabled: z.boolean().optional() }).optional(),
+  rules: z.object({
+    couponBoxEnabled: z.boolean(),
+    cryptoPaymentsEnabled: z.boolean().optional(),
+    cryptoPayments: z.object({
+      enabled: z.boolean(),
+      chain: z.enum(["polygon", "base"]),
+      network: z.enum(["mainnet", "testnet"]),
+      treasuryAddress: z.string(),
+      token: z.literal("USDC"),
+      quoteTtlSeconds: z.number(),
+      brlPerUsdc: z.number().optional(),
+    }).optional(),
+  }).optional(),
   items: z.array(checkoutItemSnapshotSchema),
   totals: checkoutTotalsSnapshotSchema,
   shipping: shippingSchema.optional(),

@@ -65,6 +65,14 @@ export class InMemoryPaymentPlatformRepository
     if (input.secret) this.secrets.set(recordKey, input.secret);
   }
 
+  async deleteConnection(
+    merchantId: string,
+    provider: "stripe" | "asaas",
+  ): Promise<void> {
+    this.connections.delete(key(merchantId, provider));
+    this.secrets.delete(key(merchantId, provider));
+  }
+
   async getOrCreateTrial(
     merchantId: string,
     trialDays: number,

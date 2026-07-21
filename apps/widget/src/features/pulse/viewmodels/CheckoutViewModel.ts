@@ -92,6 +92,9 @@ interface CheckoutState {
   pixCopyPaste: string | null;
   pixExpiresAt: string | null;
   pixStatus: 'idle' | 'waiting' | 'paid' | 'failed';
+  cryptoChain?: string;
+  cryptoNetwork?: string;
+  treasuryAddress?: string;
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -195,7 +198,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   SET_STEPS = [
     { label: 'Pagamento recebido', status: 'Confirmando transação…' },
     { label: 'Conversão para USDC', status: 'Convertendo…' },
-    { label: 'Liquidação na Stellar', status: 'Liquidando on-chain…' },
+    { label: 'Liquidação EVM', status: 'Liquidando on-chain…' },
     { label: 'Repasse ao lojista', status: 'Repassando ao lojista…' },
     { label: 'Cashback creditado', status: 'Creditando cashback…' },
     { label: 'Pedido concluído', status: 'Finalizando pedido…' },
@@ -290,7 +293,17 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       .then((api) => api.getOrders())
       .then((orders) => this.setState({ orders }));
     void this.ensureApi()
-      .then((api) => api.ensureSession())
+      .then(async (api) => {
+        await api.ensureSession();
+        const crypto = api.getCryptoPaymentsConfig();
+        if (crypto) {
+          this.setState({
+            cryptoChain: crypto.chain,
+            cryptoNetwork: crypto.network,
+            treasuryAddress: crypto.treasuryAddress,
+          });
+        }
+      })
       .then(() => {
         // Refresh render state after session loads to pick up updated storeName and agentName from API
         this.notify();
@@ -1447,7 +1460,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           {
             role: 'agent',
             kind: 'text',
-            text: 'No crypto a liquidação é instantânea na Stellar e você ainda ganha cashback em USDC:',
+            text: 'No crypto a liquidação acontece on-chain em Polygon ou Base e você ainda ganha cashback em USDC:',
           },
           { role: 'agent', kind: 'cryptoform' },
         ],
@@ -1590,7 +1603,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     calc: ReturnType<typeof this.calc>,
   ): void {
     const sub = crypto
-      ? 'Liquidação confirmada na Stellar. Cashback liberado.'
+      ? 'Liquidação EVM confirmada. Cashback liberado.'
       : 'Seu pedido foi confirmado e o lojista já foi pago.';
     const newOrder: Order = {
       store: this.storeName,
@@ -1998,7 +2011,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         mk('pix', 'Pix', 'Pagamento instantâneo, sem taxas', 'Na hora', 'pix'),
         mk('credito', 'Cartão de crédito', 'Parcele em até 12x sem juros', '12x', 'card'),
         mk('debito', 'Cartão de débito', 'Débito à vista', '', 'card'),
-        mk('crypto', 'Crypto · USDC', 'Liquida na Stellar + cashback', 'Cashback', 'crypto'),
+        mk('crypto', 'Crypto · USDC', 'Liquida em EVM + cashback', 'Cashback', 'crypto'),
       ];
     }
 
@@ -2038,7 +2051,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
     if (m.kind === 'settlement') {
       const cur = this.state.settlementStep;
-      base.statusText = cur >= this.SET_STEPS.length - 1 ? 'Confirmado na Stellar' : 'Liquidando…';
+      base.statusText = cur >= this.SET_STEPS.length - 1 ? 'Confirmado on-chain' : 'Liquidando…';
       base.statusStyle = { fontFamily: "'Space Mono',monospace", fontSize: '9px', color: t.g2 } as React.CSSProperties;
       base.steps = this.SET_STEPS.map((s, i) => {
         const done = i < cur;
@@ -2075,7 +2088,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         pix: 'Pix',
         credito: 'Cartão de crédito',
         debito: 'Cartão de débito',
-        crypto: 'USDC · Stellar',
+        crypto: 'USDC · EVM',
       };
       base.isCrypto = crypto;
       base.subline = m.subline;
@@ -2241,7 +2254,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         valStyle: cvS,
       });
     if (c.payMethod) {
-      const map: Record<PayMethod, string> = { pix: 'Pix', credito: 'Crédito', debito: 'Débito', crypto: 'USDC · Stellar' };
+      const map: Record<PayMethod, string> = { pix: 'Pix', credito: 'Crédito', debito: 'Débito', crypto: 'USDC · EVM' };
       cartRows.push({ label: 'Pagamento', value: map[c.payMethod], valStyle: { fontSize: '12.5px', fontWeight: 600 } });
     }
 
@@ -2703,7 +2716,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       payOpts: [
         { label: 'Pix', sub: 'Aprovação na hora', val: 'pix' },
         { label: 'Cartão de crédito', sub: 'Crédito · até 12x', val: 'credito' },
-        { label: 'USDC · Stellar', sub: 'Cashback de 3%', val: 'crypto' },
+        { label: 'USDC · EVM', sub: 'Cashback de 3%', val: 'crypto' },
       ].map((o) => ({
         label: o.label,
         sub: o.sub,

@@ -93,6 +93,15 @@ export class PrismaPaymentPlatformRepository
     });
   }
 
+  async deleteConnection(
+    merchantId: string,
+    provider: "stripe" | "asaas",
+  ): Promise<void> {
+    await this.prisma.merchantPaymentConnection.deleteMany({
+      where: { merchantId: merchantId.trim(), provider },
+    });
+  }
+
   async getOrCreateTrial(
     merchantId: string,
     trialDays: number,

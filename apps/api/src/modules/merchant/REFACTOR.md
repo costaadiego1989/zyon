@@ -45,9 +45,9 @@ apps/api/src/modules/merchant/
 
 - **File:** `application/use-cases/enable-crypto-payments.use-case.ts`
 - **Category:** Security / Operations
-- **Description:** `execute()` reads `process.env["STELLAR_PLATFORM_SECRET"]` and throws a generic `Error` if missing. There is no startup validation (e.g., in module `OnModuleInit`) that the secret is configured in production. A operator deploying without the env var will only discover it when a merchant tries to enable crypto.
+- **Description:** `execute()` reads `process.env["EVM_PLATFORM_PRIVATE_KEY"]` and throws a generic `Error` if missing. There is no startup validation (e.g., in module `OnModuleInit`) that the secret is configured in production. A operator deploying without the env var will only discover it when a merchant tries to enable crypto.
 - **Impact:** Production down-time; broken merchant onboarding flow; no graceful degradation or feature flag toggle.
-- **Remediation:** Inject a validated `StellarConfig` object at module load (check in `OnModuleInit` that required vars are set). Throw a descriptive startup error, not a lazy runtime error. Add a feature-flag-gated endpoint that returns `{ crypto_enabled: false }` when unconfigured.
+- **Remediation:** Inject a validated `EvmPaymentsConfig` object at module load (check in `OnModuleInit` that required vars are set). Throw a descriptive startup error, not a lazy runtime error. Add a feature-flag-gated endpoint that returns `{ crypto_enabled: false }` when unconfigured.
 
 #### MERC-C2 — Theme cast to `unknown as object` causes runtime type error
 
@@ -160,7 +160,7 @@ No cross-module coupling issues. Auth is a legitimate dependency for the control
 1. Extract theme validators to `domain/merchant-theme.validators.ts`
 2. Extract DEFAULT_RULES to `domain/merchant-rules.defaults.ts`
 3. Move mapper helpers to `infrastructure/merchant-mappers.ts`
-4. Validate StellarConfig at module OnModuleInit
+4. Validate EvmPaymentsConfig at module OnModuleInit
 5. Unify controller routes: move crypto into `MerchantController`
 6. Document theme merge semantics (defaults vs overrides)
 7. Use Zod or hand-rolled codec for theme persistence validation
@@ -174,7 +174,7 @@ No cross-module coupling issues. Auth is a legitimate dependency for the control
 - **OCP:** Adding new theme fields requires editing `UpdateMerchantThemeUseCase` inline → extract validators for extension via composition.
 - **LSP:** Repositories implement the same interface; mappers are Prisma-specific internals (acceptable).
 - **ISP:** `MerchantRepository` combines profile, theme, rules, and crypto in one port → consider splitting if crypto is consumed differently.
-- **DIP:** Use-cases inject repositories via symbols; crypto reads env directly → inject `StellarConfig` instead.
+- **DIP:** Use-cases inject repositories via symbols; crypto reads env directly → inject `EvmPaymentsConfig` instead.
 
 ---
 
@@ -194,7 +194,7 @@ No cross-module coupling issues. Auth is a legitimate dependency for the control
 
 ## Priority Execution Order
 
-1. **MERC-C1** — [DONE] Add `StellarConfig` injection + OnModuleInit validation
+1. **MERC-C1** — [DONE] Add `EvmPaymentsConfig` injection + OnModuleInit validation
 2. **MERC-C2** — [DONE] Add Zod codec validation on theme read/write
 3. **MERC-H5** — [DONE] Merge crypto routes into MerchantController
 4. **MERC-H3** — [DONE] Extract DEFAULT_RULES constant

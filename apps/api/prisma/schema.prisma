@@ -11,8 +11,6 @@ model Merchant {
   name                   String
   theme                  Json?
   stripeConnectAccountId    String?  @map("stripe_connect_account_id")
-  stellarPublicKey          String?  @map("stellar_public_key")
-  stellarAccountActivated   Boolean  @default(false) @map("stellar_account_activated")
   cryptoPaymentsEnabled     Boolean  @default(false) @map("crypto_payments_enabled")
   createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt              DateTime @updatedAt @map("updated_at")

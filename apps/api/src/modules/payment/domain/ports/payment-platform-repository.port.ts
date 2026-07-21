@@ -47,6 +47,7 @@ export interface PaymentPlatformRepository {
     provider: PaymentConnectionProvider,
   ): Promise<string | undefined>;
   saveConnection(input: SavePaymentConnectionInput): Promise<void>;
+  deleteConnection(merchantId: string, provider: PaymentConnectionProvider): Promise<void>;
   getOrCreateTrial(
     merchantId: string,
     trialDays: number,

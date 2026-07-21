@@ -9,5 +9,4 @@ export interface MerchantRepository {
   getRules(merchantId: string): Promise<MerchantRules>;
   updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules>;
   updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme>;
-  enableCrypto(merchantId: string, stellarPublicKey: string): Promise<void>;
 }

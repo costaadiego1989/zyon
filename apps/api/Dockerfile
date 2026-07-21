@@ -30,7 +30,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 COPY packages/contracts/package.json        packages/contracts/package.json
 COPY packages/shared-types/package.json     packages/shared-types/package.json
 COPY packages/commerce-adapters/package.json packages/commerce-adapters/package.json
-COPY packages/payments-stellar/package.json  packages/payments-evm/package.json
+COPY packages/payments-evm/package.json      packages/payments-evm/package.json
 COPY packages/conversation-engine/package.json packages/conversation-engine/package.json
 COPY packages/decision-engine/package.json   packages/decision-engine/package.json
 COPY packages/negotiation-engine/package.json packages/negotiation-engine/package.json

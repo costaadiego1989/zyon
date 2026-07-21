@@ -1,5 +1,6 @@
 import {
   BadGatewayException,
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -39,6 +40,50 @@ export class GetPaymentConnectionsUseCase {
 
   execute(merchantId: string): Promise<PaymentConnectionSnapshot[]> {
     return this.repository.listConnections(merchantId);
+  }
+}
+
+@Injectable()
+export class SaveAsaasConnectionConfigUseCase {
+  constructor(
+    @Inject(PAYMENT_PLATFORM_REPOSITORY)
+    private readonly repository: PaymentPlatformRepository,
+    @Inject(PAYMENT_PLATFORM_ENVIRONMENT)
+    private readonly environment: PaymentPlatformEnvironment,
+  ) {}
+
+  async execute(
+    merchantId: string,
+    input: { apiKey: string; webhookToken?: string; sandbox: boolean },
+  ): Promise<PaymentConnectionSnapshot> {
+    const apiKey = input.apiKey.trim();
+    if (!apiKey) throw new BadRequestException("asaas_api_key_required");
+    await this.repository.saveConnection({
+      merchantId,
+      provider: "asaas",
+      environment: input.sandbox ? "test" : this.environment.asaas,
+      status: "active",
+      externalAccountId: "manual",
+      secret: JSON.stringify({ apiKey, webhookToken: input.webhookToken?.trim() ?? "" }),
+      chargesEnabled: true,
+      payoutsEnabled: true,
+      requirements: [],
+      syncedAt: new Date().toISOString(),
+    });
+    return requiredConnection(this.repository, merchantId, "asaas");
+  }
+}
+
+@Injectable()
+export class DeletePaymentConnectionUseCase {
+  constructor(
+    @Inject(PAYMENT_PLATFORM_REPOSITORY)
+    private readonly repository: PaymentPlatformRepository,
+  ) {}
+
+  async execute(merchantId: string, provider: "stripe" | "asaas"): Promise<{ success: boolean }> {
+    await this.repository.deleteConnection(merchantId, provider);
+    return { success: true };
   }
 }
 
@@ -494,6 +539,11 @@ async function requiredAsaasSecret(
     "asaas",
   );
   if (!secret) throw new ConflictException("asaas_api_key_not_available");
+  if (secret.trim().startsWith("{")) {
+    const parsed = JSON.parse(secret) as { apiKey?: string };
+    if (!parsed.apiKey) throw new ConflictException("asaas_api_key_not_available");
+    return parsed.apiKey;
+  }
   return secret;
 }
 

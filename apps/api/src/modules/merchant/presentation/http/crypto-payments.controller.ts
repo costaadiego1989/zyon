@@ -1,22 +1,29 @@
 import { Body, Controller, Post, UseGuards, ValidationPipe } from "@nestjs/common";
-import { IsEthereumAddress, IsNotEmpty } from "class-validator";
+import { IsBoolean, IsEthereumAddress, IsIn, IsNotEmpty, IsOptional } from "class-validator";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { CurrentTenant } from "../../../../shared/tenant/current-tenant.decorator.js";
 import { EnableCryptoPaymentsUseCase } from "../../application/use-cases/enable-crypto-payments.use-case.js";
 
 export class EnableCryptoPaymentsDto {
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @IsIn(["polygon", "base"])
+  chain!: "polygon" | "base";
+
+  @IsIn(["mainnet", "testnet"])
+  network!: "mainnet" | "testnet";
+
   @IsEthereumAddress()
   @IsNotEmpty()
-  merchantAddress!: `0x${string}`;
+  treasuryAddress!: string;
+
+  @IsOptional()
+  @IsIn(["USDC"])
+  token?: "USDC";
 }
 
-/**
- * Route aligned to /merchants/me/crypto-payments/enable (consistent plural).
- * Uses @CurrentTenant() instead of unsafe request casting.
- *
- * EVM addresses are public; the merchant's secret key never leaves their wallet.
- * No secret is collected server-side.
- */
 @UseGuards(AuthGuard)
 @Controller("merchants/me/crypto-payments")
 export class CryptoPaymentsController {
@@ -30,7 +37,11 @@ export class CryptoPaymentsController {
   ) {
     return this.enableCrypto.execute({
       merchantId,
-      merchantAddress: dto.merchantAddress,
+      enabled: dto.enabled ?? true,
+      chain: dto.chain,
+      network: dto.network,
+      treasuryAddress: dto.treasuryAddress,
+      token: dto.token ?? "USDC",
     });
   }
 }
