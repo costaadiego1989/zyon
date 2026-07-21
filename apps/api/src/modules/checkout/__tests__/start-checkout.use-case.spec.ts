@@ -77,6 +77,50 @@ test("StartCheckoutUseCase reuses global user only inside the same merchant", as
   assert.notEqual(first.global_user_id, third.global_user_id);
 });
 
+test("StartCheckoutUseCase returns cross-sell suggestions in the initial experience", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const crossSell = {
+    async suggest(input: { merchant_id: string; session_id: string; cart: { items: Array<{ sku: string }> } }) {
+      assert.equal(input.merchant_id, "mrc_1");
+      assert.equal(input.session_id, "chk_cross_sell_start");
+      assert.equal(input.cart.items[0]?.sku, "ZYON-SHIRT-001");
+      return [
+        {
+          suggestion_id: "sug_zyon",
+          sku: "ZYON-HOOD-001",
+          name: "Hoodie Agentic Checkout",
+          unit_price: 199.9
+        }
+      ];
+    }
+  };
+  const useCase = new StartCheckoutUseCase(
+    repository,
+    repository,
+    repository,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { platformFeeBrl: 1.99 },
+    crossSell
+  );
+
+  const response = await useCase.execute(startCheckoutRequest({
+    session_id: "chk_cross_sell_start",
+    cart: {
+      currency: "BRL",
+      total: 129.9,
+      items: [{ sku: "ZYON-SHIRT-001", name: "Camiseta Zyon Dev", price: 129.9, quantity: 1 }]
+    }
+  }));
+
+  assert.equal(response.experience.suggestedProducts?.[0]?.sku, "ZYON-HOOD-001");
+  assert.equal(response.experience.suggestedProducts?.[0]?.name, "Hoodie Agentic Checkout");
+  assert.equal(response.experience.suggestedProducts?.[0]?.unit_price, 199.9);
+});
+
 test("StartCheckoutUseCase respects manual-only checkout settings", async () => {
   const repository = new InMemoryCheckoutRepository();
   const useCase = new StartCheckoutUseCase(repository, repository, repository, new ManualOnlyCheckoutSettingsPort());

@@ -11,6 +11,8 @@ import { ArchiveCrossSellPromotionUseCase } from "./application/use-cases/archiv
 import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-eligible-cross-sells.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
+import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
+import { CHECKOUT_CROSS_SELL_RECOMMENDER } from "../checkout/domain/ports/cross-sell-recommender.port.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
 
 @Global()
@@ -33,13 +35,19 @@ import { MerchantCrossSellController } from "./presentation/http/merchant-cross-
     ArchiveCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
     AcceptCrossSellSuggestionUseCase,
-    DeclineCrossSellSuggestionUseCase
+    DeclineCrossSellSuggestionUseCase,
+    CheckoutCrossSellRecommender,
+    {
+      provide: CHECKOUT_CROSS_SELL_RECOMMENDER,
+      useExisting: CheckoutCrossSellRecommender
+    }
   ],
   exports: [
     CreateCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
     AcceptCrossSellSuggestionUseCase,
-    DeclineCrossSellSuggestionUseCase
+    DeclineCrossSellSuggestionUseCase,
+    CHECKOUT_CROSS_SELL_RECOMMENDER
   ]
 })
 export class CrossSellModule {}

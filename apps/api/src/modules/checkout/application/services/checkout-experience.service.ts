@@ -8,7 +8,8 @@ import type {
   CurrencyCode,
   CustomerHints,
   MerchantTheme,
-  ShippingQuote
+  ShippingQuote,
+  SuggestedProduct
 } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
@@ -35,6 +36,7 @@ export interface ExperienceDeps {
    * to preserve the prior `process.env.PLATFORM_FEE_BRL` fallback.
    */
   serviceFee?: number;
+  suggestedProducts?: SuggestedProduct[];
 }
 
 export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
@@ -181,6 +183,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     },
     shipping: input.shipping,
     shippingOptions: undefined,
+    suggestedProducts: deps.suggestedProducts?.length ? deps.suggestedProducts : undefined,
     customer: publicCustomerHints(input.customer),
     agent: {
       name: agentName,

@@ -21,6 +21,13 @@ const CATALOG: Record<string, Omit<CartItem, "sku" | "quantity">> = {
     cost: 34,
     category: "acessorios",
     variant: "couro"
+  },
+  "ZYON-HOOD-001": {
+    name: "Hoodie Agentic Checkout",
+    price: 199.9,
+    cost: 95,
+    category: "vestuario",
+    variant: "preto"
   }
 };
 
@@ -68,6 +75,7 @@ export function resolveCrossSellCartItem(sku: string): CartItem {
 function humanizeSku(sku: string): string {
   return sku
     .replace(/[-_]+/g, " ")
+    .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase())
     .trim() || "Produto complementar";
 }

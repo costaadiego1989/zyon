@@ -7,6 +7,7 @@ import type {
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
+  CompletedOrderStatus,
   CurrencyCode,
   CustomerHints,
   DashboardOverview,
@@ -220,6 +221,30 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
           }
         },
         data: { trackingCode: input.trackingCode }
+      });
+      return toCompletedOrder(row);
+    } catch (error) {
+      if (isPrismaRecordNotFound(error)) return undefined;
+      throw error;
+    }
+  }
+
+  async updateCompletedOrderStatus(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    status: CompletedOrderStatus;
+  }): Promise<CompletedOrder | undefined> {
+    try {
+      const row = await this.prisma.completedOrder.update({
+        where: {
+          merchantId_sessionId_externalOrderId: {
+            merchantId: input.merchantId,
+            sessionId: input.sessionId,
+            externalOrderId: input.externalOrderId
+          }
+        },
+        data: { status: input.status }
       });
       return toCompletedOrder(row);
     } catch (error) {
@@ -648,7 +673,7 @@ function toCompletedOrder(row: {
     externalOrderId: row.externalOrderId,
     orderTotal: row.orderTotal,
     currency: row.currency as CurrencyCode,
-    status: row.status === "cancelled" ? "cancelled" : "approved",
+    status: row.status as CompletedOrderStatus,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
     trackingCode: row.trackingCode ?? undefined,
     completedAt: row.completedAt.toISOString(),

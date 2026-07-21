@@ -8,6 +8,7 @@ import type {
   CheckoutEventName,
   CheckoutSession,
   CompletedOrder,
+  CompletedOrderStatus,
   CustomerHints,
   DashboardOverview,
   DomainEventEnvelope,
@@ -189,6 +190,20 @@ export class InMemoryCheckoutRepository
     const existing = this.completedOrders.get(key);
     if (!existing) return undefined;
     const updated = { ...existing, trackingCode: input.trackingCode };
+    this.completedOrders.set(key, updated);
+    return structuredClone(updated);
+  }
+
+  updateCompletedOrderStatus(input: {
+    merchantId: string;
+    sessionId: string;
+    externalOrderId: string;
+    status: CompletedOrderStatus;
+  }): CompletedOrder | undefined {
+    const key = this.orderKey(input.merchantId, input.sessionId, input.externalOrderId);
+    const existing = this.completedOrders.get(key);
+    if (!existing) return undefined;
+    const updated = { ...existing, status: input.status };
     this.completedOrders.set(key, updated);
     return structuredClone(updated);
   }

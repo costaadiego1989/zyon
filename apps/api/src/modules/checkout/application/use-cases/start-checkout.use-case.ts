@@ -1,8 +1,9 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type {
   CheckoutSession,
   StartCheckoutRequest,
-  StartCheckoutResponse
+  StartCheckoutResponse,
+  SuggestedProduct
 } from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
@@ -16,9 +17,15 @@ import { buildExperienceFromSession } from "../services/checkout-experience.serv
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
+import {
+  CHECKOUT_CROSS_SELL_RECOMMENDER,
+  type CheckoutCrossSellRecommenderPort
+} from "../../domain/ports/cross-sell-recommender.port.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
+  private readonly logger = new Logger(StartCheckoutUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(BUYER_IDENTITY_REPOSITORY) private readonly identity: BuyerIdentityRepository,
@@ -28,7 +35,8 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Optional() private readonly metrics?: MetricsService,
     @Optional() private readonly customerService?: CheckoutCustomerService,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSell?: CheckoutCrossSellRecommenderPort
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
@@ -83,6 +91,8 @@ export class StartCheckoutUseCase {
       })
     );
 
+    const suggestedProducts = await this.resolveSuggestedProducts(input.merchant_id, session);
+
     return {
       conversation_id: session.conversationId,
       session_id: session.sessionId,
@@ -96,9 +106,29 @@ export class StartCheckoutUseCase {
         agent,
         couponBoxEnabled: merchantRules?.couponBoxEnabled,
         rules: merchantRules,
-        serviceFee: this.experienceConfig.platformFeeBrl
+        serviceFee: this.experienceConfig.platformFeeBrl,
+        suggestedProducts
       }),
       turns: session.chatHistory
     };
+  }
+
+  private async resolveSuggestedProducts(merchantId: string, session: CheckoutSession): Promise<SuggestedProduct[]> {
+    if (!this.crossSell || session.cart.items.length === 0) return [];
+    try {
+      return await this.crossSell.suggest({
+        merchant_id: merchantId,
+        session_id: session.sessionId,
+        cart: session.cart
+      });
+    } catch (error) {
+      this.logger.warn({
+        event: "checkout.cross_sell.initial_suggest_failed",
+        merchantId,
+        sessionId: session.sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return [];
+    }
   }
 }

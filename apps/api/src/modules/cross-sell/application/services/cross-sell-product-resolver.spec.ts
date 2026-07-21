@@ -16,6 +16,14 @@ describe("cross-sell-product-resolver", () => {
       assert.equal(result.variant, "preta");
     });
 
+    it("returns Zyon hoodie metadata for the production cross-sell SKU", () => {
+      const result = resolveCrossSellProduct("ZYON-HOOD-001");
+      assert.equal(result.sku, "ZYON-HOOD-001");
+      assert.equal(result.name, "Hoodie Agentic Checkout");
+      assert.equal(result.unit_price, 199.9);
+      assert.equal(result.category, "vestuario");
+    });
+
     it("propagates the suggestion_id when provided", () => {
       const result = resolveCrossSellProduct("NECS-001", "sugg_xyz");
       assert.equal(result.suggestion_id, "sugg_xyz");

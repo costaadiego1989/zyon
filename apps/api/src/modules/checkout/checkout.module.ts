@@ -1,11 +1,11 @@
-import { forwardRef, Module } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
-import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { CheckoutPersistenceModule } from "./checkout-persistence.module.js";
 import { LocalCatalogFallbackAdapter } from "../catalog/infrastructure/local-catalog-fallback.adapter.js";
 import { PRODUCT_SEARCH_PORT } from "./domain/ports/product-search.port.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
@@ -33,11 +33,6 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
 import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
 import { CHECKOUT_EXPERIENCE_CONFIG } from "./domain/checkout-experience.config.js";
 import { createCheckoutExperienceConfig } from "./infrastructure/checkout-experience.config.factory.js";
-import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
-import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.repository.port.js";
-import { OFFER_REPOSITORY } from "./domain/ports/offer.repository.port.js";
-import { ORDER_REPOSITORY } from "./domain/ports/order.repository.port.js";
-import { DASHBOARD_READ_MODEL } from "./domain/ports/dashboard-read-model.port.js";
 import { AGENT_CONTEXT_PORT } from "./domain/ports/agent-context.port.js";
 import { CHECKOUT_SETTINGS_PORT } from "./domain/ports/checkout-settings.port.js";
 import { CHECKOUT_INTERVENTION_LEDGER } from "./domain/ports/checkout-intervention-ledger.port.js";
@@ -51,7 +46,6 @@ import { LangGraphConversationAdapter } from "./infrastructure/adapters/langgrap
 import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
-import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
 import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
@@ -62,8 +56,8 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     CheckoutSettingsModule,
     BuyerPurchaseHistoryModule,
     MerchantModule,
-    forwardRef(() => ShippingModule),
-    BuyerAccountRepositoryModule
+    BuyerAccountRepositoryModule,
+    CheckoutPersistenceModule
   ],
   controllers: [CheckoutController],
   providers: [
@@ -99,15 +93,6 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     LangGraphConversationAdapter,
     BrevoBuyerEmailNotifier,
     ShopifyCommerceOfferAdapter,
-    {
-      provide: CHECKOUT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaCheckoutRepository(prisma),
-      inject: [PRISMA_CLIENT]
-    },
-    { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
-    { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
-    { provide: ORDER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
-    { provide: DASHBOARD_READ_MODEL, useExisting: CHECKOUT_REPOSITORY },
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
@@ -128,11 +113,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     PaymentApprovedHandler
   ],
   exports: [
-    CHECKOUT_REPOSITORY,
-    CHECKOUT_SESSION_REPOSITORY,
-    OFFER_REPOSITORY,
-    ORDER_REPOSITORY,
-    DASHBOARD_READ_MODEL,
+    CheckoutPersistenceModule,
     CHECKOUT_EXPERIENCE_CONFIG,
     CompleteOrderUseCase,
     UpdateOrderTrackingUseCase,
