@@ -1,7 +1,49 @@
 import { useState } from "react";
-import { createWalletClient, custom, parseUnits } from "viem";
-import { base } from "viem/chains";
+import { createWalletClient, custom, parseUnits, type Chain } from "viem";
+import { base, polygon, polygonAmoy, baseSepolia } from "viem/chains";
 
+// Chain-specific CCTP contracts and USDC addresses
+const CHAIN_CONFIG: Record<string, { chain: Chain; cctpTokenMessenger: `0x${string}`; usdc: `0x${string}`; stellarDomain: number; explorer: string }> = {
+  // Base mainnet (chain 8453)
+  'base:mainnet': {
+    chain: base,
+    cctpTokenMessenger: '0xbd3fa81b58ba92a82136038b25adec7066af3155',
+    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    stellarDomain: 6,
+    explorer: 'https://basescan.org',
+  },
+  // Base Sepolia testnet (chain 84532)
+  'base:testnet': {
+    chain: baseSepolia,
+    cctpTokenMessenger: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5',
+    usdc: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    stellarDomain: 6,
+    explorer: 'https://sepolia.basescan.org',
+  },
+  // Polygon mainnet (chain 137)
+  'polygon:mainnet': {
+    chain: polygon,
+    cctpTokenMessenger: '0x9daF8c91AEFAE50b9c0E69629D3F6Ca40cA3B3FE',
+    usdc: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359',
+    stellarDomain: 6,
+    explorer: 'https://polygonscan.com',
+  },
+  // Polygon Amoy testnet (chain 80002)
+  'polygon:testnet': {
+    chain: polygonAmoy,
+    cctpTokenMessenger: '0x9f3B8679c73C2Fef8b59B4f3444d4e156fb70AA5',
+    usdc: '0x41E94Eb019C0762f9Bfcf9Fb1E58725BfB0e7582',
+    stellarDomain: 6,
+    explorer: 'https://amoy.polygonscan.com',
+  },
+};
+
+function resolveChainConfig(chainName?: string, network?: string) {
+  const key = `${chainName || 'polygon'}:${network || 'testnet'}`;
+  return CHAIN_CONFIG[key] ?? CHAIN_CONFIG['polygon:testnet'];
+}
+
+// Legacy exports preserved for backward compat
 const CCTP_TOKEN_MESSENGER = "0xbd3fa81b58ba92a82136038b25adec7066af3155" as const;
 const USDC_BASE = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
 const STELLAR_DOMAIN_ID = 6;
@@ -73,19 +115,25 @@ export interface UseMetaMaskPaymentResult {
   status: MetaMaskPaymentStatus;
   txHash: string | null;
   error: string | null;
-  payWithMetaMask: (amountUSDC: string, merchantStellarAddress: string) => Promise<void>;
+  explorerUrl: string | null;
+  payWithMetaMask: (amountUSDC: string, merchantStellarAddress: string, chainName?: string, network?: string) => Promise<void>;
 }
 
 export function useMetaMaskPayment(): UseMetaMaskPaymentResult {
   const [status, setStatus] = useState<MetaMaskPaymentStatus>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [explorerUrl, setExplorerUrl] = useState<string | null>(null);
 
-  async function payWithMetaMask(amountUSDC: string, merchantStellarAddress: string) {
+  async function payWithMetaMask(amountUSDC: string, merchantStellarAddress: string, chainName?: string, network?: string) {
     setError(null);
     setTxHash(null);
+    setExplorerUrl(null);
 
     try {
+      // Resolve chain config from merchant settings
+      const cfg = resolveChainConfig(chainName, network);
+
       // 1. Connect MetaMask
       setStatus("connecting");
       type WindowEthereum = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
@@ -95,7 +143,7 @@ export function useMetaMaskPayment(): UseMetaMaskPaymentResult {
       }
 
       const client = createWalletClient({
-        chain: base,
+        chain: cfg.chain,
         transport: custom(ethereum),
       });
 
@@ -108,24 +156,25 @@ export function useMetaMaskPayment(): UseMetaMaskPaymentResult {
       // 2. Approve CCTP TokenMessenger to spend USDC
       setStatus("approving");
       await client.writeContract({
-        address: USDC_BASE,
+        address: cfg.usdc,
         abi: ERC20_ABI,
         functionName: "approve",
-        args: [CCTP_TOKEN_MESSENGER, amount],
+        args: [cfg.cctpTokenMessenger, amount],
         account,
       });
 
-      // 3. depositForBurn — burns USDC on Base, Circle attests and mints on Stellar
+      // 3. depositForBurn — burns USDC on source chain, Circle attests and mints on Stellar
       setStatus("burning");
       const hash = await client.writeContract({
-        address: CCTP_TOKEN_MESSENGER,
+        address: cfg.cctpTokenMessenger,
         abi: TOKEN_MESSENGER_ABI,
         functionName: "depositForBurn",
-        args: [amount, STELLAR_DOMAIN_ID, mintRecipient, USDC_BASE],
+        args: [amount, cfg.stellarDomain, mintRecipient, cfg.usdc],
         account,
       });
 
       setTxHash(hash);
+      setExplorerUrl(`${cfg.explorer}/tx/${hash}`);
       setStatus("submitted");
     } catch (err) {
       setStatus("error");
@@ -133,5 +182,5 @@ export function useMetaMaskPayment(): UseMetaMaskPaymentResult {
     }
   }
 
-  return { status, txHash, error, payWithMetaMask };
+  return { status, txHash, error, explorerUrl, payWithMetaMask };
 }

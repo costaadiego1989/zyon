@@ -46,6 +46,17 @@ export interface CheckoutExperienceSnapshot {
   };
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
+  suggestedProducts?: Array<{
+    suggestion_id?: string;
+    sku: string;
+    name: string;
+    unit_price: number;
+    image_url?: string;
+    product_url?: string;
+    category?: string;
+    variant?: string;
+    description?: string;
+  }>;
   customer?: {
     email?: string;
     email_verified?: boolean;

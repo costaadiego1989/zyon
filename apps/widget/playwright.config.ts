@@ -27,12 +27,12 @@ export default defineConfig({
   projects: [
     {
       name: "widget-mocked",
-      testMatch: /widget\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|checkout-integration\.spec\.ts|voice-checkout\.spec\.ts|phone-login\.spec\.ts|voice-phone-login\.spec\.ts|chat-purchase-flow\.spec\.ts|voice-purchase-flow\.spec\.ts/,
+      testMatch: /widget\.spec\.ts|cross-sell-combo\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|checkout-integration\.spec\.ts|voice-checkout\.spec\.ts|phone-login\.spec\.ts|voice-phone-login\.spec\.ts|chat-purchase-flow\.spec\.ts|voice-purchase-flow\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] }
     },
     {
       name: "widget-realapi",
-      testMatch: /realapi[\\/].*\.spec\.ts|regressions[\\/].*\.spec\.ts/,
+      testMatch: /realapi[\\/].*\.spec\.ts|regressions[\\/].*\.spec\.ts|embed-customer-update-pix\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: WIDGET_URL }
     }
   ],

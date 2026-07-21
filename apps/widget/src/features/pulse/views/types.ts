@@ -74,6 +74,12 @@ export interface CompleteLine {
   valStyle: CSSProperties;
 }
 
+export interface CardPaymentIntentClientData {
+  id: string;
+  clientSecret: string;
+  stripePublishableKey: string;
+}
+
 export interface MessageRender {
   showAvatar: boolean;
   spacerAvatar: boolean;
@@ -102,6 +108,12 @@ export interface MessageRender {
   methods?: PayMethodItem[];
   showInstallments?: boolean;
   installments?: InstallmentItem[];
+  cardPayMethod?: string;
+  cardholderName?: string;
+  cardTotalLabel?: string;
+  createCardPaymentIntent?: () => Promise<CardPaymentIntentClientData>;
+  confirmCardPayment?: (orderId: string) => void | Promise<void>;
+  cardPaymentError?: (message: string) => void;
   statusText?: string;
   statusStyle?: CSSProperties;
   steps?: SettlementStep[];

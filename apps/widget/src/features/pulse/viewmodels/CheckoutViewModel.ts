@@ -2,6 +2,7 @@ import React from 'react';
 import { resolveTenantDiscount } from '../config/tenantDiscount';
 import type { AgentOrbPlacement } from '../config/agentOrbPresets';
 import { PulseAPI } from '../model/PulseAPI';
+import { injectPulseFonts } from '../../../hooks/checkout-presentation.js';
 import type {
   Bundle,
   Cart,
@@ -284,11 +285,16 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   mount(): void {
+    injectPulseFonts();
     void this.ensureApi()
       .then((api) => api.getOrders())
       .then((orders) => this.setState({ orders }));
     void this.ensureApi()
       .then((api) => api.ensureSession())
+      .then(() => {
+        // Refresh render state after session loads to pick up updated storeName and agentName from API
+        this.notify();
+      })
       .catch(() => { /* fire-and-forget */ });
   }
 
@@ -331,10 +337,18 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   get agentName(): string {
+    // After ensureSession(), the API has updated agentName from API response
+    if (this.api?.agentName && this.api.agentName !== 'Pulse' && this.api.agentName !== 'Aurora Home') {
+      return this.api.agentName;
+    }
     return this.props.agentName || 'Pulse';
   }
 
   get storeName(): string {
+    // After ensureSession(), the API has updated storeName from API response
+    if (this.api?.storeName && this.api.storeName !== 'Aurora Home') {
+      return this.api.storeName;
+    }
     return this.props.storeName || '';
   }
 
@@ -1039,7 +1053,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         this.setState((s) => ({ customer: { ...s.customer, [k]: val } }));
         if (e.results[e.results.length - 1].isFinal) {
           this.stopFieldDictation();
-          if (val.trim()) this.after(280, () => this.confirmField());
+          const delay = k === 'email' ? 1200 : k === 'name' ? 600 : 280;
+          if (val.trim()) this.after(delay, () => this.confirmField());
         }
       };
       rec.onerror = () => {
@@ -1076,11 +1091,16 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   normalizeField(key: keyof Customer, txt: string): string {
-    if (key === 'cpf' || key === 'cep' || key === 'number') {
-      const digits = (txt || '').replace(/\D/g, '');
-      return digits || txt.trim();
+    if (key === 'cpf' || key === 'cep' || key === 'number' || key === 'phone') {
+      // Numeric fields: remove ALL non-digits
+      return (txt || '').replace(/\D/g, '');
     }
-    return (txt || '').trim();
+    if (key === 'email') {
+      // Email: remove ALL whitespace + lowercase (voice agent adds spaces)
+      return (txt || '').replace(/\s+/g, '').toLowerCase();
+    }
+    // Name, complement: collapse multiple spaces into one, trim edges
+    return (txt || '').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
   }
 
   startChat = async (): Promise<void> => {
@@ -1103,11 +1123,17 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     });
     const api = await this.ensureApi();
     const [{ product, qty }, rec] = await Promise.all([api.getCart(), api.getRecommendation()]);
-    const coupon = await api.getBestCoupon(product.price, this.tenantDiscount());
+    if (qty <= 0 || product.id === 'empty') {
+      this.setState({ chatMode: 'empty', searchQuery: '', searchResults: [], searching: false });
+      return;
+    }
+    const coupon = await api.getBestCoupon(product.price, this.props.discount ? this.tenantDiscount() : undefined);
+    // Only show recommendation if it has valid data (title + price > 0)
+    const validRec = rec && rec.title && rec.price > 0 ? rec : null;
     this.setState({
       chatMode: 'flow',
       cart: { product, qty, bundle: null, coupon, shipping: null, payMethod: null },
-      recommendation: rec,
+      recommendation: validRec,
       couponShownAt: Date.now(),
     });
     this.startUrgencyTicker();
@@ -1118,7 +1144,6 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     this.buyAgain();
   };
 
-  /** Esvazia carrinho, limpa sessão e abre tela de busca (voz/texto). */
   buyAgain = (): void => {
     if (this.postFinalizeTimer) {
       clearTimeout(this.postFinalizeTimer);
@@ -1219,10 +1244,10 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         {
           role: 'agent',
           kind: 'text',
-          text: `Oi! Eu sou a ${this.agentName}, gerente de vendas da ${this.storeName}. Vi que você está levando o ${product.title} — já garanti a melhor promoção e apliquei no seu carrinho.`,
+          text: `Oi! Eu sou a ${this.agentName}, gerente de vendas da ${this.storeName}. Vi que você está levando o ${product.title}${this.state.cart.coupon?.code ? ' — já garanti a melhor promoção e apliquei no seu carrinho.' : '. Vamos finalizar sua compra?'}`,
         },
         { role: 'agent', kind: 'product' },
-        { role: 'agent', kind: 'coupon' },
+        ...(this.state.cart.coupon?.code ? [{ role: 'agent' as const, kind: 'coupon' as const }] : []),
       ],
       [this.A('Continuar', this.onAfterPromo, true)],
       280,
@@ -1272,7 +1297,19 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   onFieldInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const k = this.state.askingField;
     if (!k) return;
-    const v = e.target.value;
+    let v = e.target.value;
+    // Apply input masks for CPF and CEP
+    if (k === 'cpf') {
+      const digits = v.replace(/\D/g, '').slice(0, 11);
+      if (digits.length <= 3) v = digits;
+      else if (digits.length <= 6) v = digits.slice(0, 3) + '.' + digits.slice(3);
+      else if (digits.length <= 9) v = digits.slice(0, 3) + '.' + digits.slice(3, 6) + '.' + digits.slice(6);
+      else v = digits.slice(0, 3) + '.' + digits.slice(3, 6) + '.' + digits.slice(6, 9) + '-' + digits.slice(9);
+    } else if (k === 'cep') {
+      const digits = v.replace(/\D/g, '').slice(0, 8);
+      if (digits.length <= 5) v = digits;
+      else v = digits.slice(0, 5) + '-' + digits.slice(5);
+    }
     this.setState((s) => ({ customer: { ...s.customer, [k]: v } }));
   };
 
@@ -1309,6 +1346,14 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   onAddressDone = async (): Promise<void> => {
     const api = await this.ensureApi();
+    const c = this.state.customer;
+    if (c.name && c.email && c.cpf) {
+      try {
+        await api.updateCustomer({ name: c.name, email: c.email, cpf: c.cpf, phone: c.phone });
+      } catch {
+        // best-effort sync; payment flow still has local fallback
+      }
+    }
     const opts = await api.getShipping(this.state.customer);
     this.setState({ shipOptions: opts });
     this.agentSay(
@@ -1325,6 +1370,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   onChooseShipping = (opt: ShippingOption) => (): void => {
     this.setState((s) => ({ cart: { ...s.cart, shipping: opt } }));
+    void this.ensureApi()
+      .then((api) => api.selectShipping(opt.key))
+      .catch(() => {
+        // best-effort persistence; create payment will surface a friendly error if shipping was not saved
+      });
     this.pickUser('Entrega · ' + opt.label);
     this.agentSay(
       [
@@ -1379,7 +1429,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           },
           { role: 'agent', kind: 'cardform', installments: true },
         ],
-        [this.A('Pagar ' + calc.totalStr, this.onPay('credito'), true), this.A('Trocar método', this.onAnother)],
+        [this.A('Trocar método', this.onAnother)],
       );
     } else if (m === 'debito') {
       this.pickUser('Pagar com débito');
@@ -1388,7 +1438,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           { role: 'agent', kind: 'text', text: 'Pagamento à vista no débito. É só confirmar os dados do cartão:' },
           { role: 'agent', kind: 'cardform', installments: false },
         ],
-        [this.A('Pagar ' + calc.totalStr, this.onPay('debito'), true), this.A('Trocar método', this.onAnother)],
+        [this.A('Trocar método', this.onAnother)],
       );
     } else {
       this.pickUser('Pagar com crypto');
@@ -1453,26 +1503,54 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     });
   };
 
+  async createCardPaymentIntent(method: PayMethod = 'credito'): Promise<{ id: string; clientSecret: string; stripePublishableKey: string }> {
+    const api = await this.ensureApi();
+    const order = await api.createOrder(method, undefined, method === 'credito' ? this.state.installment : undefined);
+    if (!order.clientSecret || !order.stripePublishableKey) {
+      throw new Error('stripe_payment_intent_payload_missing');
+    }
+    return { id: order.id, clientSecret: order.clientSecret, stripePublishableKey: order.stripePublishableKey };
+  }
+
+  confirmCardPayment = async (orderId: string, method: PayMethod = 'credito'): Promise<void> => {
+    const api = await this.ensureApi();
+    await api.confirmStripePayment(orderId);
+    const c = this.state.cart;
+    const calc = this.calc(c);
+    this.completeOrder(method, orderId, false, c, calc);
+  };
+
   async finalize(method: PayMethod): Promise<void> {
     const api = await this.ensureApi();
     const c = this.state.cart;
     const calc = this.calc(c);
     const crypto = method === 'crypto';
-    const order = await api.createOrder(method);
+    try {
+      const order = await api.createOrder(method, undefined, method === 'credito' ? this.state.installment : undefined);
 
-    if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
-      this.setState({
-        pixIntentId: order.id,
-        pixQrCode: order.pixQrCode ?? null,
-        pixCopyPaste: order.pixCopyPaste ?? null,
-        pixExpiresAt: order.pixExpiresAt ?? null,
-        pixStatus: 'waiting',
-      });
-      this.startPixPolling(order.id);
-      return;
+      if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
+        this.setState({
+          pixIntentId: order.id,
+          pixQrCode: order.pixQrCode ?? null,
+          pixCopyPaste: order.pixCopyPaste ?? null,
+          pixExpiresAt: order.pixExpiresAt ?? null,
+          pixStatus: 'waiting',
+        });
+        this.startPixPolling(order.id);
+        return;
+      }
+
+      this.completeOrder(method, order.id, crypto, c, calc);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'payment_intent_failed';
+      const friendly = method === 'credito'
+        ? 'Não consegui iniciar o pagamento no cartão. Verifique se a conta Stripe/Asaas do lojista está configurada e tente outro método.'
+        : method === 'pix'
+          ? 'Não consegui gerar o Pix real agora. Tente novamente ou escolha outro método.'
+          : 'Não consegui iniciar esse pagamento. Tente outro método.';
+      this.setState({ typing: false, actions: [this.A('Trocar método', this.onAnother, true)] });
+      this.push({ role: 'agent', kind: 'text', text: `${friendly} (${message.slice(0, 140)})` });
     }
-
-    this.completeOrder(method, order.id, crypto, c, calc);
   }
 
   startPixPolling(intentId: string): void {
@@ -1610,7 +1688,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     this.setState({ chatMode: 'loading', searchResults: [], searchQuery: '' });
     const api = await this.ensureApi();
     const [coupon, rec] = await Promise.all([
-      api.getBestCoupon(product.price, this.tenantDiscount()),
+      api.getBestCoupon(product.price, this.props.discount ? this.tenantDiscount() : undefined),
       api.getRecommendation(),
     ]);
     this.setState({
@@ -1925,6 +2003,15 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     }
 
     if (m.kind === 'cardform') {
+      base.cardPayMethod = m.installments ? 'credito' : 'debito';
+      base.createCardPaymentIntent = () => this.createCardPaymentIntent(m.installments ? 'credito' : 'debito');
+      base.confirmCardPayment = (orderId: string) => this.confirmCardPayment(orderId, m.installments ? 'credito' : 'debito');
+      base.cardPaymentError = (message: string) => {
+        this.setState({ actions: [this.A('Trocar método', this.onAnother, true)] });
+        this.push({ role: 'agent', kind: 'text', text: message });
+      };
+      base.cardholderName = this.state.customer.name || '';
+      base.cardTotalLabel = calc.totalStr;
       base.showInstallments = !!m.installments;
       if (m.installments) {
         base.installments = [1, 3, 6, 12].map((n) => {
@@ -2145,7 +2232,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const cartRows: { label: string; value: string; valStyle: React.CSSProperties }[] = [];
     const cvS: React.CSSProperties = { fontSize: '12.5px', fontWeight: 600, flex: 'none', whiteSpace: 'nowrap' };
     if (c.bundle) cartRows.push({ label: 'Combo · ' + c.bundle.title, value: this.brl(c.bundle.price), valStyle: cvS });
-    if (c.coupon)
+    if (c.coupon && c.coupon.code)
       cartRows.push({ label: 'Promoção · ' + c.coupon.code, value: this.brl(c.coupon.amount), valStyle: { ...cvS, color: '#1ED760' } });
     if (c.shipping)
       cartRows.push({
@@ -2162,7 +2249,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     if (this.state.completed) cartState = 'Pedido confirmado';
     else if (c.payMethod) cartState = 'Pronto p/ pagar';
     else if (c.shipping) cartState = 'Frete calculado';
-    else if (c.coupon) cartState = 'Promoção aplicada';
+    else if (c.coupon && c.coupon.code) cartState = 'Promoção aplicada';
     else if (c.product) cartState = 'Aguardando';
 
     const actions = this.state.actions.map((a) => ({

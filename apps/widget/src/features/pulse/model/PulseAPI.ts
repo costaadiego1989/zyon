@@ -98,6 +98,30 @@ export class PulseAPI {
     return null;
   }
 
+  private checkoutCartPayload(): {
+    currency: string;
+    source: string;
+    total: number;
+    items: Array<{ sku: string; name: string; price: number; quantity: number }>;
+  } {
+    if (!this._initialCart) {
+      return { currency: this.currency, source: 'storefront', total: 0, items: [] };
+    }
+    const { product, qty } = this._initialCart;
+    const quantity = Number.isFinite(qty) && qty > 0 ? qty : 1;
+    return {
+      currency: this.currency,
+      source: 'storefront',
+      total: Math.round(product.price * quantity * 100) / 100,
+      items: [{
+        sku: product.id,
+        name: product.title,
+        price: product.price,
+        quantity
+      }]
+    };
+  }
+
   async loginFromSession(sessionId: string): Promise<{ token: string; name: string; email: string } | null> {
     if (this.baseUrl) {
       try {
@@ -129,8 +153,8 @@ export class PulseAPI {
           headers: this._headers(),
           body: JSON.stringify({
             merchant_id: this.merchantId,
-            cart: { items: [] },
-            customer_hints: {}
+            cart: this.checkoutCartPayload(),
+            customer: this._initialCustomer ?? {}
           }),
         });
         if (r.ok) {
@@ -194,15 +218,18 @@ export class PulseAPI {
             sku: string;
             name: string;
             description?: string;
+            price?: number;
+            unit_price?: number;
             price_cents?: number;
             tags?: string[];
+            category?: string;
           }>;
           if (products.length > 0) {
             return products.map((p) => ({
               id: p.sku,
               title: p.name,
-              subtitle: p.description ?? '',
-              price: (p.price_cents ?? 0) / 100,
+              subtitle: p.description ?? p.category ?? '',
+              price: p.unit_price ?? p.price ?? ((p.price_cents ?? 0) / 100),
               tags: p.tags ?? [],
             }));
           }
@@ -216,19 +243,51 @@ export class PulseAPI {
   }
 
   async getRecommendation(): Promise<Bundle> {
-    // In real flow, cross-sell comes from /embed/chat responses via experience.suggestedProducts
-    // For MVP, return empty bundle or cached suggestion
+    if (!this._cachedExperience && this.sessionToken && this.baseUrl) {
+      await this.ensureSession();
+    }
+    // Check cached experience first
     if (this._cachedExperience?.suggestedProducts?.length) {
       const sug = this._cachedExperience.suggestedProducts[0];
-      return {
-        id: sug.sku,
-        title: sug.name,
-        subtitle: sug.description ?? '',
-        price: sug.unit_price ?? 0,
-        was: sug.unit_price ?? 0
-      };
+      if (sug.unit_price > 0 && sug.name) {
+        return {
+          id: sug.sku,
+          title: sug.name,
+          subtitle: sug.description ?? '',
+          price: sug.unit_price,
+          was: sug.unit_price
+        };
+      }
     }
-    // Safe fallback: empty bundle won't be added unless explicitly selected
+    // Call /embed/cross-sell/suggest endpoint for dynamic recommendations
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const sessionId = await this.ensureSession();
+        const r = await fetch(`${this.baseUrl}/embed/cross-sell/suggest`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ session_id: sessionId }),
+        });
+        if (r.ok) {
+          const data = await r.json() as any;
+          const suggestions = data.suggestions ?? data.products ?? [];
+          if (suggestions.length > 0) {
+            const sug = suggestions[0];
+            const price = sug.unit_price ?? sug.price ?? 0;
+            if (price > 0 && (sug.name || sug.title)) {
+              return {
+                id: sug.sku ?? sug.id ?? 'cross-sell',
+                title: sug.name ?? sug.title ?? '',
+                subtitle: sug.description ?? sug.subtitle ?? '',
+                price,
+                was: price
+              };
+            }
+          }
+        }
+      } catch { /* fall through */ }
+    }
+    // Safe fallback: empty bundle won't be shown
     return {
       id: 'bundle-empty',
       title: '',
@@ -239,38 +298,109 @@ export class PulseAPI {
   }
 
   async getBestCoupon(productPrice: number, discount?: TenantDiscount): Promise<Coupon> {
-    // No coupon for empty carts
+    // Try real API coupon application first
+    if (productPrice > 0 && this.sessionToken && this.baseUrl) {
+      try {
+        const sessionId = await this.ensureSession();
+        // Try to apply ZYON10 coupon via embed/coupons/apply endpoint
+        const couponCode = this._cachedExperience?.rules?.couponBoxEnabled !== false ? 'ZYON10' : '';
+        if (couponCode) {
+          const r = await fetch(`${this.baseUrl}/embed/coupons/apply`, {
+            method: 'POST',
+            headers: this._headers(),
+            body: JSON.stringify({
+              session_id: sessionId,
+              merchant_id: this.merchantId,
+              code: couponCode,
+              cart: {
+                currency: 'BRL',
+                total: productPrice,
+                items: this._cachedExperience?.items ?? [{ sku: 'UNKNOWN', name: 'Produto', price: productPrice, quantity: 1 }],
+              },
+            }),
+          });
+          if (r.ok) {
+            const data = await r.json() as any;
+            const discountApplied = data.discount_applied ?? 0;
+            if (discountApplied > 0) {
+              const pct = Math.round((discountApplied / productPrice) * 100);
+              return {
+                code: couponCode,
+                amount: -discountApplied,
+                displayAmount: -discountApplied,
+                label: `${pct}% de desconto`,
+                appliedPercent: pct,
+                pendingPercent: 0,
+                pendingAmount: 0,
+                urgencyMinutes: 5,
+                totalPercent: pct,
+              };
+            }
+          }
+        }
+      } catch { /* fall through to tenant discount or empty */ }
+    }
+    // Fallback: use tenant discount if configured
     if (productPrice <= 0) {
       return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0, pendingAmount: 0, urgencyMinutes: 0, totalPercent: 0 };
     }
-    const d = discount ? resolveTenantDiscount({ discount }) : this.discount;
-    return this._wait(buildCouponFromTenant(productPrice, d));
+    if (discount) {
+      const d = resolveTenantDiscount({ discount });
+      return this._wait(buildCouponFromTenant(productPrice, d));
+    }
+    // No coupon available from API and no tenant discount
+    return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0, pendingAmount: 0, urgencyMinutes: 0, totalPercent: 0 };
+  }
+
+  async updateCustomer(customer: { name: string; email: string; cpf: string; phone?: string }): Promise<{ ok: boolean }> {
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const sessionId = await this.ensureSession();
+        const r = await fetch(`${this.baseUrl}/embed/customer/update`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({
+            session_id: sessionId,
+            customer: {
+              fullName: customer.name,
+              email: customer.email,
+              cpf: customer.cpf,
+              phone: customer.phone,
+            },
+          }),
+        });
+        if (r.ok) {
+          return (await r.json()) as { ok: boolean };
+        }
+      } catch {
+        // fall through
+      }
+    }
+    return { ok: true };
   }
 
   async getShipping(customer?: { cep?: string; number?: string; complement?: string }): Promise<ShippingOption[]> {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/shipping/evaluate`, {
+        const r = await fetch(`${this.baseUrl}/embed/shipping/quote`, {
           method: 'POST',
           headers: this._headers(),
           body: JSON.stringify({
             session_id: sessionId,
-            postal_code: customer?.cep ?? '',
-            address_number: customer?.number ?? '',
-            address_complement: customer?.complement ?? '',
+            destination_zip: customer?.cep ?? '',
           }),
         });
         if (r.ok) {
           const data = await r.json() as any;
-          const opts = (data.options ?? []) as Array<any>;
+          const opts = (data.results ?? data.options ?? []) as Array<any>;
           if (opts.length > 0) {
             return opts.map((o) => ({
-              key: o.key ?? o.carrier_name ?? 'shipping',
+              key: o.carrier_key ?? o.key ?? 'shipping',
               label: o.label ?? o.carrier_name ?? 'Frete',
-              tag: o.tag ?? (o.delivery_days === 1 ? 'Mais rápido' : 'Econômico'),
-              sub: o.sub ?? (o.delivery_days ? `Chega em ${o.delivery_days} dias úteis` : 'Prazo a confirmar'),
-              cost: (o.price_cents ?? 0) / 100,
+              tag: o.is_free ? 'Grátis' : (o.eta_days <= 2 ? 'Mais rápido' : o.eta_days <= 5 ? 'Rápido' : 'Econômico'),
+              sub: o.eta_days ? `Chega em ${o.eta_days} dias úteis` : 'Prazo a confirmar',
+              cost: o.is_free ? 0 : (o.price ?? o.price_cents ?? 0) / 100,
             }));
           }
         }
@@ -283,31 +413,61 @@ export class PulseAPI {
     ];
   }
 
-  async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string }> {
+  async selectShipping(carrierKey: string, _sessionId?: string): Promise<{ ok: boolean }> {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = _sessionId ?? await this.ensureSession();
+        const r = await fetch(`${this.baseUrl}/embed/shipping/select`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ session_id: sessionId, carrier_key: carrierKey }),
+        });
+        if (r.ok) return { ok: true };
+        const errorText = await r.text().catch(() => '');
+        throw new Error(errorText || `shipping_select_failed_${r.status}`);
+      } catch (error) {
+        throw error instanceof Error ? error : new Error('shipping_select_failed');
+      }
+    }
+    return { ok: true };
+  }
+
+  async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string; clientSecret?: string; stripePublishableKey?: string }> {
+    if (this.sessionToken && this.baseUrl) {
+      try {
+        const sessionId = _sessionId ?? await this.ensureSession();
+        // Map widget pay method to API method field
+        const methodMap: Record<string, string> = { pix: 'pix', credito: 'card', debito: 'card', crypto: 'crypto' };
+        const method = methodMap[payMethod] ?? payMethod;
         const r = await fetch(`${this.baseUrl}/embed/payment/intents`, {
           method: 'POST',
           headers: this._headers(),
           body: JSON.stringify({
             session_id: sessionId,
-            idempotency_key: `pulse-${Date.now()}`,
-            payment_method: payMethod,
+            idempotency_key: `pulse-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            method,
             ...(installments ? { installments } : {}),
           }),
         });
         if (r.ok) {
           const data = await r.json() as any;
-          const id = data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
+          const id = data.id ?? data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
+          // API returns PaymentIntentSnapshot with buyerFacing containing PIX data
+          const bf = data.buyerFacing ?? data.buyer_facing ?? {};
           return {
             id,
-            pixQrCode: data.pix_qr_code,
-            pixCopyPaste: data.pix_copy_paste,
-            pixExpiresAt: data.pix_expires_at
+            pixQrCode: bf.encodedQrImage ? `data:image/png;base64,${bf.encodedQrImage}` : undefined,
+            pixCopyPaste: bf.qrCodeCopyPaste ?? bf.pix_copy_paste ?? data.pix_copy_paste,
+            pixExpiresAt: bf.quoteExpiresAt ?? bf.expiresAt ?? bf.expires_at ?? data.pix_expires_at ?? data.expires_at ?? new Date(Date.now() + 15 * 60000).toISOString(),
+            clientSecret: bf.clientSecret ?? bf.client_secret ?? data.clientSecret ?? data.client_secret,
+            stripePublishableKey: bf.stripePublishableKey ?? bf.stripe_publishable_key ?? data.stripePublishableKey ?? data.stripe_publishable_key,
           };
         }
-      } catch { /* fall through to fallback */ }
+        const errorText = await r.text().catch(() => '');
+        throw new Error(errorText || `payment_intent_failed_${r.status}`);
+      } catch (error) {
+        throw error instanceof Error ? error : new Error('payment_intent_failed');
+      }
     }
     // Fallback: generate mock but mark clearly as demo
     if (payMethod === 'pix') {
@@ -318,6 +478,21 @@ export class PulseAPI {
       };
     }
     return { id: `ORD-${Date.now().toString(36).toUpperCase()}` };
+  }
+
+  async confirmStripePayment(intentId: string, _sessionId?: string): Promise<{ status: string; intent_id: string }> {
+    if (this.sessionToken && this.baseUrl) {
+      const sessionId = _sessionId ?? await this.ensureSession();
+      const r = await fetch(`${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/stripe/confirm`, {
+        method: 'POST',
+        headers: this._headers(),
+        body: JSON.stringify({ session_id: sessionId }),
+      });
+      if (r.ok) return (await r.json()) as { status: string; intent_id: string };
+      const errorText = await r.text().catch(() => '');
+      throw new Error(errorText || `stripe_confirm_failed_${r.status}`);
+    }
+    return { status: 'approved', intent_id: intentId };
   }
 
   async checkPaymentStatus(intentId: string): Promise<'pending' | 'paid' | 'failed'> {
