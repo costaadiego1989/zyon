@@ -105,7 +105,7 @@ export type TenantOrder = {
   id: string;
   session_id: string;
   external_order_id: string;
-  status: "approved" | "cancelled";
+  status: string;
   total: number;
   currency: string;
   tracking_code: string | null;

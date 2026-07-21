@@ -164,6 +164,8 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+  const [trackingDrafts, setTrackingDrafts] = useState<Record<string, string>>({});
+  const [labelBusyOrderId, setLabelBusyOrderId] = useState<string | null>(null);
   const PAGE_SIZE = 10;
 
   useEffect(() => {
@@ -238,6 +240,56 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
     });
     downloadCsv(header, rows, `pedidos-${new Date().toISOString().slice(0, 10)}.csv`);
   };
+
+  async function saveManualTracking(order: TenantOrder) {
+    const trackingCode = (trackingDrafts[order.id] ?? "").trim();
+    if (!trackingCode) {
+      setMessage("Informe o código de rastreio.");
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.updateOrderTracking(order.id, {
+        tracking_code: trackingCode,
+        carrier: "manual",
+        status: "label_generated",
+      });
+      setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: trackingCode } : item));
+      setTrackingDrafts((prev) => ({ ...prev, [order.id]: "" }));
+      setMessage("Rastreio atualizado e webhook disparado.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function buyLabel(order: TenantOrder) {
+    const customer = order.customer as { full_name?: string; document?: string; address?: { zip?: string } } | null;
+    const cart = order.cart as { items?: Array<{ quantity?: number }> };
+    setLabelBusyOrderId(order.id);
+    setMessage(null);
+    try {
+      const result = await api.purchaseShippingLabel({
+        order_id: order.external_order_id,
+        service_id: 1,
+        from_zip: "01000-000",
+        to_zip: customer?.address?.zip ?? "01310-100",
+        to_name: customer?.full_name ?? "Comprador",
+        to_document: customer?.document ?? "00000000000",
+        packages: [{ weightKg: 1, widthCm: 20, heightCm: 10, lengthCm: 20, quantity: Math.max(1, cart.items?.[0]?.quantity ?? 1) }],
+      }) as { tracking_code?: string };
+      if (result.tracking_code) {
+        setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: result.tracking_code ?? item.tracking_code } : item));
+      }
+      setMessage("Etiqueta comprada e rastreio sincronizado.");
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLabelBusyOrderId(null);
+    }
+  }
 
   return (
     <div>
@@ -329,7 +381,15 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                     {expandedOrderId === order.id ? (
                       <tr>
                         <td colSpan={6} style={{ padding: "16px 22px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
-                          <OrderDetailGrid order={order} />
+                          <OrderDetailGrid
+                            order={order}
+                            trackingDraft={trackingDrafts[order.id] ?? ""}
+                            onTrackingDraftChange={(value) => setTrackingDrafts((prev) => ({ ...prev, [order.id]: value }))}
+                            onSaveTracking={() => void saveManualTracking(order)}
+                            onBuyLabel={() => void buyLabel(order)}
+                            labelBusy={labelBusyOrderId === order.id}
+                            busy={busy}
+                          />
                         </td>
                       </tr>
                     ) : null}
@@ -372,7 +432,23 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
 
 // ── Order Detail Grid (private) ──────────────────────────────────────────────
 
-function OrderDetailGrid({ order }: { order: TenantOrder }) {
+function OrderDetailGrid({
+  order,
+  trackingDraft,
+  onTrackingDraftChange,
+  onSaveTracking,
+  onBuyLabel,
+  labelBusy,
+  busy,
+}: {
+  order: TenantOrder;
+  trackingDraft: string;
+  onTrackingDraftChange: (value: string) => void;
+  onSaveTracking: () => void;
+  onBuyLabel: () => void;
+  labelBusy: boolean;
+  busy: boolean;
+}) {
   const cart = order.cart as { items?: Array<{ name?: string; title?: string; quantity?: number; price?: number }> };
   const items = Array.isArray(cart?.items) ? cart.items : [];
   const customer = order.customer as {
@@ -416,6 +492,32 @@ function OrderDetailGrid({ order }: { order: TenantOrder }) {
       <section>
         <h4>Envio</h4>
         <p>{order.tracking_code ? order.tracking_code : "Sem rastreamento"}</p>
+        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+          <input
+            placeholder="Código de rastreio manual"
+            value={trackingDraft}
+            onChange={(event) => onTrackingDraftChange(event.target.value)}
+            style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "12.5px var(--mono)" }}
+          />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={onSaveTracking}
+              disabled={busy || !trackingDraft.trim()}
+              style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-dark)", color: "white", font: "600 12px var(--sans)", cursor: busy ? "not-allowed" : "pointer" }}
+            >
+              Salvar rastreio
+            </button>
+            <button
+              type="button"
+              onClick={onBuyLabel}
+              disabled={labelBusy}
+              style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: labelBusy ? "not-allowed" : "pointer" }}
+            >
+              {labelBusy ? "Comprando..." : "Comprar etiqueta Melhor Envio"}
+            </button>
+          </div>
+        </div>
       </section>
 
       {order.cancellation_reason ? (
