@@ -434,13 +434,22 @@ export interface AcceptedOffer {
   expiresAt: string;
 }
 
+export type CompletedOrderStatus =
+  | "pending"
+  | "approved"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "returned";
+
 export interface CompletedOrder {
   merchantId: string;
   sessionId: string;
   externalOrderId: string;
   orderTotal: number;
   currency: CurrencyCode;
-  status?: "approved" | "cancelled";
+  status?: CompletedOrderStatus;
   acceptedOfferId?: string;
   trackingCode?: string;
   completedAt: string;
