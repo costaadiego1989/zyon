@@ -13,7 +13,7 @@ import {
 } from "../../../shared/auth/tenant-principal.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../checkout/domain/ports/order.repository.port.js";
-import { UpdateOrderTrackingUseCase } from "../../checkout/application/use-cases/update-order-tracking.use-case.js";
+import { CHECKOUT_ORDER_TRACKING_UPDATER, type CheckoutOrderTrackingUpdater } from "../../checkout/domain/ports/order-tracking-updater.port.js";
 import { ApiKeyService } from "../domain/api-key.service.js";
 import { ApiKeyAccessPolicy } from "../domain/api-key-access-policy.js";
 import { hasApiKeyScope } from "../domain/api-key-scope.js";
@@ -389,7 +389,7 @@ export class UpdateTenantOrderTrackingUseCase {
     @Inject(INTEGRATIONS_REPOSITORY) private readonly repo: IntegrationsRepository,
     @Inject(ORDER_REPOSITORY) private readonly orders: OrderRepository,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
-    private readonly updateOrderTracking: UpdateOrderTrackingUseCase,
+    @Inject(CHECKOUT_ORDER_TRACKING_UPDATER) private readonly updateOrderTracking: CheckoutOrderTrackingUpdater,
     private readonly publisher: TenantWebhookPublisher
   ) {}
 

@@ -1,4 +1,4 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module } from "@nestjs/common";
 import { PasswordHasher } from "../auth/domain/services/password-hasher.service.js";
 import { RegisterBuyerUseCase } from "./application/use-cases/register-buyer.use-case.js";
 import { LoginBuyerUseCase } from "./application/use-cases/login-buyer.use-case.js";
@@ -42,7 +42,7 @@ import { OTP_STORE } from "./domain/ports/otp-store.port.js";
 import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
 
 @Module({
-  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
+  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, CheckoutModule, IntegrationsModule],
   controllers: [BuyerAccountController, BuyerAgentController, BuyerAddressesController, BuyerHubController, BuyerWebAuthnController],
   providers: [
     RegisterBuyerUseCase,

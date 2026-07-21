@@ -16,6 +16,7 @@ import {
 import {
   CancelOrderUseCase,
   CreateOrderFromPaymentUseCase,
+  UpdateOrderStatusUseCase,
 } from "./application/order-command.use-cases.js";
 import { OPERATIONS_READ_REPOSITORY } from "./domain/ports/operations-read.repository.port.js";
 import { ORDER_TRACKING_UPDATER } from "./domain/ports/order-tracking.port.js";
@@ -42,6 +43,7 @@ import {
     GetPaymentUseCase,
     CancelOrderUseCase,
     CreateOrderFromPaymentUseCase,
+    UpdateOrderStatusUseCase,
     {
       provide: OPERATIONS_READ_REPOSITORY,
       useFactory: (prisma: PrismaClient) =>

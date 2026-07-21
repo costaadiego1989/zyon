@@ -11,7 +11,7 @@ export interface OrderSummary {
   id: string;
   sessionId: string;
   externalOrderId: string;
-  status: "approved" | "cancelled";
+  status: string;
   totalMinor: number;
   currency: string;
   acceptedOfferId?: string;

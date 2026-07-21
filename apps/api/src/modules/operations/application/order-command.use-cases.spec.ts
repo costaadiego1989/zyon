@@ -11,6 +11,7 @@ import type {
 import {
   CancelOrderUseCase,
   CreateOrderFromPaymentUseCase,
+  UpdateOrderStatusUseCase,
 } from "./order-command.use-cases.js";
 
 describe("CancelOrderUseCase", () => {
@@ -90,6 +91,81 @@ describe("CancelOrderUseCase", () => {
 
     // Local status must have been "cancelled" when the provider was invoked.
     assert.equal(commerce.statusAtProviderCall, "cancelled");
+  });
+});
+
+describe("UpdateOrderStatusUseCase", () => {
+  it("updates order status through an allowed transition and publishes a webhook", async () => {
+    const checkout = completedOrderRepository();
+    const published: Array<Record<string, unknown>> = [];
+    const useCase = new UpdateOrderStatusUseCase(
+      new StubOperationsRepository(),
+      checkout,
+      {
+        publish: async (event: Record<string, unknown>) => {
+          published.push(event);
+          return [];
+        },
+      } as unknown as TenantWebhookPublisher,
+    );
+
+    const result = await useCase.execute({
+      merchantId: "mrc_a",
+      orderId: "ord_1",
+      status: "paid",
+    });
+
+    assert.equal(result.status, "paid");
+    assert.equal(
+      checkout.getCompletedOrder("mrc_a", "session_1", "external_1")?.status,
+      "paid",
+    );
+    assert.equal(published[0]?.eventType, "order.approved");
+    assert.deepEqual((published[0]?.data as Record<string, unknown>)?.order, {
+      id: "ord_1",
+      external_order_id: "external_1",
+      session_id: "session_1",
+      status: "paid",
+    });
+  });
+
+  it("rejects illegal status transitions", async () => {
+    const useCase = new UpdateOrderStatusUseCase(
+      new StaticStatusOperationsRepository("delivered"),
+      completedOrderRepository(),
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+    );
+
+    await assert.rejects(
+      useCase.execute({
+        merchantId: "mrc_a",
+        orderId: "ord_1",
+        status: "pending",
+      }),
+      /order_status_transition_invalid/,
+    );
+  });
+
+  it("does not expose or mutate an order from another tenant", async () => {
+    const checkout = completedOrderRepository();
+    const useCase = new UpdateOrderStatusUseCase(
+      new StubOperationsRepository(),
+      checkout,
+      { publish: async () => [] } as unknown as TenantWebhookPublisher,
+    );
+
+    await assert.rejects(
+      useCase.execute({
+        merchantId: "mrc_b",
+        orderId: "ord_1",
+        status: "paid",
+      }),
+      /order_not_found/,
+    );
+    assert.equal(
+      checkout.getCompletedOrder("mrc_a", "session_1", "external_1")?.status,
+      "approved",
+    );
   });
 });
 
@@ -301,6 +377,20 @@ class PaymentBackedOperationsRepository
 
   async listPayments() {
     return [];
+  }
+}
+
+class StaticStatusOperationsRepository extends StubOperationsRepository {
+  constructor(private readonly status: string) {
+    super();
+  }
+
+  override async getOrder(
+    merchantId: string,
+    orderId: string,
+  ): Promise<OrderDetail | undefined> {
+    const order = await super.getOrder(merchantId, orderId);
+    return order ? { ...order, status: this.status as OrderDetail["status"] } : undefined;
   }
 }
 

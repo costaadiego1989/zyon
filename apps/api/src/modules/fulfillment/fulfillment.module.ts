@@ -31,6 +31,6 @@ import { TrackingWebhookController } from "./presentation/http/tracking-webhook.
     CancelShipmentUseCase,
     FulfillmentOnOrderCompletedHandler
   ],
-  exports: [CreateShipmentUseCase]
+  exports: [CreateShipmentUseCase, SHIPMENT_REPOSITORY]
 })
 export class FulfillmentModule {}

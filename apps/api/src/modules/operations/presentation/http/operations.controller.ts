@@ -35,6 +35,7 @@ import {
 import {
   CancelOrderUseCase,
   CreateOrderFromPaymentUseCase,
+  UpdateOrderStatusUseCase,
 } from "../../application/order-command.use-cases.js";
 import type {
   CustomerDetail,
@@ -47,6 +48,7 @@ import { UpdateOrderTrackingDto } from "./order-tracking.dto.js";
 import {
   CancelOrderDto,
   CreateOrderDto,
+  UpdateOrderStatusDto,
 } from "./order-command.dto.js";
 
 @ApiTags("Orders")
@@ -62,6 +64,7 @@ export class OrdersController {
     private readonly updateOrderTracking: OrderTrackingUpdater,
     private readonly cancelOrder: CancelOrderUseCase,
     private readonly createOrder: CreateOrderFromPaymentUseCase,
+    private readonly updateOrderStatus: UpdateOrderStatusUseCase,
   ) {}
 
   @Get()
@@ -121,6 +124,21 @@ export class OrdersController {
       reason: body.reason,
       notifyCustomer: body.notify_customer,
       restock: body.restock,
+    });
+  }
+
+  @Put(":orderId/status")
+  @Idempotent()
+  @RequireTenantAccess({ serviceScopes: ["orders:write"] })
+  updateStatus(
+    @Req() request: unknown,
+    @Param("orderId") orderId: string,
+    @Body() body: UpdateOrderStatusDto,
+  ) {
+    return this.updateOrderStatus.execute({
+      merchantId: tenantId(request),
+      orderId,
+      status: body.status,
     });
   }
 

@@ -276,7 +276,7 @@ function toOrderSummary(row: {
     id: row.id,
     sessionId: row.sessionId,
     externalOrderId: row.externalOrderId,
-    status: row.status === "cancelled" ? "cancelled" : "approved",
+    status: row.status,
     totalMinor: toMinor(row.orderTotal),
     currency: row.currency,
     acceptedOfferId: row.acceptedOfferId ?? undefined,

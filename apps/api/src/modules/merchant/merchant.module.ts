@@ -1,4 +1,4 @@
-import { Logger, Module, OnModuleInit, forwardRef } from "@nestjs/common";
+import { Logger, Module, OnModuleInit } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
@@ -24,7 +24,7 @@ const logger = new Logger("MerchantModule");
  * instead of crashing at first crypto-payments request.
  */
 @Module({
-  imports: [forwardRef(() => AuthModule)],
+  imports: [AuthModule],
   controllers: [MerchantController, CryptoPaymentsController],
   providers: [
     GetMerchantProfileUseCase,

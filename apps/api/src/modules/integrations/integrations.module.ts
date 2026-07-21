@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuthModule } from "../auth/auth.module.js";
-import { CheckoutModule } from "../checkout/checkout.module.js";
+import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
+import { CheckoutOrderTrackingModule } from "../checkout/checkout-order-tracking.module.js";
 import { WebhookSignatureService } from "./domain/webhook-signature.service.js";
 import {
   CreateMerchantApiKeyUseCase,
@@ -36,7 +37,7 @@ import {
 } from "./domain/webhook-dispatcher.config.js";
 
 @Module({
-  imports: [AuthModule, CheckoutModule, TenantAccessModule],
+  imports: [AuthModule, CheckoutPersistenceModule, CheckoutOrderTrackingModule, TenantAccessModule],
   controllers: [
     IntegrationsController,
     TenantTrackingController,

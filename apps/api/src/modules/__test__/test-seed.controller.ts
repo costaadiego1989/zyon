@@ -58,6 +58,7 @@ export class TestSeedController {
       typ: "aacp_embed_v1",
       merchantId,
       environment: "test",
+      allowedOrigin: "http://localhost:8080",
       issuedAtUnix: now,
       expiresAtUnix: now + 3600,
       nonce: crypto.randomUUID(),

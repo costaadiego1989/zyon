@@ -6,6 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from "@nestjs/common";
+import type { CompletedOrderStatus } from "@zyon/shared-types";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import {
   COMMERCE_ORDER_PORT,
@@ -145,6 +146,62 @@ export class CancelOrderUseCase {
 }
 
 @Injectable()
+export class UpdateOrderStatusUseCase {
+  constructor(
+    @Inject(OPERATIONS_READ_REPOSITORY)
+    private readonly readRepository: OperationsReadRepository,
+    @Inject(ORDER_REPOSITORY)
+    private readonly orders: OrderRepository,
+    private readonly webhooks: TenantWebhookPublisher,
+  ) {}
+
+  async execute(input: {
+    merchantId: string;
+    orderId: string;
+    status: string;
+  }) {
+    const merchantId = required(input.merchantId, "merchant_id");
+    const orderId = required(input.orderId, "order_id");
+    const status = normalizeOrderStatus(input.status);
+    const order = await this.readRepository.getOrder(merchantId, orderId);
+    if (!order) throw new NotFoundException("order_not_found");
+
+    if (!canTransitionOrderStatus(order.status, status)) {
+      throw new BadRequestException("order_status_transition_invalid");
+    }
+
+    const updated = await this.orders.updateCompletedOrderStatus({
+      merchantId,
+      sessionId: order.sessionId,
+      externalOrderId: order.externalOrderId,
+      status,
+    });
+    if (!updated) throw new NotFoundException("order_not_found");
+
+    const eventType = status === "cancelled" ? "order.cancelled" : "order.approved";
+    await this.webhooks.publish({
+      merchantId,
+      eventType,
+      data: {
+        order: {
+          id: order.id,
+          external_order_id: order.externalOrderId,
+          session_id: order.sessionId,
+          status,
+        },
+      },
+    });
+
+    return {
+      id: order.id,
+      external_order_id: order.externalOrderId,
+      status,
+      changed: order.status !== status,
+    };
+  }
+}
+
+@Injectable()
 export class CreateOrderFromPaymentUseCase {
   constructor(
     @Inject(OPERATIONS_READ_REPOSITORY)
@@ -193,11 +250,35 @@ export class CreateOrderFromPaymentUseCase {
   }
 }
 
+const ORDER_STATUS_TRANSITIONS: Record<CompletedOrderStatus, CompletedOrderStatus[]> = {
+  pending: ["paid", "cancelled"],
+  approved: ["paid", "shipped", "cancelled"],
+  paid: ["shipped", "cancelled"],
+  shipped: ["delivered", "returned"],
+  delivered: [],
+  cancelled: [],
+  returned: [],
+};
+
+function canTransitionOrderStatus(from: string, to: CompletedOrderStatus): boolean {
+  if (from === to) return true;
+  const allowed = ORDER_STATUS_TRANSITIONS[from as CompletedOrderStatus];
+  return allowed ? allowed.includes(to) : false;
+}
+
+function normalizeOrderStatus(value: string): CompletedOrderStatus {
+  const status = required(value, "status") as CompletedOrderStatus;
+  if (!Object.prototype.hasOwnProperty.call(ORDER_STATUS_TRANSITIONS, status)) {
+    throw new BadRequestException("order_status_invalid");
+  }
+  return status;
+}
+
 function cancellationResponse(
   order: {
     id: string;
     externalOrderId: string;
-    status: "approved" | "cancelled";
+    status: string;
     cancelledAt?: string;
     cancellationReason?: string;
     paymentStatus?: string;

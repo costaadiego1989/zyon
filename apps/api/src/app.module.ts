@@ -27,6 +27,7 @@ import { InstallationsModule } from "./modules/installations/installations.modul
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { OperationsModule } from "./modules/operations/operations.module.js";
 import { ProductSearchProviderModule } from "./modules/catalog/product-search-provider.module.js";
+import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { ProductSearchProviderModule } from "./modules/catalog/product-search-pr
     AgentRulesModule,
     CheckoutSettingsModule,
     BuyerPurchaseHistoryModule,
+    CrossSellModule,
     CheckoutModule,
     NegotiationModule,
     EmbedModule,

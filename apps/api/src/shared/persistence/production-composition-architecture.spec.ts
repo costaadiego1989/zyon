@@ -13,7 +13,7 @@ test("application composition registers only production adapters", () => {
   const appModule = readSource("app.module.ts");
   assert.doesNotMatch(
     appModule,
-    /TestSeedModule|E2E_SEED_ENABLED|CrossSellModule|CouponsModule|ScrapingAgentModule|SelfCheckoutModule/,
+    /TestSeedModule|E2E_SEED_ENABLED|CouponsModule|ScrapingAgentModule|SelfCheckoutModule|WidgetCrossSellController/,
   );
 
   const checkoutModule = readSource("modules/checkout/checkout.module.ts");

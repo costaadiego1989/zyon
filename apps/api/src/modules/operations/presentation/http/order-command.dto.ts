@@ -27,3 +27,10 @@ export class CreateOrderDto {
   @MaxLength(160)
   payment_id!: string;
 }
+
+export class UpdateOrderStatusDto {
+  @IsString()
+  @MinLength(3)
+  @MaxLength(40)
+  status!: string;
+}
