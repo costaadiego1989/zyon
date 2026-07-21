@@ -10,6 +10,7 @@ import type { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
 import type { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import type { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
 import { RoutingPaymentAdapter } from "./routing-payment.adapter.js";
+import { readStripeConnection } from "./stripe-env.js";
 
 /**
  * Deterministic payment provider used ONLY in non-production e2e runs.
@@ -42,6 +43,17 @@ export class E2eTestPaymentProvider implements PaymentProviderPort {
           amountDisplay: "1.00 USDC",
           destinationAddress: "0x0000000000000000000000000000000000000001",
           quoteExpiresAt: new Date(Date.now() + 900_000).toISOString(),
+        },
+      };
+    }
+    if (input.method === "card") {
+      const { publishableKey } = readStripeConnection();
+      return {
+        providerPaymentId: `pi_e2e_${input.intentId}`,
+        status: "requires_action",
+        buyerFacingPayload: {
+          clientSecret: `pi_e2e_${input.intentId}_secret_e2e`,
+          stripePublishableKey: publishableKey ?? "pk_test_e2e",
         },
       };
     }

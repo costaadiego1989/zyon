@@ -212,6 +212,7 @@ test("ConfirmStripePayment: happy path approves and triggers checkout completion
   const reloaded = await payments.getIntentById("mrc_1", intent.id);
   assert.equal(reloaded?.snapshot().status, "approved");
   assert.equal(checkoutPort.approved.length, 1);
+  assert.equal(checkoutPort.approved[0]?.orderTotalMajorUnits, 48.01);
   assert.equal(checkoutPort.approved[0]?.acceptedOfferId, "off_1");
   assert.ok(checkoutPort.statuses.some(s => s.status === "approved"));
 });

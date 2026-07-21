@@ -6,7 +6,8 @@ import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/paym
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
-import { readStripeConnection } from "../infrastructure/stripe-env.js";
+import { readPlatformFeeCents, readStripeConnection } from "../infrastructure/stripe-env.js";
+import { isE2ePaymentStubEnabled } from "../infrastructure/e2e-payment-provider.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 
 export type ConfirmStripePaymentRequest = {
@@ -55,7 +56,9 @@ export class ConfirmStripePaymentUseCase {
       throw new BadRequestException("payment_intent_not_confirmable");
     }
 
-    const pi = await this.stripe.paymentIntents.retrieve(snap.providerPaymentId);
+    const pi = isE2ePaymentStubEnabled() && snap.providerPaymentId.startsWith("pi_e2e_")
+      ? { id: snap.providerPaymentId, status: "succeeded", amount_received: snap.amountCents }
+      : await this.stripe.paymentIntents.retrieve(snap.providerPaymentId);
     if (pi.status !== "succeeded") {
       throw new BadRequestException(`stripe_payment_not_succeeded:${pi.status}`);
     }
@@ -94,11 +97,12 @@ export class ConfirmStripePaymentUseCase {
         commerceOrderId: snap.commerceOrderId
       });
 
+      const orderAmountCents = Math.max(0, snap.amountCents - readPlatformFeeCents());
       await this.checkoutPayment.completeAfterApproval({
         merchantId,
         sessionId,
         externalOrderId: pi.id,
-        orderTotalMajorUnits: (pi.amount_received || snap.amountCents) / 100,
+        orderTotalMajorUnits: Number((orderAmountCents / 100).toFixed(2)),
         currency: snap.currency as CurrencyCode,
         acceptedOfferId: snap.acceptedOfferId
       });

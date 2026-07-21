@@ -53,6 +53,14 @@ export class EmbedCheckoutGuardHelper {
       throw new UnauthorizedException("embed_merchant_mismatch_for_checkout_session");
     }
   }
+
+  async loadSession(merchantId: string, sessionId: string) {
+    return this.checkout.getSession(merchantId, sessionId);
+  }
+
+  async persistSession(session: import("@zyon/shared-types").CheckoutSession): Promise<void> {
+    await this.checkout.saveSession(session);
+  }
 }
 
 @UseGuards(EmbedAuthGuard)
@@ -142,6 +150,58 @@ export class EmbedCheckoutController {
       ...(rest as Omit<UpdateCartRequest, "merchant_id">),
       merchant_id: embed.merchantId
     });
+  }
+
+  @Post("customer/update")
+  @RequireEmbedScope("checkout:track")
+  async updateCustomer(
+    @Req() request: EmbedHttpRequest,
+    @Body()
+    body: {
+      session_id: string;
+      customer: {
+        fullName?: string;
+        email?: string;
+        cpf?: string;
+        phone?: string;
+      };
+    }
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") {
+      throw new BadRequestException("session_id_required");
+    }
+    if (!body.customer || typeof body.customer !== "object") {
+      throw new BadRequestException("customer_required");
+    }
+    const c = body.customer;
+    if (typeof c.cpf !== "string" || !c.cpf.trim()) {
+      throw new BadRequestException("cpf_required");
+    }
+    if (typeof c.email !== "string" || !c.email.trim()) {
+      throw new BadRequestException("email_required");
+    }
+    if (typeof c.fullName !== "string" || !c.fullName.trim()) {
+      throw new BadRequestException("full_name_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    const current = await this.embedGuards.loadSession(
+      embed.merchantId,
+      body.session_id.trim()
+    );
+    const updatedSession = {
+      ...current!,
+      customer: {
+        ...(current?.customer ?? {}),
+        fullName: c.fullName.trim(),
+        email: c.email.trim(),
+        cpf: c.cpf.replace(/\D+/g, "").trim(),
+        phone: typeof c.phone === "string" ? c.phone.trim() : undefined
+      },
+      updatedAt: new Date().toISOString()
+    };
+    await this.embedGuards.persistSession(updatedSession);
+    return { ok: true };
   }
 
   @Post("payment/intents")

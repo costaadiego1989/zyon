@@ -212,10 +212,12 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
         }
       });
       if (qr.ok) {
-        const pj = (await qr.json()) as { payload?: string; encodedImage?: string };
+        const pj = (await qr.json()) as { payload?: string; encodedImage?: string; expirationDate?: string };
         if (typeof pj.payload === "string") buyerFacingPayload.qrCodeCopyPaste = pj.payload;
         if (typeof pj.encodedImage === "string") buyerFacingPayload.encodedQrImage = pj.encodedImage;
       }
+      // PIX expires in 30 minutes by default (Asaas standard)
+      buyerFacingPayload.quoteExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
     }
 
     const status: CreateProviderPaymentOutput["status"] =

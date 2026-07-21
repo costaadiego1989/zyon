@@ -121,6 +121,74 @@ test("CreatePaymentIntentUseCase rejects payment before selected shipping exists
   );
 });
 
+test("CreatePaymentIntentUseCase returns Stripe client secret and publishable key for card", async () => {
+  const keys = [
+    "STRIPE_SECRET_KEY_TEST",
+    "STRIPE_PUBLISHABLE_KEY_TEST",
+    "STRIPE_SECRET_KEY",
+    "STRIPE_PUBLISHABLE_KEY",
+    "PLATFORM_FEE_BRL"
+  ] as const;
+  const backup: Partial<Record<(typeof keys)[number], string | undefined>> = {};
+  for (const k of keys) backup[k] = process.env[k];
+  try {
+    process.env.STRIPE_SECRET_KEY_TEST = "sk_test_fixture";
+    process.env.STRIPE_PUBLISHABLE_KEY_TEST = "pk_test_fixture";
+    process.env.PLATFORM_FEE_BRL = "1.99";
+
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(
+      checkoutSession({
+        shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
+        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+      })
+    );
+
+    class StripeCapturingProvider extends CapturingPaymentProvider {
+      async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
+        this.inputs.push(input);
+        return {
+          providerPaymentId: "pi_test_123",
+          status: "requires_action",
+          buyerFacingPayload: {
+            clientSecret: "pi_test_123_secret_abc",
+            stripePublishableKey: "pk_test_fixture"
+          }
+        };
+      }
+    }
+
+    const provider = new StripeCapturingProvider();
+    const uc = new CreatePaymentIntentUseCase(
+      checkout,
+      checkout,
+      new InMemoryPaymentRepository(checkout),
+      provider
+    );
+
+    const intent = await uc.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      idempotency_key: "idem_card_stripe",
+      method: "card"
+    });
+
+    assert.equal(intent.method, "card");
+    assert.equal(intent.status, "requires_action");
+    assert.equal(intent.providerPaymentId, "pi_test_123");
+    assert.equal(intent.buyerFacing?.clientSecret, "pi_test_123_secret_abc");
+    assert.equal(intent.buyerFacing?.stripePublishableKey, "pk_test_fixture");
+    assert.equal(provider.inputs[0]?.stripeConnectAccountId, "acct_test_connect");
+    assert.equal(provider.inputs[0]?.platformFeeCents, 199);
+  } finally {
+    for (const k of keys) {
+      const v = backup[k];
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
+
 test("CreatePaymentIntentUseCase rejects card when Stripe is not configured", async () => {
   const keys = [
     "STRIPE_SECRET_KEY_TEST",
