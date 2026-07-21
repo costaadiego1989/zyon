@@ -56,6 +56,13 @@ export class ConnectCommerceDto {
   @MinLength(8)
   consumer_secret?: string;
 
+  @ApiPropertyOptional({ writeOnly: true, description: "WooCommerce webhook secret. Falls back to consumer_secret when omitted." })
+  @ValidateIf((value: ConnectCommerceDto) => value.provider === "woocommerce" && value.webhook_secret !== undefined)
+  @IsOptional()
+  @IsString()
+  @MinLength(8)
+  webhook_secret?: string;
+
   // --- Nuvemshop (Tiendanube) ---
   @ApiPropertyOptional({ example: "1234567" })
   @ValidateIf((value: ConnectCommerceDto) => value.provider === "nuvemshop")

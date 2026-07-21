@@ -17,9 +17,9 @@ import { NuvemshopRateLimiter } from "./nuvemshop-rate-limiter.js";
  * Operational notes:
  *   - Auth: Bearer token obtained from the Partner Portal OAuth handshake.
  *   - Mandatory `User-Agent` header; missing returns HTTP 400.
- *   - Base URL: `https://api.tiendanube.com/v1/{store_id}/`.
+ *   - Base URL: `https://api.tiendanube.com/2025-03/{store_id}/`.
  *   - Rate limit: 2 req/s sustained, 40 burst, per (store, app).
- *   - Pagination: `?page=N&per_page=M` (max 200). Link header is `next` only.
+ *   - Pagination: `?page=N&per_page=M` (max 200); prefer the Link header.
  *
  * Errors:
  *   401 → token revoked, do not retry.
@@ -45,7 +45,7 @@ export type NuvemshopAdapterConfig = {
 
 export type NuvemshopFetchFn = typeof fetch;
 
-const DEFAULT_API_VERSION = "v1";
+const DEFAULT_API_VERSION = "2025-03";
 const DEFAULT_USER_AGENT = "AACP (https://aacp.example)";
 const DEFAULT_CURRENCY = "BRL";
 const DEFAULT_PER_PAGE = 50;
@@ -209,10 +209,11 @@ export class NuvemshopCommerceAdapter
       "nuvemshop_catalog_search",
     );
     const rows = (await response.json()) as NuvemshopProduct[];
-    const products = await Promise.all(rows.map((product) => mapProduct(product, "BRL")));
+    const currency = await this.fetchDefaultCurrency();
+    const products = await Promise.all(rows.map((product) => mapProduct(product, currency)));
     return {
       products,
-      nextCursor: rows.length === perPage ? String(page + 1) : null,
+      nextCursor: nextCursorFromLink(response.headers.get("link")) ?? (rows.length === perPage ? String(page + 1) : null),
     };
   }
 
@@ -306,6 +307,22 @@ function parsePage(cursor?: string): number {
     throw new Error("nuvemshop_catalog_cursor_invalid");
   }
   return page;
+}
+
+function nextCursorFromLink(linkHeader: string | null): string | null {
+  if (!linkHeader) return null;
+  const nextPart = linkHeader
+    .split(",")
+    .map((part) => part.trim())
+    .find((part) => /rel="next"/.test(part));
+  const urlMatch = nextPart?.match(/<([^>]+)>/);
+  if (!urlMatch?.[1]) return null;
+  try {
+    const nextUrl = new URL(urlMatch[1]);
+    return nextUrl.searchParams.get("page");
+  } catch {
+    return null;
+  }
 }
 
 function mapOrderToTrustedCart(order: NuvemshopOrder): TrustedCartSnapshot {

@@ -26,7 +26,7 @@ export type ShopifyGraphqlCost = {
   /** What this single request cost. */
   actualQueryCost?: number | null;
   /** Sum of nested fields / theoretical max. */
-  maxCost?: number | null;
+  requestedQueryCost?: number | null;
 };
 
 export type ShopifyGraphqlEnvelope<T> = {

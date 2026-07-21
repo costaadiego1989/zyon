@@ -68,6 +68,8 @@ export class WooCommerceCommerceAdapter
             ? Math.round(moneyToCents(line.total) / line.quantity)
             : 0,
         title: line.name,
+        commerceProductId: line.product_id ? String(line.product_id) : undefined,
+        commerceVariantId: line.variation_id ? String(line.variation_id) : undefined,
       })),
     };
   }
@@ -77,7 +79,31 @@ export class WooCommerceCommerceAdapter
     sessionId: string;
     cart: TrustedCartSnapshot;
   }): Promise<{ commerceOrderId: string }> {
-    return { commerceOrderId: input.cart.commerceCartRef };
+    const order = await this.request<WooOrder>(
+      "/orders",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          status: "pending",
+          currency: input.cart.currency,
+          customer_note: `AACP checkout session ${input.sessionId}`,
+          meta_data: [
+            { key: "_aacp_session_id", value: input.sessionId },
+            { key: "_aacp_cart_ref", value: input.cart.commerceCartRef },
+          ],
+          line_items: input.cart.lines.map((line) => ({
+            product_id: parsePositiveInteger(line.commerceProductId),
+            variation_id: parsePositiveInteger(line.commerceVariantId),
+            quantity: line.quantity,
+            name: line.title,
+            subtotal: centsToMoneyString(line.unitPriceCents * line.quantity),
+            total: centsToMoneyString(line.unitPriceCents * line.quantity),
+          })).map((line) => stripUndefinedFields(line)),
+        }),
+      },
+      "woocommerce_create_order",
+    );
+    return { commerceOrderId: String(order.id) };
   }
 
   async markOrderPaid(input: {
@@ -328,6 +354,22 @@ function moneyToCents(value: string | number): number {
   return Math.round(Number(value || 0) * 100);
 }
 
+function centsToMoneyString(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+function parsePositiveInteger(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function stripUndefinedFields<T extends Record<string, unknown>>(value: T): T {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, fieldValue]) => fieldValue !== undefined),
+  ) as T;
+}
+
 function stripHtml(value: string): string | undefined {
   const text = value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   return text || undefined;
@@ -360,6 +402,8 @@ type WooOrder = {
   total: string;
   line_items: Array<{
     name: string;
+    product_id?: number;
+    variation_id?: number;
     sku: string;
     quantity: number;
     total: string;

@@ -28,18 +28,16 @@ export class TrayOAuthService {
    * On failure, throws an error that should mark the connection degraded.
    */
   async refresh(): Promise<TrayRefreshResult> {
-    const body = new URLSearchParams({
-      consumer_key: this.credentials.consumerKey,
-      consumer_secret: this.credentials.consumerSecret,
-      refresh_token: this.credentials.refreshToken,
-    });
+    const url = new URL(`${this.credentials.apiAddress}/auth`);
+    url.searchParams.set("consumer_key", this.credentials.consumerKey);
+    url.searchParams.set("consumer_secret", this.credentials.consumerSecret);
+    url.searchParams.set("refresh_token", this.credentials.refreshToken);
 
-    const response = await this.fetchFn(`${this.credentials.apiAddress}/auth`, {
+    const response = await this.fetchFn(url.href, {
       method: "GET",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
       },
-      body: body.toString(),
     });
 
     if (!response.ok) {

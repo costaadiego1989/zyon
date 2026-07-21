@@ -58,7 +58,7 @@ export class InMemoryCommerceConnectionRepository
         accessToken: input.accessToken.trim(),
         userAgent: input.userAgent?.trim() || undefined,
       };
-      storeUrl = `https://api.tiendanube.com/v1/${input.storeId.trim()}`;
+      storeUrl = `https://api.tiendanube.com/2025-03/${input.storeId.trim()}`;
     } else if (input.provider === "woocommerce") {
       credentials = {
         merchantId,
@@ -66,6 +66,7 @@ export class InMemoryCommerceConnectionRepository
         storeUrl: input.storeUrl.trim(),
         consumerKey: input.consumerKey.trim(),
         consumerSecret: input.consumerSecret.trim(),
+        webhookSecret: input.webhookSecret?.trim() || undefined,
       };
       storeUrl = input.storeUrl.trim();
     } else {

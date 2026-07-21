@@ -231,21 +231,19 @@ export class TrayCommerceAdapter
     init: RequestInit,
     errorCode: string,
   ): Promise<T> {
-    // Check if token needs refresh
     if (this.#oauth.isExpired()) {
-      try {
-        const refreshed = await this.#oauth.refresh();
-        // Update credentials in-memory (in production, caller persists this)
-        this.#credentials.accessToken = refreshed.access_token;
-        this.#credentials.refreshToken = refreshed.refresh_token;
-        this.#credentials.accessTokenExpiresAt =
-          refreshed.date_expiration_access_token;
-      } catch {
-        throw new Error(`${errorCode}_token_refresh_failed`);
-      }
+      await this.refreshCredentials(errorCode);
     }
 
-    // Inject access token as query param
+    return this.requestWithCurrentToken<T>(path, init, errorCode, true);
+  }
+
+  private async requestWithCurrentToken<T>(
+    path: string,
+    init: RequestInit,
+    errorCode: string,
+    allowTokenRefresh: boolean,
+  ): Promise<T> {
     const url = new URL(
       path.startsWith("http")
         ? path
@@ -256,15 +254,19 @@ export class TrayCommerceAdapter
     const response = await this.#fetch(url.href, {
       ...init,
       headers: {
+        Accept: "application/json",
         "Content-Type": "application/json",
         ...init.headers,
       },
     });
 
-    // Handle Tray-specific errors
-    const json = (await response.json()) as Record<string, unknown>;
+    const json = await parseTrayJson(response, errorCode);
 
-    // Check for app-level error code 1000 (expired token)
+    if ((response.status === 401 || json.code === 1000) && allowTokenRefresh) {
+      await this.refreshCredentials(errorCode);
+      return this.requestWithCurrentToken<T>(path, init, errorCode, false);
+    }
+
     if (json.code === 1000) {
       throw new Error(`${errorCode}_token_expired`);
     }
@@ -274,6 +276,32 @@ export class TrayCommerceAdapter
     }
 
     return json as T;
+  }
+
+  private async refreshCredentials(errorCode: string): Promise<void> {
+    try {
+      const refreshed = await this.#oauth.refresh();
+      // Update credentials in-memory (in production, caller persists this)
+      this.#credentials.accessToken = refreshed.access_token;
+      this.#credentials.refreshToken = refreshed.refresh_token;
+      this.#credentials.accessTokenExpiresAt =
+        refreshed.date_expiration_access_token;
+    } catch {
+      throw new Error(`${errorCode}_token_refresh_failed`);
+    }
+  }
+}
+
+async function parseTrayJson(
+  response: Response,
+  errorCode: string,
+): Promise<Record<string, unknown>> {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text) as Record<string, unknown>;
+  } catch {
+    throw new Error(`${errorCode}_invalid_json`);
   }
 }
 

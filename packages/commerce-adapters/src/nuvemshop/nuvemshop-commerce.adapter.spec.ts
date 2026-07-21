@@ -62,7 +62,7 @@ test("Nuvemshop adapter injects Bearer + User-Agent on every request", async () 
   for (const call of calls) {
     assert.equal(call.headers["authorization"], "Bearer ns_token_abc");
     assert.equal(call.headers["user-agent"], "AACP-Test (qa@example)");
-    assert.match(call.url, /^https:\/\/api\.tiendanube\.com\/v1\/1234\//);
+    assert.match(call.url, /^https:\/\/api\.tiendanube\.com\/2025-03\/1234\//);
   }
 
   assert.equal(catalog.products[0]?.variants[0]?.sku, "KEY-001");

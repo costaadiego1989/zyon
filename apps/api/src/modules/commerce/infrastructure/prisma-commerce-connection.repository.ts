@@ -37,6 +37,7 @@ export class PrismaCommerceConnectionRepository
         storeUrl: row.shopDomain,
         consumerKey: secret.consumerKey,
         consumerSecret: secret.consumerSecret,
+        webhookSecret: secret.webhookSecret,
       };
     }
     if (row.provider === "nuvemshop") {
@@ -160,6 +161,7 @@ type SecretEnvelope =
       provider: "woocommerce";
       consumerKey: string;
       consumerSecret: string;
+      webhookSecret?: string;
     }
   | {
       version: 1;
@@ -209,6 +211,7 @@ function encodeSecret(input: SaveMerchantCommerceCredentialsInput): string {
       provider: "woocommerce",
       consumerKey: input.consumerKey.trim(),
       consumerSecret: input.consumerSecret.trim(),
+      webhookSecret: input.webhookSecret?.trim() || undefined,
     };
   }
   return JSON.stringify(envelope);
@@ -226,6 +229,7 @@ function decodeSecret(
   refreshToken?: string;
   accessTokenExpiresAt?: number;
   userAgent?: string;
+  webhookSecret?: string;
 } {
   try {
     const parsed = JSON.parse(decrypted) as SecretEnvelope;
@@ -261,6 +265,7 @@ function decodeSecret(
         adminAccessToken: "",
         consumerKey: parsed.consumerKey,
         consumerSecret: parsed.consumerSecret,
+        webhookSecret: parsed.webhookSecret,
       };
     }
   } catch {
@@ -318,7 +323,7 @@ function toConnection(row: {
       row.provider === "shopify"
         ? `https://${row.shopDomain}`
         : row.provider === "nuvemshop"
-          ? `https://api.tiendanube.com/v1/${row.shopDomain}`
+          ? `https://api.tiendanube.com/2025-03/${row.shopDomain}`
           : row.shopDomain,
     status:
       row.status === "healthy" || row.status === "degraded"

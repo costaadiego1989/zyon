@@ -25,9 +25,9 @@ export type WooCommerceWebhookResult =
  * Receives inbound webhooks from WooCommerce stores.
  *
  * Signature verification: WooCommerce sends `X-WC-Webhook-Signature` which is
- * the Base64-encoded HMAC-SHA256 of the raw request body using the webhook
- * secret configured per-merchant (stored as `consumerSecret` in the commerce
- * connection credentials).
+ * the Base64-encoded HMAC-SHA256 of the raw request body using the WooCommerce
+ * webhook secret configured per-merchant (falls back to `consumerSecret` for
+ * legacy connections).
  */
 @Controller()
 export class WooCommerceWebhookController {
@@ -61,7 +61,7 @@ export class WooCommerceWebhookController {
       throw new UnauthorizedException("woocommerce_webhook_merchant_not_found");
     }
 
-    const secret = credentials.consumerSecret;
+    const secret = credentials.webhookSecret ?? credentials.consumerSecret;
     if (!secret) {
       throw new UnauthorizedException("woocommerce_webhook_secret_not_configured");
     }

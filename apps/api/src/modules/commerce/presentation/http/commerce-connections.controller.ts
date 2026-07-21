@@ -121,6 +121,15 @@ function toCredentials(
       apiVersion: body.api_version,
     };
   }
+  if (body.provider === "nuvemshop") {
+    return {
+      merchantId,
+      provider: "nuvemshop",
+      storeId: body.store_id ?? "",
+      accessToken: body.access_token ?? "",
+      userAgent: body.user_agent,
+    };
+  }
   if (body.provider === "tray") {
     return {
       merchantId,
@@ -139,6 +148,7 @@ function toCredentials(
     storeUrl: body.store_url ?? "",
     consumerKey: body.consumer_key ?? "",
     consumerSecret: body.consumer_secret ?? "",
+    webhookSecret: body.webhook_secret,
   };
 }
 

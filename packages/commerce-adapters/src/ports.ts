@@ -3,6 +3,8 @@ export type TrustedCartLine = {
   quantity: number;
   unitPriceCents: number;
   title: string;
+  commerceProductId?: string;
+  commerceVariantId?: string;
 };
 
 export type TrustedCartSnapshot = {

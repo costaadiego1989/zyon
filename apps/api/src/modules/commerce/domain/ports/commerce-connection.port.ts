@@ -16,6 +16,7 @@ export interface WooCommerceCredentials {
   storeUrl: string;
   consumerKey: string;
   consumerSecret: string;
+  webhookSecret?: string;
 }
 
 export interface NuvemshopCommerceCredentials {
@@ -58,6 +59,7 @@ export interface SaveWooCommerceCredentialsInput {
   storeUrl: string;
   consumerKey: string;
   consumerSecret: string;
+  webhookSecret?: string;
 }
 
 export interface SaveNuvemshopCommerceCredentialsInput {

@@ -110,10 +110,9 @@ export class TenantCommerceAdapterFactory
           adminAccessToken: tenant.adminAccessToken,
           storefrontAccessToken: tenant.storefrontAccessToken,
           apiVersion: tenant.apiVersion,
-          // REST is the safe default for tenant credentials. GraphQL can be
-          // opted into per-merchant once the storefront is confirmed on a
-          // 2024-10+ API version.
-          useGraphqlAdminApi: false,
+          // GraphQL is the Shopify Admin default; REST Admin is legacy after
+          // the 2025-04 public-app cutoff and should be explicit opt-in only.
+          useGraphqlAdminApi: true,
         },
         this.http.toFetch()
       );
@@ -164,7 +163,7 @@ export class TenantCommerceAdapterFactory
       throw new BadRequestException("commerce_adapter_not_configured");
     }
     return new ShopifyCommerceAdapter(
-      { ...fallback, useGraphqlAdminApi: false },
+      { ...fallback, useGraphqlAdminApi: true },
       this.http.toFetch(),
     );
   }

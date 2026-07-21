@@ -193,15 +193,26 @@ test("Tray adapter triggers token refresh when expired", async () => {
   assert.equal(callCount, 2, "refresh call + actual request");
 });
 
-test("Tray adapter throws on app-level code 1000 (expired token)", async () => {
-  const fetchImpl: typeof fetch = async () =>
-    json({ code: 1000, message: "Token expired" });
+test("Tray adapter refreshes and retries on app-level code 1000", async () => {
+  let callCount = 0;
+  const fetchImpl: typeof fetch = async (input) => {
+    const url = String(input);
+    callCount++;
+    if (callCount === 1) return json({ code: 1000, message: "Token expired" });
+    if (url.includes("/auth")) {
+      return json({
+        access_token: "new_token",
+        refresh_token: "new_refresh",
+        date_expiration_access_token: Math.floor(Date.now() / 1000) + 86400,
+      });
+    }
+    assert.ok(url.includes("access_token=new_token"), "should retry with refreshed token");
+    return json({ store_name: "Store", currency: "BRL" });
+  };
 
   const adapter = new TrayCommerceAdapter(baseCreds(), fetchImpl);
-  await assert.rejects(
-    () => adapter.testConnection(),
-    /token_expired/,
-  );
+  await adapter.testConnection();
+  assert.equal(callCount, 3, "initial request + refresh + retried request");
 });
 
 test("Tray adapter throws descriptive error on non-OK response", async () => {

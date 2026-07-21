@@ -36,7 +36,14 @@ test("routes order creation to the tenant's own shop domain and token", async ()
       const url = typeof input === "string" ? input : (input as URL).href;
       const headers = (init?.headers ?? {}) as Record<string, string>;
       seen.push({ url, token: headers["X-Shopify-Access-Token"] });
-      return jsonResponse({ draft_order: { id: 555 } });
+      return jsonResponse({
+        data: {
+          draftOrderCreate: {
+            draftOrder: { id: "gid://shopify/DraftOrder/555", legacyResourceId: "555" },
+            userErrors: [],
+          },
+        },
+      });
     }
   });
   const connections = new StubConnections({ m1: tenantCreds("tenant-one.myshopify.com", "shpat_one") });
@@ -82,7 +89,14 @@ test("distinct merchants never share credentials", async () => {
   const http = new HttpClientService({
     fetchFn: async (input) => {
       seen.push(typeof input === "string" ? input : (input as URL).href);
-      return jsonResponse({ draft_order: { id: 1 } });
+      return jsonResponse({
+        data: {
+          draftOrderCreate: {
+            draftOrder: { id: "gid://shopify/DraftOrder/1", legacyResourceId: "1" },
+            userErrors: [],
+          },
+        },
+      });
     }
   });
   const connections = new StubConnections({
@@ -124,7 +138,14 @@ test("P2 — global-env fallback only serves the declared demo merchant", async 
     const http = new HttpClientService({
       fetchFn: async (input) => {
         seen.push(typeof input === "string" ? input : (input as URL).href);
-        return jsonResponse({ draft_order: { id: 1 } });
+        return jsonResponse({
+          data: {
+            draftOrderCreate: {
+              draftOrder: { id: "gid://shopify/DraftOrder/1", legacyResourceId: "1" },
+              userErrors: [],
+            },
+          },
+        });
       }
     });
     const factory = new TenantCommerceAdapterFactory(new StubConnections({}), http);
