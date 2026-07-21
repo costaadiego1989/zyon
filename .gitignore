@@ -44,3 +44,8 @@ woocommerce/
 wp-content/
 wp-config.php
 .wp-cli/
+.playwright-mcp/
+*.png
+test-pix-flow.mjs
+apps/widget/verify-widget.mjs
+apps/widget/cart-*.png

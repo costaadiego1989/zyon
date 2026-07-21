@@ -80,7 +80,7 @@ test("MelhorEnvioCarrierAdapter throws BadRequestException when no packages prov
   assert.ok(err, "should throw when packages missing");
   const e = err as { constructor: { name: string }; message: string };
   assert.equal(e.constructor.name, "BadRequestException");
-  assert.match(e.message, /shipping_packages_required_for_quote/);
+  assert.match(e.message, /shipping_packages_invalid:packages_empty/);
 });
 
 test("MelhorEnvioCarrierAdapter returns [] when API responds with non-OK status", async () => {

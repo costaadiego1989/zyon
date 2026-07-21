@@ -1,55 +1,30 @@
-import { forwardRef, Module } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
-import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
-import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
-import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/prisma-shipping-quote.repository.js";
-import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
-import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
-import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
+import { Module } from "@nestjs/common";
 import { SelectShippingMethodUseCase } from "./application/use-cases/select-shipping-method.use-case.js";
 import { WidgetShippingController } from "./presentation/http/widget-shipping.controller.js";
 import { EmbedShippingController } from "./presentation/http/embed-shipping.controller.js";
+import { ShippingLabelController } from "./presentation/http/shipping-label.controller.js";
 import { EmbedAuthGuard } from "../embed/presentation/http/embed-auth.guard.js";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
-import { CheckoutModule } from "../checkout/checkout.module.js";
-import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
+import { FulfillmentModule } from "../fulfillment/fulfillment.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { GetShippingTrackingUseCase, PurchaseShippingLabelUseCase } from "./application/use-cases/shipping-label.use-cases.js";
+import { ShippingQuotesModule } from "./shipping-quotes.module.js";
+import { ORDER_TRACKING_UPDATER } from "./domain/ports/order-tracking-updater.port.js";
+import { UpdateTenantOrderTrackingUseCase } from "../integrations/application/integrations.use-cases.js";
 
 @Module({
-  imports: [MerchantModule, forwardRef(() => CheckoutModule)],
-  controllers: [WidgetShippingController, EmbedShippingController],
+  imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule],
+  controllers: [WidgetShippingController, EmbedShippingController, ShippingLabelController],
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
-    FlatRateCarrierAdapter,
-    // H1 fix: validate MelhorEnvio config on module init
-    {
-      provide: MelhorEnvioCarrierAdapter,
-      useFactory: () => {
-        const token = process.env.MELHOR_ENVIO_TOKEN;
-        // Warn but don't fail if token is missing; adapter will return [] safely
-        if (!token) {
-          console.warn(
-            "[shipping] MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; " +
-            "quotes will only use flat-rate carrier"
-          );
-        }
-        return new MelhorEnvioCarrierAdapter();
-      }
-    },
-    {
-      provide: SHIPPING_QUOTE_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaShippingQuoteRepository(prisma),
-      inject: [PRISMA_CLIENT]
-    },
-    {
-      provide: CARRIER_ADAPTERS,
-      useFactory: (flat: FlatRateCarrierAdapter, melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio, flat],
-      inject: [FlatRateCarrierAdapter, MelhorEnvioCarrierAdapter]
-    },
-    QuoteShippingUseCase,
-    SelectShippingMethodUseCase
+    SelectShippingMethodUseCase,
+    { provide: ORDER_TRACKING_UPDATER, useExisting: UpdateTenantOrderTrackingUseCase },
+    PurchaseShippingLabelUseCase,
+    GetShippingTrackingUseCase,
   ],
-  exports: [QuoteShippingUseCase]
+  exports: [ShippingQuotesModule]
 })
 export class ShippingModule {}
