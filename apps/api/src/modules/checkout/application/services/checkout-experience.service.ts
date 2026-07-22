@@ -173,7 +173,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       couponBoxEnabled: deps.couponBoxEnabled ?? true,
       cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true,
       cryptoPayments: deps.rules?.cryptoPayments,
-      showBranding: deps.showBranding ?? true,
+      showBranding: deps.showBranding ?? false,
     },
     items,
     totals: {

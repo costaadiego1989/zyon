@@ -199,6 +199,7 @@ function resolveMerchantId(request: { body?: unknown; tenantPrincipal?: unknown;
 function toBillingStatus(status: string): BillingSubscriptionSnapshot["status"] {
   if (
     status === "trialing" ||
+    status === "starter" ||
     status === "active" ||
     status === "past_due" ||
     status === "unpaid" ||
@@ -214,7 +215,7 @@ function isAgentTurn(turn: unknown): boolean {
 }
 
 function requiredPlanForFeature(feature: BillingPlanFeatureKey): BillingPlan {
-  for (const plan of ["growth", "scale"] as BillingPlan[]) {
+  for (const plan of ["starter", "growth", "scale"] as BillingPlan[]) {
     if (BILLING_PLANS[plan].features[feature]) return plan;
   }
   return "scale";

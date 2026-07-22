@@ -2500,7 +2500,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       chatLoading: mode === 'loading',
       chatEmpty: mode === 'empty',
       chatFlow: mode === 'flow',
-      showBranding: true, // White-label (Scale plan) sets this to false via experience.rules.showBranding
+      showBranding: false,
       showHeader: view !== 'intro' && view !== 'login',
       headerOrbPlacement: (view === 'chat' && mode === 'empty' ? 'headerEmpty' : 'header') as AgentOrbPlacement,
       headerTitle: view === 'hub' ? 'Minha conta' : this.agentName + ' · Gerente de vendas',

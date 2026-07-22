@@ -34,60 +34,60 @@ const UNLIMITED = null;
 export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     name: "Starter",
-    monthlyPriceBrl: 0,
+    monthlyPriceBrl: 89,
     transactionFeePercent: 1.99,
     limits: {
       ordersPerMonth: 50,
       sessionsPerMonth: 50,
       aiConversationsPerMonth: 100,
       commerceConnections: 1,
-      webhookEndpoints: 1,
+      webhookEndpoints: UNLIMITED,
       teamMembers: 1,
-      crossSellPromotions: 2,
-      activeCoupons: 3,
+      crossSellPromotions: 1,
+      activeCoupons: 1,
     },
     features: {
-      customAgentName: false,
-      customTheme: false,
+      customAgentName: true,
+      customTheme: true,
       voiceCheckout: false,
       faceBiometry: false,
       cryptoPayments: false,
-      whiteLabel: false,
+      whiteLabel: true,
     },
   },
   growth: {
     name: "Growth",
-    monthlyPriceBrl: 99,
+    monthlyPriceBrl: 199,
     transactionFeePercent: 1.49,
     limits: {
       ordersPerMonth: 500,
       sessionsPerMonth: 1_000,
       aiConversationsPerMonth: 5_000,
-      commerceConnections: 3,
-      webhookEndpoints: 5,
+      commerceConnections: 2,
+      webhookEndpoints: UNLIMITED,
       teamMembers: 3,
       crossSellPromotions: 10,
-      activeCoupons: 20,
+      activeCoupons: 10,
     },
     features: {
       customAgentName: true,
       customTheme: true,
       voiceCheckout: true,
-      faceBiometry: false,
-      cryptoPayments: false,
-      whiteLabel: false,
+      faceBiometry: true,
+      cryptoPayments: true,
+      whiteLabel: true,
     },
   },
   scale: {
     name: "Scale",
-    monthlyPriceBrl: 299,
+    monthlyPriceBrl: 499,
     transactionFeePercent: 0.99,
     limits: {
       ordersPerMonth: UNLIMITED,
       sessionsPerMonth: UNLIMITED,
       aiConversationsPerMonth: UNLIMITED,
       commerceConnections: UNLIMITED,
-      webhookEndpoints: 20,
+      webhookEndpoints: UNLIMITED,
       teamMembers: 10,
       crossSellPromotions: UNLIMITED,
       activeCoupons: UNLIMITED,
@@ -128,7 +128,7 @@ export function effectiveBillingPlan(
   const trialActive = subscription.status === "trialing" &&
     Boolean(subscription.trialEndsAt) &&
     new Date(subscription.trialEndsAt!).getTime() > now.getTime();
-  if (trialActive) return "growth";
+  if (trialActive) return "starter";
   if (subscription.status !== "active") return "starter";
   return planFromPriceId(subscription.stripePriceId) ?? "starter";
 }

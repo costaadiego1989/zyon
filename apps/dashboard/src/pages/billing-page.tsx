@@ -14,6 +14,7 @@ function formatDate(iso: string | null): string {
 
 const STATUS_LABEL: Record<string, string> = {
   active: "Ativa",
+  starter: "Starter",
   trialing: "Em teste",
   past_due: "Em atraso",
   canceled: "Cancelada",
@@ -24,7 +25,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function statusBadgeClass(status: string): string {
-  if (status === "active" || status === "trialing") return "badge ok";
+  if (status === "active" || status === "starter" || status === "trialing") return "badge ok";
   if (status === "past_due" || status === "unpaid") return "badge warn";
   return "badge bad";
 }
@@ -35,7 +36,7 @@ function subscriptionStatusBadge(status: string | undefined) {
       <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 999, font: "600 11px var(--mono)", background: "var(--bg)", color: "var(--muted)", border: "1px solid var(--border)" }}>Sem plano</span>
     );
   }
-  if (status === "active" || status === "trialing") {
+  if (status === "active" || status === "starter" || status === "trialing") {
     return (
       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: "600 11px var(--mono)", background: "var(--good-soft)", color: "var(--good)", border: "1px solid var(--good)" }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--good)", flexShrink: 0 }} />
@@ -101,26 +102,26 @@ const PLANS = [
     key: "starter",
     name: "Starter",
     priceId: "starter",
-    price: "R$ 0/mês",
+    price: "R$ 89/mês",
     fee: "1,99% por transação",
-    features: ["50 pedidos/mês", "50 sessões/mês", "100 conversas IA/mês", "1 conexão commerce", "1 webhook", "2 cross-sells", "3 cupons ativos"],
+    features: ["50 pedidos/mês", "50 sessões/mês", "100 conversas IA/mês", "1 conexão commerce", "Webhooks ilimitados", "1 cross-sell", "1 cupom ativo", "Tema e agente customizados", "Sem marca d’água"],
   },
   {
     key: "growth",
     name: "Growth",
     priceId: "growth",
-    price: "R$ 99/mês",
+    price: "R$ 199/mês",
     fee: "1,49% por transação",
-    features: ["500 pedidos/mês", "1.000 sessões/mês", "5.000 conversas IA/mês", "3 conexões commerce", "5 webhooks", "10 cross-sells", "20 cupons ativos", "Tema e agente customizados", "Voice checkout"],
+    features: ["500 pedidos/mês", "1.000 sessões/mês", "5.000 conversas IA/mês", "2 conexões commerce", "Webhooks ilimitados", "10 cross-sells", "10 cupons ativos", "Tema e agente customizados", "Voice checkout", "Face biometry", "Crypto payments"],
     highlight: true,
   },
   {
     key: "scale",
     name: "Scale",
     priceId: "scale",
-    price: "R$ 299/mês",
+    price: "R$ 499/mês",
     fee: "0,99% por transação",
-    features: ["Pedidos ilimitados", "Sessões ilimitadas", "Conversas IA ilimitadas", "Conexões commerce ilimitadas", "20 webhooks", "10 membros", "Face biometry", "Crypto payments", "White-label"],
+    features: ["Pedidos ilimitados", "Sessões ilimitadas", "Conversas IA ilimitadas", "Conexões commerce ilimitadas", "Webhooks ilimitados", "10 membros", "Cross-sell ilimitado", "Cupons ilimitados", "Face biometry", "Crypto payments", "White-label"],
   },
 ];
 

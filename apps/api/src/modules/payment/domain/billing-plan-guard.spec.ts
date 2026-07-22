@@ -38,9 +38,9 @@ test("PlanLimitGuard allows unlimited Scale limits", async () => {
 });
 
 test("PlanLimitGuard blocks unavailable features", async () => {
-  const svc = metering("growth", {});
+  const svc = metering("starter", {});
   await assert.rejects(
-    () => svc.assertAllowed("mrc_1", { kind: "feature", key: "faceBiometry" }),
+    () => svc.assertAllowed("mrc_1", { kind: "feature", key: "cryptoPayments" }),
     (err: unknown) => err instanceof ForbiddenException && JSON.stringify(err.getResponse()).includes("plan_feature_unavailable"),
   );
 });

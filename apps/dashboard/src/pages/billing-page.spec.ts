@@ -86,8 +86,9 @@ describe("BillingPage Portuguese copy", () => {
 
     // These correct strings must be present
     const requiredStrings = [
-      "R$ 99/mês",
-      "R$ 299/mês",
+      "R$ 89/mês",
+      "R$ 199/mês",
+      "R$ 499/mês",
       "Login necessário",
       "Histórico de faturas",
       "Renovação",
