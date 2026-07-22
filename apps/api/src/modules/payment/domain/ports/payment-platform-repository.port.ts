@@ -56,6 +56,8 @@ export interface PaymentPlatformRepository {
   getBilling(
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined>;
+  expireTrial(merchantId: string, now: Date): Promise<boolean>;
+  expireTrials(now: Date, limit: number): Promise<number>;
   findMerchantByStripeCustomerId(
     customerId: string,
   ): Promise<string | undefined>;

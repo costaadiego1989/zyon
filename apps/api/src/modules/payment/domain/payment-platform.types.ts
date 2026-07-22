@@ -25,6 +25,7 @@ export interface PaymentConnectionSnapshot {
 
 export type BillingSubscriptionStatus =
   | "trialing"
+  | "starter"
   | "active"
   | "past_due"
   | "unpaid"

@@ -6,12 +6,14 @@ import type {
   BillingConfigPort,
   StripePlatformPort,
 } from "../domain/ports/payment-platform-provider.port.js";
+import type { BillingTrialJobQueue } from "../domain/ports/billing-trial-job-queue.port.js";
 import type { AsaasSubaccountInput } from "../domain/payment-platform.types.js";
 import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 import {
   CreateAsaasSubaccountUseCase,
   CreateBillingCheckoutUseCase,
   CreateStripeConnectOnboardingLinkUseCase,
+  ExpireBillingTrialsUseCase,
   GetBillingSubscriptionUseCase,
   SyncAsaasSubaccountUseCase,
   SyncStripeConnectUseCase,
@@ -128,6 +130,51 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
     "cus_mrc_bill",
   );
 });
+
+test("billing subscription lookup schedules Redis delayed trial expiration", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const queue = new StubBillingTrialJobQueue();
+  const get = new GetBillingSubscriptionUseCase(repository, queue);
+
+  const subscription = await get.execute("mrc_scheduled");
+
+  assert.equal(subscription.status, "trialing");
+  assert.equal(queue.jobs.length, 1);
+  assert.equal(queue.jobs[0]?.merchantId, "mrc_scheduled");
+  assert.equal(queue.jobs[0]?.trialEndsAt, subscription.trialEndsAt);
+});
+
+test("billing trial expiration downgrades unpaid merchants to Starter", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  await repository.saveBilling({
+    merchantId: "mrc_expired",
+    status: "trialing",
+    trialEndsAt: "2026-07-01T00:00:00.000Z",
+  });
+  await repository.saveBilling({
+    merchantId: "mrc_paid_trial",
+    status: "trialing",
+    trialEndsAt: "2026-07-01T00:00:00.000Z",
+    stripeSubscriptionId: "sub_paid",
+  });
+
+  const expired = await new ExpireBillingTrialsUseCase(repository).execute({
+    now: new Date("2026-07-22T00:00:00.000Z"),
+  });
+
+  assert.equal(expired, 1);
+  assert.equal((await repository.getBilling("mrc_expired"))?.status, "starter");
+  assert.equal((await repository.getBilling("mrc_expired"))?.trialEndsAt, undefined);
+  assert.equal((await repository.getBilling("mrc_paid_trial"))?.status, "trialing");
+});
+
+class StubBillingTrialJobQueue implements BillingTrialJobQueue {
+  readonly jobs: Array<{ merchantId: string; trialEndsAt: string }> = [];
+
+  async scheduleTrialExpiration(input: { merchantId: string; trialEndsAt: string }): Promise<void> {
+    this.jobs.push(input);
+  }
+}
 
 class StubStripePlatform implements StripePlatformPort {
   accountCreations = 0;

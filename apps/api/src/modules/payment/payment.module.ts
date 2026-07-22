@@ -47,6 +47,8 @@ import {
   CreateBillingPortalUseCase,
   CreateStripeConnectOnboardingLinkUseCase,
   DeletePaymentConnectionUseCase,
+  ExpireBillingTrialUseCase,
+  ExpireBillingTrialsUseCase,
   GetAsaasOnboardingLinkUseCase,
   GetBillingSubscriptionUseCase,
   GetPaymentConnectionsUseCase,
@@ -61,6 +63,9 @@ import {
   PaymentPlatformController,
 } from "./presentation/http/payment-platform.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "./domain/billing-plan-guard.js";
+import { BillingTrialExpirationJob } from "./application/services/billing-trial-expiration.job.js";
+import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
+import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastructure/bullmq-billing-trial.queue.js";
 
 @Module({
   imports: [
@@ -99,6 +104,12 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "./domain/billing-pla
     GetAsaasOnboardingLinkUseCase,
     SyncAsaasSubaccountUseCase,
     GetBillingSubscriptionUseCase,
+    ExpireBillingTrialUseCase,
+    ExpireBillingTrialsUseCase,
+    BillingTrialExpirationJob,
+    BullMqBillingTrialQueue,
+    BullMqBillingTrialWorker,
+    { provide: BILLING_TRIAL_JOB_QUEUE, useExisting: BullMqBillingTrialQueue },
     CreateBillingCheckoutUseCase,
     CreateBillingPortalUseCase,
     HandleStripePlatformEventUseCase,

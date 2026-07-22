@@ -4,6 +4,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Optional,
   NotFoundException,
 } from "@nestjs/common";
 import {
@@ -24,6 +25,10 @@ import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
+import {
+  BILLING_TRIAL_JOB_QUEUE,
+  type BillingTrialJobQueue,
+} from "../domain/ports/billing-trial-job-queue.port.js";
 import type {
   AsaasSubaccountInput,
   BillingPlan,
@@ -357,11 +362,15 @@ export class GetBillingSubscriptionUseCase {
   constructor(
     @Inject(PAYMENT_PLATFORM_REPOSITORY)
     private readonly repository: PaymentPlatformRepository,
+    @Optional()
+    @Inject(BILLING_TRIAL_JOB_QUEUE)
+    private readonly trialJobs?: BillingTrialJobQueue,
     private readonly metering?: BillingPlanMeteringService,
   ) {}
 
   async execute(merchantId: string): Promise<BillingSubscriptionWithPlanSnapshot> {
     const subscription = await this.repository.getOrCreateTrial(merchantId, 14);
+    await scheduleTrialExpiration(this.trialJobs, subscription);
     const plan = effectiveBillingPlan(subscription);
     const config = BILLING_PLANS[plan];
     const usage = await this.metering?.getUsage(merchantId);
@@ -381,6 +390,30 @@ export class GetBillingSubscriptionUseCase {
 }
 
 @Injectable()
+export class ExpireBillingTrialUseCase {
+  constructor(
+    @Inject(PAYMENT_PLATFORM_REPOSITORY)
+    private readonly repository: PaymentPlatformRepository,
+  ) {}
+
+  execute(input: { merchantId: string; now?: Date }): Promise<boolean> {
+    return this.repository.expireTrial(input.merchantId, input.now ?? new Date());
+  }
+}
+
+@Injectable()
+export class ExpireBillingTrialsUseCase {
+  constructor(
+    @Inject(PAYMENT_PLATFORM_REPOSITORY)
+    private readonly repository: PaymentPlatformRepository,
+  ) {}
+
+  execute(input: { now?: Date; limit?: number } = {}): Promise<number> {
+    return this.repository.expireTrials(input.now ?? new Date(), input.limit ?? 100);
+  }
+}
+
+@Injectable()
 export class CreateBillingCheckoutUseCase {
   constructor(
     @Inject(PAYMENT_PLATFORM_REPOSITORY)
@@ -391,6 +424,9 @@ export class CreateBillingCheckoutUseCase {
     private readonly merchants: MerchantRepository,
     @Inject(BILLING_CONFIG_PORT)
     private readonly billingConfig: BillingConfigPort,
+    @Optional()
+    @Inject(BILLING_TRIAL_JOB_QUEUE)
+    private readonly trialJobs?: BillingTrialJobQueue,
   ) {}
 
   async execute(input: {
@@ -404,6 +440,7 @@ export class CreateBillingCheckoutUseCase {
       input.merchantId,
       14,
     );
+    await scheduleTrialExpiration(this.trialJobs, billing);
     let customerId = billing.stripeCustomerId;
     if (!customerId) {
       customerId = (
@@ -535,6 +572,17 @@ export class HandleStripePlatformEventUseCase {
       cancelAtPeriodEnd: input.cancelAtPeriodEnd,
     });
   }
+}
+
+async function scheduleTrialExpiration(
+  queue: BillingTrialJobQueue | undefined,
+  subscription: BillingSubscriptionSnapshot,
+): Promise<void> {
+  if (subscription.status !== "trialing" || !subscription.trialEndsAt) return;
+  await queue?.scheduleTrialExpiration({
+    merchantId: subscription.merchantId,
+    trialEndsAt: subscription.trialEndsAt,
+  });
 }
 
 async function requiredConnection(

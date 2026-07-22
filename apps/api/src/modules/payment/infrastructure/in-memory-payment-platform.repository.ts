@@ -85,7 +85,14 @@ export class InMemoryPaymentPlatformRepository
         new Date(existing.trialEndsAt).getTime() <= Date.now() &&
         !existing.stripeSubscriptionId
       ) {
-        const expired = { ...existing, status: "cancelled" as const, updatedAt: new Date().toISOString() };
+        const expired = {
+          ...existing,
+          status: "starter" as const,
+          trialEndsAt: undefined,
+          currentPeriodEnd: undefined,
+          cancelAtPeriodEnd: false,
+          updatedAt: new Date().toISOString(),
+        };
         this.billing.set(merchantId, expired);
         return expired;
       }
@@ -121,6 +128,54 @@ export class InMemoryPaymentPlatformRepository
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined> {
     return this.billing.get(merchantId);
+  }
+
+  async expireTrial(merchantId: string, now: Date): Promise<boolean> {
+    const billing = this.billing.get(merchantId);
+    if (
+      !billing ||
+      billing.status !== "trialing" ||
+      billing.stripeSubscriptionId ||
+      !billing.trialEndsAt ||
+      new Date(billing.trialEndsAt).getTime() > now.getTime()
+    ) {
+      return false;
+    }
+    this.billing.set(merchantId, {
+      ...billing,
+      status: "starter",
+      trialEndsAt: undefined,
+      currentPeriodEnd: undefined,
+      cancelAtPeriodEnd: false,
+      updatedAt: now.toISOString(),
+    });
+    return true;
+  }
+
+  async expireTrials(now: Date, limit: number): Promise<number> {
+    let count = 0;
+    const max = Math.max(1, Math.trunc(limit));
+    for (const [merchantId, billing] of this.billing.entries()) {
+      if (count >= max) break;
+      if (
+        billing.status !== "trialing" ||
+        billing.stripeSubscriptionId ||
+        !billing.trialEndsAt ||
+        new Date(billing.trialEndsAt).getTime() > now.getTime()
+      ) {
+        continue;
+      }
+      this.billing.set(merchantId, {
+        ...billing,
+        status: "starter",
+        trialEndsAt: undefined,
+        currentPeriodEnd: undefined,
+        cancelAtPeriodEnd: false,
+        updatedAt: now.toISOString(),
+      });
+      count += 1;
+    }
+    return count;
   }
 
   async findMerchantByStripeCustomerId(

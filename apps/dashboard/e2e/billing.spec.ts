@@ -91,6 +91,7 @@ test.describe("Billing Module", () => {
     const statusCandidates = [
       "Ativa",
       "Em teste",
+      "Starter",
       "Em atraso",
       "Cancelada",
       "Pendente",

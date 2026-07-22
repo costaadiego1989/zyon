@@ -121,7 +121,12 @@ export class PrismaPaymentPlatformRepository
     ) {
       const row = await this.prisma.merchantBillingSubscription.update({
         where: { merchantId: scopedMerchantId },
-        data: { status: "cancelled" },
+        data: {
+          status: "starter",
+          trialEndsAt: null,
+          currentPeriodEnd: null,
+          cancelAtPeriodEnd: false,
+        },
       });
       return toBilling(row);
     }
@@ -185,6 +190,53 @@ export class PrismaPaymentPlatformRepository
       where: { merchantId: merchantId.trim() },
     });
     return row ? toBilling(row) : undefined;
+  }
+
+  async expireTrial(merchantId: string, now: Date): Promise<boolean> {
+    const result = await this.prisma.merchantBillingSubscription.updateMany({
+      where: {
+        merchantId: merchantId.trim(),
+        status: "trialing",
+        stripeSubscriptionId: null,
+        trialEndsAt: { lte: now },
+      },
+      data: {
+        status: "starter",
+        trialEndsAt: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      },
+    });
+    return result.count > 0;
+  }
+
+  async expireTrials(now: Date, limit: number): Promise<number> {
+    const rows = await this.prisma.merchantBillingSubscription.findMany({
+      where: {
+        status: "trialing",
+        stripeSubscriptionId: null,
+        trialEndsAt: { lte: now },
+      },
+      select: { merchantId: true },
+      orderBy: { trialEndsAt: "asc" },
+      take: Math.max(1, Math.trunc(limit)),
+    });
+    if (!rows.length) return 0;
+    const result = await this.prisma.merchantBillingSubscription.updateMany({
+      where: {
+        merchantId: { in: rows.map((row) => row.merchantId) },
+        status: "trialing",
+        stripeSubscriptionId: null,
+        trialEndsAt: { lte: now },
+      },
+      data: {
+        status: "starter",
+        trialEndsAt: null,
+        currentPeriodEnd: null,
+        cancelAtPeriodEnd: false,
+      },
+    });
+    return result.count;
   }
 
   async findMerchantByStripeCustomerId(
@@ -290,6 +342,7 @@ function toBillingStatus(
   status: string,
 ): BillingSubscriptionSnapshot["status"] {
   if (
+    status === "starter" ||
     status === "active" ||
     status === "past_due" ||
     status === "unpaid" ||
