@@ -56,8 +56,8 @@ export class ConnectCommerceDto {
   @MinLength(8)
   consumer_secret?: string;
 
-  @ApiPropertyOptional({ writeOnly: true, description: "WooCommerce webhook secret. Falls back to consumer_secret when omitted." })
-  @ValidateIf((value: ConnectCommerceDto) => value.provider === "woocommerce" && value.webhook_secret !== undefined)
+  @ApiPropertyOptional({ writeOnly: true, description: "Webhook secret. Shopify uses the app client_secret; WooCommerce falls back to consumer_secret when omitted." })
+  @ValidateIf((value: ConnectCommerceDto) => (value.provider === "woocommerce" || value.provider === "shopify") && value.webhook_secret !== undefined)
   @IsOptional()
   @IsString()
   @MinLength(8)

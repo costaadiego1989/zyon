@@ -25,6 +25,9 @@ import "./modules/checkout-settings/infrastructure/prisma-checkout-settings.repo
 import "./modules/commerce/application/validate-cart-for-payment.use-case.spec.js";
 import "./modules/commerce/application/sync-pending-order.use-case.spec.js";
 import "./modules/commerce/application/mark-commerce-order-paid.use-case.spec.js";
+import "./modules/commerce/application/register-nuvemshop-webhooks.use-case.spec.js";
+import "./modules/commerce/presentation/http/shopify-webhook.controller.spec.js";
+import "./modules/commerce/presentation/http/nuvemshop-webhook.controller.spec.js";
 import "./modules/commerce/infrastructure/commerce-retry.spec.js";
 import "./modules/commerce/infrastructure/commerce-secret-cipher.spec.js";
 import "./modules/commerce/infrastructure/tenant-commerce-adapter.factory.spec.js";

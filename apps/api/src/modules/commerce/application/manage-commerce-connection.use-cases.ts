@@ -15,6 +15,7 @@ import {
   COMMERCE_PROVIDER_RUNTIME,
   type CommerceProviderRuntime,
 } from "../domain/ports/commerce-provider-runtime.port.js";
+import { RegisterNuvemshopWebhooksUseCase } from "./register-nuvemshop-webhooks.use-case.js";
 
 @Injectable()
 export class GetCommerceConnectionUseCase {
@@ -35,6 +36,7 @@ export class ConnectCommerceUseCase {
     private readonly connections: CommerceConnectionPort,
     @Inject(COMMERCE_PROVIDER_RUNTIME)
     private readonly adapters: CommerceProviderRuntime,
+    private readonly registerNuvemshopWebhooks?: RegisterNuvemshopWebhooksUseCase,
   ) {}
 
   async execute(
@@ -47,6 +49,12 @@ export class ConnectCommerceUseCase {
       this.connections,
       this.adapters,
     );
+    if (input.provider === "nuvemshop") {
+      await this.registerNuvemshopWebhooks?.execute({
+        merchantId: input.merchantId,
+        callbackUrl: nuvemshopWebhookUrl(input.merchantId),
+      });
+    }
     return requiredConnection(this.connections, input.merchantId);
   }
 }
@@ -155,6 +163,13 @@ async function requiredConnection(
     throw new NotFoundException("commerce_connection_not_found");
   }
   return connection;
+}
+
+function nuvemshopWebhookUrl(merchantId: string): string {
+  const base = (process.env.COMMERCE_PUBLIC_API_BASE_URL ?? "https://api.zyon.com")
+    .trim()
+    .replace(/\/+$/, "");
+  return `${base}/webhooks/nuvemshop/${encodeURIComponent(merchantId.trim())}`;
 }
 
 /**

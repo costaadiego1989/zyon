@@ -23,12 +23,20 @@ import {
   SyncCommerceConnectionUseCase,
   TestCommerceConnectionUseCase,
 } from "./application/manage-commerce-connection.use-cases.js";
+import { RegisterNuvemshopWebhooksUseCase } from "./application/register-nuvemshop-webhooks.use-case.js";
 import { CommerceConnectionsController } from "./presentation/http/commerce-connections.controller.js";
 import { WooCommerceWebhookController } from "./presentation/http/woocommerce-webhook.controller.js";
+import { ShopifyWebhookController } from "./presentation/http/shopify-webhook.controller.js";
+import { NuvemshopWebhookController } from "./presentation/http/nuvemshop-webhook.controller.js";
 
 @Module({
   imports: [IntegrationsModule],
-  controllers: [CommerceConnectionsController, WooCommerceWebhookController],
+  controllers: [
+    CommerceConnectionsController,
+    WooCommerceWebhookController,
+    ShopifyWebhookController,
+    NuvemshopWebhookController,
+  ],
   providers: [
     TenantCommerceAdapterFactory,
     {
@@ -65,6 +73,7 @@ import { WooCommerceWebhookController } from "./presentation/http/woocommerce-we
     ValidateCartForPaymentUseCase,
     SyncPendingOrderUseCase,
     MarkCommerceOrderPaidUseCase,
+    RegisterNuvemshopWebhooksUseCase,
     GetCommerceConnectionUseCase,
     ConnectCommerceUseCase,
     TestCommerceConnectionUseCase,

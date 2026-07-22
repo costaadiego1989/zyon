@@ -119,6 +119,7 @@ function toCredentials(
       adminAccessToken: body.admin_access_token ?? "",
       storefrontAccessToken: body.storefront_access_token ?? "",
       apiVersion: body.api_version,
+      webhookSecret: body.webhook_secret,
     };
   }
   if (body.provider === "nuvemshop") {

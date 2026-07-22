@@ -48,6 +48,7 @@ export class InMemoryCommerceConnectionRepository
         storefrontAccessToken:
           input.storefrontAccessToken?.trim() || undefined,
         apiVersion: input.apiVersion?.trim() || undefined,
+        webhookSecret: input.webhookSecret?.trim() || undefined,
       };
       storeUrl = `https://${input.shopDomain.trim().replace(/^https?:\/\//, "")}`;
     } else if (input.provider === "nuvemshop") {

@@ -71,6 +71,7 @@ export class PrismaCommerceConnectionRepository
       adminAccessToken: secret.adminAccessToken,
       storefrontAccessToken: secret.storefrontAccessToken,
       apiVersion: row.apiVersion ?? undefined,
+      webhookSecret: secret.webhookSecret,
     };
   }
 
@@ -155,6 +156,7 @@ type SecretEnvelope =
       provider: "shopify";
       adminAccessToken: string;
       storefrontAccessToken?: string;
+      webhookSecret?: string;
     }
   | {
       version: 1;
@@ -187,6 +189,7 @@ function encodeSecret(input: SaveMerchantCommerceCredentialsInput): string {
       provider: "shopify",
       adminAccessToken: input.adminAccessToken.trim(),
       storefrontAccessToken: input.storefrontAccessToken?.trim() || undefined,
+      webhookSecret: input.webhookSecret?.trim() || undefined,
     };
   } else if (input.provider === "nuvemshop") {
     envelope = {
@@ -237,6 +240,7 @@ function decodeSecret(
       return {
         adminAccessToken: parsed.adminAccessToken,
         storefrontAccessToken: parsed.storefrontAccessToken,
+        webhookSecret: parsed.webhookSecret,
         consumerKey: "",
         consumerSecret: "",
       };

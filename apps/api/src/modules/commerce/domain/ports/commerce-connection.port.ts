@@ -8,6 +8,7 @@ export interface ShopifyCommerceCredentials {
   adminAccessToken: string;
   storefrontAccessToken?: string;
   apiVersion?: string;
+  webhookSecret?: string;
 }
 
 export interface WooCommerceCredentials {
@@ -51,6 +52,7 @@ export interface SaveShopifyCommerceCredentialsInput {
   adminAccessToken: string;
   storefrontAccessToken?: string;
   apiVersion?: string;
+  webhookSecret?: string;
 }
 
 export interface SaveWooCommerceCredentialsInput {
