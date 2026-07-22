@@ -185,6 +185,25 @@ export function PulseWidget({ s }: PulseWidgetProps) {
 
       {stateBool(s, 'supportOpen') && <SupportPanel s={s} />}
       {stateBool(s, 'modalOpen') && <SettingsModal s={s} />}
+      {stateBool(s, 'showBranding') && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '8px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            fontSize: '10px',
+            color: 'var(--mut)',
+            opacity: 0.7,
+            pointerEvents: 'none',
+            whiteSpace: 'nowrap',
+            fontFamily: 'inherit',
+            zIndex: 2,
+          }}
+        >
+          Powered by Zyon
+        </div>
+      )}
     </div>
     </div>
   );

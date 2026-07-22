@@ -37,6 +37,7 @@ export interface ExperienceDeps {
    */
   serviceFee?: number;
   suggestedProducts?: SuggestedProduct[];
+  showBranding?: boolean;
 }
 
 export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
@@ -171,7 +172,8 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     rules: {
       couponBoxEnabled: deps.couponBoxEnabled ?? true,
       cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true,
-      cryptoPayments: deps.rules?.cryptoPayments
+      cryptoPayments: deps.rules?.cryptoPayments,
+      showBranding: deps.showBranding ?? true,
     },
     items,
     totals: {
