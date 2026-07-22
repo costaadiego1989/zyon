@@ -105,6 +105,12 @@ type PaySnapshot = {
     amountAtomic?: string;
     amountDisplay?: string;
     destinationAddress?: string;
+    transfers?: Array<{
+      kind: "merchant" | "platform_fee";
+      destinationAddress: string;
+      amountAtomic: string;
+      amountDisplay: string;
+    }>;
     quoteExpiresAt?: string;
     walletConnectProjectId?: string;
   };
@@ -291,6 +297,7 @@ export function useCheckoutPayment(
             amountAtomic: bf.amountAtomic,
             amountDisplay: bf.amountDisplay ?? `${bf.amountAtomic} USDC`,
             destinationAddress: bf.destinationAddress,
+            transfers: bf.transfers,
             quoteExpiresAt: bf.quoteExpiresAt,
             walletConnectProjectId: bf.walletConnectProjectId
           }

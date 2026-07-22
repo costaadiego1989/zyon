@@ -38,6 +38,13 @@ export type CreateProviderPaymentInput = {
   platformFeeCents?: number;
 };
 
+export type CryptoTransferQuotePayload = {
+  kind: "merchant" | "platform_fee";
+  destinationAddress: string;
+  amountAtomic: string;
+  amountDisplay: string;
+};
+
 export type CryptoBuyerFacingPayload = {
   chainId: number;
   chain: "polygon" | "base";
@@ -48,6 +55,7 @@ export type CryptoBuyerFacingPayload = {
   amountAtomic: string;
   amountDisplay: string;
   destinationAddress: string;
+  transfers?: CryptoTransferQuotePayload[];
   quoteExpiresAt: string;
   walletConnectProjectId?: string;
 };

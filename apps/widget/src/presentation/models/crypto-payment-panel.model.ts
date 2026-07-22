@@ -5,6 +5,6 @@ export type CryptoPaymentPanelModel = {
   orderTotalLabel: string | null;
   quote: CryptoBuyerFacingQuote;
   expired: boolean;
-  onConfirmPayment: (intentId: string, txHash: string, walletAddress: string) => Promise<void>;
+  onConfirmPayment: (intentId: string, txHashes: string[], walletAddress: string) => Promise<void>;
   onClose: () => void;
 };

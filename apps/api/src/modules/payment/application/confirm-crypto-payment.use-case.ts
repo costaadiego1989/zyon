@@ -13,6 +13,7 @@ export type ConfirmCryptoPaymentRequest = {
   session_id: string;
   intent_id: string;
   tx_hash: string;
+  tx_hashes?: string[];
   wallet_address: string;
 };
 
@@ -46,9 +47,13 @@ export class ConfirmCryptoPaymentUseCase {
     const sessionId = body.session_id.trim();
     const intentId = body.intent_id.trim();
     const txHash = body.tx_hash.trim();
+    const txHashes = (Array.isArray(body.tx_hashes) && body.tx_hashes.length
+      ? body.tx_hashes
+      : [txHash]
+    ).map((hash) => hash.trim()).filter(Boolean);
     const walletAddress = body.wallet_address.trim();
 
-    if (!merchantId || !sessionId || !intentId || !txHash || !walletAddress) {
+    if (!merchantId || !sessionId || !intentId || !txHashes.length || !walletAddress) {
       throw new BadRequestException("crypto_confirm_fields_required");
     }
 
@@ -74,34 +79,48 @@ export class ConfirmCryptoPaymentUseCase {
       throw new BadRequestException("crypto_quote_missing");
     }
 
-    // Global uniqueness gate: reserve (chain, txHash) for THIS intent BEFORE
-    // verifying/approving. A txHash already consumed (by this or any other
-    // intent) is rejected — no replay, no cross-intent reuse (ADR 0001 #2).
-    const transferKey = { chain: buyerFacing.chain, txHash, merchantId, intentId };
-    const reserved = await this.payments.recordCryptoTransfer(transferKey);
-    if (!reserved) {
-      throw new ConflictException("crypto_tx_already_used");
+    const transfers = buyerFacing.transfers?.length
+      ? buyerFacing.transfers
+      : [{ kind: "merchant" as const, destinationAddress: buyerFacing.destinationAddress, amountAtomic: buyerFacing.amountAtomic, amountDisplay: buyerFacing.amountDisplay }];
+    if (txHashes.length < transfers.length) {
+      throw new BadRequestException("crypto_fee_transfer_required");
     }
 
-    let verified: { from: string };
+    const reservedHashes: string[] = [];
+    let verified: { from: string } = { from: walletAddress };
     try {
-      verified = await evmCryptoVerifier.verifyTransfer({
-        txHash,
-        walletAddress,
-        buyerFacing
-      });
+      for (let index = 0; index < transfers.length; index += 1) {
+        const transfer = transfers[index]!;
+        const hash = txHashes[index]!;
+        const transferKey = { chain: buyerFacing.chain, txHash: hash, merchantId, intentId };
+        const reserved = await this.payments.recordCryptoTransfer(transferKey);
+        if (!reserved) {
+          throw new ConflictException("crypto_tx_already_used");
+        }
+        reservedHashes.push(hash);
+        verified = await evmCryptoVerifier.verifyTransfer({
+          txHash: hash,
+          walletAddress,
+          buyerFacing: {
+            ...buyerFacing,
+            destinationAddress: transfer.destinationAddress,
+            amountAtomic: transfer.amountAtomic,
+            amountDisplay: transfer.amountDisplay,
+          }
+        });
+      }
 
       const intent = PaymentIntentEntity.rehydrate(snap);
       intent.markApproved({
-        providerPaymentId: txHash,
+        providerPaymentId: txHashes.join(","),
         approvedAmountCents: snap.amountCents
       });
 
       await this.payments.saveIntent({ intent });
     } catch (e) {
-      // Verification/approval failed — release the reservation so a legitimate
-      // retry (correct tx) is not permanently blocked by this attempt.
-      await this.payments.deleteCryptoTransfer({ chain: buyerFacing.chain, txHash });
+      for (const hash of reservedHashes) {
+        await this.payments.deleteCryptoTransfer({ chain: buyerFacing.chain, txHash: hash });
+      }
       throw e;
     }
 
@@ -116,7 +135,8 @@ export class ConfirmCryptoPaymentUseCase {
             status: "approved",
             amount_cents: snap.amountCents,
             method: "crypto",
-            tx_hash: txHash,
+            tx_hash: txHashes[0],
+            tx_hashes: txHashes,
             wallet_address: verified.from
           },
           causationId: intentId
@@ -128,7 +148,7 @@ export class ConfirmCryptoPaymentUseCase {
       await this.checkoutPayment.completeAfterApproval({
         merchantId,
         sessionId,
-        externalOrderId: txHash,
+        externalOrderId: txHashes.join(","),
         orderTotalMajorUnits: Number((snap.amountCents / 100).toFixed(2)),
         currency: snap.currency as CurrencyCode,
         acceptedOfferId: snap.acceptedOfferId

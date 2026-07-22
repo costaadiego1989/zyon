@@ -234,6 +234,50 @@ test("CreatePaymentIntentUseCase calculates Growth transaction fee from subscrip
   }
 });
 
+test("CreatePaymentIntentUseCase passes platform fee to crypto provider", async () => {
+  const previous = process.env.STRIPE_BILLING_PRICE_GROWTH;
+  process.env.STRIPE_BILLING_PRICE_GROWTH = "price_growth_test";
+  try {
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(
+      checkoutSession({
+        shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
+        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+      })
+    );
+    const platform = new InMemoryPaymentPlatformRepository();
+    await platform.saveBilling({
+      merchantId: "mrc_1",
+      status: "active",
+      stripePriceId: "price_growth_test",
+    });
+    const provider = new CapturingPaymentProvider();
+    const uc = new CreatePaymentIntentUseCase(
+      checkout,
+      checkout,
+      new InMemoryPaymentRepository(checkout),
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      platform,
+    );
+
+    await uc.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      idempotency_key: "idem_crypto_fee",
+      method: "crypto",
+    });
+
+    assert.equal(provider.inputs[0]?.method, "crypto");
+    assert.equal(provider.inputs[0]?.platformFeeCents, 447);
+  } finally {
+    if (previous === undefined) delete process.env.STRIPE_BILLING_PRICE_GROWTH;
+    else process.env.STRIPE_BILLING_PRICE_GROWTH = previous;
+  }
+});
+
 test("CreatePaymentIntentUseCase rejects card when Stripe is not configured", async () => {
   const keys = [
     "STRIPE_SECRET_KEY_TEST",

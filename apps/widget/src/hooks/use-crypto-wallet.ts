@@ -194,7 +194,7 @@ export function useCryptoWallet() {
   );
 
   const sendUsdcTransfer = useCallback(
-    async (quote: CryptoBuyerFacingQuote, from: `0x${string}`): Promise<Hash> => {
+    async (quote: CryptoBuyerFacingQuote, from: `0x${string}`): Promise<Hash[]> => {
       const provider = active ?? injectedProvider();
       if (!provider) throw new Error("Carteira não disponível.");
       await ensureChain(quote.chainId, provider);
@@ -203,13 +203,20 @@ export function useCryptoWallet() {
         chain,
         transport: custom(provider)
       });
-      return client.writeContract({
-        account: from,
-        address: quote.tokenAddress as `0x${string}`,
-        abi: erc20Abi,
-        functionName: "transfer",
-        args: [quote.destinationAddress as `0x${string}`, BigInt(quote.amountAtomic)]
-      });
+      const transfers = quote.transfers?.length
+        ? quote.transfers
+        : [{ destinationAddress: quote.destinationAddress, amountAtomic: quote.amountAtomic }];
+      const hashes: Hash[] = [];
+      for (const transfer of transfers) {
+        hashes.push(await client.writeContract({
+          account: from,
+          address: quote.tokenAddress as `0x${string}`,
+          abi: erc20Abi,
+          functionName: "transfer",
+          args: [transfer.destinationAddress as `0x${string}`, BigInt(transfer.amountAtomic)]
+        }));
+      }
+      return hashes;
     },
     [active, ensureChain]
   );

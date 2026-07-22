@@ -1,5 +1,6 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { MerchantCryptoPayments } from "@zyon/shared-types";
+import { isAddress } from "viem";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { isCryptoPaymentsEnabled } from "../../merchant/domain/services/merchant-crypto.validation.js";
 import type {
@@ -14,7 +15,8 @@ import {
   quoteExpiresAt,
   usdcContractAddress,
   walletConnectProjectId,
-  type CryptoBuyerFacing
+  type CryptoBuyerFacing,
+  type CryptoTransferQuote
 } from "./evm-crypto.constants.js";
 import { quoteUsdcFromBrlCents } from "./evm-crypto-quote.service.js";
 
@@ -36,7 +38,7 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
       throw new BadRequestException("crypto_payments_not_enabled_for_merchant");
     }
 
-    const quote = buildCryptoQuote(input.amountCents, config!, input.intentId);
+    const quote = buildCryptoQuote(input.amountCents, config!, input.intentId, input.platformFeeCents ?? 0);
     const providerPaymentId = `crypto_${input.intentId}`;
 
     return {
@@ -50,10 +52,38 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
 export function buildCryptoQuote(
   amountCents: number,
   config: MerchantCryptoPayments,
-  intentId?: string
+  intentId?: string,
+  platformFeeCents = 0
 ): CryptoBuyerFacing {
   const brlPerUsdc = config.brlPerUsdc ?? 0;
-  const { amountAtomic, amountDisplay } = quoteUsdcFromBrlCents(amountCents, brlPerUsdc, intentId);
+  const feeCents = Math.max(0, Math.min(Math.trunc(platformFeeCents), Math.trunc(amountCents)));
+  const merchantCents = amountCents - feeCents;
+  const total = quoteUsdcFromBrlCents(amountCents, brlPerUsdc, intentId);
+  const merchant = quoteUsdcFromBrlCents(merchantCents, brlPerUsdc, intentId ? `${intentId}_merchant` : undefined);
+  const transfers: CryptoTransferQuote[] = [
+    {
+      kind: "merchant",
+      destinationAddress: config.treasuryAddress,
+      amountAtomic: merchant.amountAtomic,
+      amountDisplay: merchant.amountDisplay,
+    }
+  ];
+  const feeTreasury = process.env.ZYON_CRYPTO_TREASURY_ADDRESS?.trim();
+  if (feeCents > 0) {
+    if (!feeTreasury) {
+      throw new Error("zyon_crypto_treasury_required");
+    }
+    if (!isAddress(feeTreasury)) {
+      throw new Error("zyon_crypto_treasury_invalid");
+    }
+    const fee = quoteUsdcFromBrlCents(feeCents, brlPerUsdc, intentId ? `${intentId}_platform_fee` : undefined);
+    transfers.push({
+      kind: "platform_fee",
+      destinationAddress: feeTreasury,
+      amountAtomic: fee.amountAtomic,
+      amountDisplay: fee.amountDisplay,
+    });
+  }
   const ttl = config.quoteTtlSeconds ?? 900;
   const chain = config.chain;
   const network = config.network;
@@ -65,9 +95,10 @@ export function buildCryptoQuote(
     chainLabel: evmChainLabel(chain),
     tokenAddress: usdcContractAddress(chain, network),
     tokenSymbol: "USDC",
-    amountAtomic,
-    amountDisplay,
+    amountAtomic: total.amountAtomic,
+    amountDisplay: total.amountDisplay,
     destinationAddress: config.treasuryAddress,
+    transfers,
     quoteExpiresAt: quoteExpiresAt(ttl),
     walletConnectProjectId: walletConnectProjectId()
   };

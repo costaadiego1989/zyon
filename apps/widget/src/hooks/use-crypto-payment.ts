@@ -30,7 +30,7 @@ export function useCryptoPayment(deps: CryptoPaymentDeps) {
 
   async function confirmCryptoPayment(
     intentId: string,
-    txHash: string,
+    txHashes: string[],
     walletAddress: string
   ): Promise<void> {
     if (!session) return;
@@ -41,7 +41,8 @@ export function useCryptoPayment(deps: CryptoPaymentDeps) {
         ...embedOpts,
         body: {
           session_id: session.session_id,
-          tx_hash: txHash,
+          tx_hash: txHashes[0] ?? "",
+          tx_hashes: txHashes,
           wallet_address: walletAddress,
           ...(config.mode !== "embed" && { merchant_id: config.merchantId })
         },

@@ -54,17 +54,27 @@ function createCryptoIntent(payments: InMemoryPaymentRepository, overrides?: Par
 // Stub the verifier globally for tests
 let verifierBehavior: "success" | "throw" = "success";
 let verifierError: string = "crypto_transfer_not_matched";
+const verifierCalls: Array<{ txHash: string; destinationAddress: string; amountAtomic: string }> = [];
 
 test.before(() => {
-  (verifierModule.evmCryptoVerifier as any).verifyTransfer = async () => {
+  (verifierModule.evmCryptoVerifier as any).verifyTransfer = async (input: {
+    txHash: string;
+    buyerFacing: { destinationAddress: string; amountAtomic: string };
+  }) => {
     if (verifierBehavior === "throw") throw new Error(verifierError);
-    return { ok: true, from: "0xBuyerWallet", to: "0xTreasury", value: "5000000" };
+    verifierCalls.push({
+      txHash: input.txHash,
+      destinationAddress: input.buyerFacing.destinationAddress,
+      amountAtomic: input.buyerFacing.amountAtomic,
+    });
+    return { ok: true, from: "0xBuyerWallet", to: input.buyerFacing.destinationAddress, value: input.buyerFacing.amountAtomic };
   };
 });
 
 test.beforeEach(() => {
   verifierBehavior = "success";
   verifierError = "crypto_transfer_not_matched";
+  verifierCalls.length = 0;
 });
 
 test("ConfirmCrypto: rejects when required fields are empty", async () => {
@@ -242,6 +252,56 @@ test("ConfirmCrypto: happy path approves and triggers checkout", async () => {
   assert.equal(reloaded?.snapshot().providerPaymentId, "0xValidTx");
   assert.equal(checkoutPort.approved.length, 1);
   assert.equal(checkoutPort.approved[0]?.externalOrderId, "0xValidTx");
+});
+
+test("ConfirmCrypto: requires and verifies merchant plus platform fee transfers", async () => {
+  const payments = new InMemoryPaymentRepository();
+  const checkoutPort = new RecordingCheckoutPayment();
+  const intent = createCryptoIntent(payments);
+  intent.setBuyerFacingPayload({
+    ...CRYPTO_BUYER_FACING,
+    transfers: [
+      {
+        kind: "merchant",
+        destinationAddress: "0xMerchantTreasury",
+        amountAtomic: "4900000",
+        amountDisplay: "4.900000 USDC",
+      },
+      {
+        kind: "platform_fee",
+        destinationAddress: "0xZyonTreasury",
+        amountAtomic: "100000",
+        amountDisplay: "0.100000 USDC",
+      },
+    ],
+  } as any);
+  await payments.saveIntent({ intent });
+  const uc = new ConfirmCryptoPaymentUseCase(payments, checkoutPort);
+
+  await assert.rejects(
+    () => uc.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      intent_id: intent.id,
+      tx_hash: "0xMerchantTx",
+      wallet_address: "0xBuyerWallet",
+    }),
+    /crypto_fee_transfer_required/,
+  );
+
+  const result = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    intent_id: intent.id,
+    tx_hash: "0xMerchantTx",
+    tx_hashes: ["0xMerchantTx", "0xFeeTx"],
+    wallet_address: "0xBuyerWallet",
+  });
+
+  assert.equal(result.status, "approved");
+  assert.deepEqual(verifierCalls.map((call) => call.txHash), ["0xMerchantTx", "0xFeeTx"]);
+  assert.deepEqual(verifierCalls.map((call) => call.destinationAddress), ["0xMerchantTreasury", "0xZyonTreasury"]);
+  assert.equal(checkoutPort.approved[0]?.externalOrderId, "0xMerchantTx,0xFeeTx");
 });
 
 test("ConfirmCrypto: verification failure releases crypto transfer reservation", async () => {

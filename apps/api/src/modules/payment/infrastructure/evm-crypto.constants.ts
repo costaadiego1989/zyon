@@ -67,6 +67,13 @@ export function isCryptoQuoteEnabled(): boolean {
   return process.env.CRYPTO_QUOTE_ENABLED !== "false";
 }
 
+export type CryptoTransferQuote = {
+  kind: "merchant" | "platform_fee";
+  destinationAddress: string;
+  amountAtomic: string;
+  amountDisplay: string;
+};
+
 export type CryptoBuyerFacing = {
   chainId: number;
   chain: EvmChain;
@@ -77,6 +84,7 @@ export type CryptoBuyerFacing = {
   amountAtomic: string;
   amountDisplay: string;
   destinationAddress: string;
+  transfers?: CryptoTransferQuote[];
   quoteExpiresAt: string;
   walletConnectProjectId?: string;
 };

@@ -78,6 +78,8 @@ function strip(d: PaymentIntentSnapshot) {
   };
 }
 
+type NormalizedCryptoTransfer = NonNullable<NonNullable<PaymentIntentSnapshot["buyerFacing"]>["transfers"]>[number];
+
 function normalizeBuyerFacing(v: unknown): PaymentIntentSnapshot["buyerFacing"] {
   if (!v || typeof v !== "object" || Array.isArray(v)) return undefined;
   const rec = v as Record<string, unknown>;
@@ -96,6 +98,17 @@ function normalizeBuyerFacing(v: unknown): PaymentIntentSnapshot["buyerFacing"] 
   if (typeof rec.amountAtomic === "string") out.amountAtomic = rec.amountAtomic;
   if (typeof rec.amountDisplay === "string") out.amountDisplay = rec.amountDisplay;
   if (typeof rec.destinationAddress === "string") out.destinationAddress = rec.destinationAddress;
+  if (Array.isArray(rec.transfers)) {
+    const transfers = rec.transfers.filter((item): item is NormalizedCryptoTransfer => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return false;
+      const t = item as Record<string, unknown>;
+      return (t.kind === "merchant" || t.kind === "platform_fee") &&
+        typeof t.destinationAddress === "string" &&
+        typeof t.amountAtomic === "string" &&
+        typeof t.amountDisplay === "string";
+    });
+    if (transfers.length) out.transfers = transfers;
+  }
   if (typeof rec.quoteExpiresAt === "string") out.quoteExpiresAt = rec.quoteExpiresAt;
   if (typeof rec.walletConnectProjectId === "string") out.walletConnectProjectId = rec.walletConnectProjectId;
   return Object.keys(out).length ? out : undefined;

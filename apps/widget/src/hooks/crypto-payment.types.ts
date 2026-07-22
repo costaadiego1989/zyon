@@ -1,3 +1,10 @@
+export type CryptoTransferQuote = {
+  kind: "merchant" | "platform_fee";
+  destinationAddress: string;
+  amountAtomic: string;
+  amountDisplay: string;
+};
+
 export type CryptoBuyerFacingQuote = {
   chainId: number;
   chain: string;
@@ -8,6 +15,7 @@ export type CryptoBuyerFacingQuote = {
   amountAtomic: string;
   amountDisplay: string;
   destinationAddress: string;
+  transfers?: CryptoTransferQuote[];
   quoteExpiresAt: string;
   walletConnectProjectId?: string;
 };

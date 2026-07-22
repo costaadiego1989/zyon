@@ -17,15 +17,15 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
   // throw — leaving the buyer's USDC sent but the order unconfirmed with no
   // recovery path.
   const [pendingConfirm, setPendingConfirm] = useState<{
-    txHash: string;
+    txHashes: string[];
     account: string;
   } | null>(null);
   const quote = model.quote;
 
-  async function handleConfirm(intentId: string, txHash: string, account: string): Promise<void> {
+  async function handleConfirm(intentId: string, txHashes: string[], account: string): Promise<void> {
     setStatus("Confirmando na blockchain...");
     try {
-      await model.onConfirmPayment(intentId, txHash, account);
+      await model.onConfirmPayment(intentId, txHashes, account);
       setPendingConfirm(null);
       model.onClose();
     } catch (err) {
@@ -45,11 +45,11 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
     try {
       const account = wallet.address ?? (await wallet.connect("any"));
       setStatus("Enviando USDC...");
-      const txHash = await wallet.sendUsdcTransfer(quote, account);
-      // P1: persist txHash immediately after broadcast — before the async
-      // confirmation call — so a confirmation failure retains it for retry.
-      setPendingConfirm({ txHash, account });
-      await handleConfirm(model.intentId, txHash, account);
+      const txHashes = await wallet.sendUsdcTransfer(quote, account);
+      // P1: persist tx hashes immediately after broadcast — before the async
+      // confirmation call — so a confirmation failure retains them for retry.
+      setPendingConfirm({ txHashes, account });
+      await handleConfirm(model.intentId, txHashes, account);
     } catch (err) {
       // Only reached if broadcast itself failed (pendingConfirm still null).
       const message =
@@ -104,7 +104,7 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
       {pendingConfirm ? (
         <p className="zyon-crypto-status" role="status">
           Transação enviada:{" "}
-          <span className="zyon-crypto-mono">{truncateAddress(pendingConfirm.txHash)}</span>
+          <span className="zyon-crypto-mono">{truncateAddress(pendingConfirm.txHashes[0] ?? "")}</span>
         </p>
       ) : null}
 
@@ -117,13 +117,11 @@ export function CryptoPaymentPanel({ model }: { model: CryptoPaymentPanelModel }
 
       <div className="zyon-crypto-actions">
         {pendingConfirm ? (
-          // P1: retry confirmation without re-broadcasting. The txHash is
-          // retained so the same on-chain transaction can be reconciled.
           <button
             type="button"
             className="zyon-cta zyon-crypto-pay"
             disabled={paying}
-            onClick={() => void handleConfirm(model.intentId, pendingConfirm.txHash, pendingConfirm.account)}
+            onClick={() => void handleConfirm(model.intentId, pendingConfirm.txHashes, pendingConfirm.account)}
           >
             Retentar confirmação
           </button>

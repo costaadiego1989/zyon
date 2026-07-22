@@ -57,6 +57,12 @@ export type PaymentIntentSnapshot = {
     amountAtomic?: string;
     amountDisplay?: string;
     destinationAddress?: string;
+    transfers?: Array<{
+      kind: "merchant" | "platform_fee";
+      destinationAddress: string;
+      amountAtomic: string;
+      amountDisplay: string;
+    }>;
     quoteExpiresAt?: string;
     walletConnectProjectId?: string;
   };
