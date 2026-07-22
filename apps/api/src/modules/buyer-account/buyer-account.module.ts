@@ -25,7 +25,9 @@ import { WebAuthnChallengeService } from "./domain/services/webauthn-challenge.s
 import { WebAuthnVerifierService } from "./domain/services/webauthn-verifier.service.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
 import { BUYER_ACCOUNT_REPOSITORY } from "./domain/ports/buyer-account-repository.port.js";
-import { InMemoryWebAuthnCredentialStore } from "./infrastructure/in-memory-webauthn-credential-store.js";
+import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
+import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
+import type { PrismaClient } from "@prisma/client";
 import { BuyerJwtService } from "./domain/services/buyer-jwt.service.js";
 import { M2mTokenService } from "./domain/services/m2m-token.service.js";
 import { BuyerJwtAuthGuard } from "./presentation/http/buyer-jwt-auth.guard.js";
@@ -76,7 +78,11 @@ import { InMemoryOtpStore } from "./infrastructure/in-memory-otp-store.js";
         origin: process.env.WEBAUTHN_ORIGIN ?? "https://localhost",
       }),
     },
-    { provide: WEBAUTHN_CREDENTIAL_STORE, useClass: InMemoryWebAuthnCredentialStore },
+    {
+      provide: WEBAUTHN_CREDENTIAL_STORE,
+      useFactory: (prisma: PrismaClient) => new PrismaWebAuthnCredentialRepository(prisma),
+      inject: [BUYER_ACCOUNT_PRISMA_CLIENT],
+    },
     {
       provide: WebAuthnRegisterOptionsUseCase,
       useFactory: (challenges: WebAuthnChallengeService, buyerRepo: any) =>

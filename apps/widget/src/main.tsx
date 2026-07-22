@@ -50,7 +50,7 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
       storeName: "Loja",
       agentName: "Pulse",
       theme: "light" as const,
-      faceLogin: false,
+      faceLogin: true,
       voiceEnabled: true,
       supportFab: true,
       apiBaseUrl: config.apiBaseUrl,

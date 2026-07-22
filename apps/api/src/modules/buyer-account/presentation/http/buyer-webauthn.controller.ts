@@ -43,6 +43,7 @@ export class BuyerWebAuthnController {
   async verifyRegistration(
     @Req() req: { user?: unknown },
     @Body() body: {
+      challenge: string;
       credential: {
         id: string;
         rawId: string;
@@ -52,7 +53,7 @@ export class BuyerWebAuthnController {
     },
   ) {
     const buyer = currentBuyer(req);
-    const challengeBytes = new Uint8Array(Buffer.from(body.credential.id, "base64url"));
+    const challengeBytes = new Uint8Array(Buffer.from(body.challenge, "base64url"));
     return this.registerVerify.execute({
       buyer_id: buyer.globalUserId,
       credential: {
@@ -82,6 +83,7 @@ export class BuyerWebAuthnController {
   @Post("login/verify")
   async verifyLogin(
     @Body() body: {
+      challenge: string;
       credential: {
         id: string;
         rawId: string;
@@ -90,7 +92,7 @@ export class BuyerWebAuthnController {
       };
     },
   ) {
-    const challengeBytes = new Uint8Array(Buffer.from(body.credential.id, "base64url"));
+    const challengeBytes = new Uint8Array(Buffer.from(body.challenge, "base64url"));
     return this.loginVerify.execute({
       challenge: challengeBytes,
       credential: {

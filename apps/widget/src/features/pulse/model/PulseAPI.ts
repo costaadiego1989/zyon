@@ -573,14 +573,106 @@ export class PulseAPI {
     ]);
   }
 
-  async authenticateFace(): Promise<FaceUser> {
-    return this._wait({
-      id: 'usr_face_001',
-      name: 'Diego Costa',
-      email: 'diego@aurora.com',
-      initial: 'D',
-      verified: true,
-    }, 2200);
+  async authenticateFace(email?: string): Promise<FaceUser> {
+    // Real WebAuthn biometric flow: POST /buyer/webauthn/login/options →
+    // navigator.credentials.get() → POST /buyer/webauthn/login/verify → JWT.
+    // No mock success: unsupported browsers/devices or users without a registered
+    // passkey stay unauthenticated and can use phone login or guest checkout.
+    if (this.baseUrl && typeof navigator !== 'undefined' && navigator.credentials?.get) {
+      try {
+        const optsRes = await fetch(`${this.baseUrl}/buyer/webauthn/login/options`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: email ?? undefined }),
+        });
+        if (optsRes.ok) {
+          const opts = (await optsRes.json()) as {
+            challenge: string;
+            allowCredentials: Array<{ id: string; type: 'public-key' }>;
+            timeout: number;
+            userVerification: 'required' | 'preferred' | 'discouraged';
+          };
+          const publicKey: PublicKeyCredentialRequestOptions = {
+            challenge: _b64uToBytes(opts.challenge) as BufferSource,
+            timeout: opts.timeout ?? 60_000,
+            userVerification: opts.userVerification ?? 'required',
+            rpId: _getRpId(this.baseUrl),
+          };
+          if (opts.allowCredentials?.length) {
+            publicKey.allowCredentials = opts.allowCredentials.map((c) => ({
+              id: _b64uToBytes(c.id) as BufferSource,
+              type: c.type,
+            }));
+          }
+          const cred = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
+          if (cred) {
+            const response = cred.response as AuthenticatorAssertionResponse;
+            const verifyRes = await fetch(`${this.baseUrl}/buyer/webauthn/login/verify`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                challenge: opts.challenge,
+                credential: {
+                  id: cred.id,
+                  rawId: _bytesToB64u(new Uint8Array(cred.rawId)),
+                  type: cred.type,
+                  response: {
+                    authenticatorData: _bytesToB64u(new Uint8Array(response.authenticatorData)),
+                    clientDataJSON: _bytesToB64u(new Uint8Array(response.clientDataJSON)),
+                    signature: _bytesToB64u(new Uint8Array(response.signature)),
+                  },
+                },
+              }),
+            });
+            if (verifyRes.ok) {
+              const data = (await verifyRes.json()) as { access_token: string; buyer_id: string; email: string };
+              if (data.access_token) this.setBuyerToken(data.access_token);
+              const localPart = data.email.split('@')[0] ?? data.email;
+              const name = localPart
+                .split(/[._-]/)
+                .filter(Boolean)
+                .map((p) => p[0]?.toUpperCase() + p.slice(1))
+                .join(' ') || data.email;
+              return {
+                id: data.buyer_id,
+                name,
+                email: data.email,
+                initial: (name[0] ?? data.email[0] ?? '?').toUpperCase(),
+                verified: true,
+              };
+            }
+          }
+        }
+      } catch {
+        // WebAuthn unavailable or no registered credentials — fall through
+      }
+    }
+    throw new Error('webauthn_unavailable_or_not_registered');
+  }
+}
+
+// --- WebAuthn base64url helpers (RFC 4648 §5, no padding) ---
+function _b64uToBytes(b64u: string): Uint8Array {
+  const pad = '='.repeat((4 - (b64u.length % 4)) % 4);
+  const b64 = (b64u + pad).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+  return out;
+}
+
+function _bytesToB64u(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
+  const b64 = typeof btoa === 'function' ? btoa(s) : Buffer.from(s, 'binary').toString('base64');
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function _getRpId(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).hostname;
+  } catch {
+    return 'localhost';
   }
 }
 

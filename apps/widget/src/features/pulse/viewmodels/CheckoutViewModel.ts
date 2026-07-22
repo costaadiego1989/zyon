@@ -636,13 +636,16 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   onFaceMatched = async (): Promise<void> => {
-    this.setState({ faceStatus: 'success', faceHint: 'Identidade confirmada' });
     const api = await this.ensureApi();
     let user = null;
     try {
-      user = await api.authenticateFace();
+      user = await api.authenticateFace(this.state.customer.email);
     } catch {
-      /* noop */
+      this.setState({
+        faceStatus: 'idle',
+        faceProgress: 0,
+        faceHint: 'Biometria indisponível ou não cadastrada. Use telefone ou continue como visitante.',
+      });
     }
     try {
       if (this.faceStream) {
@@ -652,11 +655,13 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     } catch {
       /* noop */
     }
+    if (!user) return;
+    this.setState({ faceStatus: 'success', faceHint: 'Identidade confirmada' });
     this.after(820, () =>
       this.setState((s) => ({
         view: 'intro',
         authed: true,
-        customer: user ? { ...s.customer, name: user.name, email: user.email } : s.customer,
+        customer: { ...s.customer, name: user.name, email: user.email },
       })),
     );
   };
