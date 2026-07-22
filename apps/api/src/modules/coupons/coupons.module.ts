@@ -18,6 +18,7 @@ import { RedeemCouponUseCase } from "./application/use-cases/redeem-coupon.use-c
 import { CouponsOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
 import { MerchantCouponsController } from "./presentation/http/merchant-coupons.controller.js";
 import { WidgetCouponsController } from "./presentation/http/widget-coupons.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   // AuthModule needed for AuthGuard in MerchantCouponsController (P3 fix)
@@ -42,7 +43,9 @@ import { WidgetCouponsController } from "./presentation/http/widget-coupons.cont
     ArchiveCouponUseCase,
     ApplyCouponUseCase,
     RedeemCouponUseCase,
-    CouponsOnOrderCompletedHandler
+    CouponsOnOrderCompletedHandler,
+    BillingPlanMeteringService,
+    PlanLimitGuard
   ],
   exports: [ApplyCouponUseCase, RedeemCouponUseCase]
 })

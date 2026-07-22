@@ -14,6 +14,7 @@ import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decli
 import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER } from "../checkout/domain/ports/cross-sell-recommender.port.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Global()
 @Module({
@@ -37,6 +38,8 @@ import { MerchantCrossSellController } from "./presentation/http/merchant-cross-
     AcceptCrossSellSuggestionUseCase,
     DeclineCrossSellSuggestionUseCase,
     CheckoutCrossSellRecommender,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: CHECKOUT_CROSS_SELL_RECOMMENDER,
       useExisting: CheckoutCrossSellRecommender

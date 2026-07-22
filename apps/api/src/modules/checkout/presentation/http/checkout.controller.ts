@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ChatMessageRequest,
@@ -27,6 +27,7 @@ import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-che
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-case.js";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 
 @NonProductionRoute()
 @Controller("checkout")
@@ -48,6 +49,8 @@ export class CheckoutController {
   ) {}
 
   @Post("start-checkout")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("sessionsPerMonth")
   start(@Body() body: StartCheckoutRequest) {
     return this.startCheckout.execute(body);
   }
@@ -68,6 +71,8 @@ export class CheckoutController {
   }
 
   @Post("chat/message")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("aiConversationsPerMonth")
   chat(@Body() body: ChatMessageRequest) {
     return this.sendChatMessage.execute(body);
   }
@@ -83,6 +88,8 @@ export class CheckoutController {
   }
 
   @Post("orders/complete")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("ordersPerMonth")
   complete(@Body() body: CompleteOrderRequest) {
     return this.completeOrder.execute(body);
   }

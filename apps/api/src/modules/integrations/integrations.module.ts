@@ -35,6 +35,7 @@ import {
   WEBHOOK_DISPATCHER_CONFIG,
   createWebhookDispatcherConfig
 } from "./domain/webhook-dispatcher.config.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [AuthModule, CheckoutPersistenceModule, CheckoutOrderTrackingModule, TenantAccessModule],
@@ -69,6 +70,8 @@ import {
     TenantWebhooksOnCheckoutHandler,
     MerchantApiKeyGuard,
     ApiKeyScopeGuard,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: WEBHOOK_DISPATCHER_CONFIG,
       useFactory: () => createWebhookDispatcherConfig()

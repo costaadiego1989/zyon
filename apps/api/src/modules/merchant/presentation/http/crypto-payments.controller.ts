@@ -3,6 +3,7 @@ import { IsBoolean, IsEthereumAddress, IsIn, IsNotEmpty, IsOptional } from "clas
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { CurrentTenant } from "../../../../shared/tenant/current-tenant.decorator.js";
 import { EnableCryptoPaymentsUseCase } from "../../application/use-cases/enable-crypto-payments.use-case.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 export class EnableCryptoPaymentsDto {
   @IsOptional()
@@ -30,6 +31,8 @@ export class CryptoPaymentsController {
   constructor(private readonly enableCrypto: EnableCryptoPaymentsUseCase) {}
 
   @Post("enable")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("cryptoPayments")
   enable(
     @CurrentTenant() merchantId: string,
     @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }))

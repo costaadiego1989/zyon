@@ -32,7 +32,7 @@ import {
   SyncStripeConnectUseCase,
 } from "../../application/payment-platform.use-cases.js";
 import type {
-  BillingSubscriptionSnapshot,
+  BillingSubscriptionWithPlanSnapshot,
   PaymentConnectionSnapshot,
 } from "../../domain/payment-platform.types.js";
 import {
@@ -228,10 +228,12 @@ export class BillingController {
     @Body() body: CreateBillingCheckoutDto,
   ) {
     const principal = humanPrincipal(request);
+    const plan = body.plan ?? body.price_id;
+    if (!plan) throw new BadRequestException("billing_plan_required");
     return this.createCheckout.execute({
       merchantId: principal.tenantId,
       email: principal.email,
-      plan: body.plan,
+      plan,
     });
   }
 
@@ -275,14 +277,40 @@ function toConnectionResponse(connection: PaymentConnectionSnapshot) {
   };
 }
 
-function toBillingResponse(subscription: BillingSubscriptionSnapshot) {
+function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
   return {
+    plan: subscription.plan,
+    plan_name: subscription.planName,
+    monthly_price_brl: subscription.monthlyPriceBrl,
+    transaction_fee_percent: subscription.transactionFeePercent,
+    limits: subscription.limits,
+    features: subscription.features,
     status: subscription.status,
+    trial_end: subscription.trialEndsAt ?? null,
     trial_ends_at: subscription.trialEndsAt ?? null,
     current_period_end: subscription.currentPeriodEnd ?? null,
     cancel_at_period_end: subscription.cancelAtPeriodEnd,
     has_billing_customer: Boolean(subscription.stripeCustomerId),
     has_subscription: Boolean(subscription.stripeSubscriptionId),
+    usage: subscription.usage ? {
+      period_start: subscription.usage.periodStart,
+      orders_current: subscription.usage.ordersPerMonth,
+      orders_limit: subscription.limits.ordersPerMonth ?? null,
+      sessions_current: subscription.usage.sessionsPerMonth,
+      sessions_limit: subscription.limits.sessionsPerMonth ?? null,
+      ai_conversations_current: subscription.usage.aiConversationsPerMonth,
+      ai_conversations_limit: subscription.limits.aiConversationsPerMonth ?? null,
+      commerce_connections_current: subscription.usage.commerceConnections,
+      commerce_connections_limit: subscription.limits.commerceConnections ?? null,
+      webhook_endpoints_current: subscription.usage.webhookEndpoints,
+      webhook_endpoints_limit: subscription.limits.webhookEndpoints ?? null,
+      team_members_current: subscription.usage.teamMembers,
+      team_members_limit: subscription.limits.teamMembers ?? null,
+      cross_sell_promotions_current: subscription.usage.crossSellPromotions,
+      cross_sell_promotions_limit: subscription.limits.crossSellPromotions ?? null,
+      active_coupons_current: subscription.usage.activeCoupons,
+      active_coupons_limit: subscription.limits.activeCoupons ?? null,
+    } : undefined,
     created_at: subscription.createdAt,
     updated_at: subscription.updatedAt,
   };

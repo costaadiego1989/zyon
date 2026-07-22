@@ -35,6 +35,7 @@ import { RequireTenantAccess } from "./tenant-access.decorator.js";
 import { TenantAccessGuard } from "./tenant-access.guard.js";
 import { TenantCredentialGuard } from "./tenant-credential.guard.js";
 import { UpsertWebhookEndpointDto } from "./webhook-endpoint.dto.js";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 
 @ApiTags("Webhooks")
 @ApiBearerAuth("service_api_key")
@@ -68,6 +69,8 @@ export class WebhookEndpointsController {
 
   @Post()
   @Idempotent({ redactResponseFields: ["signing_secret"] })
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("webhookEndpoints")
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async create(
     @Req() request: unknown,

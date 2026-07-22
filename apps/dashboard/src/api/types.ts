@@ -138,16 +138,37 @@ export type TenantPayment = {
 };
 
 export type BillingSubscription = {
-  plan: string;
+  plan: "starter" | "growth" | "scale" | string;
+  plan_name?: string;
+  monthly_price_brl?: number;
+  transaction_fee_percent?: number;
+  limits?: Record<string, number | null>;
+  features?: Record<string, boolean>;
   status: string;
   current_period_end: string | null;
   cancel_at_period_end: boolean;
   trial_end: string | null;
+  trial_ends_at?: string | null;
   usage?: {
+    period_start?: string;
+    orders_current?: number | null;
+    orders_limit?: number | null;
     sessions_current: number | null;
     sessions_limit: number | null;
-    installations_current: number | null;
-    installations_limit: number | null;
+    ai_conversations_current?: number | null;
+    ai_conversations_limit?: number | null;
+    commerce_connections_current?: number | null;
+    commerce_connections_limit?: number | null;
+    webhook_endpoints_current?: number | null;
+    webhook_endpoints_limit?: number | null;
+    team_members_current?: number | null;
+    team_members_limit?: number | null;
+    cross_sell_promotions_current?: number | null;
+    cross_sell_promotions_limit?: number | null;
+    active_coupons_current?: number | null;
+    active_coupons_limit?: number | null;
+    installations_current?: number | null;
+    installations_limit?: number | null;
   };
 };
 

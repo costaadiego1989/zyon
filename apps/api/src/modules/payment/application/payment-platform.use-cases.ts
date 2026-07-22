@@ -28,8 +28,11 @@ import type {
   AsaasSubaccountInput,
   BillingPlan,
   BillingSubscriptionSnapshot,
+  BillingSubscriptionWithPlanSnapshot,
   PaymentConnectionSnapshot,
 } from "../domain/payment-platform.types.js";
+import { BILLING_PLANS, effectiveBillingPlan } from "../domain/billing-plans.js";
+import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 
 @Injectable()
 export class GetPaymentConnectionsUseCase {
@@ -354,10 +357,26 @@ export class GetBillingSubscriptionUseCase {
   constructor(
     @Inject(PAYMENT_PLATFORM_REPOSITORY)
     private readonly repository: PaymentPlatformRepository,
+    private readonly metering?: BillingPlanMeteringService,
   ) {}
 
-  execute(merchantId: string): Promise<BillingSubscriptionSnapshot> {
-    return this.repository.getOrCreateTrial(merchantId, 14);
+  async execute(merchantId: string): Promise<BillingSubscriptionWithPlanSnapshot> {
+    const subscription = await this.repository.getOrCreateTrial(merchantId, 14);
+    const plan = effectiveBillingPlan(subscription);
+    const config = BILLING_PLANS[plan];
+    const usage = await this.metering?.getUsage(merchantId);
+    return {
+      ...subscription,
+      plan,
+      planName: config.name,
+      monthlyPriceBrl: config.monthlyPriceBrl,
+      transactionFeePercent: subscription.status === "trialing"
+        ? BILLING_PLANS.starter.transactionFeePercent
+        : config.transactionFeePercent,
+      limits: config.limits,
+      features: config.features,
+      usage,
+    };
   }
 }
 

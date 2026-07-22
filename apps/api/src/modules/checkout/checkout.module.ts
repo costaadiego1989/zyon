@@ -49,6 +49,7 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
 import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [
@@ -110,7 +111,9 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
       provide: CHECKOUT_EXPERIENCE_CONFIG,
       useFactory: () => createCheckoutExperienceConfig()
     },
-    PaymentApprovedHandler
+    PaymentApprovedHandler,
+    BillingPlanMeteringService,
+    PlanLimitGuard
   ],
   exports: [
     CheckoutPersistenceModule,

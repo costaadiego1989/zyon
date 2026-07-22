@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -60,6 +61,8 @@ export class CommerceConnectionsController {
 
   @Post()
   @Idempotent()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("commerceConnections")
   @RequireTenantAccess({ serviceScopes: ["commerce:write"] })
   async connect(
     @Req() request: unknown,

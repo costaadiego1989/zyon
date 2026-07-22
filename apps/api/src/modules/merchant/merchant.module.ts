@@ -15,6 +15,7 @@ import { MERCHANT_RULES_REPOSITORY } from "./domain/ports/merchant-rules.reposit
 import { PrismaMerchantRepository } from "./infrastructure/prisma-merchant.repository.js";
 import { MerchantController } from "./presentation/merchant.controller.js";
 import { CryptoPaymentsController } from "./presentation/http/crypto-payments.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [AuthModule],
@@ -26,6 +27,8 @@ import { CryptoPaymentsController } from "./presentation/http/crypto-payments.co
     GetMerchantThemeUseCase,
     UpdateMerchantThemeUseCase,
     EnableCryptoPaymentsUseCase,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: MERCHANT_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaMerchantRepository(prisma),

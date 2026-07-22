@@ -92,7 +92,13 @@ export class CreateAsaasSubaccountDto {
 }
 
 export class CreateBillingCheckoutDto {
-  @ApiProperty({ enum: ["starter", "growth", "scale"] })
+  @ApiPropertyOptional({ enum: ["starter", "growth", "scale"] })
+  @IsOptional()
   @IsIn(["starter", "growth", "scale"])
-  plan!: "starter" | "growth" | "scale";
+  plan?: "starter" | "growth" | "scale";
+
+  @ApiPropertyOptional({ enum: ["starter", "growth", "scale"], description: "Dashboard legacy alias for plan." })
+  @IsOptional()
+  @IsIn(["starter", "growth", "scale"])
+  price_id?: "starter" | "growth" | "scale";
 }

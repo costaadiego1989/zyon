@@ -47,7 +47,8 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       metadata: {
         merchant_id: input.merchantId,
         session_id: input.sessionId,
-        intent_id: input.intentId
+        intent_id: input.intentId,
+        platform_fee_cents: String(input.platformFeeCents ?? 0)
       },
       description: input.description ?? `${input.merchantId}:${input.sessionId}`
     };

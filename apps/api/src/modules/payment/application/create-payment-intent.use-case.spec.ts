@@ -11,6 +11,7 @@ import type { CreateProviderPaymentInput, CreateProviderPaymentOutput, PaymentPr
 import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
 import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
 import { InMemoryPendingCommerceOrderIndex } from "../../commerce/infrastructure/in-memory-pending-commerce-order-index.js";
+import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 
 class CapturingPaymentProvider implements PaymentProviderPort {
   readonly inputs: CreateProviderPaymentInput[] = [];
@@ -179,13 +180,57 @@ test("CreatePaymentIntentUseCase returns Stripe client secret and publishable ke
     assert.equal(intent.buyerFacing?.clientSecret, "pi_test_123_secret_abc");
     assert.equal(intent.buyerFacing?.stripePublishableKey, "pk_test_fixture");
     assert.equal(provider.inputs[0]?.stripeConnectAccountId, "acct_test_connect");
-    assert.equal(provider.inputs[0]?.platformFeeCents, 199);
+    assert.equal(provider.inputs[0]?.platformFeeCents, 597);
   } finally {
     for (const k of keys) {
       const v = backup[k];
       if (v === undefined) delete process.env[k];
       else process.env[k] = v;
     }
+  }
+});
+
+test("CreatePaymentIntentUseCase calculates Growth transaction fee from subscription", async () => {
+  const previous = process.env.STRIPE_BILLING_PRICE_GROWTH;
+  process.env.STRIPE_BILLING_PRICE_GROWTH = "price_growth_test";
+  try {
+    const checkout = new InMemoryCheckoutRepository();
+    await checkout.saveSession(
+      checkoutSession({
+        shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
+        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+      })
+    );
+    const platform = new InMemoryPaymentPlatformRepository();
+    await platform.saveBilling({
+      merchantId: "mrc_1",
+      status: "active",
+      stripePriceId: "price_growth_test",
+    });
+    const provider = new CapturingPaymentProvider();
+    const uc = new CreatePaymentIntentUseCase(
+      checkout,
+      checkout,
+      new InMemoryPaymentRepository(checkout),
+      provider,
+      undefined,
+      undefined,
+      undefined,
+      platform,
+    );
+
+    const intent = await uc.execute({
+      merchant_id: "mrc_1",
+      session_id: "chk_1",
+      idempotency_key: "idem_growth_fee",
+    });
+
+    assert.equal(intent.amountCents, 30000);
+    assert.equal(provider.inputs[0]?.amountCents, 30000);
+    assert.equal(provider.inputs[0]?.platformFeeCents, 447);
+  } finally {
+    if (previous === undefined) delete process.env.STRIPE_BILLING_PRICE_GROWTH;
+    else process.env.STRIPE_BILLING_PRICE_GROWTH = previous;
   }
 });
 

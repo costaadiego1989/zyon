@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Delete, Body, Param, Req, UseGuards } from "@nestjs/common";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import { Inject } from "@nestjs/common";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
@@ -17,6 +18,8 @@ export class MerchantCouponsController {
   ) {}
 
   @Post()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("activeCoupons")
   async create(@Req() req: unknown, @Body() body: Omit<Parameters<CreateCouponUseCase["execute"]>[0], "merchant_id">) {
     // P3 fix: derive merchant_id from authenticated principal, never trust body
     const { merchantId } = currentUser(req as { user?: unknown });

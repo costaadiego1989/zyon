@@ -60,6 +60,7 @@ import {
   MerchantPaymentConnectionsController,
   PaymentPlatformController,
 } from "./presentation/http/payment-platform.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "./domain/billing-plan-guard.js";
 
 @Module({
   imports: [
@@ -80,6 +81,8 @@ import {
   ],
   providers: [
     PaymentDispatchService,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,
@@ -208,6 +211,8 @@ import {
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
     PAYMENT_PLATFORM_REPOSITORY,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
   ]
 })
 export class PaymentModule {}

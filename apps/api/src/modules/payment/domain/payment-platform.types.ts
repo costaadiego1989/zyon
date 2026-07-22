@@ -45,6 +45,28 @@ export interface BillingSubscriptionSnapshot {
   updatedAt: string;
 }
 
+export interface BillingUsageSnapshot {
+  periodStart: string;
+  ordersPerMonth: number;
+  sessionsPerMonth: number;
+  aiConversationsPerMonth: number;
+  commerceConnections: number;
+  webhookEndpoints: number;
+  teamMembers: number;
+  crossSellPromotions: number;
+  activeCoupons: number;
+}
+
+export interface BillingSubscriptionWithPlanSnapshot extends BillingSubscriptionSnapshot {
+  plan: BillingPlan;
+  planName: string;
+  monthlyPriceBrl: number;
+  transactionFeePercent: number;
+  limits: Record<string, number | null>;
+  features: Record<string, boolean>;
+  usage?: BillingUsageSnapshot;
+}
+
 export interface AsaasSubaccountInput {
   name: string;
   email: string;

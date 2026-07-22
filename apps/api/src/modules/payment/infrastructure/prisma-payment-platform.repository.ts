@@ -109,14 +109,29 @@ export class PrismaPaymentPlatformRepository
     const trialEndsAt = new Date(
       Date.now() + Math.max(1, trialDays) * 86_400_000,
     );
-    const row = await this.prisma.merchantBillingSubscription.upsert({
-      where: { merchantId: merchantId.trim() },
-      create: {
-        merchantId: merchantId.trim(),
+    const scopedMerchantId = merchantId.trim();
+    const existing = await this.prisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: scopedMerchantId },
+    });
+    if (
+      existing?.status === "trialing" &&
+      existing.trialEndsAt &&
+      existing.trialEndsAt.getTime() <= Date.now() &&
+      !existing.stripeSubscriptionId
+    ) {
+      const row = await this.prisma.merchantBillingSubscription.update({
+        where: { merchantId: scopedMerchantId },
+        data: { status: "cancelled" },
+      });
+      return toBilling(row);
+    }
+    if (existing) return toBilling(existing);
+    const row = await this.prisma.merchantBillingSubscription.create({
+      data: {
+        merchantId: scopedMerchantId,
         status: "trialing",
         trialEndsAt,
       },
-      update: {},
     });
     return toBilling(row);
   }

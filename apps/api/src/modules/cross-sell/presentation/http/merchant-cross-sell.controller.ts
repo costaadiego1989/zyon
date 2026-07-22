@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query } from "@nestjs/common";
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from "@nestjs/common";
 import type { PromotionTrigger } from "../../domain/entities/cross-sell-promotion.entity.js";
 import { CreateCrossSellPromotionUseCase } from "../../application/use-cases/create-cross-sell-promotion.use-case.js";
 import { UpdateCrossSellPromotionUseCase } from "../../application/use-cases/update-cross-sell-promotion.use-case.js";
@@ -6,6 +6,7 @@ import { ArchiveCrossSellPromotionUseCase } from "../../application/use-cases/ar
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { Inject } from "@nestjs/common";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 
 @NonProductionRoute()
 @Controller("merchant/cross-sell")
@@ -18,6 +19,8 @@ export class MerchantCrossSellController {
   ) {}
 
   @Post("promotions")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit("crossSellPromotions")
   async createPromotion(
     @Body() body: { merchant_id: string; name: string; trigger: PromotionTrigger; recommended_skus: string[]; discount_percent: number; max_discount_percent: number; starts_at: string; ends_at?: string }
   ) {

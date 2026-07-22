@@ -78,7 +78,19 @@ export class InMemoryPaymentPlatformRepository
     trialDays: number,
   ): Promise<BillingSubscriptionSnapshot> {
     const existing = this.billing.get(merchantId);
-    if (existing) return existing;
+    if (existing) {
+      if (
+        existing.status === "trialing" &&
+        existing.trialEndsAt &&
+        new Date(existing.trialEndsAt).getTime() <= Date.now() &&
+        !existing.stripeSubscriptionId
+      ) {
+        const expired = { ...existing, status: "cancelled" as const, updatedAt: new Date().toISOString() };
+        this.billing.set(merchantId, expired);
+        return expired;
+      }
+      return existing;
+    }
     const now = new Date();
     const snapshot: BillingSubscriptionSnapshot = {
       merchantId,

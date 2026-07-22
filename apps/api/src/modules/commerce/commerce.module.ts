@@ -28,6 +28,7 @@ import { CommerceConnectionsController } from "./presentation/http/commerce-conn
 import { WooCommerceWebhookController } from "./presentation/http/woocommerce-webhook.controller.js";
 import { ShopifyWebhookController } from "./presentation/http/shopify-webhook.controller.js";
 import { NuvemshopWebhookController } from "./presentation/http/nuvemshop-webhook.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [IntegrationsModule],
@@ -79,6 +80,8 @@ import { NuvemshopWebhookController } from "./presentation/http/nuvemshop-webhoo
     TestCommerceConnectionUseCase,
     SyncCommerceConnectionUseCase,
     DisconnectCommerceUseCase,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
   ],
   exports: [
     ValidateCartForPaymentUseCase,
