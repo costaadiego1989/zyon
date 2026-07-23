@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   type MerchantProfile as MerchantDashboardProfile,
+  type MerchantTheme,
   DashboardHttpError,
   SESSION_EXPIRED_EVENT
 } from "./api-client.js";
@@ -13,6 +14,13 @@ import { ApiContext, useApiInstance } from "./hooks/useApi.js";
 import "./styles.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3009";
+
+const BASE_THEME: MerchantTheme = {
+  accentColor: "#0F766E",
+  textColor: "#F7FAF7",
+  backgroundColor: "#0A0F0A",
+  fontFamily: "Manrope, sans-serif",
+};
 
 interface AppProps {
   api: ReturnType<typeof useApiInstance>;
@@ -91,6 +99,26 @@ function App({ api }: AppProps) {
     }
   }
 
+  async function handleRegister(payload: { merchant_name: string; email: string; password: string }) {
+    await api.register(payload);
+  }
+
+  async function handleSaveTheme(theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) {
+    const fullTheme: MerchantTheme = {
+      ...BASE_THEME,
+      accentColor: theme.accentColor,
+      logoUrl: theme.logoUrl || undefined,
+      headerTitle: theme.headerTitle,
+      agentName: theme.agentName,
+    };
+    await api.putMerchantTheme(fullTheme);
+  }
+
+  async function handleSignupComplete() {
+    await api.completeOnboardingStep("account");
+    await refreshSession();
+  }
+
   async function logout() {
     setBusy(true);
     try {
@@ -119,6 +147,9 @@ function App({ api }: AppProps) {
         merchantName={merchantName}
         setMerchantName={setMerchantName}
         onSubmit={submitAuth}
+        onRegister={handleRegister}
+        onSaveTheme={handleSaveTheme}
+        onComplete={handleSignupComplete}
       />
     );
   }
