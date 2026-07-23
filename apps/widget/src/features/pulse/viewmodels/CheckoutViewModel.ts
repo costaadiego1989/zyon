@@ -2501,6 +2501,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       chatEmpty: mode === 'empty',
       chatFlow: mode === 'flow',
       showBranding: false,
+      policyLinks: this.buildPolicyLinks(),
       showHeader: view !== 'intro' && view !== 'login',
       headerOrbPlacement: (view === 'chat' && mode === 'empty' ? 'headerEmpty' : 'header') as AgentOrbPlacement,
       headerTitle: view === 'hub' ? 'Minha conta' : this.agentName + ' · Gerente de vendas',
@@ -2940,5 +2941,16 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
       theme: this.theme,
     };
+  }
+
+  private buildPolicyLinks(): Array<{ label: string; url: string }> {
+    const policies = this.api?.cachedPolicies;
+    if (!policies) return [];
+    const links: Array<{ label: string; url: string }> = [];
+    if (policies.privacyUrl) links.push({ label: 'Privacidade', url: policies.privacyUrl });
+    if (policies.termsUrl) links.push({ label: 'Termos', url: policies.termsUrl });
+    if (policies.refundUrl) links.push({ label: 'Trocas', url: policies.refundUrl });
+    if (policies.shippingUrl) links.push({ label: 'Frete', url: policies.shippingUrl });
+    return links;
   }
 }

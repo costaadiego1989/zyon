@@ -175,6 +175,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       cryptoPayments: deps.rules?.cryptoPayments,
       showBranding: deps.showBranding ?? false,
     },
+    policies: deps.rules?.policies,
     items,
     totals: {
       currency: input.cart.currency,

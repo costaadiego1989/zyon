@@ -157,6 +157,13 @@ export interface MerchantCryptoPayments {
   brlPerUsdc?: number;
 }
 
+export interface MerchantPolicies {
+  privacyUrl?: string;
+  termsUrl?: string;
+  refundUrl?: string;
+  shippingUrl?: string;
+}
+
 export interface MerchantRules {
   maxDiscountPercent: number;
   minimumMarginPercent: number;
@@ -174,6 +181,7 @@ export interface MerchantRules {
   originZip?: string;
   quickReplies?: StageQuickReplies;
   cryptoPayments?: MerchantCryptoPayments;
+  policies?: MerchantPolicies;
 }
 
 /**
@@ -330,6 +338,7 @@ export interface CheckoutExperienceSnapshot {
     cryptoPayments?: MerchantCryptoPayments;
     showBranding?: boolean;
   };
+  policies?: MerchantPolicies;
   items: CheckoutItemSnapshot[];
   totals: CheckoutTotalsSnapshot;
   shipping?: ShippingQuote;

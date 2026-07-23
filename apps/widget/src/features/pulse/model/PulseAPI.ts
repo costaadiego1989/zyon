@@ -27,6 +27,10 @@ export class PulseAPI {
   private _initialCustomer: Partial<Customer> | undefined;
   private _cachedExperience: any = null;
 
+  get cachedPolicies(): { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string } | undefined {
+    return this._cachedExperience?.policies;
+  }
+
   constructor(config: PulseAPIConfig = {}) {
     this.storeName = config.storeName || 'Aurora Home';
     this.agentName = config.agentName || 'Pulse';

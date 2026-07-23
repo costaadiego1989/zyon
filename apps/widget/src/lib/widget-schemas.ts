@@ -191,6 +191,12 @@ export const checkoutExperienceSnapshotSchema = z.object({
       brlPerUsdc: z.number().optional(),
     }).optional(),
   }).optional(),
+  policies: z.object({
+    privacyUrl: z.string().optional(),
+    termsUrl: z.string().optional(),
+    refundUrl: z.string().optional(),
+    shippingUrl: z.string().optional(),
+  }).optional(),
   items: z.array(checkoutItemSnapshotSchema),
   totals: checkoutTotalsSnapshotSchema,
   shipping: shippingSchema.optional(),

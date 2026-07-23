@@ -74,4 +74,12 @@ export class UpdateMerchantRulesDto {
   @IsString({ each: true })
   @IsOptional()
   blockedRegions?: string[];
+
+  @IsOptional()
+  policies?: {
+    privacyUrl?: string;
+    termsUrl?: string;
+    refundUrl?: string;
+    shippingUrl?: string;
+  };
 }

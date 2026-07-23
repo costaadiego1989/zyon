@@ -345,6 +345,51 @@ export function RulesForm({
           </label>
         </div>
       </div>
+
+      {/* ── Políticas da loja ── */}
+      <div className="panel" style={{ marginBottom: 'var(--space-4)' }}>
+        <div style={{ padding: 'var(--space-5)' }}>
+          <div className="section-header"><h3>Políticas da loja</h3></div>
+          <p className="page-lead" style={{ marginBottom: 'var(--space-3)' }}>Links exibidos no footer do checkout para o comprador</p>
+
+          <label>
+            Política de Privacidade
+            <input
+              type="url"
+              value={rules.policies?.privacyUrl ?? ""}
+              onChange={(e) => patch({ policies: { ...rules.policies, privacyUrl: e.target.value } })}
+              placeholder="https://suastore.com.br/privacidade"
+            />
+          </label>
+          <label>
+            Termos de Uso
+            <input
+              type="url"
+              value={rules.policies?.termsUrl ?? ""}
+              onChange={(e) => patch({ policies: { ...rules.policies, termsUrl: e.target.value } })}
+              placeholder="https://suastore.com.br/termos"
+            />
+          </label>
+          <label>
+            Trocas e Devoluções
+            <input
+              type="url"
+              value={rules.policies?.refundUrl ?? ""}
+              onChange={(e) => patch({ policies: { ...rules.policies, refundUrl: e.target.value } })}
+              placeholder="https://suastore.com.br/trocas"
+            />
+          </label>
+          <label>
+            Frete e Entregas
+            <input
+              type="url"
+              value={rules.policies?.shippingUrl ?? ""}
+              onChange={(e) => patch({ policies: { ...rules.policies, shippingUrl: e.target.value } })}
+              placeholder="https://suastore.com.br/frete"
+            />
+          </label>
+        </div>
+      </div>
     </div>
   );
 }
