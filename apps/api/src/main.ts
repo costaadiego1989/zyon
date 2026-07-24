@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
-import { Logger } from "nestjs-pino";
 import { AppModule } from "./app.module.js";
 import { E2eAppModule } from "./e2e-app.module.js";
 import { resolveCorsConfig } from "./shared/config/cors-config.js";
@@ -12,8 +11,8 @@ import { resolveSecurityHeaders } from "./shared/config/security-headers-config.
 import { configureApiDocumentation } from "./shared/http/api-documentation.js";
 import { apiVersioningMiddleware } from "./shared/http/api-versioning.js";
 import {
-  PRODUCTION_REQUIRED_SECRETS,
   assertRequiredSecretsInProduction,
+  resolveProductionRequiredSecrets,
 } from "./shared/config/secret-config.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,7 +21,7 @@ loadDotenv({ path: resolve(__dirname, "../.env") });
 loadDotenv({ path: resolve(__dirname, "../../../.env"), override: false });
 
 async function bootstrap() {
-  assertRequiredSecretsInProduction(PRODUCTION_REQUIRED_SECRETS);
+  assertRequiredSecretsInProduction(resolveProductionRequiredSecrets());
 
   // AppModule is production-pure. Non-production runs that need the seed +
   // coupon/cross-sell admin routes boot the e2e composition root instead.
@@ -30,11 +29,8 @@ async function bootstrap() {
     process.env.E2E_SEED_ENABLED === "true" && process.env.NODE_ENV !== "production";
   const rootModule = useE2eComposition ? E2eAppModule : AppModule;
 
-  const app = await NestFactory.create(rootModule, {
-    rawBody: true,
-    bufferLogs: true,
-  });
-  app.useLogger(app.get(Logger));
+  const app = await NestFactory.create(rootModule, { rawBody: true });
+  configureTrustProxy(app);
   app.enableCors(resolveCorsConfig());
   app.use(apiVersioningMiddleware);
 
@@ -56,12 +52,23 @@ async function bootstrap() {
   configureApiDocumentation(app);
 
   const port = Number(process.env.PORT ?? 3001);
-  const logger = app.get(Logger);
   await app.listen(port);
-  logger.log(`AI Checkout API listening on http://localhost:${port}`);
-  logger.log(`OpenAPI reference available at http://localhost:${port}/docs`);
-  logger.log(`DeepSeek key loaded: ${Boolean(process.env.DEEPSEEK_API_KEY)}`);
-  logger.log(`OpenAI key loaded: ${Boolean(process.env.OPENAI_API_KEY)}`);
+  console.log(`AI Checkout API listening on http://localhost:${port}`);
+  console.log(`OpenAPI reference available at http://localhost:${port}/docs`);
+  console.log(`DeepSeek key loaded: ${Boolean(process.env.DEEPSEEK_API_KEY)}`);
+  console.log(`OpenAI key loaded: ${Boolean(process.env.OPENAI_API_KEY)}`);
+}
+
+function configureTrustProxy(app: { getHttpAdapter(): { getInstance(): { set(name: string, value: unknown): void } } }): void {
+  const hops = trustedProxyHops();
+  if (hops > 0) app.getHttpAdapter().getInstance().set("trust proxy", hops);
+}
+
+function trustedProxyHops(): number {
+  const raw = process.env.TRUST_PROXY_HOPS?.trim();
+  if (!raw) return 0;
+  const hops = Number(raw);
+  return Number.isInteger(hops) && hops > 0 ? hops : 0;
 }
 
 void bootstrap();

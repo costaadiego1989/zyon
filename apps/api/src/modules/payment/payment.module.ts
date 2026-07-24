@@ -12,7 +12,6 @@ import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
-import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
@@ -46,26 +45,17 @@ import {
   CreateBillingCheckoutUseCase,
   CreateBillingPortalUseCase,
   CreateStripeConnectOnboardingLinkUseCase,
-  DeletePaymentConnectionUseCase,
-  ExpireBillingTrialUseCase,
-  ExpireBillingTrialsUseCase,
   GetAsaasOnboardingLinkUseCase,
   GetBillingSubscriptionUseCase,
   GetPaymentConnectionsUseCase,
   HandleStripePlatformEventUseCase,
-  SaveAsaasConnectionConfigUseCase,
   SyncAsaasSubaccountUseCase,
   SyncStripeConnectUseCase,
 } from "./application/payment-platform.use-cases.js";
 import {
   BillingController,
-  MerchantPaymentConnectionsController,
   PaymentPlatformController,
 } from "./presentation/http/payment-platform.controller.js";
-import { BillingPlanMeteringService, PlanLimitGuard } from "./domain/billing-plan-guard.js";
-import { BillingTrialExpirationJob } from "./application/services/billing-trial-expiration.job.js";
-import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
-import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastructure/bullmq-billing-trial.queue.js";
 
 @Module({
   imports: [
@@ -81,13 +71,9 @@ import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastruct
     AsaasWebhookController,
     StripeWebhookController,
     PaymentPlatformController,
-    MerchantPaymentConnectionsController,
     BillingController,
   ],
   providers: [
-    PaymentDispatchService,
-    BillingPlanMeteringService,
-    PlanLimitGuard,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
     ConfirmStripePaymentUseCase,
@@ -98,18 +84,10 @@ import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastruct
     GetPaymentConnectionsUseCase,
     CreateStripeConnectOnboardingLinkUseCase,
     SyncStripeConnectUseCase,
-    SaveAsaasConnectionConfigUseCase,
-    DeletePaymentConnectionUseCase,
     CreateAsaasSubaccountUseCase,
     GetAsaasOnboardingLinkUseCase,
     SyncAsaasSubaccountUseCase,
     GetBillingSubscriptionUseCase,
-    ExpireBillingTrialUseCase,
-    ExpireBillingTrialsUseCase,
-    BillingTrialExpirationJob,
-    BullMqBillingTrialQueue,
-    BullMqBillingTrialWorker,
-    { provide: BILLING_TRIAL_JOB_QUEUE, useExisting: BullMqBillingTrialQueue },
     CreateBillingCheckoutUseCase,
     CreateBillingPortalUseCase,
     HandleStripePlatformEventUseCase,
@@ -128,12 +106,7 @@ import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastruct
       provide: StripePaymentAdapter,
       useFactory: () => {
         const { secretKey, publishableKey } = readStripeConnection();
-        if (!secretKey) {
-          throw new Error(
-            "STRIPE_SECRET_KEY is not configured. Stripe payment adapter cannot start without it."
-          );
-        }
-        return new StripePaymentAdapter(secretKey, publishableKey ?? "");
+        return new StripePaymentAdapter(secretKey, publishableKey);
       }
     },
     {
@@ -178,11 +151,6 @@ import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastruct
       provide: STRIPE_PLATFORM_PORT,
       useFactory: () => {
         const { secretKey } = readStripeConnection();
-        if (!secretKey) {
-          throw new Error(
-            "STRIPE_SECRET_KEY is not configured. Stripe platform adapter cannot start without it."
-          );
-        }
         return new StripePlatformAdapter(secretKey);
       },
     },
@@ -222,8 +190,6 @@ import { BullMqBillingTrialQueue, BullMqBillingTrialWorker } from "./infrastruct
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
     PAYMENT_PLATFORM_REPOSITORY,
-    BillingPlanMeteringService,
-    PlanLimitGuard,
   ]
 })
 export class PaymentModule {}
