@@ -1,4 +1,5 @@
-import type { MerchantCryptoPayments } from '@zyon/shared-types';
+import { embedAuthHeaders } from '../../../lib/embed-client.js';
+
 import type {
   Bundle,
   Coupon,
@@ -12,6 +13,18 @@ import type {
 } from './types';
 import { buildCouponFromTenant, resolveTenantDiscount } from '../config/tenantDiscount';
 
+function defaultAllowDemoFallbacks(): boolean {
+  return true;
+}
+
+function paymentStatusIsPaid(status?: string): boolean {
+  return ['paid', 'confirmed', 'completed', 'approved'].includes(status ?? '');
+}
+
+function pulseIdempotencyKey(sessionId: string, payMethod: string, installments?: number): string {
+  return ['pulse', sessionId, payMethod, installments ?? 'none'].join('::');
+}
+
 export class PulseAPI {
   storeName: string;
   agentName: string;
@@ -22,14 +35,19 @@ export class PulseAPI {
   private merchantId: string;
   private sessionToken: string | null;
   private sessionId: string | null;
+  private allowDemoFallbacks: boolean;
   private _buyerToken: string | null = null;
   private _initialCart: { product: Product; qty: number } | undefined;
   private _initialCustomer: Partial<Customer> | undefined;
-  private _cachedExperience: any = null;
 
-  get cachedPolicies(): { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string } | undefined {
-    return this._cachedExperience?.policies;
-  }
+  private _fallbackCatalog: Product[] = [
+    { id: 'sd8', title: 'Smart Display 8', subtitle: 'Controla seu speaker por voz e vídeo.', price: 649, tags: ['display', 'tela', 'casa', 'smart'] },
+    { id: 'spk', title: 'Smart Speaker mini', subtitle: 'Som ambiente com assistente integrado.', price: 349, tags: ['speaker', 'som', 'casa', 'smart'] },
+    { id: 'bulb', title: 'Lâmpada inteligente RGB', subtitle: 'Mude a cor pelo app ou por voz.', price: 89, tags: ['lampada', 'luz', 'cor', 'smart'] },
+    { id: 'cam', title: 'Câmera de segurança HD', subtitle: 'Monitoramento 24h com visão noturna.', price: 299, tags: ['camera', 'segurança', 'hd', 'monitoramento'] },
+    { id: 'plug', title: 'Tomada inteligente Wi-Fi', subtitle: 'Automatize qualquer aparelho.', price: 99, tags: ['tomada', 'plug', 'energia'] },
+    { id: 'vac', title: 'Robô aspirador Lite', subtitle: 'Limpeza automática com mapeamento.', price: 1299, tags: ['robo', 'aspirador', 'limpeza'] },
+  ];
 
   constructor(config: PulseAPIConfig = {}) {
     this.storeName = config.storeName || 'Aurora Home';
@@ -40,6 +58,7 @@ export class PulseAPI {
     this.merchantId = config.merchantId || 'mrc_demo';
     this.sessionToken = config.sessionToken ?? null;
     this.sessionId = config.sessionId ?? null;
+    this.allowDemoFallbacks = config.allowDemoFallbacks ?? defaultAllowDemoFallbacks();
     this._initialCart = config.initialCart;
     this._initialCustomer = config.initialCustomer;
   }
@@ -49,20 +68,20 @@ export class PulseAPI {
   }
 
   private _headers(): Record<string, string> {
-    const h: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.sessionToken) h['Authorization'] = `Bearer ${this.sessionToken}`;
-    return h;
+    return { 'Content-Type': 'application/json', ...embedAuthHeaders(this.sessionToken ?? undefined) };
   }
 
   private _buyerHeaders(): Record<string, string> {
-    const h: Record<string, string> = { 'Content-Type': 'application/json' };
     const token = this._buyerToken || this.sessionToken;
-    if (token) h['Authorization'] = `Bearer ${token}`;
-    return h;
+    return { 'Content-Type': 'application/json', ...embedAuthHeaders(token ?? undefined) };
   }
 
   setBuyerToken(token: string): void {
     this._buyerToken = token;
+  }
+
+  private emptyBundle(): Bundle {
+    return { id: 'bundle-empty', title: '', subtitle: '', price: 0, was: 0 };
   }
 
   async sendPhoneCode(phone: string): Promise<{ ok: boolean }> {
@@ -80,6 +99,7 @@ export class PulseAPI {
         // fall through to demo
       }
     }
+    if (!this.allowDemoFallbacks) throw new Error('phone_code_send_unavailable');
     return { ok: true };
   }
 
@@ -101,30 +121,6 @@ export class PulseAPI {
       }
     }
     return null;
-  }
-
-  private checkoutCartPayload(): {
-    currency: string;
-    source: string;
-    total: number;
-    items: Array<{ sku: string; name: string; price: number; quantity: number }>;
-  } {
-    if (!this._initialCart) {
-      return { currency: this.currency, source: 'storefront', total: 0, items: [] };
-    }
-    const { product, qty } = this._initialCart;
-    const quantity = Number.isFinite(qty) && qty > 0 ? qty : 1;
-    return {
-      currency: this.currency,
-      source: 'storefront',
-      total: Math.round(product.price * quantity * 100) / 100,
-      items: [{
-        sku: product.id,
-        name: product.title,
-        price: product.price,
-        quantity
-      }]
-    };
   }
 
   async loginFromSession(sessionId: string): Promise<{ token: string; name: string; email: string } | null> {
@@ -156,63 +152,37 @@ export class PulseAPI {
         const r = await fetch(`${this.baseUrl}/embed/start`, {
           method: 'POST',
           headers: this._headers(),
-          body: JSON.stringify({
-            merchant_id: this.merchantId,
-            cart: this.checkoutCartPayload(),
-            customer: this._initialCustomer ?? {}
-          }),
+          body: JSON.stringify({ merchant_id: this.merchantId, cart: { items: [] }, customer_hints: {} }),
         });
         if (r.ok) {
-          const data = await r.json() as any;
-          if (data.session_id) {
-            this.sessionId = data.session_id;
-            // Cache experience for later use
-            if (data.experience) {
-              this._cachedExperience = data.experience;
-              // Update from experience if available
-              if (data.experience.brand?.name) this.storeName = data.experience.brand.name;
-              if (data.experience.agent?.name) this.agentName = data.experience.agent.name;
-            }
-          }
-          return this.sessionId || 'sess_fallback';
+          const data = await r.json() as { session_id?: string };
+          if (data.session_id) { this.sessionId = data.session_id; return this.sessionId; }
         }
       } catch { /* fall through */ }
     }
+    if (!this.allowDemoFallbacks) throw new Error('embed_session_unavailable');
     this.sessionId = 'sess_demo';
     return this.sessionId;
   }
 
-  getCryptoPaymentsConfig(): MerchantCryptoPayments | undefined {
-    const config = this._cachedExperience?.rules?.cryptoPayments;
-    if (!config || config.enabled !== true || !config.treasuryAddress) return undefined;
-    return config as MerchantCryptoPayments;
-  }
-
   async getCart(): Promise<{ product: Product; qty: number }> {
-    if (this._initialCart) return this._initialCart;
+    if (this._initialCart) return this._wait(this._initialCart, 200);
     if (this.sessionToken && this.baseUrl) {
       try {
-        // Pull from cached experience first (set by ensureSession)
-        if (this._cachedExperience?.items?.length) {
-          const first = this._cachedExperience.items[0];
-          return {
-            product: {
-              id: first.sku,
-              title: first.name,
-              subtitle: first.description ?? '',
-              price: first.unit_price ?? 0,
-              tags: first.tags ?? []
-            },
-            qty: first.quantity ?? 1
-          };
+        const sessionId = await this.ensureSession();
+        const r = await fetch(`${this.baseUrl}/embed/cart?session_id=${encodeURIComponent(sessionId)}`, { headers: this._headers() });
+        if (r.ok) {
+          const data = await r.json() as { items?: unknown[] };
+          const items = (data.items ?? []) as Array<{ sku: string; name: string; description?: string; price_cents?: number; quantity?: number; tags?: string[] }>;
+          if (items.length > 0) {
+            const first = items[0];
+            return { product: { id: first.sku, title: first.name, subtitle: first.description ?? '', price: (first.price_cents ?? 0) / 100, tags: first.tags ?? [] }, qty: first.quantity ?? 1 };
+          }
         }
       } catch { /* fall through */ }
     }
-    // Fallback: empty product so ViewModel doesn't crash
-    return {
-      product: { id: 'empty', title: 'Seu pedido', subtitle: 'Nenhum item no carrinho', price: 0, tags: [] },
-      qty: 0
-    };
+    if (!this.allowDemoFallbacks) throw new Error('cart_unavailable');
+    return this._wait({ product: this._fallbackCatalog[0], qty: 1 });
   }
 
   async searchProducts(query: string): Promise<Product[]> {
@@ -229,18 +199,15 @@ export class PulseAPI {
             sku: string;
             name: string;
             description?: string;
-            price?: number;
-            unit_price?: number;
             price_cents?: number;
             tags?: string[];
-            category?: string;
           }>;
           if (products.length > 0) {
             return products.map((p) => ({
               id: p.sku,
               title: p.name,
-              subtitle: p.description ?? p.category ?? '',
-              price: p.unit_price ?? p.price ?? ((p.price_cents ?? 0) / 100),
+              subtitle: p.description ?? '',
+              price: (p.price_cents ?? 0) / 100,
               tags: p.tags ?? [],
             }));
           }
@@ -249,205 +216,74 @@ export class PulseAPI {
         // fall through to local search
       }
     }
-    // No local fallback catalog — return empty when API is unavailable
-    return [];
+    if (!this.allowDemoFallbacks) return [];
+    const q = query.toLowerCase();
+    const results = this._fallbackCatalog.filter(
+      (p) => p.title.toLowerCase().includes(q) || p.tags.some((t) => t.includes(q)),
+    );
+    return this._wait(results.length ? results : this._fallbackCatalog.slice(0, 4), 300);
   }
 
   async getRecommendation(): Promise<Bundle> {
-    if (!this._cachedExperience && this.sessionToken && this.baseUrl) {
-      await this.ensureSession();
-    }
-    // Check cached experience first
-    if (this._cachedExperience?.suggestedProducts?.length) {
-      const sug = this._cachedExperience.suggestedProducts[0];
-      if (sug.unit_price > 0 && sug.name) {
-        return {
-          id: sug.sku,
-          title: sug.name,
-          subtitle: sug.description ?? '',
-          price: sug.unit_price,
-          was: sug.unit_price
-        };
-      }
-    }
-    // Call /embed/cross-sell/suggest endpoint for dynamic recommendations
-    if (this.sessionToken && this.baseUrl) {
-      try {
-        const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/cross-sell/suggest`, {
-          method: 'POST',
-          headers: this._headers(),
-          body: JSON.stringify({ session_id: sessionId }),
-        });
-        if (r.ok) {
-          const data = await r.json() as any;
-          const suggestions = data.suggestions ?? data.products ?? [];
-          if (suggestions.length > 0) {
-            const sug = suggestions[0];
-            const price = sug.unit_price ?? sug.price ?? 0;
-            if (price > 0 && (sug.name || sug.title)) {
-              return {
-                id: sug.sku ?? sug.id ?? 'cross-sell',
-                title: sug.name ?? sug.title ?? '',
-                subtitle: sug.description ?? sug.subtitle ?? '',
-                price,
-                was: price
-              };
-            }
-          }
-        }
-      } catch { /* fall through */ }
-    }
-    // Safe fallback: empty bundle won't be shown
-    return {
-      id: 'bundle-empty',
-      title: '',
-      subtitle: '',
-      price: 0,
-      was: 0
-    };
+    if (!this.allowDemoFallbacks) return this.emptyBundle();
+    return this._wait({
+      id: 'bulb-combo',
+      title: 'Lâmpadas inteligentes · 2 un',
+      subtitle: 'Controle por voz junto com o seu display.',
+      price: 159,
+      was: 199,
+    });
   }
 
   async getBestCoupon(productPrice: number, discount?: TenantDiscount): Promise<Coupon> {
-    // Try real API coupon application first
-    if (productPrice > 0 && this.sessionToken && this.baseUrl) {
-      try {
-        const sessionId = await this.ensureSession();
-        // Try to apply ZYON10 coupon via embed/coupons/apply endpoint
-        const couponCode = this._cachedExperience?.rules?.couponBoxEnabled !== false ? 'ZYON10' : '';
-        if (couponCode) {
-          const r = await fetch(`${this.baseUrl}/embed/coupons/apply`, {
-            method: 'POST',
-            headers: this._headers(),
-            body: JSON.stringify({
-              session_id: sessionId,
-              merchant_id: this.merchantId,
-              code: couponCode,
-              cart: {
-                currency: 'BRL',
-                total: productPrice,
-                items: this._cachedExperience?.items ?? [{ sku: 'UNKNOWN', name: 'Produto', price: productPrice, quantity: 1 }],
-              },
-            }),
-          });
-          if (r.ok) {
-            const data = await r.json() as any;
-            const discountApplied = data.discount_applied ?? 0;
-            if (discountApplied > 0) {
-              const pct = Math.round((discountApplied / productPrice) * 100);
-              return {
-                code: couponCode,
-                amount: -discountApplied,
-                displayAmount: -discountApplied,
-                label: `${pct}% de desconto`,
-                appliedPercent: pct,
-                pendingPercent: 0,
-                pendingAmount: 0,
-                urgencyMinutes: 5,
-                totalPercent: pct,
-              };
-            }
-          }
-        }
-      } catch { /* fall through to tenant discount or empty */ }
+    if (!this.allowDemoFallbacks && !discount) {
+      return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0 };
     }
-    // Fallback: use tenant discount if configured
-    if (productPrice <= 0) {
-      return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0, pendingAmount: 0, urgencyMinutes: 0, totalPercent: 0 };
-    }
-    if (discount) {
-      const d = resolveTenantDiscount({ discount });
-      return this._wait(buildCouponFromTenant(productPrice, d));
-    }
-    // No coupon available from API and no tenant discount
-    return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0, pendingAmount: 0, urgencyMinutes: 0, totalPercent: 0 };
-  }
-
-  async updateCustomer(customer: { name: string; email: string; cpf: string; phone?: string }): Promise<{ ok: boolean }> {
-    if (this.sessionToken && this.baseUrl) {
-      try {
-        const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/customer/update`, {
-          method: 'POST',
-          headers: this._headers(),
-          body: JSON.stringify({
-            session_id: sessionId,
-            customer: {
-              fullName: customer.name,
-              email: customer.email,
-              cpf: customer.cpf,
-              phone: customer.phone,
-            },
-          }),
-        });
-        if (r.ok) {
-          return (await r.json()) as { ok: boolean };
-        }
-      } catch {
-        // fall through
-      }
-    }
-    return { ok: true };
+    const d = discount ? resolveTenantDiscount({ discount }) : this.discount;
+    return this._wait(buildCouponFromTenant(productPrice, d));
   }
 
   async getShipping(customer?: { cep?: string; number?: string; complement?: string }): Promise<ShippingOption[]> {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/shipping/quote`, {
+        const r = await fetch(`${this.baseUrl}/embed/shipping/evaluate`, {
           method: 'POST',
           headers: this._headers(),
           body: JSON.stringify({
             session_id: sessionId,
-            destination_zip: customer?.cep ?? '',
+            postal_code: customer?.cep ?? '',
+            address_number: customer?.number ?? '',
+            address_complement: customer?.complement ?? '',
           }),
         });
         if (r.ok) {
-          const data = await r.json() as any;
-          const opts = (data.results ?? data.options ?? []) as Array<any>;
+          const data = await r.json() as { options?: unknown[] };
+          const opts = (data.options ?? []) as Array<{ key?: string; carrier_name?: string; label?: string; tag?: string; sub?: string; price_cents?: number; delivery_days?: number }>;
           if (opts.length > 0) {
             return opts.map((o) => ({
-              key: o.carrier_key ?? o.key ?? 'shipping',
+              key: o.key ?? o.carrier_name ?? 'shipping',
               label: o.label ?? o.carrier_name ?? 'Frete',
-              tag: o.is_free ? 'Grátis' : (o.eta_days <= 2 ? 'Mais rápido' : o.eta_days <= 5 ? 'Rápido' : 'Econômico'),
-              sub: o.eta_days ? `Chega em ${o.eta_days} dias úteis` : 'Prazo a confirmar',
-              cost: o.is_free ? 0 : (o.price ?? o.price_cents ?? 0) / 100,
+              tag: o.tag ?? (o.delivery_days === 1 ? 'Mais rápido' : 'Econômico'),
+              sub: o.sub ?? (o.delivery_days ? `Chega em ${o.delivery_days} dias úteis` : 'Prazo a confirmar'),
+              cost: (o.price_cents ?? 0) / 100,
             }));
           }
         }
       } catch { /* fall through */ }
     }
-    // Safe fallback
-    return [
+    if (!this.allowDemoFallbacks) return [];
+    return this._wait([
       { key: 'sedex', label: 'Sedex Express', tag: 'Mais rápido', sub: 'Chega amanhã até 12h', cost: 0 },
       { key: 'pac', label: 'PAC Econômico', tag: 'Mais barato', sub: 'Chega em 5-7 dias úteis', cost: 0 },
-    ];
-  }
-
-  async selectShipping(carrierKey: string, _sessionId?: string): Promise<{ ok: boolean }> {
-    if (this.sessionToken && this.baseUrl) {
-      try {
-        const sessionId = _sessionId ?? await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/shipping/select`, {
-          method: 'POST',
-          headers: this._headers(),
-          body: JSON.stringify({ session_id: sessionId, carrier_key: carrierKey }),
-        });
-        if (r.ok) return { ok: true };
-        const errorText = await r.text().catch(() => '');
-        throw new Error(errorText || `shipping_select_failed_${r.status}`);
-      } catch (error) {
-        throw error instanceof Error ? error : new Error('shipping_select_failed');
-      }
-    }
-    return { ok: true };
+      { key: 'jadlog', label: 'Jadlog Package', tag: 'Retirada fácil', sub: 'Chega em 3-4 dias úteis', cost: 9.9 },
+    ]);
   }
 
   async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string; clientSecret?: string; stripePublishableKey?: string }> {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = _sessionId ?? await this.ensureSession();
-        // Map widget pay method to API method field
         const methodMap: Record<string, string> = { pix: 'pix', credito: 'card', debito: 'card', crypto: 'crypto' };
         const method = methodMap[payMethod] ?? payMethod;
         const r = await fetch(`${this.baseUrl}/embed/payment/intents`, {
@@ -455,40 +291,36 @@ export class PulseAPI {
           headers: this._headers(),
           body: JSON.stringify({
             session_id: sessionId,
-            idempotency_key: `pulse-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            idempotency_key: pulseIdempotencyKey(sessionId, payMethod, installments),
             method,
             ...(installments ? { installments } : {}),
           }),
         });
         if (r.ok) {
           const data = await r.json() as any;
-          const id = data.id ?? data.order_id ?? data.intent_id ?? `ORD-${Date.now()}`;
-          // API returns PaymentIntentSnapshot with buyerFacing containing PIX data
+          const id = data.id ?? data.intent_id ?? data.order_id;
+          if (!id) throw new Error('payment_intent_id_missing');
           const bf = data.buyerFacing ?? data.buyer_facing ?? {};
           return {
             id,
-            pixQrCode: bf.encodedQrImage ? `data:image/png;base64,${bf.encodedQrImage}` : undefined,
+            pixQrCode: data.pix_qr_code,
             pixCopyPaste: bf.qrCodeCopyPaste ?? bf.pix_copy_paste ?? data.pix_copy_paste,
-            pixExpiresAt: bf.quoteExpiresAt ?? bf.expiresAt ?? bf.expires_at ?? data.pix_expires_at ?? data.expires_at ?? new Date(Date.now() + 15 * 60000).toISOString(),
-            clientSecret: bf.clientSecret ?? bf.client_secret ?? data.clientSecret ?? data.client_secret,
-            stripePublishableKey: bf.stripePublishableKey ?? bf.stripe_publishable_key ?? data.stripePublishableKey ?? data.stripe_publishable_key,
+            pixExpiresAt: bf.expiresAt ?? bf.expires_at ?? data.pix_expires_at,
+            clientSecret: bf.clientSecret ?? bf.client_secret ?? data.clientSecret,
+            stripePublishableKey: bf.stripePublishableKey ?? bf.stripe_publishable_key ?? data.stripePublishableKey,
           };
         }
         const errorText = await r.text().catch(() => '');
         throw new Error(errorText || `payment_intent_failed_${r.status}`);
       } catch (error) {
-        throw error instanceof Error ? error : new Error('payment_intent_failed');
+        if (!this.allowDemoFallbacks) throw error;
       }
     }
-    // Fallback: generate mock but mark clearly as demo
+    if (!this.allowDemoFallbacks) throw new Error('payment_provider_unavailable');
     if (payMethod === 'pix') {
-      return {
-        id: `ORD-${Date.now().toString(36).toUpperCase()}`,
-        pixCopyPaste: '00020126580014BR.GOV.BCB.PIX0136demo-key-uuid',
-        pixExpiresAt: new Date(Date.now() + 30 * 60000).toISOString()
-      };
+      return this._wait({ id: 'ORD-DEMO-PIX', pixCopyPaste: '00020126580014BR.GOV.BCB.PIX0136mock-pix-key-uuid-6304ABCD', pixExpiresAt: new Date(Date.now() + 30 * 60000).toISOString() }, 800);
     }
-    return { id: `ORD-${Date.now().toString(36).toUpperCase()}` };
+    return this._wait({ id: `ORD-DEMO-${payMethod.toUpperCase()}` }, 800);
   }
 
   async confirmStripePayment(intentId: string, _sessionId?: string): Promise<{ status: string; intent_id: string }> {
@@ -503,6 +335,7 @@ export class PulseAPI {
       const errorText = await r.text().catch(() => '');
       throw new Error(errorText || `stripe_confirm_failed_${r.status}`);
     }
+    if (!this.allowDemoFallbacks) throw new Error('stripe_confirm_unavailable');
     return { status: 'approved', intent_id: intentId };
   }
 
@@ -513,7 +346,7 @@ export class PulseAPI {
         if (r.ok) {
           const data = await r.json() as { status?: string };
           const s = data.status;
-          if (s === 'paid' || s === 'confirmed' || s === 'completed') return 'paid';
+          if (paymentStatusIsPaid(s)) return 'paid';
           if (s === 'failed' || s === 'cancelled' || s === 'expired') return 'failed';
         }
       } catch { /* fall through */ }
@@ -525,7 +358,7 @@ export class PulseAPI {
     const q = (question || '').toLowerCase();
     const faq = [
       { k: ['pedido', 'rastre', 'onde', 'entrega', 'chega', 'prazo'], a: 'Seu pedido mais recente está em separação e sai para entrega em até 24h. Você acompanha cada etapa em tempo real na aba "Pedidos" — eu te aviso assim que ele sair.' },
-      { k: ['cashback', 'usdc', 'crypto', 'evm'], a: 'No pagamento com crypto a liquidação acontece on-chain em Polygon ou Base e você recebe 3% de cashback em USDC, já liberado para a sua próxima compra.' },
+      { k: ['cashback', 'usdc', 'crypto', 'stellar'], a: 'No pagamento com crypto a liquidação acontece na rede Stellar em segundos e você recebe 3% de cashback em USDC, já liberado para a sua próxima compra.' },
       { k: ['parcel', 'juros', 'cartão', 'cartao', 'vezes', '12x'], a: 'Dá para parcelar em até 12x sem juros no cartão de crédito — é só escolher o número de parcelas na hora do pagamento.' },
       { k: ['segur', 'seguro', 'dados', 'privacidade', 'rosto', 'face'], a: 'Tudo é criptografado. O reconhecimento facial é processado no seu dispositivo e a imagem do seu rosto nunca é enviada para o servidor.' },
       { k: ['troca', 'devolu', 'reembolso', 'cancelar'], a: 'Você tem 7 dias para troca ou devolução. Posso abrir a solicitação agora mesmo — é só me dizer qual pedido.' },
@@ -572,111 +405,21 @@ export class PulseAPI {
         // fall through
       }
     }
+    if (!this.allowDemoFallbacks) return [];
     return this._wait([
       { store: this.storeName, region: 'São Paulo · BR', items: 'Smart Speaker mini', amount: 'R$ 349,00', tone: 'done', status: 'Entregue', initial: this.storeName[0]?.toUpperCase() ?? 'L', bg: '#8b5cf6' },
     ]);
   }
 
-  async authenticateFace(email?: string): Promise<FaceUser> {
-    // Real WebAuthn biometric flow: POST /buyer/webauthn/login/options →
-    // navigator.credentials.get() → POST /buyer/webauthn/login/verify → JWT.
-    // No mock success: unsupported browsers/devices or users without a registered
-    // passkey stay unauthenticated and can use phone login or guest checkout.
-    if (this.baseUrl && typeof navigator !== 'undefined' && navigator.credentials?.get) {
-      try {
-        const optsRes = await fetch(`${this.baseUrl}/buyer/webauthn/login/options`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: email ?? undefined }),
-        });
-        if (optsRes.ok) {
-          const opts = (await optsRes.json()) as {
-            challenge: string;
-            allowCredentials: Array<{ id: string; type: 'public-key' }>;
-            timeout: number;
-            userVerification: 'required' | 'preferred' | 'discouraged';
-          };
-          const publicKey: PublicKeyCredentialRequestOptions = {
-            challenge: _b64uToBytes(opts.challenge) as BufferSource,
-            timeout: opts.timeout ?? 60_000,
-            userVerification: opts.userVerification ?? 'required',
-            rpId: _getRpId(this.baseUrl),
-          };
-          if (opts.allowCredentials?.length) {
-            publicKey.allowCredentials = opts.allowCredentials.map((c) => ({
-              id: _b64uToBytes(c.id) as BufferSource,
-              type: c.type,
-            }));
-          }
-          const cred = (await navigator.credentials.get({ publicKey })) as PublicKeyCredential | null;
-          if (cred) {
-            const response = cred.response as AuthenticatorAssertionResponse;
-            const verifyRes = await fetch(`${this.baseUrl}/buyer/webauthn/login/verify`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                challenge: opts.challenge,
-                credential: {
-                  id: cred.id,
-                  rawId: _bytesToB64u(new Uint8Array(cred.rawId)),
-                  type: cred.type,
-                  response: {
-                    authenticatorData: _bytesToB64u(new Uint8Array(response.authenticatorData)),
-                    clientDataJSON: _bytesToB64u(new Uint8Array(response.clientDataJSON)),
-                    signature: _bytesToB64u(new Uint8Array(response.signature)),
-                  },
-                },
-              }),
-            });
-            if (verifyRes.ok) {
-              const data = (await verifyRes.json()) as { access_token: string; buyer_id: string; email: string };
-              if (data.access_token) this.setBuyerToken(data.access_token);
-              const localPart = data.email.split('@')[0] ?? data.email;
-              const name = localPart
-                .split(/[._-]/)
-                .filter(Boolean)
-                .map((p) => p[0]?.toUpperCase() + p.slice(1))
-                .join(' ') || data.email;
-              return {
-                id: data.buyer_id,
-                name,
-                email: data.email,
-                initial: (name[0] ?? data.email[0] ?? '?').toUpperCase(),
-                verified: true,
-              };
-            }
-          }
-        }
-      } catch {
-        // WebAuthn unavailable or no registered credentials — fall through
-      }
-    }
-    throw new Error('webauthn_unavailable_or_not_registered');
-  }
-}
-
-// --- WebAuthn base64url helpers (RFC 4648 §5, no padding) ---
-function _b64uToBytes(b64u: string): Uint8Array {
-  const pad = '='.repeat((4 - (b64u.length % 4)) % 4);
-  const b64 = (b64u + pad).replace(/-/g, '+').replace(/_/g, '/');
-  const raw = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
-  const out = new Uint8Array(new ArrayBuffer(raw.length));
-  for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
-  return out;
-}
-
-function _bytesToB64u(bytes: Uint8Array): string {
-  let s = '';
-  for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
-  const b64 = typeof btoa === 'function' ? btoa(s) : Buffer.from(s, 'binary').toString('base64');
-  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-function _getRpId(baseUrl: string): string {
-  try {
-    return new URL(baseUrl).hostname;
-  } catch {
-    return 'localhost';
+  async authenticateFace(): Promise<FaceUser> {
+    if (!this.allowDemoFallbacks) throw new Error('webauthn_unavailable_or_not_registered');
+    return this._wait({
+      id: 'usr_face_001',
+      name: 'Diego Costa',
+      email: 'diego@aurora.com',
+      initial: 'D',
+      verified: true,
+    }, 2200);
   }
 }
 

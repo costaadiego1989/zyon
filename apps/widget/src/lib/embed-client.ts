@@ -37,6 +37,13 @@ export const CHECKOUT_LEGACY_PATHS = {
   buyerLoginFromSession: "/buyer/login-from-session"
 } as const;
 
+export const EMBED_AUTH_HEADER = "Authorization";
+
+export function embedAuthHeaders(embedToken?: string): Record<string, string> {
+  const token = embedToken?.trim();
+  return token ? { [EMBED_AUTH_HEADER]: `Bearer ${token}` } : {};
+}
+
 export class CheckoutHttpError extends Error {
   constructor(
     public readonly status: number,
@@ -97,9 +104,7 @@ export async function checkoutJson<T>(
   const headers: Record<string, string> = {
     "Content-Type": "application/json"
   };
-  if (options.embedToken?.trim()) {
-    headers["x-aacp-embed-token"] = options.embedToken.trim();
-  }
+  Object.assign(headers, embedAuthHeaders(options.embedToken));
 
   const response = await fetch(url, {
     method: options.method ?? "POST",
@@ -122,9 +127,7 @@ export async function checkoutGet<T>(
 ): Promise<T> {
   const url = `${origin}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {};
-  if (options.embedToken?.trim()) {
-    headers["x-aacp-embed-token"] = options.embedToken.trim();
-  }
+  Object.assign(headers, embedAuthHeaders(options.embedToken));
 
   const response = await fetch(url, { method: "GET", headers });
   if (!response.ok) {

@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react";
+import { embedAuthHeaders } from "../lib/embed-client.js";
 
 export interface SupportMessage {
   role: "user" | "agent";
@@ -55,10 +56,10 @@ export function useSupportChat({ apiBaseUrl, sessionId, embedToken }: UseSupport
 
       try {
         const base = apiBaseUrl.replace(/\/$/, "");
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        // /support/chat derives the merchant from the verified embed token
-        // (ADR-0003); merchant_id is no longer accepted in the body.
-        if (embedToken?.trim()) headers["x-aacp-embed-token"] = embedToken.trim();
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+          ...embedAuthHeaders(embedToken)
+        };
         const res = await fetch(`${base}/support/chat`, {
           method: "POST",
           headers,

@@ -3,6 +3,7 @@ import type { CheckoutExperienceSnapshot, CurrencyCode } from "@zyon/shared-type
 import { buildEmptyCompletedExperience } from "./checkout-presentation.js";
 import type { VisibleCartState } from "./checkout-presentation.js";
 import { emitCheckoutEvent } from "../lib/merchant-checkout-shell.js";
+import { safeOrigin } from "../lib/safe-url.js";
 
 type UseOrderCompletionInput = {
   checkoutStage: string;
@@ -76,28 +77,19 @@ export function useOrderCompletion({
 
     emitCheckoutEvent("order_completed");
     if (typeof window !== "undefined") {
-      // P2: restrict targetOrigin to the known storefront origin so session_id
-      // and merchant_id are never delivered to arbitrary parent frames.
-      // Falls back to the current origin when storeUrl is not configured.
-      let targetOrigin = "*";
-      if (storeUrl) {
-        try {
-          targetOrigin = new URL(storeUrl).origin;
-        } catch {
-          // malformed storeUrl — fall back to wildcard (logged to ease debugging)
-          if (typeof console !== "undefined") {
-            console.warn("[aacp] use-order-completion: invalid storeUrl for postMessage targetOrigin:", storeUrl);
-          }
-        }
+      const targetOrigin = safeOrigin(storeUrl);
+      if (!targetOrigin) {
+        console.warn("[aacp] use-order-completion: skipping sensitive postMessage without valid storeUrl");
+      } else {
+        window.parent?.postMessage(
+          {
+            type: "aacp:order-completed",
+            merchant_id: merchantId,
+            session_id: sessionId ?? null,
+          },
+          targetOrigin,
+        );
       }
-      window.parent?.postMessage(
-        {
-          type: "aacp:order-completed",
-          merchant_id: merchantId,
-          session_id: sessionId ?? null,
-        },
-        targetOrigin,
-      );
     }
 
     window.setTimeout(() => {

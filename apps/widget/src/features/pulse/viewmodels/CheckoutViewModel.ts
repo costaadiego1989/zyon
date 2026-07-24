@@ -2,7 +2,6 @@ import React from 'react';
 import { resolveTenantDiscount } from '../config/tenantDiscount';
 import type { AgentOrbPlacement } from '../config/agentOrbPresets';
 import { PulseAPI } from '../model/PulseAPI';
-import { injectPulseFonts } from '../../../hooks/checkout-presentation.js';
 import type {
   Bundle,
   Cart,
@@ -92,9 +91,6 @@ interface CheckoutState {
   pixCopyPaste: string | null;
   pixExpiresAt: string | null;
   pixStatus: 'idle' | 'waiting' | 'paid' | 'failed';
-  cryptoChain?: string;
-  cryptoNetwork?: string;
-  treasuryAddress?: string;
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -198,7 +194,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   SET_STEPS = [
     { label: 'Pagamento recebido', status: 'Confirmando transação…' },
     { label: 'Conversão para USDC', status: 'Convertendo…' },
-    { label: 'Liquidação EVM', status: 'Liquidando on-chain…' },
+    { label: 'Liquidação na Stellar', status: 'Liquidando on-chain…' },
     { label: 'Repasse ao lojista', status: 'Repassando ao lojista…' },
     { label: 'Cashback creditado', status: 'Creditando cashback…' },
     { label: 'Pedido concluído', status: 'Finalizando pedido…' },
@@ -288,26 +284,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   mount(): void {
-    injectPulseFonts();
     void this.ensureApi()
       .then((api) => api.getOrders())
       .then((orders) => this.setState({ orders }));
     void this.ensureApi()
-      .then(async (api) => {
-        await api.ensureSession();
-        const crypto = api.getCryptoPaymentsConfig();
-        if (crypto) {
-          this.setState({
-            cryptoChain: crypto.chain,
-            cryptoNetwork: crypto.network,
-            treasuryAddress: crypto.treasuryAddress,
-          });
-        }
-      })
-      .then(() => {
-        // Refresh render state after session loads to pick up updated storeName and agentName from API
-        this.notify();
-      })
+      .then((api) => api.ensureSession())
       .catch(() => { /* fire-and-forget */ });
   }
 
@@ -350,18 +331,10 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   get agentName(): string {
-    // After ensureSession(), the API has updated agentName from API response
-    if (this.api?.agentName && this.api.agentName !== 'Pulse' && this.api.agentName !== 'Aurora Home') {
-      return this.api.agentName;
-    }
     return this.props.agentName || 'Pulse';
   }
 
   get storeName(): string {
-    // After ensureSession(), the API has updated storeName from API response
-    if (this.api?.storeName && this.api.storeName !== 'Aurora Home') {
-      return this.api.storeName;
-    }
     return this.props.storeName || '';
   }
 
@@ -437,6 +410,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       sessionId: this.props.sessionId,
       initialCart: this.props.initialCart,
       initialCustomer: this.props.initialCustomer,
+      allowDemoFallbacks: this.props.allowDemoFallbacks,
     });
     return this.api;
   }
@@ -636,16 +610,13 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   onFaceMatched = async (): Promise<void> => {
+    this.setState({ faceStatus: 'success', faceHint: 'Identidade confirmada' });
     const api = await this.ensureApi();
     let user = null;
     try {
-      user = await api.authenticateFace(this.state.customer.email);
+      user = await api.authenticateFace();
     } catch {
-      this.setState({
-        faceStatus: 'idle',
-        faceProgress: 0,
-        faceHint: 'Biometria indisponível ou não cadastrada. Use telefone ou continue como visitante.',
-      });
+      /* noop */
     }
     try {
       if (this.faceStream) {
@@ -655,13 +626,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     } catch {
       /* noop */
     }
-    if (!user) return;
-    this.setState({ faceStatus: 'success', faceHint: 'Identidade confirmada' });
     this.after(820, () =>
       this.setState((s) => ({
         view: 'intro',
         authed: true,
-        customer: { ...s.customer, name: user.name, email: user.email },
+        customer: user ? { ...s.customer, name: user.name, email: user.email } : s.customer,
       })),
     );
   };
@@ -1071,8 +1040,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         this.setState((s) => ({ customer: { ...s.customer, [k]: val } }));
         if (e.results[e.results.length - 1].isFinal) {
           this.stopFieldDictation();
-          const delay = k === 'email' ? 1200 : k === 'name' ? 600 : 280;
-          if (val.trim()) this.after(delay, () => this.confirmField());
+          if (val.trim()) this.after(280, () => this.confirmField());
         }
       };
       rec.onerror = () => {
@@ -1109,16 +1077,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   normalizeField(key: keyof Customer, txt: string): string {
-    if (key === 'cpf' || key === 'cep' || key === 'number' || key === 'phone') {
-      // Numeric fields: remove ALL non-digits
-      return (txt || '').replace(/\D/g, '');
+    if (key === 'cpf' || key === 'cep' || key === 'number') {
+      const digits = (txt || '').replace(/\D/g, '');
+      return digits || txt.trim();
     }
-    if (key === 'email') {
-      // Email: remove ALL whitespace + lowercase (voice agent adds spaces)
-      return (txt || '').replace(/\s+/g, '').toLowerCase();
-    }
-    // Name, complement: collapse multiple spaces into one, trim edges
-    return (txt || '').replace(/\s+/g, ' ').replace(/^\s+|\s+$/g, '');
+    return (txt || '').trim();
   }
 
   startChat = async (): Promise<void> => {
@@ -1141,17 +1104,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     });
     const api = await this.ensureApi();
     const [{ product, qty }, rec] = await Promise.all([api.getCart(), api.getRecommendation()]);
-    if (qty <= 0 || product.id === 'empty') {
-      this.setState({ chatMode: 'empty', searchQuery: '', searchResults: [], searching: false });
-      return;
-    }
-    const coupon = await api.getBestCoupon(product.price, this.props.discount ? this.tenantDiscount() : undefined);
-    // Only show recommendation if it has valid data (title + price > 0)
-    const validRec = rec && rec.title && rec.price > 0 ? rec : null;
+    const coupon = await api.getBestCoupon(product.price, this.tenantDiscount());
     this.setState({
       chatMode: 'flow',
       cart: { product, qty, bundle: null, coupon, shipping: null, payMethod: null },
-      recommendation: validRec,
+      recommendation: rec,
       couponShownAt: Date.now(),
     });
     this.startUrgencyTicker();
@@ -1162,6 +1119,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     this.buyAgain();
   };
 
+  /** Esvazia carrinho, limpa sessão e abre tela de busca (voz/texto). */
   buyAgain = (): void => {
     if (this.postFinalizeTimer) {
       clearTimeout(this.postFinalizeTimer);
@@ -1262,10 +1220,10 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         {
           role: 'agent',
           kind: 'text',
-          text: `Oi! Eu sou a ${this.agentName}, gerente de vendas da ${this.storeName}. Vi que você está levando o ${product.title}${this.state.cart.coupon?.code ? ' — já garanti a melhor promoção e apliquei no seu carrinho.' : '. Vamos finalizar sua compra?'}`,
+          text: `Oi! Eu sou a ${this.agentName}, gerente de vendas da ${this.storeName}. Vi que você está levando o ${product.title} — já garanti a melhor promoção e apliquei no seu carrinho.`,
         },
         { role: 'agent', kind: 'product' },
-        ...(this.state.cart.coupon?.code ? [{ role: 'agent' as const, kind: 'coupon' as const }] : []),
+        { role: 'agent', kind: 'coupon' },
       ],
       [this.A('Continuar', this.onAfterPromo, true)],
       280,
@@ -1315,19 +1273,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   onFieldInput = (e: React.ChangeEvent<HTMLInputElement>): void => {
     const k = this.state.askingField;
     if (!k) return;
-    let v = e.target.value;
-    // Apply input masks for CPF and CEP
-    if (k === 'cpf') {
-      const digits = v.replace(/\D/g, '').slice(0, 11);
-      if (digits.length <= 3) v = digits;
-      else if (digits.length <= 6) v = digits.slice(0, 3) + '.' + digits.slice(3);
-      else if (digits.length <= 9) v = digits.slice(0, 3) + '.' + digits.slice(3, 6) + '.' + digits.slice(6);
-      else v = digits.slice(0, 3) + '.' + digits.slice(3, 6) + '.' + digits.slice(6, 9) + '-' + digits.slice(9);
-    } else if (k === 'cep') {
-      const digits = v.replace(/\D/g, '').slice(0, 8);
-      if (digits.length <= 5) v = digits;
-      else v = digits.slice(0, 5) + '-' + digits.slice(5);
-    }
+    const v = e.target.value;
     this.setState((s) => ({ customer: { ...s.customer, [k]: v } }));
   };
 
@@ -1364,14 +1310,6 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   onAddressDone = async (): Promise<void> => {
     const api = await this.ensureApi();
-    const c = this.state.customer;
-    if (c.name && c.email && c.cpf) {
-      try {
-        await api.updateCustomer({ name: c.name, email: c.email, cpf: c.cpf, phone: c.phone });
-      } catch {
-        // best-effort sync; payment flow still has local fallback
-      }
-    }
     const opts = await api.getShipping(this.state.customer);
     this.setState({ shipOptions: opts });
     this.agentSay(
@@ -1388,11 +1326,6 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   onChooseShipping = (opt: ShippingOption) => (): void => {
     this.setState((s) => ({ cart: { ...s.cart, shipping: opt } }));
-    void this.ensureApi()
-      .then((api) => api.selectShipping(opt.key))
-      .catch(() => {
-        // best-effort persistence; create payment will surface a friendly error if shipping was not saved
-      });
     this.pickUser('Entrega · ' + opt.label);
     this.agentSay(
       [
@@ -1447,7 +1380,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           },
           { role: 'agent', kind: 'cardform', installments: true },
         ],
-        [this.A('Trocar método', this.onAnother)],
+        [this.A('Pagar ' + calc.totalStr, this.onPay('credito'), true), this.A('Trocar método', this.onAnother)],
       );
     } else if (m === 'debito') {
       this.pickUser('Pagar com débito');
@@ -1456,7 +1389,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           { role: 'agent', kind: 'text', text: 'Pagamento à vista no débito. É só confirmar os dados do cartão:' },
           { role: 'agent', kind: 'cardform', installments: false },
         ],
-        [this.A('Trocar método', this.onAnother)],
+        [this.A('Pagar ' + calc.totalStr, this.onPay('debito'), true), this.A('Trocar método', this.onAnother)],
       );
     } else {
       this.pickUser('Pagar com crypto');
@@ -1465,7 +1398,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           {
             role: 'agent',
             kind: 'text',
-            text: 'No crypto a liquidação acontece on-chain em Polygon ou Base e você ainda ganha cashback em USDC:',
+            text: 'No crypto a liquidação é instantânea na Stellar e você ainda ganha cashback em USDC:',
           },
           { role: 'agent', kind: 'cryptoform' },
         ],
@@ -1521,54 +1454,31 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     });
   };
 
-  async createCardPaymentIntent(method: PayMethod = 'credito'): Promise<{ id: string; clientSecret: string; stripePublishableKey: string }> {
-    const api = await this.ensureApi();
-    const order = await api.createOrder(method, undefined, method === 'credito' ? this.state.installment : undefined);
-    if (!order.clientSecret || !order.stripePublishableKey) {
-      throw new Error('stripe_payment_intent_payload_missing');
-    }
-    return { id: order.id, clientSecret: order.clientSecret, stripePublishableKey: order.stripePublishableKey };
-  }
-
-  confirmCardPayment = async (orderId: string, method: PayMethod = 'credito'): Promise<void> => {
-    const api = await this.ensureApi();
-    await api.confirmStripePayment(orderId);
-    const c = this.state.cart;
-    const calc = this.calc(c);
-    this.completeOrder(method, orderId, false, c, calc);
-  };
-
   async finalize(method: PayMethod): Promise<void> {
     const api = await this.ensureApi();
     const c = this.state.cart;
     const calc = this.calc(c);
     const crypto = method === 'crypto';
-    try {
-      const order = await api.createOrder(method, undefined, method === 'credito' ? this.state.installment : undefined);
+    const order = await api.createOrder(method);
 
-      if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
-        this.setState({
-          pixIntentId: order.id,
-          pixQrCode: order.pixQrCode ?? null,
-          pixCopyPaste: order.pixCopyPaste ?? null,
-          pixExpiresAt: order.pixExpiresAt ?? null,
-          pixStatus: 'waiting',
-        });
-        this.startPixPolling(order.id);
-        return;
-      }
-
-      this.completeOrder(method, order.id, crypto, c, calc);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'payment_intent_failed';
-      const friendly = method === 'credito'
-        ? 'Não consegui iniciar o pagamento no cartão. Verifique se a conta Stripe/Asaas do lojista está configurada e tente outro método.'
-        : method === 'pix'
-          ? 'Não consegui gerar o Pix real agora. Tente novamente ou escolha outro método.'
-          : 'Não consegui iniciar esse pagamento. Tente outro método.';
-      this.setState({ typing: false, actions: [this.A('Trocar método', this.onAnother, true)] });
-      this.push({ role: 'agent', kind: 'text', text: `${friendly} (${message.slice(0, 140)})` });
+    if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
+      this.setState({
+        pixIntentId: order.id,
+        pixQrCode: order.pixQrCode ?? null,
+        pixCopyPaste: order.pixCopyPaste ?? null,
+        pixExpiresAt: order.pixExpiresAt ?? null,
+        pixStatus: 'waiting',
+      });
+      this.startPixPolling(order.id);
+      return;
     }
+
+    if (method === 'credito' || method === 'debito') {
+      const result = await api.confirmStripePayment(order.id);
+      if (result.status !== 'approved') throw new Error('card_payment_not_approved');
+    }
+
+    this.completeOrder(method, order.id, crypto, c, calc);
   }
 
   startPixPolling(intentId: string): void {
@@ -1608,7 +1518,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     calc: ReturnType<typeof this.calc>,
   ): void {
     const sub = crypto
-      ? 'Liquidação EVM confirmada. Cashback liberado.'
+      ? 'Liquidação confirmada na Stellar. Cashback liberado.'
       : 'Seu pedido foi confirmado e o lojista já foi pago.';
     const newOrder: Order = {
       store: this.storeName,
@@ -1706,7 +1616,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     this.setState({ chatMode: 'loading', searchResults: [], searchQuery: '' });
     const api = await this.ensureApi();
     const [coupon, rec] = await Promise.all([
-      api.getBestCoupon(product.price, this.props.discount ? this.tenantDiscount() : undefined),
+      api.getBestCoupon(product.price, this.tenantDiscount()),
       api.getRecommendation(),
     ]);
     this.setState({
@@ -2016,20 +1926,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         mk('pix', 'Pix', 'Pagamento instantâneo, sem taxas', 'Na hora', 'pix'),
         mk('credito', 'Cartão de crédito', 'Parcele em até 12x sem juros', '12x', 'card'),
         mk('debito', 'Cartão de débito', 'Débito à vista', '', 'card'),
-        mk('crypto', 'Crypto · USDC', 'Liquida em EVM + cashback', 'Cashback', 'crypto'),
+        mk('crypto', 'Crypto · USDC', 'Liquida na Stellar + cashback', 'Cashback', 'crypto'),
       ];
     }
 
     if (m.kind === 'cardform') {
-      base.cardPayMethod = m.installments ? 'credito' : 'debito';
-      base.createCardPaymentIntent = () => this.createCardPaymentIntent(m.installments ? 'credito' : 'debito');
-      base.confirmCardPayment = (orderId: string) => this.confirmCardPayment(orderId, m.installments ? 'credito' : 'debito');
-      base.cardPaymentError = (message: string) => {
-        this.setState({ actions: [this.A('Trocar método', this.onAnother, true)] });
-        this.push({ role: 'agent', kind: 'text', text: message });
-      };
-      base.cardholderName = this.state.customer.name || '';
-      base.cardTotalLabel = calc.totalStr;
       base.showInstallments = !!m.installments;
       if (m.installments) {
         base.installments = [1, 3, 6, 12].map((n) => {
@@ -2056,7 +1957,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
     if (m.kind === 'settlement') {
       const cur = this.state.settlementStep;
-      base.statusText = cur >= this.SET_STEPS.length - 1 ? 'Confirmado on-chain' : 'Liquidando…';
+      base.statusText = cur >= this.SET_STEPS.length - 1 ? 'Confirmado na Stellar' : 'Liquidando…';
       base.statusStyle = { fontFamily: "'Space Mono',monospace", fontSize: '9px', color: t.g2 } as React.CSSProperties;
       base.steps = this.SET_STEPS.map((s, i) => {
         const done = i < cur;
@@ -2093,7 +1994,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         pix: 'Pix',
         credito: 'Cartão de crédito',
         debito: 'Cartão de débito',
-        crypto: 'USDC · EVM',
+        crypto: 'USDC · Stellar',
       };
       base.isCrypto = crypto;
       base.subline = m.subline;
@@ -2250,7 +2151,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const cartRows: { label: string; value: string; valStyle: React.CSSProperties }[] = [];
     const cvS: React.CSSProperties = { fontSize: '12.5px', fontWeight: 600, flex: 'none', whiteSpace: 'nowrap' };
     if (c.bundle) cartRows.push({ label: 'Combo · ' + c.bundle.title, value: this.brl(c.bundle.price), valStyle: cvS });
-    if (c.coupon && c.coupon.code)
+    if (c.coupon)
       cartRows.push({ label: 'Promoção · ' + c.coupon.code, value: this.brl(c.coupon.amount), valStyle: { ...cvS, color: '#1ED760' } });
     if (c.shipping)
       cartRows.push({
@@ -2259,7 +2160,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         valStyle: cvS,
       });
     if (c.payMethod) {
-      const map: Record<PayMethod, string> = { pix: 'Pix', credito: 'Crédito', debito: 'Débito', crypto: 'USDC · EVM' };
+      const map: Record<PayMethod, string> = { pix: 'Pix', credito: 'Crédito', debito: 'Débito', crypto: 'USDC · Stellar' };
       cartRows.push({ label: 'Pagamento', value: map[c.payMethod], valStyle: { fontSize: '12.5px', fontWeight: 600 } });
     }
 
@@ -2267,7 +2168,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     if (this.state.completed) cartState = 'Pedido confirmado';
     else if (c.payMethod) cartState = 'Pronto p/ pagar';
     else if (c.shipping) cartState = 'Frete calculado';
-    else if (c.coupon && c.coupon.code) cartState = 'Promoção aplicada';
+    else if (c.coupon) cartState = 'Promoção aplicada';
     else if (c.product) cartState = 'Aguardando';
 
     const actions = this.state.actions.map((a) => ({
@@ -2500,8 +2401,6 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       chatLoading: mode === 'loading',
       chatEmpty: mode === 'empty',
       chatFlow: mode === 'flow',
-      showBranding: false,
-      policyLinks: this.buildPolicyLinks(),
       showHeader: view !== 'intro' && view !== 'login',
       headerOrbPlacement: (view === 'chat' && mode === 'empty' ? 'headerEmpty' : 'header') as AgentOrbPlacement,
       headerTitle: view === 'hub' ? 'Minha conta' : this.agentName + ' · Gerente de vendas',
@@ -2723,7 +2622,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       payOpts: [
         { label: 'Pix', sub: 'Aprovação na hora', val: 'pix' },
         { label: 'Cartão de crédito', sub: 'Crédito · até 12x', val: 'credito' },
-        { label: 'USDC · EVM', sub: 'Cashback de 3%', val: 'crypto' },
+        { label: 'USDC · Stellar', sub: 'Cashback de 3%', val: 'crypto' },
       ].map((o) => ({
         label: o.label,
         sub: o.sub,
@@ -2941,16 +2840,5 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
       theme: this.theme,
     };
-  }
-
-  private buildPolicyLinks(): Array<{ label: string; url: string }> {
-    const policies = this.api?.cachedPolicies;
-    if (!policies) return [];
-    const links: Array<{ label: string; url: string }> = [];
-    if (policies.privacyUrl) links.push({ label: 'Privacidade', url: policies.privacyUrl });
-    if (policies.termsUrl) links.push({ label: 'Termos', url: policies.termsUrl });
-    if (policies.refundUrl) links.push({ label: 'Trocas', url: policies.refundUrl });
-    if (policies.shippingUrl) links.push({ label: 'Frete', url: policies.shippingUrl });
-    return links;
   }
 }

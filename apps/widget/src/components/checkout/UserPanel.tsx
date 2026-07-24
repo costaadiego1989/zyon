@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   X, User, Bot, ShoppingBag, Settings, Package,
   LogOut, Sun, Moon, Loader2, AlertCircle, CheckCircle2, Save, Smartphone, Search, Truck, MapPin, ExternalLink, ChevronDown
@@ -8,6 +8,7 @@ import type { CheckoutAgentViewModel } from "../../hooks/use-checkout-agent-view
 import { selectUserPanelModel } from "../../presentation/selectors/user-panel.selector.js";
 import type { BuyerAgentPersonality } from "../../hooks/use-buyer-hub.js";
 import type { UserPanelModel } from "../../presentation/models/user-panel.model.js";
+import { safeExternalUrl } from "../../lib/safe-url.js";
 
 const fmtBRL = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
@@ -56,6 +57,12 @@ function compactAddress(address: CustomerAddress): CustomerAddress | undefined {
   return Object.keys(next).length > 0 ? next : undefined;
 }
 
+const FOCUSABLE_SELECTOR = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function focusableIn(panel: HTMLElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
+
 export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
   const model = selectUserPanelModel(vm);
   if (!model) return null;
@@ -64,25 +71,55 @@ export function UserPanel({ vm }: { vm: CheckoutAgentViewModel }) {
 
 function UserPanelView({ model }: { model: UserPanelModel }) {
   const hub = model.buyerHub;
+  const panelRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+    return () => previous?.focus?.();
+  }, []);
+
+  function trapFocus(event: React.KeyboardEvent<HTMLElement>): void {
+    if (event.key !== "Tab" || !panelRef.current) return;
+    const items = focusableIn(panelRef.current);
+    if (!items.length) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 
   return (
     <>
-      <div className="zyon-side-backdrop" onClick={model.onClose} />
-      <aside className="zyon-side-panel zyon-user-panel">
-        <div className="zyon-side-head">
-          <div className="zyon-side-user">
-            <div className="zyon-side-avatar">{model.avatarLetter}</div>
+      <div className="aacp-side-backdrop zyon-side-backdrop" onClick={model.onClose} />
+      <aside
+        ref={panelRef}
+        className="aacp-side-panel aacp-user-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Painel do usuário"
+        tabIndex={-1}
+        onKeyDown={trapFocus}
+      >
+        <div className="aacp-side-head">
+          <div className="aacp-side-user">
+            <div className="aacp-side-avatar zyon-side-avatar">{model.avatarLetter}</div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="zyon-side-name">{model.displayName}</div>
-              <div className="zyon-side-email">{model.email}</div>
+              <div className="aacp-side-name">{model.displayName}</div>
+              <div className="aacp-side-email">{model.email}</div>
             </div>
-            <button className="zyon-side-close" onClick={model.onClose} aria-label="Fechar painel">
+            <button className="aacp-side-close" onClick={model.onClose} aria-label="Fechar painel">
               <X size={18} />
             </button>
           </div>
         </div>
 
-        <nav className="zyon-side-tabs">
+        <nav className="aacp-side-tabs">
           {[
             { id: "profile", icon: <User size={16} />, label: "Perfil" },
             { id: "agent", icon: <Bot size={16} />, label: "Agente" },
@@ -91,7 +128,7 @@ function UserPanelView({ model }: { model: UserPanelModel }) {
           ].map((t) => (
             <button
               key={t.id}
-              className={`zyon-side-tab ${model.activeTab === t.id ? "active" : ""}`}
+              className={`aacp-side-tab ${model.activeTab === t.id ? "active" : ""}`}
               onClick={() => model.onSelectTab(t.id as UserPanelModel["activeTab"])}
             >
               {t.icon}
@@ -100,7 +137,7 @@ function UserPanelView({ model }: { model: UserPanelModel }) {
           ))}
         </nav>
 
-        <div className="zyon-side-body">
+        <div className="aacp-side-body">
           {hub.loading && !hub.profile ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "48px 0", gap: 8, color: "var(--aacp-muted)", fontSize: 13 }}>
               <Loader2 size={18} className="animate-spin" />
@@ -131,7 +168,7 @@ function HubError({ error, onRetry }: { error: string; onRetry: () => void }) {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", gap: 12, color: "var(--aacp-muted)", fontSize: 13, textAlign: "center" }}>
       <AlertCircle size={24} style={{ opacity: 0.5, color: "#ef4444" }} />
       <div>{friendly}</div>
-      <button className="zyon-cta" style={{ fontSize: 12, padding: "6px 16px" }} onClick={onRetry}>Tentar novamente</button>
+      <button className="aacp-cta" style={{ fontSize: 12, padding: "6px 16px" }} onClick={onRetry}>Tentar novamente</button>
     </div>
   );
 }
@@ -176,12 +213,12 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
   }
 
   return (
-    <div className="zyon-side-section">
-      <div className="zyon-side-section-title">Dados pessoais</div>
+    <div className="aacp-side-section">
+      <div className="aacp-side-section-title">Dados pessoais</div>
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Nome completo</span>
-        <div className="zyon-side-input">
+        <div className="aacp-side-input">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -191,17 +228,17 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
         </div>
       </div>
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>E-mail</span>
-        <div className="zyon-side-input">
+        <div className="aacp-side-input">
           <input value={fallbackEmail} readOnly aria-label="E-mail" style={{ opacity: 0.6 }} />
         </div>
         <span style={{ fontSize: 11, color: "var(--aacp-muted)", marginTop: 2 }}>E-mail não pode ser alterado por aqui.</span>
       </div>
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Telefone</span>
-        <div className="zyon-side-input">
+        <div className="aacp-side-input">
           <input
             type="tel"
             value={phone}
@@ -212,14 +249,14 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
         </div>
       </div>
 
-      <div className="zyon-side-section-title" style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 6 }}>
+      <div className="aacp-side-section-title" style={{ marginTop: 18, display: "flex", alignItems: "center", gap: 6 }}>
         <MapPin size={14} />
         Endereco de entrega
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 0.7fr", gap: 8 }}>
-        <div className="zyon-side-field">
+        <div className="aacp-side-field">
           <span>CEP</span>
-          <div className="zyon-side-input">
+          <div className="aacp-side-input">
             <input
               value={address.zip ?? ""}
               onChange={(e) => setAddress((current) => ({ ...current, zip: e.target.value }))}
@@ -228,9 +265,9 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
             />
           </div>
         </div>
-        <div className="zyon-side-field">
+        <div className="aacp-side-field">
           <span>Numero</span>
-          <div className="zyon-side-input">
+          <div className="aacp-side-input">
             <input
               value={address.number ?? ""}
               onChange={(e) => setAddress((current) => ({ ...current, number: e.target.value }))}
@@ -240,9 +277,9 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
           </div>
         </div>
       </div>
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Rua</span>
-        <div className="zyon-side-input">
+        <div className="aacp-side-input">
           <input
             value={address.street ?? ""}
             onChange={(e) => setAddress((current) => ({ ...current, street: e.target.value }))}
@@ -251,9 +288,9 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
           />
         </div>
       </div>
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Complemento ou referencia</span>
-        <div className="zyon-side-input">
+        <div className="aacp-side-input">
           <input
             value={address.complement ?? ""}
             onChange={(e) => setAddress((current) => ({ ...current, complement: e.target.value }))}
@@ -263,9 +300,9 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
         </div>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 80px", gap: 8 }}>
-        <div className="zyon-side-field">
+        <div className="aacp-side-field">
           <span>Cidade</span>
-          <div className="zyon-side-input">
+          <div className="aacp-side-input">
             <input
               value={address.city ?? ""}
               onChange={(e) => setAddress((current) => ({ ...current, city: e.target.value }))}
@@ -274,9 +311,9 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
             />
           </div>
         </div>
-        <div className="zyon-side-field">
+        <div className="aacp-side-field">
           <span>UF</span>
-          <div className="zyon-side-input">
+          <div className="aacp-side-input">
             <input
               value={address.state ?? ""}
               onChange={(e) => setAddress((current) => ({ ...current, state: e.target.value.toUpperCase().slice(0, 2) }))}
@@ -302,7 +339,7 @@ function ProfileTab({ model }: { model: UserPanelModel }) {
       ) : null}
 
       <button
-        className="zyon-cta"
+        className="aacp-cta"
         style={{ marginTop: 12 }}
         onClick={() => void handleSave()}
         disabled={saving}
@@ -354,8 +391,8 @@ function AgentTab({ model }: { model: UserPanelModel }) {
   }
 
   return (
-    <div className="zyon-side-section">
-      <div className="zyon-side-section-title">Seu agente de negociação</div>
+    <div className="aacp-side-section">
+      <div className="aacp-side-section-title">Seu agente de negociação</div>
 
       {!hasAgent ? (
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 0 8px", color: "var(--aacp-muted)", fontSize: 13 }}>
@@ -364,9 +401,9 @@ function AgentTab({ model }: { model: UserPanelModel }) {
         </div>
       ) : null}
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Nome do agente</span>
-        <div className="zyon-side-input">
+        <div className="aacp-side-input">
           <input
             value={agentName}
             onChange={(e) => setAgentName(e.target.value)}
@@ -376,12 +413,12 @@ function AgentTab({ model }: { model: UserPanelModel }) {
         </div>
       </div>
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Personalidade</span>
         <select
           value={personality}
           onChange={(e) => setPersonality(e.target.value as BuyerAgentPersonality)}
-          className="zyon-side-input"
+          className="aacp-side-input"
           style={{ background: "var(--aacp-surface-3)", border: "1px solid var(--aacp-line)", borderRadius: 10, color: "var(--aacp-fg)", padding: "8px 10px", fontSize: 13, width: "100%" }}
           aria-label="Personalidade"
         >
@@ -391,7 +428,7 @@ function AgentTab({ model }: { model: UserPanelModel }) {
         </select>
       </div>
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Desconto alvo (%)</span>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <input
@@ -407,7 +444,7 @@ function AgentTab({ model }: { model: UserPanelModel }) {
         </div>
       </div>
 
-      <div className="zyon-side-field">
+      <div className="aacp-side-field">
         <span>Auto-aceitar acima de (%)</span>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <input
@@ -438,7 +475,7 @@ function AgentTab({ model }: { model: UserPanelModel }) {
       ) : null}
 
       <button
-        className="zyon-cta"
+        className="aacp-cta"
         style={{ marginTop: 12 }}
         onClick={() => void handleSave()}
         disabled={saving}
@@ -468,8 +505,8 @@ function OrdersTab({ model }: { model: UserPanelModel }) {
     : hub.purchases;
 
   return (
-    <div className="zyon-side-section">
-      <div className="zyon-side-section-title">Histórico de pedidos</div>
+    <div className="aacp-side-section">
+      <div className="aacp-side-section-title">Histórico de pedidos</div>
 
       {hub.purchases.length === 0 ? (
         <div style={{ textAlign: "center", padding: "32px 0", color: "var(--aacp-muted)", fontSize: 13 }}>
@@ -478,7 +515,7 @@ function OrdersTab({ model }: { model: UserPanelModel }) {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div className="zyon-side-input" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div className="aacp-side-input" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Search size={14} style={{ color: "var(--aacp-muted)", flexShrink: 0 }} />
             <input
               value={query}
@@ -552,9 +589,9 @@ function OrdersTab({ model }: { model: UserPanelModel }) {
                   <span>Aguardando codigo de rastreio</span>
                 )}
               </div>
-              {trackingHref ? (
+              {safeExternalUrl(trackingHref) ? (
                 <a
-                  href={trackingHref}
+                  href={safeExternalUrl(trackingHref)}
                   target="_blank"
                   rel="noreferrer"
                   style={{ display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8, fontSize: 11, fontWeight: 700, color: "var(--aacp-accent)", textDecoration: "none" }}
@@ -606,7 +643,7 @@ function OrdersTab({ model }: { model: UserPanelModel }) {
 
           {hub.hasMorePurchases ? (
             <button
-              className="zyon-cta"
+              className="aacp-cta"
               style={{ marginTop: 4, fontSize: 12 }}
               onClick={() => void hub.loadMorePurchases()}
               disabled={hub.loading}
@@ -623,27 +660,27 @@ function OrdersTab({ model }: { model: UserPanelModel }) {
 
 function SettingsTab({ model }: { model: UserPanelModel }) {
   return (
-    <div className="zyon-side-section">
-      <div className="zyon-side-section-title">Preferências</div>
+    <div className="aacp-side-section">
+      <div className="aacp-side-section-title">Preferências</div>
 
-      <div className="zyon-toggle-row">
+      <div className="aacp-toggle-row">
         <div>
           <strong>Tema {model.colorMode === "dark" ? "escuro" : "claro"}</strong>
           <p>Alterne entre claro e escuro</p>
         </div>
-        <button className="zyon-icon-btn" onClick={model.onToggleColorMode} aria-label="Alternar tema">
+        <button className="aacp-icon-btn" onClick={model.onToggleColorMode} aria-label="Alternar tema">
           {model.colorMode === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         </button>
       </div>
 
-      <div className="zyon-side-section-title" style={{ marginTop: 20 }}>Autenticação</div>
+      <div className="aacp-side-section-title" style={{ marginTop: 20 }}>Autenticação</div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 0", color: "var(--aacp-muted)", fontSize: 13 }}>
         <Smartphone size={16} style={{ flexShrink: 0, opacity: 0.7 }} />
         <span>Você está autenticado via telefone. Para alterar o número, entre em contato com o suporte.</span>
       </div>
 
       <button
-        className="zyon-side-logout"
+        className="aacp-side-logout"
         style={{ marginTop: 24 }}
         onClick={() => {
           model.auth.logout?.();

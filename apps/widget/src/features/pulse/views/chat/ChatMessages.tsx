@@ -1,20 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
-import { QRCode } from 'react-qr-code';
 import type { ActionItem, MessageRender, StageProps } from '../types';
-
-/** Countdown timer for PIX expiry */
-function PixCountdown({ expiresAt }: { expiresAt: string }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, []);
-  const remaining = Math.max(0, Math.floor((new Date(expiresAt).getTime() - now) / 1000));
-  const mins = Math.floor(remaining / 60);
-  const secs = remaining % 60;
-  if (remaining <= 0) return <> QR Code expirado — gere outro</>;
-  return <>Aguardando pagamento · expira em {mins}:{secs.toString().padStart(2, '0')}</>;
-}
 import {
   stateBool,
   stateFn,
@@ -28,278 +12,26 @@ import { AgentAvatar } from '../components/AgentAvatar';
 import { PulseAgentOrb } from '../components/PulseAgentOrb';
 import { ShimmerBorder } from '../components/ShimmerBorder';
 import { useMetaMaskPayment } from '../../hooks/useMetaMaskPayment';
+import { safeExternalUrl } from '../../../../lib/safe-url.js';
 
-const DEMO_TREASURY_ADDRESS = '0x0000000000000000000000000000000000000001';
+// Demo merchant Stellar address — replace with real value from merchant config
+const DEMO_MERCHANT_STELLAR = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
 
 const METAMASK_STATUS_LABEL: Record<string, string> = {
-  idle: 'Pagar com MetaMask (USDC)',
+  idle: 'Pagar com MetaMask (USDC · Base → Stellar)',
   connecting: 'Conectando carteira…',
   approving: 'Aprovando USDC…',
-  transferring: 'Transferindo USDC…',
+  burning: 'Enviando USDC via CCTP…',
   submitted: 'Enviado!',
   error: 'Tentar novamente',
 };
 
-type StripeCardElement = {
-  mount(target: HTMLElement | string): void;
-  unmount(): void;
-  on(event: 'change', handler: (event: { error?: { message?: string } }) => void): void;
-};
-
-type StripeElements = {
-  create(type: 'cardNumber' | 'cardExpiry' | 'cardCvc', options?: Record<string, unknown>): StripeCardElement;
-};
-
-type StripeInstance = {
-  elements(options?: Record<string, unknown>): StripeElements;
-  confirmCardPayment(
-    clientSecret: string,
-    data: { payment_method: { card: StripeCardElement; billing_details?: { name?: string } } },
-  ): Promise<{ paymentIntent?: { id?: string; status?: string }; error?: { message?: string } }>;
-};
-
-declare global {
-  interface Window {
-    Stripe?: (publishableKey: string) => StripeInstance;
-    __pulseStripeJsPromise?: Promise<void>;
-  }
-}
-
-function loadStripeJs(): Promise<void> {
-  if (window.Stripe) return Promise.resolve();
-  if (window.__pulseStripeJsPromise) return window.__pulseStripeJsPromise;
-  window.__pulseStripeJsPromise = new Promise((resolve, reject) => {
-    const existing = document.querySelector<HTMLScriptElement>('script[src="https://js.stripe.com/v3/"]');
-    if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', () => reject(new Error('stripe_js_load_failed')), { once: true });
-      return;
-    }
-    const script = document.createElement('script');
-    script.src = 'https://js.stripe.com/v3/';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('stripe_js_load_failed'));
-    document.head.appendChild(script);
-  });
-  return window.__pulseStripeJsPromise;
-}
-
-function StripeField({ elementRef }: { elementRef: (el: HTMLDivElement | null) => void }) {
-  return <div ref={elementRef} style={{ minHeight: '20px', width: '100%' }} />;
-}
-
-function CardForm({ m }: { m: MessageRender }) {
-  const [holderName, setHolderName] = useState(m.cardholderName ?? '');
-  const [status, setStatus] = useState<'idle' | 'creating' | 'ready' | 'confirming' | 'success' | 'error'>('idle');
-  const [error, setError] = useState('');
-  const stripeRef = useRef<StripeInstance | null>(null);
-  const cardNumberRef = useRef<StripeCardElement | null>(null);
-  const cardExpiryRef = useRef<StripeCardElement | null>(null);
-  const cardCvcRef = useRef<StripeCardElement | null>(null);
-  const clientSecretRef = useRef<string | null>(null);
-  const orderIdRef = useRef<string | null>(null);
-  const numberMountRef = useRef<HTMLDivElement | null>(null);
-  const expiryMountRef = useRef<HTMLDivElement | null>(null);
-  const cvcMountRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    return () => {
-      cardNumberRef.current?.unmount();
-      cardExpiryRef.current?.unmount();
-      cardCvcRef.current?.unmount();
-    };
-  }, []);
-
-  const fieldStyle = {
-    base: {
-      color: 'var(--tx)',
-      fontFamily: 'Space Mono, monospace',
-      fontSize: '13px',
-      '::placeholder': { color: 'var(--mut)' },
-    },
-    invalid: { color: '#ff4c6c' },
-  };
-
-  async function prepareCardPayment() {
-    if (status === 'creating' || status === 'ready' || status === 'confirming') return;
-    setStatus('creating');
-    setError('');
-    try {
-      if (!m.createCardPaymentIntent) throw new Error('card_payment_not_available');
-      const intent = await m.createCardPaymentIntent();
-      await loadStripeJs();
-      if (!window.Stripe) throw new Error('stripe_js_unavailable');
-      const stripe = window.Stripe(intent.stripePublishableKey);
-      const elements = stripe.elements({ clientSecret: intent.clientSecret, locale: 'pt-BR' });
-      const onChange = (event: { error?: { message?: string } }) => setError(event.error?.message ?? '');
-      const number = elements.create('cardNumber', { style: fieldStyle, placeholder: '4242 4242 4242 4242' });
-      const expiry = elements.create('cardExpiry', { style: fieldStyle, placeholder: '12 / 30' });
-      const cvc = elements.create('cardCvc', { style: fieldStyle, placeholder: '123' });
-      if (!numberMountRef.current || !expiryMountRef.current || !cvcMountRef.current) throw new Error('stripe_mount_target_missing');
-      number.mount(numberMountRef.current);
-      expiry.mount(expiryMountRef.current);
-      cvc.mount(cvcMountRef.current);
-      number.on('change', onChange);
-      expiry.on('change', onChange);
-      cvc.on('change', onChange);
-      stripeRef.current = stripe;
-      cardNumberRef.current = number;
-      cardExpiryRef.current = expiry;
-      cardCvcRef.current = cvc;
-      clientSecretRef.current = intent.clientSecret;
-      orderIdRef.current = intent.id;
-      setStatus('ready');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'stripe_card_prepare_failed';
-      const friendly = message.includes('stripe_connect')
-        ? 'Cartão indisponível: a conta Stripe do lojista ainda não está ativa.'
-        : 'Não consegui preparar o pagamento no cartão. Tente novamente ou escolha outro método.';
-      setError(friendly);
-      setStatus('error');
-      m.cardPaymentError?.(`${friendly} (${message.slice(0, 120)})`);
-    }
-  }
-
-  async function submitCardPayment() {
-    setError('');
-    const stripe = stripeRef.current;
-    const clientSecret = clientSecretRef.current;
-    const card = cardNumberRef.current;
-    const orderId = orderIdRef.current;
-    if (!stripe || !clientSecret || !card || !orderId) {
-      await prepareCardPayment();
-      return;
-    }
-    setStatus('confirming');
-    try {
-      const result = await stripe.confirmCardPayment(clientSecret, {
-        payment_method: {
-          card,
-          billing_details: { name: holderName.trim() || 'Comprador Pulse' },
-        },
-      });
-      if (result.error) throw new Error(result.error.message || 'stripe_card_confirmation_failed');
-      if (result.paymentIntent?.status && !['succeeded', 'processing', 'requires_capture'].includes(result.paymentIntent.status)) {
-        throw new Error(`stripe_payment_${result.paymentIntent.status}`);
-      }
-      await m.confirmCardPayment?.(orderId);
-      setStatus('success');
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'stripe_card_confirmation_failed';
-      setError(message);
-      setStatus('error');
-      m.cardPaymentError?.(`Pagamento no cartão não aprovado. ${message.slice(0, 120)}`);
-    }
-  }
-
-  const inputShell = {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '11px 13px',
-    borderRadius: '11px',
-    border: '1px solid var(--bd)',
-    background: 'var(--chip)',
-    minHeight: '42px',
-  } as const;
-
-  return (
-    <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-        <div>
-          <div style={{ fontSize: '13.5px', fontWeight: 700 }}>Cartão de crédito</div>
-          <div style={{ fontSize: '11px', color: 'var(--mut)', marginTop: '2px' }}>{m.cardTotalLabel ? `Total ${m.cardTotalLabel}` : 'Pagamento seguro via Stripe'}</div>
-        </div>
-        <svg width="30" height="20" viewBox="0 0 36 24" aria-hidden="true">
-          <rect width="36" height="24" rx="4" fill="#1a1f71" />
-          <circle cx="15" cy="12" r="7" fill="#eb001b" opacity=".9" />
-          <circle cx="21" cy="12" r="7" fill="#f79e1b" opacity=".9" />
-        </svg>
-      </div>
-      <label style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Nome impresso no cartão</span>
-        <input
-          value={holderName}
-          onChange={(e) => setHolderName(e.target.value)}
-          autoComplete="cc-name"
-          placeholder="Nome completo"
-          style={{ ...inputShell, color: 'var(--tx)', fontFamily: 'inherit', fontSize: '13px', outline: 'none' }}
-        />
-      </label>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Número do cartão</span>
-        <div style={inputShell}><StripeField elementRef={(el) => { numberMountRef.current = el; }} /></div>
-      </div>
-      <div style={{ display: 'flex', gap: '10px' }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--mut)' }}>Validade</span>
-          <div style={inputShell}><StripeField elementRef={(el) => { expiryMountRef.current = el; }} /></div>
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <span style={{ fontSize: '11px', color: 'var(--mut)' }}>CVV</span>
-          <div style={inputShell}><StripeField elementRef={(el) => { cvcMountRef.current = el; }} /></div>
-        </div>
-      </div>
-      {m.showInstallments && m.installments && (
-        <div>
-          <div style={{ fontSize: '11px', color: 'var(--mut)', margin: '4px 0 7px' }}>Parcelas</div>
-          <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
-            {m.installments.map((inst) => (
-              <button key={inst.label} type="button" onClick={inst.onSelect} style={inst.style}>
-                {inst.label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-      {error && <div role="alert" style={{ fontSize: '11.5px', color: '#ff4c6c', lineHeight: 1.45 }}>{error}</div>}
-      <button
-        type="button"
-        disabled={status === 'creating' || status === 'confirming' || status === 'success'}
-        onClick={() => (status === 'ready' || stripeRef.current ? void submitCardPayment() : void prepareCardPayment())}
-        style={{
-          marginTop: '2px',
-          border: 'none',
-          cursor: status === 'creating' || status === 'confirming' || status === 'success' ? 'not-allowed' : 'pointer',
-          fontFamily: 'inherit',
-          fontSize: '12.5px',
-          fontWeight: 700,
-          color: '#fff',
-          padding: '11px 14px',
-          borderRadius: '12px',
-          background: status === 'success' ? '#1ED760' : 'var(--g1)',
-          opacity: status === 'creating' || status === 'confirming' ? 0.78 : 1,
-        }}
-      >
-        {status === 'creating' ? 'Preparando cartão…' : status === 'confirming' ? 'Confirmando pagamento…' : status === 'success' ? 'Pagamento aprovado' : status === 'ready' ? 'Pagar com cartão' : 'Pagar com cartão'}
-      </button>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10.5px', color: 'var(--mut)', marginTop: '2px' }}>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="4" y="10" width="16" height="11" rx="2" />
-          <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-        </svg>
-        Stripe.js carregado via CDN · dados do cartão não passam pelo Pulse
-      </div>
-    </div>
-  );
-}
-
 export function ChatMessages({ s }: StageProps) {
-  const { status: mmStatus, txHash: mmTxHash, error: mmError, explorerUrl: mmExplorerUrl, payWithMetaMask } = useMetaMaskPayment();
+  const { status: mmStatusRaw, txHash: mmTxHash, error: mmError, payWithMetaMask } = useMetaMaskPayment();
+  const mmStatus: string = mmStatusRaw;
   const cryptoUsdc = stateStr(s, 'cryptoUsdc');
-  const treasuryAddress = (s.treasuryAddress as string | undefined) ?? DEMO_TREASURY_ADDRESS;
-  const cryptoChain = (s.cryptoChain as string | undefined) ?? 'polygon';
-  const cryptoNetwork = (s.cryptoNetwork as string | undefined) ?? 'testnet';
-  const allMessages = s.messages as MessageRender[];
-  // Step-by-step immersive: show cards + only the LAST agent text message
-  // This keeps the flow focused on the current step
-  const lastTextIdx = allMessages.reduce((acc, m, i) => (m.isText && m.text) ? i : acc, -1);
-  const messages = allMessages.filter((m, i) => {
-    // Always show non-text interactive cards
-    if (!m.isText) return true;
-    // For text messages: show only the last 2 (agent prompt + user reply)
-    return i >= lastTextIdx - 1;
-  });
+  const merchantStellar = (s.merchantStellarAddress as string | undefined) ?? DEMO_MERCHANT_STELLAR;
+  const messages = s.messages as MessageRender[];
   const actions = s.actions as ActionItem[];
   const chatRef = stateRef<HTMLDivElement>(s, 'chatRef');
   const storeName = stateStr(s, 'storeName');
@@ -370,7 +102,7 @@ export function ChatMessages({ s }: StageProps) {
               </ShimmerBorder>
             )}
 
-            {m.isCoupon && stateStr(s, 'couponCode') && stateStr(s, 'couponCode') !== '' && (
+            {m.isCoupon && (
               <div>
                 <ShimmerBorder radius="16px" innerStyle={{ background: 'rgba(30,215,96,.18)' }}>
                   <div style={{ position: 'relative', display: 'flex', overflow: 'hidden' }}>
@@ -700,17 +432,23 @@ export function ChatMessages({ s }: StageProps) {
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
                   <div style={{ width: '84px', height: '84px', borderRadius: '12px', flex: 'none', background: '#fff', padding: '7px', border: '1px solid var(--bd)' }}>
-                    {(() => {
-                      const copyPaste = stateStr(s, 'pixCopyPaste');
-                      const qrImage = stateStr(s, 'pixQrCode');
-                      if (copyPaste && copyPaste.length > 5) {
-                        return <QRCode value={copyPaste} size={70} level="M" bgColor="#ffffff" fgColor="#000000" style={{ width: '100%', height: '100%' }} />;
-                      }
-                      if (qrImage && qrImage.startsWith('data:')) {
-                        return <img src={qrImage} alt="PIX QR" style={{ width: '100%', height: '100%' }} />;
-                      }
-                      return <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#999' }}>Gerando QR…</div>;
-                    })()}
+                    {stateStr(s, 'pixQrCode') ? (
+                      <img
+                        src={stateStr(s, 'pixQrCode')}
+                        alt="PIX QR Code"
+                        style={{ width: '100%', height: '100%', borderRadius: '3px', display: 'block' }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          backgroundImage: 'repeating-linear-gradient(0deg,#111 0 3px,transparent 3px 6px),repeating-linear-gradient(90deg,#111 0 3px,transparent 3px 6px)',
+                          backgroundSize: '6px 6px',
+                          borderRadius: '3px',
+                        }}
+                      />
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '13.5px', fontWeight: 600 }}>
@@ -730,21 +468,7 @@ export function ChatMessages({ s }: StageProps) {
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        const text = stateStr(s, 'pixCopyPaste');
-                        if (navigator.clipboard && navigator.clipboard.writeText) {
-                          void navigator.clipboard.writeText(text);
-                        } else {
-                          const ta = document.createElement('textarea');
-                          ta.value = text;
-                          ta.style.position = 'fixed';
-                          ta.style.left = '-9999px';
-                          document.body.appendChild(ta);
-                          ta.select();
-                          document.execCommand('copy');
-                          document.body.removeChild(ta);
-                        }
-                      }}
+                      onClick={() => { void navigator.clipboard.writeText(stateStr(s, 'pixCopyPaste')); }}
                       style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--g2)', flex: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
                     >
                       Copiar
@@ -773,9 +497,7 @@ export function ChatMessages({ s }: StageProps) {
                   ) : (
                     <>
                       <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dot)', animation: 'pulseDot 2s infinite' }} />
-                      {stateStr(s, 'pixExpiresAt') ? (
-                        <PixCountdown expiresAt={stateStr(s, 'pixExpiresAt')} />
-                      ) : 'Aguardando pagamento…'}
+                      {stateStr(s, 'pixStatus') === 'waiting' ? 'Aguardando pagamento…' : 'Aguardando pagamento · expira em 14:58'}
                     </>
                   )}
                 </div>
@@ -785,7 +507,63 @@ export function ChatMessages({ s }: StageProps) {
 
             {m.isCardForm && (
               <ShimmerBorder radius="18px">
-                <CardForm m={m} />
+              <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ fontSize: '11px', color: 'var(--mut)' }}>Número do cartão</div>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '11px 13px',
+                    borderRadius: '11px',
+                    border: '1px solid var(--bd)',
+                    background: 'var(--chip)',
+                    fontFamily: "'Space Mono',monospace",
+                    fontSize: '13px',
+                    letterSpacing: '1px',
+                  }}
+                >
+                  4242 4242 4242 4242
+                  <svg width="22" height="14" viewBox="0 0 36 24">
+                    <rect width="36" height="24" rx="4" fill="#1a1f71" />
+                    <circle cx="15" cy="12" r="7" fill="#eb001b" opacity=".9" />
+                    <circle cx="21" cy="12" r="7" fill="#f79e1b" opacity=".9" />
+                  </svg>
+                </div>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '11px', color: 'var(--mut)', marginBottom: '6px' }}>Validade</div>
+                    <div style={{ padding: '11px 13px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)', fontFamily: "'Space Mono',monospace", fontSize: '13px' }}>
+                      06 / 28
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: '11px', color: 'var(--mut)', marginBottom: '6px' }}>CVV</div>
+                    <div style={{ padding: '11px 13px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)', fontFamily: "'Space Mono',monospace", fontSize: '13px' }}>
+                      •••
+                    </div>
+                  </div>
+                </div>
+                {m.showInstallments && m.installments && (
+                  <div>
+                    <div style={{ fontSize: '11px', color: 'var(--mut)', margin: '4px 0 7px' }}>Parcelas</div>
+                    <div style={{ display: 'flex', gap: '7px', flexWrap: 'wrap' }}>
+                      {m.installments.map((inst) => (
+                        <button key={inst.label} type="button" onClick={inst.onSelect} style={inst.style}>
+                          {inst.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10.5px', color: 'var(--mut)', marginTop: '2px' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="4" y="10" width="16" height="11" rx="2" />
+                    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+                  </svg>
+                  Criptografado · processado com segurança
+                </div>
+              </div>
               </ShimmerBorder>
             )}
 
@@ -810,8 +588,8 @@ export function ChatMessages({ s }: StageProps) {
                     </svg>
                   </span>
                   <div>
-                    <div style={{ fontSize: '13.5px', fontWeight: 700 }}>Pagar com crypto · EVM</div>
-                    <div style={{ fontSize: '10.5px', color: 'var(--mut)', marginTop: '1px' }}>USDC direto para a treasury do merchant</div>
+                    <div style={{ fontSize: '13.5px', fontWeight: 700 }}>Pagar com crypto · Stellar</div>
+                    <div style={{ fontSize: '10.5px', color: 'var(--mut)', marginTop: '1px' }}>Liquidação instantânea + cashback</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '11px 13px', borderRadius: '12px', background: 'var(--card)', border: '1px solid var(--bd)', marginBottom: '9px' }}>
@@ -847,11 +625,11 @@ export function ChatMessages({ s }: StageProps) {
                   Cashback de {stateStr(s, 'cashbackStr')} em USDC após confirmar
                 </div>
 
-                {/* MetaMask EVM payment button */}
+                {/* MetaMask CCTP button */}
                 <button
                   type="button"
-                  disabled={mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'transferring'}
-                  onClick={() => void payWithMetaMask(cryptoUsdc, treasuryAddress, cryptoChain, cryptoNetwork)}
+                  disabled={mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning'}
+                  onClick={() => void payWithMetaMask(cryptoUsdc, merchantStellar)}
                   style={{
                     marginTop: '13px',
                     width: '100%',
@@ -862,13 +640,13 @@ export function ChatMessages({ s }: StageProps) {
                     padding: '11px 14px',
                     borderRadius: '13px',
                     border: 'none',
-                    cursor: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'transferring' ? 'not-allowed' : 'pointer',
+                    cursor: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 'not-allowed' : 'pointer',
                     fontFamily: 'inherit',
                     fontSize: '12.5px',
                     fontWeight: 700,
                     color: '#fff',
                     background: mmStatus === 'submitted' ? '#1ED760' : mmStatus === 'error' ? '#ff4c6c' : '#f6851b',
-                    opacity: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'transferring' ? 0.72 : 1,
+                    opacity: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 0.72 : 1,
                     transition: 'background .2s, opacity .2s',
                   }}
                 >
@@ -895,10 +673,10 @@ export function ChatMessages({ s }: StageProps) {
                 {mmStatus === 'submitted' && mmTxHash && (
                   <div style={{ marginTop: '8px', padding: '9px 11px', borderRadius: '10px', background: 'rgba(30,215,96,.1)', border: '1px solid rgba(30,215,96,.25)' }}>
                     <div style={{ fontFamily: "'Space Mono',monospace", fontSize: '9px', letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--g2)', marginBottom: '3px' }}>
-                      TX · {cryptoChain === 'polygon' ? 'Polygon' : 'Base'}
+                      TX · Base
                     </div>
                     <a
-                      href={mmExplorerUrl ?? '#'}
+                      href={safeExternalUrl(`https://basescan.org/tx/${encodeURIComponent(mmTxHash)}`) ?? '#'}
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{ fontFamily: "'Space Mono',monospace", fontSize: '9.5px', color: 'var(--g2)', wordBreak: 'break-all', textDecoration: 'none' }}
@@ -923,7 +701,7 @@ export function ChatMessages({ s }: StageProps) {
               <div style={{ padding: '16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '15px' }}>
                   <span style={{ fontFamily: "'Space Mono',monospace", fontSize: '9.5px', letterSpacing: '1.5px', textTransform: 'uppercase', color: 'var(--mut)' }}>
-                    Liquidação EVM
+                    Liquidação na Stellar
                   </span>
                   <span style={m.statusStyle}>{m.statusText}</span>
                 </div>

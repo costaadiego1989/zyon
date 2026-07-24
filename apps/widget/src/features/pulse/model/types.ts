@@ -131,6 +131,7 @@ export interface CheckoutProps {
   sessionId?: string;
   initialCart?: { product: Product; qty: number };
   initialCustomer?: Partial<Customer>;
+  allowDemoFallbacks?: boolean;
 }
 
 export interface PulseAPIConfig {
@@ -145,6 +146,7 @@ export interface PulseAPIConfig {
   sessionId?: string;
   initialCart?: { product: Product; qty: number };
   initialCustomer?: Partial<Customer>;
+  allowDemoFallbacks?: boolean;
 }
 
 export interface FaceUser {

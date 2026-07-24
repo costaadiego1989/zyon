@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import type { SupportFaqItem } from "@zyon/shared-types";
+import { embedAuthHeaders } from "../lib/embed-client.js";
 
 interface UseSupportFaqResult {
   items: SupportFaqItem[];
@@ -22,10 +23,7 @@ export function useSupportFaq(
     }
     let cancelled = false;
     setLoading(true);
-    // /support/faq derives the merchant from the verified embed token
-    // (ADR-0003); the merchant_id query param is ignored by the API.
-    const headers: Record<string, string> = {};
-    if (embedToken?.trim()) headers["x-aacp-embed-token"] = embedToken.trim();
+    const headers = embedAuthHeaders(embedToken);
     fetch(`${apiBaseUrl}/support/faq`, { headers })
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: { faqItems?: SupportFaqItem[] }) => {
