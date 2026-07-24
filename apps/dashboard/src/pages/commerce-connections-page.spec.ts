@@ -80,8 +80,10 @@ import {
 
 describe("validation patterns", () => {
   it("SHOPIFY_TOKEN_PATTERN matches valid shpat_ tokens", () => {
-    expect(SHOPIFY_TOKEN_PATTERN.test("SHPAT_TEST_TOKEN_32_PLACEHOLDER_")).toBe(true);
-    expect(SHOPIFY_TOKEN_PATTERN.test("SHPAT_TEST_TOKEN_40_CHARS_PLACEHOLDER_XX")).toBe(true);
+    const token32 = "shpat_" + "a1b2c3d4e5f6".repeat(3).slice(0, 32);
+    const token40 = "shpat_" + "a1b2c3d4e5f6".repeat(4).slice(0, 40);
+    expect(SHOPIFY_TOKEN_PATTERN.test(token32)).toBe(true);
+    expect(SHOPIFY_TOKEN_PATTERN.test(token40)).toBe(true);
   });
 
   it("SHOPIFY_TOKEN_PATTERN rejects invalid tokens", () => {
