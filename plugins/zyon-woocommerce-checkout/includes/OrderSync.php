@@ -2,7 +2,7 @@
 namespace Zyon;
 
 /**
- * Syncs WooCommerce order events to Zyon API
+ * Syncs WooCommerce order events to Zyon API.
  */
 class OrderSync {
     public function __construct() {
@@ -10,82 +10,96 @@ class OrderSync {
         add_action('woocommerce_order_status_changed', [$this, 'on_status_changed'], 10, 4);
     }
 
-    /**
-     * When WooCommerce marks an order as paid
-     */
     public function on_payment_complete(int $order_id): void {
         $order = wc_get_order($order_id);
-        if (!$order) {
+        if (!$order || $order->get_meta('_zyon_payment_synced') === 'yes') {
             return;
         }
 
-        // Prevent duplicate sync
-        $already_synced = $order->get_meta('_zyon_payment_synced');
-        if ($already_synced === 'yes') {
+        $this->notify_zyon('order.payment_confirmed', $this->payment_payload($order_id, $order));
+        $order->update_meta_data('_zyon_payment_synced', 'yes');
+        $order->save();
+    }
+
+    public function on_status_changed(int $order_id, string $from, string $to, \WC_Order $order): void {
+        if (!in_array($to, ['cancelled', 'refunded', 'completed'], true)) {
             return;
         }
+        $this->notify_zyon('order.status_changed', $this->status_payload($order_id, $from, $to));
+    }
 
-        // Notify Zyon API that payment is confirmed
-        $this->notify_zyon('order.payment_confirmed', [
+    private function payment_payload(int $order_id, \WC_Order $order): array {
+        return [
             'wc_order_id' => $order_id,
             'transaction_id' => $order->get_transaction_id(),
             'total' => (float) $order->get_total(),
             'currency' => $order->get_currency(),
             'status' => $order->get_status(),
-        ]);
-
-        // Mark as synced
-        $order->update_meta_data('_zyon_payment_synced', 'yes');
-        $order->save();
+        ];
     }
 
-    /**
-     * When order status changes in WooCommerce
-     */
-    public function on_status_changed(int $order_id, string $from, string $to, \WC_Order $order): void {
-        // Only sync certain transitions
-        $sync_statuses = ['cancelled', 'refunded', 'completed'];
-        if (!in_array($to, $sync_statuses, true)) {
-            return;
-        }
-
-        $this->notify_zyon('order.status_changed', [
-            'wc_order_id' => $order_id,
-            'from_status' => $from,
-            'to_status' => $to,
-        ]);
+    private function status_payload(int $order_id, string $from, string $to): array {
+        return ['wc_order_id' => $order_id, 'from_status' => $from, 'to_status' => $to];
     }
 
-    /**
-     * Send event to Zyon API
-     */
     private function notify_zyon(string $event, array $data): void {
-        $api_url = get_option('zyon_api_url', 'http://localhost:3000');
-        $merchant_id = get_option('zyon_merchant_id', '');
-        $api_key = get_option('zyon_api_key', '');
-
-        if (empty($merchant_id) || empty($api_key)) {
+        $config = $this->config();
+        if (!$this->has_config($config)) {
             return;
         }
 
-        $payload = wp_json_encode([
-            'event' => $event,
-            'merchant_id' => $merchant_id,
-            'data' => $data,
-            'timestamp' => gmdate('c'),
-        ]);
+        $response = wp_remote_post($this->endpoint($config['api_url']), $this->request_args($config, $event, $data));
+        $this->log_failed_response($response, $event);
+    }
 
-        wp_remote_post(
-            rtrim($api_url, '/') . '/commerce/woocommerce/webhook',
-            [
-                'headers' => [
-                    'Content-Type' => 'application/json',
-                    'x-aacp-api-key' => $api_key,
-                ],
-                'body' => $payload,
-                'timeout' => 5,
-                'blocking' => false,
-            ]
-        );
+    private function config(): array {
+        return [
+            'api_url' => trim((string) get_option('zyon_api_url', '')),
+            'merchant_id' => trim((string) get_option('zyon_merchant_id', '')),
+            'api_key' => (string) get_option('zyon_api_key', ''),
+        ];
+    }
+
+    private function has_config(array $config): bool {
+        return $config['api_url'] !== '' && $config['merchant_id'] !== '' && $config['api_key'] !== '';
+    }
+
+    private function endpoint(string $api_url): string {
+        return rtrim($api_url, '/') . '/commerce/woocommerce/webhook';
+    }
+
+    private function request_args(array $config, string $event, array $data): array {
+        return [
+            'headers' => $this->headers($config['api_key']),
+            'body' => wp_json_encode($this->payload($config['merchant_id'], $event, $data)),
+            'timeout' => 5,
+        ];
+    }
+
+    private function headers(string $api_key): array {
+        return ['Content-Type' => 'application/json', 'x-aacp-api-key' => $api_key];
+    }
+
+    private function payload(string $merchant_id, string $event, array $data): array {
+        return ['event' => $event, 'merchant_id' => $merchant_id, 'data' => $data, 'timestamp' => gmdate('c')];
+    }
+
+    private function log_failed_response($response, string $event): void {
+        if (is_wp_error($response)) {
+            $this->log('Outbound sync failed for ' . $event . ': ' . $response->get_error_message());
+            return;
+        }
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code < 200 || $code >= 300) {
+            $this->log('Outbound sync returned HTTP ' . (int) $code . ' for ' . $event);
+        }
+    }
+
+    private function log(string $message): void {
+        if (function_exists('wc_get_logger')) {
+            wc_get_logger()->warning('[Zyon] ' . $message, ['source' => 'zyon-checkout-sync']);
+            return;
+        }
+        error_log('[Zyon] ' . $message);
     }
 }
