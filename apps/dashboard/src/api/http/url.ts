@@ -7,6 +7,13 @@ export function normalizeApiBase(url: string): string {
   return url.trimEnd().replace(/\/+$/, "");
 }
 
+export function resolveDashboardApiBaseUrl(env: { VITE_API_BASE_URL?: string; DEV?: boolean }): string {
+  const value = env.VITE_API_BASE_URL?.trim();
+  if (value) return value;
+  if (env.DEV) return "http://localhost:3009";
+  throw new Error("VITE_API_BASE_URL is required for dashboard runtime.");
+}
+
 function mergePath(urlPath: string): string {
   const trimmed = urlPath.trim().replace(/^\/+/, "");
   return `/${trimmed}`;

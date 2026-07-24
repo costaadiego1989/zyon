@@ -338,7 +338,7 @@ export function OnboardingWizard(props: {
         </div>
 
         <div className="onb-rail-meter" aria-hidden="true">
-          <span className="onb-rail-meter-fill" style={{ width: `${pct}%` }} />
+          <span className="onb-rail-meter-fill" style={{ transform: `scaleX(${pct / 100})` }} />
         </div>
 
         <ol className="onb-rail-steps">
@@ -599,6 +599,8 @@ export function OnboardingWizard(props: {
                 ref={currentStep === 1 ? previewRef : undefined}
                 apiBaseUrl={props.apiBaseUrl}
                 me={props.me}
+                className="onb-preview-live"
+                hideControls
               />
             </div>
           </aside>
@@ -670,25 +672,27 @@ function OnboardingStyles() {
     <style>{`
       .onb {
         display: grid;
-        grid-template-columns: 288px minmax(0, 1fr);
-        gap: var(--space-8);
+        grid-template-columns: 264px minmax(0, 1fr);
+        gap: var(--space-6);
         align-items: start;
-        max-width: 1160px;
+        max-width: 1120px;
         margin: 0 auto;
       }
 
       /* ── Progress rail (double-bezel surface) ──────────────────────── */
       .onb-rail {
         position: sticky;
-        top: calc(60px + var(--space-5));
+        top: 20px;
         display: flex;
         flex-direction: column;
-        gap: var(--space-5);
-        padding: var(--space-5);
+        gap: var(--space-4);
+        max-height: calc(100vh - 40px);
+        padding: var(--space-4);
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
-        box-shadow: inset 0 0 0 1px rgba(255,255,255,0.6), var(--shadow-sm);
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
       }
 
       .onb-rail-head {
@@ -746,7 +750,7 @@ function OnboardingStyles() {
         height: 100%;
         border-radius: inherit;
         background: linear-gradient(90deg, var(--color-brand), var(--color-brand-light));
-        transition: width 420ms var(--ease);
+        transform-origin: left center;
       }
 
       .onb-rail-steps {
@@ -863,7 +867,7 @@ function OnboardingStyles() {
         min-width: 0;
       }
 
-      .onb-stage-head { margin-bottom: var(--space-6); }
+      .onb-stage-head { margin-bottom: var(--space-5); }
 
       .onb-kicker {
         display: inline-flex;
@@ -878,20 +882,22 @@ function OnboardingStyles() {
       }
 
       .onb-stage-title {
-        margin-top: var(--space-3);
-        font-size: 30px;
+        margin-top: var(--space-2);
+        font-size: 28px;
         font-weight: 700;
-        letter-spacing: -0.035em;
-        line-height: 1.1;
+        letter-spacing: -0.028em;
+        line-height: 1.16;
         color: var(--color-text);
+        text-wrap: balance;
       }
 
       .onb-stage-lead {
         margin-top: var(--space-2);
-        max-width: 52ch;
-        font-size: 14px;
-        line-height: 1.6;
-        color: var(--color-text-muted);
+        max-width: 58ch;
+        font-size: 13.5px;
+        line-height: 1.55;
+        color: var(--color-text-secondary);
+        text-wrap: pretty;
       }
 
       .onb-stage-index {
@@ -923,10 +929,10 @@ function OnboardingStyles() {
       /* ── Body layout: controls + preview ────────────────────────────── */
       .onb-stage-body {
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
-        gap: var(--space-6);
-        align-items: start;
-        animation: onb-enter 420ms var(--ease) both;
+        grid-template-columns: minmax(360px, 0.96fr) minmax(280px, 340px);
+        gap: var(--space-5);
+        align-items: stretch;
+        animation: onb-enter 260ms var(--ease) both;
       }
 
       @keyframes onb-enter {
@@ -936,20 +942,20 @@ function OnboardingStyles() {
 
       /* Double-bezel panel */
       .onb-panel {
+        min-height: 424px;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
         box-shadow: var(--shadow-sm);
-        padding: 5px;
       }
       .onb-panel-inner {
-        border: 1px solid var(--color-border);
-        border-radius: calc(var(--radius-lg) - 5px);
+        height: 100%;
+        border-radius: inherit;
         background: var(--color-surface-raised);
-        padding: var(--space-6);
+        padding: var(--space-5);
       }
 
-      .onb-fields { display: flex; flex-direction: column; gap: var(--space-5); }
+      .onb-fields { display: flex; flex-direction: column; gap: var(--space-4); }
 
       .onb-field { display: flex; flex-direction: column; gap: var(--space-2); }
 
@@ -1012,8 +1018,8 @@ function OnboardingStyles() {
         font-variant-numeric: tabular-nums;
         color: var(--color-text-secondary);
       }
-      .onb-value-ok { color: #065F46; background: var(--color-success-bg); border-color: var(--color-success-border); }
-      .onb-value-warn { color: #92400E; background: var(--color-warning-bg); border-color: var(--color-warning-border); }
+      .onb-value-ok { color: oklch(86% 0.13 150); background: var(--color-success-bg); border-color: var(--color-success-border); }
+      .onb-value-warn { color: oklch(88% 0.13 80); background: var(--color-warning-bg); border-color: var(--color-warning-border); }
 
       .onb-range {
         width: 100%;
@@ -1171,25 +1177,35 @@ function OnboardingStyles() {
       .onb-dot-live { background: var(--color-brand-light); box-shadow: 0 0 0 3px rgba(20,184,166,0.22); }
 
       /* ── Live preview column ────────────────────────────────────────── */
-      .onb-preview { position: sticky; top: calc(60px + var(--space-5)); }
+      .onb-preview { position: sticky; top: 20px; min-height: 424px; }
       .onb-preview-frame {
         position: relative;
+        height: 100%;
+        min-height: 424px;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
         box-shadow: var(--shadow-sm);
-        padding: var(--space-4);
+        padding: var(--space-3);
+        overflow: hidden;
       }
       .onb-preview-tag {
         display: inline-flex;
         align-items: center;
-        margin-bottom: var(--space-3);
+        margin-bottom: var(--space-2);
         font-family: var(--font-mono);
         font-size: 10px;
         font-weight: 600;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        color: var(--color-text-faint);
+        color: var(--color-text-muted);
+      }
+      .onb-preview-live {
+        height: calc(100% - 24px);
+        min-height: 372px;
+      }
+      .onb-preview-live > div {
+        min-height: 372px !important;
       }
 
       /* ── Footer ─────────────────────────────────────────────────────── */
@@ -1198,8 +1214,8 @@ function OnboardingStyles() {
         justify-content: space-between;
         align-items: center;
         gap: var(--space-4);
-        margin-top: var(--space-6);
-        padding-top: var(--space-5);
+        margin-top: var(--space-5);
+        padding-top: var(--space-4);
         border-top: 1px solid var(--color-border);
       }
       .onb-footer-left { display: flex; align-items: center; }
@@ -1356,7 +1372,8 @@ function OnboardingStyles() {
       /* ── Responsive ─────────────────────────────────────────────────── */
       @media (max-width: 1080px) {
         .onb-stage-body { grid-template-columns: 1fr; }
-        .onb-preview { position: static; order: -1; }
+        .onb-preview { position: static; order: -1; min-height: 360px; }
+        .onb-preview-frame { min-height: 360px; }
       }
 
       @media (max-width: 860px) {

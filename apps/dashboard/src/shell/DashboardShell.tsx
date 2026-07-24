@@ -2,10 +2,9 @@ import React, { lazy, Suspense, useMemo, useState } from "react";
 import { LogOut, ShieldCheck } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, type TabKey } from "./nav-config.js";
-import type { MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
+import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3009";
-const DEFAULT_MERCHANT_ID = import.meta.env.VITE_MERCHANT_ID ?? "mrc_demo";
+const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
 // Lazy-loaded pages
 const OverviewDemoPage = lazy(() => import("../pages/overview-demo-page.js").then(m => ({ default: m.OverviewDemoPage })));
@@ -74,29 +73,31 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
                 const Icon = item.icon;
                 const active = tab === item.key;
                 return (
-                  <div
+                  <button
                     key={item.key}
+                    type="button"
                     onClick={() => setTab(item.key)}
-                    style={{ display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 1, background: active ? "var(--sidebar-active)" : "transparent" }}
+                    style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 1, background: active ? "var(--sidebar-active)" : "transparent", border: "none", textAlign: "left", font: "inherit" }}
                   >
                     <div style={{ width: 24, height: 24, borderRadius: 7, background: active ? "oklch(30% 0.03 149)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                       <Icon size={14} color={active ? "var(--accent)" : "var(--sidebar-muted)"} />
                     </div>
                     <span style={{ font: "13px var(--sans)", color: active ? "var(--sidebar-text)" : "var(--sidebar-muted)", fontWeight: active ? 600 : 400, flex: 1 }}>{item.label}</span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
           ))}
         </nav>
         <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--sidebar-border)" }}>
-          <div
+          <button
+            type="button"
             onClick={() => void onLogout()}
-            style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 7, cursor: "pointer" }}
+            style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 7, cursor: "pointer", border: "none", background: "transparent", font: "inherit", textAlign: "left" }}
           >
             <LogOut size={16} color="oklch(62% 0.13 25)" />
             <span style={{ font: "13px var(--sans)", color: "oklch(62% 0.13 25)" }}>Sair</span>
-          </div>
+          </button>
         </div>
       </aside>
 
@@ -133,7 +134,7 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
               />
             ) : null}
             {tab === "overview" ? (
-              <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id || DEFAULT_MERCHANT_ID} me={me} />
+              <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id} me={me} />
             ) : null}
             {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}

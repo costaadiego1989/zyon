@@ -248,11 +248,11 @@ export function otherEndpoints(base: string, f: typeof fetch) {
 
     // Payment Connections
     async getPaymentConnections(): Promise<PaymentConnection[]> {
-      const res = await dashboardJson<{ data: PaymentConnection[] } | PaymentConnection[]>(base, "/merchants/me/payment-connections", { method: "GET" }, f);
+      const res = await dashboardJson<{ data: PaymentConnection[] } | PaymentConnection[]>(base, "/payments/connections", { method: "GET" }, f);
       return Array.isArray(res) ? res : (res?.data ?? []);
     },
     createStripeOnboardingLink(payload: { return_url?: string; refresh_url?: string }): Promise<PaymentOnboardingLinkResponse> {
-      return dashboardJson(base, "/merchants/me/payment-connections/stripe/connect", { method: "POST", jsonBody: payload }, f);
+      return dashboardJson(base, "/payments/connections/stripe/onboarding-link", { method: "POST", jsonBody: payload }, f);
     },
     syncStripeConnection(): Promise<PaymentConnection> {
       return dashboardJson(base, "/payments/connections/stripe/sync", { method: "POST" }, f);

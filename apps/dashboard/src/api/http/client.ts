@@ -3,7 +3,7 @@
  * Handles fetch, silent token refresh on 401, idempotency injection,
  * JSON deserialization, and session-expired event emission.
  */
-import { DashboardHttpError } from "./error.js";
+import { DashboardHttpError, DashboardJsonParseError } from "./error.js";
 import { mergeUrl } from "./url.js";
 import { createIdempotencyKey } from "./idempotency.js";
 
@@ -99,5 +99,10 @@ export async function dashboardJson<T>(
     }
     throw new DashboardHttpError(res.status, text);
   }
-  return text === "" ? ({} as T) : (JSON.parse(text) as T);
+  if (text === "") return {} as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new DashboardJsonParseError(text);
+  }
 }

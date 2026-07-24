@@ -4,7 +4,8 @@ import {
   type MerchantProfile as MerchantDashboardProfile,
   type MerchantTheme,
   DashboardHttpError,
-  SESSION_EXPIRED_EVENT
+  SESSION_EXPIRED_EVENT,
+  resolveDashboardApiBaseUrl
 } from "./api-client.js";
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
@@ -13,7 +14,7 @@ import type { TabKey } from "./shell/nav-config.js";
 import { ApiContext, useApiInstance } from "./hooks/useApi.js";
 import "./styles.css";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3009";
+const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
 const BASE_THEME: MerchantTheme = {
   accentColor: "#0F766E",

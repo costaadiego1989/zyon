@@ -12,3 +12,11 @@ export class DashboardHttpError extends Error {
     super(`dashboard_http_${status}`);
   }
 }
+
+export class DashboardJsonParseError extends Error {
+  readonly name = "DashboardJsonParseError";
+
+  constructor(readonly responseBody: string) {
+    super("dashboard_json_parse_error");
+  }
+}
