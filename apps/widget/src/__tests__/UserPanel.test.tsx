@@ -69,19 +69,26 @@ describe("UserPanel", () => {
     const { container } = render(
       <UserPanel vm={buildVm({ auth: buildBuyerAuth({ session: null }) as any, userPanelOpen: true })} />
     );
-    expect(container.querySelector(".zyon-user-panel")).toBeNull();
+    expect(container.querySelector(".aacp-user-panel")).toBeNull();
   });
 
   it("renders nothing when userPanelOpen=false", () => {
     const { container } = render(
       <UserPanel vm={buildVm({ userPanelOpen: false })} />
     );
-    expect(container.querySelector(".zyon-user-panel")).toBeNull();
+    expect(container.querySelector(".aacp-user-panel")).toBeNull();
   });
 
-  it("renders panel with class zyon-user-panel when open", () => {
+  it("renders panel with class aacp-user-panel when open", () => {
     const { container } = render(<UserPanel vm={buildVm()} />);
-    expect(container.querySelector(".zyon-user-panel")).not.toBeNull();
+    expect(container.querySelector(".aacp-user-panel")).not.toBeNull();
+  });
+
+  it("marks user panel as modal dialog and focuses it", () => {
+    const { getByRole } = render(<UserPanel vm={buildVm()} />);
+    const dialog = getByRole("dialog", { name: "Painel do usuário" });
+    expect(dialog.getAttribute("aria-modal")).toBe("true");
+    expect(document.activeElement).toBe(dialog);
   });
 
   it("shows profile email from hub.profile when available", () => {

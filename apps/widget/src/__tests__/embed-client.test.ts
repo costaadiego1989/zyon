@@ -39,7 +39,7 @@ describe("checkoutJson", () => {
     expect(init!.method).toBe("POST");
     expect(init!.headers).toMatchObject({
       "Content-Type": "application/json",
-      "x-aacp-embed-token": "tok.test"
+      Authorization: "Bearer tok.test"
     });
   });
 
@@ -54,7 +54,7 @@ describe("checkoutJson", () => {
     });
 
     const headers = spy.mock.calls[0]![1]!.headers as Record<string, string>;
-    expect(headers["x-aacp-embed-token"]).toBeUndefined();
+    expect(headers.Authorization).toBeUndefined();
     expect(headers["Content-Type"]).toBe("application/json");
   });
 
@@ -69,7 +69,7 @@ describe("checkoutJson", () => {
       expect.objectContaining({
         method: "POST",
         headers: expect.objectContaining({
-          "x-aacp-embed-token": "tok.embed.pay"
+          Authorization: "Bearer tok.embed.pay"
         }),
         body: JSON.stringify({
           session_id: "sess_1",
@@ -113,7 +113,7 @@ describe("checkoutJson", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "x-aacp-embed-token": "tok.storefront"
+          Authorization: "Bearer tok.storefront"
         }),
         body: JSON.stringify({
           customer: { email: "buyer@example.com", isReturning: true },

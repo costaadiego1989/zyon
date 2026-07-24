@@ -129,13 +129,13 @@ describe("useSupportChat", () => {
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse((init as RequestInit).body as string);
     // ADR-0003: merchant_id is no longer sent — it is derived from the
-    // verified embed token, passed via the x-aacp-embed-token header.
+    // verified embed token, passed via the standard bearer auth header.
     expect(body).toEqual({
       message: "Qual o prazo?",
       session_id: "sess_abc",
     });
     const headers = (init as RequestInit).headers as Record<string, string>;
-    expect(headers["x-aacp-embed-token"]).toBe("tok.embed.support");
+    expect(headers.Authorization).toBe("Bearer tok.embed.support");
   });
 
   it("C10 — send: message trimada antes de enviar e exibir", async () => {

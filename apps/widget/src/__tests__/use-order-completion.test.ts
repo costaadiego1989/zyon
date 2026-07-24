@@ -88,26 +88,20 @@ describe("useOrderCompletion — ADR 0006 regressions", () => {
     );
   });
 
-  it("P2a: postMessage usa '*' quando storeUrl não configurado (fallback)", () => {
+  it("P2a: não envia postMessage sensível sem storeUrl", () => {
     renderHook(() =>
       useOrderCompletion(buildInput({ checkoutStage: "completed", storeUrl: undefined }))
     );
 
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "aacp:order-completed" }),
-      "*"
-    );
+    expect(postMessageSpy).not.toHaveBeenCalled();
   });
 
-  it("P2a: postMessage usa '*' quando storeUrl é URL inválida (não lança)", () => {
+  it("P2a: não envia postMessage sensível quando storeUrl é inválida", () => {
     renderHook(() =>
       useOrderCompletion(buildInput({ checkoutStage: "completed", storeUrl: "not-a-url" }))
     );
 
-    expect(postMessageSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ type: "aacp:order-completed" }),
-      "*"
-    );
+    expect(postMessageSpy).not.toHaveBeenCalled();
   });
 
   // ── P2b: re-arm guard after stage leaves "completed" ─────────────────────

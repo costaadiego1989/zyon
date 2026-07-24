@@ -61,15 +61,15 @@ describe("CrossSellBanner", () => {
     const { container } = render(
       <CrossSellBanner products={[BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    expect(container.querySelector(".zyon-cross-sell-thumb svg")).not.toBeNull();
-    expect(container.querySelector(".zyon-cross-sell-thumb img")).toBeNull();
+    expect(container.querySelector(".aacp-cross-sell-thumb svg")).not.toBeNull();
+    expect(container.querySelector(".aacp-cross-sell-thumb img")).toBeNull();
   });
 
   it("renders an Adicionar button for each product", () => {
     const { container } = render(
       <CrossSellBanner products={[WALLET, BELT]} onAdd={vi.fn()} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const addBtns = container.querySelectorAll(".zyon-cross-sell-add");
+    const addBtns = container.querySelectorAll(".aacp-cross-sell-add");
     expect(addBtns).toHaveLength(2);
   });
 
@@ -87,7 +87,7 @@ describe("CrossSellBanner", () => {
     const { container } = render(
       <CrossSellBanner products={[WALLET, BELT]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const [firstBtn] = Array.from(container.querySelectorAll(".zyon-cross-sell-add"));
+    const [firstBtn] = Array.from(container.querySelectorAll(".aacp-cross-sell-add"));
     await act(async () => { fireEvent.click(firstBtn); });
     expect(onAdd).toHaveBeenCalledWith(WALLET);
   });
@@ -98,7 +98,7 @@ describe("CrossSellBanner", () => {
     const { container } = render(
       <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const btn = container.querySelector(".zyon-cross-sell-add") as HTMLButtonElement;
+    const btn = container.querySelector(".aacp-cross-sell-add") as HTMLButtonElement;
     fireEvent.click(btn);
     await waitFor(() => expect(btn.hasAttribute("disabled")).toBe(true));
     await act(async () => { resolve(); });
@@ -109,10 +109,22 @@ describe("CrossSellBanner", () => {
     const { container, getByText } = render(
       <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
     );
-    const btn = container.querySelector(".zyon-cross-sell-add") as HTMLButtonElement;
+    const btn = container.querySelector(".aacp-cross-sell-add") as HTMLButtonElement;
     await act(async () => { fireEvent.click(btn); });
     await waitFor(() => {
       expect(getByText("Adicionado")).not.toBeNull();
+    });
+  });
+
+  it("shows a visible error when add fails", async () => {
+    const onAdd = vi.fn().mockResolvedValue(false);
+    const { container, getByRole } = render(
+      <CrossSellBanner products={[WALLET]} onAdd={onAdd} onDismiss={vi.fn()} onProceedToPayment={noopProceed} />
+    );
+    const btn = container.querySelector(".aacp-cross-sell-add") as HTMLButtonElement;
+    await act(async () => { fireEvent.click(btn); });
+    await waitFor(() => {
+      expect(getByRole("alert").textContent).toContain("Não foi possível adicionar agora.");
     });
   });
 
