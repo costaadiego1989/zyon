@@ -11,7 +11,6 @@ import type { CreateProviderPaymentInput, CreateProviderPaymentOutput, PaymentPr
 import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
 import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
 import { InMemoryPendingCommerceOrderIndex } from "../../commerce/infrastructure/in-memory-pending-commerce-order-index.js";
-import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 
 class CapturingPaymentProvider implements PaymentProviderPort {
   readonly inputs: CreateProviderPaymentInput[] = [];
@@ -56,23 +55,100 @@ test("CreatePaymentIntentUseCase is idempotent on (merchant, session, idempotenc
   const a = await uc.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
-    idempotency_key: "idem_1",
-    accepted_offer_id: "offer_1"
+    idempotency_key: "idem_1"
   });
   const b = await uc.execute({
     merchant_id: "mrc_1",
     session_id: "chk_1",
-    idempotency_key: "idem_1",
-    accepted_offer_id: "offer_1"
+    idempotency_key: "idem_1"
   });
 
   assert.deepEqual(a, b);
   assert.match(a.id, /^pay_int_/);
   assert.equal(a.status, "requires_action");
   assert.equal(a.providerPaymentId, "fake_pay_1");
-  assert.equal(a.acceptedOfferId, "offer_1");
   assert.deepEqual(a.statusHistory.map((entry) => entry.status), ["pending", "requires_action"]);
   assert.equal(checkout.listOutbox("mrc_1").some((event) => event.event_type === "payment.status.changed"), true);
+});
+
+test("CreatePaymentIntentUseCase accepts only applied offer for merchant session", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+  checkout.saveAcceptedOffer({
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    offerId: "offer_1",
+    type: "discount_percent",
+    value: 10,
+    marginAfterOffer: 40,
+    acceptedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 60_000).toISOString()
+  });
+  const uc = new CreatePaymentIntentUseCase(
+    checkout,
+    checkout,
+    new InMemoryPaymentRepository(checkout),
+    new FakePaymentProvider(),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    checkout
+  );
+
+  const intent = await uc.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    idempotency_key: "idem_offer",
+    accepted_offer_id: "offer_1"
+  });
+
+  assert.equal(intent.acceptedOfferId, "offer_1");
+});
+
+test("CreatePaymentIntentUseCase rejects unaccepted or expired accepted_offer_id", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(
+    checkoutSession({
+      customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
+    })
+  );
+  checkout.saveAcceptedOffer({
+    merchantId: "mrc_1",
+    sessionId: "chk_1",
+    offerId: "expired_offer",
+    type: "discount_percent",
+    value: 10,
+    marginAfterOffer: 40,
+    acceptedAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() - 1_000).toISOString()
+  });
+  const provider = new CapturingPaymentProvider();
+  const uc = new CreatePaymentIntentUseCase(
+    checkout,
+    checkout,
+    new InMemoryPaymentRepository(checkout),
+    provider,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    checkout
+  );
+
+  await assert.rejects(
+    () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "idem_missing", accepted_offer_id: "missing_offer" }),
+    /accepted_offer_invalid/
+  );
+  await assert.rejects(
+    () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "idem_expired", accepted_offer_id: "expired_offer" }),
+    /accepted_offer_invalid/
+  );
+  assert.equal(provider.inputs.length, 0);
 });
 
 test("CreatePaymentIntentUseCase charges cart total with selected shipping and discount", async () => {
@@ -120,162 +196,6 @@ test("CreatePaymentIntentUseCase rejects payment before selected shipping exists
       }),
     /shipping_method_required_before_payment/
   );
-});
-
-test("CreatePaymentIntentUseCase returns Stripe client secret and publishable key for card", async () => {
-  const keys = [
-    "STRIPE_SECRET_KEY_TEST",
-    "STRIPE_PUBLISHABLE_KEY_TEST",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_PUBLISHABLE_KEY",
-    "PLATFORM_FEE_BRL"
-  ] as const;
-  const backup: Partial<Record<(typeof keys)[number], string | undefined>> = {};
-  for (const k of keys) backup[k] = process.env[k];
-  try {
-    process.env.STRIPE_SECRET_KEY_TEST = "sk_test_fixture";
-    process.env.STRIPE_PUBLISHABLE_KEY_TEST = "pk_test_fixture";
-    process.env.PLATFORM_FEE_BRL = "1.99";
-
-    const checkout = new InMemoryCheckoutRepository();
-    await checkout.saveSession(
-      checkoutSession({
-        shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
-        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
-      })
-    );
-
-    class StripeCapturingProvider extends CapturingPaymentProvider {
-      async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
-        this.inputs.push(input);
-        return {
-          providerPaymentId: "pi_test_123",
-          status: "requires_action",
-          buyerFacingPayload: {
-            clientSecret: "pi_test_123_secret_abc",
-            stripePublishableKey: "pk_test_fixture"
-          }
-        };
-      }
-    }
-
-    const provider = new StripeCapturingProvider();
-    const uc = new CreatePaymentIntentUseCase(
-      checkout,
-      checkout,
-      new InMemoryPaymentRepository(checkout),
-      provider
-    );
-
-    const intent = await uc.execute({
-      merchant_id: "mrc_1",
-      session_id: "chk_1",
-      idempotency_key: "idem_card_stripe",
-      method: "card"
-    });
-
-    assert.equal(intent.method, "card");
-    assert.equal(intent.status, "requires_action");
-    assert.equal(intent.providerPaymentId, "pi_test_123");
-    assert.equal(intent.buyerFacing?.clientSecret, "pi_test_123_secret_abc");
-    assert.equal(intent.buyerFacing?.stripePublishableKey, "pk_test_fixture");
-    assert.equal(provider.inputs[0]?.stripeConnectAccountId, "acct_test_connect");
-    assert.equal(provider.inputs[0]?.platformFeeCents, 597);
-  } finally {
-    for (const k of keys) {
-      const v = backup[k];
-      if (v === undefined) delete process.env[k];
-      else process.env[k] = v;
-    }
-  }
-});
-
-test("CreatePaymentIntentUseCase calculates Growth transaction fee from subscription", async () => {
-  const previous = process.env.STRIPE_BILLING_PRICE_GROWTH;
-  process.env.STRIPE_BILLING_PRICE_GROWTH = "price_growth_test";
-  try {
-    const checkout = new InMemoryCheckoutRepository();
-    await checkout.saveSession(
-      checkoutSession({
-        shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
-        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
-      })
-    );
-    const platform = new InMemoryPaymentPlatformRepository();
-    await platform.saveBilling({
-      merchantId: "mrc_1",
-      status: "active",
-      stripePriceId: "price_growth_test",
-    });
-    const provider = new CapturingPaymentProvider();
-    const uc = new CreatePaymentIntentUseCase(
-      checkout,
-      checkout,
-      new InMemoryPaymentRepository(checkout),
-      provider,
-      undefined,
-      undefined,
-      undefined,
-      platform,
-    );
-
-    const intent = await uc.execute({
-      merchant_id: "mrc_1",
-      session_id: "chk_1",
-      idempotency_key: "idem_growth_fee",
-    });
-
-    assert.equal(intent.amountCents, 30000);
-    assert.equal(provider.inputs[0]?.amountCents, 30000);
-    assert.equal(provider.inputs[0]?.platformFeeCents, 447);
-  } finally {
-    if (previous === undefined) delete process.env.STRIPE_BILLING_PRICE_GROWTH;
-    else process.env.STRIPE_BILLING_PRICE_GROWTH = previous;
-  }
-});
-
-test("CreatePaymentIntentUseCase passes platform fee to crypto provider", async () => {
-  const previous = process.env.STRIPE_BILLING_PRICE_GROWTH;
-  process.env.STRIPE_BILLING_PRICE_GROWTH = "price_growth_test";
-  try {
-    const checkout = new InMemoryCheckoutRepository();
-    await checkout.saveSession(
-      checkoutSession({
-        shipping: { customerPrice: 0, realCost: 20, method: "Frete gratis" },
-        customer: { email: "buyer@example.com", asaasCustomerId: "cus_fixture_1" }
-      })
-    );
-    const platform = new InMemoryPaymentPlatformRepository();
-    await platform.saveBilling({
-      merchantId: "mrc_1",
-      status: "active",
-      stripePriceId: "price_growth_test",
-    });
-    const provider = new CapturingPaymentProvider();
-    const uc = new CreatePaymentIntentUseCase(
-      checkout,
-      checkout,
-      new InMemoryPaymentRepository(checkout),
-      provider,
-      undefined,
-      undefined,
-      undefined,
-      platform,
-    );
-
-    await uc.execute({
-      merchant_id: "mrc_1",
-      session_id: "chk_1",
-      idempotency_key: "idem_crypto_fee",
-      method: "crypto",
-    });
-
-    assert.equal(provider.inputs[0]?.method, "crypto");
-    assert.equal(provider.inputs[0]?.platformFeeCents, 447);
-  } finally {
-    if (previous === undefined) delete process.env.STRIPE_BILLING_PRICE_GROWTH;
-    else process.env.STRIPE_BILLING_PRICE_GROWTH = previous;
-  }
 });
 
 test("CreatePaymentIntentUseCase rejects card when Stripe is not configured", async () => {

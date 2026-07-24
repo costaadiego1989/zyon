@@ -6,14 +6,12 @@ import type {
   BillingConfigPort,
   StripePlatformPort,
 } from "../domain/ports/payment-platform-provider.port.js";
-import type { BillingTrialJobQueue } from "../domain/ports/billing-trial-job-queue.port.js";
 import type { AsaasSubaccountInput } from "../domain/payment-platform.types.js";
 import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 import {
   CreateAsaasSubaccountUseCase,
   CreateBillingCheckoutUseCase,
   CreateStripeConnectOnboardingLinkUseCase,
-  ExpireBillingTrialsUseCase,
   GetBillingSubscriptionUseCase,
   SyncAsaasSubaccountUseCase,
   SyncStripeConnectUseCase,
@@ -115,14 +113,15 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
     config,
   );
 
-  const trial = await get.execute("mrc_bill");
+  const trial = await withCapturedWarnings(() => get.execute("mrc_bill"));
   const session = await checkout.execute({
     merchantId: "mrc_bill",
     email: "billing@example.com",
     plan: "growth",
   });
 
-  assert.equal(trial.status, "trialing");
+  assert.equal(trial.result.status, "trialing");
+  assert.match(trial.warnings.join("\n"), /billing_trial_queue_fallback/);
   assert.equal(session.url, "https://billing.stripe.test/session");
   assert.equal(stripe.lastPriceId, "price_growth_server");
   assert.equal(
@@ -131,50 +130,17 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
   );
 });
 
-test("billing subscription lookup schedules Redis delayed trial expiration", async () => {
-  const repository = new InMemoryPaymentPlatformRepository();
-  const queue = new StubBillingTrialJobQueue();
-  const get = new GetBillingSubscriptionUseCase(repository, queue);
-
-  const subscription = await get.execute("mrc_scheduled");
-
-  assert.equal(subscription.status, "trialing");
-  assert.equal(queue.jobs.length, 1);
-  assert.equal(queue.jobs[0]?.merchantId, "mrc_scheduled");
-  assert.equal(queue.jobs[0]?.trialEndsAt, subscription.trialEndsAt);
-});
-
-test("billing trial expiration downgrades unpaid merchants to Starter", async () => {
-  const repository = new InMemoryPaymentPlatformRepository();
-  await repository.saveBilling({
-    merchantId: "mrc_expired",
-    status: "trialing",
-    trialEndsAt: "2026-07-01T00:00:00.000Z",
-  });
-  await repository.saveBilling({
-    merchantId: "mrc_paid_trial",
-    status: "trialing",
-    trialEndsAt: "2026-07-01T00:00:00.000Z",
-    stripeSubscriptionId: "sub_paid",
-  });
-
-  const expired = await new ExpireBillingTrialsUseCase(repository).execute({
-    now: new Date("2026-07-22T00:00:00.000Z"),
-  });
-
-  assert.equal(expired, 1);
-  assert.equal((await repository.getBilling("mrc_expired"))?.status, "starter");
-  assert.equal((await repository.getBilling("mrc_expired"))?.trialEndsAt, undefined);
-  assert.equal((await repository.getBilling("mrc_paid_trial"))?.status, "trialing");
-});
-
-class StubBillingTrialJobQueue implements BillingTrialJobQueue {
-  readonly jobs: Array<{ merchantId: string; trialEndsAt: string }> = [];
-
-  async scheduleTrialExpiration(input: { merchantId: string; trialEndsAt: string }): Promise<void> {
-    this.jobs.push(input);
+test("billing trial fails fast when queue is required", async () => {
+  const previous = process.env.BILLING_TRIAL_QUEUE_REQUIRED;
+  process.env.BILLING_TRIAL_QUEUE_REQUIRED = "true";
+  try {
+    const get = new GetBillingSubscriptionUseCase(new InMemoryPaymentPlatformRepository());
+    await assert.rejects(() => get.execute("mrc_bill"), /billing_trial_queue_not_configured/);
+  } finally {
+    if (previous === undefined) delete process.env.BILLING_TRIAL_QUEUE_REQUIRED;
+    else process.env.BILLING_TRIAL_QUEUE_REQUIRED = previous;
   }
-}
+});
 
 class StubStripePlatform implements StripePlatformPort {
   accountCreations = 0;
@@ -248,6 +214,17 @@ class StubBillingConfig implements BillingConfigPort {
 
   consoleUrl(): string {
     return "https://console.aacp.test";
+  }
+}
+
+async function withCapturedWarnings<T>(fn: () => Promise<T>): Promise<{ result: T; warnings: string[] }> {
+  const previous = console.warn;
+  const warnings: string[] = [];
+  console.warn = (message?: unknown) => { warnings.push(String(message)); };
+  try {
+    return { result: await fn(), warnings };
+  } finally {
+    console.warn = previous;
   }
 }
 

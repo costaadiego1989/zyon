@@ -6,6 +6,7 @@ import {
   Injectable,
   Optional,
   NotFoundException,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import {
   MERCHANT_REPOSITORY,
@@ -579,7 +580,14 @@ async function scheduleTrialExpiration(
   subscription: BillingSubscriptionSnapshot,
 ): Promise<void> {
   if (subscription.status !== "trialing" || !subscription.trialEndsAt) return;
-  await queue?.scheduleTrialExpiration({
+  if (!queue) {
+    if (process.env.BILLING_TRIAL_QUEUE_REQUIRED === "true") {
+      throw new ServiceUnavailableException("billing_trial_queue_not_configured");
+    }
+    console.warn("billing_trial_queue_fallback: using persisted trial without expiration worker");
+    return;
+  }
+  await queue.scheduleTrialExpiration({
     merchantId: subscription.merchantId,
     trialEndsAt: subscription.trialEndsAt,
   });

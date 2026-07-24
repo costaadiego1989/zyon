@@ -1,5 +1,5 @@
 import { Injectable, Optional } from "@nestjs/common";
-import { generateSalesReply } from "@zyon/conversation-engine";
+import { generateDeterministicReply, generateSalesReply, isSafeGeneratedMessage } from "@zyon/conversation-engine";
 import type { ConversationPort, ConversationReplyInput } from "../../domain/ports/conversation.port.js";
 import { HttpClientService } from "../../../../shared/http/http-client.service.js";
 
@@ -7,9 +7,9 @@ import { HttpClientService } from "../../../../shared/http/http-client.service.j
 export class OpenAiConversationAdapter implements ConversationPort {
   constructor(@Optional() private readonly http?: HttpClientService) {}
 
-  reply(input: ConversationReplyInput) {
+  async reply(input: ConversationReplyInput) {
     const deepSeekApiKey = process.env.DEEPSEEK_API_KEY;
-    return generateSalesReply({
+    const reply = await generateSalesReply({
       ...input,
       provider: deepSeekApiKey ? "openai_chat" : "openai_responses",
       apiKey: deepSeekApiKey ?? process.env.OPENAI_API_KEY,
@@ -19,5 +19,9 @@ export class OpenAiConversationAdapter implements ConversationPort {
       model: deepSeekApiKey ? (process.env.DEEPSEEK_MODEL ?? "deepseek-chat") : process.env.OPENAI_MODEL,
       fetchFn: this.http?.toFetch(),
     });
+    if (!isSafeGeneratedMessage(reply.message, input.authorizedOffer)) {
+      return generateDeterministicReply(input);
+    }
+    return reply;
   }
 }
