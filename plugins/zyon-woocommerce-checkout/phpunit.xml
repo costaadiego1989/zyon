@@ -2,7 +2,12 @@
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.5/phpunit.xsd" bootstrap="tests/bootstrap.php" colors="true" beStrictAboutOutputDuringTests="true" beStrictAboutTestsThatDoNotTestAnything="true" failOnWarning="true" processIsolation="false" stopOnFailure="false" stopOnIncomplete="false" stopOnSkipped="false" stopOnRisky="false">
   <testsuites>
     <testsuite name="Zyon WooCommerce Checkout Tests">
-      <directory>./tests</directory>
+      <directory suffix=".php">./tests</directory>
+      <file>tests/test-activation.php</file>
+      <file>tests/test-settings-page.php</file>
+      <file>tests/test-checkout-embed.php</file>
+      <file>tests/test-webhook-handler.php</file>
+      <file>tests/test-order-sync.php</file>
     </testsuite>
   </testsuites>
   <coverage processUncoveredFiles="true" pathCoverage="false">
