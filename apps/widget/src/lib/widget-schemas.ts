@@ -78,6 +78,10 @@ const copyConfigSchema = z.object({
   quick_replies: z.array(z.string()).optional()
 });
 
+const policiesConfigSchema = z.object({
+  privacyUrl: z.string().min(1).optional()
+});
+
 const widgetConfigSchema = z.object({
   mode: z.enum(["legacy", "embed"]),
   embedSessionToken: z.string().min(1).optional(),
@@ -100,6 +104,7 @@ const widgetConfigSchema = z.object({
   storeUrl: z.string().or(z.string().url()).optional(),
   successRedirectUrl: z.string().or(z.string().url()).optional(),
   successRedirectLabel: z.string().min(1).optional(),
+  policies: policiesConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
   copy: copyConfigSchema.optional()
 });
@@ -399,6 +404,7 @@ export function parseWidgetConfig(input: {
   storeUrl?: string;
   successRedirectUrl?: string;
   successRedirectLabel?: string;
+  policies?: WidgetConfig["policies"];
   agent?: WidgetConfig["agent"];
   copy?: WidgetConfig["copy"];
 }): WidgetConfig {
@@ -417,6 +423,7 @@ export function parseWidgetConfig(input: {
     storeUrl: input.storeUrl,
     successRedirectUrl: input.successRedirectUrl,
     successRedirectLabel: input.successRedirectLabel,
+    policies: input.policies,
     agent: input.agent,
     copy: input.copy
   });
@@ -437,6 +444,9 @@ export function parseWidgetConfig(input: {
     emptyCartRedirectUrl: input.emptyCartRedirectUrl,
     storeUrl: input.storeUrl,
     successRedirectUrl: input.successRedirectUrl,
-    successRedirectLabel: input.successRedirectLabel
+    successRedirectLabel: input.successRedirectLabel,
+    policies: input.policies,
+    agent: input.agent,
+    copy: input.copy
   };
 }

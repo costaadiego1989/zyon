@@ -131,6 +131,7 @@ export interface CheckoutProps {
   sessionId?: string;
   initialCart?: { product: Product; qty: number };
   initialCustomer?: Partial<Customer>;
+  privacyUrl?: string;
   allowDemoFallbacks?: boolean;
 }
 

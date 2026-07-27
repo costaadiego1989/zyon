@@ -20,6 +20,9 @@ export interface WidgetConfig {
   storeUrl?: string;
   successRedirectUrl?: string;
   successRedirectLabel?: string;
+  policies?: {
+    privacyUrl?: string;
+  };
   agent?: {
     name?: string;
     greeting?: string;

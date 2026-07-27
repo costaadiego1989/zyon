@@ -7,8 +7,15 @@ import { DecisionStage } from "../features/conversation/DecisionStage.js";
 import { CheckoutExperienceShell } from "../features/shell/CheckoutExperienceShell.js";
 import { CheckoutExperienceOverlays } from "../features/shell/CheckoutExperienceOverlays.js";
 
-export function ChatCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
+export function ChatCheckoutExperience({
+  vm,
+  privacyUrl,
+}: {
+  vm: CheckoutAgentViewModel;
+  privacyUrl?: string;
+}) {
   const presentation = selectCheckoutExperiencePresentation(vm);
+  const effectivePrivacyUrl = privacyUrl ?? vm.activeExperience.policies?.privacyUrl;
 
   return (
     <section
@@ -30,6 +37,24 @@ export function ChatCheckoutExperience({ vm }: { vm: CheckoutAgentViewModel }) {
 
         <CheckoutExperienceShell vm={vm} />
       </div>
+
+      {effectivePrivacyUrl ? (
+        <a
+          href={effectivePrivacyUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            position: "absolute",
+            right: 14,
+            bottom: 10,
+            fontSize: "10.5px",
+            color: "var(--aacp-muted, #64748b)",
+            textDecoration: "none",
+          }}
+        >
+          Política de Privacidade
+        </a>
+      ) : null}
 
       <CheckoutExperienceOverlays vm={vm} />
     </section>

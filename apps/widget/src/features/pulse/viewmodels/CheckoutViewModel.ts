@@ -267,6 +267,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       prev.faceLogin === props.faceLogin &&
       prev.voiceEnabled === props.voiceEnabled &&
       prev.supportFab === props.supportFab &&
+      prev.privacyUrl === props.privacyUrl &&
       prevDiscount.initialPercent === nextDiscount.initialPercent &&
       prevDiscount.bonusPercent === nextDiscount.bonusPercent &&
       prevDiscount.urgencyMinutes === nextDiscount.urgencyMinutes &&
@@ -2838,6 +2839,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       pixExpiresAt: this.state.pixExpiresAt,
       pixStatus: this.state.pixStatus,
 
+      privacyUrl: this.props.privacyUrl,
       theme: this.theme,
     };
   }

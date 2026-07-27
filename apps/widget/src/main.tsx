@@ -8,6 +8,7 @@ import { PulseCheckoutView } from "./features/pulse/views/PulseCheckoutView.js";
 import type { CheckoutProps } from "./features/pulse/model/types.js";
 import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model.js";
 import { ChatCheckoutExperience } from "./app/ChatCheckoutExperience.js";
+import { CookieConsentBanner } from "./components/consent/CookieConsentBanner.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
@@ -30,8 +31,10 @@ function shouldUseLegacyPath(config: WidgetConfig): boolean {
 }
 
 export function CheckoutAgent({ config }: { config: WidgetConfig }) {
+  const privacyUrl = config.policies?.privacyUrl;
+
   if (shouldUseLegacyPath(config)) {
-    return <ConversationalCheckoutAgent config={config} />;
+    return <ConversationalCheckoutAgent config={config} privacyUrl={privacyUrl} />;
   }
   // Embed with token → PulseCheckoutView (pulls from API real)
   const cartItems = config.cart?.items;
@@ -57,15 +60,32 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
       merchantId: config.merchantId,
       sessionToken: config.embedSessionToken,
       initialCart,
+      privacyUrl,
     }),
-    [config, initialCart]
+    [config, initialCart, privacyUrl]
   );
-  return <PulseCheckoutView {...props} />;
+  return (
+    <>
+      <PulseCheckoutView {...props} />
+      <CookieConsentBanner privacyUrl={privacyUrl} />
+    </>
+  );
 }
 
-function ConversationalCheckoutAgent({ config }: { config: WidgetConfig }) {
+function ConversationalCheckoutAgent({
+  config,
+  privacyUrl,
+}: {
+  config: WidgetConfig;
+  privacyUrl?: string;
+}) {
   const vm = useCheckoutAgentViewModel(config);
-  return <ChatCheckoutExperience vm={vm} />;
+  return (
+    <>
+      <ChatCheckoutExperience vm={vm} privacyUrl={privacyUrl} />
+      <CookieConsentBanner privacyUrl={privacyUrl} />
+    </>
+  );
 }
 
 const WIDGET_CE_NAME = "zyon-checkout-agent";
@@ -86,6 +106,7 @@ const ATTRS = [
   "success-redirect-url",
   "return-url",
   "success-redirect-label",
+  "policies-json",
   "agent-json",
   "copy-json"
 ] as const;
@@ -151,6 +172,7 @@ function readConfig(element: HTMLElement): WidgetConfig {
     storeUrl: element.getAttribute("store-url")?.trim() || undefined,
     successRedirectUrl,
     successRedirectLabel: element.getAttribute("success-redirect-label")?.trim() || undefined,
+    policies: parseJson(element.getAttribute("policies-json")),
     agent: parseJson(element.getAttribute("agent-json")),
     copy: parseJson(element.getAttribute("copy-json"))
   });

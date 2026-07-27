@@ -15,6 +15,7 @@ interface PulseWidgetProps {
 }
 
 export function PulseWidget({ s }: PulseWidgetProps) {
+  const privacyUrl = stateStr(s, 'privacyUrl');
   const voiceToggleColor = stateStr(s, 'voiceToggleColor');
   const widgetStyle = stateStyle(s, 'widgetStyle');
 
@@ -204,7 +205,7 @@ export function PulseWidget({ s }: PulseWidgetProps) {
           Powered by Zyon
         </div>
       )}
-      {(s.policyLinks as Array<{ label: string; url: string }>)?.length > 0 && (
+      {privacyUrl && (
         <div
           style={{
             position: 'absolute',
@@ -213,22 +214,22 @@ export function PulseWidget({ s }: PulseWidgetProps) {
             transform: 'translateX(-50%)',
             display: 'flex',
             gap: '8px',
-            fontSize: '9.5px',
             fontFamily: 'inherit',
             zIndex: 2,
           }}
         >
-          {(s.policyLinks as Array<{ label: string; url: string }>).map((link) => (
-            <a
-              key={link.url}
-              href={link.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: 'var(--mut)', opacity: 0.8, textDecoration: 'none' }}
-            >
-              {link.label}
-            </a>
-          ))}
+          <a
+            href={privacyUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              fontSize: '10.5px',
+              color: 'var(--aacp-muted, #64748b)',
+              textDecoration: 'none',
+            }}
+          >
+            Política de Privacidade
+          </a>
         </div>
       )}
     </div>
