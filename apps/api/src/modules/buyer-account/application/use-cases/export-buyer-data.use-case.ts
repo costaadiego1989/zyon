@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import {
   BUYER_ADDRESS_REPOSITORY,
   type BuyerAddressRepository,
@@ -13,6 +13,10 @@ import {
   type BuyerDataExportPayload,
 } from "../../domain/services/build-buyer-data-export.service.js";
 
+interface AuditRecorder {
+  record(event: Record<string, unknown>): Promise<void>;
+}
+
 /**
  * LGPD Art. 18 V: data portability / subject access. Pulls every PII record
  * the platform holds for the buyer and emits a single, deterministic JSON
@@ -20,10 +24,13 @@ import {
  */
 @Injectable()
 export class ExportBuyerDataUseCase {
+  private readonly logger = new Logger(ExportBuyerDataUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_PORT) private readonly port: BuyerAccountPort,
     @Inject(BUYER_ADDRESS_REPOSITORY) private readonly addresses: BuyerAddressRepository,
     @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversations: BuyerConversationRepository,
+    @Optional() @Inject("AUDIT_SERVICE") private readonly audit?: AuditRecorder,
   ) {}
 
   async execute(input: { globalUserId: string }): Promise<BuyerDataExportPayload> {
@@ -39,7 +46,7 @@ export class ExportBuyerDataUseCase {
       this.port.listPurchasesForExport(input.globalUserId),
     ]);
 
-    return buildBuyerDataExport({
+    const payload = buildBuyerDataExport({
       profile: {
         globalUserId: account.globalUserId,
         email: account.email,
@@ -53,5 +60,20 @@ export class ExportBuyerDataUseCase {
       conversations,
       purchases,
     });
+    await this.recordAudit(input.globalUserId);
+    return payload;
+  }
+
+  private async recordAudit(globalUserId: string): Promise<void> {
+    try {
+      await this.audit?.record({
+        merchantId: "__platform__",
+        action: "buyer.data.exported",
+        resourceType: "buyer_account",
+        resourceId: globalUserId,
+      });
+    } catch (error) {
+      this.logger.warn(`buyer_data_export_audit_failed:${error}`);
+    }
   }
 }

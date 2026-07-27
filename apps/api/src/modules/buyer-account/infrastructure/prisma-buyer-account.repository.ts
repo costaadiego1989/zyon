@@ -1,13 +1,22 @@
+import { Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { CustomerAddress } from "@zyon/shared-types";
+import {
+  decryptPii,
+  encryptPii,
+  isPiiEncrypted,
+} from "../../../shared/crypto/pii-cipher.service.js";
 import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
 import { BuyerAgentProfile, type AgentPersonality } from "../domain/entities/buyer-agent-profile.entity.js";
 import type { BuyerAccountRepository } from "../domain/ports/buyer-account-repository.port.js";
 
 export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
+  private readonly logger = new Logger(PrismaBuyerAccountRepository.name);
+
   constructor(private readonly prisma: PrismaClient) {}
 
   async save(account: BuyerAccount): Promise<void> {
+    const pii = encryptedBuyerPii(account);
     await (this.prisma as any).buyerAccount.upsert({
       where: { globalUserId: account.globalUserId },
       create: {
@@ -15,16 +24,16 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
         email: account.email,
         passwordHash: account.passwordHash,
         displayName: account.displayName,
-        phone: account.phone ?? null,
-        cpf: account.cpf ?? null,
+        phone: pii.phone,
+        cpf: pii.cpf,
         address: account.address ?? null,
       },
       update: {
         email: account.email,
         passwordHash: account.passwordHash,
         displayName: account.displayName,
-        phone: account.phone ?? null,
-        cpf: account.cpf ?? null,
+        phone: pii.phone,
+        cpf: pii.cpf,
         address: account.address ?? null,
         updatedAt: account.updatedAt,
       },
@@ -37,6 +46,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   }
 
   async findByPhone(phone: string): Promise<BuyerAccount | null> {
+    this.logger.warn("buyer_account_phone_lookup_requires_hash_index_migration");
     const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: phone.replace(/\D/g, "") } });
     return row ? toDomainAccount(row) : null;
   }
@@ -88,6 +98,8 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
   }
 }
 
+type BuyerPiiFields = Pick<BuyerAccount, "phone" | "cpf">;
+
 type AccountRow = {
   globalUserId: string;
   email: string;
@@ -116,14 +128,31 @@ type AgentRow = {
   updatedAt: Date;
 };
 
+function encryptedBuyerPii(account: BuyerPiiFields): { phone: string | null; cpf: string | null } {
+  return {
+    phone: piiForStorage(account.phone),
+    cpf: piiForStorage(account.cpf),
+  };
+}
+
+function piiForStorage(value?: string): string | null {
+  if (!value) return null;
+  return isPiiEncrypted(value) ? value : encryptPii(value);
+}
+
+function piiForDomain(value: string | null): string | undefined {
+  if (!value) return undefined;
+  return isPiiEncrypted(value) ? decryptPii(value) : value;
+}
+
 function toDomainAccount(row: AccountRow): BuyerAccount {
   return new BuyerAccount({
     globalUserId: row.globalUserId,
     email: row.email,
     passwordHash: row.passwordHash,
     displayName: row.displayName,
-    phone: row.phone ?? undefined,
-    cpf: row.cpf ?? undefined,
+    phone: piiForDomain(row.phone),
+    cpf: piiForDomain(row.cpf),
     address: toCustomerAddress(row.address),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

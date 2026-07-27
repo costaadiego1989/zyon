@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { decryptPii, isPiiEncrypted } from "../../../shared/crypto/pii-cipher.service.js";
 import {
   type BuyerAccountPort,
   type BuyerAccountExportRow,
@@ -99,7 +100,7 @@ export class PrismaBuyerAccountLgpdRepository implements BuyerAccountPort {
         createdAt: true,
       },
     });
-    return row ? { ...row } : null;
+    return row ? { ...row, phone: piiForExport(row.phone), cpf: piiForExport(row.cpf) } : null;
   }
 
   async findAgentForExport(globalUserId: string): Promise<BuyerAgentProfileExportRow | null> {
@@ -172,4 +173,9 @@ export class PrismaBuyerAccountLgpdRepository implements BuyerAccountPort {
       select: { id: true, name: true },
     });
   }
+}
+
+function piiForExport(value: string | null): string | null {
+  if (!value) return null;
+  return isPiiEncrypted(value) ? decryptPii(value) : value;
 }
