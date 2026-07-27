@@ -30,7 +30,7 @@ export function IntroStage({ s }: StageProps) {
           width: '220px',
           height: '220px',
           borderRadius: '50%',
-          background: '#1ED760',
+          background: 'var(--aacp-accent, #1ED760)',
           filter: 'blur(80px)',
           opacity: 0.22,
           pointerEvents: 'none',

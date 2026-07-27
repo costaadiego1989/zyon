@@ -128,7 +128,7 @@ export function CookieConsentBanner({ privacyUrl }: { privacyUrl?: string }) {
             padding: "7px 14px",
             borderRadius: 8,
             border: "none",
-            background: "#0f766e",
+            background: "var(--aacp-accent, #0f766e)",
             color: "#fff",
             fontSize: "12px",
             fontWeight: 600,

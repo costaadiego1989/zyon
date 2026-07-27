@@ -163,9 +163,9 @@
     from 200deg,
     transparent 0deg,
     transparent 70deg,
-    #1ed760 110deg,
+    var(--aacp-accent, #1ed760) 110deg,
     #ffffff 130deg,
-    #1ed760 150deg,
+    var(--aacp-accent, #1ed760) 150deg,
     transparent 190deg,
     transparent 360deg
   );
@@ -306,7 +306,7 @@
   height: 16px;
   padding: 0 4px;
   border-radius: 8px;
-  background: #1ed760;
+  background: var(--aacp-accent, #1ed760);
   color: #000;
   font-size: 9px;
   font-weight: 700;
