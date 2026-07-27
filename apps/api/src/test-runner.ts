@@ -128,6 +128,7 @@ import "./shared/http/idempotency/idempotency.interceptor.spec.js";
 import "./shared/observability/metrics.controller.spec.js";
 import "./modules/catalog/infrastructure/tenant-storefront-catalog.adapter.spec.js";
 import "./shared/config/security-headers-config.spec.js";
+import "./shared/crypto/pii-cipher.service.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
 import "./modules/cross-sell/domain/policies/cross-sell-policies.spec.js";
 import "./modules/coupons/domain/policies/coupon-policies.spec.js";

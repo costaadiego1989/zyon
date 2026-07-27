@@ -69,6 +69,7 @@ describe("resolveProductionRequiredSecrets", () => {
       "BUYER_JWT_SECRET",
       "EMBED_TOKEN_SECRET",
       "AACP_PAYMENT_ENC_KEY",
+      "AACP_PII_ENC_KEY",
     ]);
   });
 
