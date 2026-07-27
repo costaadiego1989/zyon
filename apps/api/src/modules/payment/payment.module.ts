@@ -40,6 +40,9 @@ import { PrismaPaymentPlatformRepository } from "./infrastructure/prisma-payment
 import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.js";
 import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
 import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
+import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
+import { BillingPlanMeteringService } from "./domain/billing-plan-guard.js";
+import { BILLING_TRIAL_JOB_QUEUE } from "./domain/ports/billing-trial-job-queue.port.js";
 import {
   CreateAsaasSubaccountUseCase,
   CreateBillingCheckoutUseCase,
@@ -81,6 +84,8 @@ import {
     HandleAsaasWebhookUseCase,
     HandleStripeWebhookUseCase,
     ReconcilePaymentIntentsUseCase,
+    PaymentDispatchService,
+    BillingPlanMeteringService,
     GetPaymentConnectionsUseCase,
     CreateStripeConnectOnboardingLinkUseCase,
     SyncStripeConnectUseCase,
@@ -190,6 +195,7 @@ import {
     ConfirmStripePaymentUseCase,
     GetPaymentIntentStatusUseCase,
     PAYMENT_PLATFORM_REPOSITORY,
+    BillingPlanMeteringService,
   ]
 })
 export class PaymentModule {}

@@ -6,6 +6,7 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
@@ -48,6 +49,9 @@ import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkou
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
 import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
+import { OtpService } from "./application/services/otp.service.js";
+import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
+import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
 
 @Module({
   imports: [
@@ -68,6 +72,11 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
     CheckoutCustomerService,
     CheckoutShippingService,
     CheckoutOfferService,
+    OtpService,
+    BuyerRecognitionService,
+    BuyerAccountPersistenceService,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     {
       provide: CHECKOUT_INTERVENTION_LEDGER,
       useFactory: (prisma: PrismaClient) => new PrismaInterventionLedgerRepository(prisma),
@@ -108,11 +117,13 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
       inject: [OpenAiConversationAdapter, DeterministicConversationAdapter]
     },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
+    { provide: Symbol.for("CheckoutExperienceConfig"), useValue: { platformFeeBrl: 1.99 } },
     PaymentApprovedHandler
   ],
   exports: [
     CHECKOUT_REPOSITORY,
     CHECKOUT_SESSION_REPOSITORY,
+    Symbol.for("CheckoutExperienceConfig"),
     OFFER_REPOSITORY,
     ORDER_REPOSITORY,
     DASHBOARD_READ_MODEL,
