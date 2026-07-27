@@ -4,6 +4,7 @@ import { TenantModule } from "./shared/tenant/tenant.module.js";
 import { ObservabilityModule } from "./shared/observability/observability.module.js";
 import { HttpModule } from "./shared/http/http.module.js";
 import { PersistenceModule } from "./shared/persistence/persistence.module.js";
+import { DataRetentionModule } from "./shared/retention/data-retention.module.js";
 import { MessagingModule } from "./shared/messaging/messaging.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
@@ -33,7 +34,23 @@ const REDACTED_LOG_PATHS = [
   "req.body.creditCard",
   "req.body.cvv",
   "req.body.ccv",
+  "req.body.email",
+  "req.body.cpf",
+  "req.body.phone",
+  "req.body.customer.email",
+  "req.body.customer.cpf",
+  "req.body.customer.phone",
+  "req.body.customer.fullName",
+  "req.body.customer.address",
+  "req.body.address",
+  "req.body.display_name",
+  "req.body.mobile_phone",
+  "req.body.cpf_cnpj",
   "res.body.access_token",
+  "res.body.email",
+  "res.body.cpf",
+  "res.body.phone",
+  "res.body.customer",
 ];
 
 @Module({
@@ -59,6 +76,7 @@ const REDACTED_LOG_PATHS = [
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    DataRetentionModule,
     MessagingModule,
     AuthModule,
     MerchantModule,
