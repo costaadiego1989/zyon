@@ -29,7 +29,7 @@ export function LoginStage({ s }: StageProps) {
           width: '300px',
           height: '300px',
           borderRadius: '50%',
-          background: '#1ED760',
+          background: 'var(--aacp-accent, #1ED760)',
           filter: 'blur(80px)',
           opacity: 0.26,
           animation: 'orbSpin 22s linear infinite',
@@ -115,7 +115,7 @@ export function LoginStage({ s }: StageProps) {
             cy="50"
             r="47"
             fill="none"
-            stroke="#1ED760"
+            stroke="var(--aacp-accent, #1ED760)"
             strokeWidth="3"
             strokeLinecap="round"
             strokeDasharray="295.3"
@@ -124,8 +124,8 @@ export function LoginStage({ s }: StageProps) {
           />
           <defs>
             <linearGradient id="pulseGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="#1ED760" />
-              <stop offset="1" stopColor="#1ED760" />
+              <stop offset="0" stopColor="var(--aacp-accent, #1ED760)" />
+              <stop offset="1" stopColor="var(--aacp-accent, #1ED760)" />
             </linearGradient>
           </defs>
         </svg>

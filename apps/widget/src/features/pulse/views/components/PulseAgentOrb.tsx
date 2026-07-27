@@ -75,7 +75,7 @@ export function PulseAgentOrb({ placement, active = false, className, style }: P
             position: 'absolute',
             inset: ringInset,
             borderRadius: '50%',
-            border: '1px solid #1ED760',
+            border: '1px solid var(--aacp-accent, #1ED760)',
             animation: 'waveRing 2.6s ease-out infinite',
           }}
         />
@@ -87,7 +87,7 @@ export function PulseAgentOrb({ placement, active = false, className, style }: P
             position: 'absolute',
             inset: glowInset,
             borderRadius: '50%',
-            background: '#1ED760',
+            background: 'var(--aacp-accent, #1ED760)',
             filter: 'blur(20px)',
             opacity: 0.38,
             pointerEvents: 'none',

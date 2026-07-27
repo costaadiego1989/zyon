@@ -29,7 +29,7 @@ export function VoiceOverlay({ s }: StageProps) {
       <div style={{ position: 'relative', width: '152px', height: '152px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '30px' }}>
         <div style={{ position: 'absolute', inset: '-12px', borderRadius: '50%', border: '1px solid rgba(45,212,255,.4)', animation: 'waveRing 2.2s ease-out infinite' }} />
         <div style={{ position: 'absolute', inset: '-12px', borderRadius: '50%', border: '1px solid rgba(255,92,200,.4)', animation: 'waveRing 2.2s ease-out .7s infinite' }} />
-        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: '#1ED760', filter: 'blur(9px)', opacity: 0.5 }} />
+        <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'var(--aacp-accent, #1ED760)', filter: 'blur(9px)', opacity: 0.5 }} />
         <div
           ref={waveRef}
           style={{
@@ -44,11 +44,11 @@ export function VoiceOverlay({ s }: StageProps) {
             transition: 'transform .08s linear',
           }}
         >
-          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: '#1ED760', animation: 'waveBar .9s ease-in-out infinite' }} />
-          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: '#1ED760', animation: 'waveBar .9s ease-in-out .15s infinite' }} />
-          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: '#1ED760', animation: 'waveBar .9s ease-in-out .3s infinite' }} />
-          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: '#1ED760', animation: 'waveBar .9s ease-in-out .45s infinite' }} />
-          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: '#1ED760', animation: 'waveBar .9s ease-in-out .6s infinite' }} />
+          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: 'var(--aacp-accent, #1ED760)', animation: 'waveBar .9s ease-in-out infinite' }} />
+          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: 'var(--aacp-accent, #1ED760)', animation: 'waveBar .9s ease-in-out .15s infinite' }} />
+          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: 'var(--aacp-accent, #1ED760)', animation: 'waveBar .9s ease-in-out .3s infinite' }} />
+          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: 'var(--aacp-accent, #1ED760)', animation: 'waveBar .9s ease-in-out .45s infinite' }} />
+          <span style={{ width: '5px', height: '58px', borderRadius: '4px', background: 'var(--aacp-accent, #1ED760)', animation: 'waveBar .9s ease-in-out .6s infinite' }} />
         </div>
       </div>
 

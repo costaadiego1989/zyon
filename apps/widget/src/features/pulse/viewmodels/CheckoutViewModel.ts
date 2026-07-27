@@ -1529,7 +1529,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       tone: 'progress',
       status: 'Processando',
       initial: this.storeName.slice(0, 1).toUpperCase(),
-      bg: '#1ED760',
+      bg: 'var(--aacp-accent, #1ED760)',
     };
     this.setState((s) => ({
       completed: true,
