@@ -80,7 +80,7 @@ describe("ChatBubble — PIX rendering", () => {
     expect(getByText("Zion")).not.toBeNull();
     expect(getByText("Perfeito. Qual o seu melhor email para o pedido?")).not.toBeNull();
     expect(queryByText(/Zion:/)).toBeNull();
-    expect(container.querySelector(".zyon-bubble-meta-avatar")).not.toBeNull();
+    expect(container.querySelector(".aacp-bubble-meta-avatar")).not.toBeNull();
   });
 
   it("shows PixCopyButton when agent turn contains PIX code", () => {
