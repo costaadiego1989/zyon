@@ -23,13 +23,15 @@ class EmbedToken {
             return null;
         }
 
-        $response = wp_remote_post($this->endpoint(), $this->request_args());
-        if (is_wp_error($response)) {
-            $this->log('Embed token fetch failed: ' . $response->get_error_message());
+        $result = HttpClient::post($this->endpoint(), $this->headers(), $this->body());
+
+        if ($result['error'] !== null) {
+            $this->log('Embed token fetch failed: ' . $result['error']);
             return null;
         }
 
-        return $this->token_from_response($response);
+        $body = json_decode((string) $result['body'], true);
+        return is_array($body) ? ($body['embed_session_token'] ?? null) : null;
     }
 
     private function has_required_config(): bool {

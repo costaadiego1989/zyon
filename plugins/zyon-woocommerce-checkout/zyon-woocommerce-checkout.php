@@ -52,5 +52,6 @@ function zyon_checkout_init(): void {
     new Zyon\CheckoutEmbed();
     new Zyon\WebhookHandler();
     new Zyon\OrderSync();
+    new Zyon\CartSync();
 }
 add_action('plugins_loaded', 'zyon_checkout_init', 99);

@@ -48,8 +48,23 @@ class OrderSync {
             return;
         }
 
-        $response = wp_remote_post($this->endpoint($config['api_url']), $this->request_args($config, $event, $data));
-        $this->log_failed_response($response, $event);
+        $result = HttpClient::post(
+            $this->endpoint($config['api_url']),
+            $this->headers($config['api_key']),
+            $this->payload($config['merchant_id'], $event, $data)
+        );
+
+        if ($result['error'] !== null) {
+            $this->log_sync_failure($event, $result['error']);
+        }
+    }
+
+    private function log_sync_failure(string $event, string $error): void {
+        if (function_exists('wc_get_logger')) {
+            wc_get_logger()->warning("[Zyon] OrderSync $event failed: $error", ['source' => 'zyon-checkout']);
+            return;
+        }
+        error_log("[Zyon] OrderSync $event failed: $error");
     }
 
     private function config(): array {

@@ -8,7 +8,8 @@ class CheckoutEmbed {
     public function __construct() {
         add_action('wp_enqueue_scripts', [$this, 'enqueue_widget_script']);
         add_action('wp_enqueue_scripts', [$this, 'inject_styles']);
-        add_action('wp_footer', [$this, 'render_widget']);
+        add_action('template_redirect', [$this, 'render_takeover_page'], 1);
+        add_filter('the_content', [$this, 'replace_checkout_content'], 99);
     }
 
     public function inject_styles(): void {
@@ -28,28 +29,66 @@ class CheckoutEmbed {
             return;
         }
 
-        wp_enqueue_style('zyon-checkout-widget-css', $this->widget_css_url(), [], ZYON_CHECKOUT_VERSION);
-        wp_enqueue_script('zyon-checkout-widget', $this->widget_script_url(), [], ZYON_CHECKOUT_VERSION, true);
+        $cache_bust = defined('ZYON_DEV_MODE') && ZYON_DEV_MODE ? (string) time() : ZYON_CHECKOUT_VERSION;
+        wp_enqueue_style('zyon-checkout-widget-css', $this->widget_css_url(), [], $cache_bust);
+        wp_enqueue_script('zyon-checkout-widget', $this->widget_script_url(), [], $cache_bust, true);
     }
 
-    public function render_widget(): void {
-        if (!$this->is_checkout_target() || !$this->is_configured()) {
+    public function render_takeover_page(): void {
+        if (!$this->is_checkout_target()) {
             return;
         }
 
+        status_header(200);
+        nocache_headers();
+        echo '<!doctype html><html ' . get_language_attributes() . '><head><meta charset="' . esc_attr(get_bloginfo('charset')) . '"><meta name="viewport" content="width=device-width,initial-scale=1">';
+        wp_head();
+        echo '</head><body class="zyon-checkout-body">';
+        echo $this->is_configured() ? $this->widget_markup() : $this->admin_notice_markup();
+        wp_footer();
+        echo '</body></html>';
+        exit;
+    }
+
+    public function replace_checkout_content(string $content): string {
+        if (!$this->is_checkout_target()) {
+            return $content;
+        }
+
+        if (!$this->is_configured()) {
+            return $content . $this->admin_notice_markup();
+        }
+
+        return $this->widget_markup();
+    }
+
+    private function widget_markup(): string {
         $merchant_id = trim((string) get_option('zyon_merchant_id', ''));
         $api_key = (string) get_option('zyon_api_key', '');
         $api_url = $this->server_api_url();
         $browser_api_url = $this->browser_api_url();
         $token_service = new EmbedToken($api_url, $api_key, $merchant_id);
-        $embed_token = $token_service->fetch();
+        $embed_token = $token_service->fetch() ?? $this->dev_embed_token($merchant_id);
+        $store_name = get_bloginfo('name') ?: 'Loja';
+        $logo_url = $this->store_logo_url();
+        $accent_color = $this->accent_color();
 
-        printf(
-            '<div class="zyon-checkout-takeover"><zyon-checkout-agent merchant-id="%s" api-base-url="%s" embed-session-token="%s" presentation-mode="inline" cart-json="%s"></zyon-checkout-agent></div>',
+        $ajax_url = admin_url('admin-ajax.php');
+        $cart_nonce = wp_create_nonce('zyon_cart_sync');
+
+        return sprintf(
+            '<div class="zyon-checkout-takeover"><zyon-checkout-agent merchant-id="%s" api-base-url="%s" embed-session-token="%s" cart-json="%s" store-url="%s" store-name="%s" logo-url="%s" accent-color="%s"></zyon-checkout-agent></div>'
+            . '<script>!function(){document.addEventListener("zyon:cart:update",function(e){var d=e.detail;if(d&&d.items&&d.items.length){fetch("%s",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-WP-Nonce":"%s"},body:JSON.stringify({action:"zyon_cart_sync",items:d.items})})}})}()</script>',
             esc_attr($merchant_id),
             esc_attr($browser_api_url),
             esc_attr($embed_token ?? ''),
-            esc_attr($this->cart_json())
+            esc_attr($this->cart_json()),
+            esc_attr(home_url('/')),
+            esc_attr($store_name),
+            esc_attr($logo_url),
+            esc_attr($accent_color),
+            esc_url($ajax_url . '?action=zyon_cart_sync'),
+            esc_attr($cart_nonce)
         );
     }
 
@@ -68,12 +107,16 @@ class CheckoutEmbed {
     }
 
     private function render_admin_notice(): void {
+        echo $this->admin_notice_markup();
+    }
+
+    private function admin_notice_markup(): string {
         if (!current_user_can('manage_woocommerce')) {
-            return;
+            return '';
         }
-        echo '<div class="woocommerce-info zyon-checkout-admin-notice">';
-        echo esc_html__('Zyon Checkout is not configured. Native WooCommerce checkout remains active.', 'zyon-checkout');
-        echo '</div>';
+        return '<div class="woocommerce-info zyon-checkout-admin-notice">'
+            . esc_html__('Zyon Checkout is not configured. Native WooCommerce checkout remains active.', 'zyon-checkout')
+            . '</div>';
     }
 
     private function server_api_url(): string {
@@ -90,11 +133,33 @@ class CheckoutEmbed {
         if ($this->valid_url($widget_url) !== '') {
             return $this->valid_url($widget_url);
         }
-        return $this->server_api_url() === '' ? '' : rtrim($this->server_api_url(), '/') . '/widget/aacp.js';
+        return $this->browser_api_url() === '' ? '' : rtrim($this->browser_api_url(), '/') . '/widget/aacp.js';
     }
 
     private function widget_css_url(): string {
         return rtrim($this->browser_api_url(), '/') . '/widget/widget.css';
+    }
+
+    private function store_logo_url(): string {
+        $configured = $this->valid_url((string) get_option('zyon_store_logo_url', ''));
+        if ($configured !== '') {
+            return $configured;
+        }
+        $custom_logo_id = (int) get_theme_mod('custom_logo');
+        if ($custom_logo_id > 0) {
+            $logo = wp_get_attachment_image_url($custom_logo_id, 'full');
+            return $logo ? $this->valid_url((string) $logo) : '';
+        }
+        return '';
+    }
+
+    private function accent_color(): string {
+        $configured = sanitize_hex_color((string) get_option('zyon_accent_color', ''));
+        if ($configured) {
+            return $configured;
+        }
+        $theme_color = sanitize_hex_color((string) get_theme_mod('accent_color', ''));
+        return $theme_color ?: '#0f766e';
     }
 
     private function valid_url(string $url): string {
@@ -102,10 +167,41 @@ class CheckoutEmbed {
         if ($url === '') {
             return '';
         }
-        if (defined('ZYON_DEV_MODE') && ZYON_DEV_MODE) {
+        if (strpos($url, 'https://') === 0) {
             return esc_url_raw($url);
         }
-        return strpos($url, 'https://') === 0 ? esc_url_raw($url) : '';
+        if ((defined('ZYON_DEV_MODE') && ZYON_DEV_MODE) || $this->is_local_dev_url($url)) {
+            return esc_url_raw($url);
+        }
+        return '';
+    }
+
+    private function is_local_dev_url(string $url): bool {
+        $host = parse_url($url, PHP_URL_HOST);
+        return in_array($host, ['localhost', '127.0.0.1', 'host.docker.internal'], true);
+    }
+
+    private function dev_embed_token(string $merchant_id): ?string {
+        if (!$this->is_local_dev_url($this->browser_api_url())) {
+            return null;
+        }
+        $now = time();
+        $claims = [
+            'typ' => 'aacp_embed_v1',
+            'merchantId' => $merchant_id,
+            'issuedAtUnix' => $now,
+            'expiresAtUnix' => $now + 900,
+            'nonce' => wp_generate_uuid4(),
+            'allowedOrigin' => home_url(),
+            'scopes' => ['checkout:start', 'checkout:track', 'checkout:chat', 'offers:apply', 'payment:intents:create'],
+        ];
+        $payload = $this->base64url_encode(wp_json_encode($claims));
+        $signature = hash_hmac('sha256', $payload, 'dev_embed_token_secret_32_characters_min!!', true);
+        return $payload . '.' . $this->base64url_encode($signature);
+    }
+
+    private function base64url_encode(string $value): string {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
     }
 
     private function cart_json(): string {
@@ -139,6 +235,6 @@ class CheckoutEmbed {
     }
 
     private function takeover_css(): string {
-        return '.wp-block-woocommerce-checkout,.woocommerce-checkout,.wc-block-checkout,.wp-block-woocommerce-cart,.wc-block-cart,.woocommerce-cart-form,.cart-collaterals,form.checkout,#order_review,.woocommerce-form-coupon-toggle,.woocommerce-info,.entry-content>*:not(.zyon-checkout-takeover),.wp-block-post-content>*:not(.zyon-checkout-takeover){display:none!important}header.wp-block-template-part,footer.wp-block-template-part,.wp-block-template-part[data-type="footer"],.site-header,.site-footer{display:none!important}.zyon-checkout-takeover{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:999999!important;background:#08080c!important}.zyon-checkout-takeover zyon-checkout-agent{display:block!important;width:100%!important;height:100%!important}';
+        return 'html:has(.zyon-checkout-takeover),body.zyon-checkout-body{margin:0!important;width:100%!important;height:100%!important;min-height:100%!important;overflow:hidden!important}.woocommerce-cart .wp-site-blocks,.woocommerce-checkout .wp-site-blocks{margin:0!important;padding:0!important}.woocommerce-cart header.wp-block-template-part,.woocommerce-checkout header.wp-block-template-part,.woocommerce-cart footer.wp-block-template-part,.woocommerce-checkout footer.wp-block-template-part,.woocommerce-cart .wp-block-template-part[data-type="footer"],.woocommerce-checkout .wp-block-template-part[data-type="footer"],.woocommerce-cart .site-header,.woocommerce-checkout .site-header,.woocommerce-cart .site-footer,.woocommerce-checkout .site-footer{display:none!important}.zyon-checkout-takeover{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;height:100dvh!important;z-index:999999!important;background:#08080c!important;overflow:hidden!important;display:flex!important;align-items:center!important;justify-content:center!important}.zyon-checkout-takeover zyon-checkout-agent,.zyon-checkout-takeover zyon-checkout-agent>div{display:flex!important;width:100%!important;height:100%!important;align-items:center!important;justify-content:center!important}.zyon-checkout-takeover .app-shell{width:100%!important;max-width:760px!important;height:100%!important;max-height:100%!important;padding:0!important;align-items:center!important;overflow:hidden!important}.zyon-checkout-takeover .pulse-widget-shell{max-width:760px!important;width:100%!important;height:100%!important}.zyon-checkout-takeover .pulse-widget-frame{width:100%!important;height:100%!important;max-height:none!important;margin:0!important;filter:none!important;max-width:760px!important}.zyon-checkout-takeover .pulse-widget-inner{height:100%!important;min-height:0!important}.zyon-checkout-takeover .shimmer-border::before{display:none!important}';
     }
 }
