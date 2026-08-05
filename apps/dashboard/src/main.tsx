@@ -151,6 +151,7 @@ function App({ api }: AppProps) {
         onRegister={handleRegister}
         onSaveTheme={handleSaveTheme}
         onComplete={handleSignupComplete}
+        apiBaseUrl={API_BASE_URL}
       />
     );
   }

@@ -48,7 +48,7 @@ Dependency direction: `presentation → application → domain ← infrastructur
 
 - **checkout** — sessions, AI conversation, cart, offers, scoring
 - **payment** — Stripe, Asaas (PIX/Boleto), crypto (EVM)
-- **auth** — JWT, cookie auth, merchant registration
+- **auth** — JWT, cookie auth, merchant registration, password reset
 - **embed** — storefront embed sessions (widget ↔ API)
 - **shipping** — carrier quotes (Melhor Envio), label generation
 - **negotiation** — M2M negotiation engine

@@ -5,6 +5,8 @@ import { LoginUseCase } from "./application/login.use-case.js";
 import { LoginWithRateLimitUseCase } from "./application/login-with-rate-limit.use-case.js";
 import { RegisterMerchantUseCase } from "./application/register-merchant.use-case.js";
 import { RefreshTokenUseCase } from "./application/refresh-token.use-case.js";
+import { RequestPasswordResetUseCase } from "./application/request-password-reset.use-case.js";
+import { ResetPasswordUseCase } from "./application/reset-password.use-case.js";
 import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";
 import { MERCHANT_ID_GENERATOR, DefaultMerchantIdGenerator } from "./domain/ports/merchant-id-generator.port.js";
 import { RATE_LIMITER } from "./domain/ports/rate-limiter.port.js";
@@ -28,6 +30,8 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     LoginUseCase,
     LoginWithRateLimitUseCase,
     RefreshTokenUseCase,
+    RequestPasswordResetUseCase,
+    ResetPasswordUseCase,
     // Domain services
     PasswordHasher,
     JwtService,

@@ -2,6 +2,8 @@ import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException }
 import { LoginWithRateLimitUseCase } from "../application/login-with-rate-limit.use-case.js";
 import { RefreshTokenUseCase } from "../application/refresh-token.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
+import { RequestPasswordResetUseCase } from "../application/request-password-reset.use-case.js";
+import { ResetPasswordUseCase } from "../application/reset-password.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import { InvalidCredentialsError, LoginRateLimitedError, RefreshTokenExpiredError } from "../domain/errors.js";
 import { normalizeEmail } from "../domain/validators.js";
@@ -19,6 +21,8 @@ export class AuthController {
     private readonly registerMerchant: RegisterMerchantUseCase,
     private readonly loginWithRateLimit: LoginWithRateLimitUseCase,
     private readonly refreshToken: RefreshTokenUseCase,
+    private readonly requestPasswordReset: RequestPasswordResetUseCase,
+    private readonly resetPassword: ResetPasswordUseCase,
     private readonly cookies: AuthCookieService
   ) {}
 
@@ -87,5 +91,17 @@ export class AuthController {
   @HttpCode(204)
   logout(@Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }) {
     response.setHeader("Set-Cookie", this.cookies.clear());
+  }
+
+  @Post("forgot-password")
+  @HttpCode(200)
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.requestPasswordReset.execute(body.email ?? "");
+  }
+
+  @Post("reset-password")
+  @HttpCode(200)
+  async resetPasswordAction(@Body() body: { token: string; password: string }) {
+    return this.resetPassword.execute(body.token ?? "", body.password ?? "");
   }
 }

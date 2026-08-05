@@ -35,4 +35,29 @@ export class InMemoryAuthRepository implements AuthRepository {
   async findMerchantById(merchantId: string): Promise<AuthMerchant | undefined> {
     return this.merchants.get(merchantId);
   }
+
+  private resetTokens = new Map<string, { userId: string; expiresAt: Date }>();
+
+  async storePasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    this.resetTokens.set(token, { userId, expiresAt });
+  }
+
+  async findPasswordResetToken(token: string): Promise<{ userId: string; token: string; expiresAt: Date } | undefined> {
+    const entry = this.resetTokens.get(token);
+    if (!entry) return undefined;
+    return { userId: entry.userId, token, expiresAt: entry.expiresAt };
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    this.resetTokens.delete(token);
+  }
+
+  async updatePassword(userId: string, passwordHash: string): Promise<void> {
+    for (const user of this.users.values()) {
+      if (user.id === userId) {
+        user.passwordHash = passwordHash;
+        return;
+      }
+    }
+  }
 }

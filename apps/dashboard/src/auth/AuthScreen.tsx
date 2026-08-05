@@ -2,7 +2,7 @@ import React from "react";
 import { KeyRound, UserPlus } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
 
-export type AuthMode = "login" | "signup";
+export type AuthMode = "login" | "signup" | "forgot";
 
 export interface AuthScreenProps {
   mode: AuthMode;
@@ -19,6 +19,7 @@ export interface AuthScreenProps {
   onRegister: (payload: { merchant_name: string; email: string; password: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
   onComplete: () => Promise<void>;
+  apiBaseUrl?: string;
 }
 
 export function AuthScreen(props: AuthScreenProps) {
@@ -63,7 +64,12 @@ export function AuthScreen(props: AuthScreenProps) {
             <UserPlus size={14} /> Criar conta
           </button>
         </div>
-        {isSignup ? (
+        {mode === "forgot" ? (
+          <ForgotPasswordForm
+            apiBaseUrl={props.apiBaseUrl}
+            onBack={() => props.setMode("login")}
+          />
+        ) : isSignup ? (
           <SignupWizard
             busy={props.busy}
             hint={props.hint}
@@ -92,7 +98,7 @@ export function AuthScreen(props: AuthScreenProps) {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <label style={{ font: "600 11px 'IBM Plex Mono', monospace", letterSpacing: "0.03em", color: "oklch(62% 0.006 145)" }}>Senha</label>
               {mode === "login" ? (
-                <button type="button" onClick={() => {}} style={{ font: "11px 'Manrope', sans-serif", color: "oklch(74% 0.19 149)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Esqueceu a senha?</button>
+                <button type="button" onClick={() => props.setMode("forgot")} style={{ font: "11px 'Manrope', sans-serif", color: "oklch(74% 0.19 149)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>Esqueceu a senha?</button>
               ) : null}
             </div>
             <input type="password" value={props.password} onChange={(event) => props.setPassword(event.target.value)} autoComplete="current-password" placeholder="••••••••" minLength={4} required style={{ padding: "12px 14px", borderRadius: 9, border: "1px solid oklch(27% 0.006 145)", background: "oklch(10% 0.002 145)", font: "14px 'Manrope', sans-serif", color: "oklch(96% 0.002 145)", outline: "none" }} />
@@ -124,5 +130,73 @@ export function AuthScreen(props: AuthScreenProps) {
         </div>
       </section>
     </main>
+  );
+}
+
+function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBack: () => void }) {
+  const [email, setEmail] = React.useState("");
+  const [sent, setSent] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const base = (apiBaseUrl || "http://localhost:3009").replace(/\/$/, "");
+      const res = await fetch(`${base}/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+        throw new Error((body.detail as string) || "Erro ao enviar email");
+      }
+      setSent(true);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (sent) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, alignItems: "center", textAlign: "center" }}>
+        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="oklch(74% 0.19 149)" strokeWidth="1.5" aria-hidden="true"><path d="M22 12h-6l-2 3H10l-2-3H2" /><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" /></svg>
+        <h2 style={{ font: "600 18px 'Source Serif 4', serif", color: "oklch(96% 0.002 145)" }}>Email enviado!</h2>
+        <p style={{ font: "13px 'Manrope', sans-serif", color: "oklch(62% 0.008 145)", lineHeight: 1.5 }}>
+          Se o email estiver cadastrado, você receberá um link para redefinir sua senha.
+        </p>
+        <button type="button" onClick={onBack} style={{ font: "600 12.5px 'Manrope', sans-serif", color: "oklch(74% 0.19 149)", background: "none", border: "none", cursor: "pointer", marginTop: 8 }}>
+          ← Voltar ao login
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ marginBottom: 4 }}>
+        <p style={{ font: "500 11px 'IBM Plex Mono', monospace", letterSpacing: "0.04em", color: "oklch(52% 0.006 145)", marginBottom: 6 }}>Recuperação</p>
+        <h2 style={{ font: "600 22px 'Source Serif 4', serif", color: "oklch(96% 0.002 145)", letterSpacing: "-0.01em" }}>Redefinir senha</h2>
+      </div>
+      <p style={{ font: "13px 'Manrope', sans-serif", color: "oklch(62% 0.008 145)", lineHeight: 1.5 }}>
+        Informe o email cadastrado e enviaremos um link para criar uma nova senha.
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label style={{ font: "600 11px 'IBM Plex Mono', monospace", letterSpacing: "0.03em", color: "oklch(62% 0.006 145)" }}>Email</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="owner@loja.com" required style={{ padding: "12px 14px", borderRadius: 9, border: "1px solid oklch(27% 0.006 145)", background: "oklch(10% 0.002 145)", font: "14px 'Manrope', sans-serif", color: "oklch(96% 0.002 145)", outline: "none" }} />
+      </div>
+      {error ? <p style={{ font: "12.5px 'Manrope', sans-serif", color: "oklch(68% 0.18 25)", padding: "10px 14px", borderRadius: 8, background: "oklch(28% 0.06 25)", border: "1px solid oklch(35% 0.08 25)" }}>{error}</p> : null}
+      <button type="submit" disabled={busy} style={{ padding: "13px 20px", borderRadius: 9, border: "none", background: "linear-gradient(150deg, oklch(74% 0.19 149), oklch(60% 0.17 149))", font: "600 13.5px 'Manrope', sans-serif", color: "white", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1, marginTop: 4, boxShadow: "0 2px 8px oklch(60% 0.17 149 / 0.3)" }}>
+        {busy ? "Enviando..." : "Enviar link de redefinição"}
+      </button>
+      <button type="button" onClick={onBack} style={{ font: "12.5px 'Manrope', sans-serif", color: "oklch(74% 0.19 149)", background: "none", border: "none", cursor: "pointer", textAlign: "center" }}>
+        ← Voltar ao login
+      </button>
+    </form>
   );
 }

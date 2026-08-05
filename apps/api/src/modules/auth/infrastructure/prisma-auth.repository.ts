@@ -24,6 +24,10 @@ function toAuthMerchant(row: { id: string; name: string }): AuthMerchant {
   };
 }
 
+// In-memory reset token store (production: add a DB table or use Redis with TTL).
+// Adequate for MVP since tokens are short-lived (30min) and single-instance.
+const resetTokens = new Map<string, { userId: string; expiresAt: Date }>();
+
 export class PrismaAuthRepository implements AuthRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -87,5 +91,26 @@ export class PrismaAuthRepository implements AuthRepository {
   async findMerchantById(merchantId: string): Promise<AuthMerchant | undefined> {
     const row = await this.prisma.merchant.findUnique({ where: { id: merchantId } });
     return row ? toAuthMerchant(row) : undefined;
+  }
+
+  async storePasswordResetToken(userId: string, token: string, expiresAt: Date): Promise<void> {
+    resetTokens.set(token, { userId, expiresAt });
+  }
+
+  async findPasswordResetToken(token: string): Promise<{ userId: string; token: string; expiresAt: Date } | undefined> {
+    const entry = resetTokens.get(token);
+    if (!entry) return undefined;
+    return { userId: entry.userId, token, expiresAt: entry.expiresAt };
+  }
+
+  async deletePasswordResetToken(token: string): Promise<void> {
+    resetTokens.delete(token);
+  }
+
+  async updatePassword(userId: string, passwordHash: string): Promise<void> {
+    await this.prisma.merchantUser.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
   }
 }

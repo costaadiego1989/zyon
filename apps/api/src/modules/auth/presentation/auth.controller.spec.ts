@@ -8,6 +8,8 @@ test("AuthController.logout clears the auth cookie", () => {
     null as never,
     null as never,
     null as never,
+    null as never,
+    null as never,
     new AuthCookieService("aacp_access_token", false)
   );
   const headers = new Map<string, string>();
