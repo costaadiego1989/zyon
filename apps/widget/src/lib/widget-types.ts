@@ -20,6 +20,11 @@ export interface WidgetConfig {
   storeUrl?: string;
   successRedirectUrl?: string;
   successRedirectLabel?: string;
+  brand?: {
+    name?: string;
+    logoUrl?: string;
+    accentColor?: string;
+  };
   policies?: {
     privacyUrl?: string;
   };
@@ -35,6 +40,8 @@ export interface WidgetConfig {
     trust_badges?: string[];
     quick_replies?: string[];
   };
+  /** Allow demo/mock fallbacks when API is unreachable. Defaults to false in production. */
+  allowDemoFallbacks?: boolean;
 }
 
 export type GlobalAuthMode = "login" | "register";

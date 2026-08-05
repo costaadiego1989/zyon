@@ -23,7 +23,8 @@ export function ChatStage({ s }: StageProps) {
       )}
 
       {stateBool(s, 'chatEmpty') && (
-        <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '34px 24px 24px', textAlign: 'center' }}>
+        <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '34px 24px 24px', textAlign: 'center' }}>
+          <div style={{ maxWidth: '480px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div style={{ marginBottom: '20px' }}>
             <PulseAgentOrb placement="cartEmpty" />
           </div>
@@ -124,6 +125,7 @@ export function ChatStage({ s }: StageProps) {
               ))}
             </div>
           )}
+          </div>
         </div>
       )}
 

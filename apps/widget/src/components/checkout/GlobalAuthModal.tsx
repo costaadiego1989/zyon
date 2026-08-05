@@ -205,6 +205,8 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
                   placeholder="000000"
                   maxLength={6}
                   aria-label="Codigo de verificacao"
+                  aria-describedby={auth.error ? "zyon-auth-error-msg" : undefined}
+                  aria-invalid={!!auth.error}
                 />
               </div>
             </label>
@@ -217,7 +219,7 @@ export function GlobalAuthModal({ auth, hub }: GlobalAuthModalProps) {
           ) : null}
 
           {auth.error ? (
-            <p className="zyon-auth-error" role="alert">
+            <p className="zyon-auth-error" role="alert" id="zyon-auth-error-msg">
               {auth.error}
             </p>
           ) : null}

@@ -9,6 +9,8 @@ import type { CheckoutProps } from "./features/pulse/model/types.js";
 import { useCheckoutAgentViewModel } from "./hooks/use-checkout-agent-view-model.js";
 import { ChatCheckoutExperience } from "./app/ChatCheckoutExperience.js";
 import { CookieConsentBanner } from "./components/consent/CookieConsentBanner.js";
+import { CheckoutErrorBoundary } from "./components/ErrorBoundary.js";
+import { initErrorReporter } from "./lib/error-reporter.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
@@ -50,17 +52,21 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   } : undefined;
   const props = useMemo(
     () => ({
-      storeName: "Loja",
-      agentName: "Pulse",
-      theme: "light" as const,
+      storeName: config.brand?.name || "Loja",
+      agentName: config.agent?.name || "Pulse",
+      theme: "dark" as const,
       faceLogin: true,
       voiceEnabled: true,
       supportFab: true,
+      accentColor: config.brand?.accentColor || "#0f766e",
+      storeUrl: config.storeUrl,
+      merchantLogoUrl: config.brand?.logoUrl,
       apiBaseUrl: config.apiBaseUrl,
       merchantId: config.merchantId,
       sessionToken: config.embedSessionToken,
       initialCart,
       privacyUrl,
+      allowDemoFallbacks: config.allowDemoFallbacks ?? false,
     }),
     [config, initialCart, privacyUrl]
   );
@@ -81,10 +87,10 @@ function ConversationalCheckoutAgent({
 }) {
   const vm = useCheckoutAgentViewModel(config);
   return (
-    <>
+    <CheckoutErrorBoundary>
       <ChatCheckoutExperience vm={vm} privacyUrl={privacyUrl} />
       <CookieConsentBanner privacyUrl={privacyUrl} />
-    </>
+    </CheckoutErrorBoundary>
   );
 }
 
@@ -106,6 +112,10 @@ const ATTRS = [
   "success-redirect-url",
   "return-url",
   "success-redirect-label",
+  "brand-json",
+  "store-name",
+  "logo-url",
+  "accent-color",
   "policies-json",
   "agent-json",
   "copy-json"
@@ -172,6 +182,11 @@ function readConfig(element: HTMLElement): WidgetConfig {
     storeUrl: element.getAttribute("store-url")?.trim() || undefined,
     successRedirectUrl,
     successRedirectLabel: element.getAttribute("success-redirect-label")?.trim() || undefined,
+    brand: parseJson(element.getAttribute("brand-json")) ?? {
+      name: element.getAttribute("store-name")?.trim() || undefined,
+      logoUrl: element.getAttribute("logo-url")?.trim() || undefined,
+      accentColor: element.getAttribute("accent-color")?.trim() || undefined
+    },
     policies: parseJson(element.getAttribute("policies-json")),
     agent: parseJson(element.getAttribute("agent-json")),
     copy: parseJson(element.getAttribute("copy-json"))
@@ -221,6 +236,7 @@ class AacpCheckoutAgentElement extends HTMLElement {
       this.root = createRoot(this.host);
     }
     const config = readConfig(this);
+    initErrorReporter({ apiBaseUrl: config.apiBaseUrl, merchantId: config.merchantId });
     // Apply floating position only for true floating widgets (no embed token).
     // Embeds use fullscreen takeover managed by CSS in the host document.
     if (config.uiPresentation === "floating" && config.mode !== "embed") {

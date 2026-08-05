@@ -95,10 +95,18 @@ async function readErrorPayload(response: Response): Promise<unknown> {
   }
 }
 
+const DEFAULT_TIMEOUT_MS = 12_000;
+
+function withTimeout(timeoutMs = DEFAULT_TIMEOUT_MS): { signal: AbortSignal; clear: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return { signal: controller.signal, clear: () => clearTimeout(timer) };
+}
+
 export async function checkoutJson<T>(
   origin: string,
   path: string,
-  options: { embedToken?: string; body: Record<string, unknown>; method?: "POST" | "PATCH"; schema?: { parse(input: unknown): T } }
+  options: { embedToken?: string; body: Record<string, unknown>; method?: "POST" | "PATCH"; schema?: { parse(input: unknown): T }; timeoutMs?: number }
 ): Promise<T> {
   const url = `${origin}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {
@@ -106,34 +114,55 @@ export async function checkoutJson<T>(
   };
   Object.assign(headers, embedAuthHeaders(options.embedToken));
 
-  const response = await fetch(url, {
-    method: options.method ?? "POST",
-    headers,
-    body: JSON.stringify(options.body)
-  });
+  const { signal, clear } = withTimeout(options.timeoutMs);
+  try {
+    const response = await fetch(url, {
+      method: options.method ?? "POST",
+      headers,
+      body: JSON.stringify(options.body),
+      signal
+    });
 
-  if (!response.ok) {
-    throw new CheckoutHttpError(response.status, await readErrorPayload(response));
+    if (!response.ok) {
+      throw new CheckoutHttpError(response.status, await readErrorPayload(response));
+    }
+
+    const payload = await response.json();
+    return options.schema ? options.schema.parse(payload) : (payload as T);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new CheckoutHttpError(0, "Network timeout — a requisição demorou demais.");
+    }
+    throw err;
+  } finally {
+    clear();
   }
-
-  const payload = await response.json();
-  return options.schema ? options.schema.parse(payload) : (payload as T);
 }
 
 export async function checkoutGet<T>(
   origin: string,
   path: string,
-  options: { embedToken?: string; schema?: { parse(input: unknown): T } } = { schema: undefined as never }
+  options: { embedToken?: string; schema?: { parse(input: unknown): T }; timeoutMs?: number } = { schema: undefined as never }
 ): Promise<T> {
   const url = `${origin}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: Record<string, string> = {};
   Object.assign(headers, embedAuthHeaders(options.embedToken));
 
-  const response = await fetch(url, { method: "GET", headers });
-  if (!response.ok) {
-    throw new CheckoutHttpError(response.status, await readErrorPayload(response));
-  }
+  const { signal, clear } = withTimeout(options.timeoutMs);
+  try {
+    const response = await fetch(url, { method: "GET", headers, signal });
+    if (!response.ok) {
+      throw new CheckoutHttpError(response.status, await readErrorPayload(response));
+    }
 
-  const payload = await response.json();
-  return options.schema ? options.schema.parse(payload) : (payload as T);
+    const payload = await response.json();
+    return options.schema ? options.schema.parse(payload) : (payload as T);
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new CheckoutHttpError(0, "Network timeout — a requisição demorou demais.");
+    }
+    throw err;
+  } finally {
+    clear();
+  }
 }

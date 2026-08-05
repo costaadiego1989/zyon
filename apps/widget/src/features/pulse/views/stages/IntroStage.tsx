@@ -13,14 +13,13 @@ export function IntroStage({ s }: StageProps) {
         position: 'absolute',
         inset: 0,
         display: 'flex',
-        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        textAlign: 'center',
         padding: '28px 24px',
         overflowY: 'auto',
       }}
     >
+      <div style={{ maxWidth: '520px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
       <div
         style={{
           position: 'absolute',
@@ -30,14 +29,24 @@ export function IntroStage({ s }: StageProps) {
           width: '220px',
           height: '220px',
           borderRadius: '50%',
-          background: 'var(--aacp-accent, #1ED760)',
+          background: 'var(--aacp-accent, #0f766e)',
           filter: 'blur(80px)',
           opacity: 0.22,
           pointerEvents: 'none',
         }}
       />
 
-      <div style={{ marginBottom: '20px' }}>
+      <div
+        style={{
+          width: 'min(100%, 520px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          margin: '0 auto 18px',
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
         <PulseAgentOrb placement="intro" />
       </div>
 
@@ -45,10 +54,12 @@ export function IntroStage({ s }: StageProps) {
         style={{
           fontFamily: "'Space Mono',monospace",
           fontSize: '10px',
+          lineHeight: 1.45,
           letterSpacing: '2px',
           textTransform: 'uppercase',
           color: 'var(--mut)',
-          marginBottom: '10px',
+          marginBottom: '6px',
+          overflow: 'visible',
         }}
       >
         Gerente de vendas da {storeName}
@@ -152,7 +163,7 @@ export function IntroStage({ s }: StageProps) {
                 cursor: 'pointer',
                 fontFamily: 'inherit',
                 border: '1px solid var(--g1)',
-                background: 'rgba(30,215,96,.08)',
+                background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 8%, transparent)',
                 borderRadius: '16px',
                 padding: '15px 12px',
                 display: 'flex',
@@ -230,6 +241,53 @@ export function IntroStage({ s }: StageProps) {
           </svg>
         </button>
       )}
+
+      {stateBool(s, 'faceLoginEnabled') && (
+        <button
+          type="button"
+          onClick={stateFn(s, 'openFaceLogin')}
+          style={{
+            width: '100%',
+            border: '1px solid color-mix(in srgb, var(--aacp-accent, #0f766e) 32%, var(--bd))',
+            background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 10%, transparent)',
+            color: 'var(--tx)',
+            borderRadius: '16px',
+            padding: '13px 14px',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '11px',
+            marginTop: '18px',
+            textAlign: 'left',
+          }}
+        >
+          <span
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '12px',
+              background: 'var(--g1)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 'none',
+            }}
+          >
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2" />
+              <circle cx="12" cy="11" r="2.4" />
+              <path d="M8.5 16.5c.8-1.6 2-2.3 3.5-2.3s2.7.7 3.5 2.3" />
+            </svg>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <strong style={{ display: 'block', fontSize: '13.5px' }}>Entrar com Face ID</strong>
+            <span style={{ display: 'block', color: 'var(--mut)', fontSize: '11px', lineHeight: 1.35 }}>Para quem já cadastrou biometria: pula dados e vai direto ao frete.</span>
+          </span>
+        </button>
+      )}
+      </div>
     </div>
   );
 }

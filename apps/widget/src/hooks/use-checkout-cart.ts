@@ -22,16 +22,26 @@ export function useCheckoutCart(
     setVisibleCart(cart);
   }, [experience]);
 
+  // Notify host page (WooCommerce plugin) about cart mutations so it can sync server-side.
+  function dispatchCartUpdate(items: UpdateCartItemInput[]): void {
+    if (typeof document === "undefined") return;
+    document.dispatchEvent(new CustomEvent("zyon:cart:update", { detail: { items } }));
+  }
+
   // Optimistic local update for snappy UI; server reconciles cart + payable total
   // via persistCart. `next` carries the post-mutation quantity to send to the server.
   function persistQuantity(sku: string, next: VisibleCartState): void {
     const item = next.items.find((entry) => entry.sku === sku);
-    void persistCart?.([{ sku, quantity: item?.quantity ?? 0 }]);
+    const payload: UpdateCartItemInput[] = [{ sku, quantity: item?.quantity ?? 0 }];
+    void persistCart?.(payload);
+    dispatchCartUpdate(payload);
   }
 
   function handleRemoveCartItem(sku: string): void {
     setVisibleCart((current) => removeVisibleCartItem(current, sku));
-    void persistCart?.([{ sku, quantity: 0 }]);
+    const payload: UpdateCartItemInput[] = [{ sku, quantity: 0 }];
+    void persistCart?.(payload);
+    dispatchCartUpdate(payload);
   }
 
   function incrementItem(sku: string): void {

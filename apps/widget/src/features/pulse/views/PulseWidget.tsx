@@ -1,14 +1,14 @@
 import type { RenderState } from './types';
-import type { AgentOrbPlacement } from '../config/agentOrbPresets';
+import { safeExternalUrl } from '../../../lib/safe-url.js';
 import { stateBool, stateFn, stateStr, stateStyle } from './types';
 import { LoginStage } from './stages/LoginStage';
 import { IntroStage } from './stages/IntroStage';
 import { ChatStage } from './stages/ChatStage';
 import { HubStage } from './stages/HubStage';
-import { VoiceOverlay } from './overlays/VoiceOverlay';
+import { lazy, Suspense } from 'react';
+const VoiceOverlay = lazy(() => import('./overlays/VoiceOverlay').then(m => ({ default: m.VoiceOverlay })));
 import { SupportPanel } from './overlays/SupportPanel';
 import { SettingsModal } from './overlays/SettingsModal';
-import { PulseAgentOrb } from './components/PulseAgentOrb';
 
 interface PulseWidgetProps {
   s: RenderState;
@@ -18,61 +18,80 @@ export function PulseWidget({ s }: PulseWidgetProps) {
   const privacyUrl = stateStr(s, 'privacyUrl');
   const voiceToggleColor = stateStr(s, 'voiceToggleColor');
   const widgetStyle = stateStyle(s, 'widgetStyle');
+  const merchantLogoUrl = safeExternalUrl(stateStr(s, 'merchantLogoUrl'));
 
   return (
     <div
-      className="shimmer-border pulse-widget-frame"
+      className="pulse-widget-shell"
       data-theme={stateStr(s, 'theme')}
-      style={{ ['--shimmer-r' as string]: '28px' }}
+      style={{ ...widgetStyle, boxShadow: 'none', borderRadius: 0, overflow: 'hidden' }}
     >
-      <div
-        className="shimmer-border__inner pulse-widget-inner"
-        style={{ ...widgetStyle, boxShadow: 'none' }}
-      >
       {stateBool(s, 'showHeader') && (
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '11px',
-            padding: '14px 16px',
-            borderBottom: '1px solid var(--bd)',
+            padding: '12px 14px',
+            borderBottom: 'none',
             zIndex: 9,
             background: 'var(--bg)',
             flex: 'none',
           }}
         >
-          {stateBool(s, 'isHub') && (
-            <button
-              type="button"
-              onClick={stateFn(s, 'goChat')}
-              title="Voltar"
-              style={{
-                width: '30px',
-                height: '30px',
-                borderRadius: '50%',
-                border: '1px solid var(--bd)',
-                background: 'var(--chip)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 'none',
-                padding: 0,
-              }}
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--mut)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={stateFn(s, 'backToStore')}
+            title="Voltar para o site"
+            style={{
+              width: '32px',
+              height: '32px',
+              borderRadius: '50%',
+              border: '1px solid var(--bd)',
+              background: 'var(--chip)',
+              color: 'var(--mut)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 'none',
+              padding: 0,
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
 
-          <PulseAgentOrb placement={stateStr(s, 'headerOrbPlacement') as AgentOrbPlacement} />
+          <div
+            style={{
+              width: '34px',
+              height: '34px',
+              borderRadius: '12px',
+              border: '1px solid var(--bd)',
+              background: 'var(--chip)',
+              color: 'var(--tx)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flex: 'none',
+              overflow: 'hidden',
+              fontSize: '13px',
+              fontWeight: 800,
+              letterSpacing: '-.2px',
+            }}
+          >
+            {merchantLogoUrl ? (
+              <img src={merchantLogoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            ) : (
+              stateStr(s, 'merchantInitial')
+            )}
+          </div>
 
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '13.5px', fontWeight: 600, lineHeight: 1.2 }}>{stateStr(s, 'headerTitle')}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10.5px', color: 'var(--mut)', marginTop: '1px' }}>
-              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dot)', animation: 'pulseDot 2.2s ease-in-out infinite' }} />
+            <div style={{ fontSize: '13.5px', fontWeight: 700, lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stateStr(s, 'headerTitle')}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '10.5px', color: 'var(--mut)', marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--dot)', animation: 'pulseDot 2.2s ease-in-out infinite', flex: 'none' }} />
               {stateStr(s, 'headerSub')}
             </div>
           </div>
@@ -113,29 +132,6 @@ export function PulseWidget({ s }: PulseWidgetProps) {
                   <rect x="14" y="14" width="7" height="7" rx="1.5" />
                 </svg>
               </button>
-              <button
-                type="button"
-                onClick={stateFn(s, 'restart')}
-                title="Recomeçar"
-                style={{
-                  width: '30px',
-                  height: '30px',
-                  borderRadius: '50%',
-                  border: '1px solid var(--bd)',
-                  background: 'var(--chip)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flex: 'none',
-                  padding: 0,
-                }}
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--mut)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-                  <path d="M3 3v5h5" />
-                </svg>
-              </button>
             </>
           )}
 
@@ -165,14 +161,16 @@ export function PulseWidget({ s }: PulseWidgetProps) {
         </div>
       )}
 
-      <div style={{ position: 'relative', flex: 1, overflow: 'hidden' }}>
-        {stateBool(s, 'isLogin') && <LoginStage s={s} />}
-        {stateBool(s, 'isIntro') && <IntroStage s={s} />}
-        {stateBool(s, 'isChat') && <ChatStage s={s} />}
-        {stateBool(s, 'isHub') && <HubStage s={s} />}
+      <div className="shimmer-border pulse-widget-frame" style={{ ['--shimmer-r' as string]: '28px' }}>
+        <div className="shimmer-border__inner pulse-widget-inner" style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', boxShadow: 'none' }}>
+          {stateBool(s, 'isLogin') && <LoginStage s={s} />}
+          {stateBool(s, 'isIntro') && <IntroStage s={s} />}
+          {stateBool(s, 'isChat') && <ChatStage s={s} />}
+          {stateBool(s, 'isHub') && <HubStage s={s} />}
+        </div>
       </div>
 
-      {stateBool(s, 'voiceOpen') && <VoiceOverlay s={s} />}
+      {stateBool(s, 'voiceOpen') && <Suspense fallback={null}><VoiceOverlay s={s} /></Suspense>}
 
       {stateBool(s, 'fabVisible') && (
         <button type="button" onClick={stateFn(s, 'openSupport')} style={stateStyle(s, 'fabStyle')}>
@@ -232,7 +230,6 @@ export function PulseWidget({ s }: PulseWidgetProps) {
           </a>
         </div>
       )}
-    </div>
     </div>
   );
 }

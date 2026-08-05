@@ -14,12 +14,54 @@ import type {
 import { buildCouponFromTenant, resolveTenantDiscount } from '../config/tenantDiscount';
 
 function defaultAllowDemoFallbacks(): boolean {
-  return true;
+  if (typeof window !== 'undefined') {
+    const el = document.querySelector('zyon-checkout-agent');
+    if (el?.getAttribute('allow-demo') === 'true') return true;
+  }
+  return false;
 }
 
 function paymentStatusIsPaid(status?: string): boolean {
   return ['paid', 'confirmed', 'completed', 'approved'].includes(status ?? '');
 }
+
+function base64UrlToBuffer(value: string): ArrayBuffer {
+  const base64 = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function bufferToBase64Url(value: ArrayBuffer): string {
+  const bytes = new Uint8Array(value);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 1) binary += String.fromCharCode(bytes[i]);
+  return window.btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function stringToBuffer(value: string): ArrayBuffer {
+  return new TextEncoder().encode(value).buffer;
+}
+
+function webauthnDisplayName(email: string): string {
+  const local = email.split('@')[0] ?? '';
+  return local
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.slice(0, 1).toUpperCase() + part.slice(1))
+    .join(' ') || email;
+}
+
+type PublicKeyCredentialCreationOptionsJson = {
+  challenge: string;
+  rp: PublicKeyCredentialRpEntity;
+  user: { id: string; name: string; displayName: string };
+  pubKeyCredParams: PublicKeyCredentialParameters[];
+  authenticatorSelection?: AuthenticatorSelectionCriteria;
+  timeout?: number;
+  attestation?: AttestationConveyancePreference;
+};
 
 function pulseIdempotencyKey(sessionId: string, payMethod: string, installments?: number): string {
   return ['pulse', sessionId, payMethod, installments ?? 'none'].join('::');
@@ -129,13 +171,25 @@ export class PulseAPI {
         const r = await fetch(`${this.baseUrl}/buyer/login-from-session`, {
           method: 'POST',
           headers: this._headers(),
-          body: JSON.stringify({ session_id: sessionId }),
+          body: JSON.stringify({ session_id: sessionId, merchant_id: this.merchantId }),
         });
         if (r.ok) {
-          const data = await r.json() as { token: string; buyer: { globalUserId: string; name: string; email: string; phone: string } } | null;
-          if (data && data.token) {
-            this.setBuyerToken(data.token);
-            return { token: data.token, name: data.buyer.name, email: data.buyer.email };
+          const data = await r.json() as {
+            access_token?: string;
+            accessToken?: string;
+            token?: string;
+            email?: string;
+            display_name?: string;
+            buyer?: { globalUserId: string; name: string; email: string; phone: string };
+          } | null;
+          const token = data?.access_token ?? data?.accessToken ?? data?.token;
+          if (token) {
+            this.setBuyerToken(token);
+            return {
+              token,
+              name: data?.buyer?.name ?? data?.display_name ?? webauthnDisplayName(data?.email ?? ''),
+              email: data?.buyer?.email ?? data?.email ?? '',
+            };
           }
         }
       } catch {
@@ -411,7 +465,176 @@ export class PulseAPI {
     ]);
   }
 
-  async authenticateFace(): Promise<FaceUser> {
+  async registerFace(customer: Pick<Customer, 'name' | 'email' | 'phone'>): Promise<{ credential_id: string; created_at: string }> {
+    if (!this.baseUrl || typeof window === 'undefined' || !window.PublicKeyCredential || !navigator.credentials) {
+      if (!this.allowDemoFallbacks) throw new Error('webauthn_register_unavailable');
+      return this._wait({ credential_id: 'cred_demo', created_at: new Date().toISOString() }, 900);
+    }
+
+    let tokenReady = !!this._buyerToken;
+    if (!tokenReady) {
+      const sessionId = await this.ensureSession();
+      const sessionLogin = await this.loginFromSession(sessionId);
+      tokenReady = !!sessionLogin;
+    }
+    if (!tokenReady) {
+      const password = `pulse-${this.merchantId}-${customer.email}`;
+      try {
+        const r = await fetch(`${this.baseUrl}/buyer/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: customer.email,
+            password,
+            displayName: customer.name || webauthnDisplayName(customer.email),
+            phone: customer.phone,
+          }),
+        });
+        if (r.ok) {
+          const data = await r.json() as { access_token?: string; accessToken?: string; token?: string };
+          const token = data.access_token ?? data.accessToken ?? data.token;
+          if (token) {
+            this.setBuyerToken(token);
+            tokenReady = true;
+          }
+        }
+      } catch {
+        // fall through to unavailable
+      }
+    }
+    if (!tokenReady) {
+      if (!this.allowDemoFallbacks) throw new Error('buyer_auth_unavailable_for_webauthn_register');
+      return this._wait({ credential_id: 'cred_demo', created_at: new Date().toISOString() }, 900);
+    }
+
+    const optionsResponse = await fetch(`${this.baseUrl}/buyer/webauthn/register/options`, {
+      method: 'POST',
+      headers: this._buyerHeaders(),
+    });
+    if (!optionsResponse.ok) throw new Error('webauthn_register_options_failed');
+    const options = await optionsResponse.json() as PublicKeyCredentialCreationOptionsJson;
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        ...options,
+        challenge: base64UrlToBuffer(options.challenge),
+        user: { ...options.user, id: stringToBuffer(options.user.id) },
+      },
+    });
+    if (!credential || credential.type !== 'public-key') throw new Error('webauthn_register_credential_missing');
+    const publicKeyCredential = credential as PublicKeyCredential;
+    const attestation = publicKeyCredential.response as AuthenticatorAttestationResponse;
+    const verifyResponse = await fetch(`${this.baseUrl}/buyer/webauthn/register/verify`, {
+      method: 'POST',
+      headers: this._buyerHeaders(),
+      body: JSON.stringify({
+        challenge: options.challenge,
+        credential: {
+          id: publicKeyCredential.id,
+          rawId: bufferToBase64Url(publicKeyCredential.rawId),
+          response: {
+            attestationObject: bufferToBase64Url(attestation.attestationObject),
+            clientDataJSON: bufferToBase64Url(attestation.clientDataJSON),
+          },
+          type: 'public-key' as const,
+        },
+      }),
+    });
+    if (!verifyResponse.ok) throw new Error('webauthn_register_verify_failed');
+    return await verifyResponse.json() as { credential_id: string; created_at: string };
+  }
+
+  async authenticateFace(email?: string): Promise<FaceUser> {
+    const buyerEmail = email?.trim() || this._initialCustomer?.email?.trim();
+    if (this.baseUrl && typeof window !== 'undefined' && window.PublicKeyCredential && navigator.credentials) {
+      try {
+        let webauthnBasePath = '/buyer-account/webauthn';
+        const optionsResponse = await fetch(`${this.baseUrl}${webauthnBasePath}/login/options`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify(buyerEmail ? { email: buyerEmail } : {}),
+        });
+        const options = optionsResponse.ok
+          ? await optionsResponse.json() as {
+              challenge: string;
+              allowCredentials?: Array<{ id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }>;
+              timeout?: number;
+              userVerification?: UserVerificationRequirement;
+            }
+          : await (async () => {
+              webauthnBasePath = '/buyer/webauthn';
+              const legacyResponse = await fetch(`${this.baseUrl}${webauthnBasePath}/login/options`, {
+                method: 'POST',
+                headers: this._headers(),
+                body: JSON.stringify(buyerEmail ? { email: buyerEmail } : {}),
+              });
+              if (!legacyResponse.ok) throw new Error('webauthn_login_options_failed');
+              return await legacyResponse.json() as {
+                challenge: string;
+                allowCredentials?: Array<{ id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }>;
+                timeout?: number;
+                userVerification?: UserVerificationRequirement;
+              };
+            })();
+
+        const credential = await navigator.credentials.get({
+          publicKey: {
+            challenge: base64UrlToBuffer(options.challenge),
+            allowCredentials: options.allowCredentials?.map((c) => ({
+              id: base64UrlToBuffer(c.id),
+              type: c.type,
+              transports: c.transports,
+            })),
+            timeout: options.timeout ?? 60_000,
+            userVerification: options.userVerification ?? 'required',
+          },
+        });
+
+        if (!credential || credential.type !== 'public-key') throw new Error('webauthn_credential_missing');
+        const publicKeyCredential = credential as PublicKeyCredential;
+        const assertion = publicKeyCredential.response as AuthenticatorAssertionResponse;
+        const verifyBody = {
+          challenge: options.challenge,
+          credential: {
+            id: publicKeyCredential.id,
+            rawId: bufferToBase64Url(publicKeyCredential.rawId),
+            response: {
+              authenticatorData: bufferToBase64Url(assertion.authenticatorData),
+              clientDataJSON: bufferToBase64Url(assertion.clientDataJSON),
+              signature: bufferToBase64Url(assertion.signature),
+            },
+            type: 'public-key' as const,
+          },
+        };
+        const verifyResponse = await fetch(`${this.baseUrl}${webauthnBasePath}/login/verify`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify(verifyBody),
+        });
+        if (!verifyResponse.ok) throw new Error('webauthn_login_verify_failed');
+        const data = await verifyResponse.json() as {
+          access_token?: string;
+          accessToken?: string;
+          buyer_id?: string;
+          globalUserId?: string;
+          email?: string;
+          name?: string;
+          display_name?: string;
+        };
+        const token = data.access_token ?? data.accessToken;
+        if (token) this.setBuyerToken(token);
+        const authedEmail = data.email ?? buyerEmail ?? '';
+        const name = data.name ?? data.display_name ?? webauthnDisplayName(authedEmail);
+        return {
+          id: data.buyer_id ?? data.globalUserId ?? publicKeyCredential.id,
+          name,
+          email: authedEmail,
+          initial: name.slice(0, 1).toUpperCase() || authedEmail.slice(0, 1).toUpperCase() || 'U',
+          verified: true,
+        };
+      } catch (error) {
+        if (!this.allowDemoFallbacks) throw error;
+      }
+    }
     if (!this.allowDemoFallbacks) throw new Error('webauthn_unavailable_or_not_registered');
     return this._wait({
       id: 'usr_face_001',
