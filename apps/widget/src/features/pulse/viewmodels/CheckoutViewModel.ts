@@ -8,6 +8,7 @@ import type {
   ChatMessage,
   CheckoutProps,
   Customer,
+  FaceUser,
   Order,
   PayMethod,
   Prefs,
@@ -91,6 +92,7 @@ interface CheckoutState {
   pixCopyPaste: string | null;
   pixExpiresAt: string | null;
   pixStatus: 'idle' | 'waiting' | 'paid' | 'failed';
+  biometricEnrollment: 'idle' | 'prompt' | 'registering' | 'done' | 'skipped' | 'error';
 }
 
 interface SpeechRecognitionEvent extends Event {
@@ -127,7 +129,7 @@ function freshCustomer(): Customer {
 
 function initialState(): CheckoutState {
   return {
-    view: 'login',
+    view: 'intro',
     chatMode: 'idle',
     theme: null,
     open: false,
@@ -187,6 +189,7 @@ function initialState(): CheckoutState {
     pixCopyPaste: null,
     pixExpiresAt: null,
     pixStatus: 'idle',
+    biometricEnrollment: 'idle',
   };
 }
 
@@ -236,6 +239,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   private faceTimer: ReturnType<typeof setInterval> | null = null;
   private faceStream: MediaStream | null = null;
+  private faceAuthPromise: Promise<FaceUser> | null = null;
   private waveRAF: number | null = null;
   private actx: AudioContext | null = null;
   private rec: SpeechRecognitionInstance | null = null;
@@ -267,6 +271,9 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       prev.faceLogin === props.faceLogin &&
       prev.voiceEnabled === props.voiceEnabled &&
       prev.supportFab === props.supportFab &&
+      prev.accentColor === props.accentColor &&
+      prev.storeUrl === props.storeUrl &&
+      prev.merchantLogoUrl === props.merchantLogoUrl &&
       prev.privacyUrl === props.privacyUrl &&
       prevDiscount.initialPercent === nextDiscount.initialPercent &&
       prevDiscount.bonusPercent === nextDiscount.bonusPercent &&
@@ -337,6 +344,19 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
 
   get storeName(): string {
     return this.props.storeName || '';
+  }
+
+  get merchantInitial(): string {
+    const source = this.storeName || 'Loja';
+    return source.trim().slice(0, 1).toUpperCase() || 'L';
+  }
+
+  get storeUrl(): string | undefined {
+    return this.props.storeUrl;
+  }
+
+  get merchantLogoUrl(): string | undefined {
+    return this.props.merchantLogoUrl;
   }
 
   teardownMedia(): void {
@@ -562,7 +582,21 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   toggleTheme = (): void => {
-    this.setState({ theme: this.theme === 'dark' ? 'light' : 'dark' });
+    const next = this.theme === 'dark' ? 'light' : 'dark';
+    this.setState({ theme: next });
+    // Propagate theme to WooCommerce takeover container (parent can't read child CSS vars).
+    if (typeof document !== 'undefined') {
+      const takeover = document.querySelector('.zyon-checkout-takeover') as HTMLElement | null;
+      if (takeover) {
+        takeover.style.setProperty('--aacp-bg', next === 'light' ? '#e7e5df' : '#08080c');
+      }
+    }
+  };
+
+  backToStore = (): void => {
+    const target = this.storeUrl;
+    if (target) window.location.assign(target);
+    else window.history.back();
   };
 
   startFace = async (): Promise<void> => {
@@ -579,6 +613,11 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     } catch {
       this.setState({ camActive: false });
     }
+    void this.ensureApi().then((api) => {
+      const authPromise = api.authenticateFace(this.state.customer.email || this.props.initialCustomer?.email);
+      authPromise.catch(() => undefined);
+      this.faceAuthPromise = authPromise;
+    });
     this.runFaceProgress();
   };
 
@@ -611,13 +650,16 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   onFaceMatched = async (): Promise<void> => {
-    this.setState({ faceStatus: 'success', faceHint: 'Identidade confirmada' });
+    this.setState({ faceStatus: 'matching', faceHint: 'Confirme a biometria no navegador…' });
     const api = await this.ensureApi();
-    let user = null;
+    let user: FaceUser | null = null;
     try {
-      user = await api.authenticateFace();
+      user = await (this.faceAuthPromise ?? api.authenticateFace(this.state.customer.email || this.props.initialCustomer?.email));
+      this.setState({ faceStatus: 'success', faceHint: 'Identidade confirmada' });
     } catch {
-      /* noop */
+      this.setState({ faceStatus: 'idle', faceProgress: 0, faceHint: 'Face ID indisponível. Cadastre biometria ou continue como convidado.' });
+    } finally {
+      this.faceAuthPromise = null;
     }
     try {
       if (this.faceStream) {
@@ -627,13 +669,50 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     } catch {
       /* noop */
     }
-    this.after(820, () =>
-      this.setState((s) => ({
-        view: 'intro',
-        authed: true,
-        customer: user ? { ...s.customer, name: user.name, email: user.email } : s.customer,
-      })),
+    this.setState({ camActive: false });
+    if (!user) return;
+    this.after(520, () => void this.startFastCheckoutFromFace(user));
+  };
+
+  startFastCheckoutFromFace = async (user: FaceUser): Promise<void> => {
+    this.clearTimers();
+    this.setState((s) => ({
+      view: 'chat',
+      chatMode: 'loading',
+      log: [],
+      actions: [],
+      typing: false,
+      settlementStep: -1,
+      askingField: null,
+      completed: false,
+      orderId: null,
+      open: false,
+      customer: { ...s.customer, name: user.name, email: user.email },
+      searchQuery: '',
+      searchResults: [],
+      authed: true,
+    }));
+    const api = await this.ensureApi();
+    const [{ product, qty }, rec] = await Promise.all([api.getCart(), api.getRecommendation()]);
+    const coupon = await api.getBestCoupon(product.price, this.tenantDiscount());
+    this.setState({
+      chatMode: 'flow',
+      cart: { product, qty, bundle: null, coupon, shipping: null, payMethod: null },
+      recommendation: rec,
+      couponShownAt: Date.now(),
+      biometricEnrollment: 'done',
+    });
+    this.startUrgencyTicker();
+    this.push(
+      { role: 'agent', kind: 'text', text: `Bem-vindo de volta, ${user.name}. Pulei o cadastro e já deixei seu carrinho pronto.` },
+      { role: 'agent', kind: 'product' },
     );
+    if (coupon) this.push({ role: 'agent', kind: 'coupon' });
+    await this.showShippingSelection();
+  };
+
+  openFaceLogin = (): void => {
+    this.setState({ view: 'login', faceStatus: 'idle', faceProgress: 0, faceHint: 'Toque para iniciar o reconhecimento' });
   };
 
   skipLogin = (): void => {
@@ -649,6 +728,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     } catch {
       /* noop */
     }
+    this.faceAuthPromise = null;
     this.setState({ view: 'intro', faceStatus: 'idle', faceProgress: 0, camActive: false });
   };
 
@@ -1310,12 +1390,62 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   onAddressDone = async (): Promise<void> => {
+    if (this.state.biometricEnrollment === 'idle') {
+      this.setState({ biometricEnrollment: 'prompt' });
+      this.agentSay(
+        [
+          { role: 'agent', kind: 'text', text: 'Tudo certo com seus dados. Quer habilitar Face ID para comprar mais rápido nos próximos pedidos?' },
+        ],
+        [
+          this.A('Sim, habilitar Face ID', this.enableFaceRegistration, true),
+          this.A('Agora não', this.skipFaceRegistration),
+        ],
+        600,
+      );
+      return;
+    }
+    await this.showShippingSelection();
+  };
+
+  enableFaceRegistration = async (): Promise<void> => {
+    this.pickUser('Sim, habilitar Face ID');
+    this.setState({ biometricEnrollment: 'registering' });
+    const api = await this.ensureApi();
+    try {
+      await api.registerFace({
+        name: this.state.customer.name,
+        email: this.state.customer.email,
+        phone: this.state.customer.phone,
+      });
+      this.setState({ biometricEnrollment: 'done', prefs: { ...this.state.prefs, faceUnlock: true } });
+      this.agentSay(
+        [{ role: 'agent', kind: 'text', text: 'Face ID habilitado. Na próxima compra você entra com a biometria do aparelho.' }],
+        [this.A('Escolher frete', () => void this.showShippingSelection(), true)],
+        400,
+      );
+    } catch {
+      this.setState({ biometricEnrollment: 'error' });
+      this.agentSay(
+        [{ role: 'agent', kind: 'text', text: 'Não consegui habilitar Face ID neste navegador. Você pode continuar normalmente e tentar depois em Minha conta.' }],
+        [this.A('Continuar para frete', () => void this.showShippingSelection(), true)],
+        400,
+      );
+    }
+  };
+
+  skipFaceRegistration = (): void => {
+    this.pickUser('Agora não');
+    this.setState({ biometricEnrollment: 'skipped' });
+    void this.showShippingSelection();
+  };
+
+  showShippingSelection = async (): Promise<void> => {
     const api = await this.ensureApi();
     const opts = await api.getShipping(this.state.customer);
     this.setState({ shipOptions: opts });
     this.agentSay(
       [
-        { role: 'agent', kind: 'text', text: 'Tudo certo com seus dados. Confirmei seu endereço:' },
+        { role: 'agent', kind: 'text', text: 'Confirmei seu endereço:' },
         { role: 'agent', kind: 'address' },
         { role: 'agent', kind: 'text', text: 'Agora escolha como prefere receber:' },
         { role: 'agent', kind: 'shipping' },
@@ -1529,7 +1659,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       tone: 'progress',
       status: 'Processando',
       initial: this.storeName.slice(0, 1).toUpperCase(),
-      bg: 'var(--aacp-accent, #1ED760)',
+      bg: 'var(--aacp-accent, var(--aacp-accent, #0f766e))',
     };
     this.setState((s) => ({
       completed: true,
@@ -1678,6 +1808,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   tokens(): ThemeTokens {
+    const accent = this.props.accentColor || 'var(--aacp-accent, #0f766e)';
     const T: Record<'dark' | 'light', ThemeTokens> = {
       dark: {
         bg: '#08080c',
@@ -1688,10 +1819,10 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         chip: 'rgba(255,255,255,0.05)',
         sheet: '#0f0f16',
         sheetbd: 'rgba(255,255,255,0.13)',
-        dot: '#1ED760',
-        g1: '#1ED760',
-        g2: '#1ED760',
-        g3: '#1ED760',
+        dot: accent,
+        g1: accent,
+        g2: accent,
+        g3: accent,
         tile1: 'rgba(255,255,255,.09)',
         tile2: 'rgba(255,255,255,.025)',
         scrim: '0,0,0',
@@ -1707,10 +1838,10 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         chip: '#f2f1ed',
         sheet: '#ffffff',
         sheetbd: 'rgba(15,15,25,0.1)',
-        dot: '#1ED760',
-        g1: '#1ED760',
-        g2: '#1ED760',
-        g3: '#1ED760',
+        dot: accent,
+        g1: accent,
+        g2: accent,
+        g3: accent,
         tile1: 'rgba(15,15,25,.07)',
         tile2: 'rgba(15,15,25,.02)',
         scrim: '26,18,48',
@@ -1857,7 +1988,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           label: 'Promoção · ' + c.coupon.code,
           value: this.brl(c.coupon.amount),
           rowStyle: { ...rowS, borderTop: '1px solid ' + t.bd },
-          valStyle: { ...valS, color: '#1ED760' },
+          valStyle: { ...valS, color: 'var(--aacp-accent, #0f766e)' },
         });
       rows.push({
         label: 'Frete · ' + (c.shipping ? c.shipping.label : '—'),
@@ -1904,7 +2035,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
               iconType === 'crypto'
                 ? t.g1
                 : iconType === 'pix'
-                  ? 'rgba(30,215,96,.16)'
+                  ? 'color-mix(in srgb, var(--aacp-accent, #0f766e) 16%, transparent)'
                   : 'rgba(45,212,255,.14)',
           } as React.CSSProperties,
           icon: this.payIcon(iconType, t),
@@ -2037,7 +2168,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           height: 17,
           viewBox: '0 0 24 24',
           fill: 'none',
-          stroke: '#1ED760',
+          stroke: 'var(--aacp-accent, #0f766e)',
           strokeWidth: 2,
           strokeLinecap: 'round',
           strokeLinejoin: 'round',
@@ -2153,7 +2284,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const cvS: React.CSSProperties = { fontSize: '12.5px', fontWeight: 600, flex: 'none', whiteSpace: 'nowrap' };
     if (c.bundle) cartRows.push({ label: 'Combo · ' + c.bundle.title, value: this.brl(c.bundle.price), valStyle: cvS });
     if (c.coupon)
-      cartRows.push({ label: 'Promoção · ' + c.coupon.code, value: this.brl(c.coupon.amount), valStyle: { ...cvS, color: '#1ED760' } });
+      cartRows.push({ label: 'Promoção · ' + c.coupon.code, value: this.brl(c.coupon.amount), valStyle: { ...cvS, color: 'var(--aacp-accent, #0f766e)' } });
     if (c.shipping)
       cartRows.push({
         label: 'Frete · ' + c.shipping.label,
@@ -2200,6 +2331,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           } as React.CSSProperties),
     }));
 
+    const accent = t.g1;
     const capIcon = (d: string, stroke: string): React.ReactElement =>
       React.createElement(
         'svg',
@@ -2219,18 +2351,18 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const introCaps = [
       {
         label: 'Acho a melhor opção e aplico promoções',
-        tint: 'rgba(30,215,96,.18)',
-        icon: capIcon('M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z', '#1ED760'),
+        tint: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 18%, transparent)',
+        icon: capIcon('M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 14.6 7 18.2l1.9-5.8L4 8.8h6.1z', accent),
       },
       {
         label: 'Coleto seus dados e calculo o frete',
-        tint: 'rgba(45,212,255,.16)',
-        icon: capIcon('M3 7h11v8H3zM14 10h4l3 3v2h-7z', '#22b8cf'),
+        tint: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 14%, transparent)',
+        icon: capIcon('M3 7h11v8H3zM14 10h4l3 3v2h-7z', accent),
       },
       {
         label: 'Pago com Pix, cartão ou crypto',
-        tint: 'rgba(30,215,96,.16)',
-        icon: capIcon('M2 7h20v10H2z M2 11h20', '#1ED760'),
+        tint: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 16%, transparent)',
+        icon: capIcon('M2 7h20v10H2z M2 11h20', accent),
       },
     ];
 
@@ -2299,7 +2431,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       padding: '12px 13px',
       borderRadius: '12px',
       border: '1px solid ' + (active ? t.g1 : t.bd),
-      background: active ? 'rgba(30,215,96,.1)' : t.card,
+      background: active ? 'color-mix(in srgb, var(--aacp-accent, #0f766e) 10%, transparent)' : t.card,
     });
 
     const cust = this.state.customer;
@@ -2381,6 +2513,9 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         '--g1': t.g1,
         '--g2': t.g2,
         '--g3': t.g3,
+        '--aacp-accent': t.g1,
+        '--aacp-accent-2': t.g2,
+        '--aacp-accent-strong': t.g1,
         '--tile1': t.tile1,
         '--tile2': t.tile2,
         position: 'relative',
@@ -2402,12 +2537,15 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       chatLoading: mode === 'loading',
       chatEmpty: mode === 'empty',
       chatFlow: mode === 'flow',
-      showHeader: view !== 'intro' && view !== 'login',
+      showHeader: true,
       headerOrbPlacement: (view === 'chat' && mode === 'empty' ? 'headerEmpty' : 'header') as AgentOrbPlacement,
-      headerTitle: view === 'hub' ? 'Minha conta' : this.agentName + ' · Gerente de vendas',
-      headerSub: view === 'hub' ? 'Pedidos e configurações' : 'Online · ' + this.storeName,
+      headerTitle: view === 'hub' ? 'Minha conta' : this.storeName,
+      headerSub: view === 'hub' ? 'Pedidos e configurações' : this.agentName + ' · Checkout seguro',
       storeName: this.storeName,
       agentName: this.agentName,
+      merchantInitial: this.merchantInitial,
+      merchantLogoUrl: this.merchantLogoUrl,
+      backToStore: this.backToStore,
       introCaps,
 
       chatStyle: {
@@ -2639,6 +2777,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       profileEmail,
       profileInitial: profileName.slice(0, 1).toUpperCase(),
 
+      faceLoginEnabled: this.faceLoginEnabled,
       faceHint: this.state.faceHint,
       faceScanning: this.state.faceStatus === 'scanning',
       faceSuccess: this.state.faceStatus === 'success',
@@ -2648,7 +2787,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       camRef: (el: HTMLVideoElement | null) => {
         this.refs.cam = el;
       },
-      camWrapStyle: { position: 'relative', width: '200px', height: '200px', borderRadius: '50%', flex: 'none' } as React.CSSProperties,
+      camWrapStyle: { position: 'relative', width: 'min(200px, 40vw)', height: 'min(200px, 40vw)', borderRadius: '50%', flex: 'none', margin: '0 auto' } as React.CSSProperties,
       camVideoStyle: {
         position: 'absolute',
         inset: 0,
@@ -2681,10 +2820,14 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         alignItems: 'center',
         justifyContent: 'center',
         gap: '9px',
+        width: '100%',
+        maxWidth: '320px',
+        margin: '0 auto',
         opacity: this.state.faceStatus === 'idle' ? 1 : 0.72,
         minWidth: '210px',
       } as React.CSSProperties,
       startFace: this.startFace,
+      openFaceLogin: this.openFaceLogin,
       skipLogin: this.skipLogin,
 
       phoneStep: this.state.phoneStep,
@@ -2754,21 +2897,29 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       openVoiceShop: this.openVoiceShop,
       stopVoice: this.stopVoice,
 
-      fabVisible: this.supportEnabled && !atLogin && !this.state.supportOpen && !this.state.voiceOpen && !this.state.open,
+      fabVisible: this.supportEnabled && view === 'chat' && !this.state.supportOpen && !this.state.voiceOpen && !this.state.open,
       fabStyle: {
         position: 'absolute',
         right: '16px',
-        bottom: view === 'chat' && mode === 'flow' ? this.peek + 14 + 'px' : '18px',
+        bottom: mode === 'flow' ? this.peek + 14 + 'px' : '18px',
         zIndex: 30,
         width: '52px',
         height: '52px',
+        minWidth: '52px',
+        maxWidth: '52px',
+        aspectRatio: '1 / 1',
         borderRadius: '50%',
         border: 'none',
         cursor: 'pointer',
         background: t.g1,
-        display: 'flex',
+        color: '#fff',
+        display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',
+        flex: 'none',
+        padding: 0,
+        lineHeight: 0,
+        boxSizing: 'border-box',
         animation: 'fabPulse 2.6s ease-out infinite',
       } as React.CSSProperties,
       openSupport: this.openSupport,

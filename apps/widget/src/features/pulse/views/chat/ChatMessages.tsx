@@ -104,7 +104,7 @@ export function ChatMessages({ s }: StageProps) {
 
             {m.isCoupon && (
               <div>
-                <ShimmerBorder radius="16px" innerStyle={{ background: 'rgba(30,215,96,.18)' }}>
+                <ShimmerBorder radius="16px" innerStyle={{ background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 18%, transparent)' }}>
                   <div style={{ position: 'relative', display: 'flex', overflow: 'hidden' }}>
                     <span style={{ position: 'absolute', left: '112px', top: '-7px', width: '14px', height: '14px', borderRadius: '50%', background: 'var(--bg)', transform: 'translateX(-50%)' }} />
                     <span style={{ position: 'absolute', left: '112px', bottom: '-7px', width: '14px', height: '14px', borderRadius: '50%', background: 'var(--bg)', transform: 'translateX(-50%)' }} />
@@ -118,7 +118,7 @@ export function ChatMessages({ s }: StageProps) {
                         alignItems: 'center',
                         justifyContent: 'center',
                         textAlign: 'center',
-                        borderRight: '2px dashed rgba(30,215,96,.45)',
+                        borderRight: '2px dashed color-mix(in srgb, var(--aacp-accent, #0f766e) 45%, transparent)',
                       }}
                     >
                       <span
@@ -126,20 +126,20 @@ export function ChatMessages({ s }: StageProps) {
                           width: '30px',
                           height: '30px',
                           borderRadius: '9px',
-                          background: 'rgba(30,215,96,.2)',
+                          background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 20%, transparent)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           marginBottom: '9px',
                         }}
                       >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1ED760" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent, #0f766e)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M9 11l3 3L22 4" />
                           <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
                         </svg>
                       </span>
                       <div style={{ fontFamily: "'Space Mono',monospace", fontSize: '8px', letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--mut)' }}>Você economiza</div>
-                      <div style={{ fontSize: '19px', fontWeight: 700, color: '#1ED760', letterSpacing: '-.4px', marginTop: '3px', lineHeight: 1 }}>{stateStr(s, 'couponStr')}</div>
+                      <div style={{ fontSize: '19px', fontWeight: 700, color: 'var(--aacp-accent, #0f766e)', letterSpacing: '-.4px', marginTop: '3px', lineHeight: 1 }}>{stateStr(s, 'couponStr')}</div>
                     </div>
                     <div style={{ flex: 1, minWidth: 0, padding: '14px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '9px' }}>
                       <div style={{ fontSize: '13px', fontWeight: 600, lineHeight: 1.35 }}>Consegui uma promoção pra você</div>
@@ -150,11 +150,11 @@ export function ChatMessages({ s }: StageProps) {
                             fontSize: '11px',
                             fontWeight: 700,
                             letterSpacing: '1.5px',
-                            color: '#1ED760',
-                            border: '1px dashed rgba(30,215,96,.55)',
+                            color: 'var(--aacp-accent, #0f766e)',
+                            border: '1px dashed color-mix(in srgb, var(--aacp-accent, #0f766e) 55%, transparent)',
                             borderRadius: '7px',
                             padding: '4px 9px',
-                            background: 'rgba(30,215,96,.08)',
+                            background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 8%, transparent)',
                           }}
                         >
                           {stateStr(s, 'couponCode')}
@@ -178,8 +178,8 @@ export function ChatMessages({ s }: StageProps) {
                       marginTop: '10px',
                       padding: '11px 13px',
                       borderRadius: '12px',
-                      background: 'rgba(30,215,96,.08)',
-                      border: '1px solid rgba(30,215,96,.22)',
+                      background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 8%, transparent)',
+                      border: '1px solid color-mix(in srgb, var(--aacp-accent, #0f766e) 22%, transparent)',
                       textAlign: 'left',
                     }}
                   >
@@ -188,7 +188,7 @@ export function ChatMessages({ s }: StageProps) {
                         fontFamily: "'Space Mono',monospace",
                         fontSize: '13px',
                         fontWeight: 700,
-                        color: '#1ED760',
+                        color: 'var(--aacp-accent, #0f766e)',
                         flex: 'none',
                         minWidth: '42px',
                       }}
@@ -197,7 +197,7 @@ export function ChatMessages({ s }: StageProps) {
                     </span>
                     <span style={{ fontSize: '11.5px', color: 'var(--tx)', lineHeight: 1.45 }}>
                       Se você finalizar dentro do tempo, ganha mais{' '}
-                      <strong style={{ color: '#1ED760' }}>{stateStr(s, 'couponBonusStr')}</strong> ({stateStr(s, 'couponBonusPercent')}% extra).
+                      <strong style={{ color: 'var(--aacp-accent, #0f766e)' }}>{stateStr(s, 'couponBonusStr')}</strong> ({stateStr(s, 'couponBonusPercent')}% extra).
                     </span>
                   </div>
                 )}
@@ -462,14 +462,14 @@ export function ChatMessages({ s }: StageProps) {
                   </div>
                 </div>
                 {stateStr(s, 'pixCopyPaste') && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginTop: '13px', padding: '10px 12px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)' }}>
-                    <span style={{ flex: 1, minWidth: 0, fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: 'var(--mut)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '9px', marginTop: '13px', padding: '10px 12px', borderRadius: '11px', border: '1px solid var(--bd)', background: 'var(--chip)' }}>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: "'Space Mono',monospace", fontSize: '10.5px', color: 'var(--mut)', wordBreak: 'break-all', lineHeight: 1.4 }}>
                       {stateStr(s, 'pixCopyPaste')}
                     </span>
                     <button
                       type="button"
                       onClick={() => { void navigator.clipboard.writeText(stateStr(s, 'pixCopyPaste')); }}
-                      style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--g2)', flex: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}
+                      style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--g2)', flex: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 0 0', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
                     >
                       Copiar
                     </button>
@@ -486,7 +486,7 @@ export function ChatMessages({ s }: StageProps) {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '10.5px', color: 'var(--mut)', marginTop: '9px' }}>
                   {stateStr(s, 'pixStatus') === 'paid' ? (
                     <>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#1ED760' }} />
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--aacp-accent, #0f766e)' }} />
                       Pagamento confirmado
                     </>
                   ) : stateStr(s, 'pixStatus') === 'failed' ? (
@@ -599,7 +599,7 @@ export function ChatMessages({ s }: StageProps) {
                         width: '26px',
                         height: '26px',
                         borderRadius: '50%',
-                        background: '#1ED760',
+                        background: 'var(--aacp-accent, #0f766e)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -645,7 +645,7 @@ export function ChatMessages({ s }: StageProps) {
                     fontSize: '12.5px',
                     fontWeight: 700,
                     color: '#fff',
-                    background: mmStatus === 'submitted' ? '#1ED760' : mmStatus === 'error' ? '#ff4c6c' : '#f6851b',
+                    background: mmStatus === 'submitted' ? 'var(--aacp-accent, #0f766e)' : mmStatus === 'error' ? '#ff4c6c' : '#f6851b',
                     opacity: mmStatus === 'connecting' || mmStatus === 'approving' || mmStatus === 'burning' ? 0.72 : 1,
                     transition: 'background .2s, opacity .2s',
                   }}
@@ -671,7 +671,7 @@ export function ChatMessages({ s }: StageProps) {
 
                 {/* Submitted: show tx hash */}
                 {mmStatus === 'submitted' && mmTxHash && (
-                  <div style={{ marginTop: '8px', padding: '9px 11px', borderRadius: '10px', background: 'rgba(30,215,96,.1)', border: '1px solid rgba(30,215,96,.25)' }}>
+                  <div style={{ marginTop: '8px', padding: '9px 11px', borderRadius: '10px', background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 10%, transparent)', border: '1px solid color-mix(in srgb, var(--aacp-accent, #0f766e) 25%, transparent)' }}>
                     <div style={{ fontFamily: "'Space Mono',monospace", fontSize: '9px', letterSpacing: '.5px', textTransform: 'uppercase', color: 'var(--g2)', marginBottom: '3px' }}>
                       TX · Base
                     </div>
@@ -773,7 +773,7 @@ export function ChatMessages({ s }: StageProps) {
                   </div>
                 )}
                 {m.isCrypto && (
-                  <div style={{ marginTop: '12px', padding: '13px', borderRadius: '13px', background: 'rgba(30,215,96,.16)', border: '1px solid var(--g1)' }}>
+                  <div style={{ marginTop: '12px', padding: '13px', borderRadius: '13px', background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 16%, transparent)', border: '1px solid var(--g1)' }}>
                     <div style={{ fontFamily: "'Space Mono',monospace", fontSize: '9px', letterSpacing: '1px', textTransform: 'uppercase', color: 'var(--g2)' }}>Cashback liberado</div>
                     <div style={{ fontSize: '22px', fontWeight: 700, marginTop: '3px' }}>
                       {m.cashbackUsdc} <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--mut)' }}>USDC</span>
