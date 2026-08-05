@@ -82,6 +82,37 @@ Includes HEALTHCHECK on `/ready` endpoint.
 
 OpenAPI/Swagger available at `/docs` (dev/staging only, hidden in production).
 
+## API Keys & Scopes
+
+Merchants create API keys via `POST /integrations/api-keys` (requires auth).
+
+Available scopes:
+
+| Scope | Access |
+|-------|--------|
+| `checkout:read` | Read checkout sessions |
+| `checkout:write` | Start/track checkout sessions |
+| `orders:read` | List/view orders |
+| `orders:write` | Create/update orders |
+| `customers:read` | List/view customers |
+| `catalog:read` | Search product catalog |
+| `configuration:read` | Read merchant config |
+| `configuration:write` | Update merchant config |
+| `embed:sessions:create` | Create embed session tokens |
+| `tracking:read` | Read shipment tracking |
+| `tracking:write` | Update tracking info |
+| `commerce:read` | Read commerce connections |
+| `commerce:write` | Manage commerce connections |
+| `payments:read` | View payment history |
+| `support:read` | Read support tickets |
+| `support:write` | Create/update tickets |
+| `webhooks:read` | List webhook endpoints |
+| `webhooks:write` | Manage webhook endpoints |
+| `audit:read` | View audit events |
+
+Keys are prefixed with `aacp_test_` (test) or `aacp_live_` (production).
+Pass via header: `x-aacp-api-key: aacp_test_xxx`
+
 ## Health Endpoints
 
 - `GET /health` — liveness (always 200)
