@@ -36,9 +36,6 @@ COPY packages/decision-engine/package.json   packages/decision-engine/package.js
 COPY packages/negotiation-engine/package.json packages/negotiation-engine/package.json
 COPY packages/rules-engine/package.json      packages/rules-engine/package.json
 COPY packages/shipping-engine/package.json   packages/shipping-engine/package.json
-COPY packages/discovery-engine/package.json  packages/discovery-engine/package.json
-COPY packages/learning-engine/package.json   packages/learning-engine/package.json
-COPY packages/recomendation-engine/package.json packages/recomendation-engine/package.json
 COPY packages/agentic-checkout-js/package.json packages/agentic-checkout-js/package.json
 COPY apps/api/package.json                   apps/api/package.json
 COPY apps/widget/package.json                apps/widget/package.json
@@ -112,6 +109,9 @@ COPY --from=builder --chown=node:node /repo/pnpm-lock.yaml          /repo/pnpm-l
 COPY --from=builder --chown=node:node /repo/tsconfig.base.json       /repo/tsconfig.base.json
 
 EXPOSE 3001
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=30s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:3001/ready || exit 1
 
 # Use exec form so SIGTERM propagates to the Node process.
 CMD ["node", "dist/main.js"]

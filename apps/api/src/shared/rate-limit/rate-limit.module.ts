@@ -2,6 +2,7 @@ import { Global, Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { RateLimitGuard, RATE_LIMIT_OPTIONS } from "./rate-limit.guard.js";
 import { RateLimitStore } from "./rate-limit.store.js";
+import { RedisRateLimitStore } from "./redis-rate-limit.store.js";
 import { resolveRateLimitOptions } from "./rate-limit.options.js";
 
 /**
@@ -22,7 +23,7 @@ import { resolveRateLimitOptions } from "./rate-limit.options.js";
 @Global()
 @Module({
   providers: [
-    RateLimitStore,
+    { provide: RateLimitStore, useClass: RedisRateLimitStore },
     {
       provide: RATE_LIMIT_OPTIONS,
       useFactory: () => resolveRateLimitOptions(),

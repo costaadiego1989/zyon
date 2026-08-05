@@ -1,13 +1,15 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
 
 export type ReadinessResult =
-  | { ready: true; db: "connected" }
-  | { ready: false; db: "disconnected" };
+  | { ready: true; db: "connected"; redis: "connected" | "not_configured" }
+  | { ready: false; db: "connected" | "disconnected"; redis: "connected" | "disconnected" | "not_configured" };
 
 @Injectable()
 export class HealthService {
+  private readonly logger = new Logger(HealthService.name);
+
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient
   ) {}
@@ -17,11 +19,42 @@ export class HealthService {
   }
 
   async readiness(): Promise<ReadinessResult> {
+    const [dbOk, redisStatus] = await Promise.all([
+      this.checkDb(),
+      this.checkRedis(),
+    ]);
+
+    const ready = dbOk && (redisStatus === "connected" || redisStatus === "not_configured");
+    return {
+      ready,
+      db: dbOk ? "connected" : "disconnected",
+      redis: redisStatus,
+    } as ReadinessResult;
+  }
+
+  private async checkDb(): Promise<boolean> {
     try {
       await this.prisma.$queryRaw`SELECT 1`;
-      return { ready: true, db: "connected" };
+      return true;
     } catch {
-      return { ready: false, db: "disconnected" };
+      return false;
+    }
+  }
+
+  private async checkRedis(): Promise<"connected" | "disconnected" | "not_configured"> {
+    const redisUrl = process.env.REDIS_URL?.trim();
+    if (!redisUrl) return "not_configured";
+
+    try {
+      const { default: Redis } = await import("ioredis");
+      const client = new Redis(redisUrl, { connectTimeout: 2000, maxRetriesPerRequest: 0, lazyConnect: true });
+      await client.connect();
+      await client.ping();
+      await client.quit();
+      return "connected";
+    } catch (err) {
+      this.logger.warn(`Redis health check failed: ${(err as Error).message}`);
+      return "disconnected";
     }
   }
 }

@@ -1,9 +1,13 @@
+import { initTracing } from "./shared/observability/tracing.js";
+initTracing();
+
 import "reflect-metadata";
 import { config as loadDotenv } from "dotenv";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { json, urlencoded } from "express";
 import { ValidationPipe } from "@nestjs/common";
-import { NestFactory } from "@nestjs/core";
+import { NestFactory, Reflector } from "@nestjs/core";
 import { AppModule } from "./app.module.js";
 import { E2eAppModule } from "./e2e-app.module.js";
 import { resolveCorsConfig } from "./shared/config/cors-config.js";
@@ -32,6 +36,8 @@ async function bootstrap() {
   const app = await NestFactory.create(rootModule, { rawBody: true });
   configureTrustProxy(app);
   app.enableCors(resolveCorsConfig());
+  app.use(json({ limit: "1mb" }));
+  app.use(urlencoded({ extended: true, limit: "1mb" }));
   app.use(apiVersioningMiddleware);
 
   const securityHeaders = resolveSecurityHeaders();
@@ -49,7 +55,12 @@ async function bootstrap() {
       transform: true,
     })
   );
-  configureApiDocumentation(app);
+  app.useGlobalInterceptors(new (await import("./shared/http/request-timeout.interceptor.js")).RequestTimeoutInterceptor(app.get(Reflector)));
+  if (process.env.NODE_ENV !== "production" || process.env.ENABLE_DOCS === "true") {
+    configureApiDocumentation(app);
+  }
+
+  app.enableShutdownHooks();
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
