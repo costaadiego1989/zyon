@@ -39,12 +39,42 @@ plugins/zyon-woocommerce-checkout/
 - `POST /wp-json/zyon/v1/webhook` — receives `order.paid` / `order.cancelled` from Zyon
 - HMAC signature verified via `x-zyon-signature` header
 
+## Development Mode
+
+For local development with HTTP URLs (localhost), add to `wp-config.php`:
+
+```php
+define('ZYON_DEV_MODE', true);
+```
+
+This allows:
+- `http://` URLs in settings (production requires `https://`)
+- `http://localhost:*` and `http://host.docker.internal:*` accepted
+- Dev embed token auto-generated when API token fetch fails
+
+**Never enable in production.**
+
+## Graceful Fallback
+
+If the Zyon API is unreachable (circuit breaker open, token fetch fails):
+- Plugin falls back to native WooCommerce checkout automatically
+- No blank pages — buyers can always complete their purchase
+- Warning logged to WooCommerce logs (`WooCommerce > Status > Logs > zyon-checkout`)
+
+## Token Caching
+
+Embed session tokens are cached for 12 minutes (WordPress transient).
+Token TTL from API = 15 minutes. Plugin refreshes 3 min before expiry.
+This eliminates per-page-load API calls (~200-500ms saved per checkout view).
+
 ## Testing
 
 ```bash
 composer install
-vendor/bin/phpunit
+WP_TESTS_DIR=/tmp/wordpress-tests-lib vendor/bin/phpunit
 ```
+
+Test suite covers: activation, settings, embed rendering, webhook HMAC, order sync, cart sync, HTTP client (retry + circuit breaker), full integration flow.
 
 ## License
 

@@ -39,12 +39,23 @@ class CheckoutEmbed {
             return;
         }
 
+        if (!$this->is_configured()) {
+            // Not configured — let WooCommerce render native checkout
+            return;
+        }
+
+        $markup = $this->widget_markup();
+        if ($markup === null) {
+            // Token fetch failed (API down) — graceful fallback to native checkout
+            return;
+        }
+
         status_header(200);
         nocache_headers();
         echo '<!doctype html><html ' . get_language_attributes() . '><head><meta charset="' . esc_attr(get_bloginfo('charset')) . '"><meta name="viewport" content="width=device-width,initial-scale=1">';
         wp_head();
         echo '</head><body class="zyon-checkout-body">';
-        echo $this->is_configured() ? $this->widget_markup() : $this->admin_notice_markup();
+        echo $markup;
         wp_footer();
         echo '</body></html>';
         exit;
@@ -59,16 +70,23 @@ class CheckoutEmbed {
             return $content . $this->admin_notice_markup();
         }
 
-        return $this->widget_markup();
+        $markup = $this->widget_markup();
+        return $markup ?? $content; // Fallback to native checkout if token unavailable
     }
 
-    private function widget_markup(): string {
+    private function widget_markup(): ?string {
         $merchant_id = trim((string) get_option('zyon_merchant_id', ''));
         $api_key = (string) get_option('zyon_api_key', '');
         $api_url = $this->server_api_url();
         $browser_api_url = $this->browser_api_url();
         $token_service = new EmbedToken($api_url, $api_key, $merchant_id);
         $embed_token = $token_service->fetch() ?? $this->dev_embed_token($merchant_id);
+
+        // If no token available (API down + not in dev mode), signal fallback
+        if (!$embed_token) {
+            $this->log_fallback('Embed token unavailable — falling back to native WooCommerce checkout.');
+            return null;
+        }
         $store_name = get_bloginfo('name') ?: 'Loja';
         $logo_url = $this->store_logo_url();
         $accent_color = $this->accent_color();
@@ -232,6 +250,14 @@ class CheckoutEmbed {
             'price' => $price,
             'quantity' => $quantity,
         ];
+    }
+
+    private function log_fallback(string $message): void {
+        if (function_exists('wc_get_logger')) {
+            wc_get_logger()->warning('[Zyon] ' . $message, ['source' => 'zyon-checkout']);
+            return;
+        }
+        error_log('[Zyon] ' . $message);
     }
 
     private function takeover_css(): string {

@@ -15,12 +15,22 @@ class EmbedToken {
         $this->merchant_id = trim((string) ($merchant_id ?? get_option('zyon_merchant_id', '')));
     }
 
+    private const CACHE_KEY = 'zyon_embed_token';
+    private const CACHE_TTL = 720; // 12 minutes (token TTL = 15min, refresh 3min before expiry)
+
     /**
      * Request a new embed session token from Zyon API.
+     * Caches for 12 minutes to avoid per-page-load API calls.
      */
     public function fetch(): ?string {
         if (!$this->has_required_config()) {
             return null;
+        }
+
+        // Return cached token if still valid
+        $cached = get_transient(self::CACHE_KEY);
+        if (is_string($cached) && $cached !== '') {
+            return $cached;
         }
 
         $result = HttpClient::post($this->endpoint(), $this->headers(), $this->body());
@@ -31,7 +41,13 @@ class EmbedToken {
         }
 
         $body = json_decode((string) $result['body'], true);
-        return is_array($body) ? ($body['embed_session_token'] ?? null) : null;
+        $token = is_array($body) ? ($body['embed_session_token'] ?? null) : null;
+
+        if ($token) {
+            set_transient(self::CACHE_KEY, $token, self::CACHE_TTL);
+        }
+
+        return $token;
     }
 
     private function has_required_config(): bool {
