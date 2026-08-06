@@ -936,7 +936,20 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
           };
           loop();
         })
-        .catch(() => {});
+        .catch((err: Error) => {
+          const denied = err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError';
+          this.setState({
+            voiceOpen: false,
+            voiceStatus: 'idle',
+            voiceTranscript: denied
+              ? 'Microfone não permitido. Ative nas configurações do navegador.'
+              : 'Microfone indisponível neste dispositivo.',
+          });
+          this.push({ role: 'agent', text: denied
+            ? 'Não consegui acessar o microfone. Verifique as permissões do navegador e tente novamente — ou continue por texto.'
+            : 'Microfone indisponível. Continue pelo chat de texto.', kind: 'text'
+          });
+        });
     } catch {
       /* noop */
     }

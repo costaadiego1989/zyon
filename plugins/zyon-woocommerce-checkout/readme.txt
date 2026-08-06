@@ -50,6 +50,22 @@ Only when `ZYON_DEV_MODE` is defined. Production settings require `https://` URL
 
 The plugin handles paid, cancelled, shipped, and tracking update order events from Zyon.
 
+== Compatibility ==
+
+= Tested environments =
+
+| WordPress | WooCommerce | PHP  | Status |
+|-----------|------------|------|--------|
+| 6.4+      | 8.5+       | 8.1+ | ✅ Full support |
+| 6.0–6.3   | 7.0–8.4    | 7.4+ | ✅ Compatible (legacy block checkout may need classic shortcode) |
+| 5.x       | < 7.0      | < 7.4 | ❌ Not supported |
+
+= Block-based vs Classic checkout =
+
+The plugin supports both WooCommerce block-based checkout and classic shortcode checkout.
+In block-based mode, it intercepts `template_redirect` to serve a full-page takeover.
+In classic mode, it filters `the_content` on cart/checkout pages.
+
 == Changelog ==
 
 = 1.0.0 =
