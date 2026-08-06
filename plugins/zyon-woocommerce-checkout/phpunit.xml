@@ -8,6 +8,9 @@
       <file>tests/test-checkout-embed.php</file>
       <file>tests/test-webhook-handler.php</file>
       <file>tests/test-order-sync.php</file>
+      <file>tests/test-cart-sync.php</file>
+      <file>tests/test-http-client.php</file>
+      <file>tests/test-integration-flow.php</file>
     </testsuite>
   </testsuites>
   <coverage processUncoveredFiles="true" pathCoverage="false">
