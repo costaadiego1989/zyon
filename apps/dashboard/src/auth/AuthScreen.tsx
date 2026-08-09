@@ -1,5 +1,5 @@
 import React from "react";
-import { KeyRound, UserPlus } from "lucide-react";
+import { KeyRound, UserPlus, Github } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
 import "./auth-screen.css";
 
@@ -28,64 +28,27 @@ export function AuthScreen(props: AuthScreenProps) {
   const isSignup = mode === "signup";
   return (
     <main className="auth-shell">
-      <section className="auth-hero" aria-label="AACP">
-        <div className="auth-hero__glow auth-hero__glow--top" />
-        <div className="auth-hero__glow auth-hero__glow--bottom" />
-        <div className="auth-hero__content">
-          <div className="auth-hero__brand">
-            <div className="auth-hero__logo">Z</div>
-            <div>
-              <div className="auth-hero__brand-name">Zyon Console</div>
-              <div className="auth-hero__brand-sub">Merchant Platform</div>
-            </div>
-          </div>
-          <h1 className="auth-hero__title">
-            Controle operacional para vender, integrar e acompanhar pedidos.
-          </h1>
-          <p className="auth-hero__subtitle">
-            Checkout agêntico com IA que negocia, oferece e converte — tudo em um painel unificado.
-          </p>
-          <div className="auth-hero__pills">
-            {["Webhooks assinados", "Tracking por API", "Embed seguro", "Multi-gateway"].map(item => (
-              <span key={item} className="auth-hero__pill">{item}</span>
-            ))}
-          </div>
-          <div className="auth-hero__trust">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true"><path d="M12 2l8 3v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5l8-3z" /></svg>
-            Dados criptografados em trânsito e repouso · SOC 2 em andamento
-          </div>
-        </div>
-      </section>
+      {/* Left: Form */}
+      <section className="auth-form-panel">
+        <header className="auth-header">
+          <div className="auth-header__logo">Z</div>
+          <div className="auth-header__sep" />
+          <span className="auth-header__label">AI Checkout Sales Agent</span>
+        </header>
 
-      <section className="auth-panel" aria-label={mode === "login" ? "Entrar" : "Criar conta"}>
-        <div className="auth-panel__inner">
-          <div className="auth-tabs" role="tablist" aria-label="Acesso">
-            <button
-              type="button"
-              onClick={() => props.setMode("login")}
-              className={`auth-tabs__btn ${mode === "login" ? "auth-tabs__btn--active" : ""}`}
-              role="tab"
-              aria-selected={mode === "login"}
-            >
-              <KeyRound size={14} /> Entrar
+        <div className="auth-form-container">
+          <div className="auth-tabs" role="tablist">
+            <button type="button" onClick={() => props.setMode("login")} className={`auth-tabs__btn ${mode === "login" ? "auth-tabs__btn--active" : ""}`} role="tab" aria-selected={mode === "login"}>
+              Entrar
             </button>
-            <button
-              type="button"
-              onClick={() => props.setMode("signup")}
-              className={`auth-tabs__btn ${mode === "signup" ? "auth-tabs__btn--active" : ""}`}
-              role="tab"
-              aria-selected={mode === "signup"}
-            >
-              <UserPlus size={14} /> Criar conta
+            <button type="button" onClick={() => props.setMode("signup")} className={`auth-tabs__btn ${mode === "signup" || mode === "forgot" ? "auth-tabs__btn--active" : ""}`} role="tab" aria-selected={isSignup}>
+              Criar conta
             </button>
           </div>
 
-          <div className="auth-panel__form-area">
+          <div className="auth-form-area">
             {mode === "forgot" ? (
-              <ForgotPasswordForm
-                apiBaseUrl={props.apiBaseUrl}
-                onBack={() => props.setMode("login")}
-              />
+              <ForgotPasswordForm apiBaseUrl={props.apiBaseUrl} onBack={() => props.setMode("login")} />
             ) : isSignup ? (
               <SignupWizard
                 busy={props.busy}
@@ -99,14 +62,47 @@ export function AuthScreen(props: AuthScreenProps) {
               <LoginForm {...props} />
             )}
           </div>
+        </div>
+      </section>
 
-          <footer className="auth-footer">
-            <span>© 2026 Zyon</span>
-            <span className="auth-footer__dot">·</span>
-            <a href="#" className="auth-footer__link">Docs</a>
-            <span className="auth-footer__dot">·</span>
-            <a href="#" className="auth-footer__link">Status</a>
-          </footer>
+      {/* Right: Hero */}
+      <section className="auth-hero" aria-label="AACP Marketing">
+        <div className="auth-hero__glow auth-hero__glow--top" />
+        <div className="auth-hero__glow auth-hero__glow--mid" />
+        <div className="auth-hero__glow auth-hero__glow--bottom" />
+        <div className="auth-hero__content">
+          <div className="auth-hero__testimonial">
+            <div className="auth-hero__avatar">A</div>
+            <div>
+              <div className="auth-hero__author">Ana Rodrigues</div>
+              <div className="auth-hero__role">Head of E-commerce · Loja Aurora</div>
+            </div>
+          </div>
+          <blockquote className="auth-hero__quote">
+            "Nosso checkout converteu 34% mais no primeiro mês. O agente negocia de forma natural e os clientes confiam."
+          </blockquote>
+          <div className="auth-hero__mockup">
+            <div className="auth-hero__mockup-bar">
+              <span className="auth-hero__mockup-dot" />
+              <span className="auth-hero__mockup-dot" />
+              <span className="auth-hero__mockup-dot" />
+              <span className="auth-hero__mockup-url">console.zyon.ai/dashboard</span>
+            </div>
+            <div className="auth-hero__mockup-body">
+              <div className="auth-hero__mockup-stat">
+                <span className="auth-hero__mockup-stat-value">+34%</span>
+                <span className="auth-hero__mockup-stat-label">Conversão</span>
+              </div>
+              <div className="auth-hero__mockup-stat">
+                <span className="auth-hero__mockup-stat-value">2.4s</span>
+                <span className="auth-hero__mockup-stat-label">Tempo médio</span>
+              </div>
+              <div className="auth-hero__mockup-stat">
+                <span className="auth-hero__mockup-stat-value">98%</span>
+                <span className="auth-hero__mockup-stat-label">Satisfação</span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -117,44 +113,45 @@ function LoginForm(props: AuthScreenProps) {
   return (
     <form onSubmit={props.onSubmit} className="auth-form">
       <div className="auth-form__header">
-        <span className="auth-form__kicker">Sessão merchant</span>
         <h2 className="auth-form__title">Acesse seu painel</h2>
+        <p className="auth-form__subtitle">Gerencie checkout, pedidos e integrações.</p>
       </div>
+
+      <div className="auth-social">
+        <button type="button" className="auth-social__btn">
+          <GoogleIcon />
+          <span>Google</span>
+        </button>
+        <button type="button" className="auth-social__btn">
+          <Github size={16} />
+          <span>GitHub</span>
+        </button>
+      </div>
+
+      <div className="auth-divider">
+        <span>ou</span>
+      </div>
+
       <div className="auth-field">
         <label className="auth-field__label">Email</label>
-        <input
-          type="email"
-          value={props.email}
-          onChange={(e) => props.setEmail(e.target.value)}
-          autoComplete="username"
-          placeholder="owner@loja.com"
-          required
-          className="auth-field__input"
-        />
+        <input type="email" value={props.email} onChange={(e) => props.setEmail(e.target.value)} autoComplete="username" placeholder="owner@loja.com" required className="auth-field__input" />
       </div>
+
       <div className="auth-field">
         <div className="auth-field__label-row">
           <label className="auth-field__label">Senha</label>
-          <button type="button" onClick={() => props.setMode("forgot")} className="auth-field__forgot">
-            Esqueceu a senha?
-          </button>
+          <button type="button" onClick={() => props.setMode("forgot")} className="auth-field__link">Esqueceu?</button>
         </div>
-        <input
-          type="password"
-          value={props.password}
-          onChange={(e) => props.setPassword(e.target.value)}
-          autoComplete="current-password"
-          placeholder="••••••••"
-          minLength={4}
-          required
-          className="auth-field__input"
-        />
+        <input type="password" value={props.password} onChange={(e) => props.setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" minLength={4} required className="auth-field__input" />
       </div>
+
       {props.hint ? <div className="auth-hint">{props.hint}</div> : null}
+
       <button type="submit" disabled={props.busy} className="auth-cta">
-        <KeyRound size={15} />
         {props.busy ? "Aguarde..." : "Entrar"}
       </button>
+
+      <p className="auth-switch">Não tem conta? <button type="button" onClick={() => props.setMode("signup")} className="auth-switch__link">Criar conta</button></p>
     </form>
   );
 }
@@ -171,34 +168,18 @@ function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBac
     setError(null);
     try {
       const base = (apiBaseUrl || "http://localhost:3009").replace(/\/$/, "");
-      const res = await fetch(`${base}/auth/forgot-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-        throw new Error((body.detail as string) || "Erro ao enviar email");
-      }
+      const res = await fetch(`${base}/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      if (!res.ok) { const body = await res.json().catch(() => ({})) as Record<string, unknown>; throw new Error((body.detail as string) || "Erro ao enviar email"); }
       setSent(true);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setBusy(false);
-    }
+    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
   };
 
   if (sent) {
     return (
-      <div className="auth-form" style={{ alignItems: "center", textAlign: "center" }}>
-        <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="oklch(74% 0.19 149)" strokeWidth="1.5" aria-hidden="true"><path d="M22 12h-6l-2 3H10l-2-3H2" /><path d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z" /></svg>
+      <div className="auth-form" style={{ textAlign: "center" }}>
         <h2 className="auth-form__title">Email enviado!</h2>
-        <p className="auth-hero__subtitle" style={{ marginBottom: 0 }}>
-          Se o email estiver cadastrado, você receberá um link para redefinir sua senha.
-        </p>
-        <button type="button" onClick={onBack} className="auth-field__forgot" style={{ marginTop: 12 }}>
-          ← Voltar ao login
-        </button>
+        <p className="auth-form__subtitle">Se o email estiver cadastrado, você receberá um link para redefinir sua senha.</p>
+        <button type="button" onClick={onBack} className="auth-switch__link" style={{ marginTop: 16 }}>← Voltar ao login</button>
       </div>
     );
   }
@@ -206,23 +187,27 @@ function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBac
   return (
     <form onSubmit={handleSubmit} className="auth-form">
       <div className="auth-form__header">
-        <span className="auth-form__kicker">Recuperação</span>
         <h2 className="auth-form__title">Redefinir senha</h2>
+        <p className="auth-form__subtitle">Informe o email cadastrado e enviaremos um link.</p>
       </div>
-      <p className="auth-hero__subtitle" style={{ marginBottom: 0 }}>
-        Informe o email cadastrado e enviaremos um link para criar uma nova senha.
-      </p>
       <div className="auth-field">
         <label className="auth-field__label">Email</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="owner@loja.com" required className="auth-field__input" />
       </div>
       {error ? <div className="auth-hint">{error}</div> : null}
-      <button type="submit" disabled={busy} className="auth-cta">
-        {busy ? "Enviando..." : "Enviar link de redefinição"}
-      </button>
-      <button type="button" onClick={onBack} className="auth-field__forgot" style={{ textAlign: "center", width: "100%" }}>
-        ← Voltar ao login
-      </button>
+      <button type="submit" disabled={busy} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
+      <button type="button" onClick={onBack} className="auth-switch__link" style={{ textAlign: "center", width: "100%", marginTop: 8 }}>← Voltar ao login</button>
     </form>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" fill="#34A853" />
+      <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84Z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" fill="#EB4335" />
+    </svg>
   );
 }
