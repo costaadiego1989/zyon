@@ -1,5 +1,5 @@
 import {
-  BarChart3,
+  Activity,
   Bot,
   Code2,
   CreditCard,
@@ -39,7 +39,7 @@ export type TabKey =
 
 export const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: LucideIcon }> = [
   { key: "onboarding", label: "Primeiros passos", section: "Começar", icon: Rocket },
-  { key: "overview", label: "Operação", section: "Hoje", icon: BarChart3 },
+  { key: "overview", label: "Operação", section: "Hoje", icon: Activity },
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
   { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook },

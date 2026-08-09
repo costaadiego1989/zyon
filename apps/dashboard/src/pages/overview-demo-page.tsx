@@ -554,20 +554,10 @@ export function OverviewDemoPage(props: {
             <div style={{ font: "600 14px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em" }}>Insights do agente</div>
             <span style={{ font: "11px var(--sans)", color: "var(--faint)" }}>gerados automaticamente</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {[
-              { tag: "CONVERSÃO", text: "Taxa de conversão subiu 12% nos últimos 7 dias comparado ao período anterior.", color: "var(--good)" },
-              { tag: "FRETE", text: "63% dos compradores escolhem o frete mais barato quando apresentado pelo agente.", color: "var(--accent-dark)" },
-              { tag: "ABANDONO", text: "Cupons com 10% de desconto recuperam 28% dos carrinhos abandonados.", color: "var(--warn)" },
-            ].map((ins, i) => (
-              <div key={i} style={{ display: "flex", gap: 12 }}>
-                <div style={{ font: "500 20px var(--serif)", color: "var(--faint)", flex: "none", width: 18 }}>{i + 1}</div>
-                <div style={{ minWidth: 0 }}>
-                  <span style={{ font: "600 10px var(--sans)", letterSpacing: "0.05em", padding: "3px 7px", borderRadius: 5, background: ins.color === "var(--good)" ? "var(--good-soft)" : ins.color === "var(--warn)" ? "var(--warn-soft)" : "var(--accent-soft)", color: ins.color }}>{ins.tag}</span>
-                  <div style={{ font: "12.5px/1.5 var(--sans)", color: "var(--ink)", marginTop: 6 }}>{ins.text}</div>
-                </div>
-              </div>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", gap: 10 }}>
+            <div style={{ font: "13px var(--sans)", color: "var(--muted)", textAlign: "center", lineHeight: 1.5 }}>
+              Insights aparecerão aqui quando houver dados suficientes de sessões e conversões.
+            </div>
           </div>
         </div>
       </div>
