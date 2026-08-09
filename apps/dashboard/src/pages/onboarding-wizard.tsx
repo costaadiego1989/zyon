@@ -638,6 +638,7 @@ export function OnboardingWizard(props: {
                 me={props.me}
                 className="onb-preview-live"
                 hideControls
+                presentation="conversational"
               />
             </div>
           </aside>
