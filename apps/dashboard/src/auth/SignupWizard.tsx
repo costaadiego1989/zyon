@@ -2,6 +2,38 @@ import React, { useMemo, useState } from "react";
 import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound } from "lucide-react";
 import { friendlyAuthError } from "./auth-error.js";
 
+function maskCNPJ(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 14);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 5) return `${digits.slice(0, 2)}.${digits.slice(2)}`;
+  if (digits.length <= 8) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5)}`;
+  if (digits.length <= 12) return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8)}`;
+  return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+}
+
+function validateCNPJ(value: string): boolean {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 14) return false;
+  if (/^(\d)\1{13}$/.test(digits)) return false;
+
+  const calc = (slice: string, weights: number[]): number => {
+    const sum = slice.split("").reduce((acc, d, i) => acc + Number(d) * weights[i], 0);
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+
+  const w1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+  const w2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+
+  const d1 = calc(digits.slice(0, 12), w1);
+  if (Number(digits[12]) !== d1) return false;
+
+  const d2 = calc(digits.slice(0, 13), w2);
+  if (Number(digits[13]) !== d2) return false;
+
+  return true;
+}
+
 const SEGMENTS = ["Moda", "Eletrônicos", "Alimentos", "Cosméticos", "Serviços", "Outro"] as const;
 const VOLUMES = ["Até 50 pedidos", "50–500 pedidos", "500+ pedidos"] as const;
 const ROLES = ["Proprietário(a)", "CEO / Diretor(a)", "Gerente", "Desenvolvedor(a)", "Marketing", "Outro"] as const;
@@ -62,6 +94,7 @@ export function SignupWizard(props: SignupWizardProps) {
     if (step === 2) {
       if (!business.name.trim()) { setError("Informe o nome da loja."); return; }
       if (!business.taxId.trim()) { setError("Informe o CNPJ."); return; }
+      if (!validateCNPJ(business.taxId)) { setError("CNPJ inválido. Verifique os dígitos."); return; }
       setStep(3);
       return;
     }
@@ -220,7 +253,13 @@ function BusinessFields({ draft, onChange }: { draft: BusinessDraft; onChange: (
       </div>
       <div className="auth-field">
         <label className="auth-field__label">CNPJ</label>
-        <input value={draft.taxId} onChange={(e) => onChange({ ...draft, taxId: e.target.value })} placeholder="00.000.000/0000-00" className="auth-field__input" />
+        <input
+          value={draft.taxId}
+          onChange={(e) => onChange({ ...draft, taxId: maskCNPJ(e.target.value) })}
+          placeholder="00.000.000/0000-00"
+          maxLength={18}
+          className="auth-field__input"
+        />
       </div>
     </>
   );
