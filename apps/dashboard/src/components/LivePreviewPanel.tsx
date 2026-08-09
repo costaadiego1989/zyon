@@ -121,23 +121,7 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
     }, [token, apiBase, bundleBase, presentation]);
 
     if (!me) {
-      return (
-        <div
-          className={className}
-          style={{
-            height: 600,
-            width: "100%",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "#f8fafc",
-            borderRadius: 8,
-            color: "#64748b",
-          }}
-        >
-          Faça login para ver o preview
-        </div>
-      );
+      return <WidgetFallback className={className} />;
     }
 
     return (
@@ -178,39 +162,41 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
               style={{ width: "100%", height: "100%", border: "none", display: "block" }}
             />
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: "32px 24px", background: "#0a0f0a", gap: 20, textAlign: "center" }}>
-              {busy ? (
-                <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Emitindo token de preview...</span>
-              ) : (
-                <>
-                  <div style={{ width: 64, height: 64, borderRadius: "50%", background: "radial-gradient(circle, #34d399 0%, #065f46 100%)", boxShadow: "0 0 40px #10b98140", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
-                    </div>
-                  </div>
-                  <div style={{ font: "600 10px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", color: "#34d399" }}>GERENTE DE VENDAS DA LOJA</div>
-                  <div style={{ font: "700 22px 'Space Grotesk', sans-serif", color: "#f0fdf4", letterSpacing: "-0.02em" }}>Oi, eu sou a Zyon.</div>
-                  <div style={{ font: "14px/1.6 'Space Grotesk', sans-serif", color: "#6b7280", maxWidth: 280 }}>
-                    Eu cuido da sua compra do inicio ao fim: acho a melhor opcao, aplico promocoes, organizo a entrega e finalizo o pagamento.
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 280, marginTop: 8 }}>
-                    {["Acho a melhor opcao e aplico promocoes", "Calculo o frete e organizo a entrega", "Pago com Pix, cartao ou crypto"].map((cap) => (
-                      <div key={cap} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 10, background: "#111827", border: "1px solid #1f2937" }}>
-                        <div style={{ width: 24, height: 24, borderRadius: 6, background: "#064e3b", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                          <div style={{ width: 8, height: 8, borderRadius: 2, background: "#34d399" }} />
-                        </div>
-                        <span style={{ font: "500 12px 'Space Grotesk', sans-serif", color: "#e5e7eb" }}>{cap}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <span style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 12, opacity: 0.6 }}>Inicie a API para preview interativo</span>
-                </>
-              )}
-            </div>
+            <WidgetFallback />
           )}
         </div>
       </section>
     );
   }
 );
+
+function WidgetFallback({ className }: { className?: string }) {
+  return (
+    <div
+      className={className}
+      style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 520, padding: "32px 24px", background: "#0a0f0a", borderRadius: 8, gap: 20, textAlign: "center" }}
+    >
+      <div style={{ width: 72, height: 72, borderRadius: "50%", background: "radial-gradient(circle, #34d399 0%, #065f46 100%)", boxShadow: "0 0 48px #10b98140", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#0a0f0a" }} />
+          <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#0a0f0a" }} />
+        </div>
+      </div>
+      <div style={{ font: "600 10px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", color: "#34d399" }}>GERENTE DE VENDAS DA LOJA</div>
+      <div style={{ font: "700 24px 'Space Grotesk', sans-serif", color: "#f0fdf4", letterSpacing: "-0.02em" }}>Oi, eu sou a Zyon.</div>
+      <div style={{ font: "14px/1.6 'Space Grotesk', sans-serif", color: "#6b7280", maxWidth: 280 }}>
+        Eu cuido da sua compra do inicio ao fim: acho a melhor opcao, aplico promocoes, organizo a entrega e finalizo o pagamento.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 300, marginTop: 8 }}>
+        {["Acho a melhor opcao e aplico promocoes", "Calculo o frete e organizo a entrega", "Pago com Pix, cartao ou crypto"].map((cap) => (
+          <div key={cap} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, background: "#111827", border: "1px solid #1f2937" }}>
+            <div style={{ width: 26, height: 26, borderRadius: 7, background: "#064e3b", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+              <div style={{ width: 9, height: 9, borderRadius: 2, background: "#34d399" }} />
+            </div>
+            <span style={{ font: "500 13px 'Space Grotesk', sans-serif", color: "#e5e7eb" }}>{cap}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
