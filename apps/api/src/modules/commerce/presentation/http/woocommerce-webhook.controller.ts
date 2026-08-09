@@ -15,7 +15,7 @@ import {
   COMMERCE_CONNECTION_PORT,
   type CommerceConnectionPort,
 } from "../../domain/ports/commerce-connection.port.js";
-import { TenantCommerceAdapterFactory } from "../../infrastructure/tenant-commerce-adapter.factory.js";
+import { COMMERCE_ADAPTER_CACHE_PORT, type CommerceAdapterCachePort } from "../../domain/ports/commerce-adapter-cache.port.js";
 
 export type WooCommerceWebhookResult =
   | { outcome: "ignored"; reason: string }
@@ -34,7 +34,8 @@ export class WooCommerceWebhookController {
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
     private readonly connections: CommerceConnectionPort,
-    private readonly adapterFactory: TenantCommerceAdapterFactory,
+    @Inject(COMMERCE_ADAPTER_CACHE_PORT)
+    private readonly adapterFactory: CommerceAdapterCachePort,
   ) {}
 
   @Post("webhooks/woocommerce/:merchantId")

@@ -21,7 +21,7 @@ import {
   type CommercePaidWebhookDedupPort,
 } from "../../domain/ports/commerce-paid-webhook-dedup.port.js";
 import { createCommerceEventEnvelope } from "../../domain/events/commerce-domain-event.js";
-import { TenantCommerceAdapterFactory } from "../../infrastructure/tenant-commerce-adapter.factory.js";
+import { COMMERCE_ADAPTER_CACHE_PORT, type CommerceAdapterCachePort } from "../../domain/ports/commerce-adapter-cache.port.js";
 
 export type ShopifyWebhookResult =
   | { outcome: "ignored"; reason: string }
@@ -45,7 +45,8 @@ export class ShopifyWebhookController {
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
     private readonly connections: CommerceConnectionPort,
-    private readonly adapterFactory: TenantCommerceAdapterFactory,
+    @Inject(COMMERCE_ADAPTER_CACHE_PORT)
+    private readonly adapterFactory: CommerceAdapterCachePort,
     @Inject(COMMERCE_PAID_WEBHOOK_DEDUP)
     private readonly paidDedup: CommercePaidWebhookDedupPort,
   ) {}

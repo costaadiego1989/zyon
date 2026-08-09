@@ -12,6 +12,7 @@ import { COMMERCE_CATALOG_PORT } from "./domain/ports/commerce-catalog.port.js";
 import { COMMERCE_PROVIDER_RUNTIME } from "./domain/ports/commerce-provider-runtime.port.js";
 import { COMMERCE_PAID_WEBHOOK_DEDUP } from "./domain/ports/commerce-paid-webhook-dedup.port.js";
 import { COMMERCE_PENDING_ORDER_INDEX } from "./domain/ports/pending-commerce-order-index.port.js";
+import { COMMERCE_ADAPTER_CACHE_PORT } from "./domain/ports/commerce-adapter-cache.port.js";
 import { PrismaPendingCommerceOrderIndex } from "./infrastructure/prisma-pending-commerce-order-index.repository.js";
 import { PrismaCommercePaidWebhookDedup } from "./infrastructure/prisma-commerce-paid-webhook-dedup.repository.js";
 import { PrismaCommerceConnectionRepository } from "./infrastructure/prisma-commerce-connection.repository.js";
@@ -69,6 +70,10 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     },
     {
       provide: COMMERCE_PROVIDER_RUNTIME,
+      useExisting: TenantCommerceAdapterFactory,
+    },
+    {
+      provide: COMMERCE_ADAPTER_CACHE_PORT,
       useExisting: TenantCommerceAdapterFactory,
     },
     ValidateCartForPaymentUseCase,
