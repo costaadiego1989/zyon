@@ -11,6 +11,13 @@ function maskCNPJ(value: string): string {
   return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
 }
 
+function maskPhone(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  if (digits.length <= 2) return digits.length ? `(${digits}` : "";
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+}
+
 function validateCNPJ(value: string): boolean {
   const digits = value.replace(/\D/g, "");
   if (digits.length !== 14) return false;
@@ -63,6 +70,7 @@ interface BusinessDraft {
 interface AccountDraft {
   email: string;
   password: string;
+  confirmPassword: string;
   phone: string;
 }
 
@@ -78,7 +86,7 @@ export function SignupWizard(props: SignupWizardProps) {
   const [error, setError] = useState<string | null>(null);
   const [person, setPerson] = useState<PersonDraft>({ name: "", role: "" });
   const [business, setBusiness] = useState<BusinessDraft>({ name: "", segment: "", volume: "", url: "", taxId: "" });
-  const [account, setAccount] = useState<AccountDraft>({ email: "", password: "", phone: "" });
+  const [account, setAccount] = useState<AccountDraft>({ email: "", password: "", confirmPassword: "", phone: "" });
 
   const busy = props.busy || localBusy;
   const hint = error ?? props.hint;
@@ -110,7 +118,8 @@ export function SignupWizard(props: SignupWizardProps) {
     setError(null);
     if (!account.email.trim() || !account.password) { setError("Email e senha são obrigatórios."); return; }
     if (account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
-    if (!account.phone.trim()) { setError("Informe seu celular."); return; }
+    if (account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
+    if (!account.phone.trim() || account.phone.replace(/\D/g, "").length < 10) { setError("Informe um celular válido."); return; }
 
     setLocalBusy(true);
     try {
@@ -277,8 +286,12 @@ function AccountFields({ draft, onChange }: { draft: AccountDraft; onChange: (d:
         <input type="password" value={draft.password} onChange={(e) => onChange({ ...draft, password: e.target.value })} autoComplete="new-password" placeholder="Mínimo 8 caracteres, com letra e número" minLength={8} className="auth-field__input" />
       </div>
       <div className="auth-field">
+        <label className="auth-field__label">Confirmar senha</label>
+        <input type="password" value={draft.confirmPassword} onChange={(e) => onChange({ ...draft, confirmPassword: e.target.value })} autoComplete="new-password" placeholder="Repita a senha" minLength={8} className="auth-field__input" />
+      </div>
+      <div className="auth-field">
         <label className="auth-field__label">Celular</label>
-        <input type="tel" value={draft.phone} onChange={(e) => onChange({ ...draft, phone: e.target.value })} placeholder="(11) 99999-9999" className="auth-field__input" />
+        <input type="tel" value={draft.phone} onChange={(e) => onChange({ ...draft, phone: maskPhone(e.target.value) })} placeholder="(11) 99999-9999" maxLength={15} className="auth-field__input" />
       </div>
     </>
   );
