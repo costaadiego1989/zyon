@@ -13,7 +13,7 @@ import { AcceptCheckoutOfferUseCase } from "./accept-checkout-offer.use-case.js"
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
-import { TenantBoundaryGuard } from "../../infrastructure/tenant-boundary.guard.js";
+import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 
 @Injectable()
 export class ApplyOfferUseCase {

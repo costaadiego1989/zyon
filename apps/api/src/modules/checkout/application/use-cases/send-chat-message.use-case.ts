@@ -24,7 +24,7 @@ import { CheckoutOfferService } from "../services/checkout-offer.service.js";
 import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
 import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
-import { TenantBoundaryGuard } from "../../infrastructure/tenant-boundary.guard.js";
+import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 
 function structuredCloneDeep<T>(obj: T): T {
