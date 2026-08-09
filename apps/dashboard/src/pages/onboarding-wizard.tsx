@@ -629,35 +629,35 @@ export function OnboardingWizard(props: {
           <aside className="onb-preview">
             <div className="onb-preview-frame">
               <span className="onb-preview-tag">Visualização em tempo real</span>
-              <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", minHeight: 480, padding: "32px 20px", background: "#0a0f0a", gap: 18, textAlign: "center", borderRadius: "0 0 12px 12px" }}>
-                <div style={{ width: 72, height: 72, borderRadius: "50%", background: "radial-gradient(circle, #34d399 0%, #065f46 100%)", boxShadow: "0 0 48px #10b98140", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ display: "flex", gap: 10 }}>
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#0a0f0a" }} />
-                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#0a0f0a" }} />
+              <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: "radial-gradient(circle, #34d399 0%, #065f46 100%)", boxShadow: "0 0 36px #10b98140", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
+                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
                   </div>
                 </div>
-                <div style={{ font: "600 10px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", color: "#34d399" }}>GERENTE DE VENDAS DA LOJA</div>
-                <div style={{ font: "700 22px 'Space Grotesk', sans-serif", color: "#f0fdf4", letterSpacing: "-0.02em" }}>Oi, eu sou a Zyon.</div>
-                <div style={{ font: "13px/1.6 'Space Grotesk', sans-serif", color: "#6b7280", maxWidth: 260 }}>
+                <div style={{ font: "600 9px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", color: "#34d399" }}>GERENTE DE VENDAS DA LOJA</div>
+                <div style={{ font: "700 18px 'Space Grotesk', sans-serif", color: "#f0fdf4", letterSpacing: "-0.02em" }}>Oi, eu sou a Zyon.</div>
+                <div style={{ font: "12px/1.5 'Space Grotesk', sans-serif", color: "#6b7280", maxWidth: 240 }}>
                   Eu cuido da sua compra do inicio ao fim: acho a melhor opcao, aplico promocoes, organizo a entrega e finalizo o pagamento com voce.
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 280, marginTop: 8 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 260, marginTop: 6 }}>
                   {["Acho a melhor opcao e aplico promocoes", "Calculo o frete e organizo a entrega", "Pago com Pix, cartao ou crypto"].map((cap) => (
-                    <div key={cap} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 10, background: "#111827", border: "1px solid #1f2937" }}>
-                      <div style={{ width: 26, height: 26, borderRadius: 7, background: "#064e3b", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                        <div style={{ width: 9, height: 9, borderRadius: 2, background: "#34d399" }} />
+                    <div key={cap} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, background: "#111827", border: "1px solid #1f2937" }}>
+                      <div style={{ width: 22, height: 22, borderRadius: 5, background: "#064e3b", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                        <div style={{ width: 7, height: 7, borderRadius: 2, background: "#34d399" }} />
                       </div>
-                      <span style={{ font: "500 12px 'Space Grotesk', sans-serif", color: "#e5e7eb" }}>{cap}</span>
+                      <span style={{ font: "500 11px 'Space Grotesk', sans-serif", color: "#e5e7eb" }}>{cap}</span>
                     </div>
                   ))}
                 </div>
-                <div style={{ font: "600 10px 'IBM Plex Mono', monospace", letterSpacing: "0.06em", color: "#4b5563", marginTop: 12 }}>COMO VOCE PREFERE COMPRAR?</div>
-                <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 12, background: "#111827", border: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                <div style={{ font: "600 9px 'IBM Plex Mono', monospace", letterSpacing: "0.06em", color: "#4b5563", marginTop: 10 }}>COMO VOCE PREFERE COMPRAR?</div>
+                <div style={{ display: "flex", gap: 10, marginTop: 2 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: "#111827", border: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                   </div>
-                  <div style={{ width: 56, height: 56, borderRadius: 12, background: "#111827", border: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: "#111827", border: "1px solid #1f2937", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
                   </div>
                 </div>
               </div>
