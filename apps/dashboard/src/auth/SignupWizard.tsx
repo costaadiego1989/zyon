@@ -120,6 +120,12 @@ export interface SignupWizardProps {
   onSwitchToLogin: () => void;
 }
 
+interface PersonDraft {
+  name: string;
+  role: string;
+  taxId: string;
+}
+
 interface BusinessDraft {
   name: string;
   segment: (typeof SEGMENTS)[number];
@@ -131,7 +137,6 @@ interface AccountDraft {
   email: string;
   password: string;
   phone: string;
-  taxId: string;
 }
 
 interface ThemeDraft {
@@ -141,16 +146,22 @@ interface ThemeDraft {
 }
 
 const STEPS = [
+  { title: "Quem é você", subtitle: "Identificação pessoal e CNPJ" },
   { title: "Sobre sua empresa", subtitle: "Conte-nos sobre sua loja" },
-  { title: "Sua conta", subtitle: "Dados de acesso" },
+  { title: "Criar sua conta", subtitle: "Email, senha e contato" },
   { title: "Escolha seu plano", subtitle: "14 dias grátis em qualquer plano" },
   { title: "Personalização rápida", subtitle: "Ajustes visuais iniciais" },
 ];
 
 export function SignupWizard(props: SignupWizardProps) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [localBusy, setLocalBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [personDraft, setPersonDraft] = useState<PersonDraft>({
+    name: "",
+    role: "",
+    taxId: "",
+  });
   const [businessDraft, setBusinessDraft] = useState<BusinessDraft>({
     name: "",
     segment: "Moda",
@@ -161,7 +172,6 @@ export function SignupWizard(props: SignupWizardProps) {
     email: "",
     password: "",
     phone: "",
-    taxId: "",
   });
   const [selectedPlan, setSelectedPlan] = useState<PlanKey>("starter");
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>({
@@ -174,6 +184,10 @@ export function SignupWizard(props: SignupWizardProps) {
 
   const busy = props.busy || localBusy;
   const hint = error ?? props.hint;
+
+  function updatePerson<K extends keyof PersonDraft>(key: K, value: PersonDraft[K]) {
+    setPersonDraft((prev) => ({ ...prev, [key]: value }));
+  }
 
   function updateBusiness<K extends keyof BusinessDraft>(key: K, value: BusinessDraft[K]) {
     setBusinessDraft((prev) => ({ ...prev, [key]: value }));
@@ -190,14 +204,30 @@ export function SignupWizard(props: SignupWizardProps) {
   function goNext() {
     setError(null);
     if (step === 1) {
-      if (!businessDraft.name.trim()) {
-        setError("Informe o nome da loja.");
+      if (!personDraft.name.trim()) {
+        setError("Informe seu nome.");
+        return;
+      }
+      if (!personDraft.role.trim()) {
+        setError("Informe seu cargo/papel.");
+        return;
+      }
+      if (!personDraft.taxId.trim()) {
+        setError("Informe o CNPJ.");
         return;
       }
       setStep(2);
       return;
     }
     if (step === 2) {
+      if (!businessDraft.name.trim()) {
+        setError("Informe o nome da loja.");
+        return;
+      }
+      setStep(3);
+      return;
+    }
+    if (step === 3) {
       if (!accountDraft.email.trim() || !accountDraft.password) {
         setError("Email e senha são obrigatórios.");
         return;
@@ -206,11 +236,11 @@ export function SignupWizard(props: SignupWizardProps) {
         setError("A senha deve ter pelo menos 8 caracteres.");
         return;
       }
-      setStep(3);
+      setStep(4);
       return;
     }
-    if (step === 3) {
-      setStep(4);
+    if (step === 4) {
+      setStep(5);
     }
   }
 
@@ -219,6 +249,7 @@ export function SignupWizard(props: SignupWizardProps) {
     if (step === 2) setStep(1);
     else if (step === 3) setStep(2);
     else if (step === 4) setStep(3);
+    else if (step === 5) setStep(4);
   }
 
   async function handleFinalSubmit() {
@@ -248,7 +279,7 @@ export function SignupWizard(props: SignupWizardProps) {
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <p style={{ font: "500 11px 'IBM Plex Mono', monospace", letterSpacing: "0.04em", color: "oklch(52% 0.006 145)", marginBottom: 0 }}>
-          Novo tenant · Etapa {step} de 4
+          Novo tenant · Etapa {step} de 5
         </p>
         <h2 style={{ font: "600 22px 'Source Serif 4', serif", color: "oklch(96% 0.002 145)", letterSpacing: "-0.01em", margin: 0 }}>
           {STEPS[step - 1].title}
@@ -263,22 +294,28 @@ export function SignupWizard(props: SignupWizardProps) {
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {step === 1 ? (
           <Step1
+            draft={personDraft}
+            onChange={updatePerson}
+          />
+        ) : null}
+        {step === 2 ? (
+          <Step2
             draft={businessDraft}
             onChange={updateBusiness}
           />
         ) : null}
-        {step === 2 ? <Step2 draft={accountDraft} onChange={updateAccount} /> : null}
-        {step === 3 ? (
-          <Step3
+        {step === 3 ? <Step3 draft={accountDraft} onChange={updateAccount} /> : null}
+        {step === 4 ? (
+          <Step4
             selected={selectedPlan}
             recommended={recommended}
             onSelect={(key) => {
               setSelectedPlan(key);
-              setStep(4);
+              setStep(5);
             }}
           />
         ) : null}
-        {step === 4 ? <Step4 draft={themeDraft} onChange={updateTheme} /> : null}
+        {step === 5 ? <Step5 draft={themeDraft} onChange={updateTheme} /> : null}
       </div>
 
       {hint ? (
@@ -339,7 +376,7 @@ export function SignupWizard(props: SignupWizardProps) {
           </button>
         )}
 
-        {step < 4 ? (
+        {step < 5 ? (
           <button
             type="button"
             onClick={goNext}
@@ -372,16 +409,16 @@ export function SignupWizard(props: SignupWizardProps) {
   );
 }
 
-function ProgressBar({ step }: { step: 1 | 2 | 3 | 4 }) {
+function ProgressBar({ step }: { step: 1 | 2 | 3 | 4 | 5 }) {
   return (
     <div
       role="progressbar"
       aria-valuemin={1}
-      aria-valuemax={4}
+      aria-valuemax={5}
       aria-valuenow={step}
       style={{ display: "flex", alignItems: "center", gap: 0 }}
     >
-      {[1, 2, 3, 4].map((n, idx) => {
+      {[1, 2, 3, 4, 5].map((n, idx) => {
         const isCompleted = step > n;
         const isActive = step === n;
         return (
@@ -407,7 +444,7 @@ function ProgressBar({ step }: { step: 1 | 2 | 3 | 4 }) {
             >
               {isCompleted ? <CheckCircle2 size={14} /> : n}
             </div>
-            {idx < 3 ? (
+            {idx < 4 ? (
               <div
                 style={{
                   flex: 1,
@@ -424,7 +461,50 @@ function ProgressBar({ step }: { step: 1 | 2 | 3 | 4 }) {
   );
 }
 
-function Step1(props: { draft: BusinessDraft; onChange: <K extends keyof BusinessDraft>(key: K, value: BusinessDraft[K]) => void }) {
+const ROLES = ["Proprietário(a)", "CEO / Diretor(a)", "Gerente", "Desenvolvedor(a)", "Marketing", "Outro"] as const;
+
+function Step1(props: { draft: PersonDraft; onChange: <K extends keyof PersonDraft>(key: K, value: PersonDraft[K]) => void }) {
+  const { draft, onChange } = props;
+  return (
+    <>
+      <Field label="Seu nome completo" required>
+        <input
+          value={draft.name}
+          onChange={(e) => onChange("name", e.target.value)}
+          placeholder="Maria Silva"
+          required
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="Seu cargo/papel" required>
+        <select
+          value={draft.role}
+          onChange={(e) => onChange("role", e.target.value)}
+          style={{ ...inputStyle, appearance: "none" }}
+        >
+          <option value="">Selecione...</option>
+          {ROLES.map((role) => (
+            <option key={role} value={role}>
+              {role}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label="CNPJ" required>
+        <input
+          type="text"
+          value={draft.taxId}
+          onChange={(e) => onChange("taxId", e.target.value)}
+          placeholder="00.000.000/0001-00"
+          required
+          style={inputStyle}
+        />
+      </Field>
+    </>
+  );
+}
+
+function Step2(props: { draft: BusinessDraft; onChange: <K extends keyof BusinessDraft>(key: K, value: BusinessDraft[K]) => void }) {
   const { draft, onChange } = props;
   return (
     <>
@@ -475,7 +555,7 @@ function Step1(props: { draft: BusinessDraft; onChange: <K extends keyof Busines
   );
 }
 
-function Step2(props: { draft: AccountDraft; onChange: <K extends keyof AccountDraft>(key: K, value: AccountDraft[K]) => void }) {
+function Step3(props: { draft: AccountDraft; onChange: <K extends keyof AccountDraft>(key: K, value: AccountDraft[K]) => void }) {
   const { draft, onChange } = props;
   return (
     <>
@@ -502,21 +582,13 @@ function Step2(props: { draft: AccountDraft; onChange: <K extends keyof AccountD
           style={inputStyle}
         />
       </Field>
-      <Field label="Telefone" hint="Opcional">
+      <Field label="Celular" required>
         <input
           type="tel"
           value={draft.phone}
           onChange={(e) => onChange("phone", e.target.value)}
           placeholder="(11) 99999-9999"
-          style={inputStyle}
-        />
-      </Field>
-      <Field label="CNPJ/CPF" hint="Opcional">
-        <input
-          type="text"
-          value={draft.taxId}
-          onChange={(e) => onChange("taxId", e.target.value)}
-          placeholder="00.000.000/0001-00"
+          required
           style={inputStyle}
         />
       </Field>
@@ -524,7 +596,7 @@ function Step2(props: { draft: AccountDraft; onChange: <K extends keyof AccountD
   );
 }
 
-function Step3(props: {
+function Step4(props: {
   selected: PlanKey;
   recommended: PlanKey;
   onSelect: (key: PlanKey) => void;
@@ -614,7 +686,7 @@ function Step3(props: {
   );
 }
 
-function Step4(props: { draft: ThemeDraft; onChange: <K extends keyof ThemeDraft>(key: K, value: ThemeDraft[K]) => void }) {
+function Step5(props: { draft: ThemeDraft; onChange: <K extends keyof ThemeDraft>(key: K, value: ThemeDraft[K]) => void }) {
   const { draft, onChange } = props;
   return (
     <>
