@@ -49,7 +49,7 @@ export function HubStage({ s }: StageProps) {
                 border: '1px solid var(--g1)',
                 borderRadius: '16px',
                 padding: '14px',
-                background: 'rgba(30,215,96,.08)',
+                background: 'color-mix(in srgb, var(--aacp-accent, #0f766e) 8%, transparent)',
                 marginBottom: '16px',
               }}
             >

@@ -3,7 +3,8 @@ import type {
   CheckoutSettingsContext,
   CheckoutSettingsPatch,
   CheckoutTriggerName,
-  CheckoutTriggerRule
+  CheckoutTriggerRule,
+  ProgressiveDiscountStage
 } from "@zyon/shared-types";
 import { CheckoutSettingsValidationError } from "../checkout-settings.errors.js";
 
@@ -25,6 +26,23 @@ const COMMERCIAL_KEYS = [
   "stockPromise",
   "paymentStatus"
 ];
+
+const PROGRESSIVE_STAGES: ProgressiveDiscountStage[] = [
+  "initial_coupon",
+  "exit_intent",
+  "abandoned_cart",
+  "payment_nudge"
+];
+
+const DEFAULT_PROGRESSIVE_DISCOUNT = {
+  enabled: false,
+  stages: {
+    initial_coupon: 5,
+    exit_intent: 5,
+    abandoned_cart: 10,
+    payment_nudge: 15
+  }
+};
 
 export class CheckoutSettingsEntity {
   private constructor(private readonly props: CheckoutSettings) {
@@ -50,7 +68,8 @@ export class CheckoutSettingsEntity {
       interventionPolicy: {
         minimumAbandonmentScore: 0.7,
         cooldownSeconds: 120,
-        maxInterventionsPerSession: 3
+        maxInterventionsPerSession: 3,
+        progressiveDiscount: DEFAULT_PROGRESSIVE_DISCOUNT
       },
       triggerRules: [
         { trigger: "shipping_objection_detected", enabled: true, priority: 100 },
@@ -86,7 +105,7 @@ export class CheckoutSettingsEntity {
       ...this.props,
       mode: patch.mode ?? this.props.mode,
       widgetBehavior: { ...this.props.widgetBehavior, ...patch.widgetBehavior },
-      interventionPolicy: { ...this.props.interventionPolicy, ...patch.interventionPolicy },
+      interventionPolicy: mergeInterventionPolicy(this.props.interventionPolicy, patch.interventionPolicy),
       triggerRules: patch.triggerRules ? [...patch.triggerRules] : this.props.triggerRules,
       suppressionRules: {
         ...this.props.suppressionRules,
@@ -113,7 +132,8 @@ export class CheckoutSettingsEntity {
         cooldown_seconds: this.props.interventionPolicy.cooldownSeconds,
         max_interventions_per_session: this.props.interventionPolicy.maxInterventionsPerSession,
         enabled_triggers: this.props.triggerRules.filter((rule) => rule.enabled).map((rule) => rule.trigger),
-        handoff_enabled: this.props.handoff.enabled
+        handoff_enabled: this.props.handoff.enabled,
+        progressive_discount: this.props.interventionPolicy.progressiveDiscount
       },
       operational_constraints: [
         "Do not open the widget more than the configured max interventions per session.",
@@ -152,6 +172,7 @@ export class CheckoutSettingsEntity {
     ) {
       throw new CheckoutSettingsValidationError("minimum_abandonment_score_out_of_range");
     }
+    validateProgressiveDiscount(this.props.interventionPolicy.progressiveDiscount);
     validateTriggers(this.props.triggerRules);
     // CSS-H2: Validate handoff config
     if (!this.props.handoff.message || !this.props.handoff.message.trim()) {
@@ -179,13 +200,48 @@ function validateTriggers(rules: CheckoutTriggerRule[]): void {
   if (!hasEnabled) throw new CheckoutSettingsValidationError("at_least_one_trigger_must_be_enabled");
 }
 
-function assertNoCommercialKeys(value: unknown): void {
+function mergeInterventionPolicy(
+  current: CheckoutSettings["interventionPolicy"],
+  patch: CheckoutSettingsPatch["interventionPolicy"]
+): CheckoutSettings["interventionPolicy"] {
+  const progressivePatch = patch?.progressiveDiscount;
+  return {
+    ...current,
+    ...patch,
+    progressiveDiscount: progressivePatch
+      ? {
+          enabled: progressivePatch.enabled ?? current.progressiveDiscount?.enabled ?? false,
+          stages: {
+            ...DEFAULT_PROGRESSIVE_DISCOUNT.stages,
+            ...current.progressiveDiscount?.stages,
+            ...progressivePatch.stages
+          }
+        }
+      : current.progressiveDiscount
+  };
+}
+
+function validateProgressiveDiscount(policy: CheckoutSettings["interventionPolicy"]["progressiveDiscount"]): void {
+  if (!policy) return;
+  for (const stage of PROGRESSIVE_STAGES) {
+    const value = policy.stages?.[stage];
+    if (typeof value !== "number" || value < 0 || value > 100) {
+      throw new CheckoutSettingsValidationError("progressive_discount_percent_out_of_range");
+    }
+  }
+}
+
+function assertNoCommercialKeys(value: unknown, path: string[] = []): void {
   if (!value || typeof value !== "object") return;
   for (const [key, nested] of Object.entries(value)) {
+    const nextPath = [...path, key];
+    if (nextPath.join(".") === "interventionPolicy.progressiveDiscount") {
+      continue;
+    }
     if (COMMERCIAL_KEYS.some((commercialKey) => key.toLowerCase().includes(commercialKey.toLowerCase()))) {
       throw new CheckoutSettingsValidationError("checkout_settings_cannot_authorize_commercial_terms");
     }
-    assertNoCommercialKeys(nested);
+    assertNoCommercialKeys(nested, nextPath);
   }
 }
 

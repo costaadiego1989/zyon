@@ -46,6 +46,7 @@ wp-config.php
 .wp-cli/
 .playwright-mcp/
 *.png
+!apps/web/assets/*.png
 test-pix-flow.mjs
 apps/widget/verify-widget.mjs
 apps/widget/cart-*.png

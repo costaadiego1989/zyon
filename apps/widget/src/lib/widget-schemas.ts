@@ -82,6 +82,12 @@ const policiesConfigSchema = z.object({
   privacyUrl: z.string().min(1).optional()
 });
 
+const brandConfigSchema = z.object({
+  name: z.string().min(1).optional(),
+  logoUrl: z.string().min(1).optional(),
+  accentColor: z.string().min(1).optional()
+});
+
 const widgetConfigSchema = z.object({
   mode: z.enum(["legacy", "embed"]),
   embedSessionToken: z.string().min(1).optional(),
@@ -104,6 +110,7 @@ const widgetConfigSchema = z.object({
   storeUrl: z.string().or(z.string().url()).optional(),
   successRedirectUrl: z.string().or(z.string().url()).optional(),
   successRedirectLabel: z.string().min(1).optional(),
+  brand: brandConfigSchema.optional(),
   policies: policiesConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
   copy: copyConfigSchema.optional()
@@ -404,6 +411,7 @@ export function parseWidgetConfig(input: {
   storeUrl?: string;
   successRedirectUrl?: string;
   successRedirectLabel?: string;
+  brand?: WidgetConfig["brand"];
   policies?: WidgetConfig["policies"];
   agent?: WidgetConfig["agent"];
   copy?: WidgetConfig["copy"];
@@ -423,6 +431,7 @@ export function parseWidgetConfig(input: {
     storeUrl: input.storeUrl,
     successRedirectUrl: input.successRedirectUrl,
     successRedirectLabel: input.successRedirectLabel,
+    brand: input.brand,
     policies: input.policies,
     agent: input.agent,
     copy: input.copy
@@ -445,6 +454,7 @@ export function parseWidgetConfig(input: {
     storeUrl: input.storeUrl,
     successRedirectUrl: input.successRedirectUrl,
     successRedirectLabel: input.successRedirectLabel,
+    brand: input.brand,
     policies: input.policies,
     agent: input.agent,
     copy: input.copy

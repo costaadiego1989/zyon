@@ -1,5 +1,5 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { CheckoutSettingsContext, TrackEventRequest, TrackEventResponse } from "@zyon/shared-types";
+import type { CheckoutSettingsContext, ProgressiveOfferResponse, TrackEventRequest, TrackEventResponse } from "@zyon/shared-types";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
@@ -11,6 +11,10 @@ import {
   type CheckoutInterventionLedgerPort
 } from "../../domain/ports/checkout-intervention-ledger.port.js";
 import { decideInterventions } from "../../domain/services/intervention-policy.service.js";
+import {
+  resolveProgressiveDiscountStage,
+  selectProgressiveDiscountPercent
+} from "../../domain/services/progressive-discount-policy.service.js";
 import type { CheckoutSession } from "@zyon/shared-types";
 
 @Injectable()
@@ -79,6 +83,7 @@ export class TrackCheckoutEventUseCase {
         })
       );
     }
+    const progressiveOffer = await this.authorizeProgressiveOffer(input.event, finalSession, settingsCtx ?? undefined);
     if (input.event === "checkout_abandoned") {
       await this.outbox.appendOutbox(
         createCheckoutEventEnvelope({
@@ -91,36 +96,70 @@ export class TrackCheckoutEventUseCase {
           causationId: input.event
         })
       );
-      // P1 fix: abandonment WhatsApp message must only quote a discount that has
-      // been authorized by the rules-engine for this session's cart.
-      // Never promise maxDiscountPercent blindly — it may violate minimum margin.
-      if (finalSession.customer?.phone && this.merchantRepository) {
-        const rules = await this.merchantRepository.getRules(input.merchant_id);
-        if (rules && rules.couponBoxEnabled !== false) {
-          const evaluation = evaluateDiscountOffer(finalSession.cart, rules, rules.maxDiscountPercent);
-          if (evaluation.approved && evaluation.value > 0) {
-            await this.outbox.appendOutbox(
-              createCheckoutEventEnvelope({
-                eventType: "whatsapp.message.requested",
-                merchantId: input.merchant_id,
-                payload: {
-                  session_id: input.session_id,
-                  phone: finalSession.customer.phone,
-                  template: "checkout_abandonment_discount",
-                  discount_percent: evaluation.value,
-                  message: `Voce deixou seu pedido no checkout. Mantive ${evaluation.value}% de desconto para voce fechar a compra agora.`
-                },
-                causationId: input.event
-              })
-            );
-          }
-        }
+      const abandonmentOffer = progressiveOffer ?? await this.authorizeFallbackAbandonmentOffer(finalSession);
+      if (finalSession.customer?.phone && abandonmentOffer) {
+        await this.outbox.appendOutbox(
+          createCheckoutEventEnvelope({
+            eventType: "whatsapp.message.requested",
+            merchantId: input.merchant_id,
+            payload: {
+              session_id: input.session_id,
+              phone: finalSession.customer.phone,
+              template: "checkout_abandonment_discount",
+              discount_percent: abandonmentOffer.approved_percent,
+              message: `Voce deixou seu pedido no checkout. Mantive ${abandonmentOffer.approved_percent}% de desconto para voce fechar a compra agora.`
+            },
+            causationId: input.event
+          })
+        );
       }
     }
     return {
       received: true,
       abandonment_score: finalSession.abandonmentScore,
-      trigger_agent: finalSession.triggerAgent
+      trigger_agent: finalSession.triggerAgent,
+      progressive_offer: progressiveOffer
+    };
+  }
+
+  private async authorizeProgressiveOffer(
+    eventName: TrackEventRequest["event"],
+    session: CheckoutSession,
+    settingsCtx: CheckoutSettingsContext | undefined
+  ): Promise<ProgressiveOfferResponse | undefined> {
+    if (!this.merchantRepository) return undefined;
+    const stage = resolveProgressiveDiscountStage(eventName);
+    const requested = selectProgressiveDiscountPercent(settingsCtx?.checkout_settings.progressive_discount, stage);
+    if (!stage || requested <= 0) return undefined;
+    const rules = await this.merchantRepository.getRules(session.merchantId);
+    if (!rules || rules.couponBoxEnabled === false) return undefined;
+    const evaluation = evaluateDiscountOffer(session.cart, rules, requested);
+    if (!evaluation.approved || evaluation.value <= 0) return undefined;
+    // Progressive discount is a TOTAL target, not additive.
+    // If buyer already has a discount >= this stage's approved value, skip.
+    const currentDiscountPercent = session.cart.total > 0
+      ? ((session.cart.currentDiscount ?? 0) / session.cart.total) * 100
+      : 0;
+    if (evaluation.value <= currentDiscountPercent) return undefined;
+    return {
+      stage,
+      requested_percent: requested,
+      approved_percent: evaluation.value,
+      reason: evaluation.reason
+    };
+  }
+
+  private async authorizeFallbackAbandonmentOffer(session: CheckoutSession): Promise<ProgressiveOfferResponse | undefined> {
+    if (!this.merchantRepository) return undefined;
+    const rules = await this.merchantRepository.getRules(session.merchantId);
+    if (!rules || rules.couponBoxEnabled === false) return undefined;
+    const evaluation = evaluateDiscountOffer(session.cart, rules, rules.maxDiscountPercent);
+    if (!evaluation.approved || evaluation.value <= 0) return undefined;
+    return {
+      stage: "abandoned_cart",
+      requested_percent: rules.maxDiscountPercent,
+      approved_percent: evaluation.value,
+      reason: evaluation.reason
     };
   }
 

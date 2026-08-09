@@ -11,7 +11,7 @@
  * Requires PHP: 7.4
  * Requires at least: 6.0
  * Domain Path: /languages
- * Text Domain: zyon-checkout
+ * Text Domain: zyon-agentic-checkout-for-woocommerce
  */
 
 if (!defined('ABSPATH')) {

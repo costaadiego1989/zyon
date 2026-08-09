@@ -14,6 +14,8 @@ test("CheckoutSettingsEntity creates safe operational defaults", () => {
   assert.equal(snapshot.widgetBehavior.openWidgetOnTrigger, true);
   assert.equal(snapshot.interventionPolicy.cooldownSeconds, 120);
   assert.equal(snapshot.interventionPolicy.maxInterventionsPerSession, 3);
+  assert.equal(snapshot.interventionPolicy.progressiveDiscount?.enabled, false);
+  assert.equal(snapshot.interventionPolicy.progressiveDiscount?.stages.abandoned_cart, 10);
   assert.deepEqual(context.checkout_settings.enabled_triggers.includes("coupon_field_clicked"), true);
   assert.equal(context.operational_constraints.some((constraint) => constraint.includes("deterministic")), true);
 });
@@ -32,6 +34,33 @@ test("CheckoutSettingsEntity validates pressure limits and known triggers", () =
         triggerRules: [{ trigger: "unknown" as never, enabled: true, priority: 50 }]
       }),
     /unknown_checkout_trigger/
+  );
+});
+
+test("CheckoutSettingsEntity accepts progressive discount config but validates bounds", () => {
+  const settings = CheckoutSettingsEntity.createDefault({ merchantId: "mrc_1" });
+
+  const updated = settings.update({
+    interventionPolicy: {
+      progressiveDiscount: {
+        enabled: true,
+        stages: { initial_coupon: 4, abandoned_cart: 9 }
+      }
+    }
+  });
+
+  assert.equal(updated.snapshot().interventionPolicy.progressiveDiscount?.enabled, true);
+  assert.equal(updated.snapshot().interventionPolicy.progressiveDiscount?.stages.initial_coupon, 4);
+  assert.equal(updated.snapshot().interventionPolicy.progressiveDiscount?.stages.exit_intent, 5);
+  assert.equal(updated.snapshot().interventionPolicy.progressiveDiscount?.stages.abandoned_cart, 9);
+  assert.throws(
+    () =>
+      settings.update({
+        interventionPolicy: {
+          progressiveDiscount: { stages: { payment_nudge: 101 } }
+        }
+      }),
+    /progressive_discount_percent_out_of_range/
   );
 });
 

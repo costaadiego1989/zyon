@@ -550,6 +550,19 @@
 }
 .cfg-subhead svg { color: var(--color-text-muted); }
 
+/* Progressive discount */
+.cfg-progressive-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  transition: opacity var(--duration-base) var(--ease);
+}
+.cfg-progressive-grid[data-disabled="true"] { opacity: 0.55; }
+
 /* Handoff */
 .cfg-handoff-body {
   display: flex;
@@ -623,7 +636,8 @@
   .cfg-head-actions .button-row button { flex: 1; justify-content: center; }
   .cfg-flow-node { flex: 1 1 100%; }
   .cfg-grid-2,
-  .cfg-grid-3 { grid-template-columns: 1fr; }
+  .cfg-grid-3,
+  .cfg-progressive-grid { grid-template-columns: 1fr; }
   .cfg-trigger {
     flex-direction: column;
     align-items: stretch;

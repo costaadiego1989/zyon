@@ -124,6 +124,10 @@ export interface CheckoutProps {
   voiceEnabled?: boolean;
   supportFab?: boolean;
   discount?: TenantDiscount;
+  accentColor?: string;
+  // Native checkout header wiring
+  storeUrl?: string;
+  merchantLogoUrl?: string;
   // Real API wiring (injected from widget host)
   apiBaseUrl?: string;
   merchantId?: string;

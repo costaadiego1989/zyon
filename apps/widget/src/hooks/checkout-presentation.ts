@@ -182,9 +182,9 @@ export function themeStyle(
  * packages/Pulse Agentic Checkout Copy/Pulse Widget.dc.html.
  */
 function applyPulseTokens(styles: Record<string, string>, isDark: boolean): void {
-  const g1 = isDark ? "#8b5cf6" : "#7c3aed";
-  const g2 = isDark ? "#2dd4ff" : "#0891b2";
-  const g3 = isDark ? "#ff5cc8" : "#db2777";
+  const g1 = styles["--aacp-accent"] || "#0F766E";
+  const g2 = styles["--aacp-accent-2"] || g1;
+  const g3 = styles["--aacp-accent-strong"] || g1;
 
   const bg = isDark ? "#08080c" : "#e7e5df";
   const surface = isDark ? "#0f0f16" : "#ffffff";
@@ -245,8 +245,8 @@ function applyPulseTokens(styles: Record<string, string>, isDark: boolean): void
     "--aacp-shadow-md": isDark ? "0 8px 24px rgba(0,0,0,0.5)" : "0 8px 24px rgba(40,30,80,0.12)",
     "--aacp-shadow-lg": isDark ? "0 34px 70px -28px rgba(0,0,0,0.75)" : "0 34px 70px -30px rgba(40,30,80,0.28)",
 
-    "--continuum-font-interface": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
-    "--continuum-font-editorial": "'Space Grotesk', ui-sans-serif, system-ui, sans-serif",
+    "--continuum-font-interface": fontFamily,
+    "--continuum-font-editorial": fontDisplay,
     "--continuum-font-operational": "'Space Mono', ui-monospace, monospace",
   });
 }

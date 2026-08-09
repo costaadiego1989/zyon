@@ -22,6 +22,49 @@ import {
  * Ensures API rejects invalid input with 400, not 500 from entity validation.
  */
 
+class ProgressiveDiscountStagesDto {
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  initial_coupon?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  exit_intent?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  abandoned_cart?: number;
+
+  @ApiPropertyOptional({ minimum: 0, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  payment_nudge?: number;
+}
+
+class ProgressiveDiscountDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  enabled?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ProgressiveDiscountStagesDto)
+  stages?: ProgressiveDiscountStagesDto;
+}
+
 class InterventionPolicyDto {
   @ApiPropertyOptional({ minimum: 0, maximum: 1 })
   @IsOptional()
@@ -42,6 +85,12 @@ class InterventionPolicyDto {
   @Min(1)
   @Max(10)
   maxInterventionsPerSession?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ProgressiveDiscountDto)
+  progressiveDiscount?: ProgressiveDiscountDto;
 }
 
 class WidgetBehaviorDto {

@@ -20,6 +20,7 @@ import {
   Gauge,
   Hand,
   MousePointerClick,
+  Gift,
 } from "lucide-react";
 import type {
   CheckoutSettings,
@@ -90,6 +91,11 @@ interface Draft {
   handoffMessage: string;
   handoffChannels: Array<"email" | "whatsapp" | "chat">;
   crossSellEnabled: boolean;
+  progressiveDiscountEnabled: boolean;
+  progressiveInitialCouponPercent: number;
+  progressiveExitIntentPercent: number;
+  progressiveAbandonedCartPercent: number;
+  progressivePaymentNudgePercent: number;
   presentationMode: string;
   fabColor: string;
   inviteText: string;
@@ -125,6 +131,11 @@ function settingsToDraft(s: CheckoutSettings): Draft {
     handoffMessage: s.handoff.message,
     handoffChannels: s.handoff.channels,
     crossSellEnabled: (s as any).crossSellEnabled ?? false,
+    progressiveDiscountEnabled: s.interventionPolicy.progressiveDiscount?.enabled ?? false,
+    progressiveInitialCouponPercent: s.interventionPolicy.progressiveDiscount?.stages.initial_coupon ?? 5,
+    progressiveExitIntentPercent: s.interventionPolicy.progressiveDiscount?.stages.exit_intent ?? 5,
+    progressiveAbandonedCartPercent: s.interventionPolicy.progressiveDiscount?.stages.abandoned_cart ?? 10,
+    progressivePaymentNudgePercent: s.interventionPolicy.progressiveDiscount?.stages.payment_nudge ?? 15,
     presentationMode: s.widgetBehavior.presentationMode ?? "fab",
     fabColor: s.widgetBehavior.fabColor ?? "#3b82f6",
     inviteText: s.widgetBehavior.inviteText ?? "Posso ajudar?",
@@ -141,6 +152,15 @@ function draftToPatch(d: Draft): CheckoutSettingsPatch {
       minimumAbandonmentScore: d.minimumAbandonmentScore,
       cooldownSeconds: d.cooldownSeconds,
       maxInterventionsPerSession: d.maxInterventionsPerSession,
+      progressiveDiscount: {
+        enabled: d.progressiveDiscountEnabled,
+        stages: {
+          initial_coupon: d.progressiveInitialCouponPercent,
+          exit_intent: d.progressiveExitIntentPercent,
+          abandoned_cart: d.progressiveAbandonedCartPercent,
+          payment_nudge: d.progressivePaymentNudgePercent,
+        },
+      },
     },
     triggerRules: ALL_TRIGGERS.map((t) => ({
       trigger: t,
@@ -209,6 +229,11 @@ const DEFAULT_DRAFT: Draft = {
     "Vou transferir você para um atendente humano. Um momento, por favor.",
   handoffChannels: ["chat"],
   crossSellEnabled: false,
+  progressiveDiscountEnabled: false,
+  progressiveInitialCouponPercent: 5,
+  progressiveExitIntentPercent: 5,
+  progressiveAbandonedCartPercent: 10,
+  progressivePaymentNudgePercent: 15,
   presentationMode: "fab",
   fabColor: "#3b82f6",
   inviteText: "Posso ajudar?",
@@ -227,6 +252,7 @@ interface ValidationErrors {
   cooldownSeconds?: string;
   maxInterventionsPerSession?: string;
   minimumAbandonmentScore?: string;
+  progressiveDiscount?: string;
 }
 
 function validate(d: Draft): ValidationErrors {
@@ -236,6 +262,15 @@ function validate(d: Draft): ValidationErrors {
     errors.maxInterventionsPerSession = "Entre 1 e 10.";
   if (d.minimumAbandonmentScore < 0 || d.minimumAbandonmentScore > 1)
     errors.minimumAbandonmentScore = "Entre 0.0 e 1.0.";
+  const progressiveValues = [
+    d.progressiveInitialCouponPercent,
+    d.progressiveExitIntentPercent,
+    d.progressiveAbandonedCartPercent,
+    d.progressivePaymentNudgePercent,
+  ];
+  if (progressiveValues.some((value) => value < 0 || value > 100)) {
+    errors.progressiveDiscount = "Cada estágio deve ficar entre 0% e 100%.";
+  }
   return errors;
 }
 
@@ -1163,10 +1198,86 @@ export function CheckoutSettingsPage(props: {
               ) : null}
             </SectionRail>
 
-            {/* 6 — Cross-sell */}
+            {/* 6 — Progressive discount */}
+            <SectionRail
+              icon={<Gift size={16} strokeWidth={1.75} />}
+              index="06"
+              title="Desconto progressivo"
+              desc="Escalone o incentivo conforme o comprador mostra risco de abandono. O teto final continua sendo validado pelas regras comerciais."
+              aside={
+                <span className={`badge ${draft.progressiveDiscountEnabled ? "ok" : "muted"}`}>
+                  {draft.progressiveDiscountEnabled ? "ativo" : "inativo"}
+                </span>
+              }
+            >
+              <div className="cfg-rows">
+                <SettingRow
+                  id="toggle-progressive-discount"
+                  title="Habilitar desconto progressivo"
+                  desc="Mostra menos desconto no começo e aumenta em abandono, carrinho abandonado ou pagamento."
+                  control={
+                    <ToggleSwitch
+                      id="toggle-progressive-discount"
+                      checked={draft.progressiveDiscountEnabled}
+                      disabled={busy}
+                      onChange={(v) => patchDraft({ progressiveDiscountEnabled: v })}
+                    />
+                  }
+                />
+              </div>
+
+              <div className="cfg-progressive-grid" data-disabled={draft.progressiveDiscountEnabled ? undefined : "true"}>
+                <NumberField
+                  label="Cupom inicial"
+                  help="Quando o comprador clica no campo de cupom."
+                  value={draft.progressiveInitialCouponPercent}
+                  min={0}
+                  max={100}
+                  disabled={busy || !draft.progressiveDiscountEnabled}
+                  suffix="%"
+                  onChange={(v) => patchDraft({ progressiveInitialCouponPercent: v })}
+                />
+                <NumberField
+                  label="Intenção de saída"
+                  help="Ao tentar sair ou ficar inativo."
+                  value={draft.progressiveExitIntentPercent}
+                  min={0}
+                  max={100}
+                  disabled={busy || !draft.progressiveDiscountEnabled}
+                  suffix="%"
+                  onChange={(v) => patchDraft({ progressiveExitIntentPercent: v })}
+                />
+                <NumberField
+                  label="Carrinho abandonado"
+                  help="Oferta de recuperação por WhatsApp."
+                  value={draft.progressiveAbandonedCartPercent}
+                  min={0}
+                  max={100}
+                  disabled={busy || !draft.progressiveDiscountEnabled}
+                  suffix="%"
+                  onChange={(v) => patchDraft({ progressiveAbandonedCartPercent: v })}
+                />
+                <NumberField
+                  label="Antes do pagamento"
+                  help="Nudge final na etapa de pagamento."
+                  value={draft.progressivePaymentNudgePercent}
+                  min={0}
+                  max={100}
+                  disabled={busy || !draft.progressiveDiscountEnabled}
+                  suffix="%"
+                  onChange={(v) => patchDraft({ progressivePaymentNudgePercent: v })}
+                />
+              </div>
+              {errors.progressiveDiscount ? <p className="cfg-inline-error">{errors.progressiveDiscount}</p> : null}
+              <p className="cfg-help">
+                Percentuais são o desconto total daquele estágio, não soma acumulada. O rules-engine ainda aplica cap e margem mínima.
+              </p>
+            </SectionRail>
+
+            {/* 7 — Cross-sell */}
             <SectionRail
               icon={<Zap size={16} strokeWidth={1.75} />}
-              index="06"
+              index="07"
               title="Cross-sell"
               desc="Sugira produtos complementares durante o checkout para aumentar o ticket médio."
               aside={

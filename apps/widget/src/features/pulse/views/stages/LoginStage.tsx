@@ -14,57 +14,34 @@ export function LoginStage({ s }: StageProps) {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
         textAlign: 'center',
-        padding: '34px 30px',
-        overflow: 'hidden',
+        padding: '0 30px',
+        overflowY: 'auto',
+        overflowX: 'hidden',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          top: '-60px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '300px',
-          height: '300px',
-          borderRadius: '50%',
-          background: 'var(--aacp-accent, #1ED760)',
-          filter: 'blur(80px)',
-          opacity: 0.26,
-          animation: 'orbSpin 22s linear infinite',
-          pointerEvents: 'none',
-        }}
-      />
-
-      <div
-        style={{
-          fontFamily: "'Space Mono',monospace",
-          fontSize: '10px',
-          letterSpacing: '2px',
-          textTransform: 'uppercase',
-          color: 'var(--mut)',
-          marginBottom: '8px',
-        }}
-      >
+      {/* spacer pushes content to vertical center when there's room */}
+      <div style={{ flex: '1 1 0', minHeight: '16px' }} />
+      <div style={{ fontFamily: "'Space Mono',monospace", fontSize: '10px', letterSpacing: '2px', textTransform: 'uppercase', color: 'var(--mut)', marginBottom: '12px', textAlign: 'center', width: '100%' }}>
         Pulse · checkout seguro
       </div>
-      <div style={{ fontSize: '25px', fontWeight: 700, letterSpacing: '-.5px', marginBottom: '8px' }}>
+      <div style={{ fontSize: '24px', fontWeight: 700, letterSpacing: '-.5px', lineHeight: 1.2, marginBottom: '12px', textAlign: 'center', width: '100%' }}>
         Entrar com seu rosto
       </div>
       <div
         style={{
           fontSize: '13px',
-          lineHeight: 1.5,
+          lineHeight: 1.55,
           color: 'var(--mut)',
-          maxWidth: '280px',
-          marginBottom: '26px',
+          maxWidth: '380px',
+          marginBottom: '24px',
+          textAlign: 'center',
         }}
       >
         Reconhecimento facial para comprar sem digitar senha. Rápido, biométrico e só seu.
       </div>
 
-      <div style={stateStyle(s, 'camWrapStyle')}>
+      <div style={{ ...stateStyle(s, 'camWrapStyle'), margin: '0 auto' }}>
         <video
           ref={camRef}
           autoPlay
@@ -115,7 +92,7 @@ export function LoginStage({ s }: StageProps) {
             cy="50"
             r="47"
             fill="none"
-            stroke="var(--aacp-accent, #1ED760)"
+            stroke="var(--aacp-accent, #0f766e)"
             strokeWidth="3"
             strokeLinecap="round"
             strokeDasharray="295.3"
@@ -124,8 +101,8 @@ export function LoginStage({ s }: StageProps) {
           />
           <defs>
             <linearGradient id="pulseGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stopColor="var(--aacp-accent, #1ED760)" />
-              <stop offset="1" stopColor="var(--aacp-accent, #1ED760)" />
+              <stop offset="0" stopColor="var(--aacp-accent, #0f766e)" />
+              <stop offset="1" stopColor="var(--aacp-accent, #0f766e)" />
             </linearGradient>
           </defs>
         </svg>
@@ -161,7 +138,7 @@ export function LoginStage({ s }: StageProps) {
         )}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '20px', margin: '22px 0', fontSize: '12.5px', color: 'var(--mut)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', height: '20px', margin: '22px 0', fontSize: '12.5px', color: 'var(--mut)', width: '100%' }}>
         {stateBool(s, 'faceBusy') && (
           <span
             style={{
@@ -213,8 +190,11 @@ export function LoginStage({ s }: StageProps) {
         Processado no dispositivo · sua imagem não é enviada
       </div>
 
+      {/* bottom spacer to balance the top flex spacer */}
+      <div style={{ flex: '1 1 0', minHeight: '20px' }} />
+
       {stateBool(s, 'isLogin') && stateStr(s, 'phoneStep') !== 'done' && (
-        <div style={{ width: '100%', maxWidth: '280px', marginTop: '24px' }}>
+        <div style={{ width: '100%', maxWidth: '280px', marginTop: '0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
             <div style={{ flex: 1, height: '1px', background: 'var(--bd)' }} />
             <span style={{ fontSize: '11px', color: 'var(--mut)', fontFamily: "'Space Mono',monospace", letterSpacing: '1px', textTransform: 'uppercase' }}>ou</span>

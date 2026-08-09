@@ -9,10 +9,10 @@
 
 /* ---- shared tokens (both themes) ---- */
 .zyon-page[data-skin="pulse"] {
-  /* signature gradient stops */
-  --pulse-g1: #8b5cf6;
-  --pulse-g2: #2dd4ff;
-  --pulse-g3: #ff5cc8;
+  /* signature tokens inherit merchant theme */
+  --pulse-g1: var(--aacp-accent, #0f766e);
+  --pulse-g2: var(--aacp-accent-2, var(--aacp-accent, #0f766e));
+  --pulse-g3: var(--aacp-accent-strong, var(--aacp-accent, #0f766e));
 
   --aacp-font: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --aacp-font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
@@ -26,10 +26,6 @@
   --aacp-radius-md: 14px;
   --aacp-radius-lg: 20px;
   --aacp-radius-pill: 999px;
-
-  --aacp-accent: var(--pulse-g1);
-  --aacp-accent-2: var(--pulse-g2);
-  --aacp-accent-strong: var(--pulse-g1);
 
   --aacp-grad-primary: linear-gradient(95deg, var(--pulse-g1), var(--pulse-g2), var(--pulse-g3));
   --aacp-grad-bubble-buyer: linear-gradient(95deg, var(--pulse-g1), var(--pulse-g2));
@@ -64,9 +60,9 @@
 
 /* ---- light theme ---- */
 .zyon-page[data-skin="pulse"][data-theme="light"] {
-  --pulse-g1: #7c3aed;
-  --pulse-g2: #0891b2;
-  --pulse-g3: #db2777;
+  --pulse-g1: var(--aacp-accent, #0f766e);
+  --pulse-g2: var(--aacp-accent-2, var(--aacp-accent, #0f766e));
+  --pulse-g3: var(--aacp-accent-strong, var(--aacp-accent, #0f766e));
 
   --aacp-bg: #e7e5df;
   --aacp-surface: #ffffff;
@@ -94,12 +90,8 @@
   overflow: hidden;
 }
 
-/* gradient text helper reused by the hero headline */
 .zyon-page[data-skin="pulse"] .pulse-grad-text {
-  background: linear-gradient(95deg, var(--pulse-g1), var(--pulse-g2), var(--pulse-g3));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  color: var(--aacp-accent, #0f766e);
 }
 
 /* ============ PULSE HERO (signature) ============ */

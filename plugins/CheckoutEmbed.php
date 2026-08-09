@@ -133,7 +133,7 @@ class CheckoutEmbed {
             return '';
         }
         return '<div class="woocommerce-info zyon-checkout-admin-notice">'
-            . esc_html__('Zyon Checkout is not configured. Native WooCommerce checkout remains active.', 'zyon-checkout')
+            . esc_html__('Zyon Checkout is not configured. Native WooCommerce checkout remains active.', 'zyon-agentic-checkout-for-woocommerce')
             . '</div>';
     }
 

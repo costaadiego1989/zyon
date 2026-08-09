@@ -379,10 +379,18 @@ export interface TrackEventRequest {
   metadata?: Record<string, unknown>;
 }
 
+export interface ProgressiveOfferResponse {
+  stage: ProgressiveDiscountStage;
+  requested_percent: number;
+  approved_percent: number;
+  reason: string;
+}
+
 export interface TrackEventResponse {
   received: true;
   abandonment_score: number;
   trigger_agent: boolean;
+  progressive_offer?: ProgressiveOfferResponse;
 }
 
 export interface UpdateCartItemInput {
@@ -695,6 +703,22 @@ export type CheckoutTriggerName =
   | "exit_intent_detected"
   | "idle_30_seconds";
 
+export type ProgressiveDiscountStage =
+  | "initial_coupon"
+  | "exit_intent"
+  | "abandoned_cart"
+  | "payment_nudge";
+
+export interface ProgressiveDiscountPolicy {
+  enabled: boolean;
+  stages: Record<ProgressiveDiscountStage, number>;
+}
+
+export interface ProgressiveDiscountPolicyPatch {
+  enabled?: boolean;
+  stages?: Partial<Record<ProgressiveDiscountStage, number>>;
+}
+
 export type CheckoutWidgetPresentationMode =
   | "fab"
   | "mini_card"
@@ -721,6 +745,7 @@ export interface CheckoutInterventionPolicy {
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
   maxInterventionsPerSession: number;
+  progressiveDiscount?: ProgressiveDiscountPolicy;
 }
 
 export interface CheckoutTriggerRule {
@@ -758,7 +783,9 @@ export interface CheckoutSettings {
 export interface CheckoutSettingsPatch {
   mode?: CheckoutSettingsMode;
   widgetBehavior?: Partial<CheckoutWidgetBehavior>;
-  interventionPolicy?: Partial<CheckoutInterventionPolicy>;
+  interventionPolicy?: Partial<Omit<CheckoutInterventionPolicy, "progressiveDiscount">> & {
+    progressiveDiscount?: ProgressiveDiscountPolicyPatch;
+  };
   triggerRules?: CheckoutTriggerRule[];
   suppressionRules?: Partial<CheckoutSuppressionRules>;
   handoff?: Partial<CheckoutHandoffSettings>;
@@ -774,6 +801,7 @@ export interface CheckoutSettingsContext {
     max_interventions_per_session: number;
     enabled_triggers: CheckoutTriggerName[];
     handoff_enabled: boolean;
+    progressive_discount?: ProgressiveDiscountPolicy;
   };
   operational_constraints: string[];
 }
