@@ -15,6 +15,25 @@
   padding: 24px;
   overflow-y: auto;
   max-height: 100vh;
+  scrollbar-width: thin;
+  scrollbar-color: oklch(25% 0.005 145) transparent;
+}
+
+.auth-form-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.auth-form-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.auth-form-panel::-webkit-scrollbar-thumb {
+  background: oklch(25% 0.005 145);
+  border-radius: 3px;
+}
+
+.auth-form-panel::-webkit-scrollbar-thumb:hover {
+  background: oklch(32% 0.005 145);
 }
 
 .auth-header {
@@ -311,7 +330,8 @@
 }
 
 .auth-field__select {
-  padding: 13px 16px;
+  padding: 13px 40px 13px 16px;
+  height: 46px;
   border-radius: 8px;
   border: 1px solid oklch(20% 0.006 150);
   background: oklch(7% 0.004 150);
@@ -322,7 +342,9 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
-  padding-right: 36px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
   transition: border-color 0.15s ease-out, box-shadow 0.15s ease-out;
 }
 
