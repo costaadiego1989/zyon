@@ -23,10 +23,15 @@
 }
 
 .auth-header__logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 36px;
+  width: auto;
   flex: none;
+}
+
+.auth-hero__logo-img {
+  width: 200px;
+  height: auto;
+  filter: drop-shadow(0 0 60px oklch(55% 0.14 149 / 0.3));
 }
 
 .auth-header__sep {
