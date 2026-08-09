@@ -139,8 +139,8 @@ function App({ api }: AppProps) {
       <AuthScreen
         mode={authMode}
         setMode={setAuthMode}
-        busy={busy || checkingSession}
-        hint={checkingSession ? "Verificando sessão..." : authHint}
+        busy={busy}
+        hint={authHint}
         email={email}
         setEmail={setEmail}
         password={password}

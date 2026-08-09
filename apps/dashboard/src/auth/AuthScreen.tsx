@@ -31,7 +31,7 @@ export function AuthScreen(props: AuthScreenProps) {
       {/* Left: Form */}
       <section className="auth-form-panel">
         <header className="auth-header">
-          <div className="auth-header__logo">Z</div>
+          <ZyonLogo />
           <div className="auth-header__sep" />
           <span className="auth-header__label">AI Checkout Sales Agent</span>
         </header>
@@ -71,36 +71,24 @@ export function AuthScreen(props: AuthScreenProps) {
         <div className="auth-hero__glow auth-hero__glow--mid" />
         <div className="auth-hero__glow auth-hero__glow--bottom" />
         <div className="auth-hero__content">
-          <div className="auth-hero__testimonial">
-            <div className="auth-hero__avatar">A</div>
-            <div>
-              <div className="auth-hero__author">Ana Rodrigues</div>
-              <div className="auth-hero__role">Head of E-commerce · Loja Aurora</div>
-            </div>
+          <div className="auth-hero__logo-large">
+            <ZyonLogoLarge />
           </div>
-          <blockquote className="auth-hero__quote">
-            "Nosso checkout converteu 34% mais no primeiro mês. O agente negocia de forma natural e os clientes confiam."
-          </blockquote>
-          <div className="auth-hero__mockup">
-            <div className="auth-hero__mockup-bar">
-              <span className="auth-hero__mockup-dot" />
-              <span className="auth-hero__mockup-dot" />
-              <span className="auth-hero__mockup-dot" />
-              <span className="auth-hero__mockup-url">console.zyon.ai/dashboard</span>
+          <p className="auth-hero__tagline">
+            Checkout agêntico com IA que negocia, oferece e converte.
+          </p>
+          <div className="auth-hero__metrics">
+            <div className="auth-hero__metric">
+              <span className="auth-hero__metric-value">+34%</span>
+              <span className="auth-hero__metric-label">Conversão</span>
             </div>
-            <div className="auth-hero__mockup-body">
-              <div className="auth-hero__mockup-stat">
-                <span className="auth-hero__mockup-stat-value">+34%</span>
-                <span className="auth-hero__mockup-stat-label">Conversão</span>
-              </div>
-              <div className="auth-hero__mockup-stat">
-                <span className="auth-hero__mockup-stat-value">2.4s</span>
-                <span className="auth-hero__mockup-stat-label">Tempo médio</span>
-              </div>
-              <div className="auth-hero__mockup-stat">
-                <span className="auth-hero__mockup-stat-value">98%</span>
-                <span className="auth-hero__mockup-stat-label">Satisfação</span>
-              </div>
+            <div className="auth-hero__metric">
+              <span className="auth-hero__metric-value">2.4s</span>
+              <span className="auth-hero__metric-label">Tempo médio</span>
+            </div>
+            <div className="auth-hero__metric">
+              <span className="auth-hero__metric-value">98%</span>
+              <span className="auth-hero__metric-label">Satisfação</span>
             </div>
           </div>
         </div>
@@ -208,6 +196,35 @@ function GoogleIcon() {
       <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" fill="#34A853" />
       <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84Z" fill="#FBBC05" />
       <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" fill="#EB4335" />
+    </svg>
+  );
+}
+
+function ZyonLogo() {
+  return (
+    <svg width="36" height="36" viewBox="0 0 100 100" fill="none" aria-hidden="true">
+      <rect width="100" height="100" rx="22" fill="url(#zyon-logo-grad)" />
+      <path d="M28 35h44L40 65h44" stroke="white" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M55 28l12 7-12 7" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.7" />
+      <defs>
+        <linearGradient id="zyon-logo-grad" x1="0" y1="0" x2="100" y2="100">
+          <stop offset="0%" stopColor="oklch(62% 0.16 149)" />
+          <stop offset="100%" stopColor="oklch(48% 0.13 149)" />
+        </linearGradient>
+      </defs>
+    </svg>
+  );
+}
+
+function ZyonLogoLarge() {
+  return (
+    <svg width="180" height="180" viewBox="0 0 200 200" fill="none" aria-hidden="true">
+      <rect width="200" height="200" rx="44" fill="none" stroke="oklch(55% 0.14 149)" strokeWidth="2" opacity="0.3" />
+      <rect x="16" y="16" width="168" height="168" rx="36" fill="oklch(12% 0.02 149)" stroke="oklch(45% 0.1 149)" strokeWidth="1" opacity="0.5" />
+      <path d="M56 70h88L80 130h88" stroke="oklch(60% 0.15 149)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M110 56l24 14-24 14" stroke="oklch(65% 0.14 149)" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" fill="none" opacity="0.6" />
+      <circle cx="100" cy="100" r="90" stroke="oklch(50% 0.12 149)" strokeWidth="1" fill="none" opacity="0.15" />
+      <text x="100" y="172" textAnchor="middle" fill="oklch(70% 0.1 149)" fontFamily="'Manrope', sans-serif" fontWeight="700" fontSize="28" letterSpacing="-1">Zyon</text>
     </svg>
   );
 }

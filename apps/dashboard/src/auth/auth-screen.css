@@ -3,7 +3,7 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   min-height: 100vh;
-  background: oklch(5% 0.005 150);
+  background: oklch(7% 0.005 150);
   font-family: 'Manrope', system-ui, sans-serif;
   color: oklch(96% 0.002 145);
 }
@@ -23,15 +23,10 @@
 }
 
 .auth-header__logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, oklch(62% 0.16 149), oklch(50% 0.13 149));
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 700 18px 'IBM Plex Mono', monospace;
-  color: white;
+  flex: none;
 }
 
 .auth-header__sep {
@@ -57,9 +52,6 @@
   width: 100%;
   margin: 0 auto;
   padding: 40px 48px;
-  background: oklch(10% 0.006 150);
-  border: 1px solid oklch(18% 0.008 150);
-  border-radius: 14px;
 }
 
 .auth-form-area {
@@ -416,17 +408,18 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
   padding: 64px;
   overflow: hidden;
-  background: linear-gradient(160deg, oklch(8% 0.02 150) 0%, oklch(4% 0.01 150) 60%, oklch(6% 0.015 149) 100%);
+  background: oklch(7% 0.005 150);
 }
 
 .auth-hero__glow {
   position: absolute;
   border-radius: 50%;
   pointer-events: none;
-  filter: blur(100px);
+  filter: blur(120px);
 }
 
 .auth-hero__glow--top {
@@ -434,7 +427,7 @@
   right: -100px;
   width: 500px;
   height: 500px;
-  background: oklch(45% 0.12 149 / 0.06);
+  background: oklch(45% 0.12 149 / 0.08);
 }
 
 .auth-hero__glow--mid {
@@ -442,7 +435,7 @@
   left: -150px;
   width: 400px;
   height: 400px;
-  background: oklch(55% 0.14 149 / 0.04);
+  background: oklch(55% 0.14 149 / 0.05);
 }
 
 .auth-hero__glow--bottom {
@@ -450,110 +443,57 @@
   right: 20%;
   width: 350px;
   height: 350px;
-  background: oklch(50% 0.1 180 / 0.03);
+  background: oklch(50% 0.1 180 / 0.04);
 }
 
 .auth-hero__content {
   position: relative;
   z-index: 1;
-  max-width: 480px;
-}
-
-.auth-hero__testimonial {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 24px;
+  text-align: center;
+  gap: 40px;
 }
 
-.auth-hero__avatar {
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, oklch(55% 0.12 149), oklch(45% 0.1 180));
+.auth-hero__logo-large {
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 600 16px 'Manrope', sans-serif;
-  color: white;
-  border: 2px solid oklch(30% 0.04 149);
+  filter: drop-shadow(0 0 40px oklch(55% 0.14 149 / 0.2));
 }
 
-.auth-hero__author {
-  font: 600 15px 'Manrope', sans-serif;
-  color: oklch(94% 0.002 145);
+.auth-hero__tagline {
+  font: 400 18px/1.5 'Manrope', sans-serif;
+  color: oklch(60% 0.008 145);
+  max-width: 340px;
+  margin: 0;
 }
 
-.auth-hero__role {
-  font: 400 12px 'Manrope', sans-serif;
-  color: oklch(50% 0.006 145);
-  margin-top: 2px;
-}
-
-.auth-hero__quote {
-  font: 300 28px/1.3 'Manrope', sans-serif;
-  letter-spacing: -0.02em;
-  color: oklch(88% 0.005 145);
-  margin: 0 0 48px;
-  border: none;
-  padding: 0;
-}
-
-/* Mockup */
-.auth-hero__mockup {
-  border-radius: 12px;
-  border: 1px solid oklch(20% 0.008 149);
-  background: oklch(8% 0.005 150);
-  overflow: hidden;
-  box-shadow: 0 24px 64px oklch(0% 0 0 / 0.4);
-}
-
-.auth-hero__mockup-bar {
+.auth-hero__metrics {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 16px;
-  border-bottom: 1px solid oklch(18% 0.006 150);
+  gap: 32px;
+  padding: 24px 32px;
+  border-radius: 12px;
+  border: 1px solid oklch(18% 0.006 150);
+  background: oklch(9% 0.005 150);
 }
 
-.auth-hero__mockup-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: oklch(30% 0.005 145);
-}
-
-.auth-hero__mockup-url {
-  margin-left: 12px;
-  font: 400 10px 'IBM Plex Mono', monospace;
-  color: oklch(40% 0.005 145);
-  letter-spacing: 0.02em;
-}
-
-.auth-hero__mockup-body {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 1px;
-  padding: 24px;
-  background: oklch(6% 0.004 150);
-}
-
-.auth-hero__mockup-stat {
+.auth-hero__metric {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 16px;
 }
 
-.auth-hero__mockup-stat-value {
-  font: 700 22px 'IBM Plex Mono', monospace;
-  color: oklch(70% 0.12 149);
+.auth-hero__metric-value {
+  font: 700 20px 'IBM Plex Mono', monospace;
+  color: oklch(68% 0.12 149);
 }
 
-.auth-hero__mockup-stat-label {
+.auth-hero__metric-label {
   font: 400 11px 'Manrope', sans-serif;
-  color: oklch(50% 0.005 145);
+  color: oklch(48% 0.005 145);
 }
 
 /* ─── Responsive ─── */
