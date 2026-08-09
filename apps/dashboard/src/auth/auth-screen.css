@@ -143,12 +143,98 @@
   font: 500 13px 'Manrope', sans-serif;
   color: oklch(88% 0.002 145);
   cursor: pointer;
-  transition: border-color 0.15s ease-out, background 0.15s ease-out;
+  transition: border-color 0.15s ease-out, background 0.15s ease-out, transform 0.1s ease-out, box-shadow 0.15s ease-out;
 }
 
 .auth-social__btn:hover {
-  border-color: oklch(30% 0.008 145);
-  background: oklch(12% 0.005 145);
+  border-color: oklch(32% 0.008 145);
+  background: oklch(13% 0.006 145);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px oklch(0% 0 0 / 0.3);
+}
+
+.auth-social__btn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* ─── Coming Soon Modal ─── */
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: oklch(0% 0 0 / 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: auth-fade-in 0.15s ease-out;
+}
+
+.auth-modal {
+  background: oklch(12% 0.006 150);
+  border: 1px solid oklch(22% 0.008 150);
+  border-radius: 14px;
+  padding: 32px 36px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 24px 64px oklch(0% 0 0 / 0.5);
+  animation: auth-scale-in 0.2s ease-out;
+}
+
+.auth-modal__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: oklch(16% 0.01 149);
+  border: 1px solid oklch(24% 0.008 149);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: oklch(65% 0.12 149);
+}
+
+.auth-modal__title {
+  font: 600 18px 'Manrope', sans-serif;
+  color: oklch(94% 0.002 145);
+  margin: 0;
+}
+
+.auth-modal__text {
+  font: 400 14px/1.5 'Manrope', sans-serif;
+  color: oklch(55% 0.006 145);
+  margin: 0;
+}
+
+.auth-modal__close {
+  margin-top: 8px;
+  padding: 10px 24px;
+  border-radius: 8px;
+  border: 1px solid oklch(24% 0.006 145);
+  background: transparent;
+  font: 500 13px 'Manrope', sans-serif;
+  color: oklch(88% 0.002 145);
+  cursor: pointer;
+  transition: background 0.15s ease-out;
+}
+
+.auth-modal__close:hover {
+  background: oklch(16% 0.004 145);
+}
+
+@keyframes auth-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes auth-scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 /* ─── Divider ─── */
@@ -263,7 +349,7 @@
   padding: 14px 24px;
   border-radius: 8px;
   border: none;
-  background: linear-gradient(135deg, oklch(62% 0.16 149), oklch(52% 0.14 149));
+  background: linear-gradient(135deg, oklch(62% 0.16 149), oklch(50% 0.13 149));
   font: 600 14px 'Manrope', sans-serif;
   color: white;
   cursor: pointer;
@@ -271,16 +357,20 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: opacity 0.15s ease-out, transform 0.1s ease-out;
-  box-shadow: 0 2px 12px oklch(55% 0.14 149 / 0.2);
+  transition: transform 0.15s ease-out, box-shadow 0.2s ease-out, filter 0.15s ease-out;
+  box-shadow: 0 4px 16px oklch(55% 0.14 149 / 0.25), inset 0 1px 0 oklch(100% 0 0 / 0.08);
 }
 
 .auth-cta:hover:not(:disabled) {
-  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px oklch(55% 0.14 149 / 0.35), inset 0 1px 0 oklch(100% 0 0 / 0.1);
+  filter: brightness(1.08);
 }
 
 .auth-cta:active:not(:disabled) {
   transform: translateY(1px);
+  box-shadow: 0 2px 8px oklch(55% 0.14 149 / 0.2);
+  filter: brightness(0.95);
 }
 
 .auth-cta:disabled {

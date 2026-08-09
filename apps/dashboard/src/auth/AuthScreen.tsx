@@ -1,5 +1,5 @@
-import React from "react";
-import { KeyRound, UserPlus, Github } from "lucide-react";
+import React, { useState } from "react";
+import { KeyRound, UserPlus, Github, Code2 } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
 import "./auth-screen.css";
 
@@ -26,8 +26,19 @@ export interface AuthScreenProps {
 export function AuthScreen(props: AuthScreenProps) {
   const mode: AuthMode = props.mode;
   const isSignup = mode === "signup";
+  const [showComingSoon, setShowComingSoon] = useState(false);
   return (
     <main className="auth-shell">
+      {showComingSoon && (
+        <div className="auth-modal-backdrop" onClick={() => setShowComingSoon(false)}>
+          <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="auth-modal__icon"><Code2 size={22} /></div>
+            <h3 className="auth-modal__title">Em breve</h3>
+            <p className="auth-modal__text">Login com GitHub está sendo implementado. Por enquanto, use email e senha para acessar.</p>
+            <button type="button" className="auth-modal__close" onClick={() => setShowComingSoon(false)}>Entendido</button>
+          </div>
+        </div>
+      )}
       {/* Left: Form */}
       <section className="auth-form-panel">
         <header className="auth-header">
@@ -59,7 +70,7 @@ export function AuthScreen(props: AuthScreenProps) {
                 onSwitchToLogin={() => props.setMode("login")}
               />
             ) : (
-              <LoginForm {...props} />
+              <LoginForm {...props} onGithubClick={() => setShowComingSoon(true)} />
             )}
           </div>
         </div>
@@ -97,7 +108,7 @@ export function AuthScreen(props: AuthScreenProps) {
   );
 }
 
-function LoginForm(props: AuthScreenProps) {
+function LoginForm(props: AuthScreenProps & { onGithubClick: () => void }) {
   return (
     <form onSubmit={props.onSubmit} className="auth-form">
       <div className="auth-form__header">
@@ -110,7 +121,7 @@ function LoginForm(props: AuthScreenProps) {
           <GoogleIcon />
           <span>Google</span>
         </button>
-        <button type="button" className="auth-social__btn">
+        <button type="button" className="auth-social__btn" onClick={props.onGithubClick}>
           <Github size={16} />
           <span>GitHub</span>
         </button>
