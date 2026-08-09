@@ -420,6 +420,42 @@
   background: oklch(7% 0.005 150);
 }
 
+.auth-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      90deg,
+      oklch(100% 0 0 / 0.015) 0px,
+      oklch(100% 0 0 / 0.015) 1px,
+      transparent 1px,
+      transparent 40px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      oklch(100% 0 0 / 0.008) 0px,
+      oklch(100% 0 0 / 0.008) 1px,
+      transparent 1px,
+      transparent 40px
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 80% 60% at 50% 40%,
+    oklch(50% 0.14 149 / 0.08) 0%,
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
 .auth-hero__glow {
   position: absolute;
   border-radius: 50%;
