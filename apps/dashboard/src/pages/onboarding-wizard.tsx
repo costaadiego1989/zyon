@@ -409,13 +409,50 @@ export function OnboardingWizard(props: {
 
                   <div className="onb-field">
                     <label className="onb-field-label" htmlFor="onb-logo">Logotipo da loja</label>
-                    <input
-                      id="onb-logo"
-                      type="text"
-                      placeholder="https://suamarca.com/logo.png"
-                      value={themeDraft.logoUrl ?? ""}
-                      onChange={(e) => setThemeDraft((d) => ({ ...d, logoUrl: e.target.value }))}
-                    />
+                    <div
+                      style={{
+                        border: "2px dashed var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "20px",
+                        textAlign: "center",
+                        cursor: "pointer",
+                        transition: "border-color 0.15s",
+                        position: "relative",
+                      }}
+                      onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "var(--color-brand)"; }}
+                      onDragLeave={(e) => { e.currentTarget.style.borderColor = "var(--color-border)"; }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.currentTarget.style.borderColor = "var(--color-border)";
+                        const file = e.dataTransfer.files[0];
+                        if (file && file.type.startsWith("image/")) {
+                          const url = URL.createObjectURL(file);
+                          setThemeDraft((d) => ({ ...d, logoUrl: url }));
+                        }
+                      }}
+                      onClick={() => document.getElementById("onb-logo-file")?.click()}
+                    >
+                      <input
+                        id="onb-logo-file"
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const url = URL.createObjectURL(file);
+                            setThemeDraft((d) => ({ ...d, logoUrl: url }));
+                          }
+                        }}
+                      />
+                      {themeDraft.logoUrl ? (
+                        <img src={themeDraft.logoUrl} alt="Logo" style={{ maxHeight: 48, maxWidth: "100%", objectFit: "contain" }} />
+                      ) : (
+                        <span style={{ font: "13px var(--font-sans, 'Manrope', sans-serif)", color: "var(--color-text-muted)" }}>
+                          Arraste uma imagem ou clique para selecionar
+                        </span>
+                      )}
+                    </div>
                     {fieldErrors.logoUrl && <span className="onb-field-error">{fieldErrors.logoUrl}</span>}
                   </div>
 
@@ -909,7 +946,7 @@ function OnboardingStyles() {
         letter-spacing: -0.05em;
         line-height: 1;
         color: var(--color-text);
-        opacity: 0.035;
+        opacity: 0;
         pointer-events: none;
         user-select: none;
         white-space: nowrap;

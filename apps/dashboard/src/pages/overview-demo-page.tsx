@@ -261,6 +261,17 @@ type FeedItem =
   | { kind: "offer"; id: string; ts: string; data: AuthorizedOffer }
   | { kind: "session"; id: string; ts: string; data: CheckoutSession };
 
+function InsightRow({ tag, color, text }: { tag: string; color: string; text: string }) {
+  return (
+    <div style={{ display: "flex", gap: 12 }}>
+      <div style={{ minWidth: 0 }}>
+        <span style={{ font: "600 10px var(--sans)", letterSpacing: "0.05em", padding: "3px 7px", borderRadius: 5, background: color === "var(--good)" ? "var(--good-soft)" : color === "var(--warn)" ? "var(--warn-soft)" : "var(--accent-soft)", color }}>{tag}</span>
+        <div style={{ font: "12.5px/1.5 var(--sans)", color: "var(--ink)", marginTop: 6 }}>{text}</div>
+      </div>
+    </div>
+  );
+}
+
 function offerTypeLabel(type: string): string {
   const map: Record<string, string> = {
     discount_percent: "Desconto percentual",
@@ -548,17 +559,34 @@ export function OverviewDemoPage(props: {
             </div>
           ))}
         </div>
-        {/* Right: Insights placeholder */}
+        {/* Right: Insights */}
         <div style={{ padding: 22 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
             <div style={{ font: "600 14px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em" }}>Insights do agente</div>
-            <span style={{ font: "11px var(--sans)", color: "var(--faint)" }}>gerados automaticamente</span>
+            <span style={{ font: "11px var(--sans)", color: "var(--faint)" }}>baseados em dados reais</span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", gap: 10 }}>
-            <div style={{ font: "13px var(--sans)", color: "var(--muted)", textAlign: "center", lineHeight: 1.5 }}>
-              Insights aparecerão aqui quando houver dados suficientes de sessões e conversões.
+          {overview && (overview.conversations_started > 0 || overview.offers_viewed > 0) ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {overview.conversion_rate_with_agent > 0 && (
+                <InsightRow tag="CONVERSÃO" color="var(--good)" text={`Taxa de conversão atual: ${(overview.conversion_rate_with_agent * 100).toFixed(1)}% das sessões converteram em pedido.`} />
+              )}
+              {overview.offers_viewed > 0 && (
+                <InsightRow tag="OFERTAS" color="var(--accent-dark)" text={`${overview.offers_accepted} de ${overview.offers_viewed} ofertas foram aceitas (${overview.offers_viewed > 0 ? ((overview.offers_accepted / overview.offers_viewed) * 100).toFixed(0) : 0}% de aceitação).`} />
+              )}
+              {overview.average_discount > 0 && (
+                <InsightRow tag="DESCONTO" color="var(--warn)" text={`Desconto médio concedido: ${overview.average_discount.toFixed(1)}%. Frete subsidiado em média: R$ ${overview.average_shipping_subsidy.toFixed(2)}.`} />
+              )}
+              {overview.incremental_revenue > 0 && (
+                <InsightRow tag="RECEITA" color="var(--good)" text={`Receita incremental gerada pelo agente: R$ ${overview.incremental_revenue.toFixed(2)}.`} />
+              )}
             </div>
-          </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 16px", gap: 10 }}>
+              <div style={{ font: "13px var(--sans)", color: "var(--muted)", textAlign: "center", lineHeight: 1.5 }}>
+                Insights aparecerão aqui quando houver sessões e conversões registradas.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
