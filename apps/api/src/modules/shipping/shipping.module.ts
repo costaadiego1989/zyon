@@ -12,7 +12,9 @@ import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { GetShippingTrackingUseCase, PurchaseShippingLabelUseCase } from "./application/use-cases/shipping-label.use-cases.js";
 import { ShippingQuotesModule } from "./shipping-quotes.module.js";
 import { ORDER_TRACKING_UPDATER } from "./domain/ports/order-tracking-updater.port.js";
+import { SHIPPING_CARRIER_ADAPTER } from "./domain/ports/shipping-carrier.port.js";
 import { UpdateTenantOrderTrackingUseCase } from "../integrations/application/integrations.use-cases.js";
+import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
 
 @Module({
   imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule],
@@ -22,6 +24,7 @@ import { UpdateTenantOrderTrackingUseCase } from "../integrations/application/in
     EmbedAuthGuard,
     SelectShippingMethodUseCase,
     { provide: ORDER_TRACKING_UPDATER, useExisting: UpdateTenantOrderTrackingUseCase },
+    { provide: SHIPPING_CARRIER_ADAPTER, useClass: MelhorEnvioCarrierAdapter },
     PurchaseShippingLabelUseCase,
     GetShippingTrackingUseCase,
   ],

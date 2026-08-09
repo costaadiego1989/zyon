@@ -3,10 +3,10 @@ import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
+import { CRYPTO_VERIFIER, type CryptoVerifierPort } from "../domain/ports/crypto-verifier.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
-import { evmCryptoVerifier } from "../infrastructure/evm-crypto-verifier.js";
-import type { CryptoBuyerFacing } from "../infrastructure/evm-crypto.constants.js";
+import type { CryptoBuyerFacing } from "../domain/entities/crypto-buyer-facing.type.js";
 
 export type ConfirmCryptoPaymentRequest = {
   merchant_id: string;
@@ -38,8 +38,9 @@ function asCryptoBuyerFacing(raw: unknown): CryptoBuyerFacing | null {
 export class ConfirmCryptoPaymentUseCase {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
+    @Optional() @Inject(CRYPTO_VERIFIER) private readonly cryptoVerifier?: CryptoVerifierPort,
     @Optional() @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment?: CheckoutPaymentPort,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox?: OutboxRepository
+    @Optional() @Inject(OUTBOX_REPOSITORY) private readonly outbox?: OutboxRepository
   ) {}
 
   async execute(body: ConfirmCryptoPaymentRequest): Promise<{ status: string; intent_id: string }> {
@@ -98,7 +99,10 @@ export class ConfirmCryptoPaymentUseCase {
           throw new ConflictException("crypto_tx_already_used");
         }
         reservedHashes.push(hash);
-        verified = await evmCryptoVerifier.verifyTransfer({
+        if (!this.cryptoVerifier) {
+          throw new BadRequestException("crypto_verifier_not_configured");
+        }
+        verified = await this.cryptoVerifier.verifyTransfer({
           txHash: hash,
           walletAddress,
           buyerFacing: {

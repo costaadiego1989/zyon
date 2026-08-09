@@ -5,6 +5,7 @@ import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { ConfirmCryptoPaymentUseCase } from "./confirm-crypto-payment.use-case.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
+import type { CryptoVerifierPort, VerifyCryptoTransferInput, VerifyCryptoTransferResult } from "../domain/ports/crypto-verifier.port.js";
 import type { PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import * as verifierModule from "../infrastructure/evm-crypto-verifier.js";
 
@@ -56,6 +57,18 @@ let verifierBehavior: "success" | "throw" = "success";
 let verifierError: string = "crypto_transfer_not_matched";
 const verifierCalls: Array<{ txHash: string; destinationAddress: string; amountAtomic: string }> = [];
 
+const mockVerifier: CryptoVerifierPort = {
+  async verifyTransfer(input: VerifyCryptoTransferInput): Promise<VerifyCryptoTransferResult> {
+    if (verifierBehavior === "throw") throw new Error(verifierError);
+    verifierCalls.push({
+      txHash: input.txHash,
+      destinationAddress: input.buyerFacing.destinationAddress,
+      amountAtomic: input.buyerFacing.amountAtomic,
+    });
+    return { from: input.walletAddress };
+  }
+};
+
 test.before(() => {
   (verifierModule.evmCryptoVerifier as any).verifyTransfer = async (input: {
     txHash: string;
@@ -79,7 +92,7 @@ test.beforeEach(() => {
 
 test("ConfirmCrypto: rejects when required fields are empty", async () => {
   const payments = new InMemoryPaymentRepository();
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "", session_id: "s", intent_id: "i", tx_hash: "0x1", wallet_address: "0xW" }),
@@ -97,7 +110,7 @@ test("ConfirmCrypto: rejects when required fields are empty", async () => {
 
 test("ConfirmCrypto: throws NotFoundException when intent does not exist", async () => {
   const payments = new InMemoryPaymentRepository();
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: "pay_int_xxx", tx_hash: "0xabc", wallet_address: "0xW" }),
@@ -109,7 +122,7 @@ test("ConfirmCrypto: enforces merchant boundary", async () => {
   const payments = new InMemoryPaymentRepository();
   const intent = createCryptoIntent(payments);
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_attacker", session_id: "chk_1", intent_id: intent.id, tx_hash: "0xabc", wallet_address: "0xW" }),
@@ -121,7 +134,7 @@ test("ConfirmCrypto: enforces session boundary", async () => {
   const payments = new InMemoryPaymentRepository();
   const intent = createCryptoIntent(payments);
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "wrong_session", intent_id: intent.id, tx_hash: "0xabc", wallet_address: "0xW" }),
@@ -141,7 +154,7 @@ test("ConfirmCrypto: rejects non-crypto method", async () => {
   });
   intent.markRequiresAction({ providerPaymentId: "pay_1" });
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id, tx_hash: "0xabc", wallet_address: "0xW" }),
@@ -154,7 +167,7 @@ test("ConfirmCrypto: returns early if already approved (idempotent)", async () =
   const intent = createCryptoIntent(payments);
   intent.markApproved({ providerPaymentId: "0xOldTx", approvedAmountCents: 5000 });
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   const result = await uc.execute({
     merchant_id: "mrc_1",
@@ -178,7 +191,7 @@ test("ConfirmCrypto: rejects non-confirmable status", async () => {
   });
   // Stays pending — not requires_action
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id, tx_hash: "0xabc", wallet_address: "0xW" }),
@@ -199,7 +212,7 @@ test("ConfirmCrypto: rejects when crypto buyerFacing is missing", async () => {
   intent.markRequiresAction({ providerPaymentId: "crypto_x" });
   // No setBuyerFacingPayload — buyerFacing is undefined
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id, tx_hash: "0xabc", wallet_address: "0xW" }),
@@ -220,7 +233,7 @@ test("ConfirmCrypto: rejects duplicate txHash (cross-intent replay)", async () =
     intentId: "some_other_intent"
   });
 
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id, tx_hash: "0xUsedTx", wallet_address: "0xW" }),
@@ -234,7 +247,7 @@ test("ConfirmCrypto: happy path approves and triggers checkout", async () => {
   const intent = createCryptoIntent(payments);
   await payments.saveIntent({ intent });
 
-  const uc = new ConfirmCryptoPaymentUseCase(payments, checkoutPort);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier as CryptoVerifierPort, checkoutPort);
 
   const result = await uc.execute({
     merchant_id: "mrc_1",
@@ -276,7 +289,7 @@ test("ConfirmCrypto: requires and verifies merchant plus platform fee transfers"
     ],
   } as any);
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments, checkoutPort);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier as CryptoVerifierPort, checkoutPort);
 
   await assert.rejects(
     () => uc.execute({
@@ -311,7 +324,7 @@ test("ConfirmCrypto: verification failure releases crypto transfer reservation",
   const payments = new InMemoryPaymentRepository();
   const intent = createCryptoIntent(payments);
   await payments.saveIntent({ intent });
-  const uc = new ConfirmCryptoPaymentUseCase(payments);
+  const uc = new ConfirmCryptoPaymentUseCase(payments, mockVerifier);
 
   await assert.rejects(
     () => uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id, tx_hash: "0xBadTx", wallet_address: "0xW" }),

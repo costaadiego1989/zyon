@@ -3,29 +3,7 @@ import { validateCep, validatePackagesList } from "@zyon/shipping-engine";
 import type { PackageDimensions } from "@zyon/shared-types";
 import type { CarrierPort, ShippingContext } from "../../domain/ports/carrier.port.js";
 import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
-
-export interface LabelPurchaseInput {
-  serviceId: number;
-  fromZip: string;
-  toZip: string;
-  toName: string;
-  toDocument: string;
-  packages: Array<{ weightKg: number; widthCm: number; heightCm: number; lengthCm: number; quantity: number }>;
-  invoiceKey?: string;
-  fromName?: string;
-  fromDocument?: string;
-}
-
-export interface LabelPurchaseResult {
-  purchaseId: string;
-  trackingCode: string;
-  labelUrl?: string;
-}
-
-export interface TrackingResult {
-  status: string;
-  events: Array<{ status: string; date: string; description: string }>;
-}
+import type { ShippingCarrierPort, LabelPurchaseInput, LabelPurchaseResult, TrackingResult } from "../../domain/ports/shipping-carrier.port.js";
 
 interface MelhorEnvioService {
   id: number;
@@ -37,7 +15,7 @@ interface MelhorEnvioService {
 }
 
 @Injectable()
-export class MelhorEnvioCarrierAdapter implements CarrierPort {
+export class MelhorEnvioCarrierAdapter implements CarrierPort, ShippingCarrierPort {
   readonly carrierKey = "melhor-envio";
 
   private get token(): string | undefined { return process.env.MELHOR_ENVIO_TOKEN; }

@@ -26,9 +26,11 @@ import { CryptoPaymentController } from "./presentation/http/crypto-payment.cont
 import { StripePaymentController } from "./presentation/http/stripe-payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
 import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
-import { isAsaasConfigured, readAsaasConnection } from "./infrastructure/asaas-env.js";
-import { isStripeConfigured, readStripeConnection } from "./infrastructure/stripe-env.js";
+import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
+import { EvmCryptoVerifier } from "./infrastructure/evm-crypto-verifier.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
+import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
+import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
 import {
   ASAAS_PLATFORM_PORT,
   BILLING_CONFIG_PORT,
@@ -99,6 +101,7 @@ import {
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
     { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
+    { provide: CRYPTO_VERIFIER, useClass: EvmCryptoVerifier },
     {
       provide: AsaasPaymentAdapter,
       useFactory: (http: HttpClientService) => {

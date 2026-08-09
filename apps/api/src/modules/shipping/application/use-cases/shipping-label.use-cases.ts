@@ -1,6 +1,6 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../../fulfillment/domain/ports/shipment-repository.port.js";
-import { MelhorEnvioCarrierAdapter, type LabelPurchaseInput } from "../../infrastructure/adapters/melhor-envio.carrier.js";
+import { SHIPPING_CARRIER_ADAPTER, type ShippingCarrierPort, type LabelPurchaseInput } from "../../domain/ports/shipping-carrier.port.js";
 import { ORDER_TRACKING_UPDATER, type OrderTrackingUpdater } from "../../domain/ports/order-tracking-updater.port.js";
 
 export type PurchaseShippingLabelInput = {
@@ -18,7 +18,7 @@ export type PurchaseShippingLabelInput = {
 @Injectable()
 export class PurchaseShippingLabelUseCase {
   constructor(
-    private readonly melhorEnvio: MelhorEnvioCarrierAdapter,
+    @Inject(SHIPPING_CARRIER_ADAPTER) private readonly melhorEnvio: ShippingCarrierPort,
     @Inject(ORDER_TRACKING_UPDATER) private readonly updateTracking: OrderTrackingUpdater,
   ) {}
 
@@ -66,7 +66,7 @@ export class PurchaseShippingLabelUseCase {
 export class GetShippingTrackingUseCase {
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly shipments: ShipmentRepository,
-    private readonly melhorEnvio: MelhorEnvioCarrierAdapter,
+    @Inject(SHIPPING_CARRIER_ADAPTER) private readonly melhorEnvio: ShippingCarrierPort,
   ) {}
 
   async execute(input: { merchantId: string; shipmentId: string }) {

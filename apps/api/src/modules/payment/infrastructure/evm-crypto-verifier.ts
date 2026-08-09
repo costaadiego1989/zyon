@@ -10,21 +10,9 @@ import {
   type EvmChain,
   type EvmNetwork
 } from "./evm-crypto.constants.js";
+import type { CryptoVerifierPort, VerifyCryptoTransferInput, VerifyCryptoTransferResult } from "../domain/ports/crypto-verifier.port.js";
 
-export type VerifyCryptoTransferInput = {
-  txHash: string;
-  walletAddress: string;
-  buyerFacing: CryptoBuyerFacing;
-};
-
-export type VerifyCryptoTransferResult = {
-  ok: true;
-  from: string;
-  to: string;
-  value: string;
-};
-
-export class EvmCryptoVerifier {
+export class EvmCryptoVerifier implements CryptoVerifierPort {
   async verifyTransfer(input: VerifyCryptoTransferInput): Promise<VerifyCryptoTransferResult> {
     if (isQuoteExpired(input.buyerFacing.quoteExpiresAt)) {
       throw new Error("crypto_quote_expired");
@@ -63,7 +51,7 @@ export class EvmCryptoVerifier {
     // Require exactly one Transfer matching the per-intent discriminant
     // (treasury + exact dust-bound value + sender). Multiple matches or none
     // is rejected — no ambiguous settlement (ADR 0001 #2/#13).
-    const matches: VerifyCryptoTransferResult[] = [];
+    const matches: { from: string; to: string; value: string }[] = [];
     for (const log of receipt.logs) {
       if (log.address.toLowerCase() !== token) continue;
       if (log.topics[0]?.toLowerCase() !== ERC20_TRANSFER_TOPIC) continue;
@@ -87,7 +75,7 @@ export class EvmCryptoVerifier {
         const to = String(decoded.args.to).toLowerCase();
         const value = decoded.args.value as bigint;
         if (to === treasury && value === expectedValue && from === wallet) {
-          matches.push({ ok: true, from, to, value: value.toString() });
+          matches.push({ from, to, value: value.toString() });
         }
       } catch {
         continue;
@@ -100,7 +88,7 @@ export class EvmCryptoVerifier {
     if (matches.length > 1) {
       throw new Error("crypto_transfer_ambiguous_match");
     }
-    return matches[0]!;
+    return { from: matches[0]!.from };
   }
 }
 
