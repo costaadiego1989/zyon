@@ -196,6 +196,7 @@ function readConfig(element: HTMLElement): WidgetConfig {
 class AacpCheckoutAgentElement extends HTMLElement {
   private root?: Root;
   private host?: HTMLDivElement;
+  private allowedOrigin?: string;
 
   static get observedAttributes(): readonly string[] {
     return ATTRS;
@@ -221,6 +222,7 @@ class AacpCheckoutAgentElement extends HTMLElement {
 
   private onMessage = (event: MessageEvent): void => {
     if (event.data?.type !== "THEME_UPDATE" || !this.host) return;
+    if (this.allowedOrigin && event.origin !== this.allowedOrigin) return;
     const styles = themeStyle(event.data.payload as Parameters<typeof themeStyle>[0]);
     for (const [prop, val] of Object.entries(styles)) {
       if (prop.startsWith("--") && val !== undefined) {
@@ -236,6 +238,7 @@ class AacpCheckoutAgentElement extends HTMLElement {
       this.root = createRoot(this.host);
     }
     const config = readConfig(this);
+    this.allowedOrigin = config.storeUrl ? new URL(config.storeUrl).origin : undefined;
     initErrorReporter({ apiBaseUrl: config.apiBaseUrl, merchantId: config.merchantId });
     // Apply floating position only for true floating widgets (no embed token).
     // Embeds use fullscreen takeover managed by CSS in the host document.
