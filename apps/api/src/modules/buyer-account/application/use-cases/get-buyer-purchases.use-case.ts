@@ -5,7 +5,7 @@ import {
   BUYER_PURCHASE_HISTORY_REPOSITORY,
   type BuyerPurchaseHistoryRepository
 } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
-import { usesPrismaPurchaseHistory } from "../../../buyer-purchase-history/infrastructure/purchase-history-storage-mode.js";
+import { PURCHASE_HISTORY_STORAGE_MODE, type PurchaseHistoryStorageMode } from "../../../buyer-purchase-history/domain/ports/purchase-history-storage-mode.port.js";
 import type { PurchaseRecord as PurchaseHistoryRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
@@ -56,14 +56,15 @@ export class GetBuyerPurchasesUseCase {
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY)
     private readonly purchaseHistory?: BuyerPurchaseHistoryRepository,
     @Optional() @Inject(ORDER_REPOSITORY) private readonly orders?: OrderRepository,
-    @Optional() @Inject(INTEGRATIONS_REPOSITORY) private readonly integrations?: IntegrationsRepository
+    @Optional() @Inject(INTEGRATIONS_REPOSITORY) private readonly integrations?: IntegrationsRepository,
+    @Optional() @Inject(PURCHASE_HISTORY_STORAGE_MODE) private readonly storageMode?: PurchaseHistoryStorageMode
   ) {}
 
   async execute(input: GetBuyerPurchasesRequest): Promise<PurchasePage> {
-    if (!usesPrismaPurchaseHistory()) {
-      return this.executeRepository(input);
+    if (!this.storageMode || this.storageMode.usesPrisma()) {
+      return this.executePrisma(input);
     }
-    return this.executePrisma(input);
+    return this.executeRepository(input);
   }
 
   private async executePrisma(input: GetBuyerPurchasesRequest): Promise<PurchasePage> {

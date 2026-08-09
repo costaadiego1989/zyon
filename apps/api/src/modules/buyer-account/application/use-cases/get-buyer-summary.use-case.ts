@@ -11,7 +11,7 @@ import {
   type BuyerPurchaseHistoryRepository,
 } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
 import type { PurchaseRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
-import { usesPrismaPurchaseHistory } from "../../../buyer-purchase-history/infrastructure/purchase-history-storage-mode.js";
+import { PURCHASE_HISTORY_STORAGE_MODE, type PurchaseHistoryStorageMode } from "../../../buyer-purchase-history/domain/ports/purchase-history-storage-mode.port.js";
 
 export interface BuyerSummary {
   profile: BuyerAccount;
@@ -34,7 +34,12 @@ export class GetBuyerSummaryUseCase {
     @Optional()
     @Inject(BUYER_PURCHASE_HISTORY_REPOSITORY)
     private readonly purchaseHistory?: BuyerPurchaseHistoryRepository,
+    @Optional() @Inject(PURCHASE_HISTORY_STORAGE_MODE) private readonly storageMode?: PurchaseHistoryStorageMode
   ) {}
+
+  private usesPrisma(): boolean {
+    return !this.storageMode || this.storageMode.usesPrisma();
+  }
 
   async execute(globalUserId: string): Promise<BuyerSummary> {
     const [profile, agent] = await Promise.all([
@@ -43,7 +48,7 @@ export class GetBuyerSummaryUseCase {
     ]);
     if (!profile) throw new NotFoundException("buyer_account_not_found");
 
-    const records = usesPrismaPurchaseHistory()
+    const records = this.usesPrisma()
       ? await this.loadRecordsFromPort(globalUserId)
       : await this.loadRecordsFromRepository(globalUserId);
 
@@ -61,7 +66,7 @@ export class GetBuyerSummaryUseCase {
       .slice(0, 5)
       .map(([id]) => id);
 
-    const merchantMap = usesPrismaPurchaseHistory()
+    const merchantMap = this.usesPrisma()
       ? new Map(
           (await this.port.listMerchantNames(topMerchantIds)).map(
             (m) => [m.id, m.name] as const,
