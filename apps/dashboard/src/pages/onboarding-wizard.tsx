@@ -54,7 +54,7 @@ const DEFAULT_THEME_DRAFT: ThemeDraft = {
   accentColor: "#0F766E",
   logoUrl: "",
   headerTitle: "",
-  agentName: "",
+  agentName: "Assistente Zyon",
 };
 
 // ── Step 2 state ──────────────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ export function OnboardingWizard(props: {
   const [message, setMessage] = useState<string | null>(null);
 
   // step drafts
-  const [themeDraft, setThemeDraft] = useState<ThemeDraft>(DEFAULT_THEME_DRAFT);
+  const [themeDraft, setThemeDraft] = useState<ThemeDraft>({ ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
   const [rulesDraft, setRulesDraft] = useState<RulesDraft>(DEFAULT_RULES_DRAFT);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(DEFAULT_CHECKOUT_DRAFT);
   const [embedSession, setEmbedSession] = useState<EmbedSessionResponse | null>(null);
