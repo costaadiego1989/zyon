@@ -39,7 +39,7 @@ type StepMeta = {
 const STEPS: StepMeta[] = [
   { id: 1, label: "Configure sua loja", caption: "Informe os dados da sua loja para personalizar a experiência do comprador", icon: Palette },
   { id: 2, label: "Personalize o checkout", caption: "Adapte cores, logo e mensagens para combinar com sua marca", icon: Percent },
-  { id: 3, label: "Conecte sua plataforma", caption: "Conecte sua plataforma de e-commerce para sincronizar produtos e pedidos", icon: ShieldCheck },
+  { id: 3, label: "Conecte sua plataforma", caption: "Escolha onde sua loja está hospedada", icon: ShieldCheck },
   { id: 4, label: "Ative e publique", caption: "Revise suas configurações e ative o checkout assistido", icon: Code2 },
 ];
 
@@ -565,18 +565,23 @@ export function OnboardingWizard(props: {
               {currentStep === 3 && (
                 <div className="onb-fields">
                   <div className="onb-field">
-                    <span className="onb-field-label">Como o assistente deve agir</span>
+                    <span className="onb-field-label">Onde está sua loja?</span>
                     <div className="onb-options">
-                      {CHECKOUT_MODE_OPTIONS.map(([value, label, help]) => {
+                      {([
+                        ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
+                        ["shopify", "Shopify", "App nativo para lojas Shopify"],
+                        ["nuvemshop", "Nuvemshop", "Integração via app parceiro"],
+                        ["custom", "Implementação própria", "Instale via snippet JavaScript no seu site"],
+                      ] as const).map(([value, label, help]) => {
                         const selected = checkoutDraft.mode === value;
                         return (
                           <label key={value} className={`onb-option${selected ? " onb-option-on" : ""}`}>
                             <input
                               type="radio"
-                              name="mode"
+                              name="platform"
                               value={value}
                               checked={selected}
-                              onChange={() => setCheckoutDraft((d) => ({ ...d, mode: value }))}
+                              onChange={() => setCheckoutDraft((d) => ({ ...d, mode: value as CheckoutSettingsMode }))}
                             />
                             <span className="onb-option-dot" aria-hidden="true" />
                             <span className="onb-option-text">
@@ -588,19 +593,6 @@ export function OnboardingWizard(props: {
                       })}
                     </div>
                   </div>
-
-                  <label className="onb-switch">
-                    <span className="onb-switch-text">
-                      <strong>Abrir widget automaticamente</strong>
-                      <span>O widget se expande sozinho quando detecta intenção de compra.</span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={checkoutDraft.openWidgetOnTrigger}
-                      onChange={(e) => setCheckoutDraft((d) => ({ ...d, openWidgetOnTrigger: e.target.checked }))}
-                    />
-                    <span className="onb-switch-track" aria-hidden="true" />
-                  </label>
                 </div>
               )}
 
@@ -650,7 +642,7 @@ export function OnboardingWizard(props: {
             <div className="onb-preview-frame">
               <span className="onb-preview-tag">Visualização em tempo real</span>
               <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: `radial-gradient(circle, ${themeDraft.accentColor} 0%, #065f46 100%)`, boxShadow: `0 0 36px ${themeDraft.accentColor}40`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: themeDraft.accentColor, boxShadow: `0 0 36px ${themeDraft.accentColor}40`, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <div style={{ display: "flex", gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
@@ -740,7 +732,7 @@ const STEP_TITLE: Record<number, string> = {
 const STEP_LEAD: Record<number, string> = {
   1: "Informe os dados da sua loja para personalizar a experiência do comprador",
   2: "Adapte cores, logo e mensagens para combinar com sua marca",
-  3: "Conecte sua plataforma de e-commerce para sincronizar produtos e pedidos",
+  3: "Escolha onde sua loja está hospedada para integrar o checkout",
   4: "Revise suas configurações e ative o checkout assistido",
 };
 
@@ -859,11 +851,12 @@ function OnboardingStyles() {
         content: "";
         position: absolute;
         left: calc(var(--space-2) + 15px);
-        top: 34px;
-        bottom: -2px;
+        top: 30px;
+        bottom: 0;
         width: 2px;
         background: var(--color-border);
         transform: translateX(-1px);
+        z-index: 0;
       }
       .onb-rail-step:last-child::before { display: none; }
       .onb-rail-step-done::before { background: var(--color-brand); }
@@ -911,6 +904,7 @@ function OnboardingStyles() {
 
       .onb-rail-step-active {
         background: var(--color-brand-subtle);
+        z-index: 1;
       }
       .onb-rail-step-active .onb-rail-node {
         border-color: var(--color-brand);
