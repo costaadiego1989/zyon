@@ -98,19 +98,35 @@ export function OnboardingWizard(props: {
   // onboarding state (server-side progress)
   const [onboardingState, setOnboardingState] = useState<OnboardingStateResponse | null>(null);
 
+  // Persist drafts in localStorage so refresh doesn't lose progress
+  const STORAGE_KEY = `onb_draft_${props.me.id}`;
+  function loadDrafts() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch { /* corrupted */ }
+    return null;
+  }
+  const saved = loadDrafts();
+
   // wizard UI step (1–4, independent from server step)
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(saved?.step ?? 1);
 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   // step drafts
-  const [themeDraft, setThemeDraft] = useState<ThemeDraft>({ ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
-  const [rulesDraft, setRulesDraft] = useState<RulesDraft>(DEFAULT_RULES_DRAFT);
-  const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(DEFAULT_CHECKOUT_DRAFT);
+  const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
+  const [rulesDraft, setRulesDraft] = useState<RulesDraft>(saved?.rules ?? DEFAULT_RULES_DRAFT);
+  const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(saved?.checkout ?? DEFAULT_CHECKOUT_DRAFT);
   const [embedSession, setEmbedSession] = useState<EmbedSessionResponse | null>(null);
   const [copied, setCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // persist to localStorage on every draft/step change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, rules: rulesDraft, checkout: checkoutDraft }));
+  }, [currentStep, themeDraft, rulesDraft, checkoutDraft]);
 
 
   // load onboarding state on mount
@@ -127,8 +143,9 @@ export function OnboardingWizard(props: {
     return () => { active = false; };
   }, [api]);
 
-  // load existing theme/rules/checkout to pre-fill drafts
+  // load existing theme/rules/checkout to pre-fill drafts (only if no localStorage draft)
   useEffect(() => {
+    if (saved) return;
     let active = true;
     void (async () => {
       try {
@@ -176,23 +193,7 @@ export function OnboardingWizard(props: {
       return;
     }
     setFieldErrors({});
-    setBusy(true);
-    setMessage(null);
-    try {
-      let current: Record<string, unknown> = {};
-      try { current = await api.getMerchantTheme() as Record<string, unknown>; } catch { /* new merchant, no theme yet */ }
-      const payload = { ...current, ...themeDraft };
-      if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) {
-        payload.logoUrl = "";
-      }
-      await api.putMerchantTheme(payload);
-      await markOnboardingStep("account");
-      setCurrentStep(2);
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
+    setCurrentStep(2);
   }
 
   async function saveStep2() {
@@ -202,27 +203,7 @@ export function OnboardingWizard(props: {
       return;
     }
     setFieldErrors({});
-    setBusy(true);
-    setMessage(null);
-    try {
-      let current: Record<string, unknown> = {};
-      try { current = await api.getMerchantRules() as Record<string, unknown>; } catch { /* new merchant */ }
-      const merged = { ...current, ...rulesDraft };
-      const clamp = (v: unknown, min: number, max: number) => Math.max(min, Math.min(max, Math.round(Number(v) || 0)));
-      merged.maxDiscountPercent = clamp(merged.maxDiscountPercent, 0, 100);
-      merged.minimumMarginPercent = clamp(merged.minimumMarginPercent, 0, 100);
-      merged.freeShippingMinCartValue = clamp(merged.freeShippingMinCartValue, 0, 10000);
-      merged.maxPartialShippingDiscount = clamp(merged.maxPartialShippingDiscount, 0, 100);
-      merged.maxShippingSubsidy = clamp(merged.maxShippingSubsidy, 0, 500);
-      merged.offerExpirationMinutes = clamp(merged.offerExpirationMinutes, 1, 1440);
-      await api.putMerchantRules(merged);
-      await markOnboardingStep("checkout_config");
-      setCurrentStep(3);
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
+    setCurrentStep(3);
   }
 
   async function saveStep3() {
@@ -232,15 +213,50 @@ export function OnboardingWizard(props: {
       return;
     }
     setFieldErrors({});
+    setCurrentStep(4);
+  }
+
+  async function saveAllAndFinish() {
     setBusy(true);
     setMessage(null);
     try {
+      // 1. Save theme
+      let currentTheme: Record<string, unknown> = {};
+      try { currentTheme = await api.getMerchantTheme() as Record<string, unknown>; } catch {}
+      const themePayload = { ...currentTheme, ...themeDraft };
+      if (themePayload.logoUrl && String(themePayload.logoUrl).startsWith("blob:")) {
+        themePayload.logoUrl = "";
+      }
+      await api.putMerchantTheme(themePayload);
+
+      // 2. Save rules
+      let currentRules: Record<string, unknown> = {};
+      try { currentRules = await api.getMerchantRules() as Record<string, unknown>; } catch {}
+      const merged = { ...currentRules, ...rulesDraft };
+      const clamp = (v: unknown, min: number, max: number) => Math.max(min, Math.min(max, Math.round(Number(v) || 0)));
+      merged.maxDiscountPercent = clamp(merged.maxDiscountPercent, 0, 100);
+      merged.minimumMarginPercent = clamp(merged.minimumMarginPercent, 0, 100);
+      merged.freeShippingMinCartValue = clamp(merged.freeShippingMinCartValue, 0, 10000);
+      merged.maxPartialShippingDiscount = clamp(merged.maxPartialShippingDiscount, 0, 100);
+      merged.maxShippingSubsidy = clamp(merged.maxShippingSubsidy, 0, 500);
+      merged.offerExpirationMinutes = clamp(merged.offerExpirationMinutes, 1, 1440);
+      await api.putMerchantRules(merged);
+
+      // 3. Save checkout settings
       await api.patchCheckoutSettings({
         mode: checkoutDraft.mode,
         widgetBehavior: { openWidgetOnTrigger: checkoutDraft.openWidgetOnTrigger },
       });
+
+      // 4. Mark all steps complete
+      await markOnboardingStep("account");
       await markOnboardingStep("checkout_config");
-      setCurrentStep(4);
+      await markOnboardingStep("embed");
+
+      // 5. Clear localStorage
+      localStorage.removeItem(STORAGE_KEY);
+
+      props.onFinished();
     } catch (e) {
       setMessage(friendlyError(e));
     } finally {
@@ -254,7 +270,6 @@ export function OnboardingWizard(props: {
     try {
       const issued = await api.createEmbedSession({ ttl_seconds: 900, scopes: EMBED_SCOPES });
       setEmbedSession(issued);
-      await markOnboardingStep("embed");
     } catch (e) {
       setMessage(friendlyError(e));
     } finally {
@@ -263,16 +278,7 @@ export function OnboardingWizard(props: {
   }
 
   async function finish() {
-    setBusy(true);
-    try {
-      const next = await api.completeOnboardingStep("publish");
-      setOnboardingState(next);
-    } catch {
-      // non-blocking — wizard continues
-    } finally {
-      setBusy(false);
-    }
-    props.onFinished();
+    await saveAllAndFinish();
   }
 
   function goBack() {
