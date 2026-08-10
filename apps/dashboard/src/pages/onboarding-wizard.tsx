@@ -571,6 +571,7 @@ export function OnboardingWizard(props: {
                         ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
                         ["shopify", "Shopify", "App nativo para lojas Shopify"],
                         ["nuvemshop", "Nuvemshop", "Integração via app parceiro"],
+                        ["tray", "Tray Commerce", "Integração nativa para lojas Tray"],
                         ["custom", "Implementação própria", "Instale via snippet JavaScript no seu site"],
                       ] as const).map(([value, label, help]) => {
                         const selected = checkoutDraft.mode === value;
@@ -642,10 +643,12 @@ export function OnboardingWizard(props: {
             <div className="onb-preview-frame">
               <span className="onb-preview-tag">Visualização em tempo real</span>
               <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: themeDraft.accentColor, boxShadow: `0 0 36px ${themeDraft.accentColor}40`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#0a0f0a" }} />
+                <div className="onb-widget-orb" style={{ "--orb-c1": themeDraft.accentColor, "--orb-c2": themeDraft.accentColor + "cc", "--orb-c3": themeDraft.accentColor + "66" } as React.CSSProperties}>
+                  <div className="onb-widget-orb__halo" />
+                  <div className="onb-widget-orb__core" />
+                  <div className="onb-widget-orb__eyes">
+                    <span />
+                    <span />
                   </div>
                 </div>
                 <div style={{ font: "600 9px 'IBM Plex Mono', monospace", letterSpacing: "0.1em", color: themeDraft.accentColor }}>GERENTE DE VENDAS DA LOJA</div>
@@ -655,9 +658,9 @@ export function OnboardingWizard(props: {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 260, marginTop: 6 }}>
                   {[
-                    { text: "Acho a melhor opcao e aplico promocoes", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={themeDraft.accentColor} strokeWidth="2"><path d="M12 3l1.5 4.5H18l-3.5 2.5L16 14.5 12 12l-4 2.5 1.5-4.5L6 7.5h4.5z"/></svg> },
+                    { text: "Acho a melhor opçãoo e aplico promoções", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={themeDraft.accentColor} strokeWidth="2"><path d="M12 3l1.5 4.5H18l-3.5 2.5L16 14.5 12 12l-4 2.5 1.5-4.5L6 7.5h4.5z"/></svg> },
                     { text: "Calculo o frete e organizo a entrega", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={themeDraft.accentColor} strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> },
-                    { text: "Pago com Pix, cartao ou crypto", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={themeDraft.accentColor} strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
+                    { text: "Pago com Pix, cartão ou crypto", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={themeDraft.accentColor} strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
                   ].map((cap) => (
                     <div key={cap.text} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, background: "#111827", border: "1px solid #1f2937" }}>
                       <div style={{ width: 22, height: 22, borderRadius: 5, background: `${themeDraft.accentColor}20`, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
@@ -1279,6 +1282,68 @@ function OnboardingStyles() {
         max-height: 580px;
       }
       .onb-preview-live > div {
+      }
+
+      /* ── Widget Orb (matches real widget pulse-skin) ──────────────── */
+      .onb-widget-orb {
+        position: relative;
+        width: 64px;
+        height: 64px;
+        flex-shrink: 0;
+        animation: onbOrbFloat 6s ease-in-out infinite;
+      }
+      .onb-widget-orb__halo {
+        position: absolute;
+        inset: -12px;
+        border-radius: 50%;
+        background: conic-gradient(from 0deg, var(--orb-c1), var(--orb-c2), var(--orb-c3), var(--orb-c1));
+        filter: blur(16px);
+        opacity: 0.5;
+        animation: onbOrbSpin 13s linear infinite;
+      }
+      .onb-widget-orb__core {
+        position: absolute;
+        inset: 0;
+        border-radius: 50%;
+        background:
+          radial-gradient(120% 120% at 30% 25%, rgba(255,255,255,0.85), rgba(255,255,255,0) 42%),
+          conic-gradient(from 200deg, var(--orb-c1), var(--orb-c2), var(--orb-c3), var(--orb-c1));
+        box-shadow: inset 0 0 18px rgba(255,255,255,0.25);
+        animation: onbOrbSpin 19s linear infinite;
+      }
+      .onb-widget-orb__eyes {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 9px;
+        z-index: 1;
+      }
+      .onb-widget-orb__eyes span {
+        width: 8px;
+        height: 11px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 0 6px rgba(0,0,0,0.2);
+        animation: onbBlink 3.5s ease-in-out infinite;
+      }
+      .onb-widget-orb__eyes span:nth-child(2) {
+        animation-delay: 0.1s;
+      }
+      @keyframes onbOrbSpin { to { transform: rotate(360deg); } }
+      @keyframes onbOrbFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+      @keyframes onbBlink {
+        0%, 90%, 100% { transform: scaleY(1); }
+        95% { transform: scaleY(0.1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .onb-widget-orb, .onb-widget-orb__halo, .onb-widget-orb__core, .onb-widget-orb__eyes span {
+          animation: none;
+        }
       }
 
       /* ── Footer ─────────────────────────────────────────────────────── */
