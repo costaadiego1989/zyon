@@ -1,0 +1,88 @@
+services:
+  # ─── Grafana (visualization) ───────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.6-ubuntu
+    container_name: aacp-grafana
+    ports:
+      - "3100:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - tempo
+      - loki
+    networks:
+      - observability
+
+  # ─── Prometheus (metrics) ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v3.4.0
+    container_name: aacp-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-remote-write-receiver"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - observability
+
+  # ─── Tempo (distributed tracing) ──────────────────────────────────
+  tempo:
+    image: grafana/tempo:2.7.2
+    container_name: aacp-tempo
+    command: ["-config.file=/etc/tempo/tempo.yml"]
+    ports:
+      - "4318:4318"   # OTLP HTTP receiver
+      - "3200:3200"   # Tempo query frontend
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo-data:/var/tempo
+    networks:
+      - observability
+
+  # ─── Loki (log aggregation) ────────────────────────────────────────
+  loki:
+    image: grafana/loki:3.4.3
+    container_name: aacp-loki
+    command: ["-config.file=/etc/loki/loki.yml"]
+    ports:
+      - "3101:3100"
+    volumes:
+      - ./loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
+    networks:
+      - observability
+
+  # ─── Promtail (log collector → Loki) ──────────────────────────────
+  promtail:
+    image: grafana/promtail:3.4.3
+    container_name: aacp-promtail
+    command: ["-config.file=/etc/promtail/promtail.yml"]
+    volumes:
+      - ./promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - loki
+    networks:
+      - observability
+
+volumes:
+  grafana-data:
+  prometheus-data:
+  tempo-data:
+  loki-data:
+
+networks:
+  observability:
+    driver: bridge

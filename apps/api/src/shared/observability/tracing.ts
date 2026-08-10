@@ -19,11 +19,16 @@ export function initTracing(): void {
 
   sdk = new NodeSDK({
     serviceName,
-    spanProcessor: new BatchSpanProcessor(exporter),
+    spanProcessor: new BatchSpanProcessor(exporter, {
+      maxQueueSize: 2048,
+      maxExportBatchSize: 512,
+      scheduledDelayMillis: 1000,
+    }),
     instrumentations: [
       getNodeAutoInstrumentations({
         "@opentelemetry/instrumentation-fs": { enabled: false },
         "@opentelemetry/instrumentation-dns": { enabled: false },
+        "@opentelemetry/instrumentation-net": { enabled: false },
       }),
     ],
   });

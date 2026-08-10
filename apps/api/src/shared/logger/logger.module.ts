@@ -1,6 +1,7 @@
 import { Global, MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
 import { LoggerModule as NestPinoLoggerModule } from "nestjs-pino";
 import { randomUUID } from "node:crypto";
+import { trace } from "@opentelemetry/api";
 import { CorrelationIdMiddleware } from "./correlation-id.middleware.js";
 import { CorrelationIdStorage } from "./correlation-id.storage.js";
 
@@ -24,9 +25,15 @@ const isProduction = process.env.NODE_ENV === "production";
             res.setHeader("x-correlation-id", correlationId);
             return correlationId;
           },
-          customProps: () => ({
-            correlationId: CorrelationIdStorage.get(),
-          }),
+          customProps: () => {
+            const span = trace.getActiveSpan();
+            const spanContext = span?.spanContext();
+            return {
+              correlationId: CorrelationIdStorage.get(),
+              ...(spanContext?.traceId && { trace_id: spanContext.traceId }),
+              ...(spanContext?.spanId && { span_id: spanContext.spanId }),
+            };
+          },
           formatters: {
             level: (label) => ({ level: label }),
           },
