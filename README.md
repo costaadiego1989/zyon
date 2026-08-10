@@ -105,6 +105,106 @@ Typical causes on Windows:
 
 Optional **reset** (last resort): Docker Desktop → Troubleshoot → **Reset to factory defaults** (removes volumes/images).
 
+## Observability (Grafana + Tempo + Loki + Prometheus)
+
+Stack completa de observabilidade com tracing distribuído, logs centralizados e métricas — tudo visualizado no Grafana.
+
+### Subindo a infra
+
+```bash
+cd infra/observability
+docker compose up -d
+```
+
+Serviços disponíveis:
+
+| Serviço | Porta | Função |
+|---------|-------|--------|
+| Grafana | `http://localhost:3100` | Dashboard unificado (admin/admin) |
+| Prometheus | `http://localhost:9090` | Métricas (scrape da API) |
+| Tempo | `http://localhost:3200` | Traces distribuídos (OTLP) |
+| Loki | `http://localhost:3101` | Agregação de logs |
+| Promtail | — | Coleta logs dos containers Docker |
+
+### Conectando a API
+
+Adicione ao `apps/api/.env`:
+
+```env
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_SERVICE_NAME=zyon-api
+METRICS_ENABLED=true
+LOG_LEVEL=info
+```
+
+Rode a API normalmente (`pnpm dev:api`). Os dados fluem automaticamente:
+
+- **Traces** → API envia spans via OTLP HTTP para Tempo (`:4318`)
+- **Logs** → Pino JSON stdout → Docker → Promtail → Loki (com `trace_id` para correlação)
+- **Metrics** → Prometheus scrape `GET /metrics` na API (`:3001`)
+
+### Correlação Logs ↔ Traces ↔ Metrics
+
+Cada log line inclui `trace_id` e `span_id` do OpenTelemetry. No Grafana:
+
+1. **Loki → Tempo**: clique no link "View Trace" em qualquer log com trace_id
+2. **Tempo → Loki**: na visualização de trace, veja logs correlacionados
+3. **Tempo → Prometheus**: span metrics geradas automaticamente por rota e status
+
+### Métricas de negócio disponíveis
+
+| Métrica | Tipo | Labels |
+|---------|------|--------|
+| `checkout_started_total` | Counter | merchant_id |
+| `order_completed_total` | Counter | merchant_id |
+| `payment_approved_total` | Counter | merchant_id |
+| `checkout_duration_seconds` | Histogram | merchant_id |
+| `chat_response_latency_seconds` | Histogram | merchant_id, has_offer |
+| `shipping_quote_latency_seconds` | Histogram | carrier |
+| `commerce_sync_duration_seconds` | Histogram | provider, outcome |
+| `payment_webhook_received_total` | Counter | provider, event_type |
+| `outbox_pending_count` | Gauge | — |
+| `outbox_dead_letter_count` | Gauge | — |
+| `outbox_lag_seconds` | Histogram | — |
+| `llm_latency_seconds` | Histogram | target, status |
+| `active_checkout_sessions` | Gauge | merchant_id |
+
+### Adicionando spans customizados
+
+Para instrumentar uma operação de negócio:
+
+```typescript
+import { trace } from "@opentelemetry/api";
+
+const tracer = trace.getTracer("zyon-api");
+
+async function myOperation() {
+  return tracer.startActiveSpan("checkout.my_operation", async (span) => {
+    try {
+      span.setAttribute("merchant_id", merchantId);
+      const result = await doWork();
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  });
+}
+```
+
+Operações que devem receber spans estão mapeadas em `infra/observability/README.md`.
+
+### Parando a stack
+
+```bash
+cd infra/observability
+docker compose down        # para serviços (mantém dados)
+docker compose down -v     # para serviços e apaga volumes
+```
+
 ## Widget Enterprise Conectado à API
 
 O demo do widget (`apps/widget/index.html`) não depende mais de carrinho fixo no código React. O host da loja envia `data-cart-json`, `data-customer-json` e `data-shipping-json`; o widget repassa isso para a API em `/checkout/start` ou `/embed/start`, e a API devolve `experience` com marca, resumo do pedido, copy inicial e sugestões.
