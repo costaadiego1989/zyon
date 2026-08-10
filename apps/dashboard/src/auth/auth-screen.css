@@ -6,6 +6,7 @@
   background: oklch(7% 0.005 150);
   font-family: 'Manrope', system-ui, sans-serif;
   color: oklch(96% 0.002 145);
+  overflow-x: hidden;
 }
 
 /* ─── Left: Form Panel ─── */
@@ -327,6 +328,35 @@
 
 .auth-field__input:hover:not(:focus) {
   border-color: oklch(28% 0.006 145);
+}
+
+.auth-field__input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.auth-field__input-wrap .auth-field__input {
+  padding-right: 44px;
+}
+
+.auth-field__eye {
+  position: absolute;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: oklch(50% 0.005 145);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: color 0.15s ease-out;
+}
+
+.auth-field__eye:hover {
+  color: oklch(80% 0.005 145);
 }
 
 .auth-field__select {

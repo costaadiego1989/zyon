@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { KeyRound, UserPlus, Github, Code2 } from "lucide-react";
+import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
 import "./auth-screen.css";
 
@@ -109,6 +109,7 @@ export function AuthScreen(props: AuthScreenProps) {
 }
 
 function LoginForm(props: AuthScreenProps & { onGithubClick: () => void }) {
+  const [showPass, setShowPass] = useState(false);
   return (
     <form onSubmit={props.onSubmit} className="auth-form">
       <div className="auth-form__header">
@@ -141,7 +142,12 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void }) {
           <label className="auth-field__label">Senha</label>
           <button type="button" onClick={() => props.setMode("forgot")} className="auth-field__link">Esqueceu?</button>
         </div>
-        <input type="password" value={props.password} onChange={(e) => props.setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" minLength={4} required className="auth-field__input" />
+        <div className="auth-field__input-wrap">
+          <input type={showPass ? "text" : "password"} value={props.password} onChange={(e) => props.setPassword(e.target.value)} autoComplete="current-password" placeholder="••••••••" minLength={4} required className="auth-field__input" />
+          <button type="button" className="auth-field__eye" onClick={() => setShowPass(!showPass)} aria-label={showPass ? "Ocultar senha" : "Mostrar senha"}>
+            {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
       </div>
 
       {props.hint ? <div className="auth-hint">{props.hint}</div> : null}
