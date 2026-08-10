@@ -5,6 +5,7 @@ import type { MerchantRepository } from "../domain/ports/merchant-repository.por
 import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";
 import { DEFAULT_RULES } from "../domain/merchant-rules.defaults.js";
 import { decodePersistedTheme } from "../domain/services/merchant-theme.validators.js";
+import { toNumber } from "../../../shared/persistence/decimal.util.js";
 
 export class PrismaMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -93,16 +94,18 @@ function toUpdate(rules: MerchantRules) {
   };
 }
 
+type DecimalLike = { toNumber(): number } | number;
+
 function toRules(row: {
-  maxDiscountPercent: number;
-  minimumMarginPercent: number;
+  maxDiscountPercent: DecimalLike;
+  minimumMarginPercent: DecimalLike;
   allowFreeShipping: boolean;
   allowShippingDiscount: boolean;
   allowBonusItem: boolean;
   allowStackDiscountAndFreeShipping: boolean;
-  freeShippingMinCartValue: number;
-  maxShippingSubsidy: number;
-  maxPartialShippingDiscount: number;
+  freeShippingMinCartValue: DecimalLike;
+  maxShippingSubsidy: DecimalLike;
+  maxPartialShippingDiscount: DecimalLike;
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: string;
@@ -112,15 +115,15 @@ function toRules(row: {
   cryptoPayments?: unknown;
 }): MerchantRules {
   return {
-    maxDiscountPercent: row.maxDiscountPercent,
-    minimumMarginPercent: row.minimumMarginPercent,
+    maxDiscountPercent: toNumber(row.maxDiscountPercent),
+    minimumMarginPercent: toNumber(row.minimumMarginPercent),
     allowFreeShipping: row.allowFreeShipping,
     allowShippingDiscount: row.allowShippingDiscount,
     allowBonusItem: row.allowBonusItem,
     allowStackDiscountAndFreeShipping: row.allowStackDiscountAndFreeShipping,
-    freeShippingMinCartValue: row.freeShippingMinCartValue,
-    maxShippingSubsidy: row.maxShippingSubsidy,
-    maxPartialShippingDiscount: row.maxPartialShippingDiscount,
+    freeShippingMinCartValue: toNumber(row.freeShippingMinCartValue),
+    maxShippingSubsidy: toNumber(row.maxShippingSubsidy),
+    maxPartialShippingDiscount: toNumber(row.maxPartialShippingDiscount),
     offerExpirationMinutes: row.offerExpirationMinutes,
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],

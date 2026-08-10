@@ -281,16 +281,16 @@ model BuyerIdentity {
 model MerchantRule {
   id                                String   @id @default(cuid())
   merchantId                        String   @unique @map("merchant_id")
-  maxDiscountPercent                Float    @map("max_discount_percent")
-  minimumMarginPercent              Float    @map("minimum_margin_percent")
+  maxDiscountPercent                Decimal  @map("max_discount_percent") @db.Decimal(12, 4)
+  minimumMarginPercent              Decimal  @map("minimum_margin_percent") @db.Decimal(12, 4)
   allowFreeShipping                 Boolean  @map("allow_free_shipping")
   allowShippingDiscount             Boolean  @map("allow_shipping_discount")
   allowBonusItem                    Boolean  @map("allow_bonus_item")
   allowStackDiscountAndFreeShipping Boolean  @map("allow_stack_discount_and_free_shipping")
   couponBoxEnabled                  Boolean  @map("coupon_box_enabled")
-  freeShippingMinCartValue          Float    @map("free_shipping_min_cart_value")
-  maxShippingSubsidy                Float    @map("max_shipping_subsidy")
-  maxPartialShippingDiscount        Float    @map("max_partial_shipping_discount")
+  freeShippingMinCartValue          Decimal  @map("free_shipping_min_cart_value") @db.Decimal(12, 4)
+  maxShippingSubsidy                Decimal  @map("max_shipping_subsidy") @db.Decimal(12, 4)
+  maxPartialShippingDiscount        Decimal  @map("max_partial_shipping_discount") @db.Decimal(12, 4)
   offerExpirationMinutes            Int      @map("offer_expiration_minutes")
   blockedRegions                    String[] @map("blocked_regions")
   brandVoice                        String   @map("brand_voice")
@@ -334,10 +334,10 @@ model AuthorizedOffer {
   merchantId       String   @map("merchant_id")
   sessionId        String   @map("session_id")
   type             String
-  value            Float
+  value            Decimal  @db.Decimal(12, 4)
   approved         Boolean
   reason           String
-  marginAfterOffer Float    @map("margin_after_offer")
+  marginAfterOffer Decimal  @map("margin_after_offer") @db.Decimal(12, 4)
   expiresAt        DateTime @map("expires_at")
   discountCode     String?  @map("discount_code")
 
@@ -354,8 +354,8 @@ model AcceptedOffer {
   sessionId        String   @map("session_id")
   offerId          String   @map("offer_id")
   type             String
-  value            Float
-  marginAfterOffer Float    @map("margin_after_offer")
+  value            Decimal  @db.Decimal(12, 4)
+  marginAfterOffer Decimal  @map("margin_after_offer") @db.Decimal(12, 4)
   acceptedAt       DateTime @map("accepted_at")
   expiresAt        DateTime @map("expires_at")
 
@@ -372,7 +372,7 @@ model CompletedOrder {
   merchantId         String    @map("merchant_id")
   sessionId          String    @map("session_id")
   externalOrderId    String    @map("external_order_id")
-  orderTotal         Float     @map("order_total")
+  orderTotal         Decimal   @map("order_total") @db.Decimal(12, 4)
   currency           String
   status             String    @default("approved")
   acceptedOfferId    String?   @map("accepted_offer_id")
@@ -530,8 +530,8 @@ model BuyerPurchaseRecord {
   globalUserId       String?  @map("global_user_id")
   merchantCustomerId String?  @map("merchant_customer_id")
   currency           String
-  totalAmount        Float    @map("total_amount")
-  discountAmount     Float    @map("discount_amount")
+  totalAmount        Decimal  @map("total_amount") @db.Decimal(12, 4)
+  discountAmount     Decimal  @map("discount_amount") @db.Decimal(12, 4)
   completedAt        DateTime @map("completed_at")
   items              Json
   createdAt          DateTime @default(now()) @map("created_at")
@@ -799,9 +799,9 @@ model BuyerAgentProfile {
   name                             String
   personality                      String
   maxRounds                        Int       @map("max_rounds")
-  targetDiscountPercent            Float     @map("target_discount_percent")
-  minimumAcceptableDiscountPercent Float     @map("minimum_acceptable_discount_percent")
-  autoAcceptThreshold              Float?    @map("auto_accept_threshold")
+  targetDiscountPercent            Decimal   @map("target_discount_percent") @db.Decimal(12, 4)
+  minimumAcceptableDiscountPercent Decimal   @map("minimum_acceptable_discount_percent") @db.Decimal(12, 4)
+  autoAcceptThreshold              Decimal?  @map("auto_accept_threshold") @db.Decimal(12, 4)
   m2mEnabled                       Boolean   @default(false) @map("m2m_enabled")
   m2mTokenHash                     String?   @map("m2m_token_hash")
   m2mTokenCreatedAt                DateTime? @map("m2m_token_created_at")
@@ -879,8 +879,8 @@ model Coupon {
   merchantId     String    @map("merchant_id")
   code           String
   discountType   String    @map("discount_type")
-  discountValue  Float     @map("discount_value")
-  minCartTotal   Float?    @map("min_cart_total")
+  discountValue  Decimal   @map("discount_value") @db.Decimal(12, 4)
+  minCartTotal   Decimal?  @map("min_cart_total") @db.Decimal(12, 4)
   maxUsages      Int?      @map("max_usages")
   maxPerBuyer    Int?      @map("max_per_buyer")
   usagesCount    Int       @default(0) @map("usages_count")
@@ -907,7 +907,7 @@ model CouponRedemption {
   merchantId         String    @map("merchant_id")
   sessionId          String    @map("session_id")
   buyerGlobalUserId  String?   @map("buyer_global_user_id")
-  discountApplied    Float     @map("discount_applied")
+  discountApplied    Decimal   @map("discount_applied") @db.Decimal(12, 4)
   source             String
   status             String    @default("applied")
   orderId            String?   @map("order_id")
@@ -932,8 +932,8 @@ model CrossSellPromotion {
   name               String
   trigger            Json
   recommendedSkus    String[]  @default([]) @map("recommended_skus")
-  discountPercent    Float     @map("discount_percent")
-  maxDiscountPercent Float     @map("max_discount_percent")
+  discountPercent    Decimal   @map("discount_percent") @db.Decimal(12, 4)
+  maxDiscountPercent Decimal   @map("max_discount_percent") @db.Decimal(12, 4)
   status             String    @default("active")
   startsAt           DateTime  @map("starts_at")
   endsAt             DateTime? @map("ends_at")
@@ -953,7 +953,7 @@ model CrossSellSuggestion {
   promoId          String    @map("promo_id")
   rankedItems      String[]  @default([]) @map("ranked_items")
   agentCopy        String    @map("agent_copy")
-  computedDiscount Float     @map("computed_discount")
+  computedDiscount Decimal   @map("computed_discount") @db.Decimal(12, 4)
   status           String    @default("pending")
   suggestedAt      DateTime  @map("suggested_at")
   resolvedAt       DateTime? @map("resolved_at")

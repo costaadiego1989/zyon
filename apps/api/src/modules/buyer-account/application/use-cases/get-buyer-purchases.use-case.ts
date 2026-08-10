@@ -6,6 +6,7 @@ import {
   type BuyerPurchaseHistoryRepository
 } from "../../../buyer-purchase-history/domain/ports/buyer-purchase-history-repository.port.js";
 import { PURCHASE_HISTORY_STORAGE_MODE, type PurchaseHistoryStorageMode } from "../../../buyer-purchase-history/domain/ports/purchase-history-storage-mode.port.js";
+import { toNumber } from "../../../../shared/persistence/decimal.util.js";
 import type { PurchaseRecord as PurchaseHistoryRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
@@ -156,8 +157,8 @@ export class GetBuyerPurchasesUseCase {
           location: event.location ?? null,
           occurredAt: event.occurredAt
         })),
-        totalAmount: r.totalAmount,
-        discountAmount: r.discountAmount,
+        totalAmount: toNumber(r.totalAmount),
+        discountAmount: toNumber(r.discountAmount),
         currency: r.currency,
         completedAt: r.completedAt,
         items: r.items,

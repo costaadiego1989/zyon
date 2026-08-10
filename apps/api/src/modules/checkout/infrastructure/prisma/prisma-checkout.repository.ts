@@ -20,6 +20,7 @@ import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
+import { toNumber, toNumberOrNull } from "../../../../shared/persistence/decimal.util.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -474,8 +475,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       offers_accepted: offersAccepted,
       orders_completed: ordersCompleted,
       conversion_rate_with_agent: conversationsStarted ? ordersCompleted / conversationsStarted : 0,
-      average_discount: avgDiscountResult._avg.value ?? 0,
-      average_shipping_subsidy: avgShippingResult._avg.value ?? 0,
+      average_discount: toNumber(avgDiscountResult._avg.value),
+      average_shipping_subsidy: toNumber(avgShippingResult._avg.value),
       incremental_revenue: ordersCompleted * avgCart,
       recent_sessions: sessions.map(toCheckoutSession),
       recent_offers: offers.map(toAuthorizedOffer)
@@ -580,10 +581,10 @@ function toAuthorizedOffer(row: {
   merchantId: string;
   sessionId: string;
   type: string;
-  value: number;
+  value: any;
   approved: boolean;
   reason: string;
-  marginAfterOffer: number;
+  marginAfterOffer: any;
   expiresAt: Date;
   discountCode: string | null;
 }): AuthorizedOffer {
@@ -592,10 +593,10 @@ function toAuthorizedOffer(row: {
     merchantId: row.merchantId,
     sessionId: row.sessionId,
     type: row.type as OfferType,
-    value: row.value,
+    value: toNumber(row.value),
     approved: row.approved,
     reason: row.reason,
-    marginAfterOffer: row.marginAfterOffer,
+    marginAfterOffer: toNumber(row.marginAfterOffer),
     expiresAt: row.expiresAt.toISOString(),
     discountCode: row.discountCode ?? undefined
   };
@@ -619,8 +620,8 @@ function toAcceptedOffer(row: {
   sessionId: string;
   offerId: string;
   type: string;
-  value: number;
-  marginAfterOffer: number;
+  value: any;
+  marginAfterOffer: any;
   acceptedAt: Date;
   expiresAt: Date;
 }): AcceptedOffer {
@@ -629,8 +630,8 @@ function toAcceptedOffer(row: {
     sessionId: row.sessionId,
     offerId: row.offerId,
     type: row.type as OfferType,
-    value: row.value,
-    marginAfterOffer: row.marginAfterOffer,
+    value: toNumber(row.value),
+    marginAfterOffer: toNumber(row.marginAfterOffer),
     acceptedAt: row.acceptedAt.toISOString(),
     expiresAt: row.expiresAt.toISOString()
   };
@@ -658,7 +659,7 @@ function toCompletedOrder(row: {
   merchantId: string;
   sessionId: string;
   externalOrderId: string;
-  orderTotal: number;
+  orderTotal: any;
   currency: string;
   status?: string;
   acceptedOfferId: string | null;
@@ -671,7 +672,7 @@ function toCompletedOrder(row: {
     merchantId: row.merchantId,
     sessionId: row.sessionId,
     externalOrderId: row.externalOrderId,
-    orderTotal: row.orderTotal,
+    orderTotal: toNumber(row.orderTotal),
     currency: row.currency as CurrencyCode,
     status: row.status as CompletedOrderStatus,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
@@ -705,30 +706,30 @@ function toMerchantRuleUpdate(rules: MerchantRules) {
 }
 
 function toMerchantRules(row: {
-  maxDiscountPercent: number;
-  minimumMarginPercent: number;
+  maxDiscountPercent: any;
+  minimumMarginPercent: any;
   allowFreeShipping: boolean;
   allowShippingDiscount: boolean;
   allowBonusItem: boolean;
   allowStackDiscountAndFreeShipping: boolean;
-  freeShippingMinCartValue: number;
-  maxShippingSubsidy: number;
-  maxPartialShippingDiscount: number;
+  freeShippingMinCartValue: any;
+  maxShippingSubsidy: any;
+  maxPartialShippingDiscount: any;
   offerExpirationMinutes: number;
   blockedRegions: string[];
   brandVoice: string;
   couponBoxEnabled?: boolean | null;
 }): MerchantRules {
   return {
-    maxDiscountPercent: row.maxDiscountPercent,
-    minimumMarginPercent: row.minimumMarginPercent,
+    maxDiscountPercent: toNumber(row.maxDiscountPercent),
+    minimumMarginPercent: toNumber(row.minimumMarginPercent),
     allowFreeShipping: row.allowFreeShipping,
     allowShippingDiscount: row.allowShippingDiscount,
     allowBonusItem: row.allowBonusItem,
     allowStackDiscountAndFreeShipping: row.allowStackDiscountAndFreeShipping,
-    freeShippingMinCartValue: row.freeShippingMinCartValue,
-    maxShippingSubsidy: row.maxShippingSubsidy,
-    maxPartialShippingDiscount: row.maxPartialShippingDiscount,
+    freeShippingMinCartValue: toNumber(row.freeShippingMinCartValue),
+    maxShippingSubsidy: toNumber(row.maxShippingSubsidy),
+    maxPartialShippingDiscount: toNumber(row.maxPartialShippingDiscount),
     offerExpirationMinutes: row.offerExpirationMinutes,
     blockedRegions: row.blockedRegions,
     brandVoice: row.brandVoice as MerchantRules["brandVoice"],

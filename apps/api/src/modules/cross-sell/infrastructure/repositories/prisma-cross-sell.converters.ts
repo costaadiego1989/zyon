@@ -1,6 +1,7 @@
 import type { CrossSellPromotion as PrismaPromo, CrossSellSuggestion as PrismaSuggestion } from "@prisma/client";
 import { CrossSellPromotionEntity, type CrossSellPromotionSnapshot } from "../../domain/entities/cross-sell-promotion.entity.js";
 import { CrossSellSuggestionEntity, type CrossSellSuggestionSnapshot } from "../../domain/entities/cross-sell-suggestion.entity.js";
+import { toNumber } from "../../../../shared/persistence/decimal.util.js";
 
 export function toPromoEntity(row: PrismaPromo): CrossSellPromotionEntity {
   const snap: CrossSellPromotionSnapshot = {
@@ -9,8 +10,8 @@ export function toPromoEntity(row: PrismaPromo): CrossSellPromotionEntity {
     name: row.name,
     trigger: row.trigger as Record<string, unknown>,
     recommended_skus: row.recommendedSkus,
-    discount_percent: row.discountPercent,
-    max_discount_percent: row.maxDiscountPercent,
+    discount_percent: toNumber(row.discountPercent),
+    max_discount_percent: toNumber(row.maxDiscountPercent),
     status: row.status as "active" | "archived",
     starts_at: row.startsAt.toISOString(),
     ends_at: row.endsAt?.toISOString() ?? null,
@@ -58,7 +59,7 @@ export function toSuggestionEntity(row: PrismaSuggestion): CrossSellSuggestionEn
     promo_id: row.promoId,
     ranked_items: row.rankedItems,
     agent_copy: row.agentCopy,
-    computed_discount: row.computedDiscount,
+    computed_discount: toNumber(row.computedDiscount),
     status: row.status as "pending" | "accepted" | "declined",
     suggested_at: row.suggestedAt.toISOString(),
     resolved_at: row.resolvedAt?.toISOString() ?? null

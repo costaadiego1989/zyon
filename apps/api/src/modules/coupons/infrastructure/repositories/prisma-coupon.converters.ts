@@ -1,18 +1,30 @@
 import type { Coupon as PrismaCoupon, CouponRedemption as PrismaCouponRedemption } from "@prisma/client";
 import { CouponEntity, type CouponSnapshot, type CouponDiscountType, type CouponStatus } from "../../domain/entities/coupon.entity.js";
 import { CouponRedemptionEntity, type CouponRedemptionSnapshot, type RedemptionSource, type RedemptionStatus } from "../../domain/entities/coupon-redemption.entity.js";
+import { toNumber, toNumberOrNull } from "../../../../shared/persistence/decimal.util.js";
+
+type DecimalLike = { toNumber(): number } | number;
+
+type CouponRow = Omit<PrismaCoupon, "discountValue" | "minCartTotal"> & {
+  discountValue: DecimalLike;
+  minCartTotal: DecimalLike | null;
+};
+
+type RedemptionRow = Omit<PrismaCouponRedemption, "discountApplied"> & {
+  discountApplied: DecimalLike;
+};
 
 /**
  * Convert Prisma Coupon row to CouponEntity.
  */
-export function toCouponEntity(row: PrismaCoupon): CouponEntity {
+export function toCouponEntity(row: CouponRow): CouponEntity {
   const snap: CouponSnapshot = {
     id: row.id,
     merchant_id: row.merchantId,
     code: row.code,
     discount_type: row.discountType as CouponDiscountType,
-    discount_value: row.discountValue,
-    min_cart_total: row.minCartTotal,
+    discount_value: toNumber(row.discountValue),
+    min_cart_total: toNumberOrNull(row.minCartTotal),
     max_usages: row.maxUsages,
     max_per_buyer: row.maxPerBuyer,
     usages_count: row.usagesCount,
@@ -79,14 +91,14 @@ export function toCouponUpdateInput(entity: CouponEntity) {
 /**
  * Convert Prisma CouponRedemption row to CouponRedemptionEntity.
  */
-export function toCouponRedemptionEntity(row: PrismaCouponRedemption): CouponRedemptionEntity {
+export function toCouponRedemptionEntity(row: RedemptionRow): CouponRedemptionEntity {
   const snap: CouponRedemptionSnapshot = {
     id: row.id,
     coupon_id: row.couponId,
     merchant_id: row.merchantId,
     session_id: row.sessionId,
     buyer_global_user_id: row.buyerGlobalUserId ?? null,
-    discount_applied: row.discountApplied,
+    discount_applied: toNumber(row.discountApplied),
     source: row.source as RedemptionSource,
     status: row.status as RedemptionStatus,
     order_id: row.orderId ?? null,

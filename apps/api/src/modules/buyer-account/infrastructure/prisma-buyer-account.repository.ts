@@ -6,6 +6,7 @@ import {
   encryptPii,
   isPiiEncrypted,
 } from "../../../shared/crypto/pii-cipher.service.js";
+import { toNumber, toNumberOrNull } from "../../../shared/persistence/decimal.util.js";
 import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
 import { BuyerAgentProfile, type AgentPersonality } from "../domain/entities/buyer-agent-profile.entity.js";
 import type { BuyerAccountRepository } from "../domain/ports/buyer-account-repository.port.js";
@@ -112,15 +113,17 @@ type AccountRow = {
   updatedAt: Date;
 };
 
+type DecimalLike = { toNumber(): number } | number;
+
 type AgentRow = {
   id: string;
   globalUserId: string;
   name: string;
   personality: string;
   maxRounds: number;
-  targetDiscountPercent: number;
-  minimumAcceptableDiscountPercent: number;
-  autoAcceptThreshold: number | null;
+  targetDiscountPercent: DecimalLike;
+  minimumAcceptableDiscountPercent: DecimalLike;
+  autoAcceptThreshold: DecimalLike | null;
   m2mEnabled: boolean;
   m2mTokenHash: string | null;
   m2mTokenCreatedAt: Date | null;
@@ -176,9 +179,9 @@ function toDomainAgent(row: AgentRow): BuyerAgentProfile {
     name: row.name,
     personality: row.personality as AgentPersonality,
     maxRounds: row.maxRounds,
-    targetDiscountPercent: row.targetDiscountPercent,
-    minimumAcceptableDiscountPercent: row.minimumAcceptableDiscountPercent,
-    autoAcceptThreshold: row.autoAcceptThreshold ?? undefined,
+    targetDiscountPercent: toNumber(row.targetDiscountPercent),
+    minimumAcceptableDiscountPercent: toNumber(row.minimumAcceptableDiscountPercent),
+    autoAcceptThreshold: row.autoAcceptThreshold ? toNumber(row.autoAcceptThreshold) : undefined,
     m2mEnabled: row.m2mEnabled,
     m2mTokenHash: row.m2mTokenHash ?? undefined,
     m2mTokenCreatedAt: row.m2mTokenCreatedAt ?? undefined,

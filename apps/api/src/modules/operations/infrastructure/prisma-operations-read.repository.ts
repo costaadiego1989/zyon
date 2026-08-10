@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { toNumber } from "../../../shared/persistence/decimal.util.js";
 import type {
   CustomerDetail,
   CustomerSummary,
@@ -262,7 +263,7 @@ function toOrderSummary(row: {
   id: string;
   sessionId: string;
   externalOrderId: string;
-  orderTotal: number;
+  orderTotal: { toNumber(): number } | number;
   currency: string;
   status: string;
   acceptedOfferId: string | null;
@@ -386,6 +387,6 @@ function toSnakeCase(value: string): string {
   return value.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 }
 
-function toMinor(value: number): number {
-  return Math.round(value * 100);
+function toMinor(value: { toNumber(): number } | number): number {
+  return Math.round(toNumber(value) * 100);
 }
