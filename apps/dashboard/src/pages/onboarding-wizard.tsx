@@ -1236,11 +1236,9 @@ function OnboardingStyles() {
       .onb-dot-live { background: var(--color-brand-light); box-shadow: 0 0 0 3px rgba(20,184,166,0.22); }
 
       /* ── Live preview column ────────────────────────────────────────── */
-      .onb-preview { position: sticky; top: 20px; min-height: 424px; }
+      .onb-preview { position: sticky; top: 20px; }
       .onb-preview-frame {
         position: relative;
-        height: 100%;
-        min-height: 424px;
         border: 1px solid var(--color-border);
         border-radius: var(--radius-lg);
         background: var(--color-surface);
@@ -1260,11 +1258,9 @@ function OnboardingStyles() {
         color: var(--color-text-muted);
       }
       .onb-preview-live {
-        height: calc(100% - 24px);
-        min-height: 372px;
+        max-height: 580px;
       }
       .onb-preview-live > div {
-        min-height: 372px !important;
       }
 
       /* ── Footer ─────────────────────────────────────────────────────── */
@@ -1431,8 +1427,8 @@ function OnboardingStyles() {
       /* ── Responsive ─────────────────────────────────────────────────── */
       @media (max-width: 1080px) {
         .onb-stage-body { grid-template-columns: 1fr; }
-        .onb-preview { position: static; order: -1; min-height: 360px; }
-        .onb-preview-frame { min-height: 360px; }
+        .onb-preview { position: static; order: -1; }
+        .onb-preview-frame { }
       }
 
       @media (max-width: 860px) {
