@@ -583,11 +583,11 @@ export function OnboardingWizard(props: {
                         <>
                           <span className="onb-field-label">Snippet de integração</span>
                           <p className="onb-field-help" style={{ marginBottom: 10 }}>
-                            Cole este código no <code>&lt;head&gt;</code> do seu site. O token será gerado ao finalizar o onboarding.
+                            Cole este código no <code>&lt;head&gt;</code> do seu site. O token será gerado na aba Desenvolvedores após ativar.
                           </p>
                           <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  embed-session-token="SEU_TOKEN"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
-                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
-                            Ver documentação completa da API →
+                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Embed-sessions`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
+                            Ver documentação Embed Sessions →
                           </a>
                         </>
                       ) : (
@@ -628,8 +628,8 @@ export function OnboardingWizard(props: {
                               </>
                             )}
                           </ol>
-                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
-                            Ver documentação completa →
+                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Installations`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
+                            Ver documentação de integração →
                           </a>
                         </>
                       )}
