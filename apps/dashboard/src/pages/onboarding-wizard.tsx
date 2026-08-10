@@ -179,7 +179,8 @@ export function OnboardingWizard(props: {
     setBusy(true);
     setMessage(null);
     try {
-      const current = await api.getMerchantTheme();
+      let current: Record<string, unknown> = {};
+      try { current = await api.getMerchantTheme() as Record<string, unknown>; } catch { /* new merchant, no theme yet */ }
       await api.putMerchantTheme({ ...current, ...themeDraft });
       await markOnboardingStep("account");
       setCurrentStep(2);
