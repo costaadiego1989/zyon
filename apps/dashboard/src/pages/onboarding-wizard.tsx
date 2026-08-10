@@ -207,14 +207,12 @@ export function OnboardingWizard(props: {
     try {
       let current: Record<string, unknown> = {};
       try { current = await api.getMerchantRules() as Record<string, unknown>; } catch { /* new merchant */ }
-      const payload = {
-        ...current,
-        ...rulesDraft,
-        freeShippingMinCartValue: Number(current.freeShippingMinCartValue) || 0,
-        maxPartialShippingDiscount: Number(current.maxPartialShippingDiscount) || 0,
-        maxShippingSubsidy: Number(current.maxShippingSubsidy) || 0,
-      };
-      await api.putMerchantRules(payload);
+      const merged = { ...current, ...rulesDraft };
+      const numericFields = ["maxDiscountPercent", "minimumMarginPercent", "freeShippingMinCartValue", "maxPartialShippingDiscount", "maxShippingSubsidy", "offerExpirationMinutes"];
+      for (const key of numericFields) {
+        if (key in merged) merged[key] = Math.round(Number(merged[key]) || 0);
+      }
+      await api.putMerchantRules(merged);
       await markOnboardingStep("checkout_config");
       setCurrentStep(3);
     } catch (e) {
