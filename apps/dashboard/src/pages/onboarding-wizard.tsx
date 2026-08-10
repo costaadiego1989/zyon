@@ -594,6 +594,65 @@ export function OnboardingWizard(props: {
                       })}
                     </div>
                   </div>
+
+                  {checkoutDraft.mode && (
+                    <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
+                      {checkoutDraft.mode === "custom" ? (
+                        <>
+                          <span className="onb-field-label">Snippet de integração</span>
+                          <p className="onb-field-help" style={{ marginBottom: 10 }}>
+                            Cole este código no <code>&lt;head&gt;</code> do seu site. O token será gerado ao finalizar o onboarding.
+                          </p>
+                          <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  embed-session-token="SEU_TOKEN"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
+                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
+                            Ver documentação completa da API →
+                          </a>
+                        </>
+                      ) : (
+                        <>
+                          <span className="onb-field-label">
+                            {checkoutDraft.mode === "woocommerce" && "Instalação WooCommerce"}
+                            {checkoutDraft.mode === "shopify" && "Instalação Shopify"}
+                            {checkoutDraft.mode === "nuvemshop" && "Instalação Nuvemshop"}
+                            {checkoutDraft.mode === "tray" && "Instalação Tray Commerce"}
+                          </span>
+                          <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
+                            {checkoutDraft.mode === "woocommerce" && (
+                              <>
+                                <li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li>
+                                <li>Ative o plugin e vá em WooCommerce → Zyon Checkout</li>
+                                <li>Insira seu Merchant ID e API Key (gerados ao finalizar)</li>
+                              </>
+                            )}
+                            {checkoutDraft.mode === "shopify" && (
+                              <>
+                                <li>Instale o app Zyon Checkout na Shopify App Store</li>
+                                <li>Autorize a conexão com sua loja</li>
+                                <li>O checkout será ativado automaticamente</li>
+                              </>
+                            )}
+                            {checkoutDraft.mode === "nuvemshop" && (
+                              <>
+                                <li>Acesse o painel Nuvemshop → Apps → Buscar "Zyon"</li>
+                                <li>Instale e autorize a integração</li>
+                                <li>Configure seu Merchant ID nas preferências do app</li>
+                              </>
+                            )}
+                            {checkoutDraft.mode === "tray" && (
+                              <>
+                                <li>Acesse o painel Tray → Integrações → Buscar "Zyon"</li>
+                                <li>Ative a integração e autorize o acesso</li>
+                                <li>O checkout será configurado automaticamente</li>
+                              </>
+                            )}
+                          </ol>
+                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
+                            Ver documentação completa →
+                          </a>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
