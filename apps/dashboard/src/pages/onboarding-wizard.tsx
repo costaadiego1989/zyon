@@ -642,12 +642,16 @@ export function OnboardingWizard(props: {
                   Eu cuido da sua compra do inicio ao fim: acho a melhor opcao, aplico promocoes, organizo a entrega e finalizo o pagamento com voce.
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 260, marginTop: 6 }}>
-                  {["Acho a melhor opcao e aplico promocoes", "Calculo o frete e organizo a entrega", "Pago com Pix, cartao ou crypto"].map((cap) => (
-                    <div key={cap} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, background: "#111827", border: "1px solid #1f2937" }}>
+                  {[
+                    { text: "Acho a melhor opcao e aplico promocoes", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><path d="M12 3l1.5 4.5H18l-3.5 2.5L16 14.5 12 12l-4 2.5 1.5-4.5L6 7.5h4.5z"/></svg> },
+                    { text: "Calculo o frete e organizo a entrega", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> },
+                    { text: "Pago com Pix, cartao ou crypto", icon: <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> },
+                  ].map((cap) => (
+                    <div key={cap.text} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: 8, background: "#111827", border: "1px solid #1f2937" }}>
                       <div style={{ width: 22, height: 22, borderRadius: 5, background: "#064e3b", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                        <div style={{ width: 7, height: 7, borderRadius: 2, background: "#34d399" }} />
+                        {cap.icon}
                       </div>
-                      <span style={{ font: "500 11px 'Space Grotesk', sans-serif", color: "#e5e7eb" }}>{cap}</span>
+                      <span style={{ font: "500 11px 'Space Grotesk', sans-serif", color: "#e5e7eb" }}>{cap.text}</span>
                     </div>
                   ))}
                 </div>
