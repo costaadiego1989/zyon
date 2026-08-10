@@ -13,6 +13,8 @@ import {
 import {
   ApiBearerAuth,
   ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
@@ -54,6 +56,29 @@ export class SupportController {
    * from the token — it is never trusted from the request body.
    * P1 fix: body is a validated DTO (`SupportChatDto`) — no interface pass-through.
    */
+  @ApiOperation({
+    summary: "Send support chat message",
+    description:
+      "Send a message to support chat. Requires valid embed token. Returns AI-generated or rule-engine-approved response.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Chat message sent and response generated",
+    schema: {
+      example: {
+        message: "Here is some information about that...",
+        suggested_actions: [],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid message body or session ID",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Invalid or missing embed token",
+  })
   @UseGuards(EmbedAuthGuard)
   @Post("chat")
   async chat(@Req() request: EmbedRequest, @Body() body: SupportChatDto) {
@@ -69,6 +94,29 @@ export class SupportController {
    * P0 fix: FAQ now requires a verified embed token. `merchant_id` query param
    * is ignored — tenant is derived from the token.
    */
+  @ApiOperation({
+    summary: "Get FAQ items",
+    description:
+      "Retrieve FAQ items configured for this merchant. Requires valid embed token.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "FAQ items retrieved",
+    schema: {
+      example: {
+        faqItems: [
+          {
+            question: "What is your return policy?",
+            answer: "Returns accepted within 30 days...",
+          },
+        ],
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Invalid or missing embed token",
+  })
   @UseGuards(EmbedAuthGuard)
   @Get("faq")
   async getFaq(@Req() request: EmbedRequest) {
@@ -79,6 +127,27 @@ export class SupportController {
 
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
+  @ApiOperation({
+    summary: "Get support settings",
+    description:
+      "Retrieve support configuration for merchant. Includes FAQ items and routing rules.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Support settings retrieved",
+    schema: {
+      example: {
+        merchantId: "merch_123",
+        faqItems: [],
+        enabled: true,
+        createdAt: "2026-08-10T00:00:00Z",
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing support:read scope",
+  })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:read"] })
   @Get("settings")
@@ -88,6 +157,23 @@ export class SupportController {
 
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
+  @ApiOperation({
+    summary: "Update support settings",
+    description:
+      "Update support configuration including FAQ items. Requires idempotency key.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Support settings updated",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid settings body",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing support:write scope",
+  })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Put("settings")
@@ -108,6 +194,32 @@ export class SupportController {
    */
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
+  @ApiOperation({
+    summary: "List support tickets",
+    description:
+      "List support tickets with pagination. Supports filtering by status and cursor-based pagination.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Support tickets retrieved",
+    schema: {
+      example: {
+        data: [
+          {
+            id: "ticket_123",
+            status: "open",
+            createdAt: "2026-08-10T00:00:00Z",
+          },
+        ],
+        next_cursor: "cursor_next",
+        has_more: true,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing support:read scope",
+  })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:read"] })
   @Get("tickets")
@@ -128,6 +240,23 @@ export class SupportController {
 
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
+  @ApiOperation({
+    summary: "Create a support ticket",
+    description:
+      "Create a new support ticket associated with a session. Requires idempotency key.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Support ticket created",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid ticket body",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing support:write scope",
+  })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Post("tickets")
@@ -145,6 +274,27 @@ export class SupportController {
 
   @ApiBearerAuth("service_api_key")
   @ApiCookieAuth("console_session")
+  @ApiOperation({
+    summary: "Update support ticket status",
+    description:
+      "Transition a support ticket to a new status (open, in_progress, resolved, closed). Requires idempotency key.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Ticket status updated",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid status transition",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing support:write scope",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Ticket not found",
+  })
   @UseGuards(TenantCredentialGuard, TenantAccessGuard)
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Patch("tickets/:ticketId")

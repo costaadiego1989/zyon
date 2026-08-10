@@ -9,8 +9,11 @@ import {
 import {
   ApiBearerAuth,
   ApiCookieAuth,
-  ApiPropertyOptional,
+  ApiOperation,
+  ApiResponse,
   ApiTags,
+  ApiBody,
+  ApiPropertyOptional,
 } from "@nestjs/swagger";
 import {
   IsArray,
@@ -73,6 +76,39 @@ export class EmbedSessionsController {
 
   @Post()
   @Idempotent()
+  @ApiOperation({
+    summary: "Issue an embed session token",
+    description:
+      "Create a short-lived embed session token for use with the `<zyon-checkout-agent>` web component. " +
+      "The token encodes the merchant context, allowed scopes, and optional widget binding (installation). " +
+      "Pass the returned `token` value as the `session-token` attribute on the web component. " +
+      "Default TTL is 900 seconds (15 min); configurable between 60s and 86400s. " +
+      "When `allowed_origin` is provided, the token will only be accepted from matching origins. " +
+      "If `installation_id` is given, the session inherits that installation's environment and widget version.",
+  })
+  @ApiBody({ type: IssueEmbedSessionDto })
+  @ApiResponse({
+    status: 201,
+    description: "Embed session created successfully",
+    schema: {
+      type: "object",
+      properties: {
+        token: { type: "string", description: "JWT embed session token to set on <zyon-checkout-agent session-token=\"...\">" },
+        expires_at: { type: "string", format: "date-time", description: "Token expiration timestamp" },
+        merchant_id: { type: "string", example: "cm123merchant" },
+        installation_id: { type: "string", nullable: true, description: "Resolved installation ID if provided" },
+        scopes: { type: "array", items: { type: "string" }, example: ["checkout:start", "checkout:chat"] },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation error: invalid scopes, origin, or TTL out of range. Also returned when merchant_id is passed in body (must be derived from credentials).",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized. Missing or invalid service API key or console session cookie.",
+  })
   async issueSession(
     @Req() request: unknown,
     @Body() body: IssueEmbedSessionDto,

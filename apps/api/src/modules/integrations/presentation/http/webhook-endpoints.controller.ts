@@ -14,7 +14,13 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import type { Response } from "express";
@@ -56,6 +62,23 @@ export class WebhookEndpointsController {
   ) {}
 
   @Get()
+  @ApiOperation({
+    summary: "List webhook endpoints",
+    description: "Retrieves all webhook endpoints for the merchant.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Webhook endpoints retrieved successfully",
+    schema: {
+      properties: {
+        data: { type: "array" },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:read"] })
   async list(@Req() request: unknown) {
     return {
@@ -71,6 +94,29 @@ export class WebhookEndpointsController {
   @Idempotent({ redactResponseFields: ["signing_secret"] })
   @UseGuards(PlanLimitGuard)
   @RequirePlanLimit("webhookEndpoints")
+  @ApiOperation({
+    summary: "Create webhook endpoint",
+    description: "Creates a new webhook endpoint with event subscriptions. Returns a signing_secret for HMAC signature verification of incoming webhooks.",
+  })
+  @ApiBody({
+    schema: {
+      properties: {
+        url: { type: "string", format: "uri", description: "HTTPS endpoint URL to receive webhooks" },
+        events: { type: "array", items: { type: "string" }, description: "Event types to subscribe to" },
+        description: { type: "string" },
+        enabled: { type: "boolean", default: true },
+      },
+      required: ["url"],
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Webhook endpoint created successfully",
+    schema: { $ref: "#/components/schemas/WebhookEndpoint" },
+  })
+  @ApiResponse({ status: 400, description: "Invalid URL or configuration" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions or plan limit reached" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async create(
     @Req() request: unknown,
@@ -83,6 +129,19 @@ export class WebhookEndpointsController {
   }
 
   @Get(":endpointId")
+  @ApiOperation({
+    summary: "Get webhook endpoint",
+    description: "Retrieves webhook endpoint configuration and signing_secret hint (full secret not shown).",
+  })
+  @ApiParam({ name: "endpointId", type: "string", description: "Webhook endpoint ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Webhook endpoint retrieved successfully",
+    schema: { $ref: "#/components/schemas/WebhookEndpoint" },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Webhook endpoint not found" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:read"] })
   async get(
     @Req() request: unknown,
@@ -99,6 +158,33 @@ export class WebhookEndpointsController {
 
   @Put(":endpointId")
   @Idempotent()
+  @ApiOperation({
+    summary: "Update webhook endpoint",
+    description: "Updates webhook endpoint configuration. Supports ETag-based optimistic concurrency control via If-Match header.",
+  })
+  @ApiParam({ name: "endpointId", type: "string", description: "Webhook endpoint ID" })
+  @ApiHeader({ name: "If-Match", required: false, description: "ETag for optimistic concurrency control" })
+  @ApiBody({
+    schema: {
+      properties: {
+        url: { type: "string", format: "uri" },
+        events: { type: "array", items: { type: "string" } },
+        enabled: { type: "boolean" },
+        description: { type: "string" },
+      },
+      required: ["url"],
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Webhook endpoint updated successfully",
+    schema: { $ref: "#/components/schemas/WebhookEndpoint" },
+  })
+  @ApiResponse({ status: 400, description: "Invalid configuration" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Webhook endpoint not found" })
+  @ApiResponse({ status: 412, description: "Precondition failed - ETag mismatch" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async update(
     @Req() request: unknown,
@@ -121,6 +207,19 @@ export class WebhookEndpointsController {
 
   @Post(":endpointId/rotate-secret")
   @Idempotent({ redactResponseFields: ["signing_secret"] })
+  @ApiOperation({
+    summary: "Rotate webhook signing secret",
+    description: "Generates a new signing_secret for this endpoint. Old secret remains valid temporarily to allow graceful migration.",
+  })
+  @ApiParam({ name: "endpointId", type: "string", description: "Webhook endpoint ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Secret rotated successfully",
+    schema: { $ref: "#/components/schemas/WebhookEndpoint" },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Webhook endpoint not found" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async rotate(
     @Req() request: unknown,
@@ -133,6 +232,20 @@ export class WebhookEndpointsController {
 
   @Post(":endpointId/test")
   @Idempotent()
+  @ApiOperation({
+    summary: "Send test webhook",
+    description: "Sends a test webhook delivery to this endpoint to verify it can receive and process webhooks with proper signature validation.",
+  })
+  @ApiParam({ name: "endpointId", type: "string", description: "Webhook endpoint ID" })
+  @ApiResponse({
+    status: 200,
+    description: "Test webhook sent successfully",
+    schema: { type: "object" },
+  })
+  @ApiResponse({ status: 400, description: "Test failed - endpoint unreachable or invalid" })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Webhook endpoint not found" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async test(
     @Req() request: unknown,
@@ -144,6 +257,26 @@ export class WebhookEndpointsController {
   }
 
   @Get(":endpointId/deliveries")
+  @ApiOperation({
+    summary: "List endpoint deliveries",
+    description: "Lists all webhook delivery attempts for a specific endpoint, including status, response codes, and retry scheduling.",
+  })
+  @ApiParam({ name: "endpointId", type: "string", description: "Webhook endpoint ID" })
+  @ApiQuery({ name: "limit", type: "string", required: false, description: "Max items to return (1-100)" })
+  @ApiResponse({
+    status: 200,
+    description: "Deliveries retrieved successfully",
+    schema: {
+      properties: {
+        data: { type: "array" },
+        next_cursor: { type: "string", nullable: true },
+        has_more: { type: "boolean" },
+      },
+    },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Webhook endpoint not found" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:read"] })
   async deliveries(
     @Req() request: unknown,
@@ -166,6 +299,20 @@ export class WebhookEndpointsController {
 
   @Post(":endpointId/deliveries/:deliveryId/replay")
   @Idempotent()
+  @ApiOperation({
+    summary: "Replay webhook delivery",
+    description: "Retries a specific webhook delivery for this endpoint. Useful for recovering from transient failures.",
+  })
+  @ApiParam({ name: "endpointId", type: "string", description: "Webhook endpoint ID" })
+  @ApiParam({ name: "deliveryId", type: "string", description: "Delivery ID to replay" })
+  @ApiResponse({
+    status: 200,
+    description: "Delivery replayed successfully",
+    schema: { type: "object" },
+  })
+  @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
+  @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })
+  @ApiResponse({ status: 404, description: "Webhook endpoint or delivery not found" })
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   async replay(
     @Req() request: unknown,

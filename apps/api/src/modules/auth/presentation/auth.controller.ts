@@ -1,4 +1,10 @@
 import { Body, Controller, HttpCode, Ip, Post, Req, Res, UnauthorizedException } from "@nestjs/common";
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiBody,
+} from "@nestjs/swagger";
 import { LoginWithRateLimitUseCase } from "../application/login-with-rate-limit.use-case.js";
 import { RefreshTokenUseCase } from "../application/refresh-token.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
@@ -15,6 +21,7 @@ import type { LoginAttemptScope } from "../domain/ports/rate-limiter.port.js";
  * H8: Sets Retry-After header on 429.
  * L6: Register rate limiting via same limiter (separate scope).
  */
+@ApiTags("Auth")
 @Controller("auth")
 export class AuthController {
   constructor(
@@ -27,6 +34,41 @@ export class AuthController {
   ) {}
 
   @Post("register")
+  @ApiOperation({
+    summary: "Register a new merchant",
+    description: "Create a new merchant account with email and password. Returns authentication token and sets auth cookie.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["email", "password"],
+      properties: {
+        email: { type: "string", format: "email", example: "merchant@example.com" },
+        password: { type: "string", minLength: 8, example: "secure_password_123" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Merchant registered successfully. Auth cookie set in response.",
+    schema: {
+      type: "object",
+      properties: {
+        merchant_id: { type: "string", example: "cm123merchant" },
+        email: { type: "string", format: "email" },
+        token: { type: "string", description: "JWT access token" },
+        expires_at: { type: "string", format: "date-time" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation error: invalid email format or password too weak",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Email already registered",
+  })
   async register(@Body() body: RegisterMerchantRequest, @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }) {
     const auth = await this.registerMerchant.execute(body);
     response.setHeader("Set-Cookie", this.cookies.create(auth));
@@ -34,6 +76,47 @@ export class AuthController {
   }
 
   @Post("login")
+  @ApiOperation({
+    summary: "Login with email and password",
+    description: "Authenticate a merchant using email and password. Rate limited by IP and email. Returns authentication token and sets auth cookie.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["email", "password"],
+      properties: {
+        email: { type: "string", format: "email", example: "merchant@example.com" },
+        password: { type: "string", example: "secure_password_123" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Login successful. Auth cookie set in response.",
+    schema: {
+      type: "object",
+      properties: {
+        merchant_id: { type: "string", example: "cm123merchant" },
+        email: { type: "string", format: "email" },
+        token: { type: "string", description: "JWT access token" },
+        expires_at: { type: "string", format: "date-time" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Invalid credentials (email or password incorrect)",
+  })
+  @ApiResponse({
+    status: 429,
+    description: "Rate limited. Too many failed login attempts. Retry-After header indicates seconds to wait.",
+    headers: {
+      "Retry-After": {
+        schema: { type: "integer", example: 60 },
+        description: "Seconds to wait before retrying",
+      },
+    },
+  })
   async loginWithPassword(
     @Body() body: { email: string; password: string },
     @Ip() ip: string,
@@ -64,6 +147,26 @@ export class AuthController {
   }
 
   @Post("refresh")
+  @ApiOperation({
+    summary: "Refresh access token",
+    description: "Issue a new access token using an existing valid token from Bearer header or auth cookie. Returns new token with updated expiration.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: "Token refreshed successfully. New auth cookie set in response.",
+    schema: {
+      type: "object",
+      properties: {
+        merchant_id: { type: "string", example: "cm123merchant" },
+        token: { type: "string", description: "New JWT access token" },
+        expires_at: { type: "string", format: "date-time" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Token missing, invalid, or expired. No valid refresh possible.",
+  })
   refresh(
     @Req() request: { headers?: { cookie?: string; authorization?: string } },
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
@@ -89,18 +192,78 @@ export class AuthController {
 
   @Post("logout")
   @HttpCode(204)
+  @ApiOperation({
+    summary: "Logout and clear session",
+    description: "Invalidate the current session and clear auth cookie. Returns 204 No Content.",
+  })
+  @ApiResponse({
+    status: 204,
+    description: "Logged out successfully. Auth cookie cleared.",
+  })
   logout(@Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }) {
     response.setHeader("Set-Cookie", this.cookies.clear());
   }
 
   @Post("forgot-password")
   @HttpCode(200)
+  @ApiOperation({
+    summary: "Request password reset token",
+    description: "Send a password reset token to the registered email. Always returns 200 for security (no email enumeration). Token expires after 1 hour.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["email"],
+      properties: {
+        email: { type: "string", format: "email", example: "merchant@example.com" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Password reset email sent (or no account found - same response for security)",
+    schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "If an account exists, a reset link has been sent to the email." },
+      },
+    },
+  })
   async forgotPassword(@Body() body: { email: string }) {
     return this.requestPasswordReset.execute(body.email ?? "");
   }
 
   @Post("reset-password")
   @HttpCode(200)
+  @ApiOperation({
+    summary: "Reset password with token",
+    description: "Complete password reset using the token sent to email. Token must be valid and not expired.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["token", "password"],
+      properties: {
+        token: { type: "string", description: "Reset token from email", example: "eyJhbGc..." },
+        password: { type: "string", minLength: 8, example: "new_secure_password_456" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Password reset successfully. New auth cookie set in response.",
+    schema: {
+      type: "object",
+      properties: {
+        merchant_id: { type: "string", example: "cm123merchant" },
+        message: { type: "string", example: "Password reset successful" },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid or expired reset token, or password validation failed",
+  })
   async resetPasswordAction(@Body() body: { token: string; password: string }) {
     return this.resetPassword.execute(body.token ?? "", body.password ?? "");
   }

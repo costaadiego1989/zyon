@@ -13,6 +13,8 @@ import {
 import {
   ApiBearerAuth,
   ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import type { CheckoutSettingsPatch } from "@zyon/shared-types";
@@ -45,6 +47,19 @@ export class CheckoutSettingsController {
     private readonly entityTags: EntityTagService,
   ) {}
 
+  @ApiOperation({
+    summary: "Get checkout settings",
+    description:
+      "Retrieve current checkout settings for the merchant. Returns an ETag header for optimistic concurrency on subsequent PUT. Settings include checkout mode (silent_until_trigger, proactive, manual_only), suppression rules, and trigger configuration.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Checkout settings retrieved with ETag header",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing configuration:read scope",
+  })
   @Get()
   @RequireTenantAccess({ serviceScopes: ["configuration:read"] })
   async get(
@@ -59,6 +74,27 @@ export class CheckoutSettingsController {
     return settings;
   }
 
+  @ApiOperation({
+    summary: "Update checkout settings",
+    description:
+      "Partial update of checkout settings. Supports optimistic concurrency via If-Match header (ETag from GET). Configurable fields: mode (silent_until_trigger | proactive | manual_only), suppression rules, trigger events, and widget behavior. Validates whitelist — unknown fields are rejected.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Settings updated; new ETag in response header",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid or unknown settings fields",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing configuration:write scope",
+  })
+  @ApiResponse({
+    status: 412,
+    description: "ETag mismatch — concurrent modification detected",
+  })
   @Put()
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["configuration:write"] })
@@ -80,6 +116,23 @@ export class CheckoutSettingsController {
     return updated;
   }
 
+  @ApiOperation({
+    summary: "Reset checkout settings to defaults",
+    description:
+      "Clear all custom checkout settings and restore factory defaults. Supports optimistic concurrency via If-Match header. Requires idempotency key.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Settings reset to defaults; new ETag in response header",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing configuration:write scope",
+  })
+  @ApiResponse({
+    status: 412,
+    description: "ETag mismatch — concurrent modification detected",
+  })
   @Post("reset")
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["configuration:write"] })
@@ -99,6 +152,19 @@ export class CheckoutSettingsController {
     return reset;
   }
 
+  @ApiOperation({
+    summary: "Get checkout context",
+    description:
+      "Retrieve read-only context information used by checkout (features, constraints, limits). Used by SDK to determine capabilities.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Checkout context data",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing configuration:read scope",
+  })
   @Get("context")
   @RequireTenantAccess({ serviceScopes: ["configuration:read"] })
   context(@Req() request: unknown) {

@@ -10,6 +10,8 @@ import {
 import {
   ApiBearerAuth,
   ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
@@ -35,6 +37,47 @@ export class CatalogController {
     private readonly catalog: CommerceCatalogReader,
   ) {}
 
+  @ApiOperation({
+    summary: "Search product catalog",
+    description:
+      "Search the merchant product catalog with optional text query. Supports cursor-based pagination with configurable limit (1-100, default 20).",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Paginated product list",
+    schema: {
+      example: {
+        data: [
+          {
+            id: "prod_123",
+            title: "Widget",
+            description: null,
+            product_url: null,
+            image_url: null,
+            category: null,
+            variants: [
+              {
+                id: "var_1",
+                sku: "WDG-001",
+                title: "Default",
+                unit_price: 2999,
+                currency: "BRL",
+                inventory_quantity: 50,
+                available_for_sale: true,
+                image_url: null,
+              },
+            ],
+          },
+        ],
+        next_cursor: "cursor_abc",
+        has_more: true,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing catalog:read scope",
+  })
   @Get()
   async search(
     @Req() request: unknown,
@@ -56,6 +99,28 @@ export class CatalogController {
     };
   }
 
+  @ApiOperation({
+    summary: "Get product by SKU",
+    description:
+      "Look up a single product by its SKU. Returns null data if no product matches.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Product found or null",
+    schema: {
+      example: {
+        data: {
+          id: "prod_123",
+          title: "Widget",
+          variants: [],
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Missing catalog:read scope",
+  })
   @Get(":sku")
   async bySku(
     @Req() request: unknown,
