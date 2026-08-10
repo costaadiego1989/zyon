@@ -119,8 +119,6 @@ export function OnboardingWizard(props: {
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
   const [rulesDraft, setRulesDraft] = useState<RulesDraft>(saved?.rules ?? DEFAULT_RULES_DRAFT);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(saved?.checkout ?? DEFAULT_CHECKOUT_DRAFT);
-  const [embedSession, setEmbedSession] = useState<EmbedSessionResponse | null>(null);
-  const [copied, setCopied] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   // persist to localStorage on every draft/step change
@@ -193,7 +191,21 @@ export function OnboardingWizard(props: {
       return;
     }
     setFieldErrors({});
-    setCurrentStep(2);
+    setBusy(true);
+    setMessage(null);
+    try {
+      let current: Record<string, unknown> = {};
+      try { current = await api.getMerchantTheme() as Record<string, unknown>; } catch {}
+      const payload = { ...current, ...themeDraft };
+      if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) payload.logoUrl = "";
+      await api.putMerchantTheme(payload);
+      await markOnboardingStep("account");
+      setCurrentStep(2);
+    } catch (e) {
+      setMessage(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveStep2() {
@@ -203,36 +215,12 @@ export function OnboardingWizard(props: {
       return;
     }
     setFieldErrors({});
-    setCurrentStep(3);
-  }
-
-  async function saveStep3() {
-    const errors = validateCheckoutDraft(checkoutDraft);
-    if (errors.length > 0) {
-      setFieldErrors(Object.fromEntries(errors.filter((e): e is { valid: false; field: string; message: string } => !e.valid).map((e) => [e.field, e.message])));
-      return;
-    }
-    setFieldErrors({});
-    setCurrentStep(4);
-  }
-
-  async function saveAllAndFinish() {
     setBusy(true);
     setMessage(null);
     try {
-      // 1. Save theme
-      let currentTheme: Record<string, unknown> = {};
-      try { currentTheme = await api.getMerchantTheme() as Record<string, unknown>; } catch {}
-      const themePayload = { ...currentTheme, ...themeDraft };
-      if (themePayload.logoUrl && String(themePayload.logoUrl).startsWith("blob:")) {
-        themePayload.logoUrl = "";
-      }
-      await api.putMerchantTheme(themePayload);
-
-      // 2. Save rules
-      let currentRules: Record<string, unknown> = {};
-      try { currentRules = await api.getMerchantRules() as Record<string, unknown>; } catch {}
-      const merged = { ...currentRules, ...rulesDraft };
+      let current: Record<string, unknown> = {};
+      try { current = await api.getMerchantRules() as Record<string, unknown>; } catch {}
+      const merged = { ...current, ...rulesDraft };
       const clamp = (v: unknown, min: number, max: number) => Math.max(min, Math.min(max, Math.round(Number(v) || 0)));
       merged.maxDiscountPercent = clamp(merged.maxDiscountPercent, 0, 100);
       merged.minimumMarginPercent = clamp(merged.minimumMarginPercent, 0, 100);
@@ -241,21 +229,39 @@ export function OnboardingWizard(props: {
       merged.maxShippingSubsidy = clamp(merged.maxShippingSubsidy, 0, 500);
       merged.offerExpirationMinutes = clamp(merged.offerExpirationMinutes, 1, 1440);
       await api.putMerchantRules(merged);
+      await markOnboardingStep("checkout_config");
+      setCurrentStep(3);
+    } catch (e) {
+      setMessage(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
-      // 3. Save checkout settings
+  async function saveStep3() {
+    setFieldErrors({});
+    setBusy(true);
+    setMessage(null);
+    try {
       await api.patchCheckoutSettings({
         mode: checkoutDraft.mode,
         widgetBehavior: { openWidgetOnTrigger: checkoutDraft.openWidgetOnTrigger },
       });
-
-      // 4. Mark all steps complete
-      await markOnboardingStep("account");
       await markOnboardingStep("checkout_config");
+      setCurrentStep(4);
+    } catch (e) {
+      setMessage(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveStep4AndFinish() {
+    setBusy(true);
+    setMessage(null);
+    try {
       await markOnboardingStep("embed");
-
-      // 5. Clear localStorage
       localStorage.removeItem(STORAGE_KEY);
-
       props.onFinished();
     } catch (e) {
       setMessage(friendlyError(e));
@@ -264,38 +270,14 @@ export function OnboardingWizard(props: {
     }
   }
 
-  async function issueEmbed() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const issued = await api.createEmbedSession({ ttl_seconds: 900, scopes: EMBED_SCOPES });
-      setEmbedSession(issued);
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function finish() {
-    await saveAllAndFinish();
+    await saveStep4AndFinish();
   }
 
   function goBack() {
     setMessage(null);
     setFieldErrors({});
     setCurrentStep((s) => Math.max(1, s - 1));
-  }
-
-  const snippet = embedSession
-    ? `<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  embed-session-token="${embedSession.embed_session_token}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`
-    : null;
-
-  function copySnippet() {
-    if (!snippet) return;
-    void navigator.clipboard?.writeText(snippet);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1800);
   }
 
   if (!onboardingState) {
@@ -658,41 +640,19 @@ export function OnboardingWizard(props: {
 
               {currentStep === 4 && (
                 <div className="onb-fields">
-                  {!embedSession && (
-                    <div className="onb-embed-empty">
-                      <p className="onb-field-help">
-                        Gere um token de integração e cole o snippet no <code>&lt;head&gt;</code> do seu e-commerce.
-                      </p>
-                      <button
-                        type="button"
-                        className="onb-cta onb-cta-inline"
-                        disabled={busy}
-                        onClick={() => void issueEmbed()}
-                      >
-                        <span className="onb-cta-face">
-                          <Code2 size={15} />
-                          {busy ? "Gerando..." : "Gerar código de integração"}
-                        </span>
-                      </button>
-                    </div>
-                  )}
-
-                  {snippet && (
-                    <div className="onb-snippet">
-                      <div className="onb-snippet-head">
-                        <span className="onb-snippet-title">
-                          <span className="onb-dot onb-dot-live" aria-hidden="true" />
-                          Código de integração
-                        </span>
-                        <button type="button" className="onb-copy" onClick={copySnippet}>
-                          {copied ? <Check size={13} strokeWidth={3} /> : <Copy size={13} />}
-                          {copied ? "Copiado" : "Copiar"}
-                        </button>
-                      </div>
-                      <pre className="onb-snippet-code"><code>{snippet}</code></pre>
-                      <span className="onb-value onb-value-ok onb-snippet-ttl">Token válido por 15 minutos</span>
-                    </div>
-                  )}
+                  <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
+                    <span className="onb-field-label">Resumo da configuração</span>
+                    <ul style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.8, paddingLeft: 18, margin: "12px 0 0" }}>
+                      <li><strong>Loja:</strong> {themeDraft.headerTitle || props.me.name}</li>
+                      <li><strong>Cor:</strong> <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3, background: themeDraft.accentColor, verticalAlign: "middle", marginRight: 4 }} />{themeDraft.accentColor}</li>
+                      <li><strong>Desconto máx:</strong> {rulesDraft.maxDiscountPercent}%</li>
+                      <li><strong>Margem mín:</strong> {rulesDraft.minimumMarginPercent}%</li>
+                      <li><strong>Plataforma:</strong> {checkoutDraft.mode}</li>
+                    </ul>
+                    <p className="onb-field-help" style={{ marginTop: 12 }}>
+                      Ao ativar, seu checkout assistido estará pronto. Você poderá gerar API keys e configurar webhooks na aba Desenvolvedores.
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
