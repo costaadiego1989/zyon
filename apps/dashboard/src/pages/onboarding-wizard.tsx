@@ -624,7 +624,7 @@ export function OnboardingWizard(props: {
                           <p className="onb-field-help" style={{ marginBottom: 10 }}>
                             Cole este código no <code>&lt;head&gt;</code> do seu site.
                           </p>
-                          <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  embed-session-token="SEU_TOKEN"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
+                          <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  merchant-id="${props.me.id}"\n  api-key="${generatedApiKey?.secretKey ?? "SUA_API_KEY"}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
                           <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Embed-sessions`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
                             Ver documentação Embed Sessions →
                           </a>
