@@ -261,7 +261,9 @@ export function OnboardingWizard(props: {
     setBusy(true);
     setMessage(null);
     try {
+      await markOnboardingStep("checkout_config");
       await markOnboardingStep("embed");
+      await markOnboardingStep("publish");
       localStorage.removeItem(STORAGE_KEY);
       setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
     } catch (e) {
@@ -296,15 +298,20 @@ export function OnboardingWizard(props: {
     return (
       <div className="onb-complete" role="status" aria-live="polite">
         <div className="onb-complete-card">
-          <div className="onb-widget-orb" style={{ "--orb-c1": "#0f766e", "--orb-c2": "#0f766ecc", "--orb-c3": "#0f766e66", width: 80, height: 80 } as React.CSSProperties}>
+          <div className="onb-widget-orb" style={{ "--orb-c1": "#0f766e", "--orb-c2": "#0f766ecc", "--orb-c3": "#0f766e66", width: 100, height: 100 } as React.CSSProperties}>
             <div className="onb-widget-orb__halo" />
             <div className="onb-widget-orb__core" />
-            <div className="onb-widget-orb__eyes" style={{ gap: 12 }}>
-              <span style={{ width: 10, height: 6, borderRadius: "50%", background: "#fff", transform: "scaleY(0.5)" }} />
-              <span style={{ width: 10, height: 6, borderRadius: "50%", background: "#fff", transform: "scaleY(0.5)" }} />
+            <div className="onb-widget-orb__eyes" style={{ gap: 16, flexDirection: "column", alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 14 }}>
+                <span style={{ width: 12, height: 5, borderRadius: "50%", background: "#fff", boxShadow: "0 0 6px rgba(0,0,0,0.2)" }} />
+                <span style={{ width: 12, height: 5, borderRadius: "50%", background: "#fff", boxShadow: "0 0 6px rgba(0,0,0,0.2)" }} />
+              </div>
+              <svg width="24" height="12" viewBox="0 0 24 12" fill="none">
+                <path d="M4 2c2 6 14 6 16 0" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+              </svg>
             </div>
           </div>
-          <h1 className="onb-complete-title" style={{ marginTop: 20 }}>Checkout ativo, {props.me.name}!</h1>
+          <h1 className="onb-complete-title" style={{ marginTop: 24 }}>Checkout ativo, {props.me.name}!</h1>
           <p className="onb-complete-lead">
             Seu agente de vendas está pronto para converter. Compradores já podem interagir com o checkout assistido na sua loja.
           </p>
