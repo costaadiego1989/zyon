@@ -53,7 +53,7 @@ function App({ api }: AppProps) {
       if (err instanceof DashboardHttpError && err.status === 401) {
         setMe(null);
       } else {
-        setAuthHint("API indisponível. Recarregue a página para tentar novamente.");
+        setMe(null);
       }
     } finally {
       setCheckingSession(false);
