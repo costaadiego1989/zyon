@@ -188,7 +188,7 @@ function WidgetFallback({ className }: { className?: string }) {
         Eu cuido da sua compra do inicio ao fim: acho a melhor opcao, aplico promocoes, organizo a entrega e finalizo o pagamento.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", maxWidth: 300, marginTop: 8 }}>
-        {["Acho a melhor opcao e aplico promocoes", "Calculo o frete e organizo a entrega", "Pago com Pix, cartao ou crypto"].map((cap) => (
+        {["Acho a melhor opção e aplico promoções", "Calculo o frete e organizo a entrega", "Pago com Pix, cartão ou crypto"].map((cap) => (
           <div key={cap} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderRadius: 10, background: "#111827", border: "1px solid #1f2937" }}>
             <div style={{ width: 26, height: 26, borderRadius: 7, background: "#064e3b", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
               <div style={{ width: 9, height: 9, borderRadius: 2, background: "#34d399" }} />
