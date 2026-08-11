@@ -102,6 +102,9 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   const [dateFilter, setDateFilter] = useState<"all" | "7d" | "30d">("all");
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [customerDetail, setCustomerDetail] = useState<unknown | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
     if (!props.me) {
@@ -159,6 +162,34 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       setLoadingMore(false);
       setBusy(false);
     }
+  }
+
+  async function loadCustomerDetail(customerId: string) {
+    setLoadingDetail(true);
+    try {
+      const detail = await api.getCustomerDetail(customerId);
+      setCustomerDetail(detail);
+    } catch (e) {
+      setMessage(
+        e instanceof DashboardHttpError
+          ? e.responseBody.slice(0, 160)
+          : e instanceof Error
+            ? e.message
+            : String(e),
+      );
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  function openCustomerDetail(customerId: string) {
+    setSelectedCustomerId(customerId);
+    void loadCustomerDetail(customerId);
+  }
+
+  function closeCustomerDetail() {
+    setSelectedCustomerId(null);
+    setCustomerDetail(null);
   }
 
   const filteredRows = useMemo(() => {
@@ -275,7 +306,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
             </tr></thead>
             <tbody>
               {paginatedRows.map((row) => (
-                <tr key={row.globalUserId}>
+                <tr key={row.globalUserId} onClick={() => openCustomerDetail(row.globalUserId)} style={{ cursor: "pointer" }}>
                   <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent-dark)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 11px var(--sans)" }}>{row.initials}</div>
                   </td>
@@ -301,6 +332,171 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         {filteredRows.length > 0 ? (
           <Pagination page={page} pageSize={PAGE_SIZE} total={filteredRows.length} onChange={setPage} disabled={loading} />
         ) : null}
+      </div>
+
+      {selectedCustomerId ? (
+        <CustomerDetailModal
+          customer={customerDetail}
+          loading={loadingDetail}
+          onClose={closeCustomerDetail}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function CustomerDetailModal({
+  customer,
+  loading,
+  onClose,
+}: {
+  customer: unknown;
+  loading: boolean;
+  onClose: () => void;
+}) {
+  const detail = customer as Record<string, unknown> | null;
+  const profile = detail?.profile as Record<string, unknown> | null;
+  const purchaseHistory = detail?.purchase_history as Array<{
+    order_id: string;
+    currency: string;
+    total: number;
+    discount: number;
+    items: unknown;
+    completed_at: string;
+  }> | null;
+
+  const totalOrders = purchaseHistory?.length ?? 0;
+  const totalRevenue = purchaseHistory?.reduce((sum, p) => sum + (p.total / 100), 0) ?? 0;
+  const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--card)",
+          border: "1px solid var(--border)",
+          borderRadius: 14,
+          width: "90%",
+          maxWidth: 600,
+          maxHeight: "85vh",
+          overflow: "auto",
+          padding: 24,
+        }}
+      >
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)" }}>Carregando...</div>
+        ) : detail ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+              <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>
+                {typeof profile?.full_name === "string" ? profile.full_name : "Cliente"}
+              </h2>
+              <button
+                onClick={onClose}
+                style={{
+                  background: "none",
+                  border: "none",
+                  fontSize: 20,
+                  cursor: "pointer",
+                  color: "var(--faint)",
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
+              {[
+                { label: "E-MAIL", value: profile?.email || "-" },
+                { label: "TELEFONE", value: profile?.phone || "-" },
+                { label: "PEDIDOS", value: totalOrders },
+                { label: "TICKET MÉDIO", value: `R$ ${avgTicket.toFixed(2)}` },
+              ].map((stat) => (
+                <div key={stat.label} style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 6 }}>
+                    {stat.label}
+                  </div>
+                  <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>
+                    {typeof stat.value === "string" ? stat.value : stat.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 12 }}>
+                ÚLTIMOS PEDIDOS
+              </h3>
+              {purchaseHistory && purchaseHistory.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {purchaseHistory.slice(0, 10).map((order, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: "10px 12px",
+                        background: "var(--bg)",
+                        borderRadius: 6,
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        font: "12px var(--mono)",
+                      }}
+                    >
+                      <span style={{ color: "var(--ink)" }}>#{order.order_id}</span>
+                      <span style={{ color: "var(--muted)" }}>
+                        R$ {(order.total / 100).toFixed(2)}
+                      </span>
+                      <span style={{ color: "var(--faint)", fontSize: "11px" }}>
+                        {formatDate(order.completed_at)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: "var(--faint)", font: "13px var(--sans)" }}>Nenhum pedido registrado</p>
+              )}
+            </div>
+
+            <div style={{ marginBottom: 24 }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 12 }}>
+                RECEITA TOTAL
+              </h3>
+              <div style={{ font: "600 22px var(--serif)", color: "var(--ink)" }}>
+                R$ {totalRevenue.toFixed(2)}
+              </div>
+            </div>
+
+            <button
+              onClick={onClose}
+              style={{
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--bg)",
+                font: "600 12.5px var(--sans)",
+                color: "var(--ink)",
+                cursor: "pointer",
+              }}
+            >
+              Fechar
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)" }}>Erro ao carregar detalhes</div>
+        )}
       </div>
     </div>
   );

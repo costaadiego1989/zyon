@@ -274,10 +274,10 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       const result = await api.purchaseShippingLabel({
         order_id: order.external_order_id,
         service_id: 1,
-        from_zip: "01000-000",
-        to_zip: customer?.address?.zip ?? "01310-100",
-        to_name: customer?.full_name ?? "Comprador",
-        to_document: customer?.document ?? "00000000000",
+        from_zip: (order as any).merchant_origin_zip ?? "",
+        to_zip: customer?.address?.zip ?? "",
+        to_name: customer?.full_name ?? "",
+        to_document: customer?.document ?? "",
         packages: [{ weightKg: 1, widthCm: 20, heightCm: 10, lengthCm: 20, quantity: Math.max(1, cart.items?.[0]?.quantity ?? 1) }],
       }) as { tracking_code?: string };
       if (result.tracking_code) {
@@ -288,6 +288,20 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       setMessage(e instanceof Error ? e.message : String(e));
     } finally {
       setLabelBusyOrderId(null);
+    }
+  }
+
+  async function changeOrderStatus(order: TenantOrder, status: string) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await api.updateOrderStatus(order.id, status);
+      setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, status } : item));
+      setMessage(`Status atualizado para "${STATUS_LABELS[status] ?? status}".`);
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -387,6 +401,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                             onTrackingDraftChange={(value) => setTrackingDrafts((prev) => ({ ...prev, [order.id]: value }))}
                             onSaveTracking={() => void saveManualTracking(order)}
                             onBuyLabel={() => void buyLabel(order)}
+                            onStatusChange={(status) => void changeOrderStatus(order, status)}
                             labelBusy={labelBusyOrderId === order.id}
                             busy={busy}
                           />
@@ -438,6 +453,7 @@ function OrderDetailGrid({
   onTrackingDraftChange,
   onSaveTracking,
   onBuyLabel,
+  onStatusChange,
   labelBusy,
   busy,
 }: {
@@ -446,6 +462,7 @@ function OrderDetailGrid({
   onTrackingDraftChange: (value: string) => void;
   onSaveTracking: () => void;
   onBuyLabel: () => void;
+  onStatusChange: (status: string) => void;
   labelBusy: boolean;
   busy: boolean;
 }) {
@@ -517,6 +534,36 @@ function OrderDetailGrid({
               {labelBusy ? "Comprando..." : "Comprar etiqueta Melhor Envio"}
             </button>
           </div>
+        </div>
+      </section>
+
+      <section>
+        <h4>Atualizar Status</h4>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          {["processing", "shipped", "delivered", "cancelled"].map((status) => {
+            const labels: Record<string, string> = { processing: "Processando", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
+            const isActive = order.status === status;
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => onStatusChange(status)}
+                disabled={busy || isActive}
+                style={{
+                  padding: "7px 12px",
+                  borderRadius: 8,
+                  border: `1px solid ${isActive ? "var(--accent-dark)" : "var(--border)"}`,
+                  background: isActive ? "var(--accent-dark)" : "var(--card)",
+                  color: isActive ? "white" : "var(--ink)",
+                  font: "600 12px var(--sans)",
+                  cursor: busy || isActive ? "not-allowed" : "pointer",
+                  opacity: isActive ? 0.7 : 1,
+                }}
+              >
+                {labels[status] ?? status}
+              </button>
+            );
+          })}
         </div>
       </section>
 

@@ -190,6 +190,14 @@ export function otherEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+    getCustomerDetail(customerId: string): Promise<unknown> {
+      return dashboardJson(
+        base,
+        `/customers/${encodeURIComponent(customerId)}`,
+        { method: "GET" },
+        f,
+      );
+    },
 
     // Payments
     async getPayments(limit?: number): Promise<TenantPayment[]> {
@@ -360,6 +368,11 @@ export function otherEndpoints(base: string, f: typeof fetch) {
     },
     checkInstallationHealth(installationId: string): Promise<{ status: string; checks?: Record<string, unknown> }> {
       return dashboardJson(base, `/installations/${encodeURIComponent(installationId)}/health`, { method: "GET" }, f);
+    },
+
+    // Test seed
+    seedTestData(): Promise<{ merchantId: string; embedToken: string; accessToken: string; productId: string }> {
+      return dashboardJson(base, "/__test__/seed", { method: "POST" }, f);
     },
   };
 }
