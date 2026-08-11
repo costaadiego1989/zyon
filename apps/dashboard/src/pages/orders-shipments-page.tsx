@@ -257,7 +257,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       });
       setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: trackingCode } : item));
       setTrackingDrafts((prev) => ({ ...prev, [order.id]: "" }));
-      setMessage("Rastreio atualizado e webhook disparado.");
+      setMessage("Rastreio salvo. Notificação enviada ao cliente via WhatsApp.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     } finally {
@@ -267,6 +267,11 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
 
   async function buyLabel(order: TenantOrder) {
     const customer = order.customer as { full_name?: string; document?: string; address?: { zip?: string } } | null;
+    const toZip = customer?.address?.zip ?? "";
+    if (!toZip) {
+      setMessage("CEP do cliente não disponível. Cadastre o endereço antes de gerar etiqueta.");
+      return;
+    }
     const cart = order.cart as { items?: Array<{ quantity?: number }> };
     setLabelBusyOrderId(order.id);
     setMessage(null);
@@ -275,7 +280,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
         order_id: order.external_order_id,
         service_id: 1,
         from_zip: (order as any).merchant_origin_zip ?? "",
-        to_zip: customer?.address?.zip ?? "",
+        to_zip: toZip,
         to_name: customer?.full_name ?? "",
         to_document: customer?.document ?? "",
         packages: [{ weightKg: 1, widthCm: 20, heightCm: 10, lengthCm: 20, quantity: Math.max(1, cart.items?.[0]?.quantity ?? 1) }],
@@ -283,7 +288,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
       if (result.tracking_code) {
         setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: result.tracking_code ?? item.tracking_code } : item));
       }
-      setMessage("Etiqueta comprada e rastreio sincronizado.");
+      setMessage("Etiqueta gerada e rastreio sincronizado.");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : String(e));
     } finally {
