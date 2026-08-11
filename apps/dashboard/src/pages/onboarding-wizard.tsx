@@ -263,7 +263,7 @@ export function OnboardingWizard(props: {
     try {
       await markOnboardingStep("embed");
       localStorage.removeItem(STORAGE_KEY);
-      props.onFinished();
+      setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
     } catch (e) {
       setMessage(friendlyError(e));
     } finally {
@@ -296,24 +296,22 @@ export function OnboardingWizard(props: {
     return (
       <div className="onb-complete" role="status" aria-live="polite">
         <div className="onb-complete-card">
-          <span className="onb-complete-halo" aria-hidden="true" />
-          <span className="onb-complete-seal" aria-hidden="true">
-            <span className="onb-complete-seal-inner">
-              <Check size={30} strokeWidth={3} />
-            </span>
-          </span>
-          <span className="onb-kicker onb-kicker-ok">
-            <Sparkles size={12} strokeWidth={2.5} />
-            Tudo pronto!
-          </span>
-          <h1 className="onb-complete-title">Tudo pronto, {props.me.name}!</h1>
+          <div className="onb-widget-orb" style={{ "--orb-c1": "#0f766e", "--orb-c2": "#0f766ecc", "--orb-c3": "#0f766e66", width: 80, height: 80 } as React.CSSProperties}>
+            <div className="onb-widget-orb__halo" />
+            <div className="onb-widget-orb__core" />
+            <div className="onb-widget-orb__eyes" style={{ gap: 12 }}>
+              <span style={{ width: 10, height: 6, borderRadius: "50%", background: "#fff", transform: "scaleY(0.5)" }} />
+              <span style={{ width: 10, height: 6, borderRadius: "50%", background: "#fff", transform: "scaleY(0.5)" }} />
+            </div>
+          </div>
+          <h1 className="onb-complete-title" style={{ marginTop: 20 }}>Checkout ativo, {props.me.name}!</h1>
           <p className="onb-complete-lead">
-            Seu checkout assistido está ativo. Compradores já podem interagir.
+            Seu agente de vendas está pronto para converter. Compradores já podem interagir com o checkout assistido na sua loja.
           </p>
           <button type="button" className="onb-cta" onClick={props.onFinished}>
             <span className="onb-cta-face">
               <Rocket size={15} />
-              Acessar o painel
+              Ir para o painel
             </span>
           </button>
         </div>
