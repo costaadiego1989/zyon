@@ -551,7 +551,7 @@ function OrderDetailGrid({
             disabled={busy || !trackingDraft.trim()}
             style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: "var(--color-brand)", color: "white", font: "600 12px var(--font-sans)", cursor: busy ? "not-allowed" : "pointer", opacity: busy || !trackingDraft.trim() ? 0.5 : 1, whiteSpace: "nowrap" }}
           >
-            Salvar
+            Salvar e enviar
           </button>
         </div>
         <button
@@ -569,8 +569,8 @@ function OrderDetailGrid({
       <div style={{ ...sectionStyle, borderBottom: "none" }}>
         <div style={labelStyle}>Alterar status</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {(["processing", "shipped", "delivered", "cancelled"] as const).map((status) => {
-            const labels: Record<string, string> = { processing: "Processando", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
+          {(["paid", "shipped", "delivered", "cancelled"] as const).map((status) => {
+            const labels: Record<string, string> = { paid: "Pago", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
             const isActive = order.status === status;
             return (
               <button
