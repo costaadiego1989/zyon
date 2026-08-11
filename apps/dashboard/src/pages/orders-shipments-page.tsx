@@ -392,9 +392,6 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                       </td>
                       <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(order.completed_at)}</td>
                     </tr>
-                    {expandedOrderId === order.id ? null : null}
-                    </React.Fragment>
-                    ) : null}
                   </React.Fragment>
                 );
               })}
