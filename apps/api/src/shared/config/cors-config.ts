@@ -14,8 +14,10 @@ const DEV_DEFAULT_ORIGINS = [
   "http://127.0.0.1:8080",
 ];
 
+const DEV_ORIGIN_PATTERN = /^http:\/\/(localhost|127\.0\.0\.1|172\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+):\d+$/;
+
 export interface CorsConfig {
-  origin: string[] | false;
+  origin: string[] | RegExp | false;
   credentials: true;
   allowedHeaders: string[];
   exposedHeaders: string[];
@@ -53,7 +55,7 @@ export function resolveCorsConfig(env: NodeJS.ProcessEnv = process.env): CorsCon
     return { origin: false, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed"] };
   }
 
-  return { origin: DEV_DEFAULT_ORIGINS, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed"] };
+  return { origin: DEV_ORIGIN_PATTERN, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed"] };
 }
 
 function parseOrigins(raw: string | undefined): string[] {
