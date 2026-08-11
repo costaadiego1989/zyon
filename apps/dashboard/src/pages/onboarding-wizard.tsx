@@ -247,7 +247,7 @@ export function OnboardingWizard(props: {
     setBusy(true);
     setMessage(null);
     try {
-      const result = await api.createIntegrationApiKey({ name: "Onboarding key", scopes: ["checkout:start", "checkout:chat", "checkout:track", "offers:apply", "coupons:apply", "payment:intents:create"] });
+      const result = await api.createIntegrationApiKey({ name: "Onboarding key", scopes: ["checkout:read", "checkout:write", "configuration:read", "embed:sessions:create", "orders:read", "catalog:read", "commerce:read"] });
       setGeneratedApiKey({ id: result.api_key.id, secretKey: result.secret_key, name: result.api_key.name });
       await markOnboardingStep("embed");
     } catch (e) {
@@ -555,12 +555,29 @@ export function OnboardingWizard(props: {
                   {generatedApiKey ? (
                     <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
                       <span className="onb-field-label">API Key gerada</span>
-                      <p className="onb-field-help" style={{ margin: "4px 0 8px" }}>Copie agora — ela não será exibida novamente.</p>
+                      <p className="onb-field-help" style={{ margin: "4px 0 8px" }}>Salve estas credenciais — a API Key não será exibida novamente.</p>
                       <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 10, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-brand)", color: "var(--color-brand)", margin: 0, wordBreak: "break-all" }}>{generatedApiKey.secretKey}</pre>
+                      <button
+                        type="button"
+                        className="onb-cta onb-cta-inline"
+                        style={{ marginTop: 12 }}
+                        onClick={() => {
+                          const content = `Zyon Checkout - Credenciais\n================================\nMerchant ID: ${props.me.id}\nAPI Key: ${generatedApiKey.secretKey}\n\nGuarde este arquivo em local seguro.\nA API Key não pode ser recuperada após fechar esta tela.`;
+                          const blob = new Blob([content], { type: "text/plain" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "zyon-credenciais.txt";
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                      >
+                        <span className="onb-cta-face">Baixar credenciais (.txt)</span>
+                      </button>
                     </div>
                   ) : (
                     <div className="onb-field">
-                      <p className="onb-field-help">Clique em "Continuar" para gerar sua API Key. Você usará ela para autenticar chamadas à API e configurar plugins.</p>
+                      <p className="onb-field-help">Clique em "Gerar API Key" para criar suas credenciais de integração.</p>
                     </div>
                   )}
                 </div>
