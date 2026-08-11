@@ -67,14 +67,14 @@ function App({ api }: AppProps) {
 
   useEffect(() => {
     function handleSessionExpired() {
-      if (checkingSession) return;
+      if (checkingSession || !me) return;
       setMe(null);
       setAuthMode("login");
       setAuthHint("Sessão expirada. Entre novamente.");
     }
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
-  }, [checkingSession]);
+  }, [checkingSession, me]);
 
   async function submitAuth(event: React.FormEvent) {
     event.preventDefault();
