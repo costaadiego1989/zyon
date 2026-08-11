@@ -477,81 +477,99 @@ function OrderDetailGrid({
   labelBusy: boolean;
   busy: boolean;
 }) {
-  const cart = order.cart as { items?: Array<{ name?: string; title?: string; quantity?: number; price?: number }> };
+  const cart = order.cart as { items?: Array<{ name?: string; title?: string; quantity?: number; price?: number; unit_price?: number }> };
   const items = Array.isArray(cart?.items) ? cart.items : [];
-  const customer = order.customer as {
-    full_name?: string;
-    email?: string;
-    phone?: string;
-  } | null;
+  const customer = order.customer as { full_name?: string; email?: string; phone?: string } | null;
+
+  const sectionStyle: React.CSSProperties = { padding: "16px 0", borderBottom: "1px solid var(--color-border)" };
+  const labelStyle: React.CSSProperties = { font: "600 11px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-muted)", marginBottom: 10, textTransform: "uppercase" as const };
+  const valueStyle: React.CSSProperties = { font: "13px var(--font-sans)", color: "var(--color-text)" };
 
   return (
-    <div className="order-detail-grid">
-      <section>
-        <h4>Itens do carrinho</h4>
-        {items.length > 0 ? (
-          <ul>
-            {items.map((item, i) => (
-              <li key={i}>
-                {item.name ?? item.title ?? "Item"}
-                {item.quantity ? ` × ${item.quantity}` : ""}
-                {item.price ? ` — ${formatMinor(item.price, order.currency)}` : ""}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="muted">Nenhum item disponível</p>
-        )}
-      </section>
-
-      <section>
-        <h4>Cliente</h4>
-        {customer ? (
-          <dl>
-            {customer.full_name ? <><dt>Nome</dt><dd>{customer.full_name}</dd></> : null}
-            {customer.email ? <><dt>Email</dt><dd>{customer.email}</dd></> : null}
-            {customer.phone ? <><dt>Telefone</dt><dd>{customer.phone}</dd></> : null}
-          </dl>
-        ) : (
-          <p className="muted">Sem informações do cliente</p>
-        )}
-      </section>
-
-      <section>
-        <h4>Envio</h4>
-        <p>{order.tracking_code ? order.tracking_code : "Sem rastreamento"}</p>
-        <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
-          <input
-            placeholder="Código de rastreio manual"
-            value={trackingDraft}
-            onChange={(event) => onTrackingDraftChange(event.target.value)}
-            style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "12.5px var(--mono)" }}
-          />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button
-              type="button"
-              onClick={onSaveTracking}
-              disabled={busy || !trackingDraft.trim()}
-              style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--accent-dark)", color: "white", font: "600 12px var(--sans)", cursor: busy ? "not-allowed" : "pointer" }}
-            >
-              Salvar rastreio
-            </button>
-            <button
-              type="button"
-              onClick={onBuyLabel}
-              disabled={labelBusy}
-              style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: labelBusy ? "not-allowed" : "pointer" }}
-            >
-              {labelBusy ? "Comprando..." : "Comprar etiqueta Melhor Envio"}
-            </button>
-          </div>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {/* Status badge */}
+      <div style={{ ...sectionStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={labelStyle}>Status atual</div>
+          <span style={{ font: "600 12px var(--font-sans)", padding: "5px 12px", borderRadius: 99, background: order.status === "approved" ? "var(--color-success-bg)" : order.status === "processing" ? "var(--color-warning-bg)" : "var(--color-surface-raised)", color: order.status === "approved" ? "var(--color-success)" : order.status === "processing" ? "var(--color-warning)" : "var(--color-text)", border: "1px solid var(--color-border)" }}>
+            {STATUS_LABELS[order.status] ?? order.status}
+          </span>
         </div>
-      </section>
+        <div style={{ textAlign: "right" }}>
+          <div style={labelStyle}>Total</div>
+          <span style={{ font: "700 18px var(--font-mono)", color: "var(--color-text)" }}>{formatMinor(order.order_total * 100, order.currency)}</span>
+        </div>
+      </div>
 
-      <section>
-        <h4>Atualizar Status</h4>
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-          {["processing", "shipped", "delivered", "cancelled"].map((status) => {
+      {/* Items */}
+      <div style={sectionStyle}>
+        <div style={labelStyle}>Itens ({items.length})</div>
+        {items.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {items.map((item, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: "var(--color-surface-raised)", border: "1px solid var(--color-border)" }}>
+                <span style={valueStyle}>{item.name ?? item.title ?? "Item"} <span style={{ color: "var(--color-text-muted)" }}>×{item.quantity ?? 1}</span></span>
+                <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-secondary)" }}>{item.price || item.unit_price ? formatMinor(item.price ?? item.unit_price ?? 0, order.currency) : ""}</span>
+              </div>
+            ))}
+          </div>
+        ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Nenhum item</p>}
+      </div>
+
+      {/* Customer */}
+      <div style={sectionStyle}>
+        <div style={labelStyle}>Cliente</div>
+        {customer ? (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+            {customer.full_name && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Nome</span><div style={valueStyle}>{customer.full_name}</div></div>}
+            {customer.email && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Email</span><div style={valueStyle}>{customer.email}</div></div>}
+            {customer.phone && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Telefone</span><div style={valueStyle}>{customer.phone}</div></div>}
+          </div>
+        ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Sem dados do cliente</p>}
+      </div>
+
+      {/* Tracking */}
+      <div style={sectionStyle}>
+        <div style={labelStyle}>Rastreamento</div>
+        {order.tracking_code ? (
+          <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
+            <span style={{ font: "600 13px var(--font-mono)", color: "var(--color-success)" }}>{order.tracking_code}</span>
+          </div>
+        ) : (
+          <p style={{ ...valueStyle, color: "var(--color-text-muted)", marginBottom: 12 }}>Sem código de rastreio</p>
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            placeholder="Inserir código de rastreio"
+            value={trackingDraft}
+            onChange={(e) => onTrackingDraftChange(e.target.value)}
+            style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", color: "var(--color-text)", font: "13px var(--font-mono)" }}
+          />
+          <button
+            type="button"
+            onClick={onSaveTracking}
+            disabled={busy || !trackingDraft.trim()}
+            style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: "var(--color-brand)", color: "white", font: "600 12px var(--font-sans)", cursor: busy ? "not-allowed" : "pointer", opacity: busy || !trackingDraft.trim() ? 0.5 : 1, whiteSpace: "nowrap" }}
+          >
+            Salvar
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={onBuyLabel}
+          disabled={labelBusy}
+          style={{ marginTop: 10, padding: "9px 14px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", color: "var(--color-text)", font: "500 12px var(--font-sans)", cursor: labelBusy ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 6 }}
+        >
+          <Truck size={14} />
+          {labelBusy ? "Gerando etiqueta..." : "Gerar etiqueta de envio"}
+        </button>
+      </div>
+
+      {/* Status update */}
+      <div style={{ ...sectionStyle, borderBottom: "none" }}>
+        <div style={labelStyle}>Alterar status</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(["processing", "shipped", "delivered", "cancelled"] as const).map((status) => {
             const labels: Record<string, string> = { processing: "Processando", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
             const isActive = order.status === status;
             return (
@@ -561,30 +579,31 @@ function OrderDetailGrid({
                 onClick={() => onStatusChange(status)}
                 disabled={busy || isActive}
                 style={{
-                  padding: "7px 12px",
+                  padding: "8px 14px",
                   borderRadius: 8,
-                  border: `1px solid ${isActive ? "var(--accent-dark)" : "var(--border)"}`,
-                  background: isActive ? "var(--accent-dark)" : "var(--card)",
-                  color: isActive ? "white" : "var(--ink)",
-                  font: "600 12px var(--sans)",
+                  border: `1px solid ${isActive ? "var(--color-brand)" : "var(--color-border)"}`,
+                  background: isActive ? "var(--color-brand)" : "var(--color-surface-raised)",
+                  color: isActive ? "white" : "var(--color-text)",
+                  font: "600 12px var(--font-sans)",
                   cursor: busy || isActive ? "not-allowed" : "pointer",
-                  opacity: isActive ? 0.7 : 1,
+                  opacity: isActive ? 1 : 0.85,
+                  transition: "all 0.15s ease",
                 }}
               >
-                {labels[status] ?? status}
+                {labels[status]}
               </button>
             );
           })}
         </div>
-      </section>
+      </div>
 
       {order.cancellation_reason ? (
-        <section>
-          <h4>Cancelamento</h4>
-          <p>{order.cancellation_reason}</p>
-          <p className="muted">{formatDate(order.cancelled_at)}</p>
-        </section>
+        <div style={{ padding: "12px 14px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error-border)", marginTop: 12 }}>
+          <div style={{ font: "600 11px var(--font-sans)", color: "var(--color-error)", marginBottom: 4 }}>Motivo do cancelamento</div>
+          <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{order.cancellation_reason}</div>
+        </div>
       ) : null}
     </div>
   );
 }
+
