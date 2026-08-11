@@ -134,7 +134,10 @@ export function OnboardingWizard(props: {
     void (async () => {
       try {
         const s = await api.getOnboardingState();
-        if (active) setOnboardingState(s);
+        if (active) {
+          setOnboardingState(s);
+          if (s.completed) localStorage.removeItem(STORAGE_KEY);
+        }
       } catch (e) {
         if (active) setMessage(friendlyError(e));
       }
