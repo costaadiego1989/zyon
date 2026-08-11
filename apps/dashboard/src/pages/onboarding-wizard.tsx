@@ -39,8 +39,8 @@ type StepMeta = {
 const STEPS: StepMeta[] = [
   { id: 1, label: "Configure sua loja", caption: "Informe os dados da sua loja para personalizar a experiência do comprador", icon: Palette },
   { id: 2, label: "Personalize o checkout", caption: "Adapte cores, logo e mensagens para combinar com sua marca", icon: Percent },
-  { id: 3, label: "Conecte sua plataforma", caption: "Escolha onde sua loja está hospedada", icon: ShieldCheck },
-  { id: 4, label: "Ative e publique", caption: "Revise suas configurações e ative o checkout assistido", icon: Code2 },
+  { id: 3, label: "Suas credenciais", caption: "Gere sua API Key para integrar o checkout", icon: ShieldCheck },
+  { id: 4, label: "Conecte sua plataforma", caption: "Escolha onde sua loja está hospedada", icon: Code2 },
 ];
 
 const TOTAL_STEPS = STEPS.length;
@@ -120,6 +120,7 @@ export function OnboardingWizard(props: {
   const [rulesDraft, setRulesDraft] = useState<RulesDraft>(saved?.rules ?? DEFAULT_RULES_DRAFT);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(saved?.checkout ?? DEFAULT_CHECKOUT_DRAFT);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string; secretKey: string; name: string } | null>(null);
 
   // persist to localStorage on every draft/step change
   useEffect(() => {
@@ -239,16 +240,16 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep3() {
-    setFieldErrors({});
+    if (generatedApiKey) {
+      setCurrentStep(4);
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
-      await api.patchCheckoutSettings({
-        mode: checkoutDraft.mode,
-        widgetBehavior: { openWidgetOnTrigger: checkoutDraft.openWidgetOnTrigger },
-      });
-      await markOnboardingStep("checkout_config");
-      setCurrentStep(4);
+      const result = await api.createIntegrationApiKey({ name: "Onboarding key", scopes: ["checkout:start", "checkout:chat", "checkout:track", "offers:apply", "coupons:apply", "payment:intents:create"] });
+      setGeneratedApiKey({ id: result.api_key.id, secretKey: result.secret_key, name: result.api_key.name });
+      await markOnboardingStep("embed");
     } catch (e) {
       setMessage(friendlyError(e));
     } finally {
@@ -546,6 +547,27 @@ export function OnboardingWizard(props: {
 
               {currentStep === 3 && (
                 <div className="onb-fields">
+                  <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
+                    <span className="onb-field-label">Merchant ID</span>
+                    <pre style={{ font: "13px 'IBM Plex Mono', monospace", padding: 10, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", color: "var(--color-text)", margin: "8px 0 0", wordBreak: "break-all" }}>{props.me.id}</pre>
+                  </div>
+
+                  {generatedApiKey ? (
+                    <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
+                      <span className="onb-field-label">API Key gerada</span>
+                      <p className="onb-field-help" style={{ margin: "4px 0 8px" }}>Copie agora — ela não será exibida novamente.</p>
+                      <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 10, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-brand)", color: "var(--color-brand)", margin: 0, wordBreak: "break-all" }}>{generatedApiKey.secretKey}</pre>
+                    </div>
+                  ) : (
+                    <div className="onb-field">
+                      <p className="onb-field-help">Clique em "Continuar" para gerar sua API Key. Você usará ela para autenticar chamadas à API e configurar plugins.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {currentStep === 4 && (
+                <div className="onb-fields">
                   <div className="onb-field">
                     <span className="onb-field-label">Onde está sua loja?</span>
                     <div className="onb-options">
@@ -583,7 +605,7 @@ export function OnboardingWizard(props: {
                         <>
                           <span className="onb-field-label">Snippet de integração</span>
                           <p className="onb-field-help" style={{ marginBottom: 10 }}>
-                            Cole este código no <code>&lt;head&gt;</code> do seu site. O token será gerado na aba Desenvolvedores após ativar.
+                            Cole este código no <code>&lt;head&gt;</code> do seu site.
                           </p>
                           <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  embed-session-token="SEU_TOKEN"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
                           <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Embed-sessions`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
@@ -592,41 +614,12 @@ export function OnboardingWizard(props: {
                         </>
                       ) : (
                         <>
-                          <span className="onb-field-label">
-                            {checkoutDraft.mode === "woocommerce" && "Instalação WooCommerce"}
-                            {checkoutDraft.mode === "shopify" && "Instalação Shopify"}
-                            {checkoutDraft.mode === "nuvemshop" && "Instalação Nuvemshop"}
-                            {checkoutDraft.mode === "tray" && "Instalação Tray Commerce"}
-                          </span>
+                          <span className="onb-field-label">Instruções de instalação</span>
                           <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
-                            {checkoutDraft.mode === "woocommerce" && (
-                              <>
-                                <li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li>
-                                <li>Ative o plugin e vá em WooCommerce → Zyon Checkout</li>
-                                <li>Insira seu Merchant ID e API Key (gerados ao finalizar)</li>
-                              </>
-                            )}
-                            {checkoutDraft.mode === "shopify" && (
-                              <>
-                                <li>Instale o app Zyon Checkout na Shopify App Store</li>
-                                <li>Autorize a conexão com sua loja</li>
-                                <li>O checkout será ativado automaticamente</li>
-                              </>
-                            )}
-                            {checkoutDraft.mode === "nuvemshop" && (
-                              <>
-                                <li>Acesse o painel Nuvemshop → Apps → Buscar "Zyon"</li>
-                                <li>Instale e autorize a integração</li>
-                                <li>Configure seu Merchant ID nas preferências do app</li>
-                              </>
-                            )}
-                            {checkoutDraft.mode === "tray" && (
-                              <>
-                                <li>Acesse o painel Tray → Integrações → Buscar "Zyon"</li>
-                                <li>Ative a integração e autorize o acesso</li>
-                                <li>O checkout será configurado automaticamente</li>
-                              </>
-                            )}
+                            {checkoutDraft.mode === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
+                            {checkoutDraft.mode === "shopify" && (<><li>Instale o app Zyon Checkout na Shopify App Store</li><li>Autorize a conexão com sua loja</li><li>O checkout será ativado automaticamente</li></>)}
+                            {checkoutDraft.mode === "nuvemshop" && (<><li>Acesse o painel Nuvemshop → Apps → Buscar "Zyon"</li><li>Instale e autorize a integração</li><li>Configure seu Merchant ID nas preferências do app</li></>)}
+                            {checkoutDraft.mode === "tray" && (<><li>Acesse o painel Tray → Integrações → Buscar "Zyon"</li><li>Ative a integração e autorize o acesso</li><li>O checkout será configurado automaticamente</li></>)}
                           </ol>
                           <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Installations`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
                             Ver documentação de integração →
@@ -635,24 +628,6 @@ export function OnboardingWizard(props: {
                       )}
                     </div>
                   )}
-                </div>
-              )}
-
-              {currentStep === 4 && (
-                <div className="onb-fields">
-                  <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
-                    <span className="onb-field-label">Resumo da configuração</span>
-                    <ul style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.8, paddingLeft: 18, margin: "12px 0 0" }}>
-                      <li><strong>Loja:</strong> {themeDraft.headerTitle || props.me.name}</li>
-                      <li><strong>Cor:</strong> <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3, background: themeDraft.accentColor, verticalAlign: "middle", marginRight: 4 }} />{themeDraft.accentColor}</li>
-                      <li><strong>Desconto máx:</strong> {rulesDraft.maxDiscountPercent}%</li>
-                      <li><strong>Margem mín:</strong> {rulesDraft.minimumMarginPercent}%</li>
-                      <li><strong>Plataforma:</strong> {checkoutDraft.mode}</li>
-                    </ul>
-                    <p className="onb-field-help" style={{ marginTop: 12 }}>
-                      Ao ativar, seu checkout assistido estará pronto. Você poderá gerar API keys e configurar webhooks na aba Desenvolvedores.
-                    </p>
-                  </div>
                 </div>
               )}
             </div>
@@ -730,8 +705,8 @@ export function OnboardingWizard(props: {
             <span className="onb-cta-face">
               {currentStep === TOTAL_STEPS ? <Rocket size={15} /> : null}
               {busy
-                ? currentStep === TOTAL_STEPS ? "Ativando..." : "Salvando..."
-                : currentStep === TOTAL_STEPS ? "Ativar checkout" : "Continuar"}
+                ? currentStep === TOTAL_STEPS ? "Finalizando..." : currentStep === 3 && !generatedApiKey ? "Gerando..." : "Salvando..."
+                : currentStep === TOTAL_STEPS ? "Finalizar" : currentStep === 3 && !generatedApiKey ? "Gerar API Key" : "Continuar"}
               {!busy && currentStep < TOTAL_STEPS ? <ArrowRight size={15} /> : null}
             </span>
           </button>
@@ -747,15 +722,15 @@ export function OnboardingWizard(props: {
 const STEP_TITLE: Record<number, string> = {
   1: "Configure sua loja",
   2: "Personalize o checkout",
-  3: "Conecte sua plataforma",
-  4: "Ative e publique",
+  3: "Suas credenciais",
+  4: "Conecte sua plataforma",
 };
 
 const STEP_LEAD: Record<number, string> = {
   1: "Informe os dados da sua loja para personalizar a experiência do comprador",
   2: "Adapte cores, logo e mensagens para combinar com sua marca",
-  3: "Escolha onde sua loja está hospedada para integrar o checkout",
-  4: "Revise suas configurações e ative o checkout assistido",
+  3: "Gere sua API Key para integrar o checkout",
+  4: "Escolha onde sua loja está hospedada",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
