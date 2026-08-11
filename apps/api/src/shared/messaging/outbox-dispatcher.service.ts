@@ -7,12 +7,14 @@ const BATCH_SIZE = 50;
 const MAX_ATTEMPTS = 5;
 const BASE_BACKOFF_MS = 1_000;
 const MAX_BACKOFF_MS = 60_000;
+const ERROR_COOLDOWN_MS = 10_000;
 
 @Injectable()
 export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OutboxDispatcher.name);
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
+  private lastErrorAt = 0;
 
   constructor(
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
@@ -29,6 +31,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
 
   async dispatch(): Promise<void> {
     if (this.running) return;
+    if (Date.now() - this.lastErrorAt < ERROR_COOLDOWN_MS) return;
     this.running = true;
     try {
       const claims = await this.outbox.claimBatch(BATCH_SIZE);
@@ -36,6 +39,7 @@ export class OutboxDispatcher implements OnModuleInit, OnModuleDestroy {
         await this.processOne(claim);
       }
     } catch (err) {
+      this.lastErrorAt = Date.now();
       this.logger.warn(`Outbox dispatch failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       this.running = false;
