@@ -375,24 +375,27 @@ function CustomerDetailModal({
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0,0,0,0.5)",
+        zIndex: 900,
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
+        justifyContent: "flex-end",
       }}
     >
-      <div
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
+      <aside
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
-          borderRadius: 14,
-          width: "90%",
-          maxWidth: 600,
-          maxHeight: "85vh",
-          overflow: "auto",
-          padding: 24,
+          position: "relative",
+          width: 480,
+          maxWidth: "90vw",
+          height: "100vh",
+          overflowY: "auto",
+          background: "var(--color-surface)",
+          borderLeft: "1px solid var(--color-border)",
+          padding: "28px 24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          animation: "slideInRight 0.2s ease-out",
         }}
       >
         {loading ? (
@@ -497,7 +500,7 @@ function CustomerDetailModal({
         ) : (
           <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)" }}>Erro ao carregar detalhes</div>
         )}
-      </div>
+      </aside>
     </div>
   );
 }

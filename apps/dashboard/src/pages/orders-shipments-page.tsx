@@ -392,21 +392,8 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
                       </td>
                       <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(order.completed_at)}</td>
                     </tr>
-                    {expandedOrderId === order.id ? (
-                      <tr>
-                        <td colSpan={6} style={{ padding: "16px 22px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
-                          <OrderDetailGrid
-                            order={order}
-                            trackingDraft={trackingDrafts[order.id] ?? ""}
-                            onTrackingDraftChange={(value) => setTrackingDrafts((prev) => ({ ...prev, [order.id]: value }))}
-                            onSaveTracking={() => void saveManualTracking(order)}
-                            onBuyLabel={() => void buyLabel(order)}
-                            onStatusChange={(status) => void changeOrderStatus(order, status)}
-                            labelBusy={labelBusyOrderId === order.id}
-                            busy={busy}
-                          />
-                        </td>
-                      </tr>
+                    {expandedOrderId === order.id ? null : null}
+                    </React.Fragment>
                     ) : null}
                   </React.Fragment>
                 );
@@ -441,6 +428,33 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
           disabled={busy}
         />
       ) : null}
+
+      {/* Side Panel */}
+      {expandedOrderId && (() => {
+        const order = orders.find((o) => o.id === expandedOrderId);
+        if (!order) return null;
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={() => setExpandedOrderId(null)}>
+            <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
+            <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--color-text)", margin: 0 }}>Pedido {order.external_order_id}</h2>
+                <button type="button" onClick={() => setExpandedOrderId(null)} style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", font: "20px sans-serif" }}>×</button>
+              </div>
+              <OrderDetailGrid
+                order={order}
+                trackingDraft={trackingDrafts[order.id] ?? ""}
+                onTrackingDraftChange={(value) => setTrackingDrafts((prev) => ({ ...prev, [order.id]: value }))}
+                onSaveTracking={() => void saveManualTracking(order)}
+                onBuyLabel={() => void buyLabel(order)}
+                onStatusChange={(status) => void changeOrderStatus(order, status)}
+                labelBusy={labelBusyOrderId === order.id}
+                busy={busy}
+              />
+            </aside>
+          </div>
+        );
+      })()}
     </div>
   );
 }
