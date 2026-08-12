@@ -40,15 +40,18 @@ export class WidgetCrossSellController {
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
 
+    const session = await this.sessions.getSession(embed.merchantId, body.session_id);
+    if (!session) throw new NotFoundException("checkout_session_not_found");
+    const rules = await this.merchants.getRules(embed.merchantId);
+
     const suggestion = await this.accept.execute({
       suggestion_id: body.suggestion_id,
       merchant_id: embed.merchantId,
       session_id: body.session_id,
-      accepted_skus: body.accepted_skus
+      accepted_skus: body.accepted_skus,
+      cart: session.cart,
+      merchantRules: rules
     });
-
-    const session = await this.sessions.getSession(embed.merchantId, body.session_id);
-    if (!session) throw new NotFoundException("checkout_session_not_found");
 
     const next = addCrossSellItems(session, body.accepted_skus);
     await this.sessions.saveSession(next);
@@ -60,7 +63,6 @@ export class WidgetCrossSellController {
     };
     const updated = await this.sessions.appendChatTurn(embed.merchantId, body.session_id, agentTurn);
     const merchant = await this.merchants.getProfile(embed.merchantId);
-    const rules = await this.merchants.getRules(embed.merchantId);
 
     return {
       suggestion,
