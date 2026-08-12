@@ -20,7 +20,7 @@ export function toSuggestedProducts(product: {
   }>;
 }): SuggestedProduct[] {
   return product.variants
-    .filter((variant) => variant.availableForSale && variant.sku)
+    .filter((variant) => variant.availableForSale && variant.sku && variant.sku.length > 0 && variant.unitPriceCents > 0)
     .map((variant) => ({
       sku: variant.sku,
       name: product.title,
