@@ -1,67 +1,96 @@
-# Dashboard E2E Test Suite
+# Dashboard E2E Infrastructure
 
-## Architecture
+## Directory Structure
 
-Module-by-module E2E tests with real backend integration.
+```
+e2e/
+├── config.ts                    # Shared constants, URLs, timeouts, env vars
+├── auth-setup.ts                # Global setup: login once, save storageState
+├── auth-login.spec.ts           # Auth flow tests (unauthenticated project)
+├── fixtures/
+│   ├── auth.fixture.ts          # Authenticated test fixture (login/logout helpers)
+│   ├── api-helpers.ts           # API setup/teardown (seed, cleanup, health)
+│   └── test-data.ts             # Constants, factories, E2E_RUN_ID
+├── page-objects/
+│   ├── index.ts                 # Barrel export
+│   ├── base-page.ts             # Abstract base (nav, shell, common locators)
+│   ├── auth-page.ts             # Login/signup/forgot page
+│   ├── dashboard-page.ts        # Overview/metrics page
+│   ├── orders-page.ts           # Orders table
+│   ├── customers-page.ts        # Customers table
+│   └── integrations-page.ts     # API keys/webhooks
+├── utils/
+│   ├── index.ts                 # Barrel export
+│   ├── selectors.ts             # Stable selector constants
+│   ├── wait-helpers.ts          # Explicit wait patterns (no waitForTimeout)
+│   └── assertions.ts            # Reusable assertion helpers
+├── .auth/                       # gitignored — storageState lives here
+└── .gitignore
+```
 
-### Test Files
+## Projects (playwright.config.ts)
 
-- **auth-flow.spec.ts** — Login flow
-- **overview.spec.ts** — Dashboard metrics, charts, sessions
-- **orders.spec.ts** — Orders, filters, export, detail expand
-- **customers.spec.ts** — Customers table, search, metrics, export
-- **integrations.spec.ts** — API keys, webhooks, quickstart
-- **checkout-settings.spec.ts** — Checkout configuration
-- **theme-embed.spec.ts** — Theme customization, embed code
-- **remaining-modules.spec.ts** — Billing, Payments, Audit, Support, Rules, Negotiation, Commerce, Preview
+| Project | Browser | Auth | Tests |
+|---------|---------|------|-------|
+| auth-setup | Chrome | None | Login + save storageState |
+| dashboard-chromium | Chrome | storageState | All except auth-*.spec.ts |
+| dashboard-firefox | Firefox (CI only) | storageState | All except auth-*.spec.ts |
+| dashboard-mobile | Pixel 5 | storageState | *.mobile.spec.ts only |
+| dashboard-auth | Chrome | None | auth-*.spec.ts only |
 
 ## Running Tests
 
 ```bash
-# All tests
-pnpm e2e
+# All tests (requires running API)
+cd apps/dashboard && pnpm e2e
+
+# Auth tests only
+pnpm e2e -- --project=dashboard-auth
 
 # Specific tag
-pnpm e2e -- --grep @overview-metrics
+pnpm e2e -- --grep @auth-login-valid
 
-# Single file
-pnpm e2e -- auth-flow.spec.ts
+# Mobile tests
+pnpm e2e -- --project=dashboard-mobile
 ```
 
-## Test Tags
+## Environment Variables
 
-Each test has a @tag for granular control:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `E2E_TEST_EMAIL` | demo@zyon.com | Login email |
+| `E2E_TEST_PASSWORD` | demo1234 | Login password |
+| `PLAYWRIGHT_BASE_URL` | http://localhost:5175 | Dashboard URL |
+| `E2E_API_URL` | http://127.0.0.1:3009 | API URL |
+| `CI` | (unset) | Enables retries, Firefox, parallel workers |
 
-- @auth-* — Authentication tests
-- @overview-* — Overview metrics, sessions, revenue
-- @orders-* — Orders, filters, export, expand
-- @customers-* — Customers, search, filters, export
-- @integrations-* — API keys, webhooks
-- @checkout-* — Settings, configuration
-- @theme-* — Theme customization
-- @embed-* — Embed code
-- @widget-* — Widget preview/reflection
-- @api-* — API integration tests
+## Prerequisites
 
-## Selectors
+1. API running: `cd apps/api && pnpm dev`
+2. Dashboard running (auto-started by webServer config) or `cd apps/dashboard && pnpm dev`
+3. Database seeded with demo@zyon.com / demo1234
 
-All selectors use:
-- Text matchers: `has-text()`, `filter({ hasText })` (inline styles = no CSS classes)
-- Role matchers: `getByRole()`
-- Table navigation: `tbody tr`, `th`, `td`
-- Input search: `input[placeholder*='Buscar']`
+## Writing New Tests
 
-## Real Backend Integration
+```typescript
+// Use page objects
+import { AuthPage, DashboardPage } from "./page-objects";
+import { waitForApiCall } from "./utils/wait-helpers";
+import { assertAuthenticated } from "./utils/assertions";
 
-- No API mocking
-- Real database queries
-- Real Prisma ORM
-- Demo account: demo@zyon.com / demo1234
-- Store: Zyon Demo Store
+// For authenticated tests (storageState is pre-loaded):
+import { test, expect } from "@playwright/test";
 
-## Workflow
+// For tests that need fresh auth control:
+import { test, expect } from "./fixtures/auth.fixture";
+```
 
-1. Start API: `cd apps/api && pnpm dev`
-2. Start Dashboard: `cd apps/dashboard && pnpm dev`
-3. Run tests: `cd apps/dashboard && pnpm e2e`
-4. View results: `playwright show-report`
+## Selectors Strategy
+
+Priority order:
+1. `data-testid` attributes
+2. `role` (ARIA roles)
+3. `label` / `placeholder`
+4. Text content (last resort)
+
+Never use: CSS classes, XPath, nth-child chains.

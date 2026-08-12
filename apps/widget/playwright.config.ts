@@ -27,12 +27,12 @@ export default defineConfig({
   projects: [
     {
       name: "widget-mocked",
-      testMatch: /widget\.spec\.ts|cross-sell-combo\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|checkout-integration\.spec\.ts|voice-checkout\.spec\.ts|phone-login\.spec\.ts|voice-phone-login\.spec\.ts|chat-purchase-flow\.spec\.ts|voice-purchase-flow\.spec\.ts/,
+      testMatch: /widget\.spec\.ts|cross-sell-combo\.spec\.ts|checkout-shipping-flow\.spec\.ts|quick-replies\.spec\.ts|shipping-selection\.spec\.ts|checkout-flow-e2e\.spec\.ts|checkout-integration\.spec\.ts|voice-checkout\.spec\.ts|phone-login\.spec\.ts|voice-phone-login\.spec\.ts|chat-purchase-flow\.spec\.ts|voice-purchase-flow\.spec\.ts|checkout-full-journey\.spec\.ts|add-to-cart\.spec\.ts|agent-conversation\.spec\.ts|discount-rules\.spec\.ts|cart-persistence\.spec\.ts|duplicate-protection\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] }
     },
     {
       name: "widget-realapi",
-      testMatch: /realapi[\\/].*\.spec\.ts|regressions[\\/].*\.spec\.ts|embed-customer-update-pix\.spec\.ts/,
+      testMatch: /realapi[\\/].*\.spec\.ts|regressions[\\/].*\.spec\.ts|embed-customer-update-pix\.spec\.ts|woocommerce-widget\.spec\.ts/,
       use: { ...devices["Desktop Chrome"], baseURL: WIDGET_URL }
     }
   ],
@@ -51,18 +51,18 @@ export default defineConfig({
           {
             command: "node dist/main.js",
             cwd: resolve(__dirname, "../api"),
-            url: "http://127.0.0.1:3000/docs",
-            reuseExistingServer: !CI,
+            url: "http://127.0.0.1:3009/docs",
+            reuseExistingServer: true,
             stdout: "pipe" as const,
             stderr: "pipe" as const,
             timeout: 60_000,
             env: {
-              PORT: "3000",
+              PORT: "3009",
               E2E_SEED_ENABLED: "true",
               WEBHOOK_DISPATCHER_ENABLED: "true",
               DATABASE_URL:
                 process.env.DATABASE_URL ??
-                "postgresql://postgres:postgres@127.0.0.1:55432/aacp_test?schema=public",
+                "postgresql://atendeai:atendeai_dev@127.0.0.1:5434/aacp_dev?schema=public",
               WEBHOOK_DISPATCH_INTERVAL_MS: "250",
               NODE_ENV: "test"
             }
