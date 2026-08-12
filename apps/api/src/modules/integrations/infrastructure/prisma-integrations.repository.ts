@@ -111,6 +111,13 @@ export class PrismaIntegrationsRepository implements IntegrationsRepository {
     return row ? toEndpoint(row) : undefined;
   }
 
+  async deleteWebhookEndpoint(merchantId: string, endpointId: string): Promise<boolean> {
+    const result = await (this.prisma as any).merchantWebhookEndpoint.deleteMany({
+      where: { id: endpointId, merchantId }
+    });
+    return result.count > 0;
+  }
+
   async saveWebhookDelivery(delivery: MerchantWebhookDelivery): Promise<MerchantWebhookDelivery> {
     const row = await (this.prisma as any).merchantWebhookDelivery.upsert({
       where: { endpointId_eventId: { endpointId: delivery.endpointId, eventId: delivery.eventId } },

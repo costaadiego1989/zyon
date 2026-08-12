@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   NotFoundException,
@@ -30,6 +31,7 @@ import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decor
 import {
   GetWebhookDeliveryUseCase,
   GetWebhookEndpointUseCase,
+  DeleteWebhookEndpointUseCase,
   ListWebhookDeliveriesUseCase,
   ListWebhookEndpointsUseCase,
   ReplayWebhookDeliveryUseCase,
@@ -52,6 +54,7 @@ export class WebhookEndpointsController {
   constructor(
     private readonly listEndpoints: ListWebhookEndpointsUseCase,
     private readonly getEndpoint: GetWebhookEndpointUseCase,
+    private readonly deleteEndpoint: DeleteWebhookEndpointUseCase,
     private readonly upsertEndpoint: UpsertWebhookEndpointUseCase,
     private readonly rotateSecret: RotateWebhookSigningSecretUseCase,
     private readonly testEndpoint: TestWebhookEndpointUseCase,
@@ -203,6 +206,21 @@ export class WebhookEndpointsController {
     });
     this.entityTags.set(response, endpoint);
     return toEndpointResponse(endpoint);
+  }
+
+  @Delete(":endpointId")
+  @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
+  @ApiOperation({ summary: "Delete webhook endpoint" })
+  @ApiParam({ name: "endpointId", type: "string" })
+  @ApiResponse({ status: 204, description: "Endpoint deleted" })
+  @ApiResponse({ status: 404, description: "Endpoint not found" })
+  async remove(
+    @Req() req: unknown,
+    @Param("endpointId") endpointId: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.deleteEndpoint.execute(tenantId(req), endpointId);
+    response.status(204);
   }
 
   @Post(":endpointId/rotate-secret")

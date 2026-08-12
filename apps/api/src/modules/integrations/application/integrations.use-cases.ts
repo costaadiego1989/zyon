@@ -234,6 +234,21 @@ export class GetWebhookEndpointUseCase {
 }
 
 @Injectable()
+export class DeleteWebhookEndpointUseCase {
+  constructor(
+    @Inject(INTEGRATIONS_REPOSITORY)
+    private readonly repo: IntegrationsRepository,
+  ) {}
+
+  async execute(merchantId: string, endpointId: string): Promise<void> {
+    const endpoint = await this.repo.getWebhookEndpoint(merchantId, endpointId);
+    if (!endpoint) throw new NotFoundException("webhook_endpoint_not_found");
+    const deleted = await this.repo.deleteWebhookEndpoint(merchantId, endpointId);
+    if (!deleted) throw new NotFoundException("webhook_endpoint_not_found");
+  }
+}
+
+@Injectable()
 export class RotateWebhookSigningSecretUseCase {
   constructor(
     @Inject(INTEGRATIONS_REPOSITORY)

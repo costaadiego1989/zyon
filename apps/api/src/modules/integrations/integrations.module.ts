@@ -5,6 +5,7 @@ import { CheckoutOrderTrackingModule } from "../checkout/checkout-order-tracking
 import { WebhookSignatureService } from "./domain/webhook-signature.service.js";
 import {
   CreateMerchantApiKeyUseCase,
+  DeleteWebhookEndpointUseCase,
   GetTrackingTimelineUseCase,
   GetWebhookDeliveryUseCase,
   GetWebhookEndpointUseCase,
@@ -55,6 +56,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     RevokeMerchantApiKeyUseCase,
     RotateMerchantApiKeyUseCase,
     UpsertWebhookEndpointUseCase,
+    DeleteWebhookEndpointUseCase,
     ListWebhookEndpointsUseCase,
     GetWebhookEndpointUseCase,
     RotateWebhookSigningSecretUseCase,
