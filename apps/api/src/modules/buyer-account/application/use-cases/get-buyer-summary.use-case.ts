@@ -19,6 +19,7 @@ export interface BuyerSummary {
   stats: {
     totalOrders: number;
     totalSpent: number;
+    averageTicket: number;
     totalSaved: number;
     topMerchants: { merchantId: string; merchantName: string; orderCount: number }[];
   };
@@ -54,6 +55,7 @@ export class GetBuyerSummaryUseCase {
 
     const totalOrders = records.length;
     const totalSpent = records.reduce((s, r) => s + r.totalAmount, 0);
+    const averageTicket = totalOrders > 0 ? totalSpent / totalOrders : 0;
     const totalSaved = records.reduce((s, r) => s + r.discountAmount, 0);
 
     const countByMerchant = new Map<string, number>();
@@ -80,7 +82,7 @@ export class GetBuyerSummaryUseCase {
       orderCount: countByMerchant.get(id) ?? 0,
     }));
 
-    return { profile, agent, stats: { totalOrders, totalSpent, totalSaved, topMerchants } };
+    return { profile, agent, stats: { totalOrders, totalSpent, averageTicket, totalSaved, topMerchants } };
   }
 
   private async loadRecordsFromPort(globalUserId: string): Promise<PurchaseStat[]> {

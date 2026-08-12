@@ -66,6 +66,10 @@ export function tenantContextFromPrincipal(
     throw new ForbiddenException("invalid_tenant_principal");
   }
 
+  // Buyer principals may carry merchantId (H3 fix) but are NOT tenant-scoped
+  // merchant principals — skip tenant validation for them.
+  if (principal.role === "buyer" || principal.aud === "buyer") return null;
+
   const looksLikeMerchantPrincipal =
     hasOwn(principal, "merchantId") ||
     hasOwn(principal, "userId") ||

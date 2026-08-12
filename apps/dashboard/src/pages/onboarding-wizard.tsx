@@ -4,12 +4,14 @@ import {
   ArrowRight,
   Check,
   Copy,
+  CreditCard,
   Palette,
   Percent,
   Rocket,
   ShieldCheck,
   Sparkles,
   Code2,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -39,7 +41,7 @@ type StepMeta = {
 const STEPS: StepMeta[] = [
   { id: 1, label: "Dados da loja", caption: "Nome, CEP de origem e identidade visual", icon: Palette },
   { id: 2, label: "Regras comerciais", caption: "Margem, desconto máximo e frete", icon: Percent },
-  { id: 3, label: "Pagamento", caption: "Configure como você vai receber (Stripe, Asaas ou Crypto)", icon: ShieldCheck },
+  { id: 3, label: "Pagamento", caption: "Configure como você vai receber (Stripe, Asaas ou Crypto)", icon: CreditCard },
   { id: 4, label: "Credenciais e publicação", caption: "API Key e código de instalação", icon: Code2 },
 ];
 
@@ -68,23 +70,43 @@ const DEFAULT_RULES_DRAFT: RulesDraft = {
   allowFreeShipping: true,
 };
 
-// ── Step 3 state ──────────────────────────────────────────────────────────────
+// ── Step 3 state (Pagamento) ──────────────────────────────────────────────────
+
+type PaymentDraft = {
+  stripeStatus: "idle" | "pending" | "active";
+  asaasApiKey: string;
+  asaasStatus: "idle" | "testing" | "active" | "error";
+  cryptoEnabled: boolean;
+  walletAddress: string;
+};
+
+const DEFAULT_PAYMENT_DRAFT: PaymentDraft = {
+  stripeStatus: "idle",
+  asaasApiKey: "",
+  asaasStatus: "idle",
+  cryptoEnabled: false,
+  walletAddress: "",
+};
+
+function isValidEvmAddress(addr: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(addr);
+}
+
+// ── Step 4 state ──────────────────────────────────────────────────────────────
+
+type PlatformChoice = "woocommerce" | "shopify" | "nuvemshop" | "tray" | "custom";
 
 type CheckoutDraft = {
   mode: CheckoutSettingsMode;
   openWidgetOnTrigger: boolean;
+  platform: PlatformChoice;
 };
 
 const DEFAULT_CHECKOUT_DRAFT: CheckoutDraft = {
   mode: "silent_until_trigger",
   openWidgetOnTrigger: true,
+  platform: "custom",
 };
-
-const CHECKOUT_MODE_OPTIONS: [CheckoutSettingsMode, string, string][] = [
-  ["silent_until_trigger", "Silencioso até intenção de compra", "Aguarda um sinal de intenção antes de aparecer."],
-  ["proactive", "Proativo", "Aparece em momentos-chave do checkout para ajudar o comprador."],
-  ["manual_only", "Somente quando acionado", "Só aparece quando o comprador clica no widget."],
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -119,14 +141,15 @@ export function OnboardingWizard(props: {
   // step drafts
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
   const [rulesDraft, setRulesDraft] = useState<RulesDraft>(saved?.rules ?? DEFAULT_RULES_DRAFT);
+  const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>(saved?.payment ?? DEFAULT_PAYMENT_DRAFT);
   const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(saved?.checkout ?? DEFAULT_CHECKOUT_DRAFT);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string; secretKey: string; name: string } | null>(null);
 
   // persist to localStorage on every draft/step change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, rules: rulesDraft, checkout: checkoutDraft }));
-  }, [currentStep, themeDraft, rulesDraft, checkoutDraft]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, rules: rulesDraft, payment: paymentDraft, checkout: checkoutDraft }));
+  }, [currentStep, themeDraft, rulesDraft, paymentDraft, checkoutDraft]);
 
 
   // load onboarding state on mount
@@ -163,6 +186,7 @@ export function OnboardingWizard(props: {
           logoUrl: theme.logoUrl ?? "",
           headerTitle: theme.headerTitle ?? "",
           agentName: theme.agentName ?? "",
+          originZip: "",
         });
         setRulesDraft({
           maxDiscountPercent: rules.maxDiscountPercent,
@@ -200,9 +224,9 @@ export function OnboardingWizard(props: {
     setMessage(null);
     try {
       let current: Record<string, unknown> = {};
-      try { current = await api.getMerchantTheme() as Record<string, unknown>; } catch {}
+      try { current = (await api.getMerchantTheme()) as unknown as Record<string, unknown>; } catch {}
       const { originZip, ...themeFields } = themeDraft;
-      const payload = { ...current, ...themeFields };
+      const payload = { ...current, ...themeFields } as Parameters<typeof api.putMerchantTheme>[0];
       if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) payload.logoUrl = "";
       await api.putMerchantTheme(payload);
       if (originZip) {
@@ -228,15 +252,15 @@ export function OnboardingWizard(props: {
     setMessage(null);
     try {
       let current: Record<string, unknown> = {};
-      try { current = await api.getMerchantRules() as Record<string, unknown>; } catch {}
-      const merged = { ...current, ...rulesDraft };
+      try { current = (await api.getMerchantRules()) as unknown as Record<string, unknown>; } catch {}
+      const merged = { ...current, ...rulesDraft } as Parameters<typeof api.putMerchantRules>[0];
       const clamp = (v: unknown, min: number, max: number) => Math.max(min, Math.min(max, Math.round(Number(v) || 0)));
       merged.maxDiscountPercent = clamp(merged.maxDiscountPercent, 0, 100);
       merged.minimumMarginPercent = clamp(merged.minimumMarginPercent, 0, 100);
-      merged.freeShippingMinCartValue = clamp(merged.freeShippingMinCartValue, 0, 10000);
-      merged.maxPartialShippingDiscount = clamp(merged.maxPartialShippingDiscount, 0, 100);
-      merged.maxShippingSubsidy = clamp(merged.maxShippingSubsidy, 0, 500);
-      merged.offerExpirationMinutes = clamp(merged.offerExpirationMinutes, 1, 1440);
+      if ("freeShippingMinCartValue" in merged) merged.freeShippingMinCartValue = clamp(merged.freeShippingMinCartValue, 0, 10000);
+      if ("maxPartialShippingDiscount" in merged) merged.maxPartialShippingDiscount = clamp(merged.maxPartialShippingDiscount, 0, 100);
+      if ("maxShippingSubsidy" in merged) merged.maxShippingSubsidy = clamp(merged.maxShippingSubsidy, 0, 500);
+      if ("offerExpirationMinutes" in merged) merged.offerExpirationMinutes = clamp(merged.offerExpirationMinutes, 1, 1440);
       await api.putMerchantRules(merged);
       await markOnboardingStep("checkout_config");
       setCurrentStep(3);
@@ -248,18 +272,70 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep3() {
-    if (generatedApiKey) {
-      setCurrentStep(4);
+    // Validate: at least one payment method configured
+    const hasStripe = paymentDraft.stripeStatus === "active";
+    const hasAsaas = paymentDraft.asaasStatus === "active";
+    const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(paymentDraft.walletAddress);
+    if (!hasStripe && !hasAsaas && !hasCrypto) {
+      setMessage("Configure pelo menos um método de pagamento para continuar.");
       return;
     }
     setBusy(true);
     setMessage(null);
     try {
-      const result = await api.createIntegrationApiKey({ name: "Onboarding key", scopes: ["checkout:read", "checkout:write", "configuration:read", "embed:sessions:create", "orders:read", "catalog:read", "commerce:read"] });
-      setGeneratedApiKey({ id: result.api_key.id, secretKey: result.secret_key, name: result.api_key.name });
-      await markOnboardingStep("embed");
+      if (hasCrypto) {
+        await api.putMerchantRules({
+          cryptoPayments: {
+            enabled: true,
+            walletAddress: paymentDraft.walletAddress,
+          } as unknown as Parameters<typeof api.putMerchantRules>[0]["cryptoPayments"],
+        });
+      }
+      await markOnboardingStep("checkout_config");
+      setCurrentStep(4);
     } catch (e) {
       setMessage(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function initiateStripeOnboarding() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const { url } = await api.createStripeOnboardingLink({
+        return_url: window.location.href,
+        refresh_url: window.location.href,
+      });
+      setPaymentDraft((d) => ({ ...d, stripeStatus: "pending" }));
+      window.location.href = url;
+    } catch (e) {
+      setPaymentDraft((d) => ({ ...d, stripeStatus: "idle" }));
+      setMessage(friendlyError(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function testAsaasConnection() {
+    if (!paymentDraft.asaasApiKey.trim()) {
+      setFieldErrors({ asaasApiKey: "Insira a API Key do Asaas" });
+      return;
+    }
+    setBusy(true);
+    setMessage(null);
+    setPaymentDraft((d) => ({ ...d, asaasStatus: "testing" }));
+    try {
+      await api.connectAsaas({
+        api_key: paymentDraft.asaasApiKey,
+        sandbox: true,
+      });
+      setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
+      setFieldErrors({});
+    } catch (e) {
+      setPaymentDraft((d) => ({ ...d, asaasStatus: "error" }));
+      setFieldErrors({ asaasApiKey: friendlyError(e) });
     } finally {
       setBusy(false);
     }
@@ -494,6 +570,21 @@ export function OnboardingWizard(props: {
                     />
                     {fieldErrors.agentName && <span className="onb-field-error">{fieldErrors.agentName}</span>}
                   </div>
+
+                  <div className="onb-field">
+                    <label className="onb-field-label" htmlFor="onb-zip">CEP de origem (armazém/loja)</label>
+                    <input
+                      id="onb-zip"
+                      type="text"
+                      className="onb-input"
+                      placeholder="01311-100"
+                      maxLength={9}
+                      value={themeDraft.originZip}
+                      onChange={(e) => setThemeDraft((d) => ({ ...d, originZip: e.target.value.replace(/[^\d-]/g, "") }))}
+                    />
+                    <p className="onb-field-help">CEP do local de envio dos produtos. Usado para calcular frete corretamente.</p>
+                    {fieldErrors.originZip && <span className="onb-field-error">{fieldErrors.originZip}</span>}
+                  </div>
                 </div>
               )}
 
@@ -558,30 +649,135 @@ export function OnboardingWizard(props: {
                     <span className="onb-switch-track" aria-hidden="true" />
                   </label>
 
-                  <div className="onb-field">
-                    <span className="onb-field-label">CEP de origem (armazém/loja)</span>
-                    <input
-                      type="text"
-                      className="onb-input"
-                      placeholder="01311-100"
-                      maxLength={9}
-                      value={themeDraft.originZip}
-                      onChange={(e) => setThemeDraft((d) => ({ ...d, originZip: e.target.value.replace(/[^\d-]/g, "") }))}
-                    />
-                    <p className="onb-field-help">CEP do local de envio dos produtos. Usado para calcular frete corretamente.</p>
-                    {fieldErrors.originZip && <span className="onb-field-error">{fieldErrors.originZip}</span>}
-                  </div>
                 </div>
               )}
 
               {currentStep === 3 && (
+                <div className="onb-fields">
+                  <div className="onb-section-label" style={{ marginBottom: "var(--space-2)", fontSize: "13px", fontWeight: 600, textTransform: "uppercase", color: "var(--color-text-muted)", letterSpacing: "0.02em" }}>Como você vai receber pagamentos</div>
+
+                  {/* Stripe */}
+                  <div className="onb-field" style={{ padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)" }}>
+                      <div>
+                        <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Stripe Connect</strong>
+                        <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão de crédito e débito internacionais</p>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 600, padding: "4px 8px", borderRadius: "4px", background: paymentDraft.stripeStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.stripeStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                          {paymentDraft.stripeStatus === "active" ? "Ativo" : paymentDraft.stripeStatus === "pending" ? "Pendente" : "Não configurado"}
+                        </span>
+                        <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.stripeStatus === "pending"} style={{ minHeight: 32, padding: "0 12px", fontSize: "12px" }} onClick={() => void initiateStripeOnboarding()}>
+                          {paymentDraft.stripeStatus === "active" ? "Ativo" : "Configurar"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Asaas */}
+                  <div className="onb-field" style={{ padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
+                    <div style={{ marginBottom: "var(--space-3)" }}>
+                      <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Asaas (PIX e Boleto)</strong>
+                      <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Pagamentos em PIX e boleto para clientes brasileiros</p>
+                    </div>
+                    <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+                      <input
+                        type="password"
+                        placeholder="Sua API Key de sandbox do Asaas"
+                        value={paymentDraft.asaasApiKey}
+                        onChange={(e) => {
+                          setPaymentDraft((d) => ({ ...d, asaasApiKey: e.target.value }));
+                          if (fieldErrors.asaasApiKey) setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.asaasApiKey;
+                            return next;
+                          });
+                        }}
+                        style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px" }}
+                      />
+                      <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.asaasStatus === "active"} style={{ minHeight: 32, padding: "0 16px", fontSize: "12px" }} onClick={() => void testAsaasConnection()}>
+                        {paymentDraft.asaasStatus === "testing" ? "Testando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : "Testar"}
+                      </button>
+                    </div>
+                    {fieldErrors.asaasApiKey && <span style={{ fontSize: "12px", color: "var(--color-error)", marginTop: "4px", display: "block" }}>{fieldErrors.asaasApiKey}</span>}
+                    {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>Asaas conectado com sucesso</span>}
+                  </div>
+
+                  {/* Crypto */}
+                  <label className="onb-switch">
+                    <span className="onb-switch-text">
+                      <strong>Aceitar pagamentos em Crypto</strong>
+                      <span>Stablecoins (USDC) em Polygon ou Base</span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={paymentDraft.cryptoEnabled}
+                      onChange={(e) => setPaymentDraft((d) => ({ ...d, cryptoEnabled: e.target.checked }))}
+                    />
+                    <span className="onb-switch-track" aria-hidden="true" />
+                  </label>
+
+                  {paymentDraft.cryptoEnabled && (
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-wallet">Endereço da Wallet (EVM)</label>
+                      <input
+                        id="onb-wallet"
+                        type="text"
+                        placeholder="0x..."
+                        value={paymentDraft.walletAddress}
+                        onChange={(e) => {
+                          setPaymentDraft((d) => ({ ...d, walletAddress: e.target.value }));
+                          if (fieldErrors.walletAddress) setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.walletAddress;
+                            return next;
+                          });
+                        }}
+                        style={{ padding: "8px 12px", borderRadius: "6px", border: fieldErrors.walletAddress ? "1px solid var(--color-error)" : "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px", width: "100%" }}
+                      />
+                      <p className="onb-field-help">Carteira EVM válida (42 caracteres, começando com 0x)</p>
+                      {fieldErrors.walletAddress && <span className="onb-field-error">{fieldErrors.walletAddress}</span>}
+                      {paymentDraft.walletAddress && !isValidEvmAddress(paymentDraft.walletAddress) && <span style={{ fontSize: "12px", color: "var(--color-error)", marginTop: "4px", display: "block" }}>Endereço inválido</span>}
+                    </div>
+                  )}
+
+                  <p style={{ fontSize: "12px", color: "var(--color-text-muted)", padding: "var(--space-3)", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", marginTop: "var(--space-3)", border: "1px dashed var(--color-border)" }}>
+                    Configure pelo menos um método de pagamento para continuar. Você pode adicionar mais métodos depois.
+                  </p>
+                </div>
+              )}
+
+              {currentStep === 4 && (
                 <div className="onb-fields">
                   <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
                     <span className="onb-field-label">Merchant ID</span>
                     <pre style={{ font: "13px 'IBM Plex Mono', monospace", padding: 10, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", color: "var(--color-text)", margin: "8px 0 0", wordBreak: "break-all" }}>{props.me.id}</pre>
                   </div>
 
-                  {generatedApiKey ? (
+                  {!generatedApiKey && (
+                    <div className="onb-field">
+                      <p className="onb-field-help">Clique em "Gerar API Key" para criar suas credenciais de integração.</p>
+                      <button type="button" className="onb-cta" disabled={busy} onClick={async () => {
+                        setBusy(true);
+                        setMessage(null);
+                        try {
+                          const result = await api.createIntegrationApiKey({ name: "Onboarding key", scopes: ["checkout:read", "checkout:write", "configuration:read", "embed:sessions:create", "orders:read", "catalog:read", "commerce:read"] });
+                          setGeneratedApiKey({ id: result.api_key.id, secretKey: result.secret_key, name: result.api_key.name });
+                          await markOnboardingStep("embed");
+                        } catch (e) {
+                          setMessage(friendlyError(e));
+                        } finally {
+                          setBusy(false);
+                        }
+                      }} style={{ marginTop: "var(--space-3)", width: "100%" }}>
+                        <span className="onb-cta-face">
+                          {busy ? "Gerando..." : "Gerar API Key"}
+                        </span>
+                      </button>
+                    </div>
+                  )}
+
+                  {generatedApiKey && (
                     <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
                       <span className="onb-field-label">API Key gerada</span>
                       <p className="onb-field-help" style={{ margin: "4px 0 8px" }}>Salve estas credenciais — a API Key não será exibida novamente.</p>
@@ -604,76 +800,70 @@ export function OnboardingWizard(props: {
                         <span className="onb-cta-face">Baixar credenciais (.txt)</span>
                       </button>
                     </div>
-                  ) : (
+                  )}
+
+                  <div style={{ marginTop: "var(--space-5)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--color-border)" }}>
                     <div className="onb-field">
-                      <p className="onb-field-help">Clique em "Gerar API Key" para criar suas credenciais de integração.</p>
+                      <span className="onb-field-label">Onde está sua loja?</span>
+                      <div className="onb-options">
+                        {([
+                          ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
+                          ["shopify", "Shopify", "App nativo para lojas Shopify"],
+                          ["nuvemshop", "Nuvemshop", "Integração via app parceiro"],
+                          ["tray", "Tray Commerce", "Integração nativa para lojas Tray"],
+                          ["custom", "Implementação própria", "Instale via snippet JavaScript no seu site"],
+                        ] as const).map(([value, label, help]) => {
+                          const selected = checkoutDraft.mode === value;
+                          return (
+                            <label key={value} className={`onb-option${selected ? " onb-option-on" : ""}`}>
+                              <input
+                                type="radio"
+                                name="platform"
+                                value={value}
+                                checked={selected}
+                                onChange={() => setCheckoutDraft((d) => ({ ...d, mode: value as CheckoutSettingsMode }))}
+                              />
+                              <span className="onb-option-dot" aria-hidden="true" />
+                              <span className="onb-option-text">
+                                <strong>{label}</strong>
+                                <span>{help}</span>
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
-                  )}
-                </div>
-              )}
 
-              {currentStep === 4 && (
-                <div className="onb-fields">
-                  <div className="onb-field">
-                    <span className="onb-field-label">Onde está sua loja?</span>
-                    <div className="onb-options">
-                      {([
-                        ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
-                        ["shopify", "Shopify", "App nativo para lojas Shopify"],
-                        ["nuvemshop", "Nuvemshop", "Integração via app parceiro"],
-                        ["tray", "Tray Commerce", "Integração nativa para lojas Tray"],
-                        ["custom", "Implementação própria", "Instale via snippet JavaScript no seu site"],
-                      ] as const).map(([value, label, help]) => {
-                        const selected = checkoutDraft.mode === value;
-                        return (
-                          <label key={value} className={`onb-option${selected ? " onb-option-on" : ""}`}>
-                            <input
-                              type="radio"
-                              name="platform"
-                              value={value}
-                              checked={selected}
-                              onChange={() => setCheckoutDraft((d) => ({ ...d, mode: value as CheckoutSettingsMode }))}
-                            />
-                            <span className="onb-option-dot" aria-hidden="true" />
-                            <span className="onb-option-text">
-                              <strong>{label}</strong>
-                              <span>{help}</span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    {checkoutDraft.mode && (
+                      <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
+                        {checkoutDraft.mode === "custom" ? (
+                          <>
+                            <span className="onb-field-label">Snippet de integração</span>
+                            <p className="onb-field-help" style={{ marginBottom: 10 }}>
+                              Cole este código no <code>&lt;head&gt;</code> do seu site.
+                            </p>
+                            <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  merchant-id="${props.me.id}"\n  api-key="${generatedApiKey?.secretKey ?? "SUA_API_KEY"}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
+                            <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Embed-sessions`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
+                              Ver documentação Embed Sessions →
+                            </a>
+                          </>
+                        ) : (
+                          <>
+                            <span className="onb-field-label">Instruções de instalação</span>
+                            <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
+                              {checkoutDraft.mode === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
+                              {checkoutDraft.mode === "shopify" && (<><li>Instale o app Zyon Checkout na Shopify App Store</li><li>Autorize a conexão com sua loja</li><li>O checkout será ativado automaticamente</li></>)}
+                              {checkoutDraft.mode === "nuvemshop" && (<><li>Acesse o painel Nuvemshop → Apps → Buscar "Zyon"</li><li>Instale e autorize a integração</li><li>Configure seu Merchant ID nas preferências do app</li></>)}
+                              {checkoutDraft.mode === "tray" && (<><li>Acesse o painel Tray → Integrações → Buscar "Zyon"</li><li>Ative a integração e autorize o acesso</li><li>O checkout será configurado automaticamente</li></>)}
+                            </ol>
+                            <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Installations`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
+                              Ver documentação de integração →
+                            </a>
+                          </>
+                        )}
+                      </div>
+                    )}
                   </div>
-
-                  {checkoutDraft.mode && (
-                    <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
-                      {checkoutDraft.mode === "custom" ? (
-                        <>
-                          <span className="onb-field-label">Snippet de integração</span>
-                          <p className="onb-field-help" style={{ marginBottom: 10 }}>
-                            Cole este código no <code>&lt;head&gt;</code> do seu site.
-                          </p>
-                          <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  merchant-id="${props.me.id}"\n  api-key="${generatedApiKey?.secretKey ?? "SUA_API_KEY"}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
-                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Embed-sessions`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
-                            Ver documentação Embed Sessions →
-                          </a>
-                        </>
-                      ) : (
-                        <>
-                          <span className="onb-field-label">Instruções de instalação</span>
-                          <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
-                            {checkoutDraft.mode === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
-                            {checkoutDraft.mode === "shopify" && (<><li>Instale o app Zyon Checkout na Shopify App Store</li><li>Autorize a conexão com sua loja</li><li>O checkout será ativado automaticamente</li></>)}
-                            {checkoutDraft.mode === "nuvemshop" && (<><li>Acesse o painel Nuvemshop → Apps → Buscar "Zyon"</li><li>Instale e autorize a integração</li><li>Configure seu Merchant ID nas preferências do app</li></>)}
-                            {checkoutDraft.mode === "tray" && (<><li>Acesse o painel Tray → Integrações → Buscar "Zyon"</li><li>Ative a integração e autorize o acesso</li><li>O checkout será configurado automaticamente</li></>)}
-                          </ol>
-                          <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Installations`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
-                            Ver documentação de integração →
-                          </a>
-                        </>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -751,8 +941,8 @@ export function OnboardingWizard(props: {
             <span className="onb-cta-face">
               {currentStep === TOTAL_STEPS ? <Rocket size={15} /> : null}
               {busy
-                ? currentStep === TOTAL_STEPS ? "Finalizando..." : currentStep === 3 && !generatedApiKey ? "Gerando..." : "Salvando..."
-                : currentStep === TOTAL_STEPS ? "Finalizar" : currentStep === 3 && !generatedApiKey ? "Gerar API Key" : "Continuar"}
+                ? currentStep === TOTAL_STEPS ? "Finalizando..." : "Salvando..."
+                : currentStep === TOTAL_STEPS ? "Finalizar" : "Continuar"}
               {!busy && currentStep < TOTAL_STEPS ? <ArrowRight size={15} /> : null}
             </span>
           </button>
@@ -768,15 +958,15 @@ export function OnboardingWizard(props: {
 const STEP_TITLE: Record<number, string> = {
   1: "Configure sua loja",
   2: "Personalize o checkout",
-  3: "Suas credenciais",
-  4: "Conecte sua plataforma",
+  3: "Configure os pagamentos",
+  4: "Credenciais e publicação",
 };
 
 const STEP_LEAD: Record<number, string> = {
   1: "Informe os dados da sua loja para personalizar a experiência do comprador",
   2: "Adapte cores, logo e mensagens para combinar com sua marca",
-  3: "Gere sua API Key para integrar o checkout",
-  4: "Escolha onde sua loja está hospedada",
+  3: "Configure os métodos de pagamento que você aceita (Stripe, Asaas ou Crypto)",
+  4: "Gere sua API Key e escolha onde sua loja está hospedada",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

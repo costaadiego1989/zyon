@@ -19,6 +19,12 @@ import { M2mTokenService } from "./domain/services/m2m-token.service.js";
 import { BuyerJwtAuthGuard } from "./presentation/http/buyer-jwt-auth.guard.js";
 import { BuyerAccountController } from "./presentation/http/buyer-account.controller.js";
 import { BuyerAgentController } from "./presentation/http/buyer-agent.controller.js";
+import { BuyerHubController } from "./presentation/http/buyer-hub.controller.js";
+import { ListBuyerConversationsUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
+import { GetBuyerConversationUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
+import { RateBuyerConversationMessageUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
+import { DeleteBuyerAccountUseCase } from "./application/use-cases/delete-buyer-account.use-case.js";
+import { ExportBuyerDataUseCase } from "./application/use-cases/export-buyer-data.use-case.js";
 import { BuyerAccountRepositoryModule } from "./buyer-account-repository.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
@@ -29,7 +35,7 @@ import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
-  controllers: [BuyerAccountController, BuyerAgentController],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController],
   providers: [
     RegisterBuyerUseCase,
     LoginBuyerUseCase,
@@ -42,6 +48,11 @@ import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
     EnableM2mAgentUseCase,
     RevokeM2mAgentUseCase,
     GetBuyerSummaryUseCase,
+    ListBuyerConversationsUseCase,
+    GetBuyerConversationUseCase,
+    RateBuyerConversationMessageUseCase,
+    DeleteBuyerAccountUseCase,
+    ExportBuyerDataUseCase,
     SendBuyerPhoneCodeUseCase,
     VerifyBuyerPhoneCodeUseCase,
     BuyerJwtService,

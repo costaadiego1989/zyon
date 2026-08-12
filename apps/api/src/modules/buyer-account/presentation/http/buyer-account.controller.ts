@@ -169,6 +169,7 @@ export class BuyerAccountController {
     return {
       orders_count: data.stats.totalOrders,
       total_spent: data.stats.totalSpent,
+      average_ticket: data.stats.averageTicket,
       currency: "BRL"
     };
   }
