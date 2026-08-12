@@ -5,6 +5,7 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Matches,
   Max,
   Min
 } from "class-validator";
@@ -69,6 +70,11 @@ export class UpdateMerchantRulesDto {
   @IsIn(["consultative", "aggressive", "premium", "young", "technical", "popular"])
   @IsOptional()
   brandVoice?: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
+
+  @IsString()
+  @Matches(/^\d{5}(-\d{3})?$/, { message: "originZip must be a valid Brazilian CEP (12345-678 or 12345678)" })
+  @IsOptional()
+  originZip?: string;
 
   @IsArray()
   @IsString({ each: true })

@@ -29,6 +29,7 @@ import { CommerceConnectionsController } from "./presentation/http/commerce-conn
 import { WooCommerceWebhookController } from "./presentation/http/woocommerce-webhook.controller.js";
 import { ShopifyWebhookController } from "./presentation/http/shopify-webhook.controller.js";
 import { NuvemshopWebhookController } from "./presentation/http/nuvemshop-webhook.controller.js";
+import { TrayWebhookController } from "./presentation/http/tray-webhook.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
@@ -38,6 +39,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     WooCommerceWebhookController,
     ShopifyWebhookController,
     NuvemshopWebhookController,
+    TrayWebhookController,
   ],
   providers: [
     TenantCommerceAdapterFactory,

@@ -16,6 +16,11 @@ import {
   type CommerceConnectionPort,
 } from "../../domain/ports/commerce-connection.port.js";
 import { COMMERCE_ADAPTER_CACHE_PORT, type CommerceAdapterCachePort } from "../../domain/ports/commerce-adapter-cache.port.js";
+import {
+  COMMERCE_PAID_WEBHOOK_DEDUP,
+  type CommercePaidWebhookDedupPort,
+} from "../../domain/ports/commerce-paid-webhook-dedup.port.js";
+import { createCommerceEventEnvelope } from "../../domain/events/commerce-domain-event.js";
 
 export type WooCommerceWebhookResult =
   | { outcome: "ignored"; reason: string }
@@ -36,6 +41,8 @@ export class WooCommerceWebhookController {
     private readonly connections: CommerceConnectionPort,
     @Inject(COMMERCE_ADAPTER_CACHE_PORT)
     private readonly adapterFactory: CommerceAdapterCachePort,
+    @Inject(COMMERCE_PAID_WEBHOOK_DEDUP)
+    private readonly paidDedup: CommercePaidWebhookDedupPort,
   ) {}
 
   @Post("webhooks/woocommerce/:merchantId")
@@ -74,23 +81,53 @@ export class WooCommerceWebhookController {
     }
 
     // Handle known topics
+    const body = JSON.parse(rawBody.toString("utf-8"));
+
     switch (topic) {
       case "order.created":
-      case "order.updated":
-        // Invalidate the adapter cache so any cached state is refreshed.
+      case "order.updated": {
         this.adapterFactory.invalidateAdapter(merchantId);
+        const status = body?.status as string | undefined;
+        if (status === "processing" || status === "completed") {
+          await this.dispatchPaidEvent({ merchantId, body, topic });
+        }
         return { outcome: "processed", topic };
+      }
 
       case "product.updated":
       case "product.created":
       case "product.deleted":
-        // Invalidate adapter cache to refresh catalog data on next request.
         this.adapterFactory.invalidateAdapter(merchantId);
         return { outcome: "processed", topic };
 
       default:
         return { outcome: "ignored", reason: `unhandled_topic:${topic}` };
     }
+  }
+
+  private async dispatchPaidEvent(input: {
+    merchantId: string;
+    body: Record<string, unknown>;
+    topic: string;
+  }): Promise<void> {
+    const commerceOrderId = String(input.body.id ?? "");
+    if (!commerceOrderId) return;
+
+    const paymentReference = `woocommerce:${commerceOrderId}:${input.topic}`;
+    const reserved = await this.paidDedup.tryReserve(input.merchantId, paymentReference);
+    if (!reserved) return;
+
+    const event = createCommerceEventEnvelope({
+      eventType: "commerce.order.paid",
+      merchantId: input.merchantId,
+      payload: {
+        commerce_order_id: commerceOrderId,
+        payment_reference: paymentReference,
+        provider: "woocommerce",
+      },
+      causationId: `woocommerce.${input.topic}`,
+    });
+    await this.paidDedup.markProcessed(input.merchantId, paymentReference, commerceOrderId, event);
   }
 
   private verifySignature(
