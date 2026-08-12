@@ -4,8 +4,9 @@
  * Verifies the checkout surface against the real local NestJS API.
  */
 import { test, expect, type APIRequestContext, type Page } from "@playwright/test";
+import { REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
-const API = "http://localhost:3000";
+const API = REALAPI_URL;
 const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
 
 function checkoutUrl(
@@ -105,7 +106,7 @@ test.describe("full checkout real @realapi", () => {
     expect(startRequest.headers()["x-aacp-embed-token"]).toBe(embedToken);
     expect(startBody.shipping).toBeUndefined();
 
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
     await expect(page.locator(".zyon-shipping-selector")).not.toBeVisible();
 
@@ -120,7 +121,7 @@ test.describe("full checkout real @realapi", () => {
 
   test("coupon input not visible before quick reply tap [REQ-CHK-004]", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
 
     await page.waitForTimeout(2_000);
@@ -130,10 +131,10 @@ test.describe("full checkout real @realapi", () => {
 
   test("full checkout flow renders without crash", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
 
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
 
     const bubble = page.locator(".zyon-bubble, [data-testid='chat-bubble'], .zyon-message").first();
     await expect(bubble).toBeVisible({ timeout: 10_000 });
@@ -161,7 +162,7 @@ test.describe("full checkout real @realapi", () => {
         customer: { email: buyerEmail, isReturning: false }
       })
     );
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
     const started = await startResponse;
     expect(started.ok()).toBe(true, `Start failed: ${await started.text()}`);
@@ -170,7 +171,7 @@ test.describe("full checkout real @realapi", () => {
     expect(sessionId).toBeTruthy();
 
     // Agent asks for the e-mail verification code after auto-submitting email.
-    await expect(page.locator(".zyon-thread")).toContainText(/c[oó]digo|verifica/i, {
+    await expect(page.locator('[role="log"]')).toContainText(/c[oó]digo|verifica/i, {
       timeout: 15_000
     });
 
@@ -185,7 +186,7 @@ test.describe("full checkout real @realapi", () => {
     await expect(page.getByText("Falha ao falar com a IA")).toHaveCount(0);
     await expect(page.locator(".zyon-composer-form").first()).toBeVisible({ timeout: 10_000 });
     // After e-mail verification the agent collects the buyer's name next.
-    await expect(page.locator(".zyon-thread")).toContainText(/nome|CPF|telefone|celular/i, { timeout: 10_000 });
+    await expect(page.locator('[role="log"]')).toContainText(/nome|CPF|telefone|celular/i, { timeout: 10_000 });
 
     const afterOtpHealth = await request.post(`${API}/__test__/seed`);
     expect(afterOtpHealth.ok()).toBe(true, `API did not stay healthy after OTP: ${await afterOtpHealth.text()}`);
@@ -228,7 +229,7 @@ test.describe("full checkout real @realapi", () => {
     expect(promotion.ok()).toBe(true, `Cross-sell seed failed: ${await promotion.text()}`);
 
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
     await waitForChatIdle(page);
 
@@ -329,7 +330,7 @@ test.describe("full checkout real @realapi", () => {
 
   test("support panel answers through real support API", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
 
     // The conversational layout exposes the support panel via the header
@@ -641,7 +642,7 @@ test.describe("full checkout real API @realapi", () => {
     );
 
     await page.goto(hubUrl.toString());
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page);
     // The account chip's accessible name is "Abrir conta" for a recognized
     // buyer session and "Minha conta" otherwise; target the stable class.

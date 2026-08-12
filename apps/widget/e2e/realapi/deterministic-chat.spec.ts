@@ -6,9 +6,9 @@
  * The widget must render chat bubbles without blank/error state.
  */
 import { test, expect } from "@playwright/test";
-import { openChatCheckout } from "../fixtures/realapi-helpers.js";
+import { openChatCheckout, REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
-const API = "http://localhost:3000";
+const API = REALAPI_URL;
 
 test.describe("@realapi deterministic chat", () => {
   let merchantId: string;
@@ -23,11 +23,9 @@ test.describe("@realapi deterministic chat", () => {
   test("chat thread renders at least one bubble without LLM", async ({ page }) => {
     await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
-    // At least one chat bubble must appear (deterministic greeting)
-    const bubble = page.locator(".zyon-bubble, [data-testid='chat-bubble'], .zyon-message").first();
+    const bubble = page.locator(".aacp-bubble, .zyon-bubble, [data-testid='chat-bubble']").first();
     await expect(bubble).toBeVisible({ timeout: 10_000 });
 
-    // No unhandled JS errors — page should not show error overlay
     const errorOverlay = page.locator(".error-overlay, [data-testid='error'], .zyon-error");
     await expect(errorOverlay).not.toBeVisible();
   });
@@ -35,16 +33,15 @@ test.describe("@realapi deterministic chat", () => {
   test("send message returns deterministic response", async ({ page }) => {
     await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
-    const input = page.locator("input[placeholder], textarea[placeholder]").first();
-    if (await input.isVisible({ timeout: 3_000 }).catch(() => false)) {
+    const input = page.getByLabel("Mensagem para o assistente");
+    if (await input.isVisible({ timeout: 5_000 }).catch(() => false)) {
       await input.fill("Olá");
       await input.press("Enter");
-      // A new bubble should appear within 5s (deterministic, no LLM latency)
-      await expect(page.locator(".zyon-bubble, [data-testid='chat-bubble']").nth(1))
+      await expect(page.locator(".aacp-bubble, .zyon-bubble").nth(1))
         .toBeVisible({ timeout: 8_000 })
         .catch(() => null);
     }
 
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
   });
 });

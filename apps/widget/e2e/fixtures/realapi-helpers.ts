@@ -2,8 +2,8 @@ import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 // Force IPv4: on this host `localhost` resolves to ::1 first, where neither the
 // API (binds IPv4) nor the Docker pg port-proxy answer — handshakes hang/refuse.
-export const REALAPI_URL = "http://127.0.0.1:3000";
-export const REALAPI_BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
+export const REALAPI_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3009";
+export const REALAPI_BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173";
 
 export function checkoutUrl(
   merchantId: string,
@@ -63,8 +63,8 @@ export async function openChatCheckout(
   opts: { customer?: Record<string, unknown> } = {},
 ): Promise<void> {
   await page.goto(checkoutUrl(merchantId, embedToken, productId, opts));
-  await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
   await dismissChannelGate(page, "chat");
+  await page.waitForSelector('[role="log"]', { timeout: 20_000 });
 }
 
 export async function waitForChatIdle(page: Page): Promise<void> {

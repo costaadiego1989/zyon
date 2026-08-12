@@ -5,9 +5,9 @@
  * selects card, verifies CardForm renders.
  */
 import { test, expect } from "@playwright/test";
-import { openChatCheckout } from "../fixtures/realapi-helpers.js";
+import { openChatCheckout, REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
-const API = "http://localhost:3000";
+const API = REALAPI_URL;
 
 test.describe("@realapi happy-path card", () => {
   let merchantId: string;
@@ -23,7 +23,7 @@ test.describe("@realapi happy-path card", () => {
     await openChatCheckout(page, merchantId, embedToken, "e2e_product_001");
 
     // Thread visible — checkout session started
-    const thread = page.locator(".zyon-thread");
+    const thread = page.locator('[role="log"]');
     await expect(thread).toBeVisible();
 
     // Pay button or payment step reachable

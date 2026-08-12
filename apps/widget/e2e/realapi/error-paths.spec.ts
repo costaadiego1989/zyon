@@ -49,14 +49,14 @@ test.describe("@realapi error paths", () => {
         customer: { email: buyerEmail, isReturning: false },
       }),
     );
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     const started = await startResponse;
     const startedBody = await started.json();
     const sessionId = startedBody.session_id as string;
 
     // Wait for the agent to ask for the e-mail verification code.
-    await expect(page.locator(".zyon-thread")).toContainText(/c[oó]digo|verifica/i, {
+    await expect(page.locator('[role="log"]')).toContainText(/c[oó]digo|verifica/i, {
       timeout: 15_000,
     });
 
@@ -73,7 +73,7 @@ test.describe("@realapi error paths", () => {
     await sendChat(page, otpCode!);
     // Valid code accepted → checkout advances past e-mail verification
     // (next the agent collects the buyer's name for the invoice).
-    await expect(page.locator(".zyon-thread")).toContainText(/nome|CPF|telefone|celular/i, {
+    await expect(page.locator('[role="log"]')).toContainText(/nome|CPF|telefone|celular/i, {
       timeout: 15_000,
     });
   });
@@ -88,7 +88,7 @@ test.describe("@realapi error paths", () => {
 
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `coupon_err_${Date.now()}@test.aacp` };
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     await waitForChatIdle(page);
 
@@ -111,6 +111,6 @@ test.describe("@realapi error paths", () => {
     await page.waitForTimeout(2_000);
 
     await expect(page.locator(".zyon-order-confirmation")).not.toBeVisible();
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
   });
 });

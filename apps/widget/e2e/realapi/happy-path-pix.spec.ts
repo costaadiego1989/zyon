@@ -5,9 +5,9 @@
  * verifies pix_code copy button renders.
  */
 import { test, expect } from "@playwright/test";
-import { openChatCheckout } from "../fixtures/realapi-helpers.js";
+import { openChatCheckout, REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
-const API = "http://localhost:3000";
+const API = REALAPI_URL;
 
 test.describe("@realapi happy-path pix", () => {
   let merchantId: string;
@@ -36,6 +36,6 @@ test.describe("@realapi happy-path pix", () => {
     }
 
     // At minimum, thread rendered without JS error
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
   });
 });

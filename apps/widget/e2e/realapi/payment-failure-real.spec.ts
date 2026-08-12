@@ -46,7 +46,7 @@ test.describe("@realapi payment failure", () => {
 
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `pay_fail_${Date.now()}@test.aacp` };
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await page.waitForSelector(".zyon-thread", { timeout: 15_000 });
+    await page.waitForSelector('[role="log"]', { timeout: 15_000 });
     await dismissChannelGate(page, "chat");
     await waitForChatIdle(page);
 
@@ -87,7 +87,7 @@ test.describe("@realapi payment failure", () => {
     expect(overdue.ok()).toBe(true, `Asaas overdue webhook failed: ${await overdue.text()}`);
 
     // The widget polls the authoritative status and surfaces the retry copy.
-    await expect(page.locator(".zyon-thread")).toContainText(/expirou ou foi recusado|gere uma nova cobran/i, {
+    await expect(page.locator('[role="log"]')).toContainText(/expirou ou foi recusado|gere uma nova cobran/i, {
       timeout: 30_000,
     });
 

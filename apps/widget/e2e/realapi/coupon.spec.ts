@@ -5,9 +5,9 @@
  * verifies UI reflects applied or rejected state.
  */
 import { test, expect } from "@playwright/test";
-import { openChatCheckout } from "../fixtures/realapi-helpers.js";
+import { openChatCheckout, REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
-const API = "http://localhost:3000";
+const API = REALAPI_URL;
 
 test.describe("@realapi coupon", () => {
   let merchantId: string;
@@ -50,7 +50,7 @@ test.describe("@realapi coupon", () => {
     }
 
     // Thread must still be intact
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
   });
 
   test("invalid coupon code shows error feedback", async ({ page }) => {
@@ -70,6 +70,6 @@ test.describe("@realapi coupon", () => {
     }
 
     // Thread must still be intact
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
   });
 });

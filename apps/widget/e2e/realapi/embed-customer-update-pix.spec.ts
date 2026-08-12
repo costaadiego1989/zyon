@@ -81,6 +81,6 @@ test.describe("@realapi embed customer update + PIX", () => {
     }
 
     // Final assertion: the chat thread remained rendered and stable
-    await expect(page.locator(".zyon-thread")).toBeVisible();
+    await expect(page.locator('[role="log"]')).toBeVisible();
   });
 });

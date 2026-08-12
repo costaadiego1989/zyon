@@ -5,8 +5,9 @@
  * cannot bootstrap a session under merchant B's context.
  */
 import { test, expect } from "@playwright/test";
+import { REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
-const API = "http://localhost:3000";
+const API = REALAPI_URL;
 
 test.describe("@realapi cross-tenant embed isolation", () => {
   test("embed token from merchant A rejected for merchant B", async ({ request }) => {
