@@ -73,7 +73,7 @@ export class BuyerAccountController {
       display_name: account.displayName,
       email: account.email,
       phone: account.phone,
-      cpf: account.cpf,
+      cpf: account.cpf ? account.cpf.replace(/^(\d{3})\d{3}\d{3}(\d{2})$/, "$1.***.***-$2") : null,
       address: account.address
     };
   }
@@ -96,7 +96,7 @@ export class BuyerAccountController {
       display_name: updated.displayName,
       email: updated.email,
       phone: updated.phone,
-      cpf: updated.cpf,
+      cpf: updated.cpf ? updated.cpf.replace(/^(\d{3})\d{3}\d{3}(\d{2})$/, "$1.***.***-$2") : null,
       address: updated.address
     };
   }
