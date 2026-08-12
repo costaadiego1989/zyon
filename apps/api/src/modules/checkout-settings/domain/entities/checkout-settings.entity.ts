@@ -128,12 +128,25 @@ export class CheckoutSettingsEntity {
       checkout_settings: {
         mode: this.props.mode,
         open_widget_on_trigger: this.props.widgetBehavior.openWidgetOnTrigger,
+        position: this.props.widgetBehavior.position,
+        fab_color: this.props.widgetBehavior.fabColor,
+        invite_text: this.props.widgetBehavior.inviteText,
+        presentation_mode: this.props.widgetBehavior.presentationMode,
+        start_minimized: this.props.widgetBehavior.startMinimized,
+        initial_delay_seconds: this.props.widgetBehavior.initialDelaySeconds,
+        show_cart_badge: this.props.widgetBehavior.showCartBadge,
+        fab_click_action: this.props.widgetBehavior.fabClickAction,
+        fab_redirect_url: this.props.widgetBehavior.fabRedirectUrl,
         minimum_abandonment_score: this.props.interventionPolicy.minimumAbandonmentScore,
         cooldown_seconds: this.props.interventionPolicy.cooldownSeconds,
         max_interventions_per_session: this.props.interventionPolicy.maxInterventionsPerSession,
         enabled_triggers: this.props.triggerRules.filter((rule) => rule.enabled).map((rule) => rule.trigger),
         handoff_enabled: this.props.handoff.enabled,
-        progressive_discount: this.props.interventionPolicy.progressiveDiscount
+        handoff_message: this.props.handoff.message,
+        handoff_channels: this.props.handoff.channels,
+        progressive_discount: this.props.interventionPolicy.progressiveDiscount,
+        suppressed_steps: this.props.suppressionRules.suppressedSteps,
+        blocked_regions: this.props.suppressionRules.blockedRegions
       },
       operational_constraints: [
         "Do not open the widget more than the configured max interventions per session.",

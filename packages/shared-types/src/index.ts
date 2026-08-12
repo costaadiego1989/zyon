@@ -796,12 +796,25 @@ export interface CheckoutSettingsContext {
   checkout_settings: {
     mode: CheckoutSettingsMode;
     open_widget_on_trigger: boolean;
+    position?: CheckoutWidgetPosition;
+    fab_color?: string;
+    invite_text?: string;
+    presentation_mode?: string;
+    start_minimized?: boolean;
+    initial_delay_seconds?: number;
+    show_cart_badge?: boolean;
+    fab_click_action?: string;
+    fab_redirect_url?: string;
     minimum_abandonment_score: number;
     cooldown_seconds: number;
     max_interventions_per_session: number;
     enabled_triggers: CheckoutTriggerName[];
     handoff_enabled: boolean;
+    handoff_message?: string;
+    handoff_channels?: string[];
     progressive_discount?: ProgressiveDiscountPolicy;
+    suppressed_steps?: string[];
+    blocked_regions?: string[];
   };
   operational_constraints: string[];
 }
