@@ -65,7 +65,7 @@ test.describe("@realapi buyer hub full journey", () => {
     const start = await request.post(`${API}/embed/start`, {
       headers: {
         "x-aacp-embed-token": merchants[0].embedToken,
-        Origin: "http://localhost:8080",
+        Origin: "http://127.0.0.1:5173",
       },
       data: {
         customer: {
@@ -113,7 +113,7 @@ test.describe("@realapi buyer hub full journey", () => {
       const start = await request.post(`${API}/embed/start`, {
         headers: {
           "x-aacp-embed-token": merchant.embedToken,
-          Origin: "http://localhost:8080",
+          Origin: "http://127.0.0.1:5173",
         },
         data: {
           customer: {
@@ -137,7 +137,7 @@ test.describe("@realapi buyer hub full journey", () => {
       const payment = await request.post(`${API}/embed/payment/intents`, {
         headers: {
           "x-aacp-embed-token": merchant.embedToken,
-          Origin: "http://localhost:8080",
+          Origin: "http://127.0.0.1:5173",
         },
         data: {
           session_id: realSessionId,
@@ -349,7 +349,7 @@ test.describe("@realapi buyer hub full journey", () => {
     const start = await request.post(`${API}/embed/start`, {
       headers: {
         "x-aacp-embed-token": merchant.embedToken,
-        Origin: "http://localhost:8080",
+        Origin: "http://127.0.0.1:5173",
       },
       data: {
         customer: { email: buyerEmail, email_verified: true },
@@ -374,7 +374,7 @@ test.describe("@realapi buyer hub full journey", () => {
     const suggest = await request.post(`${API}/embed/cross-sell/suggest`, {
       headers: {
         "x-aacp-embed-token": merchant.embedToken,
-        Origin: "http://localhost:8080",
+        Origin: "http://127.0.0.1:5173",
       },
       data: {
         session_id: sessionId,
@@ -397,7 +397,7 @@ test.describe("@realapi buyer hub full journey", () => {
       const accept = await request.post(`${API}/embed/cross-sell/accept`, {
         headers: {
           "x-aacp-embed-token": merchant.embedToken,
-          Origin: "http://localhost:8080",
+          Origin: "http://127.0.0.1:5173",
         },
         data: {
           session_id: sessionId,
