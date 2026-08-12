@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Inject,
   Post,
   Req,
   UseGuards,
@@ -28,6 +29,7 @@ import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
 import { ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 
 class IssueEmbedSessionDto {
   @ApiPropertyOptional({ example: "cm123installation" })
@@ -72,6 +74,7 @@ export class EmbedSessionsController {
   constructor(
     private readonly issue: IssueEmbedSessionUseCase,
     private readonly resolveInstallation: ResolveInstallationForEmbedUseCase,
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
   ) {}
 
   @Post()
@@ -126,7 +129,7 @@ export class EmbedSessionsController {
           credentialEnvironment: issuer.environment,
         })
       : undefined;
-    return this.issue.execute({
+    const result = this.issue.execute({
       merchantId: issuer.merchantId,
       ttlSeconds: ttl,
       installationId: resolved?.installation.id,
@@ -136,5 +139,25 @@ export class EmbedSessionsController {
       scopes: body.scopes,
       cartRef: body.cart_ref,
     });
+
+    const merchant = await this.merchants.getProfile(issuer.merchantId);
+
+    return {
+      ...result,
+      widget_config: {
+        brand: merchant?.theme ? {
+          name: merchant.theme.headerTitle ?? merchant.name,
+          logoUrl: merchant.theme.logoUrl ?? undefined,
+          accentColor: merchant.theme.accentColor,
+          backgroundColor: merchant.theme.backgroundColor,
+          textColor: merchant.theme.textColor,
+          fontFamily: merchant.theme.fontFamily,
+          borderRadius: merchant.theme.borderRadius,
+        } : undefined,
+        agent: merchant?.theme?.agentName ? {
+          name: merchant.theme.agentName,
+        } : undefined,
+      },
+    };
   }
 }

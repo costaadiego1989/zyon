@@ -87,24 +87,51 @@ class CheckoutEmbed {
             $this->log_fallback('Embed token unavailable — falling back to native WooCommerce checkout.');
             return null;
         }
-        $store_name = get_bloginfo('name') ?: 'Loja';
-        $logo_url = $this->store_logo_url();
-        $accent_color = $this->accent_color();
+
+        // Get widget config from API (brand, agent identity)
+        $widget_config = $token_service->widget_config();
+        $brand = $widget_config['brand'] ?? null;
+        $agent = $widget_config['agent'] ?? null;
+
+        // Build brand-json from API config, with WP fallbacks
+        $brand_json = wp_json_encode(array_filter([
+            'name' => $brand['name'] ?? get_bloginfo('name') ?: 'Loja',
+            'logoUrl' => $brand['logoUrl'] ?? $this->store_logo_url(),
+            'accentColor' => $brand['accentColor'] ?? $this->accent_color(),
+            'backgroundColor' => $brand['backgroundColor'] ?? null,
+            'textColor' => $brand['textColor'] ?? null,
+            'fontFamily' => $brand['fontFamily'] ?? null,
+            'borderRadius' => $brand['borderRadius'] ?? null,
+        ], fn($v) => $v !== null));
+
+        // Build agent-json from API config
+        $agent_json = $agent ? wp_json_encode(array_filter([
+            'name' => $agent['name'] ?? null,
+            'greeting' => $agent['greeting'] ?? null,
+            'tone' => $agent['tone'] ?? null,
+        ], fn($v) => $v !== null)) : '';
 
         $ajax_url = admin_url('admin-ajax.php');
         $cart_nonce = wp_create_nonce('zyon_cart_sync');
 
-        return sprintf(
-            '<div class="zyon-checkout-takeover"><zyon-checkout-agent merchant-id="%s" api-base-url="%s" embed-session-token="%s" cart-json="%s" store-url="%s" store-name="%s" logo-url="%s" accent-color="%s"></zyon-checkout-agent></div>'
-            . '<script>!function(){document.addEventListener("zyon:cart:update",function(e){var d=e.detail;if(d&&d.items&&d.items.length){fetch("%s",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-WP-Nonce":"%s"},body:JSON.stringify({action:"zyon_cart_sync",items:d.items})})}})}()</script>',
+        $attrs = sprintf(
+            'merchant-id="%s" api-base-url="%s" embed-session-token="%s" cart-json="%s" store-url="%s" brand-json="%s"',
             esc_attr($merchant_id),
             esc_attr($browser_api_url),
             esc_attr($embed_token ?? ''),
             esc_attr($this->cart_json()),
             esc_attr(home_url('/')),
-            esc_attr($store_name),
-            esc_attr($logo_url),
-            esc_attr($accent_color),
+            esc_attr($brand_json)
+        );
+
+        if ($agent_json !== '') {
+            $attrs .= sprintf(' agent-json="%s"', esc_attr($agent_json));
+        }
+
+        return sprintf(
+            '<div class="zyon-checkout-takeover"><zyon-checkout-agent %s></zyon-checkout-agent></div>'
+            . '<script>!function(){document.addEventListener("zyon:cart:update",function(e){var d=e.detail;if(d&&d.items&&d.items.length){fetch("%s",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-WP-Nonce":"%s"},body:JSON.stringify({action:"zyon_cart_sync",items:d.items})})}})}()</script>',
+            $attrs,
             esc_url($ajax_url . '?action=zyon_cart_sync'),
             esc_attr($cart_nonce)
         );

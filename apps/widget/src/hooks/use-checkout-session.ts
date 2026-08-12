@@ -191,6 +191,21 @@ export function useCheckoutSession(config: WidgetConfig) {
     }
   }
 
+  async function selectShipping(optionIndex: number): Promise<boolean> {
+    if (!session) return false;
+    const paths = config.mode === "embed" ? CHECKOUT_EMBED_PATHS : CHECKOUT_LEGACY_PATHS;
+    try {
+      await checkoutJson<{ ok: boolean }>(apiOrigin, paths.shippingSelect, {
+        ...embedOpts,
+        method: "POST",
+        body: { session_id: session.session_id, option_index: optionIndex },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function retryStartCheckout(): void {
     setNetworkError(null);
     void startCheckout();
@@ -219,6 +234,7 @@ export function useCheckoutSession(config: WidgetConfig) {
     syncExperience,
     track,
     updateCart,
+    selectShipping,
     retryStartCheckout,
     clearPersistedSession,
     resetSessionAfterOrder,

@@ -77,6 +77,21 @@ export function useCheckoutUIVM(deps: CheckoutUIVMDeps) {
   async function tapShippingOptionUI(option: import("@zyon/shared-types").ShippingQuote): Promise<void> {
     if (!session || networkError || chatState.busy) return;
     applyShipping(option.method ?? "Frete", option.customerPrice);
+
+    // Try direct selection via API first (reliable, index-based)
+    const options = activeExperience.shippingOptions ?? [];
+    const optionIndex = options.findIndex(
+      (o: import("@zyon/shared-types").ShippingQuote) => o.method === option.method && o.customerPrice === option.customerPrice
+    );
+    if (optionIndex >= 0) {
+      const ok = await sessionState.selectShipping(optionIndex);
+      if (ok) {
+        // Still send to chat for UX continuity (agent acknowledges selection)
+        await chatVM.tapShippingOption(option);
+        return;
+      }
+    }
+    // Fallback to text-based selection via chat
     await chatVM.tapShippingOption(option);
   }
 

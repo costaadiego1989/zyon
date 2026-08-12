@@ -310,4 +310,36 @@ export class EmbedCheckoutController {
       intent_id: intentId.trim()
     });
   }
+
+  @Post("shipping/select")
+  @RequireEmbedScope("checkout:track")
+  async selectShipping(
+    @Req() request: EmbedHttpRequest,
+    @Body() body: { session_id: string; option_index: number }
+  ) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string" || !body.session_id.trim()) {
+      throw new BadRequestException("session_id_required");
+    }
+    if (typeof body.option_index !== "number" || body.option_index < 0) {
+      throw new BadRequestException("option_index_required");
+    }
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    const session = await this.embedGuards.loadSession(embed.merchantId, body.session_id.trim());
+    if (!session) throw new BadRequestException("session_not_found");
+    if (!session.shippingOptions?.length) {
+      throw new BadRequestException("no_shipping_options_available");
+    }
+    if (body.option_index >= session.shippingOptions.length) {
+      throw new BadRequestException("option_index_out_of_range");
+    }
+    const selected = session.shippingOptions[body.option_index];
+    const updated = {
+      ...session,
+      shipping: selected,
+      updatedAt: new Date().toISOString()
+    };
+    await this.embedGuards.persistSession(updated);
+    return { ok: true, shipping: selected };
+  }
 }

@@ -25,7 +25,7 @@ describe("EmbedSessionsController", () => {
         allowedOrigin: "https://store.example",
       }),
     } as unknown as ResolveInstallationForEmbedUseCase;
-    const c = new EmbedSessionsController(issue, resolver);
+    const c = new EmbedSessionsController(issue, resolver, { getProfile: async () => undefined } as any);
 
     const out = await c.issueSession(
       { user: { merchantId: "m_ok", userId: "u", email: "e", role: "owner" } },
@@ -59,6 +59,7 @@ describe("EmbedSessionsController", () => {
           throw new Error("not_expected");
         },
       } as unknown as ResolveInstallationForEmbedUseCase,
+      { getProfile: async () => undefined } as any,
     );
 
     await assert.rejects(
