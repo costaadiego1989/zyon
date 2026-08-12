@@ -34,11 +34,11 @@ const UNLIMITED = null;
 export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   starter: {
     name: "Starter",
-    monthlyPriceBrl: 89,
-    transactionFeePercent: 1.99,
+    monthlyPriceBrl: 0,
+    transactionFeePercent: 2.49,
     limits: {
-      ordersPerMonth: 50,
-      sessionsPerMonth: 50,
+      ordersPerMonth: 100,
+      sessionsPerMonth: 100,
       aiConversationsPerMonth: 100,
       commerceConnections: 1,
       webhookEndpoints: UNLIMITED,
@@ -57,8 +57,8 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
   growth: {
     name: "Growth",
-    monthlyPriceBrl: 199,
-    transactionFeePercent: 1.49,
+    monthlyPriceBrl: 249,
+    transactionFeePercent: 1.99,
     limits: {
       ordersPerMonth: 500,
       sessionsPerMonth: 1_000,
@@ -80,8 +80,8 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
   scale: {
     name: "Scale",
-    monthlyPriceBrl: 499,
-    transactionFeePercent: 0.99,
+    monthlyPriceBrl: 599,
+    transactionFeePercent: 1.49,
     limits: {
       ordersPerMonth: UNLIMITED,
       sessionsPerMonth: UNLIMITED,

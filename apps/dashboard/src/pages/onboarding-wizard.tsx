@@ -37,10 +37,10 @@ type StepMeta = {
 };
 
 const STEPS: StepMeta[] = [
-  { id: 1, label: "Configure sua loja", caption: "Informe os dados da sua loja para personalizar a experiência do comprador", icon: Palette },
-  { id: 2, label: "Personalize o checkout", caption: "Adapte cores, logo e mensagens para combinar com sua marca", icon: Percent },
-  { id: 3, label: "Suas credenciais", caption: "Gere sua API Key para integrar o checkout", icon: ShieldCheck },
-  { id: 4, label: "Conecte sua plataforma", caption: "Escolha onde sua loja está hospedada", icon: Code2 },
+  { id: 1, label: "Dados da loja", caption: "Nome, CEP de origem e identidade visual", icon: Palette },
+  { id: 2, label: "Regras comerciais", caption: "Margem, desconto máximo e frete", icon: Percent },
+  { id: 3, label: "Pagamento", caption: "Configure como você vai receber (Stripe, Asaas ou Crypto)", icon: ShieldCheck },
+  { id: 4, label: "Credenciais e publicação", caption: "API Key e código de instalação", icon: Code2 },
 ];
 
 const TOTAL_STEPS = STEPS.length;
@@ -48,24 +48,24 @@ const TOTAL_STEPS = STEPS.length;
 
 // ── Step 1 state ──────────────────────────────────────────────────────────────
 
-type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName">;
+type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName"> & { originZip: string };
 
 const DEFAULT_THEME_DRAFT: ThemeDraft = {
   accentColor: "#0F766E",
   logoUrl: "",
   headerTitle: "",
   agentName: "Assistente Zyon",
+  originZip: "",
 };
 
 // ── Step 2 state ──────────────────────────────────────────────────────────────
 
-type RulesDraft = Pick<MerchantRules, "maxDiscountPercent" | "minimumMarginPercent" | "allowFreeShipping"> & { originZip: string };
+type RulesDraft = Pick<MerchantRules, "maxDiscountPercent" | "minimumMarginPercent" | "allowFreeShipping">;
 
 const DEFAULT_RULES_DRAFT: RulesDraft = {
   maxDiscountPercent: 10,
   minimumMarginPercent: 38,
   allowFreeShipping: true,
-  originZip: "",
 };
 
 // ── Step 3 state ──────────────────────────────────────────────────────────────
@@ -168,7 +168,6 @@ export function OnboardingWizard(props: {
           maxDiscountPercent: rules.maxDiscountPercent,
           minimumMarginPercent: rules.minimumMarginPercent,
           allowFreeShipping: rules.allowFreeShipping,
-          originZip: rules.originZip ?? "",
         });
         setCheckoutDraft({
           mode: settings.mode,
@@ -202,9 +201,13 @@ export function OnboardingWizard(props: {
     try {
       let current: Record<string, unknown> = {};
       try { current = await api.getMerchantTheme() as Record<string, unknown>; } catch {}
-      const payload = { ...current, ...themeDraft };
+      const { originZip, ...themeFields } = themeDraft;
+      const payload = { ...current, ...themeFields };
       if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) payload.logoUrl = "";
       await api.putMerchantTheme(payload);
+      if (originZip) {
+        try { await api.putMerchantRules({ originZip }); } catch {}
+      }
       await markOnboardingStep("account");
       setCurrentStep(2);
     } catch (e) {
@@ -562,8 +565,8 @@ export function OnboardingWizard(props: {
                       className="onb-input"
                       placeholder="01311-100"
                       maxLength={9}
-                      value={rulesDraft.originZip}
-                      onChange={(e) => setRulesDraft((d) => ({ ...d, originZip: e.target.value.replace(/[^\d-]/g, "") }))}
+                      value={themeDraft.originZip}
+                      onChange={(e) => setThemeDraft((d) => ({ ...d, originZip: e.target.value.replace(/[^\d-]/g, "") }))}
                     />
                     <p className="onb-field-help">CEP do local de envio dos produtos. Usado para calcular frete corretamente.</p>
                     {fieldErrors.originZip && <span className="onb-field-error">{fieldErrors.originZip}</span>}
