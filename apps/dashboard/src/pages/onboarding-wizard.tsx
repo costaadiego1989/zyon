@@ -59,12 +59,13 @@ const DEFAULT_THEME_DRAFT: ThemeDraft = {
 
 // ── Step 2 state ──────────────────────────────────────────────────────────────
 
-type RulesDraft = Pick<MerchantRules, "maxDiscountPercent" | "minimumMarginPercent" | "allowFreeShipping">;
+type RulesDraft = Pick<MerchantRules, "maxDiscountPercent" | "minimumMarginPercent" | "allowFreeShipping"> & { originZip: string };
 
 const DEFAULT_RULES_DRAFT: RulesDraft = {
   maxDiscountPercent: 10,
   minimumMarginPercent: 38,
   allowFreeShipping: true,
+  originZip: "",
 };
 
 // ── Step 3 state ──────────────────────────────────────────────────────────────
@@ -167,6 +168,7 @@ export function OnboardingWizard(props: {
           maxDiscountPercent: rules.maxDiscountPercent,
           minimumMarginPercent: rules.minimumMarginPercent,
           allowFreeShipping: rules.allowFreeShipping,
+          originZip: rules.originZip ?? "",
         });
         setCheckoutDraft({
           mode: settings.mode,
@@ -376,6 +378,8 @@ export function OnboardingWizard(props: {
           type="button"
           className="onb-rail-skip"
           onClick={props.onFinished}
+          disabled={!onboardingState?.completed}
+          title={onboardingState?.completed ? undefined : "Complete todas as etapas antes de prosseguir"}
         >
           Configurar depois
         </button>
@@ -550,6 +554,20 @@ export function OnboardingWizard(props: {
                     />
                     <span className="onb-switch-track" aria-hidden="true" />
                   </label>
+
+                  <div className="onb-field">
+                    <span className="onb-field-label">CEP de origem (armazém/loja)</span>
+                    <input
+                      type="text"
+                      className="onb-input"
+                      placeholder="01311-100"
+                      maxLength={9}
+                      value={rulesDraft.originZip}
+                      onChange={(e) => setRulesDraft((d) => ({ ...d, originZip: e.target.value.replace(/[^\d-]/g, "") }))}
+                    />
+                    <p className="onb-field-help">CEP do local de envio dos produtos. Usado para calcular frete corretamente.</p>
+                    {fieldErrors.originZip && <span className="onb-field-error">{fieldErrors.originZip}</span>}
+                  </div>
                 </div>
               )}
 
