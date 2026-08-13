@@ -40,12 +40,15 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   }
   // Embed with token → PulseCheckoutView (pulls from API real)
   const cartItems = config.cart?.items;
+  if (!cartItems?.length) {
+    console.warn("[aacp] No cart items found in config. Cart attribute may be empty or malformed.", { cart: config.cart });
+  }
   const initialCart = cartItems?.[0] ? {
     product: {
-      id: cartItems[0].sku ?? '',
-      title: cartItems[0].name ?? '',
-      subtitle: '',
-      price: cartItems[0].price ?? 0,
+      id: cartItems[0].sku ?? cartItems[0].product_id ?? '',
+      title: cartItems[0].name ?? cartItems[0].title ?? 'Produto',
+      subtitle: cartItems[0].variant ?? cartItems[0].category ?? '',
+      price: cartItems[0].price ?? cartItems[0].unit_price ?? 0,
       tags: [] as string[],
     },
     qty: cartItems[0].quantity ?? 1,
