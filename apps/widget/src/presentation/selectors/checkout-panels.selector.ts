@@ -197,9 +197,10 @@ function buildCheckoutPanels(
       variant === "thread" &&
       vm.suggestedProducts &&
       vm.suggestedProducts.length > 0 &&
-      !vm.crossSellDismissed
+      !vm.crossSellDismissed &&
+      vm.suggestedProducts.some((p) => p.name && p.unit_price > 0 && p.sku)
         ? {
-            products: vm.suggestedProducts,
+            products: vm.suggestedProducts.filter((p) => p.name && p.unit_price > 0 && p.sku),
             currency: vm.visibleTotals.currency,
             onAdd: (product) => vm.addSuggestedProduct(product),
             onDismiss: vm.dismissCrossSell,

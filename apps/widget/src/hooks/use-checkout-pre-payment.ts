@@ -28,6 +28,7 @@ export function useCheckoutPrePayment({
   const [couponInputVisible, setCouponInputVisible] = useState(false);
   const [prePaymentStep, setPrePaymentStep] = useState<PrePaymentStep>("cross_sell");
   const couponGatePromptedKey = useRef<string | null>(null);
+  const paymentMethodPromptedKey = useRef<string | null>(null);
 
   const couponGateEnabled =
     checkoutStage === "payment" &&
@@ -52,6 +53,7 @@ export function useCheckoutPrePayment({
       setCouponInputVisible(false);
       setCrossSellDismissed(false);
       couponGatePromptedKey.current = null;
+      paymentMethodPromptedKey.current = null;
       return;
     }
 
@@ -63,6 +65,12 @@ export function useCheckoutPrePayment({
         if (couponGatePromptedKey.current !== promptKey) {
           couponGatePromptedKey.current = promptKey;
           appendAgentTurn("Antes de liberar PIX ou cartao, voce tem algum cupom?", { stream: true });
+        }
+      } else if (nextStep === "payment_method") {
+        const promptKey = sessionId ?? "payment";
+        if (paymentMethodPromptedKey.current !== promptKey) {
+          paymentMethodPromptedKey.current = promptKey;
+          appendAgentTurn("Agora escolha como prefere pagar: PIX, cartao ou crypto.", { stream: true });
         }
       }
       return;

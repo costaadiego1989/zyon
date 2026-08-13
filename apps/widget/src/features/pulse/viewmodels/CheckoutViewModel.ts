@@ -1436,7 +1436,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
         [this.A('Escolher frete', () => void this.showShippingSelection(), true)],
         400,
       );
-    } catch {
+    } catch (err) {
+      console.warn('[Zyon] WebAuthn registration failed:', err instanceof Error ? err.message : err);
       this.setState({ biometricEnrollment: 'error' });
       this.agentSay(
         [{ role: 'agent', kind: 'text', text: 'Não consegui habilitar Face ID neste navegador. Você pode continuar normalmente e tentar depois em Minha conta.' }],

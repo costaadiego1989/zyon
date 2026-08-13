@@ -64,6 +64,9 @@ export class WidgetCrossSellController {
     const updated = await this.sessions.appendChatTurn(embed.merchantId, body.session_id, agentTurn);
     const merchant = await this.merchants.getProfile(embed.merchantId);
 
+    // Ensure cart.total is computed if missing
+    const cartTotal = next.cart.total ?? roundCartTotal(next.cart.items);
+
     return {
       suggestion,
       experience: buildExperienceFromSession(updated, {
@@ -72,7 +75,11 @@ export class WidgetCrossSellController {
         couponBoxEnabled: rules.couponBoxEnabled,
         rules
       }),
-      agent_turn: agentTurn
+      agent_turn: agentTurn,
+      cart: {
+        ...next.cart,
+        total: cartTotal
+      }
     };
   }
 

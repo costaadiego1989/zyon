@@ -46,7 +46,9 @@ export function useCheckoutAgentViewModel(config: WidgetConfig) {
 
   // --- suggested products -------------------------------------------------
   const suggestedProducts: SuggestedProduct[] = useMemo(
-    () => activeExperience.suggestedProducts ?? [],
+    () => (activeExperience.suggestedProducts ?? []).filter(
+      (p) => Boolean(p.name) && p.unit_price > 0 && Boolean(p.sku),
+    ),
     [activeExperience.suggestedProducts],
   );
 
