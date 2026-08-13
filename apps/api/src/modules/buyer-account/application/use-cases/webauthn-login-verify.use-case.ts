@@ -51,15 +51,31 @@ export class WebAuthnLoginVerifyUseCase {
   constructor(
     verifier: WebAuthnVerifierService,
     challengeService: WebAuthnChallengeService,
-    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore: WebAuthnCredentialStore,
-    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo: BuyerAccountRepository,
+    credentialStore: WebAuthnCredentialStore,
+    buyerRepo: BuyerAccountRepository,
     jwt: BuyerJwtService,
+  );
+  constructor(deps: WebAuthnLoginVerifyDeps);
+  constructor(
+    @Inject(WebAuthnVerifierService) verifierOrDeps: WebAuthnVerifierService | WebAuthnLoginVerifyDeps,
+    challengeService?: WebAuthnChallengeService,
+    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore?: WebAuthnCredentialStore,
+    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo?: BuyerAccountRepository,
+    jwt?: BuyerJwtService,
   ) {
-    this.verifier = verifier;
-    this.challengeService = challengeService;
-    this.credentialStore = credentialStore;
-    this.buyerRepo = buyerRepo;
-    this.jwt = jwt;
+    if (verifierOrDeps instanceof WebAuthnVerifierService) {
+      this.verifier = verifierOrDeps;
+      this.challengeService = challengeService!;
+      this.credentialStore = credentialStore!;
+      this.buyerRepo = buyerRepo!;
+      this.jwt = jwt!;
+    } else {
+      this.verifier = verifierOrDeps.verifier;
+      this.challengeService = verifierOrDeps.challengeService;
+      this.credentialStore = verifierOrDeps.credentialStore;
+      this.buyerRepo = verifierOrDeps.buyerRepo;
+      this.jwt = verifierOrDeps.jwt;
+    }
   }
 
   async execute(input: LoginVerifyRequest): Promise<LoginVerifyResponse> {

@@ -18,6 +18,7 @@ export interface RegisterVerifyRequest {
     type: "public-key";
   };
   challenge: Uint8Array;
+  origin_hostname?: string;
 }
 
 export interface RegisterVerifyResponse {
@@ -42,13 +43,27 @@ export class WebAuthnRegisterVerifyUseCase {
   constructor(
     verifier: WebAuthnVerifierService,
     challengeService: WebAuthnChallengeService,
-    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore: WebAuthnCredentialStore,
-    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo: BuyerAccountRepository,
+    credentialStore: WebAuthnCredentialStore,
+    buyerRepo: BuyerAccountRepository,
+  );
+  constructor(deps: WebAuthnRegisterVerifyDeps);
+  constructor(
+    @Inject(WebAuthnVerifierService) verifierOrDeps: WebAuthnVerifierService | WebAuthnRegisterVerifyDeps,
+    challengeService?: WebAuthnChallengeService,
+    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore?: WebAuthnCredentialStore,
+    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo?: BuyerAccountRepository,
   ) {
-    this.verifier = verifier;
-    this.challengeService = challengeService;
-    this.credentialStore = credentialStore;
-    this.buyerRepo = buyerRepo;
+    if (verifierOrDeps instanceof WebAuthnVerifierService) {
+      this.verifier = verifierOrDeps;
+      this.challengeService = challengeService!;
+      this.credentialStore = credentialStore!;
+      this.buyerRepo = buyerRepo!;
+    } else {
+      this.verifier = verifierOrDeps.verifier;
+      this.challengeService = verifierOrDeps.challengeService;
+      this.credentialStore = verifierOrDeps.credentialStore;
+      this.buyerRepo = verifierOrDeps.buyerRepo;
+    }
   }
 
   async execute(input: RegisterVerifyRequest): Promise<RegisterVerifyResponse> {
@@ -71,6 +86,7 @@ export class WebAuthnRegisterVerifyUseCase {
     const parsed = this.verifier.parseAttestation({
       authenticatorData: authData,
       credentialIdLength: credentialIdBytes.length,
+      rpIdOverride: input.origin_hostname,
     });
     if (!parsed.ok) throw new BadRequestException(`webauthn_attestation_invalid: ${parsed.reason}`);
 
@@ -82,7 +98,7 @@ export class WebAuthnRegisterVerifyUseCase {
     } catch {
       throw new BadRequestException("webauthn_client_data_malformed");
     }
-    if (!origin || !origin.startsWith("https://")) {
+    if (!origin || (!origin.startsWith("https://") && !origin.startsWith("http://localhost"))) {
       throw new BadRequestException("webauthn_origin_invalid");
     }
 

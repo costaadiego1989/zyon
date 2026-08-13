@@ -48,6 +48,8 @@ export type VerifyAssertionResult =
 export interface ParseAttestationInput {
   authenticatorData: Uint8Array;
   credentialIdLength: number;
+  /** Override the configured rpId for this validation (e.g. from Web Component embed hostname). */
+  rpIdOverride?: string;
 }
 
 export type ParseAttestationResult =
@@ -144,7 +146,8 @@ export class WebAuthnVerifierService {
     }
 
     const rpIdHash = ad.subarray(0, 32);
-    const expectedRpIdHash = createHash("sha256").update(this.config.rpId, "utf8").digest();
+    const effectiveRpId = input.rpIdOverride || this.config.rpId;
+    const expectedRpIdHash = createHash("sha256").update(effectiveRpId, "utf8").digest();
     if (!safeEqualBytes(rpIdHash, expectedRpIdHash)) {
       return { ok: false, reason: "rp_id_mismatch" };
     }

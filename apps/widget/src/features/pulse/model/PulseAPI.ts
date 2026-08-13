@@ -505,15 +505,21 @@ export class PulseAPI {
       return this._wait({ credential_id: 'cred_demo', created_at: new Date().toISOString() }, 900);
     }
 
+    const originHostname = window.location.hostname;
     const optionsResponse = await fetch(`${this.baseUrl}/buyer/webauthn/register/options`, {
       method: 'POST',
       headers: this._buyerHeaders(),
+      body: JSON.stringify({ origin_hostname: originHostname }),
     });
     if (!optionsResponse.ok) throw new Error('webauthn_register_options_failed');
     const options = await optionsResponse.json() as PublicKeyCredentialCreationOptionsJson;
+    // Override rp.id with the actual page hostname so WebAuthn passes the
+    // browser origin check when the widget runs as a Web Component (not iframe).
+    const rpId = options.rp?.id && options.rp.id !== 'localhost' ? options.rp.id : originHostname;
     const credential = await navigator.credentials.create({
       publicKey: {
         ...options,
+        rp: { ...options.rp, id: rpId },
         challenge: base64UrlToBuffer(options.challenge),
         user: { ...options.user, id: stringToBuffer(options.user.id) },
       },
@@ -526,6 +532,7 @@ export class PulseAPI {
       headers: this._buyerHeaders(),
       body: JSON.stringify({
         challenge: options.challenge,
+        origin_hostname: rpId,
         credential: {
           id: publicKeyCredential.id,
           rawId: bufferToBase64Url(publicKeyCredential.rawId),

@@ -1441,8 +1441,13 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     } catch (err) {
       console.warn('[Zyon] WebAuthn registration failed:', err instanceof Error ? err.message : err);
       this.setState({ biometricEnrollment: 'error' });
+      // Check for HTTPS requirement and provide specific guidance
+      const isHttpsIssue = !window.isSecureContext && window.location.protocol === 'http:';
+      const message = isHttpsIssue
+        ? 'Face ID requer uma conexão segura (HTTPS). Tente em um site com certificado SSL válido.'
+        : 'Não consegui habilitar Face ID neste navegador. Você pode continuar normalmente e tentar depois em Minha conta.';
       this.agentSay(
-        [{ role: 'agent', kind: 'text', text: 'Não consegui habilitar Face ID neste navegador. Você pode continuar normalmente e tentar depois em Minha conta.' }],
+        [{ role: 'agent', kind: 'text', text: message }],
         [this.A('Continuar para frete', () => void this.showShippingSelection(), true)],
         400,
       );

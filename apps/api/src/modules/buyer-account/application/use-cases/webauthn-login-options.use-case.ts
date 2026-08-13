@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import type { WebAuthnCredentialStore } from "../../domain/ports/webauthn-credential.port.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "../../domain/ports/webauthn-credential.port.js";
@@ -45,10 +45,10 @@ export class WebAuthnLoginOptionsUseCase {
   );
   constructor(deps: WebAuthnLoginOptionsDeps);
   constructor(
-    depsOrChallengeService: WebAuthnLoginOptionsDeps | WebAuthnChallengeService,
+    @Inject(WebAuthnChallengeService) depsOrChallengeService: WebAuthnLoginOptionsDeps | WebAuthnChallengeService,
     @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore?: WebAuthnCredentialStore,
     @Inject("WebAuthnRpMetadata") rpMetadata?: { rpId: string },
-    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo?: BuyerAccountRepository,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo?: BuyerAccountRepository,
   ) {
     if (depsOrChallengeService instanceof WebAuthnChallengeService) {
       this.challengeService = depsOrChallengeService;

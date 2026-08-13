@@ -5,6 +5,7 @@ import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repos
 
 export interface RegisterOptionsRequest {
   buyer_id: string;
+  origin_hostname?: string;
 }
 
 export interface RegisterOptionsResponse {
@@ -48,9 +49,16 @@ export class WebAuthnRegisterOptionsUseCase {
 
     const issued = this.challenges.issue(`register:${buyer.globalUserId}`);
 
+    // Use provided origin_hostname if available (for Web Component embedding),
+    // otherwise fall back to configured RP ID
+    let rpId = this.rpMetadata.rpId;
+    if (input.origin_hostname && this.isValidRpId(input.origin_hostname)) {
+      rpId = input.origin_hostname;
+    }
+
     return {
       challenge: issued.challenge,
-      rp: { id: this.rpMetadata.rpId, name: this.rpMetadata.rpName },
+      rp: { id: rpId, name: this.rpMetadata.rpName },
       user: {
         id: buyer.globalUserId,
         name: buyer.email,
@@ -67,5 +75,14 @@ export class WebAuthnRegisterOptionsUseCase {
       timeout: 60_000,
       attestation: "none",
     };
+  }
+
+  private isValidRpId(hostname: string): boolean {
+    // Basic validation: must be a valid hostname (no special chars except dots and hyphens)
+    // Reject localhost and common private IPs when used as a Web Component
+    if (!hostname || hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return false;
+    }
+    return /^[\w.-]+$/.test(hostname);
   }
 }

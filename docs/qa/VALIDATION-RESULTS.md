@@ -137,11 +137,55 @@ POST /embed/shipping/select {carrier_key, quote_id}
 
 ---
 
+## Nuvemshop Partner Portal (2026-08-13)
+
+✅ **Login:** Autenticado como Athom Technologies
+✅ **Demo Store:** Criada com sucesso
+  - Nome: Zyon Demo Store
+  - Email: costaadiego1989@gmail.com
+  - Tipo: Loja demo (não é loja real)
+  - Status: Pronta para customização
+
+---
+
+## Session 2026-08-13 — Commits & Fixes
+
+### Commits Realizados (5)
+1. ✅ `fix(widget): update E2E specs with corrected Origin headers and endpoint paths`
+   - Adicionado header `Origin: http://127.0.0.1:5173` nos requests
+   - Fixado endpoint path duplicado `/checkout/checkout/`
+   - Corrigido bearer token validation (Authorization header)
+   - Corrigido seletor bubble (`.aacp-bubble`)
+
+2. ✅ `fix(widget): cross-sell cart total filter and payment step prompt`
+   - Adicionado `roundCartTotal()` quando `cart.total` é undefined
+   - Retornado `cart` no payload cross-sell junto com `cart_total`
+
+3. ✅ `fix(merchant): add defaults for originZip, quickReplies, cryptoPayments and handle undefined in updateRules`
+   - Merchant defaults agora incluem `originZip`, `quickReplies`, `cryptoPayments` como `undefined`
+   - Prisma repo agora trata campos undefined corretamente no `updateRules`
+
+4. ✅ `fix(dashboard): onboarding payment step platform default and crypto config shape`
+   - Adicionado `platform: "custom"` no checkout draft
+   - Corrigido shape de `cryptoPayments`: `{chain, network, treasuryAddress, token, quoteTtlSeconds}`
+
+5. ✅ `feat(buyer-account): refactor webauthn use-cases with NestJS DI overloaded constructors`
+   - Refatorado 4 webauthn use-cases com overloaded constructors
+   - Suporta injeção via `@Inject` decorators e deps object
+
+6. ✅ `fix(widget): update shipping quote endpoint payload shape and field names`
+   - Endpoint: `/embed/shipping/evaluate` → `/embed/shipping/quote`
+   - Payload: `postal_code/address_number/address_complement` → `destination_zip`
+   - Response: `options` → `results` (com fallback)
+   - Fields: `key` → `carrier_key`, `delivery_days` → `eta_business_days`
+
+---
+
 ## Pendências para Próxima Fase
 
 | Item | Bloqueador |
 |------|-----------|
-| Contas Shopify/Nuvemshop/Tray | Criação manual (OAuth, email) |
+| E2E test pass rate | Verificar após fixes acima |
 | LLM cross-sell validation | Precisa OpenAI key ativa |
 | Dashboard visual (browser) | Precisa Playwright MCP funcional |
 | PIX webhook E2E real | Precisa ngrok + Asaas sandbox callback |
