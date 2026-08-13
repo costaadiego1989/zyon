@@ -17,5 +17,8 @@ export const DEFAULT_RULES: MerchantRules = {
   offerExpirationMinutes: 15,
   blockedRegions: [],
   brandVoice: "consultative",
-  couponBoxEnabled: true
+  couponBoxEnabled: true,
+  originZip: undefined,
+  quickReplies: undefined,
+  cryptoPayments: undefined,
 };

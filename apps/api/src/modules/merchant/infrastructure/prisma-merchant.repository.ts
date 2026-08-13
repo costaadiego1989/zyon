@@ -54,8 +54,9 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   }
 
   async updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
-    const current = await this.getRules(merchantId);
-    const next = { ...current, ...rules };
+    const current = await this.getRules(merchantId).catch(() => DEFAULT_RULES);
+    const defined = (obj: Record<string, unknown>) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
+    const next = { ...DEFAULT_RULES, ...defined(current as unknown as Record<string, unknown>), ...defined(rules as unknown as Record<string, unknown>) } as MerchantRules;
     const row = await this.prisma.merchantRule.upsert({
       where: { merchantId },
       create: toCreate(merchantId, next),
@@ -71,19 +72,19 @@ function toCreate(merchantId: string, rules: MerchantRules) {
 
 function toUpdate(rules: MerchantRules) {
   return {
-    maxDiscountPercent: rules.maxDiscountPercent,
-    minimumMarginPercent: rules.minimumMarginPercent,
-    allowFreeShipping: rules.allowFreeShipping,
-    allowShippingDiscount: rules.allowShippingDiscount,
-    allowBonusItem: rules.allowBonusItem,
-    allowStackDiscountAndFreeShipping: rules.allowStackDiscountAndFreeShipping,
-    couponBoxEnabled: rules.couponBoxEnabled,
-    freeShippingMinCartValue: rules.freeShippingMinCartValue,
-    maxShippingSubsidy: rules.maxShippingSubsidy,
-    maxPartialShippingDiscount: rules.maxPartialShippingDiscount,
-    offerExpirationMinutes: rules.offerExpirationMinutes,
-    blockedRegions: rules.blockedRegions,
-    brandVoice: rules.brandVoice,
+    maxDiscountPercent: rules.maxDiscountPercent ?? DEFAULT_RULES.maxDiscountPercent,
+    minimumMarginPercent: rules.minimumMarginPercent ?? DEFAULT_RULES.minimumMarginPercent,
+    allowFreeShipping: rules.allowFreeShipping ?? DEFAULT_RULES.allowFreeShipping,
+    allowShippingDiscount: rules.allowShippingDiscount ?? DEFAULT_RULES.allowShippingDiscount,
+    allowBonusItem: rules.allowBonusItem ?? DEFAULT_RULES.allowBonusItem,
+    allowStackDiscountAndFreeShipping: rules.allowStackDiscountAndFreeShipping ?? DEFAULT_RULES.allowStackDiscountAndFreeShipping,
+    couponBoxEnabled: rules.couponBoxEnabled ?? DEFAULT_RULES.couponBoxEnabled,
+    freeShippingMinCartValue: rules.freeShippingMinCartValue ?? DEFAULT_RULES.freeShippingMinCartValue,
+    maxShippingSubsidy: rules.maxShippingSubsidy ?? DEFAULT_RULES.maxShippingSubsidy,
+    maxPartialShippingDiscount: rules.maxPartialShippingDiscount ?? DEFAULT_RULES.maxPartialShippingDiscount,
+    offerExpirationMinutes: rules.offerExpirationMinutes ?? DEFAULT_RULES.offerExpirationMinutes,
+    blockedRegions: rules.blockedRegions ?? DEFAULT_RULES.blockedRegions,
+    brandVoice: rules.brandVoice ?? DEFAULT_RULES.brandVoice,
     originZip: rules.originZip ?? null,
     quickReplies: rules.quickReplies != null
       ? (rules.quickReplies as unknown as Prisma.InputJsonValue)
