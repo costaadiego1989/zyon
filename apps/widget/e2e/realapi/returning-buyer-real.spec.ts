@@ -72,7 +72,7 @@ test.describe("@realapi returning buyer", () => {
     // Round 1 — a fully verified buyer checks out, persisting the buyer account
     // keyed by e-mail so the next visit can recognize it.
     const firstVisit = await request.post(`${API}/embed/start`, {
-      headers: { "x-aacp-embed-token": embedToken, Origin: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173" },
+      headers: { "x-aacp-embed-token": embedToken, Origin: process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173" },
       data: { customer: verifiedCustomer, cart },
     });
     expect(firstVisit.ok()).toBe(true, `First visit start failed: ${await firstVisit.text()}`);

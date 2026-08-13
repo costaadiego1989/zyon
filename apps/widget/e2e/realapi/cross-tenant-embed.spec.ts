@@ -21,7 +21,10 @@ test.describe("@realapi cross-tenant embed isolation", () => {
 
     // Merchant B starts a real checkout session under its own token.
     const startedB = await request.post(`${API}/embed/start`, {
-      headers: { "x-aacp-embed-token": embedTokenB },
+      headers: {
+        "x-aacp-embed-token": embedTokenB,
+        "Origin": "http://127.0.0.1:5173"
+      },
       data: {
         customer: {},
         cart: {
@@ -37,7 +40,10 @@ test.describe("@realapi cross-tenant embed isolation", () => {
 
     // Merchant A's token attempts to operate on merchant B's session.
     const res = await request.post(`${API}/embed/coupons/apply`, {
-      headers: { "x-aacp-embed-token": embedTokenA },
+      headers: {
+        "x-aacp-embed-token": embedTokenA,
+        "Origin": "http://127.0.0.1:5173"
+      },
       data: {
         session_id: sessionIdB,
         code: "TESTE10",

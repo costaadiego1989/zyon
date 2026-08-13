@@ -7,7 +7,7 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 import { REALAPI_URL } from "../fixtures/realapi-helpers.js";
 
 const API = REALAPI_URL;
-const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173";
+const BASE = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:5173";
 
 function checkoutUrl(
   merchantId: string,
@@ -103,7 +103,10 @@ test.describe("full checkout real @realapi", () => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
     const startRequest = await startRequestPromise;
     const startBody = JSON.parse(startRequest.postData() ?? "{}") as Record<string, unknown>;
-    expect(startRequest.headers()["x-aacp-embed-token"]).toBe(embedToken);
+    // Widget sends Authorization: Bearer header, not x-aacp-embed-token
+    const authHeader = startRequest.headers()["authorization"] ?? startRequest.headers()["Authorization"];
+    const bearerToken = authHeader?.replace(/^Bearer\s+/i, "");
+    expect(bearerToken).toBe(embedToken);
     expect(startBody.shipping).toBeUndefined();
 
     await page.waitForSelector('[role="log"]', { timeout: 15_000 });
@@ -136,7 +139,7 @@ test.describe("full checkout real @realapi", () => {
 
     await expect(page.locator('[role="log"]')).toBeVisible();
 
-    const bubble = page.locator(".zyon-bubble, [data-testid='chat-bubble'], .zyon-message").first();
+    const bubble = page.locator(".aacp-bubble, .zyon-bubble, [data-testid='chat-bubble']").first();
     await expect(bubble).toBeVisible({ timeout: 10_000 });
 
     await expect(page.locator(".error-overlay, [data-testid='error']")).not.toBeVisible();
@@ -711,7 +714,7 @@ test.describe("full checkout real API @realapi", () => {
           items: [{ sku: "e2e_product_001", name: "Produto E2E", price: 150, quantity: 1 }]
         }
       },
-      headers: { "x-aacp-embed-token": embedToken }
+      headers: { "x-aacp-embed-token": embedToken, "Origin": "http://127.0.0.1:5173" }
     });
     expect(started.ok()).toBe(true, `Start failed: ${await started.text()}`);
     const startedBody = await started.json();
@@ -722,7 +725,7 @@ test.describe("full checkout real API @realapi", () => {
         destination_zip: "01310100",
         cart_total: 150.0
       },
-      headers: { "Content-Type": "application/json", "x-aacp-embed-token": embedToken }
+      headers: { "Content-Type": "application/json", "x-aacp-embed-token": embedToken, "Origin": "http://127.0.0.1:5173" }
     });
 
     expect(quote.ok()).toBe(true, `Quote failed: ${await quote.text()}`);

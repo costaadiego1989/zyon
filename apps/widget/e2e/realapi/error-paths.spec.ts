@@ -60,7 +60,7 @@ test.describe("@realapi error paths", () => {
       timeout: 15_000,
     });
 
-    const sessionLookup = await request.get(`${REALAPI_URL}/checkout/${merchantId}/${sessionId}`);
+    const sessionLookup = await request.get(`${REALAPI_URL}/checkout/checkout/${merchantId}/${sessionId}`);
     expect(sessionLookup.ok()).toBe(true);
     const session = await sessionLookup.json();
     const otpCode = session.customer?.otp_code as string | undefined;
