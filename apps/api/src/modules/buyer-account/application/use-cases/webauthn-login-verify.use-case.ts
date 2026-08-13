@@ -1,9 +1,11 @@
-import { Injectable, BadRequestException, UnauthorizedException } from "@nestjs/common";
+import { Injectable, BadRequestException, UnauthorizedException, Inject } from "@nestjs/common";
 import { WebAuthnVerifierService } from "../../domain/services/webauthn-verifier.service.js";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import type { WebAuthnCredentialStore } from "../../domain/ports/webauthn-credential.port.js";
+import { WEBAUTHN_CREDENTIAL_STORE } from "../../domain/ports/webauthn-credential.port.js";
 import type { BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
+import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repository.port.js";
 
 export interface LoginVerifyRequest {
   challenge: Uint8Array;
@@ -46,12 +48,18 @@ export class WebAuthnLoginVerifyUseCase {
   private readonly buyerRepo: BuyerAccountRepository;
   private readonly jwt: BuyerJwtService;
 
-  constructor(deps: WebAuthnLoginVerifyDeps) {
-    this.verifier = deps.verifier;
-    this.challengeService = deps.challengeService;
-    this.credentialStore = deps.credentialStore;
-    this.buyerRepo = deps.buyerRepo;
-    this.jwt = deps.jwt;
+  constructor(
+    verifier: WebAuthnVerifierService,
+    challengeService: WebAuthnChallengeService,
+    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore: WebAuthnCredentialStore,
+    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo: BuyerAccountRepository,
+    jwt: BuyerJwtService,
+  ) {
+    this.verifier = verifier;
+    this.challengeService = challengeService;
+    this.credentialStore = credentialStore;
+    this.buyerRepo = buyerRepo;
+    this.jwt = jwt;
   }
 
   async execute(input: LoginVerifyRequest): Promise<LoginVerifyResponse> {

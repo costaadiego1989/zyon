@@ -14,12 +14,19 @@ import { RevokeM2mAgentUseCase } from "./application/use-cases/revoke-m2m-agent.
 import { GetBuyerSummaryUseCase } from "./application/use-cases/get-buyer-summary.use-case.js";
 import { SendBuyerPhoneCodeUseCase } from "./application/use-cases/send-buyer-phone-code.use-case.js";
 import { VerifyBuyerPhoneCodeUseCase } from "./application/use-cases/verify-buyer-phone-code.use-case.js";
+import { WebAuthnRegisterOptionsUseCase } from "./application/use-cases/webauthn-register-options.use-case.js";
+import { WebAuthnRegisterVerifyUseCase } from "./application/use-cases/webauthn-register-verify.use-case.js";
+import { WebAuthnLoginOptionsUseCase } from "./application/use-cases/webauthn-login-options.use-case.js";
+import { WebAuthnLoginVerifyUseCase } from "./application/use-cases/webauthn-login-verify.use-case.js";
 import { BuyerJwtService } from "./domain/services/buyer-jwt.service.js";
 import { M2mTokenService } from "./domain/services/m2m-token.service.js";
+import { WebAuthnChallengeService } from "./domain/services/webauthn-challenge.service.js";
+import { WebAuthnVerifierService } from "./domain/services/webauthn-verifier.service.js";
 import { BuyerJwtAuthGuard } from "./presentation/http/buyer-jwt-auth.guard.js";
 import { BuyerAccountController } from "./presentation/http/buyer-account.controller.js";
 import { BuyerAgentController } from "./presentation/http/buyer-agent.controller.js";
 import { BuyerHubController } from "./presentation/http/buyer-hub.controller.js";
+import { BuyerWebAuthnController } from "./presentation/http/buyer-webauthn.controller.js";
 import { ListBuyerConversationsUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
 import { GetBuyerConversationUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
 import { RateBuyerConversationMessageUseCase } from "./application/use-cases/buyer-conversation.use-cases.js";
@@ -30,12 +37,14 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { OTP_STORE } from "./domain/ports/otp-store.port.js";
+import { WEBAUTHN_CREDENTIAL_STORE } from "./domain/ports/webauthn-credential.port.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "./buyer-account.tokens.js";
 import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
+import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController],
   providers: [
     RegisterBuyerUseCase,
     LoginBuyerUseCase,
@@ -55,6 +64,17 @@ import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
     ExportBuyerDataUseCase,
     SendBuyerPhoneCodeUseCase,
     VerifyBuyerPhoneCodeUseCase,
+    // WebAuthn dependencies
+    WebAuthnChallengeService,
+    {
+      provide: WebAuthnVerifierService,
+      useFactory: (config: { rpId: string; origin: string }) => new WebAuthnVerifierService(config),
+      inject: ["WebAuthnVerifierConfig"],
+    },
+    WebAuthnRegisterOptionsUseCase,
+    WebAuthnRegisterVerifyUseCase,
+    WebAuthnLoginOptionsUseCase,
+    WebAuthnLoginVerifyUseCase,
     BuyerJwtService,
     BuyerJwtAuthGuard,
     M2mTokenService,
@@ -63,6 +83,25 @@ import { PrismaOtpStore } from "./infrastructure/prisma-otp-store.js";
       provide: OTP_STORE,
       useFactory: (prisma: PrismaClient) => new PrismaOtpStore(prisma),
       inject: [BUYER_ACCOUNT_PRISMA_CLIENT],
+    },
+    {
+      provide: WEBAUTHN_CREDENTIAL_STORE,
+      useFactory: (prisma: PrismaClient) => new PrismaWebAuthnCredentialRepository(prisma),
+      inject: [BUYER_ACCOUNT_PRISMA_CLIENT],
+    },
+    {
+      provide: "WebAuthnRpMetadata",
+      useValue: {
+        rpId: process.env.WEBAUTHN_RP_ID || "localhost",
+        rpName: process.env.WEBAUTHN_RP_NAME || "Zyon",
+      },
+    },
+    {
+      provide: "WebAuthnVerifierConfig",
+      useValue: {
+        rpId: process.env.WEBAUTHN_RP_ID || "localhost",
+        origin: process.env.WEBAUTHN_ORIGIN || "http://localhost:3000",
+      },
     },
   ],
   exports: [BuyerJwtService, BuyerJwtAuthGuard, BuyerAccountRepositoryModule],

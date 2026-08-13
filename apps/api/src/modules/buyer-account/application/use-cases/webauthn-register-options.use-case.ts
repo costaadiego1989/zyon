@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, NotFoundException, Inject } from "@nestjs/common";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import type { BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
+import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repository.port.js";
 
 export interface RegisterOptionsRequest {
   buyer_id: string;
@@ -36,8 +37,8 @@ export interface WebAuthnRpMetadata {
 export class WebAuthnRegisterOptionsUseCase {
   constructor(
     private readonly challenges: WebAuthnChallengeService,
-    private readonly rpMetadata: WebAuthnRpMetadata,
-    private readonly buyers: BuyerAccountRepository,
+    @Inject("WebAuthnRpMetadata") private readonly rpMetadata: WebAuthnRpMetadata,
+    @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyers: BuyerAccountRepository,
   ) {}
 
   async execute(input: RegisterOptionsRequest): Promise<RegisterOptionsResponse> {

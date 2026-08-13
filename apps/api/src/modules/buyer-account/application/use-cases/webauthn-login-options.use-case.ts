@@ -37,11 +37,30 @@ export class WebAuthnLoginOptionsUseCase {
   private readonly rpId: string;
   private readonly buyerRepo?: BuyerAccountRepository;
 
-  constructor(deps: WebAuthnLoginOptionsDeps) {
-    this.challengeService = deps.challengeService;
-    this.credentialStore = deps.credentialStore;
-    this.rpId = deps.rpId;
-    this.buyerRepo = deps.buyerRepo;
+  constructor(
+    challengeService: WebAuthnChallengeService,
+    credentialStore: WebAuthnCredentialStore,
+    rpMetadata: { rpId: string },
+    buyerRepo?: BuyerAccountRepository,
+  );
+  constructor(deps: WebAuthnLoginOptionsDeps);
+  constructor(
+    depsOrChallengeService: WebAuthnLoginOptionsDeps | WebAuthnChallengeService,
+    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore?: WebAuthnCredentialStore,
+    @Inject("WebAuthnRpMetadata") rpMetadata?: { rpId: string },
+    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo?: BuyerAccountRepository,
+  ) {
+    if (depsOrChallengeService instanceof WebAuthnChallengeService) {
+      this.challengeService = depsOrChallengeService;
+      this.credentialStore = credentialStore!;
+      this.rpId = rpMetadata!.rpId;
+      this.buyerRepo = buyerRepo;
+    } else {
+      this.challengeService = depsOrChallengeService.challengeService;
+      this.credentialStore = depsOrChallengeService.credentialStore;
+      this.rpId = depsOrChallengeService.rpId;
+      this.buyerRepo = depsOrChallengeService.buyerRepo;
+    }
   }
 
   async execute(input: LoginOptionsRequest): Promise<LoginOptionsResponse> {

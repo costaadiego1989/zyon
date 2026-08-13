@@ -1,8 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, BadRequestException, NotFoundException, Inject, Optional } from "@nestjs/common";
 import { WebAuthnVerifierService } from "../../domain/services/webauthn-verifier.service.js";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import type { WebAuthnCredentialStore } from "../../domain/ports/webauthn-credential.port.js";
+import { WEBAUTHN_CREDENTIAL_STORE } from "../../domain/ports/webauthn-credential.port.js";
 import type { BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
+import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repository.port.js";
 import { WebAuthnCredential } from "../../domain/entities/webauthn-credential.entity.js";
 import { randomUUID } from "node:crypto";
 
@@ -30,13 +32,6 @@ export interface WebAuthnRegisterVerifyDeps {
   buyerRepo: BuyerAccountRepository;
 }
 
-/**
- * Verify a registration attestation and store the credential.
- * Per spec REQ-WA-001 this completes the registration ceremony.
- *
- * Scope key MUST match the options ceremony: `register:${buyer_id}`.
- * On success returns the stored credential ID + timestamp.
- */
 @Injectable()
 export class WebAuthnRegisterVerifyUseCase {
   private readonly verifier: WebAuthnVerifierService;
@@ -44,11 +39,16 @@ export class WebAuthnRegisterVerifyUseCase {
   private readonly credentialStore: WebAuthnCredentialStore;
   private readonly buyerRepo: BuyerAccountRepository;
 
-  constructor(deps: WebAuthnRegisterVerifyDeps) {
-    this.verifier = deps.verifier;
-    this.challengeService = deps.challengeService;
-    this.credentialStore = deps.credentialStore;
-    this.buyerRepo = deps.buyerRepo;
+  constructor(
+    verifier: WebAuthnVerifierService,
+    challengeService: WebAuthnChallengeService,
+    @Inject(WEBAUTHN_CREDENTIAL_STORE) credentialStore: WebAuthnCredentialStore,
+    @Inject(BUYER_ACCOUNT_REPOSITORY) buyerRepo: BuyerAccountRepository,
+  ) {
+    this.verifier = verifier;
+    this.challengeService = challengeService;
+    this.credentialStore = credentialStore;
+    this.buyerRepo = buyerRepo;
   }
 
   async execute(input: RegisterVerifyRequest): Promise<RegisterVerifyResponse> {
