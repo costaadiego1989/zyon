@@ -301,25 +301,23 @@ export class PulseAPI {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/shipping/evaluate`, {
+        const r = await fetch(`${this.baseUrl}/embed/shipping/quote`, {
           method: 'POST',
           headers: this._headers(),
           body: JSON.stringify({
             session_id: sessionId,
-            postal_code: customer?.cep ?? '',
-            address_number: customer?.number ?? '',
-            address_complement: customer?.complement ?? '',
+            destination_zip: customer?.cep ?? '',
           }),
         });
         if (r.ok) {
-          const data = await r.json() as { options?: unknown[] };
-          const opts = (data.options ?? []) as Array<{ key?: string; carrier_name?: string; label?: string; tag?: string; sub?: string; price_cents?: number; delivery_days?: number }>;
+          const data = await r.json() as { results?: unknown[]; options?: unknown[] };
+          const opts = (data.results ?? data.options ?? []) as Array<{ carrier_key?: string; key?: string; carrier_name?: string; label?: string; tag?: string; sub?: string; price_cents?: number; delivery_days?: number; eta_business_days?: number }>;
           if (opts.length > 0) {
             return opts.map((o) => ({
-              key: o.key ?? o.carrier_name ?? 'shipping',
+              key: o.carrier_key ?? o.key ?? o.carrier_name ?? 'shipping',
               label: o.label ?? o.carrier_name ?? 'Frete',
-              tag: o.tag ?? (o.delivery_days === 1 ? 'Mais rápido' : 'Econômico'),
-              sub: o.sub ?? (o.delivery_days ? `Chega em ${o.delivery_days} dias úteis` : 'Prazo a confirmar'),
+              tag: o.tag ?? ((o.eta_business_days ?? o.delivery_days) === 1 ? 'Mais rápido' : 'Econômico'),
+              sub: o.sub ?? ((o.eta_business_days ?? o.delivery_days) ? `Chega em ${o.eta_business_days ?? o.delivery_days} dias úteis` : 'Prazo a confirmar'),
               cost: (o.price_cents ?? 0) / 100,
             }));
           }
