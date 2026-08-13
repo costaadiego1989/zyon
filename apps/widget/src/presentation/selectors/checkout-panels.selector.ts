@@ -42,7 +42,6 @@ export function shouldShowShippingSelector(vm: CheckoutAgentViewModel): boolean 
     !vm.selectedShippingMethod &&
     !vm.activeExperience.shipping &&
     vm.shippingOptions.length > 0 &&
-    vm.checkoutStage === "shipping" &&
     vm.lastChat?.missing_fields?.[0] === "frete"
   );
 }

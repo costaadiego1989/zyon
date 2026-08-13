@@ -1403,7 +1403,9 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   onAddressDone = async (): Promise<void> => {
-    if (this.state.biometricEnrollment === 'idle') {
+    const api = await this.ensureApi();
+    const canWebAuthn = typeof window !== 'undefined' && window.PublicKeyCredential && navigator.credentials && window.isSecureContext;
+    if (this.state.biometricEnrollment === 'idle' && canWebAuthn) {
       this.setState({ biometricEnrollment: 'prompt' });
       this.agentSay(
         [
