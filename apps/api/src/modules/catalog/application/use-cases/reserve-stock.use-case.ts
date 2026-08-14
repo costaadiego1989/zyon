@@ -1,9 +1,9 @@
-import { Injectable, ConflictException } from "@nestjs/common";
+import { Injectable, Inject, ConflictException } from "@nestjs/common";
 import { StockRepositoryPort, ReserveStockInput, ReserveStockResult } from "../../domain/ports/product-repository.port.js";
 
 @Injectable()
 export class ReserveStockUseCase {
-  constructor(private readonly stockRepo: StockRepositoryPort) {}
+  constructor(@Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort) {}
 
   async execute(input: ReserveStockInput): Promise<ReserveStockResult> {
     if (input.quantity <= 0) {

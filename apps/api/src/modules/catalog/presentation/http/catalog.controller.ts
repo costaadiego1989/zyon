@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from "@nestjs/common";
-import { RequirePlan } from "../../../shared/guards/require-plan.decorator.js";
-import { RequirePlanGuard } from "../../../shared/guards/require-plan.guard.js";
+import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
+import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { AddProductUseCase } from "../../application/use-cases/add-product.use-case.js";
 import { SearchProductsUseCase } from "../../application/use-cases/search-products.use-case.js";
 import { ReserveStockUseCase } from "../../application/use-cases/reserve-stock.use-case.js";
@@ -46,7 +46,10 @@ export class StoreBuilderCatalogController {
       name: body.name,
       description: body.description,
       categoryId: body.categoryId,
-      variants: body.variants,
+      variants: body.variants.map((v) => ({
+        ...v,
+        attributes: v.attributes ?? {},
+      })),
     });
   }
 

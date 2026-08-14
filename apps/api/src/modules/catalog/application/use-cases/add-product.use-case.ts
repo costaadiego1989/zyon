@@ -1,10 +1,10 @@
-import { Injectable, ForbiddenException, ConflictException } from "@nestjs/common";
+import { Injectable, Inject, ConflictException } from "@nestjs/common";
 import { ProductRepositoryPort, CreateProductInput } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
 
 @Injectable()
 export class AddProductUseCase {
-  constructor(private readonly productRepo: ProductRepositoryPort) {}
+  constructor(@Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort) {}
 
   async execute(input: CreateProductInput): Promise<ProductEntity> {
     if (!input.name?.trim()) {
