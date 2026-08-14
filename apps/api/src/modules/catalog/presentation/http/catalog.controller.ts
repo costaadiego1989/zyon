@@ -8,6 +8,10 @@ import { ConfirmStockUseCase } from "../../application/use-cases/confirm-stock.u
 import { GetProductUseCase } from "../../application/use-cases/get-product.use-case.js";
 import { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
 import { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
+import { ListCategoriesUseCase } from "../../application/use-cases/list-categories.use-case.js";
+import { CreateCategoryUseCase } from "../../application/use-cases/create-category.use-case.js";
+import { UpdateCategoryUseCase } from "../../application/use-cases/update-category.use-case.js";
+import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 
 @UseGuards(RequirePlanGuard)
 @Controller("merchants")
@@ -20,6 +24,10 @@ export class StoreBuilderCatalogController {
     private readonly getProduct: GetProductUseCase,
     private readonly updateProduct: UpdateProductUseCase,
     private readonly deleteProduct: DeleteProductUseCase,
+    private readonly listCategories: ListCategoriesUseCase,
+    private readonly createCategory: CreateCategoryUseCase,
+    private readonly updateCategory: UpdateCategoryUseCase,
+    private readonly deleteCategory: DeleteCategoryUseCase,
   ) {}
 
   @Post(":mid/products")
@@ -143,5 +151,42 @@ export class StoreBuilderCatalogController {
   ) {
     await this.confirmStock.execute(merchantId, body.reservationId);
     return { confirmed: true };
+  }
+
+  // --- Categories ---
+
+  @Get(":mid/categories")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async categories(@Param("mid") merchantId: string) {
+    return this.listCategories.execute(merchantId);
+  }
+
+  @Post(":mid/categories")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async createCat(
+    @Param("mid") merchantId: string,
+    @Body() body: { name: string; slug?: string; parentId?: string },
+  ) {
+    return this.createCategory.execute(merchantId, body);
+  }
+
+  @Put(":mid/categories/:cid")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async updateCat(
+    @Param("mid") merchantId: string,
+    @Param("cid") categoryId: string,
+    @Body() body: { name?: string; parentId?: string },
+  ) {
+    return this.updateCategory.execute(merchantId, categoryId, body);
+  }
+
+  @Delete(":mid/categories/:cid")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async deleteCat(
+    @Param("mid") merchantId: string,
+    @Param("cid") categoryId: string,
+  ) {
+    await this.deleteCategory.execute(merchantId, categoryId);
+    return { deleted: true };
   }
 }

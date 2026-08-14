@@ -24,6 +24,8 @@ import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
 import { InstallationsModule } from "./modules/installations/installations.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { OperationsModule } from "./modules/operations/operations.module.js";
+import { CatalogModule } from "./modules/catalog/catalog.module.js";
+import { StoreSettingsModule } from "./modules/store-settings/store-settings.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -95,7 +97,9 @@ const REDACTED_LOG_PATHS = [
     OnboardingModule,
     InstallationsModule,
     AuditModule,
-    OperationsModule
+    OperationsModule,
+    CatalogModule,
+    StoreSettingsModule,
   ]
 })
 export class AppModule {}
