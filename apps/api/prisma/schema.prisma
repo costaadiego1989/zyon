@@ -1085,3 +1085,185 @@ model SelfCheckoutTemplate {
   @@map("self_checkout_templates")
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STORE BUILDER: Catalog Module (ADR-0030)
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}
+
+enum StockReservationStatus {
+  ACTIVE
+  CONFIRMED
+  RELEASED
+  EXPIRED
+}
+
+model ProductCategory {
+  id         String    @id @default(cuid())
+  merchantId String    @map("merchant_id")
+  name       String
+  slug       String
+  parentId   String?   @map("parent_id")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  parent   ProductCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
+  children ProductCategory[] @relation("CategoryTree")
+  products Product[]
+
+  @@unique([merchantId, slug])
+  @@index([merchantId])
+  @@map("product_categories")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  name        String
+  description String?
+  categoryId  String?  @map("category_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  category    ProductCategory?    @relation(fields: [categoryId], references: [id])
+  variants    ProductVariant[]
+  reviews     ProductReview[]
+  collections CollectionProduct[]
+
+  @@index([merchantId])
+  @@index([merchantId, isActive])
+  @@index([merchantId, categoryId])
+  @@map("products")
+}
+
+model ProductVariant {
+  id         String   @id @default(cuid())
+  productId  String   @map("product_id")
+  sku        String
+  attributes Json     @default("{}")
+  barcode    String?
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  media        ProductMedia[]
+  price        ProductPrice?
+  stock        ProductStock[]
+  reservations StockReservation[]
+
+  @@unique([productId, sku])
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id        String    @id @default(cuid())
+  variantId String    @map("variant_id")
+  url       String
+  type      MediaType @default(IMAGE)
+  alt       String?
+  order     Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId])
+  @@map("product_media")
+}
+
+model ProductPrice {
+  id              String   @id @default(cuid())
+  variantId       String   @unique @map("variant_id")
+  basePriceInCents Int     @map("base_price_in_cents")
+  costInCents     Int?     @map("cost_in_cents")
+  taxPercent      Float    @default(0) @map("tax_percent")
+  currency        String   @default("BRL")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@map("product_prices")
+}
+
+model ProductStock {
+  id          String   @id @default(cuid())
+  variantId   String   @map("variant_id")
+  warehouseId String?  @map("warehouse_id")
+  quantity    Int      @default(0)
+  reserved    Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, warehouseId])
+  @@index([variantId])
+  @@map("product_stock")
+}
+
+model StockReservation {
+  id        String                 @id @default(cuid())
+  variantId String                 @map("variant_id")
+  cartId    String?                @map("cart_id")
+  quantity  Int
+  status    StockReservationStatus @default(ACTIVE)
+  expiresAt DateTime               @map("expires_at")
+  createdAt DateTime               @default(now()) @map("created_at")
+
+  variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([variantId, status])
+  @@index([expiresAt, status])
+  @@map("stock_reservations")
+}
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  productId String   @map("product_id")
+  buyerId   String   @map("buyer_id")
+  rating    Int
+  title     String?
+  body      String?
+  approved  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, approved])
+  @@index([buyerId])
+  @@map("product_reviews")
+}
+
+model ProductCollection {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  products CollectionProduct[]
+
+  @@index([merchantId])
+  @@map("product_collections")
+}
+
+model CollectionProduct {
+  id           String @id @default(cuid())
+  collectionId String @map("collection_id")
+  productId    String @map("product_id")
+  order        Int    @default(0)
+
+  collection ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  product    Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, productId])
+  @@map("collection_products")
+}
+
