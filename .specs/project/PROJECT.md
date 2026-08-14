@@ -21,7 +21,7 @@
 **Key dependencies:**
 
 - OpenAI Responses API
-- Shopify Admin API for commerce sync
+- Multi-platform commerce APIs (WooCommerce, Magento, VTEX) for headless checkout
 - Asaas API for the first buyer payment provider and future merchant billing
 - Vite
 - pnpm workspaces
@@ -37,7 +37,7 @@
 - Deterministic discount and shipping offer decisions.
 - LLM conversation that cannot authorize offers directly.
 - AACP-owned buyer checkout flow with payment-provider adapters.
-- Commerce adapters for Shopify/WooCommerce/etc. that do not own payment processing.
+- Commerce adapters for WooCommerce/Magento/VTEX that enable headless checkout with payment processing.
 - Asaas buyer payment adapter as the first real payment provider.
 
 **Explicitly out of scope:**

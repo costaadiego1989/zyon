@@ -4,9 +4,9 @@
 - **Target level:** L3
 - **Owner:** TBD
 - **Priority:** P1
-- **Included flows:** Shopify order sync
-- **Excluded flows:** TBD
-- **What's missing for L3 (ADR-0007):** Persistir índice de pedido pendente e deduplicação; credenciais por tenant; retry/reconciliação e smoke Shopify.
+- **Included flows:** WooCommerce/Magento headless order sync, VTEX PPP payment processing
+- **Excluded flows:** Shopify, Nuvemshop (no headless checkout support — excluded from product)
+- **What's missing for L3 (ADR-0007):** Persistir índice de pedido pendente e deduplicação; credenciais por tenant; retry/reconciliação e smoke tests por plataforma.
 
 ## L3 Checklist (ADR-0007)
 - [ ] Ownership and boundaries documented

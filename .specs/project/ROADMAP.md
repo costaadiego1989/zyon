@@ -55,8 +55,9 @@
 **Commerce Sync** - PLANNED
 
 - Validate cart server-side through commerce adapters.
-- Create pending orders in Shopify/WooCommerce/etc.
+- Create pending orders in WooCommerce/Magento/VTEX via platform APIs.
 - Mark commerce orders as paid only after payment approval.
+- Platform adapters implement common `CommerceAdapter` port interface.
 
 **Billing Asaas** - PLANNED
 
@@ -94,7 +95,18 @@
 - Use `aacp.events`, `aacp.retry`, and `aacp.dlx` topology.
 - Keep consumers idempotent and responsibility-scoped.
 
-**Shopify OAuth App Install** - PLANNED
+**VTEX Payment Provider Homologation** - PLANNED
+
+- Implement PPP endpoints (manifest, create payment, capture, cancel, refund).
+- Run VTEX Payment Provider Test Suite.
+- Submit for VTEX review and connector publication.
+
+**Multi-Platform Commerce Adapters** - PLANNED
+
+- WooCommerce adapter (REST API + Stripe gateway).
+- Magento adapter (REST API + Braintree/Stripe nonce).
+- Tray Commerce adapter (pending viability confirmation).
+
 **A/B Holdout Analytics** - PLANNED
 **Payment Failure Rescue** - PLANNED
 
@@ -175,5 +187,6 @@ Waves ship independently — no big-bang. Each wave leaves the system deployable
 
 - WhatsApp/email recovery.
 - ML-based abandonment scoring.
-- Multi-platform adapters.
 - Advanced shipping and warehouse optimization.
+- Tray Commerce integration (pending viability).
+- Additional LATAM platform adapters.

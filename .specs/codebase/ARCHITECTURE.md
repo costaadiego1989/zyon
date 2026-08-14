@@ -26,12 +26,12 @@ Each bounded context under `apps/api/src/modules` uses:
 - `buyer-purchase-history`: merchant-scoped buyer purchase memory and compact AI context.
 - `negotiation`: deterministic machine negotiation evaluation and future negotiation sessions.
 - `payment`: planned buyer payment intents, attempts, provider webhooks, and payment facts.
-- `commerce`: planned cart/order/product synchronization with Shopify/WooCommerce/etc.; commerce does not process buyer payments.
+- `commerce`: planned cart/order/product synchronization with commerce platforms (WooCommerce, Magento, VTEX); commerce does not process buyer payments.
 - `billing`: planned merchant SaaS billing, usage, quotas, and subscription state.
 
 ## Dependency Rules
 
-- Domain cannot import NestJS, environment variables, HTTP, persistence, OpenAI, Shopify, Asaas, or any provider SDK.
+- Domain cannot import NestJS, environment variables, HTTP, persistence, OpenAI, Asaas, or any provider SDK.
 - Use cases depend on ports and pure packages.
 - Controllers depend on use cases.
 - Infrastructure implements ports.

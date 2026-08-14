@@ -11,7 +11,7 @@
 - `AsyncLocalStorage` carries `{ merchantId, userId, role }` for the lifetime of each request. A global `TenantGuard` populates it from the authenticated JWT and rejects requests with mismatched tenant. Postgres RLS is optional (`PRISMA_RLS=true` feature flag) and adds a second enforcement layer.
 - Structured logging: `pino` + `nestjs-pino` with correlation-id propagated to all external adapter calls.
 - OpenTelemetry SDK exports traces. Prometheus `/metrics` covers: `checkout_started_total`, `order_completed_total`, `payment_approved_total`, `outbox_lag_seconds`, `llm_latency_seconds`.
-- All external HTTP calls (OpenAI, Shopify, Asaas, Brevo, ViaCEP, future scraper) go through a shared `HttpClient` in `apps/api/src/shared/http/` that enforces 5 s default timeout, 3× exponential retry, and per-provider circuit breaker.
+- All external HTTP calls (OpenAI, Asaas, Brevo, ViaCEP, commerce platform APIs, future scraper) go through a shared `HttpClient` in `apps/api/src/shared/http/` that enforces 5 s default timeout, 3× exponential retry, and per-provider circuit breaker.
 - `useCheckoutAgentViewModel` (706 lines) will be split into five focused hooks: `useCheckoutSession`, `useCheckoutChat`, `useCheckoutCart`, `useCheckoutPayment`, `useCheckoutPanels`.
 - Widget will add Zod runtime validation of all API responses before rendering, and a Playwright suite covering the 8 critical flows documented in `docs/testing/test-strategy.md`.
 - Wave 7 (new features) may not start before Wave 3 (EventBus) is complete. Cross-sell, buyer wallet, scraping agent, and fulfillment all depend on the event-driven architecture.
@@ -21,11 +21,11 @@
 - MVP is end-to-end and functional, not documentation-only.
 - Checkout is the first module selected for closure and implementation sequencing.
 - Checkout closure must start with TDD documentation under `.specs/features/checkout-module/` before domain/use case changes.
-- First commerce integration is Shopify dev store.
+- First commerce integration targets WooCommerce and Magento (headless checkout). VTEX requires Payment Provider homologation.
 - Backend stack is NestJS + TypeScript.
 - Frontend stack is React + Vite.
 - AACP owns the buyer checkout experience; payment providers process buyer payments through payment adapters.
-- Commerce integrations such as Shopify/WooCommerce synchronize catalog/cart/order facts and do not own AACP buyer payment processing.
+- Commerce integrations (WooCommerce/Magento/VTEX) synchronize catalog/cart/order facts and process payments via platform APIs.
 - Asaas is the first planned buyer payment provider and may also be used separately for merchant SaaS billing.
 - The platform assigns every buyer a `global_user_id`.
 - `global_user_id` is stable across embedded systems, but history is always filtered by `merchant_id`.
@@ -40,7 +40,7 @@
 
 ## Blockers
 
-- Real commerce sync requires provider credentials such as Shopify/WooCommerce app credentials.
+- Real commerce sync requires platform API credentials (WooCommerce keys, Magento token, VTEX app key).
 - Real buyer payment requires Asaas credentials and webhook configuration.
 - Real merchant billing requires Asaas billing credentials and webhook configuration.
 - Real LLM responses require `OPENAI_API_KEY` or `DEEPSEEK_API_KEY`.
@@ -48,7 +48,7 @@
 ## Deferred
 
 - RabbitMQ topology and outbox publisher.
-- Shopify OAuth install flow.
+- VTEX Payment Provider Protocol homologation.
 - Secure embed token runtime.
 - Buyer payment module with Asaas.
 - Merchant billing module with Asaas.
@@ -170,7 +170,7 @@
 - Secure Embed Widget planning created under `.specs/features/secure-embed-widget/` for token-only browser embed with no sensitive checkout payloads.
 - Payment Asaas planning created under `.specs/features/payment-asaas/` for buyer payment intents, provider webhooks, and payment-approved checkout completion.
 - Billing Asaas planning created under `.specs/features/billing-asaas/` for merchant SaaS plans, quotas, usage metering, and Asaas billing webhooks.
-- Commerce Sync planning created under `.specs/features/commerce-sync/` for Shopify/WooCommerce-style cart/order sync independent from payment processing.
+- Commerce Sync planning created under `.specs/features/commerce-sync/` for WooCommerce/Magento/VTEX headless cart/order sync with payment processing via platform APIs.
 - Project/codebase context docs updated to separate checkout, commerce, payment, and billing ownership and to forbid browser exposure of provider secrets, raw card data, CVV, margin, cost, and merchant policy.
 - Machine negotiation persistence and APIs (`MN-T004`–`MN-T007`): `GET`/`PUT /merchant-negotiation-policy`; `GET`/`PUT /buyer-agent/preferences`; `POST /negotiations/evaluate` loads stored policy/preferences when omitted, returns `negotiation_session_id`, appends ledger; `POST /negotiations/apply-checkout-offer` writes `AuthorizedOffer` when fingerprint and discount match snapshot and rules-engine approves; Prisma migration `20260503140000_negotiation_persistence`; in-memory negotiation store default, Prisma when `NEGOTIATION_REPOSITORY=prisma` and `DATABASE_URL`.
 - Secure embed (**API slice**, `SEW-T002`–`SEW-T004` backend): **`POST /embed-sessions`** (JWT) issues signed embed token; public **`POST /embed/start|track|chat`** accept `X-AACP-Embed-Token` / Bearer and bind `merchant_id` from claims; **`EMBED_TOKEN_SECRET`** required in production.
