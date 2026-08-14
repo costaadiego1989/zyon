@@ -44,12 +44,21 @@ export class WidgetCrossSellController {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const rules = await this.merchants.getRules(embed.merchantId);
 
+    // Ensure cart.total is computed so rules-engine margin check doesn't reject
+    const cart: Cart = { ...session.cart };
+    if (cart.total == null) {
+      cart.total = cart.items.reduce(
+        (sum, i) => sum + ((i.price ?? (i as any).unit_price) || 0) * (i.quantity ?? 1),
+        0
+      );
+    }
+
     const suggestion = await this.accept.execute({
       suggestion_id: body.suggestion_id,
       merchant_id: embed.merchantId,
       session_id: body.session_id,
       accepted_skus: body.accepted_skus,
-      cart: session.cart,
+      cart,
       merchantRules: rules
     });
 
