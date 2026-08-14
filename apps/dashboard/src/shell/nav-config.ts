@@ -3,6 +3,7 @@ import {
   Bot,
   Code2,
   CreditCard,
+  Crown,
   KeyRound,
   Eye,
   FolderTree,
@@ -40,6 +41,7 @@ export type TabKey =
   | "rules"
   | "negotiation"
   | "billing"
+  | "billing-plans"
   | "payment-connections"
   | "audit-log"
   | "commerce-connections"
@@ -71,6 +73,7 @@ export const NAV_ITEMS: Array<{
   { key: "rules", label: "Agente", section: "Atendimento", icon: Bot, requiredPlan: "CHECKOUT_ONLY" },
   { key: "negotiation", label: "Negociação", section: "Atendimento", icon: SlidersHorizontal, requiredPlan: "CHECKOUT_ONLY" },
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
+  { key: "billing-plans", label: "Planos", section: "Conta", icon: Crown },
   { key: "payment-connections", label: "Pagamentos", section: "Conta", icon: Zap },
   { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },
   { key: "catalog", label: "Catálogo", section: "Loja", icon: ShoppingBag, requiredPlan: ["STORE_ONLY", "BOTH"] },

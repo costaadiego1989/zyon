@@ -30,6 +30,7 @@ const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").t
 const CategoriesPage = lazy(() => import("../pages/categories-page.js").then(m => ({ default: m.CategoriesPage })));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings-page.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
+const BillingPlansPage = lazy(() => import("../pages/billing-plans-page.js").then(m => ({ default: m.BillingPlansPage })));
 
 function LoadingFallback() {
   return (
@@ -59,11 +60,7 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
       {/* ── SIDEBAR ── */}
       <aside style={{ width: 252, flex: "none", background: "var(--sidebar-bg)", display: "flex", flexDirection: "column", padding: "20px 14px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 18px", borderBottom: "1px solid var(--sidebar-border)", marginBottom: 14 }}>
-          {me.theme?.logoUrl ? (
-            <img src={me.theme.logoUrl} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
-          ) : (
-            <img src="/logo-zyon.png" alt="Zyon" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
-          )}
+          <img src="/logo-zyon.png" alt="Zyon" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, font: "600 15px var(--serif)", letterSpacing: "-0.01em", color: "var(--sidebar-text)" }}>
               Zyon Console
@@ -159,6 +156,7 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
             {tab === "preview" ? <CheckoutPreviewPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "billing" ? <BillingPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "billing-plans" ? <BillingPlansPage currentPlan={me.plan ?? null} renewalDate={null} /> : null}
             {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "commerce-connections" ? <CommerceConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
