@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 namespace Zyon;
 
 /**
@@ -133,18 +134,11 @@ class Settings {
         echo '<p>Verify that the plugin can reach the Zyon API with your current settings.</p>';
         echo '<button type="button" class="button button-secondary" id="zyon-test-conn">Test Connection</button>';
         echo '<span id="zyon-test-result" style="margin-left:12px;"></span>';
-        echo '<script>';
-        echo 'document.getElementById("zyon-test-conn").addEventListener("click",function(){';
-        echo '  var btn=this,res=document.getElementById("zyon-test-result");';
-        echo '  btn.disabled=true;res.textContent="Testing...";';
-        echo '  fetch(ajaxurl+"?action=zyon_test_connection&_wpnonce=' . esc_attr($nonce) . '",{credentials:"same-origin"})';
-        echo '    .then(function(r){return r.json()})';
-        echo '    .then(function(d){';
-        echo '      if(d.success){res.innerHTML="✅ "+d.data.message}';
-        echo '      else{res.innerHTML="❌ "+d.data.message}';
-        echo '      btn.disabled=false;';
-        echo '    }).catch(function(e){res.innerHTML="❌ "+e.message;btn.disabled=false;});';
-        echo '});</script>';
+        wp_enqueue_script('zyonagch-admin-settings', plugins_url('../assets/js/admin-settings.js', __FILE__), [], '1.0.0', true);
+        wp_localize_script('zyonagch-admin-settings', 'zyonagchAdmin', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => $nonce,
+        ]);
     }
 
     private function register_string_setting(string $name, callable $sanitize_callback): void {
@@ -157,7 +151,8 @@ class Settings {
 
     private function secret_sanitizer(string $option): callable {
         return static function ($value) use ($option): string {
-            $sanitized = sanitize_text_field((string) $value);
+            $raw = (string) $value;
+            $sanitized = preg_replace('/[^\x20-\x7E]/', '', $raw);
             return $sanitized === '' ? (string) get_option($option, '') : $sanitized;
         };
     }

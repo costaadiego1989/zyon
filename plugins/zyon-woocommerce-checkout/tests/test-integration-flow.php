@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 /**
  * Integration tests: full order lifecycle (webhook → WC order → sync back)
  *

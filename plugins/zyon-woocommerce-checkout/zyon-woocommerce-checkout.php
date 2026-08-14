@@ -1,15 +1,16 @@
 <?php
 /**
  * Plugin Name: Zyon Agentic Checkout for WooCommerce
- * Plugin URI: https://wordpress.org/plugins/zyon-agentic-checkout/
+ * Plugin URI: https://wordpress.org/plugins/zyon-agentic-checkout-for-woocommerce/
  * Description: Integrates Zyon AI Checkout Agent into WooCommerce stores
  * Version: 1.0.0
  * Author: Zyon AI
- * Author URI: https://zyon.com
+ * Author URI: https://zyon.dev
  * License: GPL v3
  * License URI: https://www.gnu.org/licenses/gpl-3.0.html
  * Requires PHP: 7.4
  * Requires at least: 6.0
+ * Requires Plugins: woocommerce
  * Domain Path: /languages
  * Text Domain: zyon-agentic-checkout-for-woocommerce
  */

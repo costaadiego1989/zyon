@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 /**
  * Uninstall cleanup for Zyon Agentic Checkout for WooCommerce.
  */

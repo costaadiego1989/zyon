@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 /**
  * Tests for Zyon\HttpClient (retry + circuit breaker).
  */

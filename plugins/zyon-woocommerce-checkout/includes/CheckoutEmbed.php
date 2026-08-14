@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 namespace Zyon;
 
 /**
@@ -128,12 +129,15 @@ class CheckoutEmbed {
             $attrs .= sprintf(' agent-json="%s"', esc_attr($agent_json));
         }
 
+        wp_enqueue_script('zyonagch-cart-sync', plugins_url('../assets/js/cart-sync.js', __FILE__), [], '1.0.0', true);
+        wp_localize_script('zyonagch-cart-sync', 'zyonCartSync', [
+            'ajaxUrl' => esc_url($ajax_url . '?action=zyon_cart_sync'),
+            'nonce' => $cart_nonce,
+        ]);
+
         return sprintf(
-            '<div class="zyon-checkout-takeover"><zyon-checkout-agent %s></zyon-checkout-agent></div>'
-            . '<script>!function(){document.addEventListener("zyon:cart:update",function(e){var d=e.detail;if(d&&d.items&&d.items.length){fetch("%s",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json","X-WP-Nonce":"%s"},body:JSON.stringify({action:"zyon_cart_sync",items:d.items})})}})}()</script>',
-            $attrs,
-            esc_url($ajax_url . '?action=zyon_cart_sync'),
-            esc_attr($cart_nonce)
+            '<div class="zyon-checkout-takeover"><zyon-checkout-agent %s></zyon-checkout-agent></div>',
+            $attrs
         );
     }
 

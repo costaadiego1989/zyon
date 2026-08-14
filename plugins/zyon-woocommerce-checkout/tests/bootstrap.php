@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 /**
  * PHPUnit Bootstrap for Zyon WooCommerce Checkout Tests
  */

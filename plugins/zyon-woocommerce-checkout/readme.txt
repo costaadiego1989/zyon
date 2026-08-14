@@ -1,9 +1,10 @@
 === Zyon Agentic Checkout for WooCommerce ===
-Contributors: zyonai
+Contributors: costaadiego, zyonai
 Tags: checkout, woocommerce, ai, agentic, conversion
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
+Requires Plugins: woocommerce
 Stable tag: 1.0.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
@@ -74,3 +75,25 @@ In classic mode, it filters `the_content` on cart/checkout pages.
 * Added configurable widget and browser API URLs.
 * Hardened secret settings, webhook signature verification, timestamp freshness, and sync logging.
 * Added uninstall cleanup and WordPress.org packaging files.
+
+== External services ==
+
+This plugin connects to the Zyon AI Checkout API to provide AI-powered checkout assistance on your WooCommerce store.
+
+= What data is sent =
+
+* Cart contents (product names, SKUs, quantities, prices) — sent when the checkout widget loads to display the order summary.
+* Customer information (name, email, phone, shipping address) — sent during the checkout process to complete the order.
+* Payment method selection — sent to initiate payment processing via the merchant's configured payment provider.
+
+= When data is sent =
+
+Data is transmitted when a customer interacts with the Zyon checkout widget on your store's checkout page. No data is sent if the plugin is not configured or the widget is not active.
+
+= Service provider =
+
+This service is provided by Zyon AI.
+
+* Service website: [https://zyon.dev](https://zyon.dev)
+* [Terms of Service](https://zyon.dev/terms)
+* [Privacy Policy](https://zyon.dev/privacy)

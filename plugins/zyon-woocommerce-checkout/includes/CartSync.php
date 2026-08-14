@@ -1,4 +1,5 @@
 <?php
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 namespace Zyon;
 
 /**
@@ -15,7 +16,7 @@ class CartSync {
     }
 
     public function handle(): void {
-        $nonce = $_SERVER['HTTP_X_WP_NONCE'] ?? '';
+        $nonce = isset($_SERVER['HTTP_X_WP_NONCE']) ? sanitize_text_field(wp_unslash($_SERVER['HTTP_X_WP_NONCE'])) : '';
         if (!wp_verify_nonce($nonce, 'zyon_cart_sync')) {
             wp_send_json_error(['message' => 'Invalid nonce'], 403);
         }
