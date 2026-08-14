@@ -1,5 +1,9 @@
 "use client";
 
+// PIX, Card, and Crypto payment methods are handled by the checkout widget.
+// No additional storefront code needed — the widget renders the QR code,
+// polls for confirmation, and redirects on success.
+
 import { useEffect, useState } from "react";
 import type { CheckoutRedirectBlock as CheckoutRedirectBlockType } from "@/lib/types.js";
 

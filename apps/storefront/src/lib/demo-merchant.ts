@@ -9,6 +9,9 @@ export type Merchant = {
   slug: string;
   name: string;
   tagline?: string;
+  description?: string;
+  logo?: string;
+  gtmId?: string;
   theme: {
     primary: string;
     secondary: string;
@@ -22,6 +25,9 @@ export const DEMO_MERCHANT: Merchant = {
   slug: "demo",
   name: "Demo Boutique",
   tagline: "Curated pieces, conversation-first.",
+  description: "Loja conversacional de moda e lifestyle com curadoria humana e atendimento por IA.",
+  logo: undefined,
+  gtmId: undefined,
   theme: {
     primary: "#5b3df5",
     secondary: "#ff6b6b",
