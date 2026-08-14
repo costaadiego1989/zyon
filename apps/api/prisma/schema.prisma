@@ -19,6 +19,8 @@ model Merchant {
   stripeConnectAccountId String?        @map("stripe_connect_account_id")
   cryptoPaymentsEnabled  Boolean        @default(false) @map("crypto_payments_enabled")
   plan                   MerchantPlan   @default(CHECKOUT_ONLY)
+  eventVersion           Int            @default(0) @map("event_version")
+  shardId                Int?           @map("shard_id")
   createdAt              DateTime       @default(now()) @map("created_at")
   updatedAt              DateTime       @updatedAt @map("updated_at")
 
@@ -258,6 +260,8 @@ model CheckoutSession {
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
+  @@index([merchantId, createdAt])
+  @@index([globalUserId, merchantId, createdAt])
   @@map("checkout_sessions")
 }
 
@@ -1135,20 +1139,24 @@ model Product {
   collections CollectionProduct[]
 
   @@index([merchantId])
-  @@index([merchantId, isActive])
-  @@index([merchantId, categoryId])
+  @@index([merchantId, isActive, createdAt])
+  @@index([merchantId, categoryId, isActive])
   @@map("products")
 }
 
 model ProductVariant {
-  id         String   @id @default(cuid())
-  productId  String   @map("product_id")
-  sku        String
-  attributes Json     @default("{}")
-  barcode    String?
-  isActive   Boolean  @default(true) @map("is_active")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  id             String   @id @default(cuid())
+  productId      String   @map("product_id")
+  sku            String
+  attributes     Json     @default("{}")
+  barcode        String?
+  weightGrams    Int?     @map("weight_grams")
+  lengthCm       Float?   @map("length_cm")
+  widthCm        Float?   @map("width_cm")
+  heightCm       Float?   @map("height_cm")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
   media        ProductMedia[]
