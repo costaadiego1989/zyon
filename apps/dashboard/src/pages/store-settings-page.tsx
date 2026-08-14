@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Save } from "lucide-react";
+import { Save, ExternalLink } from "lucide-react";
 import type { MerchantProfile, MerchantTheme } from "../api-client.js";
 import { DashboardHttpError } from "../api/http/index.js";
 import { useApi } from "../hooks/useApi.js";
@@ -146,8 +146,22 @@ export function StoreSettingsPage(_props: StoreSettingsPageProps) {
     <div>
       <div style={{ marginBottom: 20 }}>
         <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
-        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações da loja</h1>
-        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Marca, domínio e moeda da sua loja.</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações da loja</h1>
+            <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Marca, domínio e moeda da sua loja.</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const slug = (_props.me?.name ?? "sua-loja").toLowerCase().replace(/\s+/g, "-").slice(0, 50);
+              window.open(`http://localhost:3001/store/${slug}`, "_blank");
+            }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer" }}
+          >
+            <ExternalLink size={14} /> Preview
+          </button>
+        </div>
       </div>
 
       <SaveFeedbackBanner

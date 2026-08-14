@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, ShoppingBag, Trash2, Pencil } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus, Search, ShoppingBag, Trash2, Pencil, Upload } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { useCursorPagination } from "../hooks/useCursorPagination.js";
@@ -39,6 +39,9 @@ export function CatalogPage(props: CatalogPageProps) {
   const [inStockOnly, setInStockOnly] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvProgress, setCsvProgress] = useState<{ done: number; total: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const merchantId = props.me?.id;
 
@@ -99,6 +102,77 @@ export function CatalogPage(props: CatalogPageProps) {
     }
   }
 
+  async function handleCsvImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !merchantId) return;
+
+    setCsvImporting(true);
+    setPageError(null);
+    setCsvProgress(null);
+
+    try {
+      const text = await file.text();
+      const lines = text.split("\n").filter((l) => l.trim());
+      if (lines.length < 2) {
+        setPageError("CSV vazio ou sem dados.");
+        return;
+      }
+
+      // Parse header
+      const header = lines[0]!.split(",").map((h) => h.trim().toLowerCase());
+      const nameIdx = header.indexOf("name");
+      const skuIdx = header.indexOf("sku");
+      const priceIdx = header.indexOf("price");
+      const stockIdx = header.indexOf("stock");
+      const weightIdx = header.indexOf("weight");
+      const descIdx = header.indexOf("description");
+
+      if (nameIdx === -1 || skuIdx === -1 || priceIdx === -1) {
+        setPageError("CSV deve conter ao menos as colunas: name, sku, price");
+        return;
+      }
+
+      const dataRows = lines.slice(1);
+      const total = dataRows.length;
+      setCsvProgress({ done: 0, total });
+
+      for (let i = 0; i < dataRows.length; i++) {
+        const cols = dataRows[i]!.split(",").map((c) => c.trim());
+        const name = cols[nameIdx] || `Produto ${i + 1}`;
+        const sku = cols[skuIdx] || `SKU-${Date.now()}-${i}`;
+        const price = Math.round(parseFloat(cols[priceIdx] || "0") * 100);
+        const stock = stockIdx >= 0 ? parseInt(cols[stockIdx] || "0", 10) : 0;
+        const weight = weightIdx >= 0 ? parseInt(cols[weightIdx] || "0", 10) : undefined;
+        const description = descIdx >= 0 ? cols[descIdx] : undefined;
+
+        try {
+          await api.createProduct(merchantId, {
+            name,
+            description: description || undefined,
+            variants: [{
+              sku,
+              basePriceInCents: price,
+              stockQuantity: stock,
+              weightGrams: weight,
+            }],
+          });
+        } catch {
+          // Continue importing remaining rows
+        }
+
+        setCsvProgress({ done: i + 1, total });
+      }
+
+      await load();
+    } catch (e) {
+      setPageError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCsvImporting(false);
+      setCsvProgress(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   if (!props.me) {
     return (
       <>
@@ -120,13 +194,30 @@ export function CatalogPage(props: CatalogPageProps) {
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Catálogo</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Gerencie os produtos disponíveis na sua loja.</div>
         </div>
-        <button
-          type="button"
-          onClick={() => props.onCreate?.()}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", flex: "none" }}
-        >
-          <Plus size={14} /> Novo produto
-        </button>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            style={{ display: "none" }}
+            onChange={(e) => void handleCsvImport(e)}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={csvImporting}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: csvImporting ? "not-allowed" : "pointer", flex: "none", opacity: csvImporting ? 0.6 : 1 }}
+          >
+            <Upload size={14} /> {csvImporting && csvProgress ? `${csvProgress.done}/${csvProgress.total}` : "Importar CSV"}
+          </button>
+          <button
+            type="button"
+            onClick={() => props.onCreate?.()}
+            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", flex: "none" }}
+          >
+            <Plus size={14} /> Novo produto
+          </button>
+        </div>
       </div>
 
       {pageError || error ? (
