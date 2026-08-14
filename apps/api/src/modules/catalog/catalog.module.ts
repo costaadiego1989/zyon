@@ -14,6 +14,7 @@ import { ConfirmStockUseCase } from "./application/use-cases/confirm-stock.use-c
 import { GetProductUseCase } from "./application/use-cases/get-product.use-case.js";
 import { UpdateProductUseCase } from "./application/use-cases/update-product.use-case.js";
 import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
+import { IndexProductEmbeddingUseCase } from "./application/use-cases/index-product-embedding.use-case.js";
 import { ListCategoriesUseCase } from "./application/use-cases/list-categories.use-case.js";
 import { CreateCategoryUseCase } from "./application/use-cases/create-category.use-case.js";
 import { UpdateCategoryUseCase } from "./application/use-cases/update-category.use-case.js";
@@ -24,6 +25,7 @@ import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefro
 import { DefaultCrossSellResolverAdapter } from "./infrastructure/default-cross-sell-resolver.adapter.js";
 import { PrismaProductRepository } from "./infrastructure/repositories/prisma-product.repository.js";
 import { PrismaStockRepository } from "./infrastructure/repositories/prisma-stock.repository.js";
+import { EmbeddingService } from "./infrastructure/services/embedding.service.js";
 import { StockExpiryWorker, CatalogStockExpiryScheduler } from "./infrastructure/jobs/stock-expiry.job.js";
 import { WidgetCatalogController } from "./presentation/http/widget-catalog.controller.js";
 import { StoreBuilderCatalogController } from "./presentation/http/catalog.controller.js";
@@ -42,6 +44,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     DefaultCrossSellResolverAdapter,
     SearchStorefrontProductsUseCase,
     AddStorefrontItemUseCase,
+    EmbeddingService,
     {
       provide: STOREFRONT_CATALOG_PORT,
       useExisting: TenantStorefrontCatalogAdapter,
@@ -67,6 +70,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     GetProductUseCase,
     UpdateProductUseCase,
     DeleteProductUseCase,
+    IndexProductEmbeddingUseCase,
     ListCategoriesUseCase,
     CreateCategoryUseCase,
     UpdateCategoryUseCase,
@@ -84,6 +88,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     GetProductUseCase,
     UpdateProductUseCase,
     DeleteProductUseCase,
+    IndexProductEmbeddingUseCase,
     ListCategoriesUseCase,
     CreateCategoryUseCase,
     UpdateCategoryUseCase,

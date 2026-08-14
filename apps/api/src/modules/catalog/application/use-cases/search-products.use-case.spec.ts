@@ -1,11 +1,13 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { SearchProductsUseCase } from "./search-products.use-case.js";
+import { EmbeddingService } from "../../infrastructure/services/embedding.service.js";
 import type {
   ProductRepositoryPort,
   SearchProductsInput,
   SearchProductsResult,
 } from "../../domain/ports/product-repository.port.js";
+import type { PrismaClient } from "@prisma/client";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
 
 function makeProduct(id: string): ProductEntity {
@@ -52,7 +54,9 @@ describe("SearchProductsUseCase", () => {
         return { products: [makeProduct("prd_a"), makeProduct("prd_b")], total: 2 };
       },
     });
-    const useCase = new SearchProductsUseCase(repo);
+    const embService = new EmbeddingService();
+    const mockPrisma = {} as PrismaClient;
+    const useCase = new SearchProductsUseCase(repo, embService, mockPrisma);
 
     const result = await useCase.execute({ merchantId: "mrc_1", query: "shoe" });
 
@@ -71,7 +75,9 @@ describe("SearchProductsUseCase", () => {
         return { products: [], total: 0 };
       },
     });
-    const useCase = new SearchProductsUseCase(repo);
+    const embService = new EmbeddingService();
+    const mockPrisma = {} as PrismaClient;
+    const useCase = new SearchProductsUseCase(repo, embService, mockPrisma);
 
     await useCase.execute({ merchantId: "mrc_1", limit: 250 });
 
@@ -86,7 +92,9 @@ describe("SearchProductsUseCase", () => {
         return { products: [], total: 0 };
       },
     });
-    const useCase = new SearchProductsUseCase(repo);
+    const embService = new EmbeddingService();
+    const mockPrisma = {} as PrismaClient;
+    const useCase = new SearchProductsUseCase(repo, embService, mockPrisma);
 
     await useCase.execute({ merchantId: "mrc_1" });
 
