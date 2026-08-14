@@ -14,7 +14,7 @@ export default function QuickRepliesBlock({
       style={{
         display: "flex",
         flexWrap: "wrap",
-        gap: 8,
+        gap: "16px",
       }}
     >
       {block.data.options.map((option, idx) => (
@@ -23,32 +23,28 @@ export default function QuickRepliesBlock({
           type="button"
           onClick={() => onSelect?.(option)}
           style={{
-            padding: "8px 12px",
-            borderRadius: "14px",
-            border: "1px solid var(--aacp-line)",
-            background: "var(--aacp-surface-2)",
-            color: "var(--aacp-fg)",
+            padding: "9px 16px",
+            borderRadius: "var(--aacp-radius-pill)",
+            border: "1px solid var(--aacp-line-strong)",
+            background: "var(--aacp-surface)",
+            color: "var(--aacp-muted)",
             fontSize: 12,
             fontWeight: 500,
             cursor: "pointer",
-            transition: "all 160ms ease",
+            transition: "border-color 0.18s ease, background 0.18s ease, color 0.18s ease",
             fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor =
-              "var(--aacp-accent)";
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface-2))";
-            (e.currentTarget as HTMLButtonElement).style.transform =
-              "translateY(-1px)";
+            const el = e.currentTarget as HTMLButtonElement;
+            el.style.borderColor = "var(--aacp-accent-hover-border)";
+            el.style.background = "var(--aacp-accent-hover-bg)";
+            el.style.color = "var(--aacp-fg)";
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor =
-              "var(--aacp-line)";
-            (e.currentTarget as HTMLButtonElement).style.background =
-              "var(--aacp-surface-2)";
-            (e.currentTarget as HTMLButtonElement).style.transform =
-              "translateY(0)";
+            const el = e.currentTarget as HTMLButtonElement;
+            el.style.borderColor = "var(--aacp-line-strong)";
+            el.style.background = "var(--aacp-surface)";
+            el.style.color = "var(--aacp-muted)";
           }}
         >
           {option}

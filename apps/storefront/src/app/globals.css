@@ -1,12 +1,17 @@
+/* ============================================================
+   PULSE STOREFRONT THEME
+   Faithful replication of widget Pulse design system.
+   ============================================================ */
+
 :root {
-  /* Widget-compatible token system */
+  /* Signature accent colors (Pulse teal + blue) */
   --aacp-accent: #0f766e;
   --aacp-accent-2: #1e40af;
   --aacp-accent-strong: #0f766e;
   --aacp-success: #34d399;
   --aacp-warning: #fbbf24;
 
-  /* Dark theme (default for storefront) */
+  /* Dark theme (Pulse default) */
   --aacp-bg: #08080c;
   --aacp-surface: #0f0f16;
   --aacp-surface-2: rgba(255, 255, 255, 0.05);
@@ -26,24 +31,32 @@
   --aacp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
   --aacp-shadow-lg: 0 34px 70px -28px rgba(0, 0, 0, 0.75);
 
-  /* Typography */
+  /* Typography: Space Grotesk (Pulse signature) */
   --aacp-font: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --aacp-font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
   --aacp-font-mono: "Space Mono", ui-monospace, monospace;
 
-  /* Radius */
+  /* Radius (Pulse system) */
   --aacp-radius: 16px;
   --aacp-radius-sm: 10px;
   --aacp-radius-md: 14px;
   --aacp-radius-lg: 20px;
   --aacp-radius-pill: 999px;
 
-  /* Gradients */
+  /* Gradients (Pulse gradients) */
   --aacp-grad-primary: linear-gradient(95deg, var(--aacp-accent), var(--aacp-accent-2), var(--aacp-accent-strong));
   --aacp-grad-bubble-buyer: linear-gradient(95deg, var(--aacp-accent), var(--aacp-accent-2));
   --aacp-grad-soft: linear-gradient(135deg, color-mix(in srgb, var(--aacp-accent) 14%, transparent), color-mix(in srgb, var(--aacp-accent-2) 10%, transparent));
   --aacp-grad-glow: radial-gradient(60% 60% at 50% 0%, color-mix(in srgb, var(--aacp-accent) 22%, transparent), transparent 70%);
   --aacp-glow: 0 0 44px color-mix(in srgb, var(--aacp-accent-2) 30%, transparent);
+
+  /* Accent derived values */
+  --aacp-accent-ring: color-mix(in srgb, var(--aacp-accent) 14%, transparent);
+  --aacp-accent-border: color-mix(in srgb, var(--aacp-accent) 32%, transparent);
+  --aacp-accent-hover-bg: color-mix(in srgb, var(--aacp-accent) 7%, var(--aacp-surface));
+  --aacp-accent-hover-border: color-mix(in srgb, var(--aacp-accent) 42%, var(--aacp-line-strong));
+  --aacp-accent-shadow: color-mix(in srgb, var(--aacp-accent) 26%, transparent);
+  --aacp-accent-shadow-strong: color-mix(in srgb, var(--aacp-accent) 38%, transparent);
 
   /* Backward compat */
   --color-primary: var(--aacp-accent);
@@ -63,6 +76,29 @@
   --radius-lg: 20px;
   --shadow-sm: var(--aacp-shadow-sm);
   --shadow-md: var(--aacp-shadow-md);
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --aacp-bg: #e7e5df;
+    --aacp-surface: #ffffff;
+    --aacp-surface-2: #f6f5f2;
+    --aacp-surface-3: #efeee9;
+    --aacp-fg: #141418;
+    --aacp-muted: #71717a;
+    --aacp-faint: #9a978e;
+    --aacp-line: rgba(15, 15, 25, 0.09);
+    --aacp-line-strong: rgba(15, 15, 25, 0.1);
+    --aacp-success: #10b981;
+    --aacp-warning: #b45309;
+    --aacp-panel-bg: #ffffff;
+    --aacp-inset-bg: #f6f5f2;
+    --aacp-shell-bg: #ffffff;
+    --aacp-shell-border: rgba(15, 15, 25, 0.1);
+    --aacp-shadow-sm: 0 1px 2px rgba(40, 30, 80, 0.08);
+    --aacp-shadow-md: 0 8px 24px rgba(40, 30, 80, 0.12);
+    --aacp-shadow-lg: 0 34px 70px -30px rgba(40, 30, 80, 0.28);
+  }
 }
 
 * {

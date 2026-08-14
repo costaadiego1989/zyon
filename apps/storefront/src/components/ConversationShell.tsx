@@ -108,12 +108,7 @@ export default function ConversationShell({
           }
         } else if (block.type === "checkout_redirect") {
           const cr = (block as CheckoutRedirectBlock).data;
-          // We don't have the cart value here at render time; defer to
-          // a cart summary if present, otherwise send 0.
           trackBeginCheckout(0, 0);
-          // Touch cr.sessionId so the lint doesn't flag unused destructure.
-          // It's intentionally not used yet — session URL itself is the
-          // merchant's redirect target.
           void cr.sessionId;
         } else if (block.type === "cart_summary") {
           const cs = (block as CartSummaryBlock).data;
@@ -177,73 +172,310 @@ export default function ConversationShell({
         )
       : undefined;
 
+  // Get merchant initial (first letter capitalized)
+  const merchantInitial = storeName.charAt(0).toUpperCase();
+
   return (
-    <div className="conversation-shell">
-      {/* Header */}
-      <header className="conversation-header">
-        <div className="conversation-header__avatar">
+    <div
+      className="pulse-widget-shell"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        background: "var(--aacp-bg)",
+        boxShadow: "none",
+        borderRadius: 0,
+        overflow: "hidden",
+      }}
+    >
+      {/* HEADER: matches PulseWidget structure exactly */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "11px",
+          padding: "12px 14px",
+          borderBottom: "none",
+          zIndex: 9,
+          background: "var(--aacp-surface)",
+          flex: "none",
+        }}
+      >
+        {/* Merchant Avatar: 34px container with initials or image */}
+        <div
+          style={{
+            width: "34px",
+            height: "34px",
+            borderRadius: "12px",
+            border: "1px solid var(--aacp-line)",
+            background: "var(--aacp-accent)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: "none",
+            overflow: "hidden",
+            fontSize: "13px",
+            fontWeight: 800,
+            letterSpacing: "-.2px",
+          }}
+        >
           {logo ? (
-            <img
-              src={logo}
-              alt={storeName}
-              style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }}
-            />
+            <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
           ) : (
-            <span aria-hidden>🤖</span>
+            merchantInitial
           )}
         </div>
-        <div className="conversation-header__info">
-          <div className="conversation-header__name">{storeName}</div>
-          <div className="conversation-header__status">Assistente online</div>
-        </div>
-      </header>
 
-      {/* Messages */}
-      <div ref={listRef} className="conversation-messages">
-        {messages.map((m) => (
+        {/* Store name + status */}
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
-            key={m.id}
-            className={`message message--${m.role}`}
+            style={{
+              fontSize: "13.5px",
+              fontWeight: 700,
+              lineHeight: 1.2,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
           >
-            {m.role === "agent" && (
-              <div className="message__avatar">🤖</div>
-            )}
-            <div className="message__content">
-              {m.text && (
-                <div className="message__bubble">{m.text}</div>
-              )}
-              {m.blocks &&
-                m.blocks
-                  .filter((b) => b.type !== "quick_replies")
-                  .map((block, idx) => (
-                    <div key={idx} className="message__block">
-                      <BlockRenderer
-                        block={block}
-                        onQuickReply={handleQuickReply}
-                      />
-                    </div>
-                  ))}
-            </div>
+            {storeName}
           </div>
-        ))}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "10.5px",
+              color: "var(--aacp-muted)",
+              marginTop: "1px",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "var(--aacp-success)",
+                animation: "pulseDot 2.2s ease-in-out infinite",
+                flex: "none",
+              }}
+            />
+            Online
+          </div>
+        </div>
+      </div>
 
+      {/* MESSAGES AREA */}
+      <div
+        ref={listRef}
+        style={{
+          position: "relative",
+          zIndex: 1,
+          flex: "0 0 auto",
+          minHeight: "220px",
+          maxHeight: "calc(100% - 180px)",
+          overflowY: "auto",
+          overflowX: "hidden",
+          padding: "20px 20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+          scrollBehavior: "smooth",
+        }}
+      >
+        {/* Scrollbar styling */}
+        <style>{`
+          .pulse-widget-shell > div:nth-child(2)::-webkit-scrollbar {
+            width: 6px;
+          }
+          .pulse-widget-shell > div:nth-child(2)::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .pulse-widget-shell > div:nth-child(2)::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+          }
+          .pulse-widget-shell > div:nth-child(2)::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.15);
+          }
+          @keyframes pulseDot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+          }
+          @keyframes bubble-in {
+            from {
+              opacity: 0;
+              transform: translateY(8px) scale(0.98);
+            }
+            to {
+              opacity: 1;
+              transform: translateY(0) scale(1);
+            }
+          }
+          @keyframes dot {
+            0%, 80%, 100% {
+              opacity: 0.3;
+              transform: scale(0.65);
+            }
+            40% {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+        `}</style>
+
+        {messages.map((m) => {
+          if (m.role === "agent") {
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                  maxWidth: "min(82%, 520px)",
+                  alignSelf: "flex-start",
+                  animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",
+                }}
+              >
+                {m.text && (
+                  <div
+                    style={{
+                      maxWidth: "100%",
+                      padding: "14px 18px",
+                      borderRadius: "16px",
+                      fontSize: "14px",
+                      lineHeight: 1.55,
+                      whiteSpace: "pre-wrap",
+                      background: "var(--aacp-surface)",
+                      border: "1px solid var(--aacp-line-strong)",
+                      color: "var(--aacp-fg)",
+                      borderTopLeftRadius: "10px",
+                      boxShadow: "var(--aacp-shadow-sm)",
+                      wordWrap: "break-word",
+                    }}
+                  >
+                    {m.text}
+                  </div>
+                )}
+                {m.blocks &&
+                  m.blocks
+                    .filter((b) => b.type !== "quick_replies")
+                    .map((block, idx) => (
+                      <div key={idx} style={{ maxWidth: "100%" }}>
+                        <BlockRenderer
+                          block={block}
+                          onQuickReply={handleQuickReply}
+                        />
+                      </div>
+                    ))}
+              </div>
+            );
+          } else {
+            // User message
+            return (
+              <div
+                key={m.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                  maxWidth: "min(82%, 520px)",
+                  alignSelf: "flex-end",
+                  animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",
+                }}
+              >
+                {m.text && (
+                  <div
+                    style={{
+                      maxWidth: "100%",
+                      padding: "14px 18px",
+                      borderRadius: "16px",
+                      fontSize: "14px",
+                      lineHeight: 1.55,
+                      whiteSpace: "pre-wrap",
+                      background: "var(--aacp-accent)",
+                      color: "#fff",
+                      border: "1px solid color-mix(in srgb, var(--aacp-accent) 80%, #000)",
+                      borderTopRightRadius: "10px",
+                      boxShadow: "var(--aacp-shadow-sm)",
+                      wordWrap: "break-word",
+                    }}
+                  >
+                    {m.text}
+                  </div>
+                )}
+              </div>
+            );
+          }
+        })}
+
+        {/* Typing indicator */}
         {isLoading && (
-          <div className="message message--agent">
-            <div className="message__avatar">🤖</div>
-            <div className="message__content">
-              <div className="message__bubble message__bubble--typing">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              maxWidth: "min(82%, 520px)",
+              alignSelf: "flex-start",
+              animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",
+            }}
+          >
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "12px 16px",
+                background: "var(--aacp-surface)",
+                border: "1px solid var(--aacp-line-strong)",
+                borderRadius: "16px",
+                borderTopLeftRadius: "10px",
+                fontSize: "12px",
+                color: "var(--aacp-muted)",
+                animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",
+              }}
+            >
+              <div style={{ display: "inline-flex", gap: "4px" }}>
+                {[0, 1, 2].map((i) => (
+                  <span
+                    key={i}
+                    style={{
+                      width: "6px",
+                      height: "6px",
+                      background: "var(--aacp-accent-strong)",
+                      borderRadius: "999px",
+                      animation: `dot 1.2s infinite ease-in-out`,
+                      animationDelay: `${i * 0.15}s`,
+                    }}
+                  />
+                ))}
               </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Quick Replies above input */}
+      {/* QUICK REPLIES */}
       {lastQuickReplies && (
-        <div className="conversation-quick-replies">
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "16px",
+            padding: "8px 16px",
+            flex: "none",
+            background: "var(--aacp-bg)",
+            borderTop: "1px solid var(--aacp-line)",
+            overflowX: "auto",
+            animation: "bubble-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both",
+          }}
+        >
           <BlockRenderer
             block={lastQuickReplies}
             onQuickReply={handleQuickReply}
@@ -251,22 +483,81 @@ export default function ConversationShell({
         </div>
       )}
 
-      {/* Input bar */}
-      <form onSubmit={handleSubmit} className="conversation-input">
+      {/* INPUT BAR */}
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "16px 32px 16px",
+          borderTop: "1px solid var(--aacp-line)",
+          background: "var(--aacp-surface-2)",
+          marginTop: "auto",
+          flex: "none",
+        }}
+      >
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Escreva sua mensagem…"
           aria-label="Mensagem"
-          className="conversation-input__field"
           disabled={isLoading}
+          style={{
+            flex: 1,
+            border: "1px solid var(--aacp-line-strong)",
+            background: "rgba(255, 255, 255, 0.04)",
+            padding: "10px 14px",
+            fontSize: "14px",
+            outline: "none",
+            boxShadow: "none",
+            minWidth: 0,
+            color: "var(--aacp-fg)",
+            borderRadius: "16px",
+            fontFamily: "var(--aacp-font)",
+            transition: "all 0.2s",
+          }}
+          onFocus={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = "var(--aacp-line-strong)";
+            (e.target as HTMLInputElement).style.background = "rgba(255, 255, 255, 0.04)";
+            (e.target as HTMLInputElement).style.boxShadow = "0 0 0 3px color-mix(in srgb, var(--aacp-fg) 8%, transparent)";
+          }}
+          onBlur={(e) => {
+            (e.target as HTMLInputElement).style.borderColor = "var(--aacp-line-strong)";
+            (e.target as HTMLInputElement).style.background = "rgba(255, 255, 255, 0.04)";
+            (e.target as HTMLInputElement).style.boxShadow = "none";
+          }}
         />
         <button
           type="submit"
           disabled={!input.trim() || isLoading}
-          className="conversation-input__send"
-          aria-label="Enviar"
+          style={{
+            width: "44px",
+            height: "44px",
+            borderRadius: "12px",
+            background: "var(--aacp-grad-primary)",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.2s",
+            flexShrink: 0,
+            boxShadow: "0 6px 16px var(--aacp-accent-shadow-strong)",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "16px",
+            fontWeight: 600,
+            opacity: !input.trim() || isLoading ? 0.4 : 1,
+          }}
+          onMouseEnter={(e) => {
+            if (!(!input.trim() || isLoading)) {
+              (e.target as HTMLButtonElement).style.transform = "translateY(-1px) scale(1.03)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            (e.target as HTMLButtonElement).style.transform = "none";
+          }}
         >
           ↑
         </button>
