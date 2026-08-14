@@ -24,25 +24,31 @@ export default function QuickRepliesBlock({
           onClick={() => onSelect?.(option)}
           style={{
             padding: "8px 12px",
-            borderRadius: "999px",
-            border: "1px solid var(--color-border)",
-            background: "#fff",
-            color: "var(--color-fg)",
+            borderRadius: "14px",
+            border: "1px solid var(--aacp-line)",
+            background: "var(--aacp-surface-2)",
+            color: "var(--aacp-fg)",
             fontSize: 12,
             fontWeight: 500,
             cursor: "pointer",
-            transition: "all 0.15s",
+            transition: "all 160ms ease",
+            fontFamily: "inherit",
           }}
           onMouseEnter={(e) => {
             (e.currentTarget as HTMLButtonElement).style.borderColor =
-              "var(--color-primary)";
+              "var(--aacp-accent)";
             (e.currentTarget as HTMLButtonElement).style.background =
-              "rgba(91, 61, 245, 0.04)";
+              "color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface-2))";
+            (e.currentTarget as HTMLButtonElement).style.transform =
+              "translateY(-1px)";
           }}
           onMouseLeave={(e) => {
             (e.currentTarget as HTMLButtonElement).style.borderColor =
-              "var(--color-border)";
-            (e.currentTarget as HTMLButtonElement).style.background = "#fff";
+              "var(--aacp-line)";
+            (e.currentTarget as HTMLButtonElement).style.background =
+              "var(--aacp-surface-2)";
+            (e.currentTarget as HTMLButtonElement).style.transform =
+              "translateY(0)";
           }}
         >
           {option}

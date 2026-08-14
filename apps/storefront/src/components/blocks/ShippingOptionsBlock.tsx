@@ -14,9 +14,9 @@ export default function ShippingOptionsBlock({
   return (
     <div
       style={{
-        background: "#fff",
-        borderRadius: "var(--radius-md)",
-        border: "1px solid var(--color-border)",
+        background: "var(--aacp-surface)",
+        borderRadius: "var(--aacp-radius-md)",
+        border: "1px solid var(--aacp-line)",
         padding: 16,
         display: "flex",
         flexDirection: "column",
@@ -28,7 +28,8 @@ export default function ShippingOptionsBlock({
           fontSize: 14,
           fontWeight: 600,
           margin: 0,
-          color: "var(--color-fg)",
+          color: "var(--aacp-fg)",
+          fontFamily: "var(--aacp-font-display)",
         }}
       >
         Opções de entrega
@@ -45,11 +46,11 @@ export default function ShippingOptionsBlock({
                 alignItems: "center",
                 gap: 10,
                 padding: "10px 12px",
-                borderRadius: "var(--radius-sm)",
-                border: `1px solid ${isSelected ? "var(--color-primary)" : "var(--color-border)"}`,
-                background: isSelected ? "rgba(91, 61, 245, 0.04)" : "#fff",
+                borderRadius: "var(--aacp-radius-sm)",
+                border: `1px solid ${isSelected ? "var(--aacp-accent)" : "var(--aacp-line)"}`,
+                background: isSelected ? "color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface))" : "var(--aacp-surface)",
                 cursor: "pointer",
-                transition: "border-color 0.15s",
+                transition: "border-color 160ms ease",
               }}
             >
               <input
@@ -57,20 +58,20 @@ export default function ShippingOptionsBlock({
                 name="shipping"
                 checked={isSelected}
                 onChange={() => setSelected(key)}
-                style={{ accentColor: "var(--color-primary)" }}
+                style={{ accentColor: "var(--aacp-accent)" }}
               />
               <div style={{ flex: 1 }}>
                 <div
                   style={{
                     fontSize: 13,
                     fontWeight: 500,
-                    color: "var(--color-fg)",
+                    color: "var(--aacp-fg)",
                   }}
                 >
                   {option.carrier} — {option.name}
                 </div>
                 <div
-                  style={{ fontSize: 12, color: "var(--color-fg-soft)" }}
+                  style={{ fontSize: 12, color: "var(--aacp-muted)" }}
                 >
                   {option.days} {option.days === 1 ? "dia útil" : "dias úteis"}
                 </div>
@@ -79,7 +80,7 @@ export default function ShippingOptionsBlock({
                 style={{
                   fontSize: 13,
                   fontWeight: 600,
-                  color: "var(--color-primary)",
+                  color: "var(--aacp-accent)",
                 }}
               >
                 {option.priceFormatted}

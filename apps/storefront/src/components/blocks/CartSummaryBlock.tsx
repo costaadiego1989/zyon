@@ -19,9 +19,9 @@ export default function CartSummaryBlock({
   return (
     <div
       style={{
-        background: "#fff",
-        borderRadius: "var(--radius-md)",
-        border: "1px solid var(--color-border)",
+        background: "var(--aacp-surface)",
+        borderRadius: "var(--aacp-radius-md)",
+        border: "1px solid var(--aacp-line)",
         padding: 16,
         display: "flex",
         flexDirection: "column",
@@ -33,7 +33,8 @@ export default function CartSummaryBlock({
           fontSize: 14,
           fontWeight: 600,
           margin: 0,
-          color: "var(--color-fg)",
+          color: "var(--aacp-fg)",
+          fontFamily: "var(--aacp-font-display)",
         }}
       >
         Seu carrinho
@@ -48,7 +49,7 @@ export default function CartSummaryBlock({
               justifyContent: "space-between",
               alignItems: "center",
               fontSize: 13,
-              color: "var(--color-fg)",
+              color: "var(--aacp-fg)",
             }}
           >
             <span>
@@ -63,7 +64,7 @@ export default function CartSummaryBlock({
 
       <div
         style={{
-          borderTop: "1px solid var(--color-border)",
+          borderTop: "1px solid var(--aacp-line)",
           paddingTop: 12,
           display: "flex",
           flexDirection: "column",
@@ -75,7 +76,7 @@ export default function CartSummaryBlock({
             display: "flex",
             justifyContent: "space-between",
             fontSize: 13,
-            color: "var(--color-fg-soft)",
+            color: "var(--aacp-muted)",
           }}
         >
           <span>Subtotal</span>
@@ -87,7 +88,7 @@ export default function CartSummaryBlock({
               display: "flex",
               justifyContent: "space-between",
               fontSize: 13,
-              color: "#16a34a",
+              color: "var(--aacp-success)",
             }}
           >
             <span>Desconto</span>
@@ -100,7 +101,7 @@ export default function CartSummaryBlock({
             justifyContent: "space-between",
             fontSize: 15,
             fontWeight: 600,
-            color: "var(--color-fg)",
+            color: "var(--aacp-fg)",
           }}
         >
           <span>Total</span>
@@ -113,13 +114,15 @@ export default function CartSummaryBlock({
         style={{
           width: "100%",
           padding: "10px",
-          borderRadius: "var(--radius-sm)",
+          borderRadius: "var(--aacp-radius-sm)",
           border: "none",
-          background: "var(--color-primary)",
+          background: "var(--aacp-grad-primary)",
           color: "#fff",
           fontSize: 14,
           fontWeight: 600,
           cursor: "pointer",
+          fontFamily: "inherit",
+          transition: "transform 160ms ease",
         }}
       >
         Finalizar

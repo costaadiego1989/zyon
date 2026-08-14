@@ -186,7 +186,7 @@ export default function ConversationShell({
             <img
               src={logo}
               alt={storeName}
-              style={{ width: 36, height: 36, borderRadius: "50%", objectFit: "cover" }}
+              style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }}
             />
           ) : (
             <span aria-hidden>🤖</span>

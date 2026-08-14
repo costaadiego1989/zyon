@@ -32,6 +32,12 @@ export interface CartItem {
   category?: string;
   variant?: string;
   description?: string;
+  /** Alternative product identifier used by some commerce platforms */
+  product_id?: string;
+  /** Alternative product name used by some commerce platforms */
+  title?: string;
+  /** Alternative price field used by some commerce platforms */
+  unit_price?: number;
 }
 
 export interface PackageDimensions {

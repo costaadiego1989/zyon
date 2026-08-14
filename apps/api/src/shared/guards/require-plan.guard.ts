@@ -2,11 +2,13 @@ import {
   CanActivate,
   ExecutionContext,
   ForbiddenException,
+  Inject,
   Injectable,
   Logger,
 } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
 import { currentTenantPrincipal } from "../auth/tenant-principal.js";
 import {
   REQUIRE_PLAN_METADATA,
@@ -15,20 +17,11 @@ import {
 
 const logger = new Logger("RequirePlanGuard");
 
-/**
- * Feature flag guard: validates that a merchant's plan allows access to this endpoint.
- *
- * Usage:
- *   @UseGuards(RequirePlanGuard)
- *   @RequirePlan('STORE_ONLY', 'BOTH')
- *   @Get()
- *   storeCatalog() { ... }
- */
 @Injectable()
 export class RequirePlanGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    private readonly prisma: PrismaClient,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -37,7 +30,6 @@ export class RequirePlanGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
 
-    // No decorator means plan check is not required
     if (!requiredPlans?.length) {
       return true;
     }
@@ -46,7 +38,6 @@ export class RequirePlanGuard implements CanActivate {
     const principal = currentTenantPrincipal(request);
     const merchantId = principal.tenantId;
 
-    // Fetch merchant plan from database
     const merchant = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
       select: { id: true, plan: true },
@@ -57,12 +48,10 @@ export class RequirePlanGuard implements CanActivate {
       throw new ForbiddenException("merchant_not_found");
     }
 
-    // BOTH plan allows access to everything
     if (merchant.plan === "BOTH") {
       return true;
     }
 
-    // Check if merchant's plan is in the allowed set
     if (!requiredPlans.includes(merchant.plan)) {
       logger.debug(
         `Merchant ${merchantId} plan ${merchant.plan} not in allowed plans [${requiredPlans.join(", ")}]`,

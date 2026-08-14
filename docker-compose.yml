@@ -24,11 +24,11 @@ services:
       dockerfile: apps/api/Dockerfile
     container_name: aacp-api
     environment:
-      NODE_ENV: production
+      NODE_ENV: development
       PORT: "3009"
       # Use the docker-internal hostname for the postgres service.
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/aacp_test?schema=public
-      CORS_ORIGIN: "http://localhost:5175,http://localhost:8080,http://localhost:3009"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5175,http://localhost:8080,http://localhost:3009"
       E2E_SEED_ENABLED: "true"
       WEBHOOK_DISPATCHER_ENABLED: "false"
       # Public origin used by widget/email callbacks.

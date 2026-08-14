@@ -56,3 +56,10 @@ function zyon_checkout_init(): void {
     new Zyon\CartSync();
 }
 add_action('plugins_loaded', 'zyon_checkout_init', 99);
+
+function zyon_checkout_settings_link(array $links): array {
+    $settings_link = '<a href="' . admin_url('admin.php?page=zyon-settings') . '">Settings</a>';
+    array_unshift($links, $settings_link);
+    return $links;
+}
+add_filter('plugin_action_links_' . plugin_basename(__FILE__), 'zyon_checkout_settings_link');

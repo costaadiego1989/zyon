@@ -1,51 +1,16 @@
 <?php
-if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 namespace Zyon;
 
-/**
- * Admin Settings Page for Zyon Checkout Plugin.
- */
+if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
+
 class Settings {
     private const OPTION_GROUP = 'zyon_checkout';
     private const MENU_SLUG = 'zyon-settings';
-    private const SECRET_OPTIONS = ['zyon_api_key', 'zyon_webhook_secret'];
 
     public function __construct() {
         add_action('admin_menu', [$this, 'add_menu_page']);
         add_action('admin_init', [$this, 'register_settings']);
         add_action('wp_ajax_zyon_test_connection', [$this, 'handle_test_connection']);
-    }
-
-    public function handle_test_connection(): void {
-        check_ajax_referer('zyon_test_connection');
-        if (!current_user_can('manage_woocommerce')) {
-            wp_send_json_error(['message' => 'Permission denied'], 403);
-        }
-
-        $api_url = trim((string) get_option('zyon_api_url', ''));
-        $api_key = (string) get_option('zyon_api_key', '');
-
-        if ($api_url === '' || $api_key === '') {
-            wp_send_json_error(['message' => 'API URL and API Key must be configured first.']);
-        }
-
-        $result = HttpClient::post(
-            rtrim($api_url, '/') . '/v1/embed-sessions',
-            ['Content-Type' => 'application/json', 'x-aacp-api-key' => $api_key, 'Idempotency-Key' => 'test_conn_' . wp_generate_uuid4()],
-            ['ttl_seconds' => 60, 'allowed_origin' => home_url(), 'scopes' => ['checkout:start']]
-        );
-
-        if ($result['error'] !== null) {
-            wp_send_json_error(['message' => 'Connection failed: ' . $result['error']]);
-        }
-
-        if ($result['code'] >= 200 && $result['code'] < 300) {
-            wp_send_json_success(['message' => 'Connected successfully! Token received (HTTP ' . $result['code'] . ')']);
-        }
-
-        $body = json_decode((string) $result['body'], true);
-        $detail = is_array($body) ? ($body['detail'] ?? $body['message'] ?? 'Unknown error') : 'HTTP ' . $result['code'];
-        wp_send_json_error(['message' => 'API returned error: ' . $detail]);
     }
 
     public function add_menu_page(): void {
@@ -60,137 +25,178 @@ class Settings {
     }
 
     public function register_settings(): void {
-        $this->register_string_setting('zyon_merchant_id', [$this, 'sanitize_merchant_id']);
-        $this->register_string_setting('zyon_api_key', $this->secret_sanitizer('zyon_api_key'));
-        $this->register_string_setting('zyon_api_url', [$this, 'sanitize_url']);
-        $this->register_string_setting('zyon_widget_url', [$this, 'sanitize_url']);
-        $this->register_string_setting('zyon_browser_api_url', [$this, 'sanitize_url']);
-        $this->register_string_setting('zyon_store_logo_url', [$this, 'sanitize_url']);
-        $this->register_string_setting('zyon_accent_color', [$this, 'sanitize_color']);
-        $this->register_string_setting('zyon_webhook_secret', $this->secret_sanitizer('zyon_webhook_secret'));
-        $this->add_settings_fields();
-    }
-
-    public function sanitize_merchant_id($value): string {
-        return sanitize_text_field(trim((string) $value));
-    }
-
-    public function sanitize_url($value): string {
-        $url = esc_url_raw(trim((string) $value));
-        if ($url === '' || $this->is_valid_config_url($url)) {
-            return $url;
-        }
-
-        add_settings_error(
-            'zyon_checkout',
-            'zyon_https_required',
-            'Zyon URLs must start with https:// unless ZYON_DEV_MODE is enabled.',
-            'error'
-        );
-        return '';
-    }
-
-    public function sanitize_color($value): string {
-        $color = sanitize_hex_color(trim((string) $value));
-        return $color ?: '';
-    }
-
-    public function render_text_field(array $args): void {
-        $key = (string) $args['label_for'];
-        $is_secret = in_array($key, self::SECRET_OPTIONS, true);
-        $value = $is_secret ? '' : (string) get_option($key, '');
-        $placeholder = $this->field_placeholder($key, $is_secret);
-
-        printf(
-            '<input type="%s" id="%s" name="%s" value="%s" placeholder="%s" class="regular-text" autocomplete="new-password" /><p class="description">%s</p>',
-            esc_attr($is_secret ? 'password' : 'text'),
-            esc_attr($key),
-            esc_attr($key),
-            esc_attr($value),
-            esc_attr($placeholder),
-            esc_html($args['description'] ?? '')
-        );
+        register_setting(self::OPTION_GROUP, 'zyon_api_key', [
+            'type' => 'string',
+            'sanitize_callback' => function ($value) {
+                $raw = trim((string) $value);
+                // Ignore masked value or empty (keep existing key in DB)
+                if ($raw === '' || preg_match('/\x{2022}|•/u', $raw)) {
+                    return (string) get_option('zyon_api_key', '');
+                }
+                return preg_replace('/[^\x20-\x7E]/', '', $raw);
+            },
+            'default' => '',
+        ]);
+        register_setting(self::OPTION_GROUP, 'zyon_api_url', [
+            'type' => 'string',
+            'sanitize_callback' => function ($value) {
+                $url = esc_url_raw(trim((string) $value));
+                return $url === '' ? 'https://api.zyon.dev' : $url;
+            },
+            'default' => 'https://api.zyon.dev',
+        ]);
+        register_setting(self::OPTION_GROUP, 'zyon_merchant_id', ['type' => 'string', 'sanitize_callback' => 'sanitize_text_field', 'default' => '']);
+        register_setting(self::OPTION_GROUP, 'zyon_webhook_secret', [
+            'type' => 'string',
+            'sanitize_callback' => function ($value) {
+                $raw = (string) $value;
+                $sanitized = preg_replace('/[^\x20-\x7E]/', '', $raw);
+                return $sanitized === '' ? (string) get_option('zyon_webhook_secret', '') : $sanitized;
+            },
+            'default' => '',
+        ]);
+        register_setting(self::OPTION_GROUP, 'zyon_widget_url', ['type' => 'string', 'sanitize_callback' => 'esc_url_raw', 'default' => '']);
+        register_setting(self::OPTION_GROUP, 'zyon_browser_api_url', ['type' => 'string', 'sanitize_callback' => 'esc_url_raw', 'default' => '']);
+        register_setting(self::OPTION_GROUP, 'zyon_store_logo_url', ['type' => 'string', 'sanitize_callback' => 'esc_url_raw', 'default' => '']);
+        register_setting(self::OPTION_GROUP, 'zyon_accent_color', ['type' => 'string', 'sanitize_callback' => 'sanitize_hex_color', 'default' => '']);
     }
 
     public function render_settings_page(): void {
-        if (!current_user_can('manage_woocommerce')) {
-            return;
-        }
+        if (!current_user_can('manage_woocommerce')) return;
+
+        $api_key = (string) get_option('zyon_api_key', '');
+        $api_url = (string) get_option('zyon_api_url', 'https://api.zyon.dev');
+        $merchant_id = (string) get_option('zyon_merchant_id', '');
+        $is_configured = $api_key !== '' && $merchant_id !== '';
 
         echo '<div class="wrap">';
-        echo '<h1>Zyon Agentic Checkout Settings</h1>';
+        echo '<h1>Zyon AI Checkout</h1>';
+
+        if ($is_configured) {
+            echo '<div class="notice notice-success" style="border-left-color:#46b450;"><p>';
+            echo '<strong>✓ Conectado</strong> — Merchant: <code>' . esc_html($merchant_id) . '</code>';
+            echo '</p></div>';
+        }
+
         echo '<form method="post" action="options.php">';
         settings_fields(self::OPTION_GROUP);
-        do_settings_sections(self::MENU_SLUG);
-        submit_button('Save Settings');
+
+        echo '<table class="form-table"><tbody>';
+
+        // API Key
+        echo '<tr><th><label for="zyon_api_key">API Key</label></th><td>';
+        $masked_key = $api_key ? substr($api_key, 0, 8) . '••••••••' . substr($api_key, -4) : '';
+        printf(
+            '<input type="text" id="zyon_api_key" name="zyon_api_key" value="%s" placeholder="%s" class="regular-text" />',
+            esc_attr($masked_key),
+            esc_attr('Cole sua API Key aqui')
+        );
+        if ($api_key) {
+            echo '<p class="description" style="color:#46b450;">✓ API Key configurada. Cole uma nova para substituir.</p>';
+        }
+        echo '</td></tr>';
+
+        // API URL
+        echo '<tr><th><label for="zyon_api_url">API URL</label></th><td>';
+        printf('<input type="url" id="zyon_api_url" name="zyon_api_url" value="%s" class="regular-text" />', esc_attr($api_url));
+        echo '<p class="description">Padrão: https://api.zyon.dev</p>';
+        echo '</td></tr>';
+
+        echo '</tbody></table>';
+
+        // Buttons: Test + Save
+        echo '<p class="submit" style="display:flex;gap:12px;align-items:center;">';
+        echo '<button type="button" class="button button-secondary" id="zyon-test-conn" style="height:36px;">Testar Conexão</button>';
+        echo '<span id="zyon-test-result"></span>';
+        submit_button('Salvar', 'primary', 'submit', false, ['style' => 'height:36px;']);
+        echo '</p>';
+
         echo '</form>';
-        $this->render_test_connection_button();
+
+        $dashboard_url = str_replace(['api.zyon.dev', 'localhost:3009', '127.0.0.1:3009'], ['app.zyon.dev', 'localhost:5175', '127.0.0.1:5175'], $api_url);
+
+        // Step 2: WooCommerce credentials for Zyon Dashboard
+        if ($is_configured) {
+            $wc_keys_url = admin_url('admin.php?page=wc-settings&tab=advanced&section=keys');
+
+            echo '<hr style="margin:24px 0;">';
+            echo '<h2 style="font-size:16px;">Etapa 2 — Sincronizar sua loja</h2>';
+            echo '<p style="color:#666;margin-bottom:16px;">Conecte o catálogo e os pedidos da sua loja WooCommerce ao Zyon para o agente vender com informações reais.</p>';
+
+            echo '<ol style="margin:12px 0 16px 20px;line-height:2.2;">';
+            echo '<li>Acesse <a href="' . esc_url($wc_keys_url) . '" target="_blank"><strong>WooCommerce → Configurações → Avançado → API REST</strong></a> e crie uma nova chave com permissão <em>Leitura/Escrita</em></li>';
+            echo '<li>Copie a <strong>Consumer Key</strong> e <strong>Consumer Secret</strong> geradas</li>';
+            echo '<li>No <a href="' . esc_url($dashboard_url) . '" target="_blank"><strong>Dashboard Zyon</strong></a>, vá em <strong>Integrações → Conectar WooCommerce</strong> e cole as chaves</li>';
+            echo '</ol>';
+
+            echo '<p class="description">URL da sua loja: <code>' . esc_html(home_url('/')) . '</code> (necessária no dashboard)</p>';
+        }
+
+        // Dashboard link
+        echo '<hr style="margin:24px 0;">';
+        echo '<p style="font-size:14px;">';
+        echo '🔧 Gerencie regras, personalize o agente e acompanhe pedidos no ';
+        echo '<a href="' . esc_url($dashboard_url) . '" target="_blank" style="font-weight:600;">Dashboard Zyon →</a>';
+        echo '</p>';
+
+        // Enqueue test script
+        wp_enqueue_script('zyonagch-admin-settings', plugins_url('../assets/js/admin-settings.js', __FILE__), [], ZYON_CHECKOUT_VERSION, true);
+        wp_localize_script('zyonagch-admin-settings', 'zyonagchAdmin', [
+            'ajaxUrl' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('zyon_test_connection'),
+        ]);
+
         echo '</div>';
     }
 
-    private function render_test_connection_button(): void {
-        $nonce = wp_create_nonce('zyon_test_connection');
-        echo '<hr><h2>Connection Test</h2>';
-        echo '<p>Verify that the plugin can reach the Zyon API with your current settings.</p>';
-        echo '<button type="button" class="button button-secondary" id="zyon-test-conn">Test Connection</button>';
-        echo '<span id="zyon-test-result" style="margin-left:12px;"></span>';
-        wp_enqueue_script('zyonagch-admin-settings', plugins_url('../assets/js/admin-settings.js', __FILE__), [], '1.0.0', true);
-        wp_localize_script('zyonagch-admin-settings', 'zyonagchAdmin', [
-            'ajaxUrl' => admin_url('admin-ajax.php'),
-            'nonce' => $nonce,
-        ]);
-    }
+    public function handle_test_connection(): void {
+        check_ajax_referer('zyon_test_connection');
+        if (!current_user_can('manage_woocommerce')) {
+            wp_send_json_error(['message' => 'Permissão negada'], 403);
+        }
 
-    private function register_string_setting(string $name, callable $sanitize_callback): void {
-        register_setting(self::OPTION_GROUP, $name, [
-            'type' => 'string',
-            'sanitize_callback' => $sanitize_callback,
-            'default' => '',
-        ]);
-    }
+        $api_url = trim((string) get_option('zyon_api_url', ''));
+        $api_key = (string) get_option('zyon_api_key', '');
 
-    private function secret_sanitizer(string $option): callable {
-        return static function ($value) use ($option): string {
-            $raw = (string) $value;
-            $sanitized = preg_replace('/[^\x20-\x7E]/', '', $raw);
-            return $sanitized === '' ? (string) get_option($option, '') : $sanitized;
-        };
-    }
+        if ($api_url === '' || $api_key === '') {
+            wp_send_json_error(['message' => 'Preencha a API Key e salve antes de testar.']);
+        }
 
-    private function add_settings_fields(): void {
-        add_settings_section('zyon_main', 'Zyon API Configuration', null, self::MENU_SLUG);
-        $this->add_field('zyon_merchant_id', 'Merchant ID', 'Your Zyon merchant ID (e.g., mrc_xxx)');
-        $this->add_field('zyon_api_key', 'API Key', 'Your Zyon API key for embed session tokens');
-        $this->add_field('zyon_api_url', 'API URL', 'Zyon server API endpoint, e.g. https://api.zyon.ai');
-        $this->add_field('zyon_widget_url', 'Widget URL', 'Optional full widget JavaScript URL. Leave blank to derive from API URL.');
-        $this->add_field('zyon_browser_api_url', 'Browser API URL', 'Optional browser-facing API URL. Leave blank to use API URL.');
-        $this->add_field('zyon_store_logo_url', 'Store Logo URL', 'Optional logo URL shown in the native checkout header. Leave blank to use store initial.');
-        $this->add_field('zyon_accent_color', 'Accent Color', 'Optional theme color for native widget controls (hex, e.g. #0f766e).');
-        $this->add_field('zyon_webhook_secret', 'Webhook Secret', 'HMAC secret for verifying Zyon webhook signatures');
-    }
-
-    private function add_field(string $key, string $title, string $description): void {
-        add_settings_field(
-            $key,
-            $title,
-            [$this, 'render_text_field'],
-            self::MENU_SLUG,
-            'zyon_main',
-            ['label_for' => $key, 'description' => $description]
+        $result = HttpClient::post(
+            rtrim($api_url, '/') . '/embed-sessions',
+            [
+                'Content-Type' => 'application/json',
+                'x-aacp-api-key' => $api_key,
+                'Idempotency-Key' => 'test_' . wp_generate_uuid4(),
+            ],
+            ['ttl_seconds' => 60, 'allowed_origin' => 'http://localhost', 'scopes' => ['checkout:start']]
         );
-    }
 
-    private function field_placeholder(string $key, bool $is_secret): string {
-        if (!$is_secret || get_option($key, '') === '') {
-            return '';
+        if ($result['error'] !== null) {
+            wp_send_json_error(['message' => 'Falha: ' . $result['error']]);
         }
-        return 'Configured — leave blank to keep existing';
-    }
 
-    private function is_valid_config_url(string $url): bool {
-        if (defined('ZYON_DEV_MODE') && ZYON_DEV_MODE) {
-            return (bool) wp_http_validate_url($url);
+        if ($result['code'] >= 200 && $result['code'] < 300) {
+            // Auto-detect merchant_id from token
+            $body = json_decode((string) $result['body'], true);
+            if (is_array($body) && !empty($body['embed_session_token'])) {
+                $token_parts = explode('.', $body['embed_session_token']);
+                if (count($token_parts) >= 2) {
+                    $payload = json_decode(base64_decode(strtr($token_parts[0], '-_', '+/')), true);
+                    if (!empty($payload['merchantId'])) {
+                        update_option('zyon_merchant_id', sanitize_text_field($payload['merchantId']));
+                    }
+                }
+                // Auto-detect webhook secret if provided
+                if (!empty($body['widget_config']['webhook_secret'])) {
+                    update_option('zyon_webhook_secret', preg_replace('/[^\x20-\x7E]/', '', $body['widget_config']['webhook_secret']));
+                }
+            }
+            wp_send_json_success(['message' => '✓ Conectado com sucesso!']);
         }
-        return strpos($url, 'https://') === 0 && (bool) wp_http_validate_url($url);
+
+        $body = json_decode((string) $result['body'], true);
+        $detail = is_array($body) ? ($body['detail'] ?? $body['message'] ?? 'Erro') : 'HTTP ' . $result['code'];
+        wp_send_json_error(['message' => 'Erro: ' . $detail]);
     }
 }

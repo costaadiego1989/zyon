@@ -432,7 +432,7 @@ function CustomerDetailModal({
                     {stat.label}
                   </div>
                   <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>
-                    {typeof stat.value === "string" ? stat.value : stat.value}
+                    {String(stat.value)}
                   </div>
                 </div>
               ))}

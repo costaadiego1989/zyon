@@ -502,7 +502,7 @@ function OrderDetailGrid({
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={labelStyle}>Total</div>
-          <span style={{ font: "700 18px var(--font-mono)", color: "var(--color-text)" }}>{formatMinor(order.order_total * 100, order.currency)}</span>
+          <span style={{ font: "700 18px var(--font-mono)", color: "var(--color-text)" }}>{formatMinor(order.total * 100, order.currency)}</span>
         </div>
       </div>
 

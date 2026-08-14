@@ -19,11 +19,11 @@ export default function ProductCardBlock({
   return (
     <article
       style={{
-        background: "#fff",
-        border: "1px solid var(--color-border)",
-        borderRadius: "var(--radius-md)",
+        background: "var(--aacp-surface)",
+        border: "1px solid var(--aacp-line)",
+        borderRadius: "var(--aacp-radius-md)",
         overflow: "hidden",
-        boxShadow: "var(--shadow-sm)",
+        boxShadow: "var(--aacp-shadow-sm)",
         display: "flex",
         flexDirection: "column",
       }}
@@ -35,11 +35,11 @@ export default function ProductCardBlock({
           aspectRatio: "4 / 3",
           background: data.image
             ? `url(${data.image}) center/cover`
-            : "linear-gradient(135deg, var(--color-bg-soft), var(--color-border))",
+            : "var(--aacp-grad-soft)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "var(--color-muted)",
+          color: "var(--aacp-muted)",
           fontSize: 36,
         }}
       >
@@ -59,14 +59,15 @@ export default function ProductCardBlock({
             fontSize: 14,
             fontWeight: 600,
             margin: 0,
-            color: "var(--color-fg)",
+            color: "var(--aacp-fg)",
+            fontFamily: "var(--aacp-font-display)",
           }}
         >
           {data.name}
         </h3>
 
         {data.variants && data.variants.length > 0 && (
-          <div style={{ fontSize: 12, color: "var(--color-fg-soft)" }}>
+          <div style={{ fontSize: 12, color: "var(--aacp-muted)" }}>
             {data.variants.map((v, idx) => (
               <div key={idx} style={{ marginBottom: 4 }}>
                 {v.name}: {v.value}
@@ -79,7 +80,7 @@ export default function ProductCardBlock({
           <div
             style={{
               fontSize: 12,
-              color: "var(--color-fg-soft)",
+              color: "var(--aacp-muted)",
             }}
           >
             ⭐ {data.rating} ({data.reviewCount ?? 0} avaliações)
@@ -98,7 +99,10 @@ export default function ProductCardBlock({
             style={{
               fontSize: 14,
               fontWeight: 600,
-              color: "var(--color-primary)",
+              background: "var(--aacp-grad-bubble-buyer)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
             }}
           >
             {data.priceFormatted}
@@ -107,16 +111,28 @@ export default function ProductCardBlock({
             type="button"
             style={{
               padding: "6px 10px",
-              borderRadius: "var(--radius-sm)",
+              borderRadius: "var(--aacp-radius-sm)",
               border: "none",
               background: data.inStock
-                ? "var(--color-primary)"
-                : "var(--color-muted)",
+                ? "var(--aacp-grad-primary)"
+                : "var(--aacp-muted)",
               color: "#fff",
               fontSize: 12,
               fontWeight: 600,
               cursor: data.inStock ? "pointer" : "not-allowed",
               opacity: data.inStock ? 1 : 0.6,
+              fontFamily: "inherit",
+              transition: "transform 160ms ease",
+            }}
+            onMouseEnter={(e) => {
+              if (data.inStock) {
+                (e.currentTarget as HTMLButtonElement).style.transform =
+                  "translateY(-1px)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.transform =
+                "translateY(0)";
             }}
           >
             {data.inStock ? "Adicionar" : "Fora de estoque"}
