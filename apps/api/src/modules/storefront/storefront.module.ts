@@ -1,18 +1,3 @@
-/**
- * Storefront module — wires all components.
- *
- * Imports:
- *   - CatalogModule (product + stock repos)
- *   - CheckoutModule (for cart/checkout integration)
- *   - ShippingModule (for shipping quotes)
- *   - CouponsModule (for coupon validation)
- *   - MerchantModule (for merchant data)
- *
- * Exports:
- *   - All use-cases
- *   - StorefrontConversationPort
- */
-
 import { Module } from "@nestjs/common";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -26,6 +11,10 @@ import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
+import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
+import { BudgetTrackerService } from "./infrastructure/ai/budget-tracker.service.js";
+import { LocalLLMProvider } from "./infrastructure/ai/local-llm-provider.js";
+import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
 
 @Module({
   imports: [
@@ -43,6 +32,27 @@ import { StorefrontController } from "./presentation/http/storefront.controller.
       provide: STOREFRONT_CONVERSATION_PORT,
       useExisting: StorefrontConversationAdapter
     },
+    {
+      provide: LocalLLMProvider,
+      useFactory: () => {
+        return new LocalLLMProvider({
+          baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
+          model: process.env.LOCAL_LLM_MODEL || "mistral",
+          timeout: Number(process.env.LOCAL_LLM_TIMEOUT_MS) || 5000
+        });
+      }
+    },
+    {
+      provide: OpenRouterProvider,
+      useFactory: () => {
+        return new OpenRouterProvider({
+          apiKey: process.env.OPENAI_API_KEY || "",
+          model: process.env.OPENAI_MODEL || "gpt-4o-mini"
+        });
+      }
+    },
+    BudgetTrackerService,
+    AIGatewayService,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GetConversationHistoryUseCase
@@ -51,7 +61,8 @@ import { StorefrontController } from "./presentation/http/storefront.controller.
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GetConversationHistoryUseCase,
-    STOREFRONT_CONVERSATION_PORT
+    STOREFRONT_CONVERSATION_PORT,
+    AIGatewayService
   ]
 })
 export class StorefrontModule {}
