@@ -191,8 +191,9 @@ model MerchantUser {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  agentRules AgentRule[]
+  merchant    Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  agentRules  AgentRule[]
+  teamMembers MerchantTeamMember[]
 
   @@unique([email])
   @@index([merchantId])
@@ -1434,5 +1435,60 @@ model ProductSearchVector {
 
   @@index([merchantId])
   @@map("product_search_vectors")
+}
+
+enum MerchantRole {
+  OWNER
+  ADMIN
+  STAFF
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+}
+
+model MerchantTeamMember {
+  id         String       @id @default(cuid())
+  merchantId String       @map("merchant_id")
+  userId     String       @map("user_id")
+  role       MerchantRole @default(STAFF)
+  invitedBy  String?      @map("invited_by")
+  joinedAt   DateTime     @default(now()) @map("joined_at")
+
+  user MerchantUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, userId])
+  @@index([merchantId])
+  @@map("merchant_team_members")
+}
+
+model MerchantInvite {
+  id         String       @id @default(cuid())
+  merchantId String       @map("merchant_id")
+  email      String
+  role       MerchantRole @default(STAFF)
+  status     InviteStatus @default(PENDING)
+  invitedBy  String       @map("invited_by")
+  expiresAt  DateTime     @map("expires_at")
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  @@index([merchantId])
+  @@index([email, status])
+  @@map("merchant_invites")
+}
+
+model MerchantDomain {
+  id          String    @id @default(cuid())
+  merchantId  String    @map("merchant_id")
+  domain      String    @unique
+  verified    Boolean   @default(false)
+  cnameTarget String    @default("stores.zyon.com") @map("cname_target")
+  verifiedAt  DateTime? @map("verified_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([merchantId])
+  @@map("merchant_domains")
 }
 

@@ -28,6 +28,7 @@ import { CatalogModule } from "./modules/catalog/catalog.module.js";
 import { StoreSettingsModule } from "./modules/store-settings/store-settings.module.js";
 import { ReturnsModule } from "./modules/returns/returns.module.js";
 import { StoreAnalyticsModule } from "./modules/store-analytics/store-analytics.module.js";
+import { TeamModule } from "./modules/team/team.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -104,6 +105,7 @@ const REDACTED_LOG_PATHS = [
     StoreSettingsModule,
     ReturnsModule,
     StoreAnalyticsModule,
+    TeamModule,
   ]
 })
 export class AppModule {}
