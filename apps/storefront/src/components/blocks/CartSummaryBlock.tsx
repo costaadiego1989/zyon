@@ -1,6 +1,6 @@
 "use client";
 
-import type { CartSummaryBlock as CartSummaryBlockType } from "@/lib/types.js";
+import type { CartSummaryBlock as CartSummaryBlockType } from "@/lib/types";
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", {

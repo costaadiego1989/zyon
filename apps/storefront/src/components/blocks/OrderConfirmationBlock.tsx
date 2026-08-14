@@ -1,6 +1,6 @@
 "use client";
 
-import type { OrderConfirmationBlock as OrderConfirmationBlockType } from "@/lib/types.js";
+import type { OrderConfirmationBlock as OrderConfirmationBlockType } from "@/lib/types";
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", {

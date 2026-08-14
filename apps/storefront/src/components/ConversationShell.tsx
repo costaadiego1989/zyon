@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { ConversationBlock, QuickRepliesBlock } from "@/lib/types.js";
-import BlockRenderer from "./blocks/BlockRenderer.js";
+import type { ConversationBlock, QuickRepliesBlock } from "@/lib/types";
+import BlockRenderer from "./blocks/BlockRenderer";
 
 type Message = {
   id: string;

@@ -5,7 +5,7 @@
 // polls for confirmation, and redirects on success.
 
 import { useEffect, useState } from "react";
-import type { CheckoutRedirectBlock as CheckoutRedirectBlockType } from "@/lib/types.js";
+import type { CheckoutRedirectBlock as CheckoutRedirectBlockType } from "@/lib/types";
 
 export default function CheckoutRedirectBlock({
   block,

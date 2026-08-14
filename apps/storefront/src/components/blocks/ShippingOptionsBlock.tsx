@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { ShippingOptionsBlock as ShippingOptionsBlockType } from "@/lib/types.js";
+import type { ShippingOptionsBlock as ShippingOptionsBlockType } from "@/lib/types";
 
 export default function ShippingOptionsBlock({
   block,

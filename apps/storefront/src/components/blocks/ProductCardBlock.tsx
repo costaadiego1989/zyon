@@ -1,6 +1,6 @@
 "use client";
 
-import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types.js";
+import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", {

@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import type { ProductCarouselBlock as ProductCarouselBlockType } from "@/lib/types.js";
-import ProductCardBlock from "./ProductCardBlock.js";
+import type { ProductCarouselBlock as ProductCarouselBlockType } from "@/lib/types";
+import ProductCardBlock from "./ProductCardBlock";
 
 export default function ProductCarouselBlock({
   block,

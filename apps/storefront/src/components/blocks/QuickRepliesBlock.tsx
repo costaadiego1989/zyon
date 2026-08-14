@@ -1,6 +1,6 @@
 "use client";
 
-import type { QuickRepliesBlock as QuickRepliesBlockType } from "@/lib/types.js";
+import type { QuickRepliesBlock as QuickRepliesBlockType } from "@/lib/types";
 
 export default function QuickRepliesBlock({
   block,

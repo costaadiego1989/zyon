@@ -1,14 +1,14 @@
 "use client";
 
-import type { ConversationBlock } from "@/lib/types.js";
-import ProductCardBlock from "./ProductCardBlock.js";
-import ProductCarouselBlock from "./ProductCarouselBlock.js";
-import ComparisonTableBlock from "./ComparisonTableBlock.js";
-import CartSummaryBlock from "./CartSummaryBlock.js";
-import ShippingOptionsBlock from "./ShippingOptionsBlock.js";
-import QuickRepliesBlock from "./QuickRepliesBlock.js";
-import CheckoutRedirectBlock from "./CheckoutRedirectBlock.js";
-import OrderConfirmationBlock from "./OrderConfirmationBlock.js";
+import type { ConversationBlock } from "@/lib/types";
+import ProductCardBlock from "./ProductCardBlock";
+import ProductCarouselBlock from "./ProductCarouselBlock";
+import ComparisonTableBlock from "./ComparisonTableBlock";
+import CartSummaryBlock from "./CartSummaryBlock";
+import ShippingOptionsBlock from "./ShippingOptionsBlock";
+import QuickRepliesBlock from "./QuickRepliesBlock";
+import CheckoutRedirectBlock from "./CheckoutRedirectBlock";
+import OrderConfirmationBlock from "./OrderConfirmationBlock";
 
 export default function BlockRenderer({
   block,
