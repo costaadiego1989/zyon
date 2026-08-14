@@ -775,99 +775,236 @@ graph TB
 
 ---
 
-## 19. Bounded Contexts (Detailed)
+## 19. Bounded Contexts (8 Total - Refined)
 
-### 19.1 `catalog` (NEW)
+### 19.1 `catalog` (NEW - Core)
 
-**Responsibilities:**
-- Product CRUD (create, read, update, delete)
-- Variant management (size, color, attributes)
-- SKU generation & tracking
-- Stock management (quantity, reserved, available)
-- Media management (images, videos, alt text)
+**Responsabilidades:**
+- Product CRUD (name, description, category, SKU)
+- Variant management (color, size, weight, attributes JSON)
+- Stock management (quantity, reserved, warehouse-aware)
+- Media gallery (images, videos, alt text, order)
 - Category & collection management
+- Product reviews (buyer-submitted, moderation)
+- Pricing rules (base price, cost, tax, promotion overrides)
+- Bulk import (CSV → async job)
 
-**Interfaces:**
-- `POST /merchants/{id}/products` — Create product
-- `GET /merchants/{id}/products?query=&limit=` — Search products
-- `GET /merchants/{id}/products/{productId}` — Get product details
-- `PUT /merchants/{id}/products/{productId}` — Update product
-- `DELETE /merchants/{id}/products/{productId}` — Delete product
-- `POST /merchants/{id}/products/{productId}/variants` — Add variant
-- `PATCH /merchants/{id}/products/{productId}/stock` — Update stock
+**Modelos Prisma (10 novos):**
+- `Product`, `ProductVariant`, `ProductStock`, `ProductMedia`, `ProductPrice`
+- `ProductCategory`, `ProductCollection`, `CollectionProduct`
+- `ProductReview`, `ProductSearchVector` (pgvector para RAG)
 
-**Dependencies:**
-- `merchant` module (tenant verification)
-- `audit` module (MerchantAuditEvent per change)
-- `rules-engine` (pricing overrides)
+**Use-cases:**
+- add-product, update-product, delete-product
+- add-variant, update-variant, reserve-stock, confirm-stock, release-stock
+- search-products (full-text + semantic via pgvector)
+- get-product-details, compare-products
+- import-products-csv, bulk-update-stock
+- add-review, approve-review, get-reviews
 
-**Persistence:**
-- `Product`, `ProductVariant`, `ProductStock`, `ProductMedia`, `ProductCategory`, `ProductCollection` models (10 new in Prisma)
-
----
-
-### 19.2 `storefront` (NEW)
-
-**Responsibilities:**
-- Conversation session lifecycle
-- Intent detection & classification
-- Tool orchestration (search, compare, add-to-cart, etc.)
-- Agent state machine
-- Message generation safety validation
-- Guardrails against hallucination
-
-**Interfaces:**
-- `POST /storefront/{storeId}/conversations` — Start conversation
-- `POST /storefront/{storeId}/conversations/{conversationId}/messages` — Send message
-- `WS /storefront/{storeId}/conversations/{conversationId}` — WebSocket streaming
-- `GET /storefront/{storeId}/conversations/{conversationId}` — Get conversation history
-
-**Dependencies:**
-- `catalog` module (search products)
-- `checkout` module (add-to-cart, create-checkout)
-- `conversation-engine` package (LLM)
-- `decision-engine` package (what to offer)
-- `rules-engine` package (discount approval)
-
-**Persistence:**
-- `BuyerConversation`, `CheckoutSession` models (reuse existing)
+**Dependências:**
+- `merchant` (tenant boundary)
+- `audit` (MerchantAuditEvent per change)
+- `rules-engine` (pricing overrides, promotions)
 
 ---
 
-### 19.3 `store-settings` (NEW)
+### 19.2 `storefront` (NEW - Core)
 
-**Responsibilities:**
-- Brand configuration (logo, colors, fonts)
-- Agent personality configuration
-- Negotiation limits & rules
-- Domain management
-- Webhook configuration
-- Feature flag overrides
+**Responsabilidades:**
+- Conversation session lifecycle (WELCOME → DISCOVERY → CART → CHECKOUT → ORDER_TRACKING)
+- Intent classification ("tem camiseta?" = PRODUCT_SEARCH, "pode fazer R$X?" = PRICE_NEGOTIATE)
+- Tool orchestration (searchProducts, getProductDetails, compareProducts, etc.)
+- Agent state machine (current phase, context accumulation)
+- Message generation safety (no hallucination, no fake data, guardrails)
+- Session memory (preferences, budget, history within 30 min)
 
-**Interfaces:**
-- `GET/PUT /merchants/{id}/store-settings` — Get/update store config
-- `POST /merchants/{id}/domains` — Register custom domain
-- `POST /merchants/{id}/agent-config` — Update agent personality
+**Agent Tools (deterministic, never fails silently):**
+```
+searchProducts(query, filters?) → Product[]
+getProductDetails(productId, variantId?) → ProductFull
+compareProducts(productIds[]) → ComparisonTable
+getProductAvailability(productId, variantId) → {inStock, qty, shippingTime}
+getProductReviews(productId, limit) → Review[]
+calculatePrice(variantId, qty, couponCode?) → {price, discount, total}
+addItemToCart(cartId, variantId, qty) → Cart
+updateCartItem(cartId, itemId, qty) → Cart
+removeCartItem(cartId, itemId) → Cart
+getCart(cartId) → CartFull
+quoteShipping(cartId, address, speed?) → ShippingOptions[]
+applyCoupon(cartId, couponCode) → {discount, newTotal}
+createCheckoutSession(cartId) → {checkoutSessionId, url}
+getOrderStatus(orderId) → OrderFull
+requestReturn(orderId, reason) → RMAId
+requestHumanSupport() → {ticketId, queueTime}
+```
 
-**Persistence:**
-- New `MerchantStore`, `MerchantTheme`, `MerchantDomain` models
+**State Machine:**
+- WELCOME → (DISCOVERY via product search)
+- DISCOVERY → (CART via add-to-cart, or compare, or more info)
+- CART → (CHECKOUT via "finaliza", or back to DISCOVERY via "quer mais?")
+- CHECKOUT → (delegated to checkout module, returns ORDER_TRACKING)
+- ORDER_TRACKING → (requestReturn, requestHumanSupport, or exit)
+
+**Modelos reuso:**
+- `BuyerConversation` (existing)
+- `CheckoutSession` (existing)
+
+**Use-cases:**
+- start-conversation, resume-conversation, archive-conversation
+- send-message, classify-intent, execute-tool, validate-tool-output
+- render-blocks (ProductCard, CartSummary, QuickReplies, etc.)
+- escape-to-human (handoff to support)
+
+**Dependências:**
+- `catalog` (search, details, availability, reviews)
+- `checkout` (cart, checkout session)
+- `coupons` (apply-coupon)
+- `conversation-engine` (LLM message generation)
+- `decision-engine` (what to offer)
+- `rules-engine` (discount approval)
 
 ---
 
-### 19.4 `store-analytics` (NEW)
+### 19.3 `store-settings` (NEW - Configuration)
 
-**Responsibilities:**
-- Conversation metrics (count, duration, resolution rate)
-- Revenue metrics (orders, AOV, LTV)
-- Agent performance (objection resolution, conversion rate)
-- Trend analysis & reporting
+**Responsabilidades:**
+- Brand configuration (logo, colors, fonts, mission)
+- Agent personality (tone, persona, knowledge base FAQ)
+- Negotiation rules (max discount %, min margin %, coupon limits)
+- Domain management (primary domain, custom CNAME, SSL)
+- Webhook configuration (third-party integrations)
+- Feature flag overrides (enable/disable returns, voice, analytics)
+- Notification preferences (email, SMS, push, by event)
+- API keys & webhooks (developer integrations)
 
-**Interfaces:**
-- `GET /merchants/{id}/analytics?period=today&metric=revenue`
-- `GET /merchants/{id}/conversations/metrics` — Agent performance
+**Modelos Prisma (6 novos):**
+- `MerchantStore`, `MerchantTheme`, `MerchantAgent`
+- `MerchantNegotiationRules`, `MerchantDomain`, `MerchantWebhook`, `MerchantNotification`
 
-**Persistence:**
-- Read model over `CheckoutSession`, `BuyerConversation`, `CompletedOrder` (denormalized for speed)
+**Use-cases:**
+- get-store-settings, update-store-settings
+- get-agent-config, update-agent-config
+- get-negotiation-rules, update-negotiation-rules
+- register-custom-domain, verify-domain, delete-domain
+- register-webhook, test-webhook, delete-webhook
+
+---
+
+### 19.4 `inventory` (NEW - Stock & Reservations)
+
+**Responsabilidades:**
+- Stock quantity tracking (per warehouse, per variant)
+- Reservation lifecycle (add → confirm → release/expire after 30 min)
+- Stock adjustments (manual, import, returns)
+- Inventory forecasting (low-stock alerts)
+- Multi-warehouse support (future)
+
+**Modelos Prisma (5 novos):**
+- `InventoryWarehouse`, `InventoryItem`, `InventoryReservation`
+- `InventoryAdjustment`, `InventoryAlert`
+
+**Use-cases:**
+- reserve-stock (on add-to-cart)
+- confirm-stock (on order completion)
+- release-stock (on checkout abort, auto-expire after 30 min)
+- adjust-stock (manual, import)
+- forecast-reorder (alert merchant when low)
+
+**Dependências:**
+- `catalog` (variant validation)
+- `checkout` (reserve on add-to-cart)
+
+---
+
+### 19.5 `returns` (NEW - RMA & Refunds - Full Saga)
+
+**Responsabilidades (7-step saga with compensating transactions):**
+1. Create RMA (buyer initiates return reason)
+2. Generate shipping label (Melhor Envio or manual)
+3. Item received & scanned (merchant scans barcode)
+4. Item inspected (pass/fail/partial condition)
+5. Refund processed (payment provider processes)
+6. Inventory restored (stock increased)
+7. Compensation issued (if damaged/lost)
+
+**Modelos Prisma (6 novos):**
+- `Return`, `ReturnItem`, `ReturnLabel`
+- `ReturnInspection`, `ReturnRefund`, `ReturnCompensation`
+
+**Saga Events:**
+- ReturnRequested, ReturnLabelGenerated, ReturnShipped
+- ReturnReceived, ReturnInspected (PASS | FAIL | PARTIAL)
+- RefundProcessed (or RefundFailed → retry + escalate)
+- InventoryRestored, CompensationIssued
+
+**Compensating Transactions:**
+- Step 2 fails: Escalate to human, manual label generation
+- Step 5 fails: Retry queue (3 attempts), then human escalation
+- Step 6 fails: Audit event, manual inventory adjustment
+
+**Dependências:**
+- `checkout` (find original order)
+- `catalog` (inventory restoration)
+- `payment` (refund processing)
+- `shipping` (label generation)
+
+---
+
+### 19.6 `store-analytics` (NEW - Reporting)
+
+**Responsabilidades:**
+- Conversation metrics (count, duration, resolution rate, CSAT)
+- Revenue metrics (orders, AOV, LTV, repeat rate)
+- Agent performance (objection resolution rate, conversion by intent)
+- Product performance (best-sellers, low-conversion, review scores)
+- Funnel analysis (discovery → cart → checkout → payment → order)
+- Cohort analysis (weekly, monthly retention)
+
+**Modelos Prisma (denormalized read models - 5 novos):**
+- `StoreConversationMetric`, `StoreOrderMetric`, `StoreAgentMetric`
+- `StoreProductMetric`, `StoreFunnelMetric`
+
+**Use-cases:**
+- get-revenue-summary (today, week, month)
+- get-conversation-metrics (by intent, product)
+- get-agent-performance (resolution rate, conversion lift)
+- get-product-performance (best-sellers, low-conversion)
+- get-funnel-analysis (drop-off by stage)
+- export-analytics (CSV, PDF)
+
+**Data Collection:**
+- Events from `checkout` module (order placed)
+- Events from `storefront` module (tool calls, intent)
+- Aggregated nightly via BullMQ job
+
+---
+
+### 19.7 `merchant-dashboard` (Enhanced - UI)
+
+**Changes for Store Builder:**
+- New pages (conditional if MERCHANT_PLAN = STORE):
+  - `/dashboard/store` (brand, agent config, domain)
+  - `/dashboard/catalog` (products, variants, stock)
+  - `/dashboard/customers` (full CRM, not just sync)
+  - `/dashboard/analytics` (storefront metrics)
+- Hidden tabs (if STORE plan):
+  - Integrations, Checkout Settings, Commerce Connections
+- Shared tabs (both plans):
+  - Orders (different views per plan)
+  - Billing, Team Members
+
+---
+
+### 19.8 `buyer-accounts` (Existing - Enhanced)
+
+**New for Store:**
+- Wishlist (save products for later)
+- Purchase history per store (not just global)
+- Preferences per store (budget, favorite categories, allergies)
+- Notification preferences (email, SMS, push)
+- Saved addresses (auto-populate shipping)
+- Saved payment methods (tokenized)
 
 ---
 
