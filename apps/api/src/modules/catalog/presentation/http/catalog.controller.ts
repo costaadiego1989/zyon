@@ -1,186 +1,97 @@
-import {
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Query,
-  Req,
-  UseGuards,
-} from "@nestjs/common";
-import {
-  ApiBearerAuth,
-  ApiCookieAuth,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from "@nestjs/swagger";
-import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
-import {
-  RequireTenantAccess,
-} from "../../../integrations/presentation/http/tenant-access.decorator.js";
-import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
-import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
-import {
-  COMMERCE_CATALOG_PORT,
-  type CommerceCatalogReader,
-} from "../../../commerce/domain/ports/commerce-catalog.port.js";
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from "@nestjs/common";
+import { RequirePlan } from "../../../shared/guards/require-plan.decorator.js";
+import { RequirePlanGuard } from "../../../shared/guards/require-plan.guard.js";
+import { AddProductUseCase } from "../../application/use-cases/add-product.use-case.js";
+import { SearchProductsUseCase } from "../../application/use-cases/search-products.use-case.js";
+import { ReserveStockUseCase } from "../../application/use-cases/reserve-stock.use-case.js";
+import { ConfirmStockUseCase } from "../../application/use-cases/confirm-stock.use-case.js";
 
-@ApiTags("Catalog")
-@ApiBearerAuth("service_api_key")
-@ApiCookieAuth("console_session")
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
-@RequireTenantAccess({ serviceScopes: ["catalog:read"] })
-@Controller("catalog")
-export class CatalogController {
+@UseGuards(RequirePlanGuard)
+@Controller("merchants")
+export class StoreBuilderCatalogController {
   constructor(
-    @Inject(COMMERCE_CATALOG_PORT)
-    private readonly catalog: CommerceCatalogReader,
+    private readonly addProduct: AddProductUseCase,
+    private readonly searchProducts: SearchProductsUseCase,
+    private readonly reserveStock: ReserveStockUseCase,
+    private readonly confirmStock: ConfirmStockUseCase,
   ) {}
 
-  @ApiOperation({
-    summary: "Search product catalog",
-    description:
-      "Search the merchant product catalog with optional text query. Supports cursor-based pagination with configurable limit (1-100, default 20).",
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Paginated product list",
-    schema: {
-      example: {
-        data: [
-          {
-            id: "prod_123",
-            title: "Widget",
-            description: null,
-            product_url: null,
-            image_url: null,
-            category: null,
-            variants: [
-              {
-                id: "var_1",
-                sku: "WDG-001",
-                title: "Default",
-                unit_price: 2999,
-                currency: "BRL",
-                inventory_quantity: 50,
-                available_for_sale: true,
-                image_url: null,
-              },
-            ],
-          },
-        ],
-        next_cursor: "cursor_abc",
-        has_more: true,
-      },
+  @Post(":mid/products")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async create(
+    @Param("mid") merchantId: string,
+    @Body() body: {
+      name: string;
+      description?: string;
+      categoryId?: string;
+      variants: Array<{
+        sku: string;
+        attributes?: Record<string, string>;
+        barcode?: string;
+        weightGrams?: number;
+        lengthCm?: number;
+        widthCm?: number;
+        heightCm?: number;
+        basePriceInCents: number;
+        costInCents?: number;
+        taxPercent?: number;
+        currency?: string;
+        stockQuantity?: number;
+        media?: Array<{ url: string; type: "IMAGE" | "VIDEO"; alt?: string; order?: number }>;
+      }>;
     },
-  })
-  @ApiResponse({
-    status: 403,
-    description: "Missing catalog:read scope",
-  })
-  @Get()
+  ) {
+    return this.addProduct.execute({
+      merchantId,
+      name: body.name,
+      description: body.description,
+      categoryId: body.categoryId,
+      variants: body.variants,
+    });
+  }
+
+  @Get(":mid/products")
+  @RequirePlan("STORE_ONLY", "BOTH")
   async search(
-    @Req() request: unknown,
-    @Query("q") query = "",
-    @Query("limit") limitRaw?: string,
+    @Param("mid") merchantId: string,
+    @Query("query") query?: string,
+    @Query("categoryId") categoryId?: string,
+    @Query("inStockOnly") inStockOnly?: string,
+    @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
   ) {
-    const limit = clampLimit(limitRaw);
-    const page = await this.catalog.searchCatalog({
-      merchantId: tenantId(request),
+    return this.searchProducts.execute({
+      merchantId,
       query,
-      limit,
+      categoryId,
+      inStockOnly: inStockOnly === "true",
+      limit: limit ? parseInt(limit, 10) : undefined,
       cursor,
     });
-    return {
-      data: page.products.map(toProductResponse),
-      next_cursor: page.nextCursor,
-      has_more: page.nextCursor !== null,
-    };
   }
 
-  @ApiOperation({
-    summary: "Get product by SKU",
-    description:
-      "Look up a single product by its SKU. Returns null data if no product matches.",
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Product found or null",
-    schema: {
-      example: {
-        data: {
-          id: "prod_123",
-          title: "Widget",
-          variants: [],
-        },
-      },
-    },
-  })
-  @ApiResponse({
-    status: 403,
-    description: "Missing catalog:read scope",
-  })
-  @Get(":sku")
-  async bySku(
-    @Req() request: unknown,
-    @Param("sku") sku: string,
+  @Post(":mid/stock/reserve")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async reserve(
+    @Param("mid") merchantId: string,
+    @Body() body: { variantId: string; quantity: number; cartId?: string; idempotencyKey: string },
   ) {
-    const product = await this.catalog.findCatalogProductBySku({
-      merchantId: tenantId(request),
-      sku,
+    return this.reserveStock.execute({
+      merchantId,
+      variantId: body.variantId,
+      quantity: body.quantity,
+      cartId: body.cartId,
+      idempotencyKey: body.idempotencyKey,
     });
-    return { data: product ? toProductResponse(product) : null };
   }
-}
 
-function tenantId(request: unknown): string {
-  return currentTenantPrincipal(
-    request as Parameters<typeof currentTenantPrincipal>[0],
-  ).tenantId;
-}
-
-function clampLimit(value?: string): number {
-  const parsed = Number(value ?? 20);
-  return Number.isInteger(parsed)
-    ? Math.max(1, Math.min(parsed, 100))
-    : 20;
-}
-
-function toProductResponse(product: {
-  id: string;
-  title: string;
-  description?: string;
-  productUrl?: string;
-  imageUrl?: string;
-  category?: string;
-  variants: Array<{
-    id: string;
-    sku: string;
-    title: string;
-    unitPriceCents: number;
-    currency: string;
-    inventoryQuantity: number | null;
-    availableForSale: boolean;
-    imageUrl?: string;
-  }>;
-}) {
-  return {
-    id: product.id,
-    title: product.title,
-    description: product.description ?? null,
-    product_url: product.productUrl ?? null,
-    image_url: product.imageUrl ?? null,
-    category: product.category ?? null,
-    variants: product.variants.map((variant) => ({
-      id: variant.id,
-      sku: variant.sku,
-      title: variant.title,
-      unit_price: variant.unitPriceCents,
-      currency: variant.currency,
-      inventory_quantity: variant.inventoryQuantity,
-      available_for_sale: variant.availableForSale,
-      image_url: variant.imageUrl ?? null,
-    })),
-  };
+  @Post(":mid/stock/confirm")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async confirm(
+    @Param("mid") merchantId: string,
+    @Body() body: { reservationId: string },
+  ) {
+    await this.confirmStock.execute(merchantId, body.reservationId);
+    return { confirmed: true };
+  }
 }
