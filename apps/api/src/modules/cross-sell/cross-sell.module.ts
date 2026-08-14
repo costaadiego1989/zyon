@@ -16,9 +16,12 @@ import { CheckoutCrossSellRecommender } from "./application/services/checkout-cr
 import { CHECKOUT_CROSS_SELL_RECOMMENDER } from "../checkout/domain/ports/cross-sell-recommender.port.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
+import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
 
 @Global()
 @Module({
+  imports: [CheckoutPersistenceModule, MerchantModule],
   controllers: [MerchantCrossSellController],
   providers: [
     // P0 fix: wire Prisma repositories for production persistence
