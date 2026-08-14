@@ -10,6 +10,7 @@ import { GetProductPerformanceUseCase } from "./application/use-cases/get-produc
 import { AggregateDailyMetricsUseCase } from "./application/use-cases/aggregate-daily-metrics.use-case.js";
 import { MetricsAggregationScheduler, MetricsAggregationWorker } from "./infrastructure/jobs/metrics-aggregation.job.js";
 import { AnalyticsController } from "./presentation/http/analytics.controller.js";
+import { GA4MeasurementService } from "./infrastructure/ga4-measurement.service.js";
 
 @Module({
   imports: [PersistenceModule],
@@ -25,11 +26,13 @@ import { AnalyticsController } from "./presentation/http/analytics.controller.js
     AggregateDailyMetricsUseCase,
     MetricsAggregationScheduler,
     MetricsAggregationWorker,
+    GA4MeasurementService,
   ],
   exports: [
     GetDashboardMetricsUseCase,
     GetProductPerformanceUseCase,
     AggregateDailyMetricsUseCase,
+    GA4MeasurementService,
   ],
 })
 export class StoreAnalyticsModule {}

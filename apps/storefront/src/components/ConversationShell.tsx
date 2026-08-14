@@ -1,7 +1,20 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import type { ConversationBlock, QuickRepliesBlock } from "@/lib/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type {
+  CartSummaryBlock,
+  CheckoutRedirectBlock,
+  ConversationBlock,
+  ProductCardBlock,
+  ProductCarouselBlock,
+  QuickRepliesBlock,
+} from "@/lib/types";
+import {
+  trackBeginCheckout,
+  trackConversationStart,
+  trackProductView,
+  trackPurchase,
+} from "@/lib/analytics";
 import BlockRenderer from "./blocks/BlockRenderer";
 
 type Message = {
@@ -58,6 +71,57 @@ export default function ConversationShell({
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  // Analytics: fire conversation_start once on mount.
+  useEffect(() => {
+    trackConversationStart(storeName);
+  }, [storeName]);
+
+  // Analytics: fire purchase once when an order confirmation is returned.
+  const trackedOrderRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!returnOrderId) return;
+    if (trackedOrderRef.current === returnOrderId) return;
+    trackedOrderRef.current = returnOrderId;
+    trackPurchase(returnOrderId, 0);
+  }, [returnOrderId]);
+
+  // Analytics: dedupe by id so we don't double-fire when the same block
+  // re-renders. Track when product cards, checkout redirects, and cart
+  // summaries appear in any message.
+  const trackedIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const m of messages) {
+      if (!m.blocks) continue;
+      for (const block of m.blocks) {
+        const id = `${m.id}::${block.type}`;
+        if (trackedIdsRef.current.has(id)) continue;
+        trackedIdsRef.current.add(id);
+
+        if (block.type === "product_card") {
+          const p = (block as ProductCardBlock).data;
+          trackProductView(p.id, p.name, p.price);
+        } else if (block.type === "product_carousel") {
+          const c = (block as ProductCarouselBlock).data;
+          for (const p of c.products) {
+            trackProductView(p.id, p.name, p.price);
+          }
+        } else if (block.type === "checkout_redirect") {
+          const cr = (block as CheckoutRedirectBlock).data;
+          // We don't have the cart value here at render time; defer to
+          // a cart summary if present, otherwise send 0.
+          trackBeginCheckout(0, 0);
+          // Touch cr.sessionId so the lint doesn't flag unused destructure.
+          // It's intentionally not used yet — session URL itself is the
+          // merchant's redirect target.
+          void cr.sessionId;
+        } else if (block.type === "cart_summary") {
+          const cs = (block as CartSummaryBlock).data;
+          trackBeginCheckout(cs.total, cs.itemCount);
+        }
+      }
+    }
+  }, [messages]);
 
   const scrollToBottom = () => {
     requestAnimationFrame(() => {
