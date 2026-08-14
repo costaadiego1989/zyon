@@ -54,7 +54,7 @@ test("embed offers apply uses merchant from token and ignores body merchant_id",
   };
 
   const helper = new EmbedCheckoutGuardHelper(checkout);
-  const c = new EmbedCheckoutController({} as never, {} as never, {} as never, helper, applyUc as never, {} as never, {} as never, {} as never, {} as never, {} as never);
+  const c = new EmbedCheckoutController({} as never, {} as never, {} as never, helper, applyUc as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never);
 
   await c.applyOffer(
     { embedClaims: claims },

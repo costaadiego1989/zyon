@@ -4,6 +4,7 @@
 import { expect, test } from "@playwright/test";
 import {
   checkoutUrl,
+  dismissChannelGate,
   E2E_VERIFIED_CUSTOMER,
   REALAPI_URL,
   seedCheckout,
@@ -44,8 +45,13 @@ test.describe("@realapi voice checkout", () => {
 
   test("smoke: channel gate voz abre experiência com API real", async ({ page }) => {
     await page.goto(checkoutUrl(merchantId, embedToken, productId));
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /Comprar por voz/i }).click();
+    // Wait for channel gate to render (it appears once the widget initializes)
+    const gate = page.locator(".zyon-channel-gate");
+    await expect(gate).toBeVisible({ timeout: 20_000 });
+    const voiceButton = page.getByRole("button", { name: /Comprar por voz/i });
+    await expect(voiceButton).toBeEnabled({ timeout: 15_000 });
+    await voiceButton.click();
+    await expect(gate).toBeHidden({ timeout: 10_000 });
     await expect(page.locator("[data-channel='voice']")).toBeVisible({ timeout: 10_000 });
     await expect(page.locator(".zyon-voice-mic")).toBeVisible();
   });
@@ -55,8 +61,13 @@ test.describe("@realapi voice checkout", () => {
 
     const customer = { ...E2E_VERIFIED_CUSTOMER, email: `voice_${Date.now()}@test.aacp` };
     await page.goto(checkoutUrl(merchantId, embedToken, productId, { customer }));
-    await expect(page.getByRole("dialog")).toBeVisible({ timeout: 15_000 });
-    await page.getByRole("button", { name: /Comprar por voz/i }).click();
+    // Wait for channel gate to render
+    const gate = page.locator(".zyon-channel-gate");
+    await expect(gate).toBeVisible({ timeout: 20_000 });
+    const voiceButton = page.getByRole("button", { name: /Comprar por voz/i });
+    await expect(voiceButton).toBeEnabled({ timeout: 15_000 });
+    await voiceButton.click();
+    await expect(gate).toBeHidden({ timeout: 10_000 });
     await expect(page.locator("[data-channel='voice']")).toBeVisible({ timeout: 10_000 });
 
     // The agent opens with a greeting (no field ask); the buyer speaks first.

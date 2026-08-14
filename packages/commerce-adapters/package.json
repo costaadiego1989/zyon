@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm run build && node --test dist/ports.spec.js dist/shopify/shopify-commerce.adapter.spec.js dist/woocommerce/woocommerce-commerce.adapter.spec.js dist/nuvemshop/nuvemshop-commerce.adapter.spec.js dist/tray/tray-commerce.adapter.spec.js dist/shopify/shopify-commerce.adapter.integration-spec.js dist/woocommerce/woocommerce-commerce.adapter.integration-spec.js dist/nuvemshop/nuvemshop-commerce.adapter.integration-spec.js dist/tray/tray-commerce.adapter.integration-spec.js dist/__integration__/webhook-verification.spec.js"
+    "test": "pnpm run build && node --test dist/ports.spec.js dist/shopify/shopify-commerce.adapter.spec.js dist/woocommerce/woocommerce-commerce.adapter.spec.js dist/nuvemshop/nuvemshop-commerce.adapter.spec.js dist/tray/tray-commerce.adapter.spec.js dist/magento/magento-commerce.adapter.spec.js dist/shopify/shopify-commerce.adapter.integration-spec.js dist/woocommerce/woocommerce-commerce.adapter.integration-spec.js dist/nuvemshop/nuvemshop-commerce.adapter.integration-spec.js dist/tray/tray-commerce.adapter.integration-spec.js dist/__integration__/webhook-verification.spec.js"
   },
   "dependencies": {
     "@zyon/shared-types": "workspace:*"

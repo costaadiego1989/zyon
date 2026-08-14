@@ -31,6 +31,18 @@ export {
   type TrayCommerceCredentials,
   type TrayFetchFn,
 } from "./tray/tray-commerce.adapter.js";
+export {
+  VtexCommerceAdapter,
+  VtexRateLimitError,
+  type VtexCommerceAdapterConfig,
+  type VtexFetchFn,
+} from "./vtex/vtex-commerce.adapter.js";
+export { VtexRateLimiter } from "./vtex/vtex-rate-limiter.js";
+export {
+  MagentoCommerceAdapter,
+  type MagentoAdapterConfig,
+  type MagentoFetchFn,
+} from "./magento/magento-commerce.adapter.js";
 
 export interface ShopifyConfig {
   shopDomain?: string;

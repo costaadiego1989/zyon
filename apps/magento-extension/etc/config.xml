@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <zyon_checkout>
+            <general>
+                <enabled>1</enabled>
+                <merchant_id/>
+                <api_key/>
+                <api_base_url>https://api.zyon.com.br/v1</api_base_url>
+                <widget_js_url>https://cdn.zyon.com.br/widget/aacp.js</widget_js_url>
+            </general>
+            <display>
+                <show_on_product>1</show_on_product>
+                <show_on_cart>1</show_on_cart>
+            </display>
+        </zyon_checkout>
+    </default>
+</config>

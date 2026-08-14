@@ -96,7 +96,11 @@ export class PrismaCommerceConnectionRepository
           ? input.storeId.trim()
           : input.provider === "tray"
             ? input.apiAddress.trim()
-            : normalizeStoreUrl(input.storeUrl);
+            : input.provider === "vtex"
+              ? input.accountName.trim()
+              : input.provider === "magento"
+                ? input.baseUrl.trim()
+                : normalizeStoreUrl(input.storeUrl);
     const apiVersion =
       input.provider === "shopify"
         ? input.apiVersion?.trim() || null
@@ -179,6 +183,18 @@ type SecretEnvelope =
       accessTokenExpiresAt: number;
       consumerKey: string;
       consumerSecret: string;
+    }
+  | {
+      version: 1;
+      provider: "vtex";
+      appKey: string;
+      appToken: string;
+    }
+  | {
+      version: 1;
+      provider: "magento";
+      accessToken: string;
+      storeCode: string;
     };
 
 function encodeSecret(input: SaveMerchantCommerceCredentialsInput): string {
@@ -207,6 +223,20 @@ function encodeSecret(input: SaveMerchantCommerceCredentialsInput): string {
       accessTokenExpiresAt: input.accessTokenExpiresAt,
       consumerKey: input.consumerKey.trim(),
       consumerSecret: input.consumerSecret.trim(),
+    };
+  } else if (input.provider === "vtex") {
+    envelope = {
+      version: 1,
+      provider: "vtex",
+      appKey: input.appKey.trim(),
+      appToken: input.appToken.trim(),
+    };
+  } else if (input.provider === "magento") {
+    envelope = {
+      version: 1,
+      provider: "magento",
+      accessToken: input.accessToken.trim(),
+      storeCode: input.storeCode.trim(),
     };
   } else {
     envelope = {

@@ -82,7 +82,7 @@ export interface CommerceCatalogPort {
 }
 
 export type CommerceConnectionHealth = {
-  provider: "shopify" | "woocommerce" | "nuvemshop" | "tray";
+  provider: "shopify" | "woocommerce" | "nuvemshop" | "tray" | "vtex" | "magento";
   storeName: string;
   storeUrl: string;
   currency: string;

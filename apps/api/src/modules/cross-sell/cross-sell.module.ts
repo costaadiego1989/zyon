@@ -10,6 +10,7 @@ import { UpdateCrossSellPromotionUseCase } from "./application/use-cases/update-
 import { ArchiveCrossSellPromotionUseCase } from "./application/use-cases/archive-cross-sell-promotion.use-case.js";
 import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-eligible-cross-sells.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
+import { AcceptCrossSellFromWidgetUseCase } from "./application/use-cases/accept-cross-sell-from-widget.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER } from "../checkout/domain/ports/cross-sell-recommender.port.js";
@@ -36,6 +37,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     ArchiveCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
     AcceptCrossSellSuggestionUseCase,
+    AcceptCrossSellFromWidgetUseCase,
     DeclineCrossSellSuggestionUseCase,
     CheckoutCrossSellRecommender,
     BillingPlanMeteringService,
@@ -49,6 +51,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     CreateCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
     AcceptCrossSellSuggestionUseCase,
+    AcceptCrossSellFromWidgetUseCase,
     DeclineCrossSellSuggestionUseCase,
     CHECKOUT_CROSS_SELL_RECOMMENDER
   ]

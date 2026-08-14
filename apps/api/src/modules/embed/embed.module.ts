@@ -6,6 +6,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { EmbedTokenService } from "./domain/embed-token.service.js";
 import { IssueEmbedSessionUseCase } from "./application/issue-embed-session.use-case.js";
+import { UpdateEmbedCustomerUseCase } from "./application/update-embed-customer.use-case.js";
 import { EmbedSessionsController } from "./presentation/http/embed-sessions.controller.js";
 import { EmbedSessionIssuerGuard } from "./presentation/http/embed-session-issuer.guard.js";
 import { EmbedAuthGuard } from "./presentation/http/embed-auth.guard.js";
@@ -17,7 +18,7 @@ import { InstallationsModule } from "../installations/installations.module.js";
 @Module({
   imports: [AuthModule, CheckoutModule, MerchantModule, PaymentModule, IntegrationsModule, CatalogModule, InstallationsModule],
   controllers: [EmbedSessionsController, EmbedCheckoutController, WidgetCatalogController],
-  providers: [EmbedTokenService, IssueEmbedSessionUseCase, EmbedAuthGuard, EmbedSessionIssuerGuard, EmbedCheckoutGuardHelper],
+  providers: [EmbedTokenService, IssueEmbedSessionUseCase, UpdateEmbedCustomerUseCase, EmbedAuthGuard, EmbedSessionIssuerGuard, EmbedCheckoutGuardHelper],
   exports: [EmbedTokenService, EmbedAuthGuard, EmbedCheckoutGuardHelper]
 })
 export class EmbedModule {}

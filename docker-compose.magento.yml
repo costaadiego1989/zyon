@@ -1,0 +1,78 @@
+# Magento 2 local development instance for E2E testing
+# Usage: docker-compose -f docker-compose.magento.yml up -d
+# First run takes ~5min to install Magento
+
+services:
+  magento-db:
+    image: mariadb:10.6
+    environment:
+      MYSQL_ROOT_PASSWORD: magento_root
+      MYSQL_DATABASE: magento
+      MYSQL_USER: magento
+      MYSQL_PASSWORD: magento
+    ports:
+      - "3307:3306"
+    volumes:
+      - magento_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pmagento_root"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  magento-elasticsearch:
+    image: elasticsearch:7.17.10
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms256m -Xmx256m"
+    ports:
+      - "9201:9200"
+    volumes:
+      - magento_es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  magento:
+    image: bitnami/magento:2.4
+    environment:
+      - MAGENTO_HOST=localhost
+      - MAGENTO_DATABASE_HOST=magento-db
+      - MAGENTO_DATABASE_NAME=magento
+      - MAGENTO_DATABASE_USER=magento
+      - MAGENTO_DATABASE_PASSWORD=magento
+      - MAGENTO_ELASTICSEARCH_HOST=magento-elasticsearch
+      - MAGENTO_ELASTICSEARCH_PORT_NUMBER=9200
+      - MAGENTO_ADMIN_USER=admin
+      - MAGENTO_ADMIN_PASSWORD=Admin123!
+      - MAGENTO_ADMIN_EMAIL=admin@zyon.test
+      - MAGENTO_ADMIN_FIRSTNAME=Zyon
+      - MAGENTO_ADMIN_LASTNAME=Dev
+      - MAGENTO_MODE=developer
+      - BITNAMI_DEBUG=true
+      - MAGENTO_EXTRA_INSTALL_ARGS=--base-url=http://localhost:8090
+    ports:
+      - "8090:8080"
+      - "8453:8443"
+    volumes:
+      - magento_data:/bitnami/magento
+      - ./apps/magento-extension:/bitnami/magento/app/code/Zyon/Checkout:ro
+    depends_on:
+      magento-db:
+        condition: service_healthy
+      magento-elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/rest/V1/store/storeConfigs || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 120s
+
+volumes:
+  magento_db_data:
+  magento_es_data:
+  magento_data:

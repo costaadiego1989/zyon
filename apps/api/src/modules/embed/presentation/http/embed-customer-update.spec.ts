@@ -19,9 +19,18 @@ function issueToken(merchantId: string): string {
   });
 }
 
+class FakeUpdateCustomerUseCase {
+  executed: any[] = [];
+  async execute(input: any) {
+    this.executed.push(input);
+    return { ok: true };
+  }
+}
+
 function makeController(repo: InMemoryCheckoutRepository) {
   const helper = new EmbedCheckoutGuardHelper(repo);
-  return new EmbedCheckoutController(
+  const fakeUpdateCustomer = new FakeUpdateCustomerUseCase();
+  const ctrl = new EmbedCheckoutController(
     {} as never,
     {} as never,
     {} as never,
@@ -31,8 +40,10 @@ function makeController(repo: InMemoryCheckoutRepository) {
     {} as never,
     {} as never,
     {} as never,
-    {} as never
+    {} as never,
+    fakeUpdateCustomer as never
   );
+  return { ctrl, fakeUpdateCustomer };
 }
 
 function reqWithClaims(token: string) {
@@ -41,10 +52,10 @@ function reqWithClaims(token: string) {
 }
 
 describe("EmbedCheckoutController.updateCustomer", () => {
-  it("persists customer data on the session", async () => {
+  it("delegates to UpdateEmbedCustomerUseCase", async () => {
     const repo = new InMemoryCheckoutRepository();
     await repo.saveSession(checkoutSession({ merchantId: "mrc_a", sessionId: "chk_a" }));
-    const ctrl = makeController(repo);
+    const { ctrl, fakeUpdateCustomer } = makeController(repo);
     const token = issueToken("mrc_a");
 
     const res = await ctrl.updateCustomer(reqWithClaims(token), {
@@ -52,18 +63,15 @@ describe("EmbedCheckoutController.updateCustomer", () => {
       customer: { fullName: "Joao Silva", email: "joao@teste.com", cpf: "123.456.789-00", phone: "21999999999" }
     });
     assert.deepEqual(res, { ok: true });
-
-    const persisted = await repo.getSession("mrc_a", "chk_a");
-    assert.equal(persisted?.customer?.fullName, "Joao Silva");
-    assert.equal(persisted?.customer?.email, "joao@teste.com");
-    assert.equal(persisted?.customer?.cpf, "12345678900");
-    assert.equal(persisted?.customer?.phone, "21999999999");
+    assert.equal(fakeUpdateCustomer.executed.length, 1);
+    assert.equal(fakeUpdateCustomer.executed[0].merchantId, "mrc_a");
+    assert.equal(fakeUpdateCustomer.executed[0].sessionId, "chk_a");
   });
 
   it("rejects when cpf is missing", async () => {
     const repo = new InMemoryCheckoutRepository();
     await repo.saveSession(checkoutSession({ merchantId: "mrc_a", sessionId: "chk_a" }));
-    const ctrl = makeController(repo);
+    const { ctrl } = makeController(repo);
     const token = issueToken("mrc_a");
 
     await assert.rejects(
@@ -77,7 +85,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
 
   it("rejects when session_id is missing", async () => {
     const repo = new InMemoryCheckoutRepository();
-    const ctrl = makeController(repo);
+    const { ctrl } = makeController(repo);
     const token = issueToken("mrc_a");
     await assert.rejects(
       () => ctrl.updateCustomer(reqWithClaims(token), {
@@ -90,7 +98,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
   it("rejects when session belongs to another merchant", async () => {
     const repo = new InMemoryCheckoutRepository();
     await repo.saveSession(checkoutSession({ merchantId: "mrc_b", sessionId: "chk_b" }));
-    const ctrl = makeController(repo);
+    const { ctrl } = makeController(repo);
     const token = issueToken("mrc_a");
 
     await assert.rejects(
@@ -104,7 +112,7 @@ describe("EmbedCheckoutController.updateCustomer", () => {
 
   it("returns 404-style Unauthorized when session is unknown", async () => {
     const repo = new InMemoryCheckoutRepository();
-    const ctrl = makeController(repo);
+    const { ctrl } = makeController(repo);
     const token = issueToken("mrc_a");
     await assert.rejects(
       () => ctrl.updateCustomer(reqWithClaims(token), {
