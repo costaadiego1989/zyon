@@ -9,9 +9,11 @@ import { merchantEndpoints } from "./endpoints/merchants.js";
 import { checkoutSettingsEndpoints } from "./endpoints/checkout-settings.js";
 import { supportEndpoints } from "./endpoints/support.js";
 import { otherEndpoints } from "./endpoints/other.js";
+import { catalogEndpoints } from "./endpoints/catalog.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
+export * from "./endpoints/catalog.js";
 export {
   mapWebhookEndpoint,
   mapWebhookDelivery,
@@ -36,5 +38,6 @@ export function createDashboardApi(options: {
     ...checkoutSettingsEndpoints(base, f),
     ...supportEndpoints(base, f),
     ...otherEndpoints(base, f),
+    ...catalogEndpoints(base, f),
   };
 }

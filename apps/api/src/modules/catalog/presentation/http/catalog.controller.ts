@@ -5,6 +5,9 @@ import { AddProductUseCase } from "../../application/use-cases/add-product.use-c
 import { SearchProductsUseCase } from "../../application/use-cases/search-products.use-case.js";
 import { ReserveStockUseCase } from "../../application/use-cases/reserve-stock.use-case.js";
 import { ConfirmStockUseCase } from "../../application/use-cases/confirm-stock.use-case.js";
+import { GetProductUseCase } from "../../application/use-cases/get-product.use-case.js";
+import { UpdateProductUseCase } from "../../application/use-cases/update-product.use-case.js";
+import { DeleteProductUseCase } from "../../application/use-cases/delete-product.use-case.js";
 
 @UseGuards(RequirePlanGuard)
 @Controller("merchants")
@@ -14,6 +17,9 @@ export class StoreBuilderCatalogController {
     private readonly searchProducts: SearchProductsUseCase,
     private readonly reserveStock: ReserveStockUseCase,
     private readonly confirmStock: ConfirmStockUseCase,
+    private readonly getProduct: GetProductUseCase,
+    private readonly updateProduct: UpdateProductUseCase,
+    private readonly deleteProduct: DeleteProductUseCase,
   ) {}
 
   @Post(":mid/products")
@@ -71,6 +77,47 @@ export class StoreBuilderCatalogController {
       limit: limit ? parseInt(limit, 10) : undefined,
       cursor,
     });
+  }
+
+  @Get(":mid/products/:pid")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async detail(
+    @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
+  ) {
+    return this.getProduct.execute(merchantId, productId);
+  }
+
+  @Put(":mid/products/:pid")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async update(
+    @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
+    @Body() body: {
+      name?: string;
+      description?: string;
+      categoryId?: string;
+      isActive?: boolean;
+    },
+  ) {
+    return this.updateProduct.execute({
+      merchantId,
+      productId,
+      name: body.name,
+      description: body.description,
+      categoryId: body.categoryId,
+      isActive: body.isActive,
+    });
+  }
+
+  @Delete(":mid/products/:pid")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async remove(
+    @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
+  ) {
+    await this.deleteProduct.execute(merchantId, productId);
+    return { deleted: true };
   }
 
   @Post(":mid/stock/reserve")

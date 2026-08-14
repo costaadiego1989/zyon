@@ -5,12 +5,16 @@ import {
   CreditCard,
   KeyRound,
   Eye,
+  FolderTree,
   MessageSquare,
   PackageSearch,
   Palette,
+  Plug,
   Rocket,
+  Save,
   Settings2,
   ShieldCheck,
+  ShoppingBag,
   SlidersHorizontal,
   Store,
   UsersRound,
@@ -38,7 +42,12 @@ export type TabKey =
   | "billing"
   | "payment-connections"
   | "audit-log"
-  | "commerce-connections";
+  | "commerce-connections"
+  | "catalog"
+  | "product-detail"
+  | "categories"
+  | "store-settings"
+  | "agent-config";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -64,4 +73,8 @@ export const NAV_ITEMS: Array<{
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
   { key: "payment-connections", label: "Pagamentos", section: "Conta", icon: Zap },
   { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },
+  { key: "catalog", label: "Catálogo", section: "Loja", icon: ShoppingBag, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "categories", label: "Categorias", section: "Loja", icon: FolderTree, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "store-settings", label: "Configurações da loja", section: "Loja", icon: Save, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "agent-config", label: "Agente da loja", section: "Loja", icon: Plug, requiredPlan: ["STORE_ONLY", "BOTH"] },
 ];

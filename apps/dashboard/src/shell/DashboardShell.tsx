@@ -25,6 +25,11 @@ const BillingPage = lazy(() => import("../pages/billing-page.js").then(m => ({ d
 const PaymentConnectionsPage = lazy(() => import("../pages/payment-connections-page.js").then(m => ({ default: m.PaymentConnectionsPage })));
 const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => ({ default: m.AuditLogPage })));
 const CommerceConnectionsPage = lazy(() => import("../pages/commerce-connections-page.js").then(m => ({ default: m.CommerceConnectionsPage })));
+const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
+const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
+const CategoriesPage = lazy(() => import("../pages/categories-page.js").then(m => ({ default: m.CategoriesPage })));
+const StoreSettingsPage = lazy(() => import("../pages/store-settings-page.js").then(m => ({ default: m.StoreSettingsPage })));
+const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
 
 function LoadingFallback() {
   return (
@@ -157,6 +162,26 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
             {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "commerce-connections" ? <CommerceConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "catalog" ? (
+              <CatalogPage
+                apiBaseUrl={API_BASE_URL}
+                me={me}
+                onCreate={() => setTab("product-detail")}
+                onEdit={() => setTab("product-detail")}
+              />
+            ) : null}
+            {tab === "product-detail" ? (
+              <ProductDetailPage
+                apiBaseUrl={API_BASE_URL}
+                me={me}
+                productId={null}
+                onBack={() => setTab("catalog")}
+                onSaved={() => setTab("catalog")}
+              />
+            ) : null}
+            {tab === "categories" ? <CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "store-settings" ? <StoreSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>

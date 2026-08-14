@@ -11,6 +11,9 @@ import { AddProductUseCase } from "./application/use-cases/add-product.use-case.
 import { SearchProductsUseCase } from "./application/use-cases/search-products.use-case.js";
 import { ReserveStockUseCase } from "./application/use-cases/reserve-stock.use-case.js";
 import { ConfirmStockUseCase } from "./application/use-cases/confirm-stock.use-case.js";
+import { GetProductUseCase } from "./application/use-cases/get-product.use-case.js";
+import { UpdateProductUseCase } from "./application/use-cases/update-product.use-case.js";
+import { DeleteProductUseCase } from "./application/use-cases/delete-product.use-case.js";
 import { STOREFRONT_CATALOG_PORT } from "./domain/ports/storefront-catalog.port.js";
 import { CROSS_SELL_RESOLVER_PORT } from "./domain/ports/cross-sell-resolver.port.js";
 import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefront-catalog.adapter.js";
@@ -57,6 +60,9 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     SearchProductsUseCase,
     ReserveStockUseCase,
     ConfirmStockUseCase,
+    GetProductUseCase,
+    UpdateProductUseCase,
+    DeleteProductUseCase,
     CatalogStockExpiryScheduler,
     StockExpiryWorker,
   ],
@@ -67,6 +73,9 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     SearchProductsUseCase,
     ReserveStockUseCase,
     ConfirmStockUseCase,
+    GetProductUseCase,
+    UpdateProductUseCase,
+    DeleteProductUseCase,
     "ProductRepositoryPort",
     "StockRepositoryPort",
   ]
