@@ -1275,3 +1275,145 @@ model CollectionProduct {
   @@map("collection_products")
 }
 
+// ─── Returns / RMA ────────────────────────────────────────────────────────────
+
+enum ReturnStatus {
+  REQUESTED
+  LABEL_GENERATED
+  SHIPPED
+  RECEIVED
+  INSPECTED_PASS
+  INSPECTED_FAIL
+  REFUND_PROCESSING
+  REFUND_COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+enum ReturnReason {
+  DEFECTIVE
+  WRONG_ITEM
+  NOT_AS_DESCRIBED
+  CHANGED_MIND
+  DAMAGED_IN_TRANSIT
+  OTHER
+}
+
+enum ItemCondition {
+  NEW
+  GOOD
+  DAMAGED
+  UNUSABLE
+}
+
+model Return {
+  id         String       @id @default(cuid())
+  merchantId String       @map("merchant_id")
+  orderId    String       @map("order_id")
+  buyerId    String       @map("buyer_id")
+  reason     ReturnReason
+  notes      String?
+  status     ReturnStatus @default(REQUESTED)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+
+  items      ReturnItem[]
+  label      ReturnLabel?
+  inspection ReturnInspection?
+  refund     ReturnRefund?
+
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@index([orderId])
+  @@map("returns")
+}
+
+model ReturnItem {
+  id        String  @id @default(cuid())
+  returnId  String  @map("return_id")
+  variantId String  @map("variant_id")
+  quantity  Int
+  reason    String?
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_items")
+}
+
+model ReturnLabel {
+  id             String   @id @default(cuid())
+  returnId       String   @unique @map("return_id")
+  carrier        String
+  trackingNumber String   @map("tracking_number")
+  labelUrl       String?  @map("label_url")
+  expiresAt      DateTime @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_labels")
+}
+
+model ReturnInspection {
+  id            String        @id @default(cuid())
+  returnId      String        @unique @map("return_id")
+  inspectedBy   String        @map("inspected_by")
+  itemCondition ItemCondition @map("item_condition")
+  verdict       String
+  notes         String?
+  inspectedAt   DateTime      @default(now()) @map("inspected_at")
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_inspections")
+}
+
+model ReturnRefund {
+  id              String    @id @default(cuid())
+  returnId        String    @unique @map("return_id")
+  paymentIntentId String?   @map("payment_intent_id")
+  amountInCents   Int       @map("amount_in_cents")
+  status          String    @default("PENDING")
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@map("return_refunds")
+}
+
+// ─── Store Analytics ──────────────────────────────────────────────────────────
+
+model StoreMetricDaily {
+  id                 String   @id @default(cuid())
+  merchantId         String   @map("merchant_id")
+  date               DateTime @db.Date
+  conversations      Int      @default(0)
+  orders             Int      @default(0)
+  revenueInCents     Int      @default(0) @map("revenue_in_cents")
+  avgOrderValue      Int      @default(0) @map("avg_order_value")
+  conversionRate     Float    @default(0) @map("conversion_rate")
+  avgSessionDuration Int      @default(0) @map("avg_session_duration_secs")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, date])
+  @@index([merchantId, date])
+  @@map("store_metrics_daily")
+}
+
+model StoreProductMetric {
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  productId   String   @map("product_id")
+  month       DateTime @db.Date
+  impressions Int      @default(0)
+  addToCart   Int      @default(0) @map("add_to_cart")
+  purchases   Int      @default(0)
+  revenue     Int      @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, productId, month])
+  @@index([merchantId, month])
+  @@map("store_product_metrics")
+}
+
