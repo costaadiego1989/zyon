@@ -1,11 +1,17 @@
 /**
- * LangGraph store agent — orchestrates LLM + store tools.
+ * LangGraph store agent — orchestrates LLM + store tools with hybrid AI routing.
  *
  * Follows the same architecture as checkout conversation-engine:
  * - Pure domain (no NestJS imports)
  * - Provider injected (OpenRouterProvider)
  * - Tool-calling loop with result feeding back to LLM
  * - System prompt enforces no-hallucination on products/prices
+ *
+ * Enhanced with:
+ * - Intent classification before LLM call (model routing)
+ * - Cost tracking (token count after response)
+ * - Safety validation on output (validates before sending to user)
+ * - Fallback: if LLM call fails → return safe deterministic message
  */
 
 import type {
@@ -18,17 +24,23 @@ import type { ExecutableTool, ToolDefinition } from "../../domain/tools/store-to
 import { buildStoreTools, buildExecutableStoreTools } from "../../domain/tools/store-tools.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
+import { classifyIntent, getModelForIntent, type StoreAgentIntent, type ClassifyIntentResult } from "../ai/intent-classifier.js";
+import { validateStorefrontMessage, type StorefrontMessageContext } from "../../domain/tools/safety-validator.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
   onToolResult?: (name: string, result: unknown) => void;
+  onIntentClassified?: (result: ClassifyIntentResult) => void;
+  onModelRouted?: (tier: "fast" | "strong", intent: StoreAgentIntent) => void;
 }
 
 export interface StorefrontAgentDeps {
   provider: OpenRouterProvider;
   toolHandlers: StoreToolHandlers;
   model?: string;
+  fastModel?: string;
+  strongModel?: string;
   budgetCents?: number;
   maxTurns?: number;
   systemPrompt?: string;
@@ -51,6 +63,16 @@ export interface StorefrontAgentResult {
   cartId?: string;
   usage: { promptTokens: number; completionTokens: number; totalTokens: number };
   toolsUsed: string[];
+  routing: {
+    intent: StoreAgentIntent;
+    confidence: number;
+    modelTier: "fast" | "strong";
+    modelUsed: string;
+  };
+  safetyValidation: {
+    safe: boolean;
+    reason?: string;
+  };
 }
 
 const MAX_TOOL_LOOPS = 5;
@@ -58,6 +80,16 @@ const DEFAULT_BUDGET_CENTS = 500;
 const DEFAULT_MAX_TURNS = 20;
 
 const FALLBACK_MESSAGE = "Como posso ajudá-lo com sua busca?";
+
+const ERROR_FALLBACK_MESSAGES = [
+  "Desculpe, tive um problema temporário. Como posso ajudá-lo?",
+  "Tive uma dificuldade técnica. Pode repetir sua mensagem?",
+  "Estou com uma limitação momentânea. Tente novamente em alguns instantes."
+];
+
+function getErrorFallback(): string {
+  return ERROR_FALLBACK_MESSAGES[Math.floor(Math.random() * ERROR_FALLBACK_MESSAGES.length)];
+}
 
 export class StorefrontLangGraphAgent {
   private readonly provider: OpenRouterProvider;
@@ -67,12 +99,17 @@ export class StorefrontLangGraphAgent {
   private readonly contextManager: ContextManager;
   private readonly maxTurns: number;
   private readonly baseSystemPrompt: string;
+  private readonly fastModel: string;
+  private readonly strongModel: string;
 
   constructor(deps: StorefrontAgentDeps) {
     this.provider = deps.provider;
     this.tools = buildStoreTools();
     this.maxTurns = deps.maxTurns ?? DEFAULT_MAX_TURNS;
     this.baseSystemPrompt = deps.systemPrompt ?? "";
+
+    this.fastModel = deps.fastModel ?? deps.model ?? "anthropic/claude-sonnet-4";
+    this.strongModel = deps.strongModel ?? "anthropic/claude-opus-4";
 
     this.costTracker = new CostTracker({
       budgetCents: deps.budgetCents ?? DEFAULT_BUDGET_CENTS,
@@ -95,7 +132,17 @@ export class StorefrontLangGraphAgent {
       throw new Error("agent_budget_exhausted");
     }
 
+    // ─── Intent classification ────────────────────────────────────────────
+    const intentResult = classifyIntent(input.userMessage);
+    const modelTier = getModelForIntent(intentResult.intent);
+    const modelUsed = modelTier === "fast" ? this.fastModel : this.strongModel;
+
+    input.callbacks?.onIntentClassified?.(intentResult);
+    input.callbacks?.onModelRouted?.(modelTier, intentResult.intent);
+
+    // ─── Tool loop ────────────────────────────────────────────────────────
     const toolsUsed: string[] = [];
+    const toolResults: Record<string, unknown> = {};
     let totalPromptTokens = 0;
     let totalCompletionTokens = 0;
     let totalTokens = 0;
@@ -123,68 +170,116 @@ export class StorefrontLangGraphAgent {
       function: { name: t.name, description: t.description, parameters: t.parameters }
     }));
 
-    while (loops < MAX_TOOL_LOOPS) {
-      loops += 1;
+    try {
+      while (loops < MAX_TOOL_LOOPS) {
+        loops += 1;
 
-      const result: OpenRouterChatResult = await this.provider.chat({
-        messages,
-        tools: openRouterTools.length > 0 ? openRouterTools : undefined,
-        temperature: 0.5,
-        maxTokens: 500
-      });
+        const result: OpenRouterChatResult = await this.provider.chat({
+          messages,
+          tools: openRouterTools.length > 0 ? openRouterTools : undefined,
+          temperature: 0.5,
+          maxTokens: 500
+        });
 
-      totalPromptTokens += result.usage.promptTokens;
-      totalCompletionTokens += result.usage.completionTokens;
-      totalTokens += result.usage.totalTokens;
+        totalPromptTokens += result.usage.promptTokens;
+        totalCompletionTokens += result.usage.completionTokens;
+        totalTokens += result.usage.totalTokens;
 
-      this.costTracker.record({
-        promptTokens: result.usage.promptTokens,
-        completionTokens: result.usage.completionTokens
-      });
+        this.costTracker.record({
+          promptTokens: result.usage.promptTokens,
+          completionTokens: result.usage.completionTokens
+        });
 
-      // If tool calls, execute them.
-      if (result.toolCalls && result.toolCalls.length > 0) {
-        for (const tc of result.toolCalls) {
-          toolsUsed.push(tc.name);
-          input.callbacks?.onToolCall?.(tc.name, tc.args);
+        // If tool calls, execute them.
+        if (result.toolCalls && result.toolCalls.length > 0) {
+          for (const tc of result.toolCalls) {
+            toolsUsed.push(tc.name);
+            input.callbacks?.onToolCall?.(tc.name, tc.args);
 
-          const execTool = this.executableTools.find((t) => t.name === tc.name);
-          if (execTool) {
-            const toolResult = await execTool.execute(tc.args);
-            input.callbacks?.onToolResult?.(tc.name, toolResult);
+            const execTool = this.executableTools.find((t) => t.name === tc.name);
+            if (execTool) {
+              const toolResult = await execTool.execute(tc.args);
+              toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
+              input.callbacks?.onToolResult?.(tc.name, toolResult);
 
-            // Add assistant and tool messages to conversation.
-            messages.push({
-              role: "assistant",
-              content: result.content || `Calling ${tc.name}...`
-            });
-            messages.push({
-              role: "tool",
-              content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }),
-              name: tc.name,
-              tool_call_id: tc.id
-            });
+              // Add assistant and tool messages to conversation.
+              messages.push({
+                role: "assistant",
+                content: result.content || `Calling ${tc.name}...`
+              });
+              messages.push({
+                role: "tool",
+                content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }),
+                name: tc.name,
+                tool_call_id: tc.id
+              });
+            }
           }
+          continue; // loop back to LLM with tool results
         }
-        continue; // loop back to LLM with tool results
-      }
 
-      // No tool calls → final answer.
-      finalContent = result.content;
-      break;
+        // No tool calls → final answer.
+        finalContent = result.content;
+        break;
+      }
+    } catch (err: unknown) {
+      // ─── LLM failure fallback ─────────────────────────────────────────
+      // If the LLM call fails (network, rate limit, timeout), return safe message.
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      finalContent = "";
+
+      return {
+        message: getErrorFallback(),
+        blocks,
+        cartId: input.cartId,
+        usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+        toolsUsed,
+        routing: {
+          intent: intentResult.intent,
+          confidence: intentResult.confidence,
+          modelTier,
+          modelUsed
+        },
+        safetyValidation: {
+          safe: true,
+          reason: `llm_error: ${errorMessage}`
+        }
+      };
     }
 
+    // ─── Safety validation ────────────────────────────────────────────────
+    const messageToValidate = finalContent || FALLBACK_MESSAGE;
+
+    const safetyContext: StorefrontMessageContext = {
+      toolResults,
+      authorizedDiscountPercent: 0,
+      freeShippingAuthorized: false,
+      shippingDiscountAuthorized: false
+    };
+
+    const validation = validateStorefrontMessage(messageToValidate, safetyContext);
+
     // Emit token callback.
-    if (finalContent && input.callbacks?.onToken) {
-      input.callbacks.onToken(finalContent);
+    if (validation.message && input.callbacks?.onToken) {
+      input.callbacks.onToken(validation.message);
     }
 
     return {
-      message: finalContent || FALLBACK_MESSAGE,
+      message: validation.message,
       blocks,
       cartId: input.cartId,
       usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
-      toolsUsed
+      toolsUsed,
+      routing: {
+        intent: intentResult.intent,
+        confidence: intentResult.confidence,
+        modelTier,
+        modelUsed
+      },
+      safetyValidation: {
+        safe: validation.safe,
+        reason: validation.reason
+      }
     };
   }
 
