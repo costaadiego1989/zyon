@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { StockRepositoryPort, ReserveStockInput, ReserveStockResult } from "../../domain/ports/product-repository.port.js";
 
 @Injectable()
@@ -9,7 +9,6 @@ export class PrismaStockRepository implements StockRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
   async reserve(input: ReserveStockInput): Promise<ReserveStockResult> {
-    // Idempotency: check if reservation already exists for this key
     const existing = await this.prisma.stockReservation.findFirst({
       where: {
         variantId: input.variantId,
@@ -22,8 +21,7 @@ export class PrismaStockRepository implements StockRepositoryPort {
       return { reservationId: existing.id, expiresAt: existing.expiresAt };
     }
 
-    // Atomic reserve in transaction
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const stock = await tx.productStock.findFirst({
         where: { variantId: input.variantId },
       });
@@ -61,7 +59,7 @@ export class PrismaStockRepository implements StockRepositoryPort {
   }
 
   async confirm(merchantId: string, reservationId: string): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const reservation = await tx.stockReservation.findUnique({
         where: { id: reservationId },
         include: { variant: { include: { product: { select: { merchantId: true } } } } },
@@ -71,7 +69,6 @@ export class PrismaStockRepository implements StockRepositoryPort {
       if (reservation.variant.product.merchantId !== merchantId) throw new Error("forbidden");
       if (reservation.status !== "ACTIVE") throw new Error("reservation_not_active");
 
-      // Confirm: decrease quantity and reserved
       await tx.productStock.updateMany({
         where: { variantId: reservation.variantId },
         data: {
@@ -96,7 +93,7 @@ export class PrismaStockRepository implements StockRepositoryPort {
 
     if (expired.length === 0) return 0;
 
-    await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       for (const reservation of expired) {
         await tx.productStock.updateMany({
           where: { variantId: reservation.variantId },

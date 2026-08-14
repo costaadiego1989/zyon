@@ -100,18 +100,21 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     }
 
     const limit = input.limit ?? 20;
-    const cursorOpt = input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {};
+    const findArgs: Prisma.ProductFindManyArgs = {
+      where,
+      take: limit,
+      orderBy: { createdAt: "desc" },
+      include: {
+        variants: { include: { price: true, stock: true, media: { take: 1 } } },
+      },
+    };
+    if (input.cursor) {
+      findArgs.cursor = { id: input.cursor };
+      findArgs.skip = 1;
+    }
 
     const [products, total] = await Promise.all([
-      this.prisma.product.findMany({
-        where,
-        ...cursorOpt,
-        take: limit,
-        orderBy: { createdAt: "desc" },
-        include: {
-          variants: { include: { price: true, stock: true, media: { take: 1 } } },
-        },
-      }),
+      this.prisma.product.findMany(findArgs),
       this.prisma.product.count({ where }),
     ]);
 
