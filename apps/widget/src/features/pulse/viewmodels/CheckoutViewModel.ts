@@ -204,8 +204,9 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   ];
 
   FIELDS: FieldDef[] = [
-    { key: 'name', tag: 'Seus dados · nome', ph: 'Nome completo', def: '' },
+    { key: 'phone', tag: 'Seus dados · celular', ph: '(11) 99999-9999', def: '' },
     { key: 'email', tag: 'Seus dados · e-mail', ph: 'voce@email.com', def: '' },
+    { key: 'name', tag: 'Seus dados · nome', ph: 'Nome completo', def: '' },
     { key: 'cpf', tag: 'Seus dados · CPF', ph: '000.000.000-00', def: '' },
     { key: 'cep', tag: 'Entrega · CEP', ph: '00000-000', def: '' },
     { key: 'number', tag: 'Entrega · número', ph: 'Nº', def: '' },
@@ -213,13 +214,13 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   ];
 
   FIELD_Q: Record<keyof Customer, string> = {
-    name: 'Perfeito. Para entregar seu pedido, preciso de alguns dados rápidos — como podemos te chamar?',
+    phone: 'Qual seu celular? Vou usar para te manter atualizado sobre o pedido.',
     email: 'Show. Qual seu melhor e-mail para o acompanhamento do pedido?',
+    name: 'Perfeito. Para entregar seu pedido, preciso de alguns dados rápidos — como podemos te chamar?',
     cpf: 'Anotado. Preciso do seu CPF para emitir a nota fiscal.',
     cep: 'Agora a entrega. Me passa o CEP de destino?',
     number: 'E o número do endereço?',
     complement: 'Tem algum complemento? (pode pular se não tiver)',
-    phone: '',
   };
 
   PROFILE_DEFAULTS = {

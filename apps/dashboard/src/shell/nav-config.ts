@@ -25,6 +25,7 @@ export type TabKey =
   | "integrations"
   | "shipments"
   | "customers"
+  | "funnel"
   | "embed"
   | "preview"
   | "theme"
@@ -42,6 +43,7 @@ export const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; ico
   { key: "overview", label: "Operação", section: "Hoje", icon: Activity },
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
+  { key: "funnel", label: "Funil de conversão", section: "Hoje", icon: Activity },
   { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook },
   { key: "commerce-connections", label: "Loja / Commerce", section: "Plataforma", icon: Store },
   { key: "embed", label: "Embed", section: "Plataforma", icon: Code2 },

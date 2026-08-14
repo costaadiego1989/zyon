@@ -173,12 +173,12 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
+  { label: "telefone", has: (s) => Boolean(s.customer?.phone && (s.customer?.phone_otp_code || s.customer?.phone_verified)) },
+  { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) },
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
-  { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
-  { label: "telefone", has: (s) => Boolean(s.customer?.phone && (s.customer?.phone_otp_code || s.customer?.phone_verified)) },
-  { label: "código de verificação do celular", has: (s) => Boolean(s.customer?.phone_verified) }
+  { label: "CPF", has: (s) => Boolean(s.customer?.cpf) }
 ];
 
 export function isShippingQuickReplyQuestion(text: string): boolean {

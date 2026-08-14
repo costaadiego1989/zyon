@@ -515,7 +515,10 @@ export type CheckoutDomainEventType =
   | "order.completed"
   | "order.tracking.updated"
   | "whatsapp.message.requested"
-  | "payment.status.changed";
+  | "payment.status.changed"
+  | "customer.phone_collected"
+  | "customer.registered"
+  | "funnel.step_completed";
 
 export type CrossSellDomainEventType =
   | "cross-sell.offer.suggested"

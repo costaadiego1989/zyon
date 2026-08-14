@@ -15,6 +15,7 @@ const SupportSettingsPage = lazy(() => import("../pages/support-settings-page.js
 const IntegrationsPage = lazy(() => import("../pages/integrations-page.js").then(m => ({ default: m.IntegrationsPage })));
 const OrdersShipmentsPage = lazy(() => import("../pages/orders-shipments-page.js").then(m => ({ default: m.OrdersShipmentsPage })));
 const CustomersPage = lazy(() => import("../pages/customers-page.js").then(m => ({ default: m.CustomersPage })));
+const FunnelPage = lazy(() => import("../pages/funnel-page.js").then(m => ({ default: m.FunnelPage })));
 const EmbedPage = lazy(() => import("../pages/embed-page.js").then(m => ({ default: m.EmbedPage })));
 const ThemePage = lazy(() => import("../pages/theme-page.js").then(m => ({ default: m.ThemePage })));
 const OnboardingWizard = lazy(() => import("../pages/onboarding-wizard.js").then(m => ({ default: m.OnboardingWizard })));
@@ -143,6 +144,7 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
             {tab === "integrations" ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "customers" ? <CustomersPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "funnel" ? <FunnelPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "embed" ? <EmbedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "preview" ? <CheckoutPreviewPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}

@@ -61,6 +61,9 @@ export type TenantWebhookEventType =
   | "payment.pending"
   | "payment.approved"
   | "customer.upserted"
+  | "customer.phone_collected"
+  | "customer.registered"
+  | "funnel.step_completed"
   | "tracking.updated"
   | "order.tracking.updated"
   | "payment.failed"
@@ -79,6 +82,9 @@ export const TENANT_WEBHOOK_EVENTS: TenantWebhookEventType[] = [
   "payment.failed",
   "payment.refunded",
   "customer.upserted",
+  "customer.phone_collected",
+  "customer.registered",
+  "funnel.step_completed",
   "tracking.updated",
   "order.tracking.updated",
   "support.ticket.created",
