@@ -11,9 +11,9 @@ import {
 } from "class-validator";
 
 export class ConnectCommerceDto {
-  @ApiProperty({ enum: ["shopify", "woocommerce", "nuvemshop", "tray"] })
-  @IsIn(["shopify", "woocommerce", "nuvemshop", "tray"])
-  provider!: "shopify" | "woocommerce" | "nuvemshop" | "tray";
+  @ApiProperty({ enum: ["shopify", "woocommerce", "nuvemshop", "tray", "vtex"] })
+  @IsIn(["shopify", "woocommerce", "nuvemshop", "tray", "vtex"])
+  provider!: "shopify" | "woocommerce" | "nuvemshop" | "tray" | "vtex";
 
   @ApiPropertyOptional({ example: "merchant.myshopify.com" })
   @ValidateIf((value: ConnectCommerceDto) => value.provider === "shopify")
@@ -116,4 +116,24 @@ export class ConnectCommerceDto {
   @IsString()
   @Matches(/^\d+$/)
   tray_access_token_expires_at?: string;
+
+  // --- VTEX ---
+  @ApiPropertyOptional({ example: "mystorename" })
+  @ValidateIf((value: ConnectCommerceDto) => value.provider === "vtex")
+  @IsString()
+  @MinLength(2)
+  @MaxLength(100)
+  account_name?: string;
+
+  @ApiPropertyOptional({ writeOnly: true })
+  @ValidateIf((value: ConnectCommerceDto) => value.provider === "vtex")
+  @IsString()
+  @MinLength(8)
+  app_key?: string;
+
+  @ApiPropertyOptional({ writeOnly: true })
+  @ValidateIf((value: ConnectCommerceDto) => value.provider === "vtex")
+  @IsString()
+  @MinLength(8)
+  app_token?: string;
 }

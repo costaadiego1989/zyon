@@ -1,9 +1,7 @@
 import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import {
-  ShopifyCommerceAdapter,
   WooCommerceCommerceAdapter,
-  NuvemshopCommerceAdapter,
-  TrayCommerceAdapter,
+  MagentoCommerceAdapter,
 } from "@zyon/commerce-adapters";
 import type {
   CommerceCatalogPage,
@@ -16,47 +14,11 @@ import type {
   TrustedCartSnapshot
 } from "@zyon/commerce-adapters";
 import { HttpClientService } from "../../../shared/http/http-client.service.js";
-import { isProduction } from "../../../shared/config/secret-config.js";
 import {
   COMMERCE_CONNECTION_PORT,
   type CommerceConnectionPort
 } from "../domain/ports/commerce-connection.port.js";
 import { retryWithBackoff } from "./commerce-retry.js";
-
-/**
- * P2 fix: the global-env Shopify fallback is limited to a single opt-in demo
- * merchant (SHOPIFY_DEMO_MERCHANT_ID) and is disabled in production.
- * Any merchant that doesn't have persisted credentials and isn't the known
- * demo merchant gets a hard "not configured" error regardless of environment.
- */
-function globalEnvCredentials(merchantId: string):
-  | {
-      shopDomain: string;
-      adminAccessToken: string;
-      storefrontAccessToken?: string;
-      apiVersion?: string;
-    }
-  | undefined {
-  // Fail-closed: no fallback in production under any circumstance.
-  if (isProduction()) return undefined;
-
-  const demoMerchantId = process.env.SHOPIFY_DEMO_MERCHANT_ID?.trim();
-  // If no explicit demo-merchant opt-in is configured, the fallback is disabled.
-  if (!demoMerchantId) return undefined;
-  // Only the single known demo merchant may use the global fallback.
-  if (merchantId.trim() !== demoMerchantId) return undefined;
-
-  const shopDomain = process.env.SHOPIFY_SHOP_DOMAIN?.trim();
-  const adminAccessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN?.trim();
-  if (!shopDomain || !adminAccessToken) return undefined;
-  return {
-    shopDomain,
-    adminAccessToken,
-    storefrontAccessToken:
-      process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN?.trim() || undefined,
-    apiVersion: process.env.SHOPIFY_API_VERSION?.trim() || undefined,
-  };
-}
 
 /** Simple TTL cache entry for resolved adapters. */
 interface CachedAdapter {
@@ -103,20 +65,6 @@ export class TenantCommerceAdapterFactory
 
   private async resolveFromSource(merchantId: string): Promise<CommerceProviderPort> {
     const tenant = await this.connections.getCredentials(merchantId.trim());
-    if (tenant?.provider === "shopify") {
-      return new ShopifyCommerceAdapter(
-        {
-          shopDomain: tenant.shopDomain,
-          adminAccessToken: tenant.adminAccessToken,
-          storefrontAccessToken: tenant.storefrontAccessToken,
-          apiVersion: tenant.apiVersion,
-          // GraphQL is the Shopify Admin default; REST Admin is legacy after
-          // the 2025-04 public-app cutoff and should be explicit opt-in only.
-          useGraphqlAdminApi: true,
-        },
-        this.http.toFetch()
-      );
-    }
     if (tenant?.provider === "woocommerce") {
       return new WooCommerceCommerceAdapter(
         {
@@ -127,45 +75,17 @@ export class TenantCommerceAdapterFactory
         globalThis.fetch.bind(globalThis),
       );
     }
-    if (tenant?.provider === "nuvemshop") {
-      return new NuvemshopCommerceAdapter(
+    if (tenant?.provider === "magento") {
+      return new MagentoCommerceAdapter(
         {
-          storeId: tenant.storeId,
+          baseUrl: tenant.baseUrl,
           accessToken: tenant.accessToken,
-          userAgent: tenant.userAgent,
+          storeCode: tenant.storeCode ?? "default",
         },
-        this.http.toFetch(),
+        globalThis.fetch.bind(globalThis),
       );
     }
-    if (tenant?.provider === "tray") {
-      return new TrayCommerceAdapter(
-        {
-          merchantId: tenant.merchantId,
-          provider: "tray",
-          apiAddress: tenant.apiAddress,
-          accessToken: tenant.accessToken,
-          refreshToken: tenant.refreshToken,
-          accessTokenExpiresAt: tenant.accessTokenExpiresAt,
-          consumerKey: tenant.consumerKey,
-          consumerSecret: tenant.consumerSecret,
-        },
-        this.http.toFetch(),
-      );
-    }
-
-    if (isProduction()) {
-      throw new BadRequestException("commerce_connection_not_configured_for_merchant");
-    }
-
-    // P2 fix: fallback is scoped to the explicit demo merchant only.
-    const fallback = globalEnvCredentials(merchantId);
-    if (!fallback) {
-      throw new BadRequestException("commerce_adapter_not_configured");
-    }
-    return new ShopifyCommerceAdapter(
-      { ...fallback, useGraphqlAdminApi: true },
-      this.http.toFetch(),
-    );
+    throw new BadRequestException("commerce_adapter_not_configured");
   }
 
   async validateCart(input: { merchantId: string; commerceCartRef: string }): Promise<TrustedCartSnapshot> {

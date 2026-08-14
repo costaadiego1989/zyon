@@ -94,7 +94,7 @@ function isValidEvmAddress(addr: string): boolean {
 
 // ── Step 4 state ──────────────────────────────────────────────────────────────
 
-type PlatformChoice = "woocommerce" | "shopify" | "nuvemshop" | "tray" | "custom";
+type PlatformChoice = "woocommerce" | "magento" | "native";
 
 type CheckoutDraft = {
   mode: CheckoutSettingsMode;
@@ -105,7 +105,7 @@ type CheckoutDraft = {
 const DEFAULT_CHECKOUT_DRAFT: CheckoutDraft = {
   mode: "silent_until_trigger",
   openWidgetOnTrigger: true,
-  platform: "custom",
+  platform: "native",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ export function OnboardingWizard(props: {
         setCheckoutDraft({
           mode: settings.mode,
           openWidgetOnTrigger: settings.widgetBehavior?.openWidgetOnTrigger ?? true,
-          platform: "custom",
+          platform: "native",
         });
       } catch {
         // ignore — drafts stay at defaults
@@ -812,11 +812,9 @@ export function OnboardingWizard(props: {
                       <span className="onb-field-label">Onde está sua loja?</span>
                       <div className="onb-options">
                         {([
+                          ["native", "Integração Nativa (Embed)", "Checkout completo via snippet JavaScript — sem plataforma"],
                           ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
-                          ["shopify", "Shopify", "App nativo para lojas Shopify"],
-                          ["nuvemshop", "Nuvemshop", "Integração via app parceiro"],
-                          ["tray", "Tray Commerce", "Integração nativa para lojas Tray"],
-                          ["custom", "Implementação própria", "Instale via snippet JavaScript no seu site"],
+                          ["magento", "Magento / Adobe Commerce", "Integração via REST API headless"],
                         ] as const).map(([value, label, help]) => {
                           const selected = checkoutDraft.platform === value;
                           return (
@@ -841,7 +839,7 @@ export function OnboardingWizard(props: {
 
                     {checkoutDraft.platform && (
                       <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
-                        {checkoutDraft.platform === "custom" ? (
+                        {checkoutDraft.platform === "native" ? (
                           <>
                             <span className="onb-field-label">Snippet de integração</span>
                             <p className="onb-field-help" style={{ marginBottom: 10 }}>
@@ -857,9 +855,7 @@ export function OnboardingWizard(props: {
                             <span className="onb-field-label">Instruções de instalação</span>
                             <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
                               {checkoutDraft.platform === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
-                              {checkoutDraft.platform === "shopify" && (<><li>Instale o app Zyon Checkout na Shopify App Store</li><li>Autorize a conexão com sua loja</li><li>O checkout será ativado automaticamente</li></>)}
-                              {checkoutDraft.platform === "nuvemshop" && (<><li>Acesse o painel Nuvemshop → Apps → Buscar "Zyon"</li><li>Instale e autorize a integração</li><li>Configure seu Merchant ID nas preferências do app</li></>)}
-                              {checkoutDraft.platform === "tray" && (<><li>Acesse o painel Tray → Integrações → Buscar "Zyon"</li><li>Ative a integração e autorize o acesso</li><li>O checkout será configurado automaticamente</li></>)}
+                              {checkoutDraft.platform === "magento" && (<><li>Acesse Magento Admin → System → Integrations → Add New</li><li>Configure a URL da API Zyon e ative a integração</li><li>Insira o Access Token gerado na página Conexões de Commerce</li></>)}
                             </ol>
                             <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Installations`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
                               Ver documentação de integração →

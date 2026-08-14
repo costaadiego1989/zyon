@@ -10,9 +10,9 @@ import { useApi } from "../hooks/useApi.js";
 
 // ── Exported constants for testing ──────────────────────────────────────────
 
-export const SHOPIFY_TOKEN_PATTERN = /^shpat_[a-f0-9]{32,}$/;
 export const WOOCOMMERCE_KEY_PATTERN = /^ck_[a-f0-9]{32,}$/;
 export const WOOCOMMERCE_SECRET_PATTERN = /^cs_[a-f0-9]{32,}$/;
+export const MAGENTO_TOKEN_PATTERN = /^[a-z0-9]{32,}$/;
 
 // ── Error sanitization ──────────────────────────────────────────────────────
 
@@ -39,33 +39,29 @@ function formatDate(iso: string): string {
   );
 }
 
-type Provider = "shopify" | "woocommerce" | "nuvemshop" | "tray";
+type Provider = "woocommerce" | "magento" | "native";
 type Operation = "idle" | "loading" | "testing" | "connecting" | "syncing" | "deleting";
 
-const PROVIDERS: Provider[] = ["shopify", "woocommerce", "nuvemshop", "tray"];
+const PROVIDERS: Provider[] = ["native", "woocommerce", "magento"];
 
 const PROVIDER_LABELS: Record<string, string> = {
-  shopify: "Shopify",
+  native: "Integração Nativa (Embed)",
   woocommerce: "WooCommerce",
-  nuvemshop: "Nuvemshop",
-  tray: "Tray Commerce",
+  magento: "Magento / Adobe Commerce",
 };
 
 const PROVIDER_DOCS: Record<string, string> = {
-  shopify: "https://shopify.dev/docs/api/admin-rest",
+  native: "https://docs.zyon.com.br/embed",
   woocommerce: "https://woocommerce.github.io/woocommerce-rest-api-docs/",
-  nuvemshop: "https://tiendanube.github.io/api-documentation/intro",
-  tray: "https://developers.tray.com.br",
+  magento: "https://developer.adobe.com/commerce/webapi/rest/",
 };
 
 const PROVIDER_HELP: Record<string, string> = {
-  shopify: "Gere o token em Settings → Apps → Develop apps → Admin API",
+  native: "Embed direto via script tag — sem dependência de plataforma externa",
   woocommerce: "Gere as chaves em WooCommerce → Settings → Advanced → REST API",
-  nuvemshop: "Obtenha o token via Partner Portal ou app autorizado no painel Nuvemshop",
-  tray: "Cadastre o app no painel Tray e autorize via OAuth para obter o access_token",
+  magento: "Gere o token em System → Integrations → Add New Integration → API",
 };
 
-const API_VERSIONS = ["2024-10", "2024-07", "2024-04", "2024-01", "2023-10"];
 
 function statusBadge(status: string) {
   if (status === "healthy")
@@ -91,18 +87,13 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
   const alertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Form state
-  const [provider, setProvider] = useState<Provider>("shopify");
-  const [shopDomain, setShopDomain] = useState("");
-  const [adminToken, setAdminToken] = useState("");
-  const [storefrontToken, setStorefrontToken] = useState("");
-  const [apiVersion, setApiVersion] = useState("");
+  const [provider, setProvider] = useState<Provider>("native");
   const [storeUrl, setStoreUrl] = useState("");
   const [consumerKey, setConsumerKey] = useState("");
   const [consumerSecret, setConsumerSecret] = useState("");
-  const [nuvemshopStoreId, setNuvemshopStoreId] = useState("");
-  const [nuvemshopToken, setNuvemshopToken] = useState("");
-  const [trayApiAddress, setTrayApiAddress] = useState("");
-  const [trayAccessToken, setTrayAccessToken] = useState("");
+  const [magentoBaseUrl, setMagentoBaseUrl] = useState("");
+  const [magentoToken, setMagentoToken] = useState("");
+  const [magentoStoreCode, setMagentoStoreCode] = useState("default");
 
   // Delete confirmation
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -149,25 +140,17 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
     setAlert(null);
     try {
       let payload: ConnectCommercePayload;
-      if (provider === "shopify") {
+      if (provider === "native") {
         payload = {
-          provider: "shopify",
-          shop_domain: shopDomain.trim(),
-          admin_access_token: adminToken.trim(),
-          ...(storefrontToken.trim() ? { storefront_access_token: storefrontToken.trim() } : {}),
-          ...(apiVersion ? { api_version: apiVersion } : {}),
+          provider: "native",
+          store_url: storeUrl.trim() || "embed://direct",
         };
-      } else if (provider === "nuvemshop") {
+      } else if (provider === "magento") {
         payload = {
-          provider: "nuvemshop",
-          store_url: nuvemshopStoreId.trim(),
-          access_token: nuvemshopToken.trim(),
-        };
-      } else if (provider === "tray") {
-        payload = {
-          provider: "tray",
-          store_url: trayApiAddress.trim(),
-          access_token: trayAccessToken.trim(),
+          provider: "magento",
+          store_url: magentoBaseUrl.trim(),
+          access_token: magentoToken.trim(),
+          ...(magentoStoreCode.trim() !== "default" ? { store_code: magentoStoreCode.trim() } : {}),
         };
       } else {
         payload = {
@@ -179,13 +162,12 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
       }
       const created = await api.createCommerceConnection(payload);
       setConnections([created]);
-      setShopDomain("");
-      setAdminToken("");
-      setStorefrontToken("");
-      setApiVersion("");
       setStoreUrl("");
       setConsumerKey("");
       setConsumerSecret("");
+      setMagentoBaseUrl("");
+      setMagentoToken("");
+      setMagentoStoreCode("default");
       showAlert("Conexão criada com sucesso.", "success");
     } catch (e) {
       showAlert(sanitizeError(e), "error");
@@ -281,7 +263,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
         <div className="metrics">
           <div className="metric">
             <span><Link2 size={14} /> Plataforma</span>
-            <strong>{connections[0].provider === "shopify" ? "Shopify" : "WooCommerce"}</strong>
+            <strong>{PROVIDER_LABELS[connections[0].provider] ?? connections[0].provider}</strong>
           </div>
           <div className="metric">
             <span><ShoppingBag size={14} /> Produtos</span>
@@ -362,86 +344,22 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                   ))}
                 </select>
               </label>
-              {provider === "shopify" ? (
-                <label>
-                  Domínio da loja
-                  <input
-                    type="text"
-                    placeholder="minhaloja.myshopify.com"
-                    value={shopDomain}
-                    onChange={(e) => setShopDomain(e.target.value)}
-                    disabled={isBusy}
-                    required
-                    minLength={3}
-                  />
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Sem https:// — apenas o subdomínio .myshopify.com</small>
-                </label>
-              ) : (
+              {provider !== "native" ? (
                 <label>
                   URL da loja
                   <input
                     type="url"
-                    placeholder="https://minhaloja.com.br"
-                    value={storeUrl}
-                    onChange={(e) => setStoreUrl(e.target.value)}
+                    placeholder={provider === "magento" ? "https://magento.minhaloja.com.br" : "https://minhaloja.com.br"}
+                    value={provider === "magento" ? magentoBaseUrl : storeUrl}
+                    onChange={(e) => provider === "magento" ? setMagentoBaseUrl(e.target.value) : setStoreUrl(e.target.value)}
                     disabled={isBusy}
                     required
                   />
                 </label>
-              )}
+              ) : null}
             </div>
 
-            {provider === "shopify" ? (
-              <>
-                <label>
-                  Token de acesso (Admin API)
-                  <input
-                    type="password"
-                    placeholder="shpat_..."
-                    value={adminToken}
-                    onChange={(e) => setAdminToken(e.target.value)}
-                    disabled={isBusy}
-                    required
-                    minLength={8}
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    data-1p-ignore
-                    data-lpignore="true"
-                  />
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Gere em Shopify Admin → Settings → Apps → Develop apps → Admin API access token</small>
-                  {adminToken && !SHOPIFY_TOKEN_PATTERN.test(adminToken) ? (
-                    <span className="commerce-field-warning">Formato esperado: shpat_ seguido de 32+ caracteres hexadecimais</span>
-                  ) : null}
-                </label>
-                <label>
-                  Token storefront (opcional)
-                  <input
-                    type="password"
-                    placeholder="shpat_... (opcional)"
-                    value={storefrontToken}
-                    onChange={(e) => setStorefrontToken(e.target.value)}
-                    disabled={isBusy}
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    data-1p-ignore
-                    data-lpignore="true"
-                  />
-                </label>
-                <label>
-                  Versão da API
-                  <select
-                    value={apiVersion}
-                    onChange={(e) => setApiVersion(e.target.value)}
-                    disabled={isBusy}
-                  >
-                    <option value="">Padrão do servidor</option>
-                    {API_VERSIONS.map((v) => (
-                      <option key={v} value={v}>{v}</option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            ) : (
+            {provider === "woocommerce" ? (
               <div className="commerce-credential-row">
                 <label>
                   Chave do consumidor (Consumer Key)
@@ -482,64 +400,17 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                   ) : null}
                 </label>
               </div>
-            )}
-
-            {provider === "nuvemshop" ? (
-              <>
-                <label>
-                  ID da loja (store_id)
-                  <input
-                    type="text"
-                    placeholder="1234567"
-                    value={nuvemshopStoreId}
-                    onChange={(e) => setNuvemshopStoreId(e.target.value)}
-                    disabled={isBusy}
-                    required
-                    minLength={3}
-                  />
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Encontre em Nuvemshop Admin → Configurações → Identificação</small>
-                </label>
-                <label>
-                  Access Token
-                  <input
-                    type="password"
-                    placeholder="Token gerado via Partner Portal ou app OAuth"
-                    value={nuvemshopToken}
-                    onChange={(e) => setNuvemshopToken(e.target.value)}
-                    disabled={isBusy}
-                    required
-                    minLength={8}
-                    autoComplete="new-password"
-                    spellCheck={false}
-                    data-1p-ignore
-                    data-lpignore="true"
-                  />
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Gere via app autorizado no Partner Portal Nuvemshop</small>
-                </label>
-              </>
             ) : null}
 
-            {provider === "tray" ? (
-              <>
+            {provider === "magento" ? (
+              <div className="commerce-credential-row">
                 <label>
-                  URL da API (api_address)
-                  <input
-                    type="url"
-                    placeholder="https://minhaloja.com.br/web_api"
-                    value={trayApiAddress}
-                    onChange={(e) => setTrayApiAddress(e.target.value)}
-                    disabled={isBusy}
-                    required
-                  />
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Endereço retornado após autorização OAuth no painel Tray</small>
-                </label>
-                <label>
-                  Access Token
+                  Token de acesso (Integration Token)
                   <input
                     type="password"
-                    placeholder="Token retornado pelo fluxo OAuth"
-                    value={trayAccessToken}
-                    onChange={(e) => setTrayAccessToken(e.target.value)}
+                    placeholder="Token gerado em System → Integrations"
+                    value={magentoToken}
+                    onChange={(e) => setMagentoToken(e.target.value)}
                     disabled={isBusy}
                     required
                     minLength={8}
@@ -548,9 +419,40 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                     data-1p-ignore
                     data-lpignore="true"
                   />
-                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Obtido após autorizar o app via OAuth na loja Tray</small>
+                  {magentoToken && !MAGENTO_TOKEN_PATTERN.test(magentoToken) ? (
+                    <span className="commerce-field-warning">Formato esperado: 32+ caracteres alfanuméricos</span>
+                  ) : null}
                 </label>
-              </>
+                <label>
+                  Store Code
+                  <input
+                    type="text"
+                    placeholder="default"
+                    value={magentoStoreCode}
+                    onChange={(e) => setMagentoStoreCode(e.target.value)}
+                    disabled={isBusy}
+                  />
+                  <small style={{ color: 'var(--color-text-muted)', fontSize: '11px' }}>Código da store view (geralmente "default")</small>
+                </label>
+              </div>
+            ) : null}
+
+            {provider === "native" ? (
+              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <p style={{ font: '13px var(--sans)', color: 'var(--muted)', margin: 0 }}>
+                  Integração nativa via embed — sem dependência de plataforma. O widget Zyon é o checkout completo. Configure apenas o domínio onde o widget será embedado.
+                </p>
+                <label style={{ marginTop: 12, display: 'block' }}>
+                  Domínio autorizado (opcional)
+                  <input
+                    type="url"
+                    placeholder="https://minhaloja.com.br"
+                    value={storeUrl}
+                    onChange={(e) => setStoreUrl(e.target.value)}
+                    disabled={isBusy}
+                  />
+                </label>
+              </div>
             ) : null}
 
             {/* Documentation link */}
@@ -580,9 +482,9 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
       {!hasConnection ? (
         <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
           <h3 style={{ font: "600 14px var(--serif)", color: "var(--ink)", marginBottom: 12 }}>Em breve</h3>
-          <p style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)", marginBottom: 14 }}>Estamos trabalhando em mais integrações nativas.</p>
+          <p style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)", marginBottom: 14 }}>Próximas integrações no roadmap.</p>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {["VTEX", "Magento", "Yampi", "Loja Integrada"].map(name => (
+            {["VTEX (homologação em andamento)", "Tray Commerce (avaliando viabilidade)"].map(name => (
               <span key={name} style={{ font: "500 11px var(--mono)", padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)" }}>{name}</span>
             ))}
           </div>

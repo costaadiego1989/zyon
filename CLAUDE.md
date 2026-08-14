@@ -111,17 +111,26 @@ No root-level test command. Run tests per app/package.
 Create `apps/api/.env`. Never commit secrets.
 
 ```env
-SHOPIFY_SHOP_DOMAIN=
-SHOPIFY_ADMIN_ACCESS_TOKEN=
-SHOPIFY_API_VERSION=
-
 OPENAI_API_KEY=
 OPENAI_MODEL=
 
 DATABASE_URL=postgresql://...
+
+# Commerce adapters (per merchant config)
+WOOCOMMERCE_STORE_URL=
+WOOCOMMERCE_CONSUMER_KEY=
+WOOCOMMERCE_CONSUMER_SECRET=
+
+MAGENTO_BASE_URL=
+MAGENTO_ACCESS_TOKEN=
+MAGENTO_STORE_CODE=
+
+VTEX_APP_KEY=
+VTEX_APP_TOKEN=
+VTEX_ACCOUNT_NAME=
 ```
 
-Without Shopify/OpenAI credentials, deterministic fallbacks must keep MVP flows usable.
+Without commerce/OpenAI credentials, deterministic fallbacks must keep MVP flows usable.
 
 ## Repo Layout
 

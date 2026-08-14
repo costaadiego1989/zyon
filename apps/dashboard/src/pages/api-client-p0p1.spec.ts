@@ -298,8 +298,8 @@ describe("createDashboardApi — negotiation policy", () => {
 
 describe("createDashboardApi — commerce connections", () => {
   const conn: CommerceConnection = {
-    provider: "shopify",
-    store_url: "https://minhaloja.myshopify.com",
+    provider: "woocommerce",
+    store_url: "https://minhaloja.com.br",
     status: "healthy",
     api_version: "2026-04",
     last_tested_at: null,
@@ -314,26 +314,27 @@ describe("createDashboardApi — commerce connections", () => {
     const api = createDashboardApi({ baseUrl: BASE, fetchImpl: asF(f) });
     const result = await api.getCommerceConnections();
     expect(capturedUrl(f)).toContain("/commerce/connections");
-    expect(result[0]?.provider).toBe("shopify");
+    expect(result[0]?.provider).toBe("woocommerce");
   });
 
   it("getCommerceConnections also accepts a bare array", async () => {
     const f = makeFetch([conn]);
     const api = createDashboardApi({ baseUrl: BASE, fetchImpl: asF(f) });
     const result = await api.getCommerceConnections();
-    expect(result[0]?.provider).toBe("shopify");
+    expect(result[0]?.provider).toBe("woocommerce");
   });
 
   it("createCommerceConnection posts with payload", async () => {
     const f = makeFetch(conn);
     const api = createDashboardApi({ baseUrl: BASE, fetchImpl: asF(f) });
     await api.createCommerceConnection({
-      provider: "shopify",
-      shop_domain: "minhaloja.myshopify.com",
-      admin_access_token: "shpat_test_token",
+      provider: "woocommerce",
+      store_url: "https://minhaloja.com.br",
+      consumer_key: "ck_test_key_abcdef1234567890abcdef12",
+      consumer_secret: "cs_test_secret_abcdef1234567890abcdef",
     });
     expect(capturedInit(f).method).toBe("POST");
-    expect(capturedInit(f).body as string).toContain("shopify");
+    expect(capturedInit(f).body as string).toContain("woocommerce");
     // no merchant_id in body — tenant scope via cookie
     expect(capturedInit(f).body as string).not.toContain("merchant_id");
   });
@@ -361,7 +362,7 @@ describe("createDashboardApi — installations", () => {
   const inst: Installation = {
     id: "ins_1",
     name: "Producao",
-    platform: "shopify",
+    platform: "woocommerce",
     status: "active",
     health: "healthy",
     created_at: "2026-01-01T00:00:00Z",

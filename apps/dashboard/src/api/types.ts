@@ -260,7 +260,7 @@ export interface NegotiationStats {
 }
 
 export type CommerceConnection = {
-  provider: "shopify" | "woocommerce" | string;
+  provider: "native" | "woocommerce" | "magento" | string;
   store_url: string;
   status: "pending" | "healthy" | "degraded" | string;
   api_version: string | null;
@@ -272,15 +272,12 @@ export type CommerceConnection = {
 };
 
 export type ConnectCommercePayload = {
-  provider: "shopify" | "woocommerce" | "nuvemshop" | "tray";
-  shop_domain?: string;
-  admin_access_token?: string;
-  storefront_access_token?: string;
-  api_version?: string;
+  provider: "native" | "woocommerce" | "magento";
   store_url?: string;
   consumer_key?: string;
   consumer_secret?: string;
   access_token?: string;
+  store_code?: string;
 };
 
 export type CommerceConnectionTestResult = {

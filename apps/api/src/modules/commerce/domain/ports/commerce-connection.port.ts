@@ -1,6 +1,7 @@
-export type CommerceProvider = "shopify" | "woocommerce" | "nuvemshop" | "tray";
+export type CommerceProvider = "shopify" | "woocommerce" | "nuvemshop" | "tray" | "vtex" | "magento";
 export type CommerceConnectionStatus = "pending" | "healthy" | "degraded";
 
+/** @deprecated Excluded from product — no headless checkout support */
 export interface ShopifyCommerceCredentials {
   merchantId: string;
   provider: "shopify";
@@ -20,6 +21,7 @@ export interface WooCommerceCredentials {
   webhookSecret?: string;
 }
 
+/** @deprecated Excluded from product — no headless checkout support */
 export interface NuvemshopCommerceCredentials {
   merchantId: string;
   provider: "nuvemshop";
@@ -28,6 +30,7 @@ export interface NuvemshopCommerceCredentials {
   userAgent?: string;
 }
 
+/** @deprecated Excluded from product — no headless checkout support */
 export interface TrayCommerceCredentials {
   merchantId: string;
   provider: "tray";
@@ -39,12 +42,31 @@ export interface TrayCommerceCredentials {
   consumerSecret: string;
 }
 
+export interface VtexCommerceCredentials {
+  merchantId: string;
+  provider: "vtex";
+  accountName: string;
+  appKey: string;
+  appToken: string;
+}
+
+export interface MagentoCommerceCredentials {
+  merchantId: string;
+  provider: "magento";
+  baseUrl: string;
+  accessToken: string;
+  storeCode: string;
+}
+
 export type MerchantCommerceCredentials =
   | ShopifyCommerceCredentials
   | WooCommerceCredentials
   | NuvemshopCommerceCredentials
-  | TrayCommerceCredentials;
+  | TrayCommerceCredentials
+  | VtexCommerceCredentials
+  | MagentoCommerceCredentials;
 
+/** @deprecated Excluded from product — no headless checkout support */
 export interface SaveShopifyCommerceCredentialsInput {
   merchantId: string;
   provider: "shopify";
@@ -64,6 +86,7 @@ export interface SaveWooCommerceCredentialsInput {
   webhookSecret?: string;
 }
 
+/** @deprecated Excluded from product — no headless checkout support */
 export interface SaveNuvemshopCommerceCredentialsInput {
   merchantId: string;
   provider: "nuvemshop";
@@ -72,6 +95,7 @@ export interface SaveNuvemshopCommerceCredentialsInput {
   userAgent?: string;
 }
 
+/** @deprecated Excluded from product — no headless checkout support */
 export interface SaveTrayCommerceCredentialsInput {
   merchantId: string;
   provider: "tray";
@@ -83,11 +107,29 @@ export interface SaveTrayCommerceCredentialsInput {
   consumerSecret: string;
 }
 
+export interface SaveVtexCommerceCredentialsInput {
+  merchantId: string;
+  provider: "vtex";
+  accountName: string;
+  appKey: string;
+  appToken: string;
+}
+
+export interface SaveMagentoCommerceCredentialsInput {
+  merchantId: string;
+  provider: "magento";
+  baseUrl: string;
+  accessToken: string;
+  storeCode: string;
+}
+
 export type SaveMerchantCommerceCredentialsInput =
   | SaveShopifyCommerceCredentialsInput
   | SaveWooCommerceCredentialsInput
   | SaveNuvemshopCommerceCredentialsInput
-  | SaveTrayCommerceCredentialsInput;
+  | SaveTrayCommerceCredentialsInput
+  | SaveVtexCommerceCredentialsInput
+  | SaveMagentoCommerceCredentialsInput;
 
 export interface MerchantCommerceConnection {
   merchantId: string;

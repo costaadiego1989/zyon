@@ -73,23 +73,22 @@ describe("sanitizeError", () => {
 // ── Task 0.4: Validation pattern tests ──────────────────────────────────────
 
 import {
-  SHOPIFY_TOKEN_PATTERN,
   WOOCOMMERCE_KEY_PATTERN,
   WOOCOMMERCE_SECRET_PATTERN,
+  MAGENTO_TOKEN_PATTERN,
 } from "./commerce-connections-page.js";
 
 describe("validation patterns", () => {
-  it("SHOPIFY_TOKEN_PATTERN matches valid shpat_ tokens", () => {
-    const token32 = "shpat_" + "a1b2c3d4e5f6".repeat(3).slice(0, 32);
-    const token40 = "shpat_" + "a1b2c3d4e5f6".repeat(4).slice(0, 40);
-    expect(SHOPIFY_TOKEN_PATTERN.test(token32)).toBe(true);
-    expect(SHOPIFY_TOKEN_PATTERN.test(token40)).toBe(true);
+  it("MAGENTO_TOKEN_PATTERN matches valid tokens", () => {
+    const token32 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4";
+    const token40 = "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2";
+    expect(MAGENTO_TOKEN_PATTERN.test(token32)).toBe(true);
+    expect(MAGENTO_TOKEN_PATTERN.test(token40)).toBe(true);
   });
 
-  it("SHOPIFY_TOKEN_PATTERN rejects invalid tokens", () => {
-    expect(SHOPIFY_TOKEN_PATTERN.test("invalid_token")).toBe(false);
-    expect(SHOPIFY_TOKEN_PATTERN.test("shpat_short")).toBe(false);
-    expect(SHOPIFY_TOKEN_PATTERN.test("")).toBe(false);
+  it("MAGENTO_TOKEN_PATTERN rejects invalid tokens", () => {
+    expect(MAGENTO_TOKEN_PATTERN.test("short")).toBe(false);
+    expect(MAGENTO_TOKEN_PATTERN.test("")).toBe(false);
   });
 
   it("WOOCOMMERCE_KEY_PATTERN matches valid ck_ keys", () => {
