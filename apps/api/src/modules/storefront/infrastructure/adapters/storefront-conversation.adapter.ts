@@ -144,11 +144,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       createCheckoutSession: async (args) => {
-        // Placeholder: call checkout module
-        return {
-          checkoutUrl: `https://checkout.example.com/${args.cartId}`,
-          sessionId: args.cartId
-        };
+        const sessionId = `chk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const widgetBaseUrl = process.env.WIDGET_BASE_URL ?? "http://localhost:5173";
+        const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${args.cartId}`;
+        return { checkoutUrl, sessionId };
       }
     };
 

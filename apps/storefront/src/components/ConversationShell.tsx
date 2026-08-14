@@ -14,25 +14,47 @@ type Message = {
 export default function ConversationShell({
   storeName,
   logo,
+  returnOrderId,
 }: {
   storeName: string;
   logo?: string;
+  returnOrderId?: string;
 }) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "welcome",
-      role: "agent",
-      text: `Olá! Eu sou o assistente da ${storeName}. Como posso ajudar hoje?`,
-      blocks: [
-        {
-          type: "quick_replies",
-          data: {
-            options: ["Ver produtos", "Promoções", "Rastrear pedido", "Falar com humano"],
+  const [messages, setMessages] = useState<Message[]>(() => {
+    const initial: Message[] = [];
+
+    if (returnOrderId) {
+      initial.push({
+        id: "order-confirmation",
+        role: "agent",
+        text: `Pedido #${returnOrderId} confirmado! Posso ajudar com mais alguma coisa?`,
+        blocks: [
+          {
+            type: "quick_replies",
+            data: {
+              options: ["Rastrear pedido", "Ver mais produtos", "Falar com humano"],
+            },
           },
-        },
-      ],
-    },
-  ]);
+        ],
+      });
+    } else {
+      initial.push({
+        id: "welcome",
+        role: "agent",
+        text: `Olá! Eu sou o assistente da ${storeName}. Como posso ajudar hoje?`,
+        blocks: [
+          {
+            type: "quick_replies",
+            data: {
+              options: ["Ver produtos", "Promoções", "Rastrear pedido", "Falar com humano"],
+            },
+          },
+        ],
+      });
+    }
+
+    return initial;
+  });
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);

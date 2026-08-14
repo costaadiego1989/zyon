@@ -3,13 +3,17 @@ import ConversationShell from "@/components/ConversationShell";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 
 type Params = { slug: string };
+type SearchParams = { order?: string };
 
 export default async function StorePage({
   params,
+  searchParams,
 }: {
   params: Promise<Params>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { slug } = await params;
+  const { order } = await searchParams;
   const merchant = getDemoMerchant(slug);
   if (!merchant) {
     notFound();
@@ -34,7 +38,10 @@ export default async function StorePage({
           <span className="store-header__brand">{m.name}</span>
         </header>
         <main className="store-main">
-          <ConversationShell storeName={m.name} />
+          <ConversationShell
+            storeName={m.name}
+            returnOrderId={order}
+          />
         </main>
       </div>
     </>
