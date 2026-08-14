@@ -23,6 +23,7 @@ import { StartStoreConversationUseCase } from "./application/use-cases/start-sto
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
+import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
 
@@ -37,6 +38,7 @@ import { StorefrontController } from "./presentation/http/storefront.controller.
   controllers: [StorefrontController],
   providers: [
     StorefrontConversationAdapter,
+    StorefrontConversationGateway,
     {
       provide: STOREFRONT_CONVERSATION_PORT,
       useExisting: StorefrontConversationAdapter
