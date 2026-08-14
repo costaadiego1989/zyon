@@ -153,11 +153,22 @@ export function configureApiDocumentation(app: INestApplication): OpenAPIObject 
     )
     .build();
 
-  const generated = SwaggerModule.createDocument(app, config, {
-    deepScanRoutes: true,
-    operationIdFactory: (controllerKey, methodKey) =>
-      `${controllerKey.replace(/Controller$/, "")}_${methodKey}`,
-  });
+  let generated: any;
+  try {
+    generated = SwaggerModule.createDocument(app, config, {
+      deepScanRoutes: true,
+      operationIdFactory: (controllerKey, methodKey) =>
+        `${controllerKey.replace(/Controller$/, "")}_${methodKey}`,
+    });
+  } catch (err: any) {
+    // Swagger circular dependency in DTOs — non-blocking, generate without deep scan
+    generated = SwaggerModule.createDocument(app, config, {
+      deepScanRoutes: false,
+      operationIdFactory: (controllerKey, methodKey) =>
+        `${controllerKey.replace(/Controller$/, "")}_${methodKey}`,
+    });
+    console.warn(`[Swagger] Fallback to shallow scan: ${err.message}`);
+  }
   const publicDocument = createPublicApiDocument(generated);
 
   SwaggerModule.setup("docs", app, publicDocument, {
