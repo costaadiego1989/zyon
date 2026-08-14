@@ -72,7 +72,7 @@ export class TenantCommerceAdapterFactory
           consumerKey: tenant.consumerKey,
           consumerSecret: tenant.consumerSecret,
         },
-        globalThis.fetch.bind(globalThis),
+        this.http.toFetch(),
       );
     }
     if (tenant?.provider === "magento") {
@@ -82,7 +82,7 @@ export class TenantCommerceAdapterFactory
           accessToken: tenant.accessToken,
           storeCode: tenant.storeCode ?? "default",
         },
-        globalThis.fetch.bind(globalThis),
+        this.http.toFetch(),
       );
     }
     throw new BadRequestException("commerce_adapter_not_configured");

@@ -37,7 +37,7 @@ services:
       retries: 10
 
   magento:
-    image: bitnami/magento:2.4
+    image: bitnami/magento:2
     environment:
       - MAGENTO_HOST=localhost
       - MAGENTO_DATABASE_HOST=magento-db

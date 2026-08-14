@@ -25,6 +25,7 @@ import "./modules/commerce/infrastructure/commerce-secret-cipher.spec.js";
 import "./modules/commerce/infrastructure/tenant-commerce-adapter.factory.spec.js";
 import "./modules/commerce/infrastructure/prisma-commerce.repository.int-spec.js";
 import "./modules/commerce/application/manage-commerce-connection.use-cases.spec.js";
+import "./modules/commerce/presentation/http/vtex-webhook.controller.spec.js";
 import "./modules/payment/domain/payment-intent.entity.spec.js";
 import "./modules/payment/infrastructure/in-memory-payment.repository.spec.js";
 import "./modules/payment/application/create-payment-intent.use-case.spec.js";

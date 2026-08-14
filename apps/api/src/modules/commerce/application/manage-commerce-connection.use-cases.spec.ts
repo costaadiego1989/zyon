@@ -10,18 +10,13 @@ import {
   GetCommerceConnectionUseCase,
 } from "./manage-commerce-connection.use-cases.js";
 
-test("commerce connection use cases persist, test and disconnect Shopify without exposing secrets", async () => {
+test("commerce connection use cases persist, test and disconnect WooCommerce without exposing secrets", async () => {
   const repository = new InMemoryCommerceConnectionRepository();
   const http = new HttpClientService({
     fetchFn: async () =>
       Response.json({
-        data: {
-          shop: {
-            name: "AACP Store",
-            myshopifyDomain: "merchant.myshopify.com",
-            currencyCode: "BRL",
-          },
-        },
+        environment: { site_title: "AACP Store" },
+        settings: { currency: "BRL", store_name: "AACP Store" },
       }),
   });
   const adapters = new TenantCommerceAdapterFactory(repository, http);
@@ -31,16 +26,16 @@ test("commerce connection use cases persist, test and disconnect Shopify without
 
   const connection = await connect.execute({
     merchantId: "mrc_1",
-    provider: "shopify",
-    shopDomain: "merchant.myshopify.com",
-    adminAccessToken: "shpat_secret",
-    storefrontAccessToken: "storefront_secret",
-    apiVersion: "2026-04",
+    provider: "woocommerce",
+    storeUrl: "https://shop.example.com",
+    consumerKey: "ck_abcdef1234567890abcdef1234567890",
+    consumerSecret: "cs_abcdef1234567890abcdef1234567890",
   });
 
   assert.equal(connection.status, "healthy");
-  assert.equal(connection.provider, "shopify");
-  assert.equal("adminAccessToken" in connection, false);
+  assert.equal(connection.provider, "woocommerce");
+  assert.equal("consumerKey" in connection, false);
+  assert.equal("consumerSecret" in connection, false);
   assert.ok((await repository.getCredentials("mrc_1")) !== undefined);
 
   await disconnect.execute("mrc_1");
