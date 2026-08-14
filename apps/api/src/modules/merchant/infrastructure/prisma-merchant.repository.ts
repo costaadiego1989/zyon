@@ -72,19 +72,19 @@ function toCreate(merchantId: string, rules: MerchantRules) {
 
 function toUpdate(rules: MerchantRules) {
   return {
-    maxDiscountPercent: rules.maxDiscountPercent ?? DEFAULT_RULES.maxDiscountPercent,
-    minimumMarginPercent: rules.minimumMarginPercent ?? DEFAULT_RULES.minimumMarginPercent,
-    allowFreeShipping: rules.allowFreeShipping ?? DEFAULT_RULES.allowFreeShipping,
-    allowShippingDiscount: rules.allowShippingDiscount ?? DEFAULT_RULES.allowShippingDiscount,
-    allowBonusItem: rules.allowBonusItem ?? DEFAULT_RULES.allowBonusItem,
-    allowStackDiscountAndFreeShipping: rules.allowStackDiscountAndFreeShipping ?? DEFAULT_RULES.allowStackDiscountAndFreeShipping,
-    couponBoxEnabled: rules.couponBoxEnabled ?? DEFAULT_RULES.couponBoxEnabled,
-    freeShippingMinCartValue: rules.freeShippingMinCartValue ?? DEFAULT_RULES.freeShippingMinCartValue,
-    maxShippingSubsidy: rules.maxShippingSubsidy ?? DEFAULT_RULES.maxShippingSubsidy,
-    maxPartialShippingDiscount: rules.maxPartialShippingDiscount ?? DEFAULT_RULES.maxPartialShippingDiscount,
-    offerExpirationMinutes: rules.offerExpirationMinutes ?? DEFAULT_RULES.offerExpirationMinutes,
-    blockedRegions: rules.blockedRegions ?? DEFAULT_RULES.blockedRegions,
-    brandVoice: rules.brandVoice ?? DEFAULT_RULES.brandVoice,
+    maxDiscountPercent: rules.maxDiscountPercent ?? 10,
+    minimumMarginPercent: rules.minimumMarginPercent ?? 38,
+    allowFreeShipping: rules.allowFreeShipping ?? true,
+    allowShippingDiscount: rules.allowShippingDiscount ?? true,
+    allowBonusItem: rules.allowBonusItem ?? false,
+    allowStackDiscountAndFreeShipping: rules.allowStackDiscountAndFreeShipping ?? false,
+    couponBoxEnabled: rules.couponBoxEnabled ?? true,
+    freeShippingMinCartValue: rules.freeShippingMinCartValue ?? 250,
+    maxShippingSubsidy: rules.maxShippingSubsidy ?? 45,
+    maxPartialShippingDiscount: rules.maxPartialShippingDiscount ?? 20,
+    offerExpirationMinutes: rules.offerExpirationMinutes ?? 15,
+    blockedRegions: rules.blockedRegions ?? [],
+    brandVoice: rules.brandVoice ?? "consultative",
     originZip: rules.originZip ?? null,
     quickReplies: rules.quickReplies != null
       ? (rules.quickReplies as unknown as Prisma.InputJsonValue)
