@@ -7,6 +7,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
+import { GetStoreConfigUseCase } from "./application/use-cases/get-store-config.use-case.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
@@ -55,12 +56,14 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     AIGatewayService,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
-    GetConversationHistoryUseCase
+    GetConversationHistoryUseCase,
+    GetStoreConfigUseCase
   ],
   exports: [
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GetConversationHistoryUseCase,
+    GetStoreConfigUseCase,
     STOREFRONT_CONVERSATION_PORT,
     AIGatewayService
   ]

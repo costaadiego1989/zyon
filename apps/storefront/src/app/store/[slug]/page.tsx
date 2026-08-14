@@ -6,9 +6,43 @@ import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 type Params = { slug: string };
 type SearchParams = { order?: string };
+
+interface StoreConfig {
+  merchantId: string;
+  name: string;
+  logo?: string;
+  theme: {
+    accentColor: string;
+    secondaryColor?: string;
+    textColor: string;
+    backgroundColor: string;
+    fontFamily: string;
+    logoUrl?: string;
+    agentAvatarUrl?: string;
+    surfaceColor?: string;
+    surfaceElevatedColor?: string;
+    borderColor?: string;
+  };
+  agentName?: string;
+  quickReplies?: string[];
+}
+
+async function fetchStoreConfig(slug: string): Promise<StoreConfig | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/storefront/${slug}/config`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as StoreConfig;
+  } catch {
+    return null;
+  }
+}
 
 export async function generateMetadata({
   params,
@@ -16,8 +50,9 @@ export async function generateMetadata({
   params: Promise<Params>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const merchant = getDemoMerchant(slug);
-  const name = merchant?.name ?? "Zyon Store";
+  const config = await fetchStoreConfig(slug);
+  const merchant = config ? null : getDemoMerchant(slug);
+  const name = config?.name ?? merchant?.name ?? "Zyon Store";
   const description =
     merchant?.description ??
     "Loja conversacional com atendimento por IA e checkout integrado.";
@@ -63,19 +98,53 @@ export default async function StorePage({
 }) {
   const { slug } = await params;
   const { order } = await searchParams;
-  const merchant = getDemoMerchant(slug);
-  if (!merchant) {
+
+  // Try real API first, fallback to demo fixture
+  const config = await fetchStoreConfig(slug);
+  const merchant = config ? null : getDemoMerchant(slug);
+
+  if (!config && !merchant) {
     notFound();
   }
 
-  const m = merchant!;
+  const name = config?.name ?? merchant!.name;
+  const logo = config?.logo ?? merchant?.logo;
+  const description =
+    merchant?.description ??
+    "Loja conversacional com atendimento por IA e checkout integrado.";
+  const gtmId = merchant?.gtmId;
+
+  // Theme: merge from API config or demo merchant
+  const themeColors = config
+    ? {
+        primary: config.theme.accentColor,
+        secondary: config.theme.secondaryColor ?? config.theme.accentColor,
+        heading: config.theme.fontFamily,
+        body: config.theme.fontFamily,
+        backgroundColor: config.theme.backgroundColor,
+        textColor: config.theme.textColor,
+        surfaceColor: config.theme.surfaceColor,
+      }
+    : {
+        primary: merchant!.theme.primary,
+        secondary: merchant!.theme.secondary,
+        heading: merchant!.theme.heading,
+        body: merchant!.theme.body,
+        backgroundColor: undefined,
+        textColor: undefined,
+        surfaceColor: undefined,
+      };
 
   const themeCss = `
     :root {
-      --color-primary: ${m.theme.primary};
-      --color-secondary: ${m.theme.secondary};
-      --font-heading: ${m.theme.heading};
-      --font-body: ${m.theme.body};
+      --color-primary: ${themeColors.primary};
+      --color-secondary: ${themeColors.secondary};
+      --font-heading: ${themeColors.heading};
+      --font-body: ${themeColors.body};
+      ${themeColors.backgroundColor ? `--aacp-bg: ${themeColors.backgroundColor};` : ""}
+      ${themeColors.textColor ? `--aacp-fg: ${themeColors.textColor};` : ""}
+      ${themeColors.surfaceColor ? `--aacp-surface: ${themeColors.surfaceColor};` : ""}
+      --aacp-accent: ${themeColors.primary};
     }
   `;
 
@@ -85,20 +154,21 @@ export default async function StorePage({
     <>
       <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       <OrganizationSchema
-        name={m.name}
+        name={name}
         url={pageUrl}
-        logo={m.logo}
-        description={m.description}
+        logo={logo}
+        description={description}
       />
-      <WebSiteSchema name={m.name} url={pageUrl} />
-      <GoogleTagManager gtmId={m.gtmId} />
+      <WebSiteSchema name={name} url={pageUrl} />
+      {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <div className="store-layout">
         <header className="store-header">
-          <span className="store-header__brand">{m.name}</span>
+          <span className="store-header__brand">{name}</span>
         </header>
         <main className="store-main">
           <ConversationShell
-            storeName={m.name}
+            storeName={name}
+            logo={logo}
             returnOrderId={order}
           />
         </main>

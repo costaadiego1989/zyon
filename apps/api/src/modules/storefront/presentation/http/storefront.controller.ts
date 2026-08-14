@@ -1,17 +1,9 @@
-/**
- * Storefront controller — REST endpoints for storefront conversations.
- *
- * Routes:
- *   POST /storefront/conversations — start conversation
- *   POST /storefront/conversations/:conversationId/messages — send message
- *   GET  /storefront/conversations/:conversationId — get history
- */
-
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
+import { GetStoreConfigUseCase } from "../../application/use-cases/get-store-config.use-case.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
@@ -30,8 +22,14 @@ export class StorefrontController {
   constructor(
     private readonly startStoreConversation: StartStoreConversationUseCase,
     private readonly sendStoreMessage: SendStoreMessageUseCase,
-    private readonly getConversationHistory: GetConversationHistoryUseCase
+    private readonly getConversationHistory: GetConversationHistoryUseCase,
+    private readonly getStoreConfig: GetStoreConfigUseCase
   ) {}
+
+  @Get(":slug/config")
+  async getConfig(@Param("slug") slug: string) {
+    return this.getStoreConfig.execute(slug);
+  }
 
   @Post("conversations")
   async startConversation(@Body() body: StartConversationRequest) {
