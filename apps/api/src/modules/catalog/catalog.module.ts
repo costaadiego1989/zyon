@@ -8,6 +8,7 @@ import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persi
 import { RedisModule } from "../../shared/cache/redis.module.js";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { EmbedAuthGuard } from "../embed/presentation/http/embed-auth.guard.js";
+import { EmbedCheckoutGuardHelper } from "../embed/presentation/http/embed-checkout.controller.js";
 import { AddStorefrontItemUseCase } from "./application/add-storefront-item.use-case.js";
 import { SearchStorefrontProductsUseCase } from "./application/search-storefront-products.use-case.js";
 import { AddProductUseCase } from "./application/use-cases/add-product.use-case.js";
@@ -47,6 +48,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
+    EmbedCheckoutGuardHelper,
     TenantStorefrontCatalogAdapter,
     DefaultCrossSellResolverAdapter,
     CatalogCacheService,

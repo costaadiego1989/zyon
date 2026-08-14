@@ -1,6 +1,7 @@
 import {
   CanActivate,
   ExecutionContext,
+  Inject,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -9,7 +10,7 @@ import { NON_PRODUCTION_ROUTE } from "./non-production-route.js";
 
 @Injectable()
 export class NonProductionRouteGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(@Inject(Reflector) private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const nonProductionOnly = this.reflector.getAllAndOverride<boolean>(

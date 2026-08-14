@@ -30,7 +30,7 @@ export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitGuard.name);
 
   constructor(
-    private readonly reflector: Reflector,
+    @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(RateLimitStore) private readonly store: RateLimitStore,
     @Inject(RATE_LIMIT_OPTIONS) private readonly options: RateLimitOptions,
   ) {}
