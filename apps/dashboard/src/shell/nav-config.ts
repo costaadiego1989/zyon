@@ -19,6 +19,8 @@ import {
   type LucideIcon
 } from "lucide-react";
 
+export type MerchantPlan = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH";
+
 export type TabKey =
   | "onboarding"
   | "overview"
@@ -38,21 +40,27 @@ export type TabKey =
   | "audit-log"
   | "commerce-connections";
 
-export const NAV_ITEMS: Array<{ key: TabKey; label: string; section: string; icon: LucideIcon }> = [
+export const NAV_ITEMS: Array<{
+  key: TabKey;
+  label: string;
+  section: string;
+  icon: LucideIcon;
+  requiredPlan?: MerchantPlan | MerchantPlan[];
+}> = [
   { key: "onboarding", label: "Primeiros passos", section: "Começar", icon: Rocket },
   { key: "overview", label: "Operação", section: "Hoje", icon: Activity },
   { key: "shipments", label: "Pedidos e envios", section: "Hoje", icon: PackageSearch },
   { key: "customers", label: "Clientes", section: "Hoje", icon: UsersRound },
   { key: "funnel", label: "Funil de conversão", section: "Hoje", icon: Activity },
-  { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook },
-  { key: "commerce-connections", label: "Loja / Commerce", section: "Plataforma", icon: Store },
-  { key: "embed", label: "Embed", section: "Plataforma", icon: Code2 },
+  { key: "integrations", label: "Desenvolvedores", section: "Plataforma", icon: Webhook, requiredPlan: "CHECKOUT_ONLY" },
+  { key: "commerce-connections", label: "Loja / Commerce", section: "Plataforma", icon: Store, requiredPlan: "STORE_ONLY" },
+  { key: "embed", label: "Embed", section: "Plataforma", icon: Code2, requiredPlan: "CHECKOUT_ONLY" },
   { key: "theme", label: "Tema", section: "Plataforma", icon: Palette },
-  { key: "preview", label: "Preview", section: "Plataforma", icon: Eye },
+  { key: "preview", label: "Preview", section: "Plataforma", icon: Eye, requiredPlan: "CHECKOUT_ONLY" },
   { key: "support", label: "Suporte", section: "Atendimento", icon: MessageSquare },
-  { key: "settings", label: "Checkout", section: "Atendimento", icon: Settings2 },
-  { key: "rules", label: "Agente", section: "Atendimento", icon: Bot },
-  { key: "negotiation", label: "Negociação", section: "Atendimento", icon: SlidersHorizontal },
+  { key: "settings", label: "Checkout", section: "Atendimento", icon: Settings2, requiredPlan: "CHECKOUT_ONLY" },
+  { key: "rules", label: "Agente", section: "Atendimento", icon: Bot, requiredPlan: "CHECKOUT_ONLY" },
+  { key: "negotiation", label: "Negociação", section: "Atendimento", icon: SlidersHorizontal, requiredPlan: "CHECKOUT_ONLY" },
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
   { key: "payment-connections", label: "Pagamentos", section: "Conta", icon: Zap },
   { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },

@@ -549,6 +549,13 @@ export function OnboardingWizard(props: {
                         </span>
                       )}
                     </div>
+                    <input
+                      type="url"
+                      placeholder="Ou cole a URL do logotipo (https://...)"
+                      value={themeDraft.logoUrl?.startsWith("blob:") ? "" : themeDraft.logoUrl}
+                      onChange={(e) => setThemeDraft((d) => ({ ...d, logoUrl: e.target.value.trim() }))}
+                      style={{ marginTop: 8, width: "100%", height: 36, padding: "0 12px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px" }}
+                    />
                     {fieldErrors.logoUrl && <span className="onb-field-error">{fieldErrors.logoUrl}</span>}
                   </div>
 
@@ -664,18 +671,16 @@ export function OnboardingWizard(props: {
                   {/* Stripe */}
                   <div className="onb-field" style={{ padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
                     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)" }}>
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Stripe Connect</strong>
-                        <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão de crédito e débito internacionais</p>
-                      </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                        <span style={{ fontSize: "11px", fontWeight: 600, padding: "4px 8px", borderRadius: "4px", background: paymentDraft.stripeStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.stripeStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
-                          {paymentDraft.stripeStatus === "active" ? "Ativo" : paymentDraft.stripeStatus === "pending" ? "Pendente" : "Não configurado"}
+                        <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.stripeStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.stripeStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                          {paymentDraft.stripeStatus === "active" ? "Ativo" : "Não configurado"}
                         </span>
-                        <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.stripeStatus === "pending"} style={{ minHeight: 32, padding: "0 12px", fontSize: "12px" }} onClick={() => void initiateStripeOnboarding()}>
-                          {paymentDraft.stripeStatus === "active" ? "Ativo" : "Configurar"}
-                        </button>
+                        <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão de crédito e débito {props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "(modo teste)" : "internacionais"}</p>
                       </div>
+                      <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.stripeStatus === "active"} style={{ height: 36, padding: "0 16px", fontSize: "12px" }} onClick={() => void initiateStripeOnboarding()}>
+                        {paymentDraft.stripeStatus === "active" ? "Ativo" : "Configurar"}
+                      </button>
                     </div>
                   </div>
 
@@ -685,10 +690,10 @@ export function OnboardingWizard(props: {
                       <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Asaas (PIX e Boleto)</strong>
                       <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Pagamentos em PIX e boleto para clientes brasileiros</p>
                     </div>
-                    <div style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-2)" }}>
+                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                       <input
                         type="password"
-                        placeholder="Sua API Key de sandbox do Asaas"
+                        placeholder={props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "API Key sandbox ($aact_...)" : "API Key de produção ($aact_...)"}
                         value={paymentDraft.asaasApiKey}
                         onChange={(e) => {
                           setPaymentDraft((d) => ({ ...d, asaasApiKey: e.target.value }));
@@ -698,14 +703,17 @@ export function OnboardingWizard(props: {
                             return next;
                           });
                         }}
-                        style={{ flex: 1, padding: "8px 12px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px" }}
+                        style={{ flex: 1, height: 36, padding: "0 12px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px" }}
                       />
-                      <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.asaasStatus === "active"} style={{ minHeight: 32, padding: "0 16px", fontSize: "12px" }} onClick={() => void testAsaasConnection()}>
-                        {paymentDraft.asaasStatus === "testing" ? "Testando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : "Testar"}
+                      <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.asaasStatus === "active"} style={{ height: 36, padding: "0 16px", fontSize: "12px", whiteSpace: "nowrap" }} onClick={() => void testAsaasConnection()}>
+                        {paymentDraft.asaasStatus === "testing" ? "Testando..." : paymentDraft.asaasStatus === "active" ? "Ativo ✓" : "Testar"}
                       </button>
                     </div>
                     {fieldErrors.asaasApiKey && <span style={{ fontSize: "12px", color: "var(--color-error)", marginTop: "4px", display: "block" }}>{fieldErrors.asaasApiKey}</span>}
-                    {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>Asaas conectado com sucesso</span>}
+                    {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Asaas conectado</span>}
+                    <a href={props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "https://sandbox.asaas.com/customerRegistration/index" : "https://www.asaas.com/customerRegistration/index"} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "var(--color-brand)", marginTop: "6px", display: "inline-block" }}>
+                      Não tem conta? Gere sua API Key no Asaas {props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "(Sandbox)" : ""} →
+                    </a>
                   </div>
 
                   {/* Crypto */}
@@ -873,7 +881,7 @@ export function OnboardingWizard(props: {
           <aside className="onb-preview">
             <div className="onb-preview-frame">
               <span className="onb-preview-tag">Visualização em tempo real</span>
-              <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: "0 0 12px 12px", overflow: "hidden" }}>
+              <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: 12, overflow: "hidden" }}>
                 <div className="onb-widget-orb" style={{ "--orb-c1": themeDraft.accentColor, "--orb-c2": themeDraft.accentColor + "cc", "--orb-c3": themeDraft.accentColor + "66" } as React.CSSProperties}>
                   <div className="onb-widget-orb__halo" />
                   <div className="onb-widget-orb__core" />
@@ -1497,12 +1505,12 @@ function OnboardingStyles() {
         box-shadow: var(--shadow-sm);
         padding: var(--space-3);
         overflow: hidden;
+        text-align: center;
       }
       .onb-preview-tag {
-        display: inline-flex;
-        align-items: center;
-        margin-bottom: var(--space-2);
-        font-family: var(--font-mono);
+        display: block;
+        text-align: center;
+        margin-bottom: var(--space-3);
         font-size: 10px;
         font-weight: 600;
         letter-spacing: 0.06em;
@@ -1511,6 +1519,8 @@ function OnboardingStyles() {
       }
       .onb-preview-live {
         max-height: 580px;
+        border-radius: 12px;
+        text-align: center;
       }
       .onb-preview-live > div {
       }
@@ -1630,7 +1640,7 @@ function OnboardingStyles() {
       .onb-cta:active:not(:disabled) .onb-cta-face { transform: translateY(0); }
       .onb-cta:focus-visible { outline: 2px solid var(--color-brand-ring); outline-offset: 2px; }
       .onb-cta:disabled { opacity: 0.55; }
-      .onb-cta-inline { align-self: flex-start; }
+      .onb-cta-inline { align-self: center; height: 36px; display: inline-flex; align-items: center; }
 
       /* ── Loading ────────────────────────────────────────────────────── */
       .onb-loading {

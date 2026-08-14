@@ -3,6 +3,7 @@ import { LogOut, ShieldCheck } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
+import { FeatureGate } from "../components/FeatureGate.js";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
@@ -53,7 +54,11 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
       {/* ── SIDEBAR ── */}
       <aside style={{ width: 252, flex: "none", background: "var(--sidebar-bg)", display: "flex", flexDirection: "column", padding: "20px 14px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 18px", borderBottom: "1px solid var(--sidebar-border)", marginBottom: 14 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 8, background: "linear-gradient(150deg, var(--accent), var(--accent-dark))", display: "flex", alignItems: "center", justifyContent: "center", font: "600 14px var(--mono)", color: "white", flex: "none" }}>Z</div>
+          {me.theme?.logoUrl ? (
+            <img src={me.theme.logoUrl} alt="" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
+          ) : (
+            <img src="/logo-zyon.png" alt="Zyon" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
+          )}
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, font: "600 15px var(--serif)", letterSpacing: "-0.01em", color: "var(--sidebar-text)" }}>
               Zyon Console
