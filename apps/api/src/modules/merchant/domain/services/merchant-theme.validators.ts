@@ -19,6 +19,8 @@ export function assertValidUrl(field: string, value: unknown): void {
   if (typeof value !== "string") {
     throw new BadRequestException(`invalid_${field}`);
   }
+  // Allow data: URIs (base64 uploaded logos)
+  if (value.startsWith("data:")) return;
   try {
     const url = new URL(value);
     if (url.protocol !== "https:") throw new BadRequestException(`invalid_${field}`);
