@@ -392,19 +392,26 @@ export default function ConversationShell({
         @keyframes dot-pulse { 0%,80%,100%{opacity:.3;transform:scale(.65)} 40%{opacity:1;transform:scale(1)} }
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(255,76,108,0.5)} 100%{box-shadow:0 0 0 9px rgba(255,76,108,0)} }
+        @keyframes shimmerSlide { 0%{left:-100%} 50%{left:100%} 100%{left:100%} }
+        @keyframes thinkingPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
+        @keyframes thinkingRing { 0%{transform:scale(0.8);opacity:0.5} 100%{transform:scale(1.6);opacity:0} }
       `}</style>
 
       {/* Header (chat mode) */}
       {mode === "chat" && (
+        <>
         <div style={{ display: "flex", alignItems: "center", gap: "11px", padding: "12px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
-          <div style={{ width: "34px", height: "34px", borderRadius: "12px", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", color: "var(--aacp-fg)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", overflow: "hidden", fontSize: "13px", fontWeight: 800, letterSpacing: "-.2px" }}>
-            {logo ? <img src={logo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : storeName.charAt(0).toUpperCase()}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: "13.5px", fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{storeName}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10.5px", color: "var(--aacp-muted)", marginTop: "1px", whiteSpace: "nowrap" }}>
-              <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--aacp-success)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
-              {agent} · Online
+          {logo ? (
+            <img src={logo} alt="" style={{ maxWidth: "80px", maxHeight: "80px", objectFit: "contain", flex: "none" }} />
+          ) : (
+            <div style={{ width: "34px", height: "34px", borderRadius: "12px", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", color: "var(--aacp-fg)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", overflow: "hidden", fontSize: "13px", fontWeight: 800, letterSpacing: "-.2px" }}>
+              {storeName.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "5px", padding: "4px 10px", borderRadius: "999px", background: "color-mix(in srgb, var(--aacp-success) 12%, transparent)", border: "1px solid color-mix(in srgb, var(--aacp-success) 25%, transparent)" }}>
+              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--aacp-success)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
+              <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--aacp-success)", letterSpacing: "0.03em" }}>Online</span>
             </div>
           </div>
 
@@ -444,6 +451,12 @@ export default function ConversationShell({
             </a>
           )}
         </div>
+        {/* Shimmer divider */}
+        <div style={{ height: "0.5px", position: "relative", overflow: "hidden", flex: "none" }}>
+          <div style={{ position: "absolute", inset: 0, background: "var(--aacp-line)", opacity: 0.5 }} />
+          <div style={{ position: "absolute", top: 0, left: "-100%", width: "60%", height: "100%", background: "linear-gradient(90deg, transparent, var(--aacp-accent, #0f766e), transparent)", animation: "shimmerSlide 3s ease-in-out infinite", opacity: 0.7 }} />
+        </div>
+        </>
       )}
 
       {mode === "intro" ? (
@@ -493,6 +506,27 @@ export default function ConversationShell({
         /* ─── CHAT STAGE ─── */
         <>
           <div ref={threadRef} style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px 18px", display: "flex", flexDirection: "column", gap: "14px", minHeight: 0, scrollBehavior: "smooth" }}>
+            {/* Welcome state — no messages yet */}
+            {messages.length === 0 && !isLoading && (
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", padding: "40px 20px", textAlign: "center" }}>
+                <PulseAgentOrb size={72} />
+                <div style={{ marginTop: "8px" }}>
+                  <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--aacp-fg)", lineHeight: 1.4 }}>Olá! Sou {agent} 👋</div>
+                  <div style={{ fontSize: "12.5px", color: "var(--aacp-muted)", marginTop: "6px", lineHeight: 1.5, maxWidth: "300px" }}>
+                    Posso te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra.
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "12px" }}>
+                  {(quickReplies ?? chatQuickReplies).map((label) => (
+                    <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "12px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {messages.map((m) => {
               if (m.role === "agent") {
                 return (
@@ -524,9 +558,15 @@ export default function ConversationShell({
 
             {isLoading && (
               <div style={{ display: "flex", gap: "9px", alignItems: "flex-end", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none" }} />
-                <div style={{ display: "flex", gap: "4px", padding: "12px 14px", borderRadius: "16px 16px 16px 4px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)" }}>
-                  {[0, 1, 2].map((i) => <span key={i} style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: `${i * 0.2}s` }} />)}
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", animation: "thinkingPulse 1.8s ease-in-out infinite" }}>
+                  <div style={{ position: "absolute", inset: "-3px", borderRadius: "50%", border: "1.5px solid var(--aacp-accent)", opacity: 0.4, animation: "thinkingRing 1.8s ease-out infinite" }} />
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "2.5px" }}>
+                    <span style={{ width: "2.5px", height: "3px", borderRadius: "50%", background: "#fff", animation: "dot-pulse 1.2s infinite", animationDelay: "0s" }} />
+                    <span style={{ width: "2.5px", height: "3px", borderRadius: "50%", background: "#fff", animation: "dot-pulse 1.2s infinite", animationDelay: "0.2s" }} />
+                  </div>
+                </div>
+                <div style={{ padding: "10px 14px", borderRadius: "16px 16px 16px 4px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", fontSize: "12px", color: "var(--aacp-muted)", fontStyle: "italic" }}>
+                  Pensando...
                 </div>
               </div>
             )}

@@ -8,7 +8,7 @@
 import { createPrismaClient } from "../shared/persistence/prisma-client.js";
 
 const prisma = createPrismaClient();
-const MERCHANT_ID = "mrc_d8b88ddd-2354-41ba-95b2-186c80c2eaa4";
+const MERCHANT_ID = process.env.SEED_MERCHANT_ID || "mrc_3fe4436c-bde8-4b3b-b773-3d4374a414fa";
 
 async function main() {
   console.log("🌱 Seeding catalog for merchant:", MERCHANT_ID);

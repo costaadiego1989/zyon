@@ -21,6 +21,7 @@ export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAda
 @Injectable()
 export class StorefrontConversationAdapter implements StorefrontConversationPort {
   private readonly agent: StorefrontLangGraphAgent;
+  private currentMerchantId = "";
 
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
@@ -41,7 +42,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const handlers: StoreToolHandlers = {
       searchProducts: async (args) => {
         const result = await this.productRepo.search({
-          merchantId: "",
+          merchantId: this.currentMerchantId,
           query: args.query,
           categoryId: args.categoryId,
           maxPriceCents: args.maxPrice,
@@ -61,7 +62,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getProductDetails: async (args) => {
-        const product = await this.productRepo.findById("", args.productId);
+        const product = await this.productRepo.findById(this.currentMerchantId, args.productId);
         if (!product) return { error: "product_not_found" };
         return {
           product: {
@@ -79,7 +80,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
       compareProducts: async (args) => {
         const products = await Promise.all(
-          args.productIds.slice(0, 5).map((id) => this.productRepo.findById("", id))
+          args.productIds.slice(0, 5).map((id) => this.productRepo.findById(this.currentMerchantId, id))
         );
         return {
           comparison: products
@@ -105,7 +106,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       addItemToCart: async (args) => {
-        const merchantId = ""; // Set at runtime via agent context
+        const merchantId = this.currentMerchantId;
         const sessionId = args.cartId ?? `cart_${Date.now()}`;
 
         // Stock check before adding
@@ -143,7 +144,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getCart: async (args) => {
-        const cart = await this.cartRepo.getOrCreate("", args.cartId);
+        const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId);
         return {
           cartId: cart.sessionId,
           items: cart.items.map((i) => ({
@@ -162,7 +163,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       removeCartItem: async (args) => {
-        const cart = await this.cartRepo.removeItem("", args.cartId, args.variantId);
+        const cart = await this.cartRepo.removeItem(this.currentMerchantId, args.cartId, args.variantId);
         return {
           cartId: cart.sessionId,
           items: cart.items.map((i) => ({
@@ -177,7 +178,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       updateCartItem: async (args) => {
-        const cart = await this.cartRepo.updateItemQuantity("", args.cartId, args.variantId, args.quantity);
+        const cart = await this.cartRepo.updateItemQuantity(this.currentMerchantId, args.cartId, args.variantId, args.quantity);
         return {
           cartId: cart.sessionId,
           items: cart.items.map((i) => ({
@@ -192,12 +193,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       clearCart: async (args) => {
-        const cart = await this.cartRepo.clear("", args.cartId);
+        const cart = await this.cartRepo.clear(this.currentMerchantId, args.cartId);
         return { cartId: cart.sessionId, items: [], total: 0, itemCount: 0 };
       },
 
       quoteShipping: async (args) => {
-        const cart = await this.cartRepo.getOrCreate("", args.cartId);
+        const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId);
         const totalWeight = cart.items.length * 300; // avg 300g per item fallback
         // Use deterministic quotes until shipping-engine integration is wired
         const sedexPrice = Math.max(1500, Math.round(totalWeight * 0.5) + 800);
@@ -211,7 +212,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       applyCoupon: async (args) => {
-        const cart = await this.cartRepo.getOrCreate("", args.cartId);
+        const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId);
         if (cart.items.length === 0) {
           return { applied: false, reason: "cart_empty" };
         }
@@ -220,7 +221,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         // Deterministic fallback: accept codes starting with "ZYON" for 10% off
         if (code.startsWith("ZYON")) {
           const discountCents = Math.round(cart.total * 0.1);
-          const updated = await this.cartRepo.applyCoupon("", args.cartId, code, discountCents);
+          const updated = await this.cartRepo.applyCoupon(this.currentMerchantId, args.cartId, code, discountCents);
           return {
             applied: true,
             couponCode: code,
@@ -249,7 +250,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       removeCoupon: async (args) => {
-        const cart = await this.cartRepo.removeCoupon("", args.cartId);
+        const cart = await this.cartRepo.removeCoupon(this.currentMerchantId, args.cartId);
         return {
           cartId: cart.sessionId,
           total: cart.total,
@@ -277,6 +278,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
 
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
+    this.currentMerchantId = input.merchantId;
     const result = await this.agent.run({
       sessionId: input.sessionId,
       merchantId: input.merchantId,

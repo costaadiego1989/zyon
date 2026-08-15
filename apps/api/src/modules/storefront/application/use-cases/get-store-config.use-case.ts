@@ -20,6 +20,7 @@ export interface StoreConfigOutput {
     textColor: string;
     backgroundColor: string;
     fontFamily: string;
+    fontDisplay?: string;
     logoUrl?: string;
     agentAvatarUrl?: string;
     surfaceColor?: string;
@@ -79,6 +80,7 @@ export class GetStoreConfigUseCase {
         textColor: theme?.textColor ?? "#111827",
         backgroundColor: theme?.backgroundColor ?? "#F7F8FA",
         fontFamily: theme?.fontFamily ?? "Inter, ui-sans-serif, system-ui, sans-serif",
+        fontDisplay: (theme as any)?.fontDisplay ?? undefined,
         logoUrl: theme?.logoUrl,
         agentAvatarUrl: theme?.agentAvatarUrl,
         surfaceColor: theme?.surfaceColor,

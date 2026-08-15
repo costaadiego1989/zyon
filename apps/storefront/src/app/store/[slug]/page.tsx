@@ -22,6 +22,7 @@ interface StoreConfig {
     textColor: string;
     backgroundColor: string;
     fontFamily: string;
+    fontDisplay?: string;
     logoUrl?: string;
     agentAvatarUrl?: string;
     surfaceColor?: string;
@@ -125,7 +126,7 @@ export default async function StorePage({
     ? {
         primary: config.theme.accentColor,
         secondary: config.theme.secondaryColor ?? config.theme.accentColor,
-        heading: config.theme.fontFamily,
+        heading: config.theme.fontDisplay ?? config.theme.fontFamily,
         body: config.theme.fontFamily,
         backgroundColor: config.theme.backgroundColor,
         textColor: config.theme.textColor,
@@ -200,7 +201,7 @@ export default async function StorePage({
       ${derivedColors.chip ? `--aacp-chip: ${derivedColors.chip};` : ""}
       ${derivedColors.sheet ? `--aacp-sheet: ${derivedColors.sheet};` : ""}
       ${config?.theme.fontFamily ? `--aacp-font: ${config.theme.fontFamily};` : ""}
-      ${config?.theme.fontFamily ? `--aacp-font-display: ${config.theme.fontFamily};` : ""}
+      ${config?.theme.fontDisplay ? `--aacp-font-display: ${config.theme.fontDisplay};` : config?.theme.fontFamily ? `--aacp-font-display: ${config.theme.fontFamily};` : ""}
       ${config?.theme.surfaceElevatedColor ? `--aacp-surface-elevated: ${config.theme.surfaceElevatedColor};` : ""}
       ${config?.theme.borderColor ? `--aacp-border-color: ${config.theme.borderColor};` : ""}
     }
