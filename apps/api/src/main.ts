@@ -36,8 +36,8 @@ async function bootstrap() {
   const app = await NestFactory.create(rootModule, { rawBody: true });
   configureTrustProxy(app);
   app.enableCors(resolveCorsConfig());
-  app.use(json({ limit: "1mb" }));
-  app.use(urlencoded({ extended: true, limit: "1mb" }));
+  app.use(json({ limit: "5mb" }));
+  app.use(urlencoded({ extended: true, limit: "5mb" }));
   app.use(apiVersioningMiddleware);
 
   const securityHeaders = resolveSecurityHeaders();
