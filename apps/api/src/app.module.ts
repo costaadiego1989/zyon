@@ -31,6 +31,7 @@ import { StoreAnalyticsModule } from "./modules/store-analytics/store-analytics.
 import { TeamModule } from "./modules/team/team.module.js";
 import { DomainsModule } from "./modules/domains/domains.module.js";
 import { NotificationsModule } from "./modules/notifications/notifications.module.js";
+import { StorefrontModule } from "./modules/storefront/storefront.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -110,6 +111,7 @@ const REDACTED_LOG_PATHS = [
     TeamModule,
     DomainsModule,
     NotificationsModule,
+    StorefrontModule,
   ]
 })
 export class AppModule {}
