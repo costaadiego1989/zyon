@@ -71,6 +71,10 @@ class InMemoryConversationRepo implements BuyerConversationRepository {
   async findById(): Promise<null> {
     return null;
   }
+  async findBySession(): Promise<null> {
+    return null;
+  }
+  async upsertFromCheckout(): Promise<void> {}
   async rateMessage(): Promise<void> {}
 }
 

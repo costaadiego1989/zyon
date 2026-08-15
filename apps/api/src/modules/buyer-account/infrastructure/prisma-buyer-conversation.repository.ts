@@ -18,14 +18,16 @@ type ConversationRow = {
 export class PrismaBuyerConversationRepository implements BuyerConversationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async listByBuyer(globalUserId: string): Promise<BuyerConversation[]> {
+  async listByBuyer(globalUserId: string, options?: { maxAgeDays?: number }): Promise<BuyerConversation[]> {
+    const maxAge = options?.maxAgeDays ?? 30;
+    const cutoff = new Date(Date.now() - maxAge * 24 * 3600_000);
     const rows = await (this.prisma.buyerConversation as unknown as {
       findMany: (args: {
-        where: { globalUserId: string };
+        where: { globalUserId: string; lastMessageAt?: { gte: Date } };
         orderBy: Record<string, "desc">;
       }) => Promise<ConversationRow[]>;
     }).findMany({
-      where: { globalUserId },
+      where: { globalUserId, lastMessageAt: { gte: cutoff } },
       orderBy: { lastMessageAt: "desc" },
     });
     return rows.map(toDomain);
@@ -38,13 +40,57 @@ export class PrismaBuyerConversationRepository implements BuyerConversationRepos
     return row ? toDomain(row) : null;
   }
 
+  async findBySession(merchantId: string, sessionId: string): Promise<BuyerConversation | null> {
+    const row = await (this.prisma.buyerConversation as unknown as {
+      findFirst: (args: { where: { merchantId: string; sessionId: string } }) => Promise<ConversationRow | null>;
+    }).findFirst({ where: { merchantId, sessionId } });
+    return row ? toDomain(row) : null;
+  }
+
+  async upsertFromCheckout(input: {
+    merchantId: string;
+    sessionId: string;
+    globalUserId: string;
+    messages: BuyerConversationMessage[];
+  }): Promise<void> {
+    const now = new Date();
+    const serialized = input.messages.map((m) => ({
+      id: m.id,
+      role: m.role,
+      content: m.content,
+      createdAt: m.createdAt.toISOString(),
+      rating: m.rating
+    }));
+
+    await (this.prisma.buyerConversation as unknown as {
+      upsert: (args: {
+        where: { merchantId_sessionId: { merchantId: string; sessionId: string } };
+        create: { globalUserId: string; merchantId: string; sessionId: string; messages: unknown; startedAt: Date; lastMessageAt: Date };
+        update: { messages: unknown; lastMessageAt: Date };
+      }) => Promise<unknown>;
+    }).upsert({
+      where: { merchantId_sessionId: { merchantId: input.merchantId, sessionId: input.sessionId } },
+      create: {
+        globalUserId: input.globalUserId,
+        merchantId: input.merchantId,
+        sessionId: input.sessionId,
+        messages: serialized,
+        startedAt: now,
+        lastMessageAt: now
+      },
+      update: {
+        messages: serialized,
+        lastMessageAt: now
+      }
+    });
+  }
+
   async rateMessage(input: {
     conversationId: string;
     messageId: string;
     globalUserId: string;
     rating: "up" | "down";
   }): Promise<void> {
-    // Validate before attempting update
     if (input.rating !== "up" && input.rating !== "down") {
       throw new Error("buyer_conversation_invalid_rating");
     }

@@ -5,15 +5,38 @@ import type { BuyerConversationRepository, BuyerConversation, BuyerConversationM
 class InMemoryBuyerConversationRepository implements BuyerConversationRepository {
   private readonly byId = new Map<string, BuyerConversation>();
 
-  async listByBuyer(globalUserId: string): Promise<BuyerConversation[]> {
+  async listByBuyer(globalUserId: string, options?: { maxAgeDays?: number }): Promise<BuyerConversation[]> {
+    const maxAge = options?.maxAgeDays ?? 30;
+    const cutoff = new Date(Date.now() - maxAge * 24 * 3600_000);
     return [...this.byId.values()]
-      .filter((c) => c.globalUserId === globalUserId)
+      .filter((c) => c.globalUserId === globalUserId && c.lastMessageAt >= cutoff)
       .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
   }
   async findById(globalUserId: string, id: string): Promise<BuyerConversation | null> {
     const c = this.byId.get(id);
     if (!c || c.globalUserId !== globalUserId) return null;
     return c;
+  }
+  async findBySession(merchantId: string, sessionId: string): Promise<BuyerConversation | null> {
+    return [...this.byId.values()].find((c) => c.merchantId === merchantId && c.sessionId === sessionId) ?? null;
+  }
+  async upsertFromCheckout(input: {
+    merchantId: string;
+    sessionId: string;
+    globalUserId: string;
+    messages: BuyerConversationMessage[];
+  }): Promise<void> {
+    const existing = await this.findBySession(input.merchantId, input.sessionId);
+    const id = existing?.id ?? `conv_${Date.now()}`;
+    this.byId.set(id, {
+      id,
+      globalUserId: input.globalUserId,
+      merchantId: input.merchantId,
+      sessionId: input.sessionId,
+      startedAt: existing?.startedAt ?? new Date(),
+      lastMessageAt: new Date(),
+      messages: input.messages
+    });
   }
   async rateMessage(input: {
     conversationId: string;

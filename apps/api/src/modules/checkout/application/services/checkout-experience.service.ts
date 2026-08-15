@@ -111,12 +111,12 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
         base.push("Pagar com crypto");
       }
       if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
-        return ["Tenho um cupom de desconto", ...base];
+        return ["Tenho um cupom de desconto", ...base, "Alterar quantidade", "Remover item"];
       }
-      return base;
+      return [...base, "Alterar quantidade", "Remover item"];
     }
     case "completed":
-      return ["Obrigado!"];
+      return ["Obrigado!", "Quero acompanhar o pedido", "Voltar à loja"];
     default:
       return ["Ok"];
   }

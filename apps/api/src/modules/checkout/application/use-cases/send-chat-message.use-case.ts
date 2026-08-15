@@ -26,6 +26,7 @@ import { resolveCrossSellProduct } from "../../../cross-sell/application/service
 import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
+import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -44,6 +45,7 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
     @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
+    @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
@@ -232,6 +234,26 @@ export class SendChatMessageUseCase {
     }
 
     const authorizedOfferResponse = offer.toAuthorizedOffer();
+
+    // Persist conversation history for 30-day buyer recall
+    if (this.conversationRepo && updated.globalUserId) {
+      try {
+        await this.conversationRepo.upsertFromCheckout({
+          merchantId: input.merchant_id,
+          sessionId: input.session_id,
+          globalUserId: updated.globalUserId,
+          messages: updated.chatHistory.map((t, idx) => ({
+            id: `${input.session_id}_${idx}`,
+            role: t.role,
+            content: t.text,
+            createdAt: new Date(t.occurredAt),
+            rating: null
+          }))
+        });
+      } catch {
+        // Conversation persistence is best-effort; never block checkout flow
+      }
+    }
 
     return {
       message: safeMessage,
