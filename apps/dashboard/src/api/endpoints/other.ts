@@ -268,6 +268,9 @@ export function otherEndpoints(base: string, f: typeof fetch) {
     connectAsaas(payload: { api_key: string; webhook_token?: string; sandbox?: boolean }): Promise<PaymentConnection> {
       return dashboardJson(base, "/merchants/me/payment-connections/asaas", { method: "POST", jsonBody: payload }, f);
     },
+    createAsaasSubaccount(payload: Record<string, unknown>): Promise<PaymentConnection> {
+      return dashboardJson(base, "/payments/connections/asaas", { method: "POST", jsonBody: payload }, f);
+    },
     createAsaasOnboardingLink(payload: { return_url?: string }): Promise<PaymentOnboardingLinkResponse> {
       return dashboardJson(base, "/payments/connections/asaas/onboarding-link", { method: "POST", jsonBody: payload }, f);
     },

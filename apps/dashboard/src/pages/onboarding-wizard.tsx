@@ -106,7 +106,7 @@ const DEFAULT_ADDRESS_DRAFT: AddressDraft = {
 type PaymentDraft = {
   stripeStatus: "idle" | "pending" | "active";
   asaasApiKey: string;
-  asaasStatus: "idle" | "testing" | "active" | "error";
+  asaasStatus: "idle" | "testing" | "pending" | "active" | "error";
   cryptoEnabled: boolean;
   walletAddress: string;
 };
@@ -362,6 +362,10 @@ export function OnboardingWizard(props: {
         if (stripe && stripe.account_id) {
           setPaymentDraft((d) => ({ ...d, stripeStatus: "active" }));
         }
+        const asaas = connections.find((c) => c.provider === "asaas");
+        if (asaas) {
+          setPaymentDraft((d) => ({ ...d, asaasStatus: asaas.status === "active" ? "active" : "idle" }));
+        }
       } catch {
         // No connections yet — ignore
       }
@@ -535,25 +539,39 @@ export function OnboardingWizard(props: {
     }
   }
 
-  async function testAsaasConnection() {
-    if (!paymentDraft.asaasApiKey.trim()) {
-      setFieldErrors({ asaasApiKey: "Insira a API Key do Asaas" });
-      return;
-    }
+  async function initiateAsaasOnboarding() {
     setBusy(true);
     setMessage(null);
     setPaymentDraft((d) => ({ ...d, asaasStatus: "testing" }));
     try {
-      await api.connectAsaas({
-        api_key: paymentDraft.asaasApiKey,
-        sandbox: true,
-      });
-      setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
-      setFieldErrors({});
-      setMessage("Api do Asaas conectado com sucesso!");
-    } catch (e) {
-      setPaymentDraft((d) => ({ ...d, asaasStatus: "error" }));
-      setFieldErrors({ asaasApiKey: friendlyError(e) });
+      // Try to get onboarding link (subaccount may already exist)
+      const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
+      setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
+      window.location.href = url;
+    } catch {
+      // Subaccount doesn't exist yet — create with merchant data
+      try {
+        await api.createAsaasSubaccount({
+          name: props.me.name,
+          email: (props.me as any).email ?? "",
+          cpf_cnpj: (props.me as any).cnpj ?? "",
+          mobile_phone: (props.me as any).phone ?? "",
+          postal_code: addressDraft.zip?.replace(/\D/g, "") ?? "",
+          address: addressDraft.street ?? "",
+          address_number: addressDraft.number ?? "",
+          province: addressDraft.neighborhood ?? "",
+          complement: addressDraft.complement ?? "",
+        });
+        setMessage("Subconta Asaas criada. Redirecionando para completar cadastro...");
+        // Asaas needs ~15s before onboarding link is available
+        await new Promise((r) => setTimeout(r, 16000));
+        const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
+        setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
+        window.location.href = url;
+      } catch (e2) {
+        setPaymentDraft((d) => ({ ...d, asaasStatus: "error" }));
+        setMessage("Erro ao criar subconta Asaas. Preencha os dados da empresa na etapa 2 e tente novamente.");
+      }
     } finally {
       setBusy(false);
     }
@@ -930,35 +948,19 @@ export function OnboardingWizard(props: {
 
                   {/* Asaas */}
                   <div className="onb-field" style={{ padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
-                    <div style={{ marginBottom: "var(--space-3)" }}>
-                      <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Asaas (PIX e Boleto)</strong>
-                      <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Pagamentos em PIX e boleto para clientes brasileiros</p>
-                    </div>
-                    <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
-                      <input
-                        type="password"
-                        placeholder={props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "API Key sandbox ($aact_...)" : "API Key de produção ($aact_...)"}
-                        value={paymentDraft.asaasApiKey}
-                        disabled={paymentDraft.asaasStatus === "active"}
-                        onChange={(e) => {
-                          setPaymentDraft((d) => ({ ...d, asaasApiKey: e.target.value }));
-                          if (fieldErrors.asaasApiKey) setFieldErrors((prev) => {
-                            const next = { ...prev };
-                            delete next.asaasApiKey;
-                            return next;
-                          });
-                        }}
-                        style={{ flex: 1, height: 36, padding: "0 12px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px" }}
-                      />
-                      <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.asaasStatus === "active"} style={{ height: 36, padding: "0 16px", fontSize: "12px", whiteSpace: "nowrap" }} onClick={() => void testAsaasConnection()}>
-                        {paymentDraft.asaasStatus === "testing" ? "Testando..." : paymentDraft.asaasStatus === "active" ? "Ativo ✓" : "Testar"}
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "var(--space-3)" }}>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ fontSize: "14px", color: "var(--color-text)" }}>Asaas (PIX e Boleto)</strong>
+                        <span style={{ fontSize: "11px", marginLeft: 8, padding: "2px 6px", borderRadius: "3px", background: paymentDraft.asaasStatus === "active" ? "var(--color-success-bg)" : "var(--color-border)", color: paymentDraft.asaasStatus === "active" ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                          {paymentDraft.asaasStatus === "active" ? "Ativo" : paymentDraft.asaasStatus === "pending" ? "Pendente" : "Não configurado"}
+                        </span>
+                        <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>PIX e boleto para clientes brasileiros. Subconta criada automaticamente.</p>
+                      </div>
+                      <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.asaasStatus === "active"} style={{ height: 36, padding: "0 16px", fontSize: "12px" }} onClick={() => void initiateAsaasOnboarding()}>
+                        {paymentDraft.asaasStatus === "testing" ? "Conectando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : "Conectar"}
                       </button>
                     </div>
-                    {fieldErrors.asaasApiKey && <span style={{ fontSize: "12px", color: "var(--color-error)", marginTop: "4px", display: "block" }}>{fieldErrors.asaasApiKey}</span>}
-                    {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Asaas conectado</span>}
-                    <a href={props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "https://sandbox.asaas.com/customerRegistration/index" : "https://www.asaas.com/customerRegistration/index"} target="_blank" rel="noopener noreferrer" style={{ fontSize: "12px", color: "var(--color-brand)", marginTop: "6px", display: "inline-block" }}>
-                      Não tem conta? Gere sua API Key no Asaas {props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "(Sandbox)" : ""} →
-                    </a>
+                    {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Subconta Asaas ativa</span>}
                   </div>
 
                   {/* Crypto */}
