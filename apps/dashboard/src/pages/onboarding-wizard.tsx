@@ -488,8 +488,14 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep3() {
+    // Trim wallet address to avoid whitespace-related validation failures
+    const trimmedWallet = paymentDraft.walletAddress.trim();
+    if (trimmedWallet !== paymentDraft.walletAddress) {
+      setPaymentDraft((d) => ({ ...d, walletAddress: trimmedWallet }));
+    }
+
     // If crypto enabled, validate wallet before proceeding
-    if (paymentDraft.cryptoEnabled && !isValidEvmAddress(paymentDraft.walletAddress)) {
+    if (paymentDraft.cryptoEnabled && !isValidEvmAddress(trimmedWallet)) {
       setFieldErrors({ walletAddress: "Endereço EVM inválido (0x + 40 caracteres hex)" });
       return;
     }
@@ -497,14 +503,14 @@ export function OnboardingWizard(props: {
     setBusy(true);
     setMessage(null);
     try {
-      const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(paymentDraft.walletAddress);
+      const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(trimmedWallet);
       if (hasCrypto) {
         await api.putMerchantRules({
           cryptoPayments: {
             enabled: true,
             chain: "polygon",
             network: "mainnet",
-            treasuryAddress: paymentDraft.walletAddress,
+            treasuryAddress: trimmedWallet,
             token: "USDC",
             quoteTtlSeconds: 300,
           },
@@ -630,16 +636,16 @@ export function OnboardingWizard(props: {
     return (
       <div className="onb-complete" role="status" aria-live="polite">
         <div className="onb-complete-card">
-          <div className="onb-widget-orb" style={{ "--orb-c1": "#0f766e", "--orb-c2": "#0f766ecc", "--orb-c3": "#0f766e66", width: 100, height: 100 } as React.CSSProperties}>
+          <div className="onb-widget-orb" style={{ "--orb-c1": "#22c55e", "--orb-c2": "#22c55ecc", "--orb-c3": "#22c55e66", width: 100, height: 100 } as React.CSSProperties}>
             <div className="onb-widget-orb__halo" />
             <div className="onb-widget-orb__core" />
-            <div className="onb-widget-orb__eyes" style={{ gap: 16, flexDirection: "column", alignItems: "center" }}>
-              <div style={{ display: "flex", gap: 14 }}>
-                <span style={{ width: 12, height: 5, borderRadius: "50%", background: "#fff", boxShadow: "0 0 6px rgba(0,0,0,0.2)" }} />
-                <span style={{ width: 12, height: 5, borderRadius: "50%", background: "#fff", boxShadow: "0 0 6px rgba(0,0,0,0.2)" }} />
+            <div className="onb-widget-orb__eyes" style={{ flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
+                <span style={{ width: 10, height: 14, borderRadius: "50%", background: "#fff", boxShadow: "0 0 6px rgba(0,0,0,0.2)" }} />
+                <span style={{ width: 10, height: 14, borderRadius: "50%", background: "#fff", boxShadow: "0 0 6px rgba(0,0,0,0.2)" }} />
               </div>
-              <svg width="24" height="12" viewBox="0 0 24 12" fill="none">
-                <path d="M4 2c2 6 14 6 16 0" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" fill="none" />
+              <svg width="20" height="10" viewBox="0 0 20 10" fill="none" style={{ marginTop: 4 }}>
+                <path d="M4 4c3 4 9 4 12 0" stroke="#fff" strokeWidth="2" strokeLinecap="round" fill="none" />
               </svg>
             </div>
           </div>
@@ -1001,7 +1007,8 @@ export function OnboardingWizard(props: {
                         placeholder="0x..."
                         value={paymentDraft.walletAddress}
                         onChange={(e) => {
-                          setPaymentDraft((d) => ({ ...d, walletAddress: e.target.value }));
+                          const sanitized = e.target.value.trim();
+                          setPaymentDraft((d) => ({ ...d, walletAddress: sanitized }));
                           if (fieldErrors.walletAddress) setFieldErrors((prev) => {
                             const next = { ...prev };
                             delete next.walletAddress;
@@ -1056,7 +1063,7 @@ export function OnboardingWizard(props: {
                     <div className="onb-field" style={{ padding: 20, background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
                       <span className="onb-field-label">API Key gerada</span>
                       <p className="onb-field-help" style={{ margin: "4px 0 8px" }}>Salve estas credenciais — a API Key não será exibida novamente.</p>
-                      <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 10, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-brand)", color: "var(--color-brand)", margin: 0, wordBreak: "break-all" }}>{generatedApiKey.secretKey}</pre>
+                      <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 10, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-brand)", color: "var(--color-brand)", margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all", overflowWrap: "anywhere" }}>{generatedApiKey.secretKey}</pre>
                       <button
                         type="button"
                         className="onb-cta onb-cta-inline"
@@ -1077,60 +1084,63 @@ export function OnboardingWizard(props: {
                     </div>
                   )}
 
-                  <div style={{ marginTop: "var(--space-5)", paddingTop: "var(--space-4)", borderTop: "1px solid var(--color-border)" }}>
-                    <div className="onb-field">
-                      <span className="onb-field-label">Onde está sua loja?</span>
-                      <div className="onb-options">
-                        {([
-                          ["native", "Integração Nativa (Embed)", "Checkout completo via snippet JavaScript — sem plataforma"],
-                          ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
-                          ["magento", "Magento / Adobe Commerce", "Integração via REST API headless"],
-                          ["vtex", "VTEX", "Integração via VTEX IO App"],
-                        ] as const).map(([value, label, help]) => {
-                          const selected = integrationDraft.platform === value;
-                          return (
-                            <label key={value} className={`onb-option${selected ? " onb-option-on" : ""}`}>
-                              <input
-                                type="radio"
-                                name="platform"
-                                value={value}
-                                checked={selected}
-                                onChange={() => setIntegrationDraft((d: IntegrationDraft) => ({ ...d, platform: value as PlatformChoice }))}
-                              />
-                              <span className="onb-option-dot" aria-hidden="true" />
-                              <span className="onb-option-text">
-                                <strong>{label}</strong>
-                                <span>{help}</span>
-                              </span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
+                </div>
+              )}
 
-                    {integrationDraft.platform && (
-                      <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
-                        {integrationDraft.platform === "native" ? (
-                          <>
-                            <span className="onb-field-label">Snippet de integração</span>
-                            <p className="onb-field-help" style={{ marginBottom: 10 }}>
-                              Cole este código no <code>&lt;head&gt;</code> do seu site.
-                            </p>
-                            <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  merchant-id="${props.me.id}"\n  api-key="${generatedApiKey?.secretKey ?? "SUA_API_KEY"}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
-                          </>
-                        ) : (
-                          <>
-                            <span className="onb-field-label">Instruções de instalação</span>
-                            <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
-                              {integrationDraft.platform === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
-                              {integrationDraft.platform === "magento" && (<><li>Acesse Magento Admin → System → Integrations → Add New</li><li>Configure a URL da API Zyon e ative a integração</li><li>Insira o Access Token gerado na página Conexões de Commerce</li></>)}
-                              {integrationDraft.platform === "vtex" && (<><li>Instale o app Zyon Checkout via VTEX IO CLI</li><li>Configure Merchant ID e API Key no admin VTEX</li><li>Ative o checkout conversacional na seção de pagamento</li></>)}
-                            </ol>
-                          </>
-                        )}
-                      </div>
-                    )}
+              {currentStep === 5 && (
+                <div className="onb-fields">
+                  <div className="onb-field">
+                    <span className="onb-field-label">Onde está sua loja?</span>
+                    <div className="onb-options">
+                      {([
+                        ["native", "Integração Nativa (Embed)", "Checkout completo via snippet JavaScript — sem plataforma"],
+                        ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
+                        ["magento", "Magento / Adobe Commerce", "Integração via REST API headless"],
+                        ["vtex", "VTEX", "Integração via VTEX IO App"],
+                      ] as const).map(([value, label, help]) => {
+                        const selected = integrationDraft.platform === value;
+                        return (
+                          <label key={value} className={`onb-option${selected ? " onb-option-on" : ""}`}>
+                            <input
+                              type="radio"
+                              name="platform"
+                              value={value}
+                              checked={selected}
+                              onChange={() => setIntegrationDraft((d: IntegrationDraft) => ({ ...d, platform: value as PlatformChoice }))}
+                            />
+                            <span className="onb-option-dot" aria-hidden="true" />
+                            <span className="onb-option-text">
+                              <strong>{label}</strong>
+                              <span>{help}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
+
+                  {integrationDraft.platform && (
+                    <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
+                      {integrationDraft.platform === "native" ? (
+                        <>
+                          <span className="onb-field-label">Snippet de integração</span>
+                          <p className="onb-field-help" style={{ marginBottom: 10 }}>
+                            Cole este código no <code>&lt;head&gt;</code> do seu site.
+                          </p>
+                          <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  merchant-id="${props.me.id}"\n  api-key="${generatedApiKey?.secretKey ?? "SUA_API_KEY"}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
+                        </>
+                      ) : (
+                        <>
+                          <span className="onb-field-label">Instruções de instalação</span>
+                          <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
+                            {integrationDraft.platform === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
+                            {integrationDraft.platform === "magento" && (<><li>Acesse Magento Admin → System → Integrations → Add New</li><li>Configure a URL da API Zyon e ative a integração</li><li>Insira o Access Token gerado na página Conexões de Commerce</li></>)}
+                            {integrationDraft.platform === "vtex" && (<><li>Instale o app Zyon Checkout via VTEX IO CLI</li><li>Configure Merchant ID e API Key no admin VTEX</li><li>Ative o checkout conversacional na seção de pagamento</li></>)}
+                          </ol>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
