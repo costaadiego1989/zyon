@@ -84,7 +84,11 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       isActive: true,
     };
 
-    if (input.query) {
+    // Skip filter for generic/browse queries — return all products
+    const BROWSE_TERMS = ["produtos", "produto", "tudo", "catálogo", "catalogo", "ver tudo", "todos", "listar", "mostrar"];
+    const isGenericQuery = input.query && BROWSE_TERMS.some(t => input.query!.toLowerCase().trim() === t);
+
+    if (input.query && !isGenericQuery) {
       where.OR = [
         { name: { contains: input.query, mode: "insensitive" } },
         { description: { contains: input.query, mode: "insensitive" } },
