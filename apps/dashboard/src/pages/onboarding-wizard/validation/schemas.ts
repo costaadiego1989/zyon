@@ -27,9 +27,10 @@ export function isValidHexColor(color: string): boolean {
 }
 
 export function isValidUrl(url: string): boolean {
+  if (url.startsWith("data:")) return true;
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" || parsed.protocol === "http:" || parsed.protocol === "blob:";
+    return parsed.protocol === "https:" || parsed.protocol === "http:";
   } catch {
     return false;
   }
