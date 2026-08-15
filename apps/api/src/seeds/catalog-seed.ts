@@ -78,6 +78,43 @@ async function main() {
   }
   console.log("✓ 10 products with variants, prices, stock");
 
+  // ─── Extra Variants (sizes/colors) ──────────────────────────────────────────
+
+  type ExtraVariant = { id: string; productId: string; sku: string; attrs: Record<string, string>; weight: number; length: number; width: number; height: number; price: number; cost: number; stock: number };
+
+  const extraVariants: ExtraVariant[] = [
+    // Camiseta Oversized Preta — sizes G, GG (M already exists as var_001)
+    { id: "var_001_g", productId: "prod_001", sku: "CAM-OVS-P-G", attrs: { size: "G", color: "Preto" }, weight: 300, length: 36, width: 26, height: 3, price: 8990, cost: 3500, stock: 35 },
+    { id: "var_001_gg", productId: "prod_001", sku: "CAM-OVS-P-GG", attrs: { size: "GG", color: "Preto" }, weight: 320, length: 37, width: 27, height: 3, price: 8990, cost: 3500, stock: 20 },
+
+    // Tênis Runner Pro — sizes 40, 41, 43 (42 already exists as var_003)
+    { id: "var_003_40", productId: "prod_003", sku: "TEN-RUN-P-40", attrs: { size: "40", color: "Preto/Verde" }, weight: 730, length: 32, width: 21, height: 14, price: 34990, cost: 15000, stock: 15 },
+    { id: "var_003_41", productId: "prod_003", sku: "TEN-RUN-P-41", attrs: { size: "41", color: "Preto/Verde" }, weight: 740, length: 32, width: 22, height: 14, price: 34990, cost: 15000, stock: 18 },
+    { id: "var_003_43", productId: "prod_003", sku: "TEN-RUN-P-43", attrs: { size: "43", color: "Preto/Verde" }, weight: 770, length: 34, width: 23, height: 14, price: 34990, cost: 15000, stock: 12 },
+
+    // Óculos de Sol Polarizado — color variants (Preto Fosco already exists as var_009)
+    { id: "var_009_azul", productId: "prod_009", sku: "OCL-POL-A-001", attrs: { color: "Azul Marinho" }, weight: 85, length: 16, width: 7, height: 5, price: 14990, cost: 5000, stock: 25 },
+  ];
+
+  for (const v of extraVariants) {
+    await prisma.productVariant.upsert({
+      where: { productId_sku: { productId: v.productId, sku: v.sku } },
+      create: { id: v.id, productId: v.productId, sku: v.sku, attributes: v.attrs, isActive: true, weightGrams: v.weight, lengthCm: v.length, widthCm: v.width, heightCm: v.height },
+      update: { attributes: v.attrs, weightGrams: v.weight, lengthCm: v.length, widthCm: v.width, heightCm: v.height },
+    });
+    await prisma.productPrice.upsert({
+      where: { variantId: v.id },
+      create: { variantId: v.id, basePriceInCents: v.price, costInCents: v.cost, taxPercent: 0, currency: "BRL" },
+      update: { basePriceInCents: v.price, costInCents: v.cost },
+    });
+    await prisma.productStock.upsert({
+      where: { variantId_warehouseId: { variantId: v.id, warehouseId: "default" } },
+      create: { variantId: v.id, quantity: v.stock, reserved: 0, warehouseId: "default" },
+      update: { quantity: v.stock },
+    });
+  }
+  console.log("✓ 6 extra variants (Camiseta G/GG, Tênis 40/41/43, Óculos Azul Marinho)");
+
   // ─── Product Promotions ──────────────────────────────────────────────────────
 
   const now = new Date();
@@ -104,7 +141,7 @@ async function main() {
         startsAt: now,
         endsAt: in30Days,
       },
-      update: { isActive: true, endsAt: in30Days },
+      update: { isActive: true, endsAt: in30Days, promoPriceInCents: promo.promoPriceCents, discountValue: promo.discountValue },
     });
   }
   console.log("✓ 4 variant promotions (20-30% off, 30 days)");

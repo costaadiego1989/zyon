@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 type BuyerProfile = {
   global_user_id: string;
@@ -42,6 +42,29 @@ type BuyerPurchase = {
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+const AUTH_STORAGE_KEY = "aacp_buyer_auth_session";
+
+type AuthSession = {
+  global_user_id: string;
+  email: string;
+  access_token: string;
+  expires_at: number;
+  phone: string;
+};
+
+function safeReadSession(): AuthSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw) as AuthSession;
+    if (!s.global_user_id || !s.access_token) return null;
+    if (s.expires_at && Date.now() >= s.expires_at) return null;
+    return s;
+  } catch {
+    return null;
+  }
+}
 
 const TRACKING_STATUS_LABEL: Record<string, string> = {
   pending: "Aguardando rastreio",
@@ -71,6 +94,13 @@ function correiosTrackingUrl(code: string): string {
   return `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(code)}`;
 }
 
+function formatPhone(value: string): string {
+  const numbers = value.replace(/\D/g, "").slice(0, 11);
+  if (numbers.length > 7) return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7)}`;
+  if (numbers.length > 2) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  return numbers;
+}
+
 type TabType = "profile" | "orders" | "tracking" | "settings";
 
 export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string; isOpen: boolean; onClose: () => void }) {
@@ -80,12 +110,17 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [isAuth, setIsAuth] = useState(false);
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
+  const [session, setSession] = useState<AuthSession | null>(() => safeReadSession());
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const isAuth = Boolean(session);
+
+  // ─── Auth state ────────────────────────────────────────────────────────────
+  const [phone, setPhone] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [phoneCode, setPhoneCode] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Restore theme from localStorage
   useEffect(() => {
@@ -99,17 +134,32 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
 
   // Fetch profile and purchases if authenticated
   useEffect(() => {
-    if (!isAuth || !merchantId || !isOpen) return;
+    if (!session || !merchantId || !isOpen) return;
     loadData();
-  }, [isAuth, merchantId, isOpen]);
+  }, [session, merchantId, isOpen]);
+
+  // Focus trap
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
 
   async function loadData() {
+    if (!session) return;
     setLoading(true);
     setError(null);
     try {
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      };
       const [profileRes, purchasesRes] = await Promise.all([
-        fetch(`${API_BASE}/buyer/me/profile`, { headers: { "Accept": "application/json" } }).catch(() => null),
-        fetch(`${API_BASE}/buyer/me/purchases?limit=10`, { headers: { "Accept": "application/json" } }).catch(() => null),
+        fetch(`${API_BASE}/buyer/me/profile`, { headers }).catch(() => null),
+        fetch(`${API_BASE}/buyer/me/purchases?limit=10`, { headers }).catch(() => null),
       ]);
 
       if (profileRes?.ok) {
@@ -132,35 +182,90 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
     }
   }
 
-  async function handleSendOtp() {
-    if (!email.trim()) return;
-    setOtpLoading(true);
+  // ─── Phone OTP auth ─────────────────────────────────────────────────────────
+
+  const handlePhoneChange = useCallback((value: string) => {
+    setPhone(formatPhone(value));
+  }, []);
+
+  async function handleSendCode() {
+    const normalizedPhone = phone.replace(/\D/g, "");
+    if (normalizedPhone.length < 10) return;
+    setAuthLoading(true);
+    setAuthError(null);
     try {
-      // Mock: in production, this calls a real OTP endpoint
-      setOtpSent(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao enviar OTP");
+      const res = await fetch(`${API_BASE}/buyer/phone/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizedPhone }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const reason = payload?.message ?? "Falha ao enviar codigo.";
+        setAuthError(reason);
+        return;
+      }
+      setCodeSent(true);
+    } catch {
+      setAuthError("Erro de rede ao enviar codigo.");
     } finally {
-      setOtpLoading(false);
+      setAuthLoading(false);
     }
   }
 
-  function handleVerifyOtp() {
-    // Mock verification — in production, verify against backend
-    if (otp.length >= 4) {
-      setIsAuth(true);
-      setOtpSent(false);
-      setOtp("");
+  async function handleVerifyCode() {
+    const normalizedPhone = phone.replace(/\D/g, "");
+    if (phoneCode.length !== 6) return;
+    setAuthLoading(true);
+    setAuthError(null);
+    try {
+      const res = await fetch(`${API_BASE}/buyer/phone/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: normalizedPhone, code: phoneCode }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const reason = payload?.message ?? "Codigo invalido.";
+        setAuthError(reason);
+        return;
+      }
+      // Persist session
+      const globalUserId = payload.globalUserId ?? payload.global_user_id;
+      const accessToken = payload.accessToken ?? payload.access_token;
+      const email = payload.email ?? "";
+      const expiresIn = payload.expiresIn ?? payload.expires_in ?? 3600;
+      if (!globalUserId || !accessToken) {
+        setAuthError("Resposta invalida do servidor.");
+        return;
+      }
+      const newSession: AuthSession = {
+        global_user_id: globalUserId,
+        email,
+        access_token: accessToken,
+        expires_at: Date.now() + (expiresIn - 60) * 1000,
+        phone: normalizedPhone,
+      };
+      setSession(newSession);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newSession));
+      setCodeSent(false);
+      setPhoneCode("");
+    } catch {
+      setAuthError("Erro de rede ao verificar codigo.");
+    } finally {
+      setAuthLoading(false);
     }
   }
 
   function handleLogout() {
-    setIsAuth(false);
+    setSession(null);
     setProfile(null);
     setPurchases([]);
-    setEmail("");
-    setOtp("");
-    setOtpSent(false);
+    setPhone("");
+    setPhoneCode("");
+    setCodeSent(false);
+    setAuthError(null);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
   }
 
   function toggleTheme() {
@@ -174,6 +279,9 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
   }
 
   if (!isOpen) return null;
+
+  const canSendCode = phone.replace(/\D/g, "").length >= 10;
+  const canConfirmCode = codeSent && phoneCode.length === 6;
 
   return (
     <>
@@ -212,6 +320,99 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
             from { opacity: 0; }
             to { opacity: 1; }
           }
+          .aacp-auth-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+          }
+          .aacp-auth-field > span {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--aacp-muted);
+          }
+          .aacp-auth-input-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--aacp-line);
+            background: var(--aacp-surface-3);
+            transition: border-color 0.15s ease;
+          }
+          .aacp-auth-input-wrap:focus-within {
+            border-color: var(--aacp-accent);
+          }
+          .aacp-auth-input-wrap svg {
+            color: var(--aacp-muted);
+            flex-shrink: 0;
+          }
+          .aacp-auth-input-wrap input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--aacp-fg);
+            font-size: 14px;
+            font-family: inherit;
+          }
+          .aacp-auth-input-wrap input::placeholder {
+            color: var(--aacp-muted);
+            opacity: 0.7;
+          }
+          .aacp-auth-primary {
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            background: var(--aacp-accent);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: opacity 0.15s ease;
+          }
+          .aacp-auth-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+          }
+          .aacp-auth-secondary {
+            background: transparent;
+            border: none;
+            color: var(--aacp-muted);
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 0;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+          }
+          .aacp-auth-error {
+            font-size: 12px;
+            color: #ef4444;
+            text-align: center;
+            padding: 4px 0;
+          }
+          .aacp-auth-status {
+            font-size: 12px;
+            color: var(--aacp-muted);
+            text-align: center;
+          }
+          .aacp-auth-assurance {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            background: var(--aacp-surface-2);
+            border: 1px solid var(--aacp-line);
+            font-size: 12px;
+            color: var(--aacp-muted);
+          }
+          .aacp-auth-assurance svg {
+            color: var(--aacp-success, #22c55e);
+            flex-shrink: 0;
+          }
         `}</style>
 
         {/* Header */}
@@ -231,11 +432,11 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
                 fontSize: "14px",
               }}
             >
-              {profile?.display_name?.[0]?.toUpperCase() ?? "U"}
+              {profile?.display_name?.[0]?.toUpperCase() ?? (session ? "V" : "U")}
             </div>
             <div style={{ display: "flex", flexDirection: "column" }}>
-              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>{profile?.display_name ?? "Comprador"}</span>
-              <span style={{ fontSize: "11px", color: "var(--aacp-muted)" }}>{profile?.email ?? "não autenticado"}</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>{profile?.display_name ?? (session ? "Conta verificada" : "Comprador")}</span>
+              <span style={{ fontSize: "11px", color: "var(--aacp-muted)" }}>{profile?.email ?? session?.email ?? "nao autenticado"}</span>
             </div>
           </div>
           <button
@@ -270,7 +471,7 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
                 style={{
                   flex: 1,
                   padding: "12px 8px",
-                  background: activeTab === tab ? "transparent" : "transparent",
+                  background: "transparent",
                   borderBottom: activeTab === tab ? "2px solid var(--aacp-accent)" : "2px solid transparent",
                   color: activeTab === tab ? "var(--aacp-fg)" : "var(--aacp-muted)",
                   fontSize: "12px",
@@ -292,9 +493,22 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
         {/* Content */}
         <div style={{ flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column" }}>
           {!isAuth ? (
-            <LoginForm email={email} setEmail={setEmail} otp={otp} setOtp={setOtp} otpSent={otpSent} otpLoading={otpLoading} onSendOtp={handleSendOtp} onVerify={handleVerifyOtp} />
+            <PhoneLoginForm
+              phone={phone}
+              onPhoneChange={handlePhoneChange}
+              phoneCode={phoneCode}
+              onPhoneCodeChange={setPhoneCode}
+              codeSent={codeSent}
+              canSendCode={canSendCode}
+              canConfirmCode={canConfirmCode}
+              loading={authLoading}
+              error={authError}
+              onSendCode={handleSendCode}
+              onVerifyCode={handleVerifyCode}
+              onBack={() => { setCodeSent(false); setAuthError(null); }}
+            />
           ) : loading && !profile ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "var(--aacp-muted)", fontSize: "13px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", color: "var(--aacp-muted)", fontSize: "13px", padding: "48px 0" }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ animation: "spin 1s linear infinite" }}>
                 <circle cx="12" cy="12" r="10" />
               </svg>
@@ -333,122 +547,139 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
   );
 }
 
-function LoginForm({
-  email,
-  setEmail,
-  otp,
-  setOtp,
-  otpSent,
-  otpLoading,
-  onSendOtp,
-  onVerify,
+// ─── Phone Login Form (matches widget GlobalAuthModal pattern) ─────────────────
+
+function PhoneLoginForm({
+  phone,
+  onPhoneChange,
+  phoneCode,
+  onPhoneCodeChange,
+  codeSent,
+  canSendCode,
+  canConfirmCode,
+  loading,
+  error,
+  onSendCode,
+  onVerifyCode,
+  onBack,
 }: {
-  email: string;
-  setEmail: (v: string) => void;
-  otp: string;
-  setOtp: (v: string) => void;
-  otpSent: boolean;
-  otpLoading: boolean;
-  onSendOtp: () => void;
-  onVerify: () => void;
+  phone: string;
+  onPhoneChange: (v: string) => void;
+  phoneCode: string;
+  onPhoneCodeChange: (v: string) => void;
+  codeSent: boolean;
+  canSendCode: boolean;
+  canConfirmCode: boolean;
+  loading: boolean;
+  error: string | null;
+  onSendCode: () => void;
+  onVerifyCode: () => void;
+  onBack: () => void;
 }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "16px", alignItems: "center", justifyContent: "center", padding: "24px 0" }}>
-      <div style={{ textAlign: "center" }}>
-        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-fg)", marginBottom: "4px" }}>Acesso à conta</div>
-        <div style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Entre para acessar seus pedidos e configurações</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: "16px", padding: "24px 0" }}>
+      {/* Icon */}
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{
+          width: "48px",
+          height: "48px",
+          borderRadius: "50%",
+          background: "var(--aacp-surface-2)",
+          border: "1px solid var(--aacp-line)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
+          </svg>
+        </div>
       </div>
 
-      {!otpSent ? (
-        <>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="seu@email.com"
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              borderRadius: "8px",
-              border: "1px solid var(--aacp-line)",
-              background: "var(--aacp-surface-3)",
-              color: "var(--aacp-fg)",
-              fontSize: "13px",
-            }}
-          />
-          <button
-            onClick={onSendOtp}
-            disabled={!email.trim() || otpLoading}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "8px",
-              background: "var(--aacp-accent)",
-              color: "#fff",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: 600,
-              opacity: !email.trim() || otpLoading ? 0.5 : 1,
-            }}
-          >
-            {otpLoading ? "Enviando..." : "Enviar código"}
+      {/* Title */}
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--aacp-muted)", marginBottom: "6px" }}>Conta segura</div>
+        <div style={{ fontSize: "16px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "6px" }}>Entrar com celular</div>
+        <div style={{ fontSize: "12px", color: "var(--aacp-muted)", lineHeight: 1.5 }}>Acesse pedidos anteriores e conclua compras futuras com menos etapas.</div>
+      </div>
+
+      {/* Assurance strip */}
+      <div className="aacp-auth-assurance">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <span>Seu acesso e seus dados permanecem protegidos.</span>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+        {!codeSent ? (
+          <label className="aacp-auth-field">
+            <span>Celular</span>
+            <div className="aacp-auth-input-wrap">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                <line x1="12" y1="18" x2="12.01" y2="18" />
+              </svg>
+              <input
+                value={phone}
+                onChange={(e) => onPhoneChange(e.target.value)}
+                type="tel"
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="(11) 99999-9999"
+                aria-label="Numero do celular"
+              />
+            </div>
+          </label>
+        ) : (
+          <label className="aacp-auth-field">
+            <span>Codigo de verificacao</span>
+            <div className="aacp-auth-input-wrap">
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+              </svg>
+              <input
+                value={phoneCode}
+                onChange={(e) => onPhoneCodeChange(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="000000"
+                maxLength={6}
+                aria-label="Codigo de verificacao"
+                style={{ letterSpacing: "3px", textAlign: "center" }}
+              />
+            </div>
+          </label>
+        )}
+
+        {codeSent && (
+          <p className="aacp-auth-status" role="status">
+            Codigo enviado para {phone}
+          </p>
+        )}
+
+        {error && (
+          <p className="aacp-auth-error" role="alert">{error}</p>
+        )}
+
+        <button
+          type="button"
+          className="aacp-auth-primary"
+          disabled={loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode)}
+          onClick={() => { codeSent ? onVerifyCode() : onSendCode(); }}
+        >
+          {loading ? "Processando..." : codeSent ? "Confirmar codigo" : "Enviar codigo por SMS"}
+        </button>
+
+        {codeSent && (
+          <button type="button" className="aacp-auth-secondary" onClick={onBack}>
+            Alterar numero
           </button>
-        </>
-      ) : (
-        <>
-          <div style={{ fontSize: "12px", color: "var(--aacp-muted)", textAlign: "center" }}>
-            Código enviado para <strong>{email}</strong>
-          </div>
-          <input
-            type="text"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.slice(0, 6))}
-            placeholder="000000"
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              borderRadius: "8px",
-              border: "1px solid var(--aacp-line)",
-              background: "var(--aacp-surface-3)",
-              color: "var(--aacp-fg)",
-              fontSize: "13px",
-              textAlign: "center",
-              letterSpacing: "4px",
-            }}
-          />
-          <button
-            onClick={onVerify}
-            disabled={otp.length < 4}
-            style={{
-              width: "100%",
-              padding: "10px",
-              borderRadius: "8px",
-              background: "var(--aacp-accent)",
-              color: "#fff",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "13px",
-              fontWeight: 600,
-              opacity: otp.length < 4 ? 0.5 : 1,
-            }}
-          >
-            Confirmar
-          </button>
-          <button
-            onClick={() => setEmail("")}
-            style={{
-              background: "transparent",
-              border: "none",
-              color: "var(--aacp-muted)",
-              cursor: "pointer",
-              fontSize: "11px",
-            }}
-          >
-            Voltar
-          </button>
-        </>
-      )}
+        )}
+      </form>
     </div>
   );
 }
