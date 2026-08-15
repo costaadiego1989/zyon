@@ -128,7 +128,7 @@ export function OverviewPage(props: OverviewPageProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-      <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", margin: 0 }}>
             Visão Geral
@@ -136,48 +136,50 @@ export function OverviewPage(props: OverviewPageProps) {
           <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
             Métricas consolidadas do seu negócio
           </p>
-          <LastUpdatedCounter lastUpdated={vm.lastUpdated} />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <PeriodSelector value={vm.period} onChange={vm.setPeriod} />
-          <button
-            type="button"
-            onClick={() => void vm.refresh()}
-            disabled={vm.loading}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 32,
-              height: 32,
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              background: "var(--card)",
-              cursor: vm.loading ? "default" : "pointer",
-              color: "var(--muted)",
-              fontSize: 14,
-              transition: "background 0.15s",
-            }}
-            title="Atualizar dados"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <PeriodSelector value={vm.period} onChange={vm.setPeriod} />
+            <button
+              type="button"
+              onClick={() => void vm.refresh()}
+              disabled={vm.loading}
               style={{
-                animation: vm.loading ? "spin 1s linear infinite" : undefined,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 32,
+                height: 32,
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                background: "var(--card)",
+                cursor: vm.loading ? "default" : "pointer",
+                color: "var(--muted)",
+                fontSize: 14,
+                transition: "background 0.15s",
               }}
+              title="Atualizar dados"
             >
-              <path d="M1.5 8a6.5 6.5 0 0 1 11.25-4.5M14.5 8a6.5 6.5 0 0 1-11.25 4.5" />
-              <polyline points="1.5 2 1.5 5.5 5 5.5" />
-              <polyline points="14.5 14 14.5 10.5 11 10.5" />
-            </svg>
-          </button>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{
+                  animation: vm.loading ? "spin 1s linear infinite" : undefined,
+                }}
+              >
+                <path d="M1.5 8a6.5 6.5 0 0 1 11.25-4.5M14.5 8a6.5 6.5 0 0 1-11.25 4.5" />
+                <polyline points="1.5 2 1.5 5.5 5 5.5" />
+                <polyline points="14.5 14 14.5 10.5 11 10.5" />
+              </svg>
+            </button>
+          </div>
+          <LastUpdatedCounter lastUpdated={vm.lastUpdated} />
         </div>
       </header>
 

@@ -25,9 +25,15 @@ export function TopProducts({ products }: TopProductsProps) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-        padding: 12,
+        padding: 16,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
       }}
     >
+      <h3 style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+        Top Produtos
+      </h3>
       {top.length === 0 ? (
         <div style={{ padding: 16, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Sem vendas no período</div>
       ) : (
