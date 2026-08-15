@@ -32,19 +32,19 @@ import { ResolveInstallationForEmbedUseCase } from "../../../installations/appli
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 
 class IssueEmbedSessionDto {
-  @ApiPropertyOptional({ example: "cm123installation" })
+  @ApiPropertyOptional({ type: String, example: "cm123installation" })
   @IsOptional()
   @IsString()
   installation_id?: string;
 
-  @ApiPropertyOptional({ minimum: 60, maximum: 86400, example: 900 })
+  @ApiPropertyOptional({ type: Number, minimum: 60, maximum: 86400, example: 900 })
   @IsOptional()
   @IsInt()
   @Min(60)
   @Max(86400)
   ttl_seconds?: number;
 
-  @ApiPropertyOptional({ example: "https://checkout.example.com" })
+  @ApiPropertyOptional({ type: String, example: "https://checkout.example.com" })
   @IsOptional()
   @IsString()
   allowed_origin?: string;
@@ -58,7 +58,7 @@ class IssueEmbedSessionDto {
   @IsString({ each: true })
   scopes?: string[];
 
-  @ApiPropertyOptional({ example: "cart_123" })
+  @ApiPropertyOptional({ type: String, example: "cart_123" })
   @IsOptional()
   @IsString()
   @MaxLength(120)

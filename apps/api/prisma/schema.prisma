@@ -1419,19 +1419,18 @@ model StoreProductMetric {
 }
 
 // ─── Semantic Search (pgvector) ──────────────────────────────────────────────
-// NOTE: The `embedding` column uses Unsupported("vector(1536)") because Prisma
-// does not natively support pgvector types. Actual vector queries use raw SQL
-// via prisma.$queryRaw. A raw migration adds the vector column + HNSW index:
-//   ALTER TABLE product_search_vectors ADD COLUMN embedding vector(1536);
-//   CREATE INDEX idx_psv_embedding ON product_search_vectors USING hnsw (embedding vector_cosine_ops);
+// NOTE: The `embedding` column is stored as String (base64) in dev mode.
+// In production with pgvector extension installed, a raw migration converts it:
+//   ALTER TABLE product_search_vectors ADD COLUMN embedding_vec vector(1536);
+//   CREATE INDEX idx_psv_embedding ON product_search_vectors USING hnsw (embedding_vec vector_cosine_ops);
 
 model ProductSearchVector {
-  id         String                       @id @default(cuid())
-  productId  String                       @unique @map("product_id")
-  merchantId String                       @map("merchant_id")
-  embedding  Unsupported("vector(1536)")?
+  id         String   @id @default(cuid())
+  productId  String   @unique @map("product_id")
+  merchantId String   @map("merchant_id")
+  embedding  String?  @db.Text
   content    String
-  updatedAt  DateTime                     @updatedAt @map("updated_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@index([merchantId])
   @@map("product_search_vectors")

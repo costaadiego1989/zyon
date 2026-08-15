@@ -124,6 +124,8 @@ export default async function StorePage({
         backgroundColor: config.theme.backgroundColor,
         textColor: config.theme.textColor,
         surfaceColor: config.theme.surfaceColor,
+        surfaceElevatedColor: config.theme.surfaceElevatedColor,
+        borderColor: config.theme.borderColor,
       }
     : {
         primary: merchant!.theme.primary,
@@ -133,6 +135,8 @@ export default async function StorePage({
         backgroundColor: undefined,
         textColor: undefined,
         surfaceColor: undefined,
+        surfaceElevatedColor: undefined,
+        borderColor: undefined,
       };
 
   const themeCss = `
@@ -145,6 +149,9 @@ export default async function StorePage({
       ${themeColors.textColor ? `--aacp-fg: ${themeColors.textColor};` : ""}
       ${themeColors.surfaceColor ? `--aacp-surface: ${themeColors.surfaceColor};` : ""}
       --aacp-accent: ${themeColors.primary};
+      ${config?.theme.fontFamily ? `--aacp-font: ${config.theme.fontFamily};` : ""}
+      ${config?.theme.surfaceElevatedColor ? `--aacp-surface-elevated: ${config.theme.surfaceElevatedColor};` : ""}
+      ${config?.theme.borderColor ? `--aacp-border-color: ${config.theme.borderColor};` : ""}
     }
   `;
 
@@ -161,18 +168,12 @@ export default async function StorePage({
       />
       <WebSiteSchema name={name} url={pageUrl} />
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
-      <div className="store-layout">
-        <header className="store-header">
-          <span className="store-header__brand">{name}</span>
-        </header>
-        <main className="store-main">
-          <ConversationShell
-            storeName={name}
-            logo={logo}
-            returnOrderId={order}
-          />
-        </main>
-      </div>
+      <ConversationShell
+        storeName={name}
+        logo={logo}
+        returnOrderId={order}
+        agentName={config?.agentName}
+      />
     </>
   );
 }
