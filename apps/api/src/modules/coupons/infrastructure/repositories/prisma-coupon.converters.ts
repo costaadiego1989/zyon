@@ -53,6 +53,8 @@ export function toCouponCreateInput(entity: CouponEntity) {
     discountType: snap.discount_type,
     discountValue: snap.discount_value,
     minCartTotal: snap.min_cart_total,
+    freeShippingMinCartTotal: null,
+    minPerBuyer: null,
     maxUsages: snap.max_usages,
     maxPerBuyer: snap.max_per_buyer,
     usagesCount: snap.usages_count,

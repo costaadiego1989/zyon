@@ -56,19 +56,28 @@ export class ApplyCouponUseCase {
 
     // P0 fix: raw calculated discount must be authorized by the rules-engine
     // before persisting — enforces maxDiscountPercent and minimumMarginPercent.
+    // Shipping-type coupons skip cart discount authorization (applied to freight).
+    const isShippingCoupon = snap.discount_type.startsWith("shipping_");
     const rawDiscount = calculateCouponDiscount(snap, input.cart.total);
-    const authorization = this.discountEngine.authorizeDiscount(
-      input.cart,
-      input.merchantRules,
-      snap.discount_type === "percent" ? snap.discount_value : rawDiscount,
-      snap.discount_type
-    );
-    if (!authorization.approved) {
-      throw new UnprocessableEntityException(`COUPON_DISCOUNT_REJECTED:${authorization.reason}`);
+
+    let discountApplied: number;
+    if (isShippingCoupon) {
+      // Shipping coupons don't reduce cart total — discount is applied to shipping cost
+      discountApplied = 0;
+    } else {
+      const authorization = this.discountEngine.authorizeDiscount(
+        input.cart,
+        input.merchantRules,
+        snap.discount_type === "percent" ? snap.discount_value : rawDiscount,
+        snap.discount_type as "percent" | "fixed"
+      );
+      if (!authorization.approved) {
+        throw new UnprocessableEntityException(`COUPON_DISCOUNT_REJECTED:${authorization.reason}`);
+      }
+      discountApplied = snap.discount_type === "percent"
+        ? calculateCouponDiscount({ ...snap, discount_value: authorization.authorizedDiscount }, input.cart.total)
+        : Math.min(authorization.authorizedDiscount, input.cart.total);
     }
-    const discountApplied = snap.discount_type === "percent"
-      ? calculateCouponDiscount({ ...snap, discount_value: authorization.authorizedDiscount }, input.cart.total)
-      : Math.min(authorization.authorizedDiscount, input.cart.total);
 
     const redemption = CouponRedemptionEntity.create({
       coupon_id: coupon.id,
