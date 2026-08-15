@@ -352,20 +352,18 @@ export function OnboardingWizard(props: {
     return () => { active = false; };
   }, [api]);
 
-  // Reconcile Stripe status on mount (handles return from Stripe redirect)
   useEffect(() => {
     let active = true;
     void (async () => {
       try {
-        const conn = await api.syncStripeConnection();
+        const connections = await api.getPaymentConnections();
         if (!active) return;
-        if (conn.status === "active") {
+        const stripe = connections.find((c) => c.provider === "stripe");
+        if (stripe && stripe.account_id) {
           setPaymentDraft((d) => ({ ...d, stripeStatus: "active" }));
-        } else if (conn.status === "pending") {
-          setPaymentDraft((d) => ({ ...d, stripeStatus: "pending" }));
         }
       } catch {
-        // No Stripe connection yet — ignore
+        // No connections yet — ignore
       }
     })();
     return () => { active = false; };
