@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
@@ -11,6 +12,8 @@ import { GetStoreConfigUseCase } from "./application/use-cases/get-store-config.
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
+import { STOREFRONT_CART_PORT } from "./domain/ports/storefront-cart.port.js";
+import { PrismaStorefrontCartRepository } from "./infrastructure/repositories/prisma-storefront-cart.repository.js";
 import { StorefrontController } from "./presentation/http/storefront.controller.js";
 import { AIGatewayService } from "./infrastructure/ai/ai-gateway.service.js";
 import { BudgetTrackerService } from "./infrastructure/ai/budget-tracker.service.js";
@@ -19,6 +22,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
 
 @Module({
   imports: [
+    PersistenceModule,
     CatalogModule,
     CheckoutModule,
     ShippingModule,
@@ -32,6 +36,10 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     {
       provide: STOREFRONT_CONVERSATION_PORT,
       useExisting: StorefrontConversationAdapter
+    },
+    {
+      provide: STOREFRONT_CART_PORT,
+      useClass: PrismaStorefrontCartRepository
     },
     {
       provide: LocalLLMProvider,

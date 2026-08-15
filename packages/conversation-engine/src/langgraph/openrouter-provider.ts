@@ -101,12 +101,17 @@ export class OpenRouterProvider {
 
     const body: Record<string, unknown> = {
       model: this.model,
-      messages: request.messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-        ...(m.name ? { name: m.name } : {}),
-        ...(m.tool_call_id ? { tool_call_id: m.tool_call_id } : {})
-      })),
+      messages: request.messages.map((m) => {
+        const msg: Record<string, unknown> = {
+          role: m.role,
+          content: m.content
+        };
+        if (m.name) msg.name = m.name;
+        if (m.tool_call_id) msg.tool_call_id = m.tool_call_id;
+        // Preserve tool_calls on assistant messages (required for tool result flow)
+        if ((m as any).tool_calls) msg.tool_calls = (m as any).tool_calls;
+        return msg;
+      }),
       max_tokens: request.maxTokens ?? this.defaultMaxTokens,
       temperature: request.temperature ?? 0.5,
       stream: false

@@ -50,7 +50,7 @@ const TOTAL_STEPS = STEPS.length;
 
 // ── Step 1 state ──────────────────────────────────────────────────────────────
 
-type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName"> & { originZip: string };
+type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName"> & { originZip: string; storeCategory: string };
 
 const DEFAULT_THEME_DRAFT: ThemeDraft = {
   accentColor: "#0F766E",
@@ -58,6 +58,7 @@ const DEFAULT_THEME_DRAFT: ThemeDraft = {
   headerTitle: "",
   agentName: "Assistente Zyon",
   originZip: "",
+  storeCategory: "",
 };
 
 // ── Step 2 state ──────────────────────────────────────────────────────────────
@@ -107,6 +108,162 @@ const DEFAULT_CHECKOUT_DRAFT: CheckoutDraft = {
   openWidgetOnTrigger: true,
   platform: "native",
 };
+
+// ── Store Category Search Dropdown ───────────────────────────────────────────
+
+const STORE_CATEGORIES: { value: string; label: string; emoji: string }[] = [
+  // Varejo
+  { value: "electronics", label: "Eletrônicos & Tecnologia", emoji: "💻" },
+  { value: "fashion", label: "Moda & Vestuário", emoji: "👗" },
+  { value: "beauty", label: "Beleza & Cosméticos", emoji: "💄" },
+  { value: "home_decor", label: "Casa & Decoração", emoji: "🏠" },
+  { value: "sports", label: "Esportes & Fitness", emoji: "⚽" },
+  { value: "food_beverage", label: "Alimentos & Bebidas", emoji: "🍕" },
+  { value: "health", label: "Saúde & Bem-estar", emoji: "💊" },
+  { value: "pet", label: "Pet Shop", emoji: "🐾" },
+  { value: "automotive", label: "Automotivo", emoji: "🚗" },
+  { value: "gaming", label: "Games & Entretenimento", emoji: "🎮" },
+  { value: "books_education", label: "Livros & Educação", emoji: "📚" },
+  { value: "toys_kids", label: "Brinquedos & Infantil", emoji: "🧸" },
+  { value: "jewelry_watches", label: "Joias & Relógios", emoji: "💎" },
+  { value: "furniture", label: "Móveis", emoji: "🛋️" },
+  { value: "groceries", label: "Supermercado & Mercearia", emoji: "🛒" },
+  { value: "pharmacy", label: "Farmácia", emoji: "🏥" },
+  { value: "office_supplies", label: "Papelaria & Escritório", emoji: "📎" },
+  { value: "music_instruments", label: "Instrumentos Musicais", emoji: "🎸" },
+  // Digital & Serviços
+  { value: "digital_products", label: "Produtos Digitais", emoji: "📱" },
+  { value: "services", label: "Serviços", emoji: "🔧" },
+  { value: "saas_software", label: "SaaS & Software", emoji: "☁️" },
+  { value: "courses_education", label: "Cursos & Infoprodutos", emoji: "🎓" },
+  { value: "subscriptions", label: "Assinaturas & Recorrência", emoji: "🔄" },
+  { value: "consulting", label: "Consultoria", emoji: "💼" },
+  { value: "freelance", label: "Freelance & Serviços Criativos", emoji: "🎨" },
+  { value: "events_tickets", label: "Eventos & Ingressos", emoji: "🎟️" },
+  // Nicho
+  { value: "handmade_artisan", label: "Artesanato & Handmade", emoji: "🧶" },
+  { value: "adult", label: "Adulto & Sensual", emoji: "🔞" },
+  { value: "cannabis_cbd", label: "Cannabis & CBD", emoji: "🌿" },
+  { value: "luxury", label: "Luxo & Premium", emoji: "✨" },
+  { value: "sustainability_eco", label: "Sustentável & Eco", emoji: "♻️" },
+  { value: "religious", label: "Religioso & Espiritual", emoji: "🕊️" },
+  { value: "industrial_b2b", label: "Industrial & B2B", emoji: "🏭" },
+  { value: "wholesale", label: "Atacado", emoji: "📦" },
+  { value: "dropshipping", label: "Dropshipping", emoji: "🚀" },
+  { value: "print_on_demand", label: "Print on Demand", emoji: "🖨️" },
+  // Genérico
+  { value: "marketplace", label: "Marketplace", emoji: "🏪" },
+  { value: "multi_category", label: "Multi-categoria", emoji: "🗂️" },
+  { value: "others", label: "Outros", emoji: "📋" },
+];
+
+function StoreCategorySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filtered = search
+    ? STORE_CATEGORIES.filter((c) => c.label.toLowerCase().includes(search.toLowerCase()) || c.value.includes(search.toLowerCase()))
+    : STORE_CATEGORIES;
+
+  const selected = STORE_CATEGORIES.find((c) => c.value === value);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <div
+        onClick={() => setOpen(!open)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "8px 12px",
+          borderRadius: "8px",
+          border: "1px solid var(--color-border)",
+          background: "var(--color-surface-raised)",
+          cursor: "pointer",
+          fontSize: "13px",
+          minHeight: "38px",
+        }}
+      >
+        {selected ? (
+          <>
+            <span>{selected.emoji}</span>
+            <span style={{ flex: 1 }}>{selected.label}</span>
+          </>
+        ) : (
+          <span style={{ flex: 1, color: "var(--color-muted)" }}>Selecione o tipo de loja...</span>
+        )}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
+      </div>
+
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "100%",
+          left: 0,
+          right: 0,
+          marginTop: "4px",
+          background: "var(--color-surface-raised)",
+          border: "1px solid var(--color-border)",
+          borderRadius: "10px",
+          boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
+          zIndex: 50,
+          maxHeight: "260px",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}>
+          <div style={{ padding: "8px", borderBottom: "1px solid var(--color-border)" }}>
+            <input
+              type="text"
+              placeholder="Buscar categoria..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "7px 10px",
+                borderRadius: "6px",
+                border: "1px solid var(--color-border)",
+                background: "var(--color-bg)",
+                fontSize: "12px",
+                outline: "none",
+              }}
+            />
+          </div>
+          <div style={{ overflowY: "auto", flex: 1 }}>
+            {filtered.map((cat) => (
+              <div
+                key={cat.value}
+                onClick={() => { onChange(cat.value); setOpen(false); setSearch(""); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                  fontSize: "12.5px",
+                  background: cat.value === value ? "var(--color-accent-subtle, rgba(15,118,110,0.08))" : "transparent",
+                  transition: "background 0.1s",
+                }}
+                onMouseEnter={(e) => { if (cat.value !== value) (e.currentTarget).style.background = "var(--color-bg)"; }}
+                onMouseLeave={(e) => { if (cat.value !== value) (e.currentTarget).style.background = "transparent"; }}
+              >
+                <span style={{ fontSize: "16px" }}>{cat.emoji}</span>
+                <span style={{ flex: 1 }}>{cat.label}</span>
+                {cat.value === value && <Check size={14} style={{ color: "var(--color-accent)" }} />}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{ padding: "16px", textAlign: "center", color: "var(--color-muted)", fontSize: "12px" }}>
+                Nenhuma categoria encontrada
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -187,6 +344,7 @@ export function OnboardingWizard(props: {
           headerTitle: theme.headerTitle ?? "",
           agentName: theme.agentName ?? "",
           originZip: "",
+          storeCategory: "",
         });
         setRulesDraft({
           maxDiscountPercent: rules.maxDiscountPercent,
@@ -226,12 +384,15 @@ export function OnboardingWizard(props: {
     try {
       let current: Record<string, unknown> = {};
       try { current = (await api.getMerchantTheme()) as unknown as Record<string, unknown>; } catch {}
-      const { originZip, ...themeFields } = themeDraft;
+      const { originZip, storeCategory, ...themeFields } = themeDraft;
       const payload = { ...current, ...themeFields } as Parameters<typeof api.putMerchantTheme>[0];
       if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) payload.logoUrl = "";
       await api.putMerchantTheme(payload);
       if (originZip) {
         try { await api.putMerchantRules({ originZip }); } catch {}
+      }
+      if (storeCategory) {
+        try { await api.putStoreCategory(storeCategory); } catch {}
       }
       await markOnboardingStep("account");
       setCurrentStep(2);
@@ -569,6 +730,16 @@ export function OnboardingWizard(props: {
                       onChange={(e) => setThemeDraft((d) => ({ ...d, headerTitle: e.target.value }))}
                     />
                     {fieldErrors.headerTitle && <span className="onb-field-error">{fieldErrors.headerTitle}</span>}
+                  </div>
+
+                  <div className="onb-field">
+                    <label className="onb-field-label" htmlFor="onb-category">Tipo de loja</label>
+                    <StoreCategorySelect
+                      value={themeDraft.storeCategory ?? ""}
+                      onChange={(v) => setThemeDraft((d) => ({ ...d, storeCategory: v }))}
+                    />
+                    <p className="onb-field-help">A IA usa esse contexto para não sugerir produtos fora do seu segmento.</p>
+                    {fieldErrors.storeCategory && <span className="onb-field-error">{fieldErrors.storeCategory}</span>}
                   </div>
 
                   <div className="onb-field">
