@@ -66,8 +66,11 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
         border: "1px solid var(--border)",
         borderRadius: 14,
         padding: 20,
-        maxHeight: 480,
+        height: "100%",
+        maxHeight: "none",
         overflowY: "auto",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div style={{ marginBottom: 12 }}>

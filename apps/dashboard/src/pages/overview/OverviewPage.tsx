@@ -434,7 +434,7 @@ export function OverviewPage(props: OverviewPageProps) {
                   data={vm.timeseries.conversion_daily}
                   type="line"
                   label="Conversao diaria"
-                  color="oklch(70% 0.14 250)"
+                  color="var(--accent)"
                   valueFormat="percent"
                 />
               ) : null}
