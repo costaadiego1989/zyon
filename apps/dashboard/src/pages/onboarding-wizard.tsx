@@ -488,17 +488,10 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep3() {
-    // Validate: at least one payment method configured or pending
-    const hasStripe = paymentDraft.stripeStatus === "active";
-    const hasAsaas = paymentDraft.asaasStatus === "active" || paymentDraft.asaasStatus === "pending";
-    const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(paymentDraft.walletAddress);
-    if (!hasStripe && !hasAsaas && !hasCrypto) {
-      setMessage("Configure pelo menos um método de pagamento para continuar.");
-      return;
-    }
     setBusy(true);
     setMessage(null);
     try {
+      const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(paymentDraft.walletAddress);
       if (hasCrypto) {
         await api.putMerchantRules({
           cryptoPayments: {
