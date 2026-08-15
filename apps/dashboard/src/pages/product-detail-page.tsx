@@ -26,6 +26,16 @@ export interface ProductDetailPageProps {
   onSaved?: () => void;
 }
 
+// Price conversion helpers: REAIS ↔ CENTAVOS
+export function centsToReais(cents: number): string {
+  return (cents / 100).toFixed(2);
+}
+
+export function reaisToCents(input: string): number {
+  const clean = input.replace(",", ".").replace(/[^\d.]/g, "");
+  return Math.round(parseFloat(clean) * 100) || 0;
+}
+
 export function emptyVariant(): ProductVariantDraft {
   return {
     sku: "",
@@ -65,8 +75,8 @@ export function validateVariants(variants: ProductVariantDraft[]): Record<string
     else if (seenSkus.has(v.sku.trim())) errors[`variant_${idx}_sku`] = "SKU duplicado";
     else seenSkus.add(v.sku.trim());
 
-    const price = parseInteger(v.basePriceInput);
-    if (price === null || price <= 0) errors[`variant_${idx}_price`] = "Preço inválido";
+    const price = reaisToCents(v.basePriceInput);
+    if (price <= 0) errors[`variant_${idx}_price`] = "Preço inválido";
 
     if (v.weightInput.trim()) {
       const w = parseFloatSafe(v.weightInput);
@@ -74,8 +84,8 @@ export function validateVariants(variants: ProductVariantDraft[]): Record<string
     }
 
     if (v.costInput.trim()) {
-      const c = parseInteger(v.costInput);
-      if (c === null || c < 0) errors[`variant_${idx}_cost`] = "Custo inválido";
+      const c = reaisToCents(v.costInput);
+      if (c < 0) errors[`variant_${idx}_cost`] = "Custo inválido";
     }
   });
   return errors;
@@ -135,8 +145,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                 return {
                   id: v.id,
                   sku: v.sku,
-                  basePriceInput: String(v.basePriceInCents ?? 0),
-                  costInput: v.costInCents != null ? String(v.costInCents) : "",
+                  basePriceInput: centsToReais(v.basePriceInCents ?? 0),
+                  costInput: v.costInCents != null ? centsToReais(v.costInCents) : "",
                   weightInput: v.weightGrams != null ? String(v.weightGrams) : "",
                   lengthInput: v.lengthCm != null ? String(v.lengthCm) : "",
                   widthInput: v.widthCm != null ? String(v.widthCm) : "",
@@ -164,15 +174,15 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
     const simpleErrors: Record<string, string> = {};
     const v = variants[0];
     if (!v.sku.trim()) simpleErrors["simple_sku"] = "SKU obrigatório";
-    const price = parseInteger(v.basePriceInput);
-    if (price === null || price <= 0) simpleErrors["simple_price"] = "Preço inválido";
+    const price = reaisToCents(v.basePriceInput);
+    if (price <= 0) simpleErrors["simple_price"] = "Preço inválido";
     if (v.weightInput.trim()) {
       const w = parseFloatSafe(v.weightInput);
       if (w === null || w < 0) simpleErrors["simple_weight"] = "Peso inválido";
     }
     if (v.costInput.trim()) {
-      const c = parseInteger(v.costInput);
-      if (c === null || c < 0) simpleErrors["simple_cost"] = "Custo inválido";
+      const c = reaisToCents(v.costInput);
+      if (c < 0) simpleErrors["simple_cost"] = "Custo inválido";
     }
     return simpleErrors;
   }, [variants, hasVariants]);
@@ -240,8 +250,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           },
           {} as Record<string, string>,
         ),
-        basePriceInCents: parseInteger(v.basePriceInput) ?? 0,
-        costInCents: v.costInput.trim() ? parseInteger(v.costInput) ?? undefined : undefined,
+        basePriceInCents: reaisToCents(v.basePriceInput),
+        costInCents: v.costInput.trim() ? reaisToCents(v.costInput) : undefined,
         weightGrams: v.weightInput.trim() ? parseFloatSafe(v.weightInput) ?? undefined : undefined,
         lengthCm: v.lengthInput.trim() ? parseFloatSafe(v.lengthInput) ?? undefined : undefined,
         widthCm: v.widthInput.trim() ? parseFloatSafe(v.widthInput) ?? undefined : undefined,
@@ -373,6 +383,91 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produto...</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+          {/* IMAGES SECTION - FIRST */}
+          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IMAGENS</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {variants.map((v, idx) => (
+                <div key={idx} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px" }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <strong style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>
+                      {hasVariants ? `Variante #${idx + 1} — ${v.sku}` : "Imagens do produto"}
+                    </strong>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10, marginBottom: 14 }}>
+                    {(variantMedia[v.id!] || []).map((media) => (
+                      <div key={media.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden", aspectRatio: "1", background: "var(--border)" }}>
+                        <img src={media.url} alt="Produto" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            setUploadingVariant(v.id!);
+                            try {
+                              await api.deleteProductMedia?.(merchantId!, media.id);
+                              setVariantMedia((prev) => ({
+                                ...prev,
+                                [v.id!]: (prev[v.id!] || []).filter((m) => m.id !== media.id),
+                              }));
+                            } finally {
+                              setUploadingVariant(null);
+                            }
+                          }}
+                          disabled={uploadingVariant === v.id}
+                          aria-label="Remover imagem"
+                          style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 4, background: "rgba(0,0,0,0.7)", border: "none", color: "white", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 12px var(--sans)", opacity: uploadingVariant === v.id ? 0.6 : 1 }}
+                        >
+                          <X size={14} />
+                        </button>
+                      </div>
+                    ))}
+                    <label style={{ borderRadius: 8, border: "2px dashed var(--border)", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", aspectRatio: "1", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", opacity: uploadingVariant === v.id ? 0.6 : 1 }}>
+                      <ImageIcon size={24} style={{ color: "var(--faint)", marginBottom: 4 }} />
+                      <span style={{ font: "11px var(--sans)", color: "var(--faint)", textAlign: "center" }}>Upload</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={async (e) => {
+                          const file = e.currentTarget.files?.[0];
+                          if (!file || !merchantId) return;
+                          setUploadingVariant(v.id || `pending-${idx}`);
+                          try {
+                            const reader = new FileReader();
+                            reader.onload = async (re) => {
+                              try {
+                                const base64 = re.target?.result as string;
+                                if (v.id) {
+                                  const result = await api.uploadProductMedia?.(merchantId, v.id, base64);
+                                  if (result) {
+                                    setVariantMedia((prev) => ({
+                                      ...prev,
+                                      [v.id!]: [...(prev[v.id!] || []), { id: result.id, url: result.url }],
+                                    }));
+                                  }
+                                } else {
+                                  updateVariant(idx, {
+                                    pendingImages: [...(variants[idx]?.pendingImages || []), base64],
+                                  });
+                                }
+                              } finally {
+                                setUploadingVariant(null);
+                              }
+                            };
+                            reader.readAsDataURL(file);
+                          } catch (err) {
+                            setUploadingVariant(null);
+                          }
+                          e.currentTarget.value = "";
+                        }}
+                        disabled={uploadingVariant === v.id || uploadingVariant === `pending-${idx}`}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {/* INFORMAÇÕES BÁSICAS */}
           <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
             <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>INFORMAÇÕES BÁSICAS</h3>
@@ -398,7 +493,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)", resize: "vertical" }}
               />
             </label>
-            <label style={{ display: "block", marginBottom: isEditing ? 12 : 0 }}>
+            <label style={{ display: "block", marginBottom: 12 }}>
               <span style={{ font: "600 12px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Categoria</span>
               {categories.length > 0 ? (
                 <select
@@ -422,38 +517,16 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             </label>
             {isEditing && (
               <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Produto ativo</span>
+                <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Ativo</span>
                 <input
                   type="checkbox"
                   checked={isActive}
                   onChange={(e) => setIsActive(e.target.checked)}
                   style={{ width: 18, height: 18, accentColor: "var(--accent-dark)", cursor: "pointer" }}
                 />
-                <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>{isActive ? "Ativo" : "Inativo"}</span>
+                <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>{isActive ? "Sim" : "Não"}</span>
               </label>
             )}
-          </section>
-
-          {/* SIMPLE vs COMPLEX TOGGLE */}
-          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Produto com variantes</span>
-              <input
-                type="checkbox"
-                checked={hasVariants}
-                onChange={(e) => {
-                  setHasVariants(e.target.checked);
-                  if (!e.target.checked) {
-                    // Reset to single simple variant
-                    setVariants([emptyVariant()]);
-                  }
-                }}
-                style={{ width: 18, height: 18, accentColor: "var(--accent-dark)", cursor: "pointer" }}
-              />
-              <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>
-                {hasVariants ? "Ativado" : "Desativado"}
-              </span>
-            </label>
           </section>
 
           {/* SIMPLE PRODUCT MODE - Price & Stock */}
@@ -469,18 +542,18 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                   placeholder="Auto-gerado do nome se vazio"
                 />
                 <Field
-                  label="Preço base (centavos) *"
+                  label="Preço (R$) *"
                   value={variants[0].basePriceInput}
                   onChange={(val) => updateVariant(0, { basePriceInput: val })}
                   error={formErrors["simple_price"]}
-                  placeholder="9990"
+                  placeholder="89,90"
                 />
                 <Field
-                  label="Custo (centavos)"
+                  label="Custo (R$)"
                   value={variants[0].costInput}
                   onChange={(val) => updateVariant(0, { costInput: val })}
                   error={formErrors["simple_cost"]}
-                  placeholder="3500"
+                  placeholder="35,00"
                 />
                 <Field
                   label="Estoque"
@@ -491,6 +564,61 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
               </div>
             </section>
           )}
+
+          {/* DIMENSIONS - SIMPLE MODE */}
+          {!hasVariants && (
+            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+                <Field
+                  label="Peso (g)"
+                  value={variants[0].weightInput}
+                  onChange={(val) => updateVariant(0, { weightInput: val })}
+                  error={formErrors["simple_weight"]}
+                  placeholder="300"
+                />
+                <Field
+                  label="Comprimento (cm)"
+                  value={variants[0].lengthInput}
+                  onChange={(val) => updateVariant(0, { lengthInput: val })}
+                  placeholder="20"
+                />
+                <Field
+                  label="Largura (cm)"
+                  value={variants[0].widthInput}
+                  onChange={(val) => updateVariant(0, { widthInput: val })}
+                  placeholder="15"
+                />
+                <Field
+                  label="Altura (cm)"
+                  value={variants[0].heightInput}
+                  onChange={(val) => updateVariant(0, { heightInput: val })}
+                  placeholder="5"
+                />
+              </div>
+            </section>
+          )}
+
+          {/* SIMPLE vs COMPLEX TOGGLE */}
+          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Produto com variantes</span>
+              <input
+                type="checkbox"
+                checked={hasVariants}
+                onChange={(e) => {
+                  setHasVariants(e.target.checked);
+                  if (!e.target.checked) {
+                    setVariants([emptyVariant()]);
+                  }
+                }}
+                style={{ width: 18, height: 18, accentColor: "var(--accent-dark)", cursor: "pointer" }}
+              />
+              <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>
+                {hasVariants ? "Ativado" : "Desativado"}
+              </span>
+            </label>
+          </section>
 
           {/* COMPLEX VARIANTS MODE */}
           {hasVariants && (
@@ -531,18 +659,18 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         placeholder="SKU-001"
                       />
                       <Field
-                        label="Preço base (centavos) *"
+                        label="Preço (R$) *"
                         value={v.basePriceInput}
                         onChange={(val) => updateVariant(idx, { basePriceInput: val })}
                         error={formErrors[`variant_${idx}_price`]}
-                        placeholder="9990"
+                        placeholder="89,90"
                       />
                       <Field
-                        label="Custo (centavos)"
+                        label="Custo (R$)"
                         value={v.costInput}
                         onChange={(val) => updateVariant(idx, { costInput: val })}
                         error={formErrors[`variant_${idx}_cost`]}
-                        placeholder="3500"
+                        placeholder="35,00"
                       />
                       <Field
                         label="Estoque"
@@ -625,127 +753,6 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
               </div>
             </section>
           )}
-
-          {/* DIMENSIONS - SIMPLE MODE */}
-          {!hasVariants && (
-            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES E FRETE</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                <Field
-                  label="Peso (g)"
-                  value={variants[0].weightInput}
-                  onChange={(val) => updateVariant(0, { weightInput: val })}
-                  error={formErrors["simple_weight"]}
-                  placeholder="300"
-                />
-                <Field
-                  label="Comprimento (cm)"
-                  value={variants[0].lengthInput}
-                  onChange={(val) => updateVariant(0, { lengthInput: val })}
-                  placeholder="20"
-                />
-                <Field
-                  label="Largura (cm)"
-                  value={variants[0].widthInput}
-                  onChange={(val) => updateVariant(0, { widthInput: val })}
-                  placeholder="15"
-                />
-                <Field
-                  label="Altura (cm)"
-                  value={variants[0].heightInput}
-                  onChange={(val) => updateVariant(0, { heightInput: val })}
-                  placeholder="5"
-                />
-              </div>
-            </section>
-          )}
-
-          {/* IMAGES SECTION */}
-          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IMAGENS</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {variants.map((v, idx) => (
-                <div key={idx} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px" }}>
-                  <div style={{ marginBottom: 12 }}>
-                    <strong style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>
-                      {hasVariants ? `Variante #${idx + 1} — ${v.sku}` : "Imagens do produto"}
-                    </strong>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10, marginBottom: 14 }}>
-                    {(variantMedia[v.id!] || []).map((media) => (
-                      <div key={media.id} style={{ position: "relative", borderRadius: 8, overflow: "hidden", aspectRatio: "1", background: "var(--border)" }}>
-                        <img src={media.url} alt="Produto" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            setUploadingVariant(v.id!);
-                            try {
-                              await api.deleteProductMedia?.(merchantId!, media.id);
-                              setVariantMedia((prev) => ({
-                                ...prev,
-                                [v.id!]: (prev[v.id!] || []).filter((m) => m.id !== media.id),
-                              }));
-                            } finally {
-                              setUploadingVariant(null);
-                            }
-                          }}
-                          disabled={uploadingVariant === v.id}
-                          aria-label="Remover imagem"
-                          style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 4, background: "rgba(0,0,0,0.7)", border: "none", color: "white", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 12px var(--sans)", opacity: uploadingVariant === v.id ? 0.6 : 1 }}
-                        >
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                    <label style={{ borderRadius: 8, border: "2px dashed var(--border)", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", aspectRatio: "1", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", opacity: uploadingVariant === v.id ? 0.6 : 1 }}>
-                      <ImageIcon size={24} style={{ color: "var(--faint)", marginBottom: 4 }} />
-                      <span style={{ font: "11px var(--sans)", color: "var(--faint)", textAlign: "center" }}>Upload</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={async (e) => {
-                          const file = e.currentTarget.files?.[0];
-                          if (!file || !merchantId) return;
-                          setUploadingVariant(v.id || `pending-${idx}`);
-                          try {
-                            const reader = new FileReader();
-                            reader.onload = async (re) => {
-                              try {
-                                const base64 = re.target?.result as string;
-                                // If we have a variant ID, upload immediately (edit mode)
-                                if (v.id) {
-                                  const result = await api.uploadProductMedia?.(merchantId, v.id, base64);
-                                  if (result) {
-                                    setVariantMedia((prev) => ({
-                                      ...prev,
-                                      [v.id!]: [...(prev[v.id!] || []), { id: result.id, url: result.url }],
-                                    }));
-                                  }
-                                } else {
-                                  // Create mode: store in pendingImages to upload after product creation
-                                  updateVariant(idx, {
-                                    pendingImages: [...(variants[idx]?.pendingImages || []), base64],
-                                  });
-                                }
-                              } finally {
-                                setUploadingVariant(null);
-                              }
-                            };
-                            reader.readAsDataURL(file);
-                          } catch (err) {
-                            setUploadingVariant(null);
-                          }
-                          e.currentTarget.value = "";
-                        }}
-                        disabled={uploadingVariant === v.id || uploadingVariant === `pending-${idx}`}
-                        style={{ display: "none" }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
       )}
     </div>
