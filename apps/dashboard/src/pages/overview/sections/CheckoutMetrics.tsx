@@ -1,5 +1,6 @@
 import React from "react";
 import type { DashboardOverview, TimeseriesResponse } from "@zyon/shared-types";
+import { MessageSquare, Percent, Gift, DollarSign, Tag } from "lucide-react";
 import { StatCard } from "../components/StatCard.js";
 import { ConversionFunnel } from "../components/ConversionFunnel.js";
 import { RevenueChart } from "../components/RevenueChart.js";
@@ -48,6 +49,7 @@ export function CheckoutMetrics({
           value={overview.conversations_started}
           trend={calcTrend(overview.conversations_started, prev?.conversations_started)}
           sparkline={sessionsSparkline}
+          icon={<MessageSquare size={16} />}
         />
         <StatCard
           label="Taxa de Conversao"
@@ -61,12 +63,14 @@ export function CheckoutMetrics({
               : undefined,
           )}
           sparkline={convSparkline}
+          icon={<Percent size={16} />}
         />
         <StatCard
           label="Ofertas"
           value={`${overview.offers_accepted ?? 0}/${overview.offers_viewed ?? 0}`}
           trend={calcTrend(overview.offers_accepted ?? 0, prev?.offers_accepted)}
           sparkline={convSparkline}
+          icon={<Gift size={16} />}
         />
         <StatCard
           label="Receita Incremental"
@@ -75,6 +79,7 @@ export function CheckoutMetrics({
           accent="var(--accent)"
           trend={calcTrend(overview.incremental_revenue, prev?.incremental_revenue)}
           sparkline={revSparkline}
+          icon={<DollarSign size={16} />}
         />
         <StatCard
           label="Desconto Medio"
@@ -86,6 +91,7 @@ export function CheckoutMetrics({
             prev?.average_discount ? prev.average_discount * 100 : undefined,
           )}
           sparkline={convSparkline}
+          icon={<Tag size={16} />}
         />
       </div>
 

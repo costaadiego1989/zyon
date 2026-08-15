@@ -1,5 +1,6 @@
 import React from "react";
 import type { StoreOverview, TimeseriesResponse } from "@zyon/shared-types";
+import { DollarSign, ShoppingCart, Receipt, Package, Users, TrendingDown } from "lucide-react";
 import { StatCard } from "../components/StatCard.js";
 import { OrderStatusDonut } from "../components/OrderStatusDonut.js";
 import { TopProducts } from "../components/TopProducts.js";
@@ -51,29 +52,34 @@ export function StoreMetrics({
           accent="var(--accent)"
           trend={calcTrend(overview.revenue, prev?.revenue)}
           sparkline={revSparkline}
+          icon={<DollarSign size={16} />}
         />
         <StatCard
           label="Pedidos"
           value={overview.orders_count}
           trend={calcTrend(overview.orders_count, prev?.orders_count)}
           sparkline={ordersSparkline}
+          icon={<ShoppingCart size={16} />}
         />
         <StatCard
           label="Ticket Medio"
           value={formatCurrency(overview.average_ticket)}
           prefix="R$"
           trend={calcTrend(overview.average_ticket, prev?.average_ticket)}
+          icon={<Receipt size={16} />}
         />
         <StatCard
           label="Produtos Vendidos"
           value={overview.products_sold}
           trend={calcTrend(overview.products_sold, prev?.products_sold)}
+          icon={<Package size={16} />}
         />
         <StatCard
           label="Novos Clientes"
           value={overview.new_customers}
           accent="var(--good)"
           trend={calcTrend(overview.new_customers, prev?.new_customers)}
+          icon={<Users size={16} />}
         />
         <StatCard
           label="Abandono"
@@ -84,6 +90,7 @@ export function StoreMetrics({
             (overview.abandonment_rate ?? 0) * 100,
             prev?.abandonment_rate ? prev.abandonment_rate * 100 : undefined,
           )}
+          icon={<TrendingDown size={16} />}
         />
       </div>
 

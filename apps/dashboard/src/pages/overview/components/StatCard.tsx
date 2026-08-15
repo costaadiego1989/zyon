@@ -45,16 +45,24 @@ function MiniSparkline({ data }: { data: number[] }) {
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
-  const width = data.length * 2;
-  const height = 20;
+  const width = 80;
+  const height = 24;
+  const padding = 2;
+
   const points = data
-    .map((v, i) => `${(i * width) / (data.length - 1)},${height - ((v - min) / range) * height * 0.8}`)
+    .map((v, i) => {
+      const x = padding + (i / (data.length - 1)) * (width - padding * 2);
+      const y = padding + (1 - (v - min) / range) * (height - padding * 2);
+      return `${x},${y}`;
+    })
     .join(" ");
 
+  const areaPoints = `${padding},${height} ${points} ${width - padding},${height}`;
+
   return (
-    <svg width={width} height={height} style={{ display: "block" }} viewBox={`0 0 ${width} ${height}`}>
-      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.6" />
-      <polyline points={points} fill={`currentColor`} opacity="0.08" />
+    <svg width={width} height={height} style={{ display: "block", width: "100%", maxWidth: 80 }} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
+      <polygon points={areaPoints} fill="currentColor" opacity="0.12" />
+      <polyline points={points} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
