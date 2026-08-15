@@ -4,6 +4,8 @@ export interface CreateProductInput {
   merchantId: string;
   name: string;
   description?: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
   categoryId?: string;
   variants: Array<{
     sku: string;
@@ -57,7 +59,7 @@ export interface ProductRepositoryPort {
   create(input: CreateProductInput): Promise<ProductEntity>;
   findById(merchantId: string, productId: string): Promise<ProductEntity | null>;
   search(input: SearchProductsInput): Promise<SearchProductsResult>;
-  update(merchantId: string, productId: string, data: Partial<{ name: string; description: string; categoryId: string; isActive: boolean }>): Promise<ProductEntity>;
+  update(merchantId: string, productId: string, data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean }>): Promise<ProductEntity>;
   softDelete(merchantId: string, productId: string): Promise<void>;
   addVariant(merchantId: string, productId: string, variant: CreateProductInput["variants"][0]): Promise<ProductVariantProps>;
 }

@@ -7,6 +7,8 @@ export interface UpdateProductInput {
   productId: string;
   name?: string;
   description?: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
   categoryId?: string;
   isActive?: boolean;
 }
@@ -16,9 +18,11 @@ export class UpdateProductUseCase {
   constructor(@Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort) {}
 
   async execute(input: UpdateProductInput): Promise<ProductEntity> {
-    const data: Partial<{ name: string; description: string; categoryId: string; isActive: boolean }> = {};
+    const data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean }> = {};
     if (input.name !== undefined) data.name = input.name;
     if (input.description !== undefined) data.description = input.description;
+    if (input.type !== undefined) data.type = input.type;
+    if (input.metadata !== undefined) data.metadata = input.metadata;
     if (input.categoryId !== undefined) data.categoryId = input.categoryId;
     if (input.isActive !== undefined) data.isActive = input.isActive;
     return this.productRepo.update(input.merchantId, input.productId, data);

@@ -21,6 +21,8 @@ export class PrismaProductRepository implements ProductRepositoryPort {
           merchantId: input.merchantId,
           name: input.name,
           description: input.description,
+          type: input.type ?? "physical",
+          metadata: input.metadata as Prisma.InputJsonValue ?? Prisma.JsonNull,
           categoryId: input.categoryId,
           variants: {
             create: input.variants.map((v) => ({
@@ -135,11 +137,19 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   async update(
     merchantId: string,
     productId: string,
-    data: Partial<{ name: string; description: string; categoryId: string; isActive: boolean }>,
+    data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean }>,
   ): Promise<ProductEntity> {
+    const prismaData: Record<string, unknown> = {};
+    if (data.name !== undefined) prismaData.name = data.name;
+    if (data.description !== undefined) prismaData.description = data.description;
+    if (data.type !== undefined) prismaData.type = data.type;
+    if (data.metadata !== undefined) prismaData.metadata = data.metadata as Prisma.InputJsonValue;
+    if (data.categoryId !== undefined) prismaData.categoryId = data.categoryId || null;
+    if (data.isActive !== undefined) prismaData.isActive = data.isActive;
+
     const product = await this.prisma.product.update({
       where: { id: productId, merchantId },
-      data,
+      data: prismaData,
       include: { variants: { include: { price: true, stock: true, media: true } } },
     });
     return this.toEntity(product);
@@ -213,6 +223,8 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       merchantId: raw.merchantId,
       name: raw.name,
       description: raw.description,
+      type: raw.type ?? "physical",
+      metadata: raw.metadata as Record<string, unknown> | undefined,
       categoryId: raw.categoryId,
       isActive: raw.isActive,
       createdAt: raw.createdAt,

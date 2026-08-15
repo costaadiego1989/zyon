@@ -45,6 +45,8 @@ export class StoreBuilderCatalogController {
     @Body() body: {
       name: string;
       description?: string;
+      type?: string;
+      metadata?: Record<string, unknown>;
       categoryId?: string;
       variants: Array<{
         sku: string;
@@ -67,6 +69,8 @@ export class StoreBuilderCatalogController {
       merchantId,
       name: body.name,
       description: body.description,
+      type: body.type,
+      metadata: body.metadata,
       categoryId: body.categoryId,
       variants: body.variants.map((v) => ({
         ...v,
@@ -112,6 +116,8 @@ export class StoreBuilderCatalogController {
     @Body() body: {
       name?: string;
       description?: string;
+      type?: string;
+      metadata?: Record<string, unknown>;
       categoryId?: string;
       isActive?: boolean;
     },
@@ -121,6 +127,8 @@ export class StoreBuilderCatalogController {
       productId,
       name: body.name,
       description: body.description,
+      type: body.type,
+      metadata: body.metadata,
       categoryId: body.categoryId,
       isActive: body.isActive,
     });

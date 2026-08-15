@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Plus, Save, Trash2, Upload, X, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, Upload, X, Image as ImageIcon, Package, Download, Clock } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
+
+export type ProductType = "physical" | "digital" | "service";
 
 export interface ProductVariantDraft {
   id?: string;
@@ -16,6 +18,21 @@ export interface ProductVariantDraft {
   stockInput: string;
   attributes: Array<{ key: string; value: string }>;
   pendingImages: string[];
+}
+
+export interface ProductMetadata {
+  // Digital
+  downloadUrl?: string;
+  fileSize?: string;
+  fileFormat?: string;
+  // Service
+  serviceType?: "presencial" | "remoto" | "hibrido"; // presencial, remoto ou híbrido
+  startDate?: string; // ISO date: 2026-08-15
+  startTime?: string; // HH:mm: 09:00
+  endDate?: string;
+  endTime?: string;
+  remoteLink?: string; // zoom/meet link
+  notes?: string;
 }
 
 export interface ProductDetailPageProps {
@@ -96,6 +113,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
   const merchantId = props.me?.id;
   const isEditing = !!props.productId;
 
+  const [productType, setProductType] = useState<ProductType>("physical");
+  const [metadata, setMetadata] = useState<ProductMetadata>({});
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -131,6 +150,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         const product = await api.getProduct(merchantId, props.productId!);
         setName(product.name);
         setDescription(product.description ?? "");
+        setProductType((product.type as ProductType) ?? "physical");
+        setMetadata((product.metadata as Record<string, unknown> as ProductMetadata) ?? {});
         setCategoryId(product.categoryId ?? "");
         setIsActive(product.isActive);
         const mediaMap: Record<string, Array<{ id: string; url: string }>> = {};
@@ -265,6 +286,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         await api.updateProduct(merchantId, props.productId, {
           name: name.trim(),
           description: description.trim() || undefined,
+          type: productType,
+          metadata: metadata as Record<string, unknown>,
           categoryId: categoryId.trim() || undefined,
           isActive,
         });
@@ -290,6 +313,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         const created = await api.createProduct(merchantId, {
           name: name.trim(),
           description: description.trim() || undefined,
+          type: productType,
+          metadata: metadata as Record<string, unknown>,
           categoryId: categoryId.trim() || undefined,
           variants: payloadVariants,
         });
@@ -383,6 +408,43 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produto...</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
+          {/* PRODUCT TYPE SELECTOR */}
+          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>TIPO DE PRODUTO</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+              {(["physical", "digital", "service"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setProductType(type)}
+                  style={{
+                    padding: "14px 16px",
+                    borderRadius: 10,
+                    border: `2px solid ${productType === type ? "var(--accent-dark)" : "var(--border)"}`,
+                    background: productType === type ? "var(--accent-soft)" : "var(--bg)",
+                    color: productType === type ? "var(--accent-dark)" : "var(--ink)",
+                    cursor: "pointer",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 6,
+                    transition: "all 0.15s",
+                    textAlign: "center",
+                  }}
+                >
+                  {type === "physical" && <Package size={18} />}
+                  {type === "digital" && <Download size={18} />}
+                  {type === "service" && <Clock size={18} />}
+                  <span style={{ font: "600 11px var(--sans)" }}>
+                    {type === "physical" && "Físico"}
+                    {type === "digital" && "Digital"}
+                    {type === "service" && "Serviço"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+
           {/* IMAGES SECTION - FIRST */}
           <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
             <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IMAGENS</h3>
@@ -553,6 +615,135 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             )}
           </section>
 
+          {/* DIGITAL-ONLY FIELDS */}
+          {productType === "digital" && (
+            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>INFORMAÇÕES DO DOWNLOAD</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
+                <Field
+                  label="URL de Download"
+                  value={metadata.downloadUrl ?? ""}
+                  onChange={(val) => setMetadata({ ...metadata, downloadUrl: val })}
+                  placeholder="https://example.com/download/arquivo"
+                />
+                <Field
+                  label="Tamanho do arquivo"
+                  value={metadata.fileSize ?? ""}
+                  onChange={(val) => setMetadata({ ...metadata, fileSize: val })}
+                  placeholder="Ex: 15.5 MB, 320 KB"
+                />
+                <Field
+                  label="Formato"
+                  value={metadata.fileFormat ?? ""}
+                  onChange={(val) => setMetadata({ ...metadata, fileFormat: val })}
+                  placeholder="Ex: PDF, ZIP, MP3"
+                />
+              </div>
+            </section>
+          )}
+
+          {/* SERVICE-ONLY FIELDS */}
+          {productType === "service" && (
+            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>AGENDAMENTO DO SERVIÇO</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
+                {/* Service Type Selection */}
+                <div>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Tipo de serviço *</span>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+                    {(["presencial", "remoto", "hibrido"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setMetadata({ ...metadata, serviceType: type })}
+                        style={{
+                          padding: "10px",
+                          borderRadius: 8,
+                          border: `1px solid ${metadata.serviceType === type ? "var(--accent-dark)" : "var(--border)"}`,
+                          background: metadata.serviceType === type ? "var(--accent-soft)" : "var(--bg)",
+                          color: metadata.serviceType === type ? "var(--accent-dark)" : "var(--ink)",
+                          cursor: "pointer",
+                          font: "600 11px var(--sans)",
+                          transition: "all 0.15s",
+                        }}
+                      >
+                        {type === "presencial" && "🏢 Presencial"}
+                        {type === "remoto" && "💻 Remoto"}
+                        {type === "hibrido" && "🔄 Híbrido"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Date & Time */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
+                  <label style={{ display: "block" }}>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Data Inicial</span>
+                    <input
+                      type="date"
+                      value={metadata.startDate ?? ""}
+                      onChange={(e) => setMetadata({ ...metadata, startDate: e.target.value })}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Hora Inicial</span>
+                    <input
+                      type="time"
+                      value={metadata.startTime ?? ""}
+                      onChange={(e) => setMetadata({ ...metadata, startTime: e.target.value })}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Data Final</span>
+                    <input
+                      type="date"
+                      value={metadata.endDate ?? ""}
+                      onChange={(e) => setMetadata({ ...metadata, endDate: e.target.value })}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                    />
+                  </label>
+                  <label style={{ display: "block" }}>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Hora Final</span>
+                    <input
+                      type="time"
+                      value={metadata.endTime ?? ""}
+                      onChange={(e) => setMetadata({ ...metadata, endTime: e.target.value })}
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                    />
+                  </label>
+                </div>
+
+                {/* Remote Link (conditional) */}
+                {(metadata.serviceType === "remoto" || metadata.serviceType === "hibrido") && (
+                  <label style={{ display: "block" }}>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Link da reunião (Zoom / Google Meet)</span>
+                    <input
+                      value={metadata.remoteLink ?? ""}
+                      onChange={(e) => setMetadata({ ...metadata, remoteLink: e.target.value })}
+                      placeholder="https://zoom.us/j/... ou https://meet.google.com/..."
+                      style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                    />
+                    <span style={{ font: "10px var(--sans)", color: "var(--faint)", marginTop: 4, display: "block" }}>🔜 Em breve: integração automática com Zoom e Google Meet</span>
+                  </label>
+                )}
+
+                {/* Notes / Observações */}
+                <label style={{ display: "block" }}>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Observações</span>
+                  <textarea
+                    value={metadata.notes ?? ""}
+                    onChange={(e) => setMetadata({ ...metadata, notes: e.target.value })}
+                    rows={3}
+                    placeholder="Ex: Trazer documento XYZ, Material disponível em PDF..."
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)", resize: "vertical" }}
+                  />
+                </label>
+              </div>
+            </section>
+          )}
+
           {/* SIMPLE PRODUCT MODE - Price & Stock */}
           {!hasVariants && (
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
@@ -589,8 +780,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             </section>
           )}
 
-          {/* DIMENSIONS - SIMPLE MODE */}
-          {!hasVariants && (
+          {/* DIMENSIONS - SIMPLE MODE & PHYSICAL ONLY */}
+          {!hasVariants && productType === "physical" && (
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
               <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>

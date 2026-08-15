@@ -22,6 +22,8 @@ export interface ProductProps {
   merchantId: string;
   name: string;
   description?: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
   categoryId?: string;
   isActive: boolean;
   createdAt: Date;
@@ -36,6 +38,8 @@ export class ProductEntity {
   readonly merchantId: string;
   readonly name: string;
   readonly description?: string;
+  readonly type: string;
+  readonly metadata?: Record<string, unknown>;
   readonly categoryId?: string;
   readonly isActive: boolean;
   readonly createdAt: Date;
@@ -49,6 +53,8 @@ export class ProductEntity {
     this.merchantId = props.merchantId;
     this.name = props.name;
     this.description = props.description;
+    this.type = props.type ?? "physical";
+    this.metadata = props.metadata;
     this.categoryId = props.categoryId;
     this.isActive = props.isActive;
     this.createdAt = props.createdAt;

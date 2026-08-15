@@ -1,5 +1,37 @@
 import { dashboardJson } from "../http/client.js";
 
+export interface ProductCategoryDTO {
+  id: string;
+  merchant_id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  description: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  product_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  parent_id?: string;
+  description?: string;
+  image_url?: string;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  parent_id?: string | null;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
 export interface ProductVariant {
   id: string;
   sku: string;
@@ -24,6 +56,8 @@ export interface Product {
   merchantId: string;
   name: string;
   description?: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
   categoryId?: string;
   isActive: boolean;
   createdAt: string;
@@ -42,6 +76,8 @@ export interface ProductSearchResult {
 export interface CreateProductPayload {
   name: string;
   description?: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
   categoryId?: string;
   variants: Array<{
     sku: string;
@@ -62,6 +98,8 @@ export interface CreateProductPayload {
 export interface UpdateProductPayload {
   name?: string;
   description?: string;
+  type?: string;
+  metadata?: Record<string, unknown>;
   categoryId?: string;
   isActive?: boolean;
 }
@@ -142,11 +180,43 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
-    listCategories(merchantId: string): Promise<Array<{ id: string; name: string }>> {
-      return dashboardJson<Array<{ id: string; name: string }>>(
+    listCategories(merchantId: string): Promise<ProductCategoryDTO[]> {
+      return dashboardJson<ProductCategoryDTO[]>(
         base,
         `/merchants/${encodeURIComponent(merchantId)}/categories`,
         { method: "GET" },
+        f,
+      );
+    },
+    createCategory(merchantId: string, data: CreateCategoryInput): Promise<ProductCategoryDTO> {
+      return dashboardJson<ProductCategoryDTO>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/categories`,
+        { method: "POST", jsonBody: data },
+        f,
+      );
+    },
+    updateCategory(merchantId: string, id: string, data: UpdateCategoryInput): Promise<ProductCategoryDTO> {
+      return dashboardJson<ProductCategoryDTO>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/categories/${encodeURIComponent(id)}`,
+        { method: "PUT", jsonBody: data },
+        f,
+      );
+    },
+    deleteCategory(merchantId: string, id: string): Promise<void> {
+      return dashboardJson<void>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/categories/${encodeURIComponent(id)}`,
+        { method: "DELETE" },
+        f,
+      );
+    },
+    reorderCategories(merchantId: string, items: Array<{ id: string; sort_order: number }>): Promise<void> {
+      return dashboardJson<void>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/categories/reorder`,
+        { method: "PATCH", jsonBody: { items } },
         f,
       );
     },
