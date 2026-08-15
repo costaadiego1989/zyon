@@ -30,6 +30,12 @@ interface StoreConfig {
   };
   agentName?: string;
   quickReplies?: string[];
+  storeCategory?: string;
+  storeSettings?: {
+    social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
+    company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
+    policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
+  };
 }
 
 async function fetchStoreConfig(slug: string): Promise<StoreConfig | null> {
@@ -205,6 +211,9 @@ export default async function StorePage({
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+      <style dangerouslySetInnerHTML={{ __html: `
+        .storefront-shell { display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden; background:var(--aacp-bg); color:var(--aacp-fg); font-family:var(--aacp-font); }
+      `}} />
       <OrganizationSchema
         name={name}
         url={pageUrl}
@@ -213,12 +222,17 @@ export default async function StorePage({
       />
       <WebSiteSchema name={name} url={pageUrl} />
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
-      <ConversationShell
-        storeName={name}
-        logo={logo}
-        returnOrderId={order}
-        agentName={config?.agentName}
-      />
+      <div className="storefront-shell">
+        <ConversationShell
+          storeName={name}
+          logo={logo}
+          returnOrderId={order}
+          agentName={config?.agentName}
+          quickReplies={config?.quickReplies}
+          merchantId={config?.merchantId}
+          storeSettings={config?.storeSettings}
+        />
+      </div>
     </>
   );
 }
