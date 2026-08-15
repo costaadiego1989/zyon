@@ -10,13 +10,15 @@ export function OrganizationSchema({
   logo,
   url,
   description,
+  sameAs,
 }: {
   name: string;
   logo?: string;
   url: string;
   description?: string;
+  sameAs?: string[];
 }) {
-  const schema = {
+  const schema: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'Organization',
     name,
@@ -24,6 +26,9 @@ export function OrganizationSchema({
     logo,
     description,
   };
+  if (sameAs && sameAs.length > 0) {
+    schema.sameAs = sameAs;
+  }
   return (
     <script
       type="application/ld+json"
@@ -101,4 +106,18 @@ export function WebSiteSchema({
       dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
     />
   );
+}
+
+export function BreadcrumbListSchema({ items }: { items: Array<{ name: string; url: string }> }) {
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  };
+  return <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />;
 }

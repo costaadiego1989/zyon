@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
-import { OrganizationSchema, WebSiteSchema } from "@/components/StructuredData";
+import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema } from "@/components/StructuredData";
 import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 
@@ -16,6 +16,7 @@ interface StoreConfig {
   merchantId: string;
   name: string;
   logo?: string;
+  description?: string;
   theme: {
     accentColor: string;
     secondaryColor?: string;
@@ -61,25 +62,32 @@ export async function generateMetadata({
   const merchant = config ? null : getDemoMerchant(slug);
   const name = config?.name ?? merchant?.name ?? "Zyon Store";
   const description =
+    config?.description ??
     merchant?.description ??
     "Loja conversacional com atendimento por IA e checkout integrado.";
+  const logo = config?.logo ?? merchant?.logo;
   return {
     title: {
       default: name,
       template: `%s | ${name}`,
     },
     description,
+    themeColor: config?.theme.accentColor,
+    category: config?.storeCategory,
     openGraph: {
       title: name,
       description,
       type: "website",
       siteName: name,
       url: `${SITE_URL}/store/${slug}`,
+      locale: "pt_BR",
+      images: logo ? [{ url: logo, width: 1200, height: 630, alt: name }] : [],
     },
     twitter: {
       card: "summary_large_image",
       title: name,
       description,
+      images: logo ? [logo] : [],
     },
     robots: {
       index: true,
@@ -208,6 +216,11 @@ export default async function StorePage({
   `;
 
   const pageUrl = `${SITE_URL}/store/${slug}`;
+  const socialLinks = [
+    config?.storeSettings?.social?.instagram,
+    config?.storeSettings?.social?.facebook,
+    config?.storeSettings?.social?.linkedin,
+  ].filter(Boolean) as string[];
 
   return (
     <>
@@ -220,8 +233,15 @@ export default async function StorePage({
         url={pageUrl}
         logo={logo}
         description={description}
+        sameAs={socialLinks}
       />
       <WebSiteSchema name={name} url={pageUrl} />
+      <BreadcrumbListSchema
+        items={[
+          { name: "Início", url: SITE_URL },
+          { name, url: pageUrl },
+        ]}
+      />
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <div className="storefront-shell">
         <ConversationShell
