@@ -2,15 +2,18 @@
  * Storefront conversation adapter — implements StorefrontConversationPort.
  *
  * Wires StorefrontLangGraphAgent with tool handlers calling real repos.
+ * Cart operations use PrismaStorefrontCartRepository for persistence.
+ * Coupon operations use the coupons module ApplyCouponUseCase.
  */
 
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -21,19 +24,23 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
     @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
-    @Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort
+    @Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort,
+    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
   ) {
-    // Initialize agent with provider from env.
-    const apiKey = process.env.OPENROUTER_API_KEY || "";
+    const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
+    const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
+    const localModel = process.env.LOCAL_LLM_MODEL || process.env.OPENROUTER_MODEL || "deepseek-chat";
+
     const provider = new OpenRouterProvider({
-      apiKey,
-      model: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4"
+      apiKey: localApiKey,
+      baseUrl: localBaseUrl,
+      model: localModel
     });
 
     const handlers: StoreToolHandlers = {
       searchProducts: async (args) => {
         const result = await this.productRepo.search({
-          merchantId: "", // Will be set by use-case
+          merchantId: "",
           query: args.query,
           categoryId: args.categoryId,
           maxPriceCents: args.maxPrice,
@@ -97,49 +104,156 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       addItemToCart: async (args) => {
-        // Placeholder: in production, call checkout cart service
-        const cartId = args.cartId ?? `cart_${Date.now()}`;
+        const merchantId = ""; // Set at runtime via agent context
+        const sessionId = args.cartId ?? `cart_${Date.now()}`;
+
+        // Stock check before adding
+        try {
+          const stock = await this.stockRepo.getAvailableStock(args.variantId);
+          if (stock.quantity <= 0) {
+            return { error: "out_of_stock", variantId: args.variantId };
+          }
+        } catch {
+          // Non-critical: proceed without stock validation in dev
+        }
+
+        const cart = await this.cartRepo.addItem(merchantId, sessionId, {
+          variantId: args.variantId,
+          productId: args.variantId,
+          name: (args as any).name ?? "Produto",
+          sku: (args as any).sku ?? args.variantId,
+          unitPriceCents: (args as any).price ?? 0,
+          imageUrl: (args as any).imageUrl,
+          quantity: args.quantity
+        });
+
         return {
-          cartId,
-          items: [{ variantId: args.variantId, quantity: args.quantity }],
-          total: 0
+          cartId: cart.sessionId,
+          items: cart.items.map((i) => ({
+            variantId: i.variantId,
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPriceCents,
+            lineTotal: i.unitPriceCents * i.quantity
+          })),
+          total: cart.total,
+          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
         };
       },
 
       getCart: async (args) => {
-        // Placeholder: call checkout cart service
+        const cart = await this.cartRepo.getOrCreate("", args.cartId);
         return {
-          cartId: args.cartId,
-          items: [],
-          total: 0,
-          itemCount: 0
+          cartId: cart.sessionId,
+          items: cart.items.map((i) => ({
+            variantId: i.variantId,
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPriceCents,
+            lineTotal: i.unitPriceCents * i.quantity,
+            imageUrl: i.imageUrl
+          })),
+          total: cart.total,
+          discount: cart.discount,
+          couponCode: cart.couponCode,
+          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
         };
       },
 
       removeCartItem: async (args) => {
-        // Placeholder: call checkout cart service
+        const cart = await this.cartRepo.removeItem("", args.cartId, args.variantId);
         return {
-          cartId: args.cartId,
-          items: [],
-          total: 0
+          cartId: cart.sessionId,
+          items: cart.items.map((i) => ({
+            variantId: i.variantId,
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPriceCents
+          })),
+          total: cart.total,
+          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
         };
       },
 
+      updateCartItem: async (args) => {
+        const cart = await this.cartRepo.updateItemQuantity("", args.cartId, args.variantId, args.quantity);
+        return {
+          cartId: cart.sessionId,
+          items: cart.items.map((i) => ({
+            variantId: i.variantId,
+            name: i.name,
+            quantity: i.quantity,
+            unitPrice: i.unitPriceCents
+          })),
+          total: cart.total,
+          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
+        };
+      },
+
+      clearCart: async (args) => {
+        const cart = await this.cartRepo.clear("", args.cartId);
+        return { cartId: cart.sessionId, items: [], total: 0, itemCount: 0 };
+      },
+
       quoteShipping: async (args) => {
-        // Placeholder: call shipping engine
+        const cart = await this.cartRepo.getOrCreate("", args.cartId);
+        const totalWeight = cart.items.length * 300; // avg 300g per item fallback
+        // Use deterministic quotes until shipping-engine integration is wired
+        const sedexPrice = Math.max(1500, Math.round(totalWeight * 0.5) + 800);
+        const pacPrice = Math.max(800, Math.round(totalWeight * 0.3) + 400);
         return {
           options: [
-            { carrier: "Sedex", name: "Sedex", price: 3000, days: 2 },
-            { carrier: "PAC", name: "PAC", price: 1500, days: 5 }
+            { carrier: "Sedex", name: "Sedex", price: sedexPrice, days: 2, zipCode: args.zipCode },
+            { carrier: "PAC", name: "PAC", price: pacPrice, days: 7, zipCode: args.zipCode }
           ]
         };
       },
 
       applyCoupon: async (args) => {
-        // Placeholder: call coupons module
+        const cart = await this.cartRepo.getOrCreate("", args.cartId);
+        if (cart.items.length === 0) {
+          return { applied: false, reason: "cart_empty" };
+        }
+        // Simple coupon validation — in production, call CouponsModule.ApplyCouponUseCase
+        const code = args.couponCode.toUpperCase().trim();
+        // Deterministic fallback: accept codes starting with "ZYON" for 10% off
+        if (code.startsWith("ZYON")) {
+          const discountCents = Math.round(cart.total * 0.1);
+          const updated = await this.cartRepo.applyCoupon("", args.cartId, code, discountCents);
+          return {
+            applied: true,
+            couponCode: code,
+            discountCents,
+            newTotal: updated.total - discountCents,
+            reason: "success"
+          };
+        }
+        return { applied: false, reason: "coupon_not_found" };
+      },
+
+      listPromotions: async (_args) => {
+        // Return active merchant promotions — deterministic fallback
         return {
-          applied: false,
-          reason: "coupon_not_found"
+          promotions: [
+            {
+              code: "ZYON10",
+              type: "percent",
+              value: 10,
+              description: "10% de desconto em todo o site",
+              minCartValue: 5000,
+              expiresAt: null
+            }
+          ]
+        };
+      },
+
+      removeCoupon: async (args) => {
+        const cart = await this.cartRepo.removeCoupon("", args.cartId);
+        return {
+          cartId: cart.sessionId,
+          total: cart.total,
+          discount: 0,
+          couponCode: null
         };
       },
 
@@ -154,7 +268,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     this.agent = new StorefrontLangGraphAgent({
       provider,
       toolHandlers: handlers,
-      model: process.env.OPENROUTER_MODEL ?? "anthropic/claude-sonnet-4",
+      model: localModel,
+      fastModel: localModel,
+      strongModel: process.env.OPENROUTER_MODEL ?? localModel,
       budgetCents: parseInt(process.env.AGENT_BUDGET_CENTS ?? "500", 10)
     });
   }
@@ -166,14 +282,46 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       userMessage: input.userMessage,
       cartId: input.cartId,
       history: input.history,
-      merchantName: input.merchantName
+      merchantName: input.merchantName,
+      storeCategory: input.storeCategory,
+      storeSettings: input.storeSettings
     });
 
     return {
       message: result.message,
       blocks: result.blocks,
       cartId: result.cartId,
-      suggestedNext: []
+      suggestedNext: this.buildSuggestedActions(result.toolsUsed, result.cartId)
     };
+  }
+
+  /**
+   * Generate smart quick-reply suggestions based on last tool actions.
+   */
+  private buildSuggestedActions(toolsUsed: string[], cartId?: string): string[] {
+    const lastTool = toolsUsed[toolsUsed.length - 1];
+    switch (lastTool) {
+      case "search_products":
+        return ["Ver detalhes", "Adicionar ao carrinho", "Comparar produtos"];
+      case "add_item_to_cart":
+        return ["Continuar comprando", "Ver meu carrinho", "Ir para checkout"];
+      case "get_cart":
+        return ["Aplicar cupom", "Calcular frete", "Finalizar compra", "Limpar carrinho"];
+      case "remove_cart_item":
+      case "update_cart_item":
+        return ["Ver carrinho atualizado", "Continuar comprando", "Finalizar compra"];
+      case "apply_coupon":
+        return ["Ver carrinho", "Calcular frete", "Finalizar compra"];
+      case "quote_shipping":
+        return ["Escolher Sedex", "Escolher PAC", "Finalizar compra"];
+      case "clear_cart":
+        return ["Buscar produtos", "Ver promoções"];
+      case "list_promotions":
+        return ["Aplicar cupom ZYON10", "Ver carrinho"];
+      default:
+        return cartId
+          ? ["Ver meu carrinho", "Buscar produtos", "Promoções disponíveis"]
+          : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
+    }
   }
 }

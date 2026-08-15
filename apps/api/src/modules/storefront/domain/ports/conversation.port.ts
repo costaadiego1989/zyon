@@ -13,6 +13,8 @@ export interface StorefrontConversationInput {
   sessionId: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   merchantName?: string;
+  storeCategory: string;
+  storeSettings?: Record<string, any>;
 }
 
 export interface StorefrontConversationOutput {

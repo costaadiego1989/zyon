@@ -54,6 +54,8 @@ export interface StorefrontAgentInput {
   systemPrompt?: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   merchantName?: string;
+  storeCategory: string;
+  storeSettings?: Record<string, any>;
   callbacks?: StorefrontAgentCallbacks;
 }
 
@@ -149,7 +151,7 @@ export class StorefrontLangGraphAgent {
     const blocks: ConversationBlock[] = [];
 
     // Build messages for LLM.
-    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName);
+    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system" as const, content: systemContent },
       ...input.history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -192,6 +194,18 @@ export class StorefrontLangGraphAgent {
 
         // If tool calls, execute them.
         if (result.toolCalls && result.toolCalls.length > 0) {
+          // First, add assistant message with tool_calls (required by OpenAI-compatible APIs)
+          messages.push({
+            role: "assistant",
+            content: result.content || "",
+            tool_calls: result.toolCalls.map((tc) => ({
+              id: tc.id,
+              type: "function",
+              function: { name: tc.name, arguments: JSON.stringify(tc.args) }
+            }))
+          } as any);
+
+          // Then execute each tool and add tool result messages
           for (const tc of result.toolCalls) {
             toolsUsed.push(tc.name);
             input.callbacks?.onToolCall?.(tc.name, tc.args);
@@ -202,11 +216,6 @@ export class StorefrontLangGraphAgent {
               toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
               input.callbacks?.onToolResult?.(tc.name, toolResult);
 
-              // Add assistant and tool messages to conversation.
-              messages.push({
-                role: "assistant",
-                content: result.content || `Calling ${tc.name}...`
-              });
               messages.push({
                 role: "tool",
                 content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }),
@@ -226,6 +235,7 @@ export class StorefrontLangGraphAgent {
       // ─── LLM failure fallback ─────────────────────────────────────────
       // If the LLM call fails (network, rate limit, timeout), return safe message.
       const errorMessage = err instanceof Error ? err.message : String(err);
+      console.error("[StorefrontAgent] LLM call failed:", errorMessage);
       finalContent = "";
 
       return {
@@ -283,10 +293,37 @@ export class StorefrontLangGraphAgent {
     };
   }
 
-  private buildDefaultSystem(merchantName?: string): string {
+  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>): string {
     const name = merchantName ? ` da loja ${merchantName}` : "";
+    const categoryContext = storeCategory && storeCategory !== "others"
+      ? `\nEsta é uma loja do segmento "${storeCategory}". Todos os produtos são exclusivamente deste segmento. NUNCA sugira ou mencione produtos fora deste segmento.`
+      : "";
+
+    // Company context for grounding
+    let companyContext = "";
+    if (storeSettings?.company) {
+      const c = storeSettings.company;
+      const parts: string[] = [];
+      if (c.razaoSocial) parts.push(`Empresa: ${c.razaoSocial}`);
+      if (c.cnpj) parts.push(`CNPJ: ${c.cnpj}`);
+      if (c.address?.city && c.address?.state) parts.push(`Localização: ${c.address.city}/${c.address.state}`);
+      if (c.businessHours) parts.push(`Horário: ${c.businessHours}`);
+      if (c.phone) parts.push(`Contato: ${c.phone}`);
+      if (parts.length > 0) companyContext = `\nSobre a empresa: ${parts.join(". ")}.`;
+    }
+
+    // Policies context
+    let policiesContext = "";
+    if (storeSettings?.policies) {
+      const p = storeSettings.policies;
+      const pols: string[] = [];
+      if (p.returns) pols.push(`Devolução: ${p.returns.slice(0, 200)}`);
+      if (p.shipping) pols.push(`Envio: ${p.shipping.slice(0, 200)}`);
+      if (pols.length > 0) policiesContext = `\nPolíticas: ${pols.join(". ")}.`;
+    }
+
     return [
-      `Você é um assistente de vendas${name}.`,
+      `Você é um assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}`,
       "Ajude o cliente a encontrar produtos, comparar, adicionar ao carrinho e finalizar compra.",
       "Seja breve, direto e amigável. Não use markdown.",
       "",

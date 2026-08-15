@@ -29,6 +29,8 @@ export interface StoreConfigOutput {
   agentName?: string;
   agentPersonality?: string;
   quickReplies?: string[];
+  storeCategory?: string;
+  storeSettings?: Record<string, unknown>;
 }
 
 function slugify(text: string): string {
@@ -86,6 +88,8 @@ export class GetStoreConfigUseCase {
       agentName: theme?.agentName,
       agentPersonality: undefined,
       quickReplies: ["Ver produtos", "Promoções", "Rastrear pedido", "Falar com humano"],
+      storeCategory: row.storeCategory ?? undefined,
+      storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
     };
   }
 }

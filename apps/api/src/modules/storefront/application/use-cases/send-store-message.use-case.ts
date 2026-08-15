@@ -37,6 +37,8 @@ export class SendStoreMessageUseCase {
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
     const history = input.history ?? [];
+    let storeSettings: Record<string, any> | undefined;
+    try { storeSettings = await this.merchant.getStoreSettings(input.merchant_id) as any; } catch { /* optional */ }
 
     const result = await this.conversation.reply({
       userMessage: input.user_message,
@@ -44,7 +46,9 @@ export class SendStoreMessageUseCase {
       merchantId: input.merchant_id,
       sessionId: input.conversation_id,
       history,
-      merchantName: merchant.name
+      merchantName: merchant.name,
+      storeCategory: merchant.storeCategory || "others",
+      storeSettings
     });
 
     return {
