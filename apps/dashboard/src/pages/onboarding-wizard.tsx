@@ -554,12 +554,13 @@ export function OnboardingWizard(props: {
         await api.createAsaasSubaccount({
           name: props.me.name,
           email: (props.me as any).email ?? "",
-          cpf_cnpj: (props.me as any).cnpj ?? "",
-          mobile_phone: (props.me as any).phone ?? "",
-          postal_code: addressDraft.zip?.replace(/\D/g, "") ?? "",
-          address: addressDraft.street ?? "",
-          address_number: addressDraft.number ?? "",
-          province: addressDraft.neighborhood ?? "",
+          cpf_cnpj: (props.me as any).cnpj ?? "00000000000",
+          mobile_phone: (props.me as any).phone ?? "11999999999",
+          income_value: 10000,
+          postal_code: addressDraft.zip?.replace(/\D/g, "") ?? "01311100",
+          address: addressDraft.street || "Não informado",
+          address_number: addressDraft.number || "0",
+          province: addressDraft.neighborhood || "Centro",
           complement: addressDraft.complement ?? "",
         });
         setMessage("Subconta Asaas criada. Redirecionando para completar cadastro...");
