@@ -12,6 +12,9 @@ import {
   Sparkles,
   Code2,
   Wallet,
+  MapPin,
+  Key,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -39,10 +42,11 @@ type StepMeta = {
 };
 
 const STEPS: StepMeta[] = [
-  { id: 1, label: "Dados da loja", caption: "Nome, CEP de origem e identidade visual", icon: Palette },
-  { id: 2, label: "Regras comerciais", caption: "Margem, desconto máximo e frete", icon: Percent },
-  { id: 3, label: "Pagamento", caption: "Configure como você vai receber (Stripe, Asaas ou Crypto)", icon: CreditCard },
-  { id: 4, label: "Credenciais e publicação", caption: "API Key e código de instalação", icon: Code2 },
+  { id: 1, label: "Identidade", caption: "Logo, cores, tipografia e agente", icon: Palette },
+  { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
+  { id: 3, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
+  { id: 4, label: "API Key", caption: "Credenciais de integração", icon: Key },
+  { id: 5, label: "Integração", caption: "Conectar com sua plataforma", icon: Plug },
 ];
 
 const TOTAL_STEPS = STEPS.length;
@@ -50,10 +54,30 @@ const TOTAL_STEPS = STEPS.length;
 
 // ── Step 1 state ──────────────────────────────────────────────────────────────
 
-type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName"> & { originZip: string; storeCategory: string };
+type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName"> & {
+  secondaryColor: string;
+  headingFont: string;
+  bodyFont: string;
+  originZip: string;
+  storeCategory: string;
+};
+
+const FONT_OPTIONS = [
+  "Inter, ui-sans-serif, system-ui, sans-serif",
+  "DM Sans, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Plus Jakarta Sans, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Manrope, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Space Grotesk, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Sora, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Poppins, Inter, ui-sans-serif, system-ui, sans-serif",
+  "Outfit, Inter, ui-sans-serif, system-ui, sans-serif",
+];
 
 const DEFAULT_THEME_DRAFT: ThemeDraft = {
   accentColor: "#0F766E",
+  secondaryColor: "#1E40AF",
+  headingFont: FONT_OPTIONS[3]!,
+  bodyFont: FONT_OPTIONS[0]!,
   logoUrl: "",
   headerTitle: "",
   agentName: "Assistente Zyon",
@@ -63,12 +87,18 @@ const DEFAULT_THEME_DRAFT: ThemeDraft = {
 
 // ── Step 2 state ──────────────────────────────────────────────────────────────
 
-type RulesDraft = Pick<MerchantRules, "maxDiscountPercent" | "minimumMarginPercent" | "allowFreeShipping">;
+type AddressDraft = {
+  zip: string;
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+};
 
-const DEFAULT_RULES_DRAFT: RulesDraft = {
-  maxDiscountPercent: 10,
-  minimumMarginPercent: 38,
-  allowFreeShipping: true,
+const DEFAULT_ADDRESS_DRAFT: AddressDraft = {
+  zip: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "",
 };
 
 // ── Step 3 state (Pagamento) ──────────────────────────────────────────────────
@@ -93,19 +123,15 @@ function isValidEvmAddress(addr: string): boolean {
   return /^0x[a-fA-F0-9]{40}$/.test(addr);
 }
 
-// ── Step 4 state ──────────────────────────────────────────────────────────────
+// ── Step 4/5 state ──────────────────────────────────────────────────────────────
 
-type PlatformChoice = "woocommerce" | "magento" | "native";
+type PlatformChoice = "native" | "woocommerce" | "magento" | "vtex";
 
-type CheckoutDraft = {
-  mode: CheckoutSettingsMode;
-  openWidgetOnTrigger: boolean;
+type IntegrationDraft = {
   platform: PlatformChoice;
 };
 
-const DEFAULT_CHECKOUT_DRAFT: CheckoutDraft = {
-  mode: "silent_until_trigger",
-  openWidgetOnTrigger: true,
+const DEFAULT_INTEGRATION_DRAFT: IntegrationDraft = {
   platform: "native",
 };
 
@@ -297,16 +323,16 @@ export function OnboardingWizard(props: {
 
   // step drafts
   const [themeDraft, setThemeDraft] = useState<ThemeDraft>(saved?.theme ?? { ...DEFAULT_THEME_DRAFT, headerTitle: props.me.name });
-  const [rulesDraft, setRulesDraft] = useState<RulesDraft>(saved?.rules ?? DEFAULT_RULES_DRAFT);
+  const [addressDraft, setAddressDraft] = useState<AddressDraft>(saved?.address ?? DEFAULT_ADDRESS_DRAFT);
   const [paymentDraft, setPaymentDraft] = useState<PaymentDraft>(saved?.payment ?? DEFAULT_PAYMENT_DRAFT);
-  const [checkoutDraft, setCheckoutDraft] = useState<CheckoutDraft>(saved?.checkout ?? DEFAULT_CHECKOUT_DRAFT);
+  const [integrationDraft, setIntegrationDraft] = useState<IntegrationDraft>(saved?.integration ?? DEFAULT_INTEGRATION_DRAFT);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [generatedApiKey, setGeneratedApiKey] = useState<{ id: string; secretKey: string; name: string } | null>(null);
 
   // persist to localStorage on every draft/step change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, rules: rulesDraft, payment: paymentDraft, checkout: checkoutDraft }));
-  }, [currentStep, themeDraft, rulesDraft, paymentDraft, checkoutDraft]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, address: addressDraft, payment: paymentDraft }));
+  }, [currentStep, themeDraft, addressDraft, paymentDraft]);
 
 
   // load onboarding state on mount
@@ -340,22 +366,16 @@ export function OnboardingWizard(props: {
         if (!active) return;
         setThemeDraft({
           accentColor: theme.accentColor ?? DEFAULT_THEME_DRAFT.accentColor,
+          secondaryColor: theme.secondaryColor ?? DEFAULT_THEME_DRAFT.secondaryColor,
+          headingFont: theme.fontDisplay ?? DEFAULT_THEME_DRAFT.headingFont,
+          bodyFont: theme.fontFamily ?? DEFAULT_THEME_DRAFT.bodyFont,
           logoUrl: theme.logoUrl ?? "",
           headerTitle: theme.headerTitle ?? "",
           agentName: theme.agentName ?? "",
           originZip: "",
           storeCategory: "",
         });
-        setRulesDraft({
-          maxDiscountPercent: rules.maxDiscountPercent,
-          minimumMarginPercent: rules.minimumMarginPercent,
-          allowFreeShipping: rules.allowFreeShipping,
-        });
-        setCheckoutDraft({
-          mode: settings.mode,
-          openWidgetOnTrigger: settings.widgetBehavior?.openWidgetOnTrigger ?? true,
-          platform: "native",
-        });
+        // Address pre-fill from store settings if available
       } catch {
         // ignore — drafts stay at defaults
       }
@@ -384,8 +404,8 @@ export function OnboardingWizard(props: {
     try {
       let current: Record<string, unknown> = {};
       try { current = (await api.getMerchantTheme()) as unknown as Record<string, unknown>; } catch {}
-      const { originZip, storeCategory, ...themeFields } = themeDraft;
-      const payload = { ...current, ...themeFields } as Parameters<typeof api.putMerchantTheme>[0];
+      const { originZip, storeCategory, secondaryColor, headingFont, bodyFont, ...themeFields } = themeDraft;
+      const payload = { ...current, ...themeFields, secondaryColor, fontDisplay: headingFont, fontFamily: bodyFont } as Parameters<typeof api.putMerchantTheme>[0];
       if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) payload.logoUrl = "";
       await api.putMerchantTheme(payload);
       if (originZip) {
@@ -404,26 +424,30 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep2() {
-    const errors = validateRulesDraft(rulesDraft);
-    if (errors.length > 0) {
-      setFieldErrors(Object.fromEntries(errors.filter((e): e is { valid: false; field: string; message: string } => !e.valid).map((e) => [e.field, e.message])));
+    if (!addressDraft.zip || addressDraft.zip.replace(/\D/g, "").length < 8) {
+      setFieldErrors({ zip: "CEP obrigatório (8 dígitos)" });
       return;
     }
     setFieldErrors({});
     setBusy(true);
     setMessage(null);
     try {
-      let current: Record<string, unknown> = {};
-      try { current = (await api.getMerchantRules()) as unknown as Record<string, unknown>; } catch {}
-      const merged = { ...current, ...rulesDraft } as Parameters<typeof api.putMerchantRules>[0];
-      const clamp = (v: unknown, min: number, max: number) => Math.max(min, Math.min(max, Math.round(Number(v) || 0)));
-      merged.maxDiscountPercent = clamp(merged.maxDiscountPercent, 0, 100);
-      merged.minimumMarginPercent = clamp(merged.minimumMarginPercent, 0, 100);
-      if ("freeShippingMinCartValue" in merged) merged.freeShippingMinCartValue = clamp(merged.freeShippingMinCartValue, 0, 10000);
-      if ("maxPartialShippingDiscount" in merged) merged.maxPartialShippingDiscount = clamp(merged.maxPartialShippingDiscount, 0, 100);
-      if ("maxShippingSubsidy" in merged) merged.maxShippingSubsidy = clamp(merged.maxShippingSubsidy, 0, 500);
-      if ("offerExpirationMinutes" in merged) merged.offerExpirationMinutes = clamp(merged.offerExpirationMinutes, 1, 1440);
-      await api.putMerchantRules(merged);
+      // Save address + originZip to store settings
+      await api.putStoreSettings({
+        company: {
+          address: {
+            street: addressDraft.street,
+            number: addressDraft.number,
+            complement: addressDraft.complement,
+            neighborhood: addressDraft.neighborhood,
+            city: addressDraft.city,
+            state: addressDraft.state,
+            zip: addressDraft.zip,
+          },
+        },
+      });
+      // Save originZip for shipping calculations
+      try { await api.putMerchantRules({ originZip: addressDraft.zip.replace(/\D/g, "") }); } catch {}
       await markOnboardingStep("checkout_config");
       setCurrentStep(3);
     } catch (e) {
@@ -665,6 +689,35 @@ export function OnboardingWizard(props: {
                   </div>
 
                   <div className="onb-field">
+                    <label className="onb-field-label" htmlFor="onb-secondary">Cor secundária (botões e links)</label>
+                    <div className="onb-color-field">
+                      <input
+                        id="onb-secondary"
+                        type="color"
+                        value={themeDraft.secondaryColor}
+                        onChange={(e) => setThemeDraft((d) => ({ ...d, secondaryColor: e.target.value }))}
+                        className="onb-color-swatch"
+                      />
+                      <span className="onb-mono">{themeDraft.secondaryColor}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-hfont">Tipografia títulos</label>
+                      <select id="onb-hfont" value={themeDraft.headingFont} onChange={(e) => setThemeDraft((d) => ({ ...d, headingFont: e.target.value }))} style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "12px" }}>
+                        {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
+                      </select>
+                    </div>
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-bfont">Tipografia corpo</label>
+                      <select id="onb-bfont" value={themeDraft.bodyFont} onChange={(e) => setThemeDraft((d) => ({ ...d, bodyFont: e.target.value }))} style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "12px" }}>
+                        {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="onb-field">
                     <label className="onb-field-label" htmlFor="onb-logo">Logotipo da loja</label>
                     <div
                       style={{
@@ -683,8 +736,9 @@ export function OnboardingWizard(props: {
                         e.currentTarget.style.borderColor = "var(--color-border)";
                         const file = e.dataTransfer.files[0];
                         if (file && file.type.startsWith("image/")) {
-                          const url = URL.createObjectURL(file);
-                          setThemeDraft((d) => ({ ...d, logoUrl: url }));
+                          const reader = new FileReader();
+                          reader.onload = () => setThemeDraft((d) => ({ ...d, logoUrl: reader.result as string }));
+                          reader.readAsDataURL(file);
                         }
                       }}
                       onClick={() => document.getElementById("onb-logo-file")?.click()}
@@ -697,8 +751,9 @@ export function OnboardingWizard(props: {
                         onChange={(e) => {
                           const file = e.target.files?.[0];
                           if (file) {
-                            const url = URL.createObjectURL(file);
-                            setThemeDraft((d) => ({ ...d, logoUrl: url }));
+                            const reader = new FileReader();
+                            reader.onload = () => setThemeDraft((d) => ({ ...d, logoUrl: reader.result as string }));
+                            reader.readAsDataURL(file);
                           }
                         }}
                       />
@@ -753,85 +808,78 @@ export function OnboardingWizard(props: {
                     />
                     {fieldErrors.agentName && <span className="onb-field-error">{fieldErrors.agentName}</span>}
                   </div>
-
-                  <div className="onb-field">
-                    <label className="onb-field-label" htmlFor="onb-zip">CEP de origem (armazém/loja)</label>
-                    <input
-                      id="onb-zip"
-                      type="text"
-                      className="onb-input"
-                      placeholder="01311-100"
-                      maxLength={9}
-                      value={themeDraft.originZip}
-                      onChange={(e) => setThemeDraft((d) => ({ ...d, originZip: e.target.value.replace(/[^\d-]/g, "") }))}
-                    />
-                    <p className="onb-field-help">CEP do local de envio dos produtos. Usado para calcular frete corretamente.</p>
-                    {fieldErrors.originZip && <span className="onb-field-error">{fieldErrors.originZip}</span>}
-                  </div>
                 </div>
               )}
 
               {currentStep === 2 && (
                 <div className="onb-fields">
                   <div className="onb-field">
-                    <div className="onb-field-header">
-                      <label className="onb-field-label" htmlFor="onb-maxdisc">Desconto máximo permitido</label>
-                      <span className="onb-value onb-value-ok">{rulesDraft.maxDiscountPercent}%</span>
-                    </div>
+                    <label className="onb-field-label" htmlFor="onb-cep">CEP</label>
                     <input
-                      id="onb-maxdisc"
-                      type="range"
-                      min={0}
-                      max={30}
-                      step={1}
-                      value={rulesDraft.maxDiscountPercent}
-                      onChange={(e) => setRulesDraft((d) => ({ ...d, maxDiscountPercent: Number(e.target.value) }))}
-                      className="onb-range"
+                      id="onb-cep"
+                      type="text"
+                      placeholder="01311-100"
+                      maxLength={9}
+                      value={addressDraft.zip}
+                      onChange={(e) => {
+                        let v = e.target.value.replace(/\D/g, "");
+                        if (v.length > 5) v = v.slice(0, 5) + "-" + v.slice(5, 8);
+                        setAddressDraft((d) => ({ ...d, zip: v }));
+                        // Auto-fill via ViaCEP
+                        const digits = v.replace(/\D/g, "");
+                        if (digits.length === 8) {
+                          fetch(`https://viacep.com.br/ws/${digits}/json/`)
+                            .then((r) => r.json())
+                            .then((data) => {
+                              if (!data.erro) {
+                                setAddressDraft((d) => ({
+                                  ...d,
+                                  street: data.logradouro || d.street,
+                                  neighborhood: data.bairro || d.neighborhood,
+                                  city: data.localidade || d.city,
+                                  state: data.uf || d.state,
+                                }));
+                              }
+                            })
+                            .catch(() => {});
+                        }
+                      }}
                     />
-                    <div className="onb-range-scale">
-                      <span>0%</span>
-                      <span>30%</span>
-                    </div>
-                    <p className="onb-field-help">Limite que o assistente nunca ultrapassa em uma negociação.</p>
-                    {fieldErrors.maxDiscountPercent && <span className="onb-field-error">{fieldErrors.maxDiscountPercent}</span>}
+                    <p className="onb-field-help">Digite o CEP e o endereço será preenchido automaticamente.</p>
+                    {fieldErrors.zip && <span className="onb-field-error">{fieldErrors.zip}</span>}
                   </div>
 
                   <div className="onb-field">
-                    <div className="onb-field-header">
-                      <label className="onb-field-label" htmlFor="onb-margin">Margem mínima de lucro</label>
-                      <span className="onb-value onb-value-warn">{rulesDraft.minimumMarginPercent}%</span>
-                    </div>
-                    <input
-                      id="onb-margin"
-                      type="range"
-                      min={20}
-                      max={60}
-                      step={1}
-                      value={rulesDraft.minimumMarginPercent}
-                      onChange={(e) => setRulesDraft((d) => ({ ...d, minimumMarginPercent: Number(e.target.value) }))}
-                      className="onb-range"
-                    />
-                    <div className="onb-range-scale">
-                      <span>20%</span>
-                      <span>60%</span>
-                    </div>
-                    <p className="onb-field-help">Ofertas abaixo dessa margem são recusadas automaticamente pelo assistente.</p>
-                    {fieldErrors.minimumMarginPercent && <span className="onb-field-error">{fieldErrors.minimumMarginPercent}</span>}
+                    <label className="onb-field-label" htmlFor="onb-street">Rua / Avenida</label>
+                    <input id="onb-street" type="text" placeholder="Av. Paulista" value={addressDraft.street} onChange={(e) => setAddressDraft((d) => ({ ...d, street: e.target.value }))} />
                   </div>
 
-                  <label className="onb-switch">
-                    <span className="onb-switch-text">
-                      <strong>Permitir frete grátis</strong>
-                      <span>Permite que o assistente ofereça frete grátis como incentivo de conversão.</span>
-                    </span>
-                    <input
-                      type="checkbox"
-                      checked={rulesDraft.allowFreeShipping}
-                      onChange={(e) => setRulesDraft((d) => ({ ...d, allowFreeShipping: e.target.checked }))}
-                    />
-                    <span className="onb-switch-track" aria-hidden="true" />
-                  </label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 12 }}>
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-num">Número</label>
+                      <input id="onb-num" type="text" placeholder="1000" value={addressDraft.number} onChange={(e) => setAddressDraft((d) => ({ ...d, number: e.target.value }))} />
+                    </div>
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-comp">Complemento</label>
+                      <input id="onb-comp" type="text" placeholder="Sala 101" value={addressDraft.complement} onChange={(e) => setAddressDraft((d) => ({ ...d, complement: e.target.value }))} />
+                    </div>
+                  </div>
 
+                  <div className="onb-field">
+                    <label className="onb-field-label" htmlFor="onb-neigh">Bairro</label>
+                    <input id="onb-neigh" type="text" placeholder="Bela Vista" value={addressDraft.neighborhood} onChange={(e) => setAddressDraft((d) => ({ ...d, neighborhood: e.target.value }))} />
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-city">Cidade</label>
+                      <input id="onb-city" type="text" placeholder="São Paulo" value={addressDraft.city} onChange={(e) => setAddressDraft((d) => ({ ...d, city: e.target.value }))} />
+                    </div>
+                    <div className="onb-field">
+                      <label className="onb-field-label" htmlFor="onb-state">Estado</label>
+                      <input id="onb-state" type="text" placeholder="SP" maxLength={2} value={addressDraft.state} onChange={(e) => setAddressDraft((d) => ({ ...d, state: e.target.value.toUpperCase() }))} />
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -994,8 +1042,9 @@ export function OnboardingWizard(props: {
                           ["native", "Integração Nativa (Embed)", "Checkout completo via snippet JavaScript — sem plataforma"],
                           ["woocommerce", "WooCommerce", "Plugin WordPress com instalação automática"],
                           ["magento", "Magento / Adobe Commerce", "Integração via REST API headless"],
+                          ["vtex", "VTEX", "Integração via VTEX IO App"],
                         ] as const).map(([value, label, help]) => {
-                          const selected = checkoutDraft.platform === value;
+                          const selected = integrationDraft.platform === value;
                           return (
                             <label key={value} className={`onb-option${selected ? " onb-option-on" : ""}`}>
                               <input
@@ -1003,7 +1052,7 @@ export function OnboardingWizard(props: {
                                 name="platform"
                                 value={value}
                                 checked={selected}
-                                onChange={() => setCheckoutDraft((d) => ({ ...d, platform: value as PlatformChoice }))}
+                                onChange={() => setIntegrationDraft((d: IntegrationDraft) => ({ ...d, platform: value as PlatformChoice }))}
                               />
                               <span className="onb-option-dot" aria-hidden="true" />
                               <span className="onb-option-text">
@@ -1016,29 +1065,24 @@ export function OnboardingWizard(props: {
                       </div>
                     </div>
 
-                    {checkoutDraft.platform && (
+                    {integrationDraft.platform && (
                       <div className="onb-field" style={{ marginTop: 12, padding: "16px", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)" }}>
-                        {checkoutDraft.platform === "native" ? (
+                        {integrationDraft.platform === "native" ? (
                           <>
                             <span className="onb-field-label">Snippet de integração</span>
                             <p className="onb-field-help" style={{ marginBottom: 10 }}>
                               Cole este código no <code>&lt;head&gt;</code> do seu site.
                             </p>
                             <pre style={{ font: "12px 'IBM Plex Mono', monospace", padding: 12, background: "var(--color-bg)", borderRadius: 6, border: "1px solid var(--color-border)", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "var(--color-text-secondary)" }}>{`<script defer src="${props.apiBaseUrl}/widget/aacp.js"></script>\n<zyon-checkout-agent\n  merchant-id="${props.me.id}"\n  api-key="${generatedApiKey?.secretKey ?? "SUA_API_KEY"}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`}</pre>
-                            <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Embed-sessions`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 10, display: "inline-block" }}>
-                              Ver documentação Embed Sessions →
-                            </a>
                           </>
                         ) : (
                           <>
                             <span className="onb-field-label">Instruções de instalação</span>
                             <ol style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", lineHeight: 1.7, paddingLeft: 18, margin: "8px 0 0" }}>
-                              {checkoutDraft.platform === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
-                              {checkoutDraft.platform === "magento" && (<><li>Acesse Magento Admin → System → Integrations → Add New</li><li>Configure a URL da API Zyon e ative a integração</li><li>Insira o Access Token gerado na página Conexões de Commerce</li></>)}
+                              {integrationDraft.platform === "woocommerce" && (<><li>Baixe o plugin Zyon Checkout na aba Plugins do WordPress</li><li>Ative e vá em WooCommerce → Zyon Checkout</li><li>Insira seu Merchant ID e API Key</li></>)}
+                              {integrationDraft.platform === "magento" && (<><li>Acesse Magento Admin → System → Integrations → Add New</li><li>Configure a URL da API Zyon e ative a integração</li><li>Insira o Access Token gerado na página Conexões de Commerce</li></>)}
+                              {integrationDraft.platform === "vtex" && (<><li>Instale o app Zyon Checkout via VTEX IO CLI</li><li>Configure Merchant ID e API Key no admin VTEX</li><li>Ative o checkout conversacional na seção de pagamento</li></>)}
                             </ol>
-                            <a href={`${props.apiBaseUrl.replace(/\/v1$/, "")}/docs#tag/Installations`} target="_blank" rel="noopener" style={{ font: "500 12px var(--font-sans)", color: "var(--color-brand)", marginTop: 12, display: "inline-block" }}>
-                              Ver documentação de integração →
-                            </a>
                           </>
                         )}
                       </div>
