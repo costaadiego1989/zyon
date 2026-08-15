@@ -118,5 +118,29 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+    uploadProductMedia(merchantId: string, variantId: string, imageBase64: string): Promise<{ id: string; url: string }> {
+      return dashboardJson<{ id: string; url: string }>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/media`,
+        { method: "POST", jsonBody: { variantId, image: imageBase64 } },
+        f,
+      );
+    },
+    deleteProductMedia(merchantId: string, mediaId: string): Promise<{ deleted: boolean }> {
+      return dashboardJson<{ deleted: boolean }>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/media/${encodeURIComponent(mediaId)}`,
+        { method: "DELETE" },
+        f,
+      );
+    },
+    listCategories(merchantId: string): Promise<Array<{ id: string; name: string }>> {
+      return dashboardJson<Array<{ id: string; name: string }>>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/categories`,
+        { method: "GET" },
+        f,
+      );
+    },
   };
 }

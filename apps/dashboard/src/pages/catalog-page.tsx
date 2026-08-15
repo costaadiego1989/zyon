@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, ShoppingBag, Trash2, Pencil, Upload } from "lucide-react";
+import { Plus, Search, ShoppingBag, Trash2, Pencil, Upload, Pause, Play } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { useCursorPagination } from "../hooks/useCursorPagination.js";
@@ -39,10 +39,19 @@ export function CatalogPage(props: CatalogPageProps) {
   const [search, setSearch] = useState("");
   const [inStockOnly, setInStockOnly] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
   const [showCsvModal, setShowCsvModal] = useState(false);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
 
   const merchantId = props.me?.id;
+
+  useEffect(() => {
+    if (!merchantId) return;
+    api.listCategories?.(merchantId).then(setCategories).catch(() => {});
+  }, [api, merchantId]);
 
   const fetcher = useCallback(
     async (cursor?: string) => {
@@ -51,12 +60,13 @@ export function CatalogPage(props: CatalogPageProps) {
       }
       return api.listProducts(merchantId, {
         query: search || undefined,
+        categoryId: categoryFilter || undefined,
         inStockOnly: inStockOnly || undefined,
         limit: 30,
         cursor,
       });
     },
-    [api, merchantId, search, inStockOnly],
+    [api, merchantId, search, inStockOnly, categoryFilter],
   );
 
   const adapted = useCallback(
@@ -98,6 +108,20 @@ export function CatalogPage(props: CatalogPageProps) {
       setPageError(e instanceof Error ? e.message : String(e));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function toggleActive(product: Product) {
+    if (!merchantId) return;
+    setTogglingId(product.id);
+    setPageError(null);
+    try {
+      await api.updateProduct(merchantId, product.id, { isActive: !product.isActive });
+      await load();
+    } catch (e) {
+      setPageError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -190,7 +214,7 @@ export function CatalogPage(props: CatalogPageProps) {
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             {(["all", "in-stock"] as const).map((value) => {
               const active = value === "all" ? !inStockOnly : inStockOnly;
               const labels = { all: "Todos", "in-stock": "Em estoque" };
@@ -204,6 +228,18 @@ export function CatalogPage(props: CatalogPageProps) {
                 </div>
               );
             })}
+            {categories.length > 0 && (
+              <select
+                value={categoryFilter}
+                onChange={(e) => setCategoryFilter(e.target.value)}
+                style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none" }}
+              >
+                <option value="">Todas categorias</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div style={{ position: "relative" }}>
             <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--faint)" }} />
@@ -238,13 +274,19 @@ export function CatalogPage(props: CatalogPageProps) {
                 const stock = totalStock(p);
                 const { price, currency } = variantPrice(p);
                 return (
-                  <tr key={p.id}>
+                  <tr
+                    key={p.id}
+                    onClick={() => props.onEdit?.(p.id)}
+                    onMouseEnter={() => setHoveredRow(p.id)}
+                    onMouseLeave={() => setHoveredRow(null)}
+                    style={{ cursor: "pointer", background: hoveredRow === p.id ? "var(--bg)" : "transparent", transition: "background 0.15s" }}
+                  >
                     <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{p.name}</td>
                     <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatPrice(price, currency)}</td>
                     <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: stock > 0 ? "var(--good)" : "var(--danger)", borderBottom: "1px solid var(--border)" }}>{stock}</td>
                     <td style={{ padding: "12px 22px", font: "12px var(--mono)", color: p.isActive ? "var(--good)" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>
                     <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)", textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: 6 }}>
+                      <div style={{ display: "inline-flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => props.onEdit?.(p.id)}
@@ -252,6 +294,15 @@ export function CatalogPage(props: CatalogPageProps) {
                           style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
                         >
                           <Pencil size={12} /> Editar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void toggleActive(p)}
+                          disabled={togglingId === p.id}
+                          aria-label={p.isActive ? `Pausar ${p.name}` : `Ativar ${p.name}`}
+                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: p.isActive ? "var(--muted)" : "var(--good)", cursor: togglingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)", opacity: togglingId === p.id ? 0.6 : 1 }}
+                        >
+                          {p.isActive ? <><Pause size={12} /> Pausar</> : <><Play size={12} /> Ativar</>}
                         </button>
                         <button
                           type="button"
