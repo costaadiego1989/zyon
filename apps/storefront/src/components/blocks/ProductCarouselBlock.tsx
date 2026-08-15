@@ -137,7 +137,9 @@ export default function ProductCarouselBlock({
                     style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
                   />
                 ) : (
-                  <div style={{ fontSize: "40px", opacity: 0.3 }}>📦</div>
+                  <div style={{ fontSize: "48px", fontWeight: 800, color: "var(--aacp-accent)", opacity: 0.25, fontFamily: "var(--aacp-font-display, var(--aacp-font))", letterSpacing: "-2px" }}>
+                    {product.name.charAt(0).toUpperCase()}
+                  </div>
                 )}
                 {/* Discount badge */}
                 {(product as any).discountPercent > 0 && (
@@ -169,6 +171,20 @@ export default function ProductCarouselBlock({
                 <span style={{ fontSize: "11px", color: "var(--aacp-muted)", marginTop: "2px" }}>
                   {product.inStock ? "Pronta entrega" : "Indisponível"}
                 </span>
+
+                {/* Variant pills (if available) */}
+                {product.variants && product.variants.length > 1 && (
+                  <div style={{ display: "flex", gap: "4px", justifyContent: "center", marginTop: "6px", flexWrap: "wrap" }}>
+                    {product.variants.slice(0, 4).map((v) => (
+                      <span key={v.id} style={{ fontSize: "9px", padding: "2px 6px", borderRadius: "4px", border: "1px solid var(--aacp-line)", color: "var(--aacp-muted)", fontWeight: 500 }}>
+                        {v.value}
+                      </span>
+                    ))}
+                    {product.variants.length > 4 && (
+                      <span style={{ fontSize: "9px", padding: "2px 6px", color: "var(--aacp-muted)" }}>+{product.variants.length - 4}</span>
+                    )}
+                  </div>
+                )}
 
                 {/* Spacer */}
                 <div style={{ flex: 1, minHeight: "10px" }} />
