@@ -28,10 +28,12 @@ export default function ConversationShell({
   storeName,
   logo,
   returnOrderId,
+  agentName,
 }: {
   storeName: string;
   logo?: string;
   returnOrderId?: string;
+  agentName?: string;
 }) {
   const [messages, setMessages] = useState<Message[]>(() => {
     const initial: Message[] = [];
@@ -197,7 +199,7 @@ export default function ConversationShell({
           padding: "12px 14px",
           borderBottom: "none",
           zIndex: 9,
-          background: "var(--aacp-surface)",
+          background: "var(--aacp-bg)",
           flex: "none",
         }}
       >
@@ -208,8 +210,8 @@ export default function ConversationShell({
             height: "34px",
             borderRadius: "12px",
             border: "1px solid var(--aacp-line)",
-            background: "var(--aacp-accent)",
-            color: "#fff",
+            background: "var(--aacp-surface-2)",
+            color: "var(--aacp-fg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -264,7 +266,7 @@ export default function ConversationShell({
                 flex: "none",
               }}
             />
-            Online
+            {agentName} · Loja online
           </div>
         </div>
       </div>
@@ -351,11 +353,9 @@ export default function ConversationShell({
                       fontSize: "14px",
                       lineHeight: 1.55,
                       whiteSpace: "pre-wrap",
-                      background: "var(--aacp-surface)",
-                      border: "1px solid var(--aacp-line-strong)",
+                      background: "var(--aacp-card)",
                       color: "var(--aacp-fg)",
-                      borderTopLeftRadius: "10px",
-                      boxShadow: "var(--aacp-shadow-sm)",
+                      borderBottomLeftRadius: "4px",
                       wordWrap: "break-word",
                     }}
                   >
@@ -400,9 +400,8 @@ export default function ConversationShell({
                       whiteSpace: "pre-wrap",
                       background: "var(--aacp-accent)",
                       color: "#fff",
-                      border: "1px solid color-mix(in srgb, var(--aacp-accent) 80%, #000)",
-                      borderTopRightRadius: "10px",
-                      boxShadow: "var(--aacp-shadow-sm)",
+                      borderBottomRightRadius: "4px",
+                      fontWeight: 500,
                       wordWrap: "break-word",
                     }}
                   >
@@ -432,10 +431,9 @@ export default function ConversationShell({
                 alignItems: "center",
                 gap: "10px",
                 padding: "12px 16px",
-                background: "var(--aacp-surface)",
-                border: "1px solid var(--aacp-line-strong)",
+                background: "var(--aacp-card)",
                 borderRadius: "16px",
-                borderTopLeftRadius: "10px",
+                borderBottomLeftRadius: "4px",
                 fontSize: "12px",
                 color: "var(--aacp-muted)",
                 animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both",

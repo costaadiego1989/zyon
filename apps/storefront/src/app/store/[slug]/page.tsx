@@ -139,17 +139,62 @@ export default async function StorePage({
         borderColor: undefined,
       };
 
+  // Calculate derived colors from merchant theme (matching Pulse design)
+  const deriveColors = (bgColor: string, textColor: string) => {
+    return {
+      surface: bgColor, // Use bg directly, add subtle variations via CSS
+      surface2: `rgba(255, 255, 255, 0.05)`,
+      surface3: `rgba(255, 255, 255, 0.08)`,
+      card: `rgba(255, 255, 255, 0.05)`,
+      line: `rgba(255, 255, 255, 0.1)`,
+      lineStrong: `rgba(255, 255, 255, 0.12)`,
+      insetBg: `rgba(255, 255, 255, 0.05)`,
+      muted: `#8b8b95`,
+      chip: `rgba(255, 255, 255, 0.05)`,
+      sheet: `color-mix(in srgb, ${bgColor} 90%, ${textColor} 10%)`,
+    };
+  };
+
+  const derivedColors = config?.theme.backgroundColor && config?.theme.textColor
+    ? deriveColors(config.theme.backgroundColor, config.theme.textColor)
+    : {
+        surface: undefined,
+        surface2: undefined,
+        surface3: undefined,
+        card: undefined,
+        line: undefined,
+        lineStrong: undefined,
+        insetBg: undefined,
+        muted: undefined,
+        chip: undefined,
+        sheet: undefined,
+      };
+
   const themeCss = `
     :root {
       --color-primary: ${themeColors.primary};
       --color-secondary: ${themeColors.secondary};
       --font-heading: ${themeColors.heading};
       --font-body: ${themeColors.body};
-      ${themeColors.backgroundColor ? `--aacp-bg: ${themeColors.backgroundColor};` : ""}
-      ${themeColors.textColor ? `--aacp-fg: ${themeColors.textColor};` : ""}
-      ${themeColors.surfaceColor ? `--aacp-surface: ${themeColors.surfaceColor};` : ""}
       --aacp-accent: ${themeColors.primary};
+      --aacp-accent-2: ${themeColors.secondary};
+      --aacp-accent-strong: ${themeColors.primary};
+      ${themeColors.backgroundColor ? `--aacp-bg: ${themeColors.backgroundColor};` : ""}
+      ${themeColors.backgroundColor ? `--aacp-shell-bg: ${themeColors.backgroundColor};` : ""}
+      ${themeColors.backgroundColor ? `--aacp-panel-bg: ${themeColors.backgroundColor};` : ""}
+      ${derivedColors.surface ? `--aacp-surface: ${derivedColors.surface};` : ""}
+      ${derivedColors.surface2 ? `--aacp-surface-2: ${derivedColors.surface2};` : ""}
+      ${derivedColors.surface3 ? `--aacp-surface-3: ${derivedColors.surface3};` : ""}
+      ${derivedColors.card ? `--aacp-card: ${derivedColors.card};` : ""}
+      ${themeColors.textColor ? `--aacp-fg: ${themeColors.textColor};` : ""}
+      ${derivedColors.line ? `--aacp-line: ${derivedColors.line};` : ""}
+      ${derivedColors.lineStrong ? `--aacp-line-strong: ${derivedColors.lineStrong};` : ""}
+      ${derivedColors.insetBg ? `--aacp-inset-bg: ${derivedColors.insetBg};` : ""}
+      ${derivedColors.muted ? `--aacp-muted: ${derivedColors.muted};` : ""}
+      ${derivedColors.chip ? `--aacp-chip: ${derivedColors.chip};` : ""}
+      ${derivedColors.sheet ? `--aacp-sheet: ${derivedColors.sheet};` : ""}
       ${config?.theme.fontFamily ? `--aacp-font: ${config.theme.fontFamily};` : ""}
+      ${config?.theme.fontFamily ? `--aacp-font-display: ${config.theme.fontFamily};` : ""}
       ${config?.theme.surfaceElevatedColor ? `--aacp-surface-elevated: ${config.theme.surfaceElevatedColor};` : ""}
       ${config?.theme.borderColor ? `--aacp-border-color: ${config.theme.borderColor};` : ""}
     }

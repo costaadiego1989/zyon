@@ -4,14 +4,14 @@
    ============================================================ */
 
 :root {
-  /* Signature accent colors (Pulse teal + blue) */
+  /* Fallback defaults (overridden by server-injected theme CSS) */
   --aacp-accent: #0f766e;
   --aacp-accent-2: #1e40af;
   --aacp-accent-strong: #0f766e;
   --aacp-success: #34d399;
   --aacp-warning: #fbbf24;
 
-  /* Dark theme (Pulse default) */
+  /* Dark theme (Pulse default — overridden by store config) */
   --aacp-bg: #08080c;
   --aacp-surface: #0f0f16;
   --aacp-surface-2: rgba(255, 255, 255, 0.05);
@@ -27,16 +27,19 @@
   --aacp-shell-border: rgba(255, 255, 255, 0.1);
   --aacp-surface-elevated: #1a1a24;
   --aacp-border-color: rgba(255, 255, 255, 0.1);
+  --aacp-card: rgba(255, 255, 255, 0.05);
+  --aacp-chip: rgba(255, 255, 255, 0.05);
+  --aacp-sheet: #0f0f16;
 
   /* Shadows */
   --aacp-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --aacp-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
   --aacp-shadow-lg: 0 34px 70px -28px rgba(0, 0, 0, 0.75);
 
-  /* Typography: Space Grotesk (Pulse signature) */
-  --aacp-font: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --aacp-font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --aacp-font-mono: "Space Mono", ui-monospace, monospace;
+  /* Typography: Manrope (merchant font) */
+  --aacp-font: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --aacp-font-display: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --aacp-font-mono: "Manrope", ui-monospace, monospace;
 
   /* Radius (Pulse system) */
   --aacp-radius: 16px;
@@ -45,7 +48,7 @@
   --aacp-radius-lg: 20px;
   --aacp-radius-pill: 999px;
 
-  /* Gradients (Pulse gradients) */
+  /* Gradients (derived from accent) */
   --aacp-grad-primary: linear-gradient(95deg, var(--aacp-accent), var(--aacp-accent-2), var(--aacp-accent-strong));
   --aacp-grad-bubble-buyer: linear-gradient(95deg, var(--aacp-accent), var(--aacp-accent-2));
   --aacp-grad-soft: linear-gradient(135deg, color-mix(in srgb, var(--aacp-accent) 14%, transparent), color-mix(in srgb, var(--aacp-accent-2) 10%, transparent));
@@ -80,28 +83,7 @@
   --shadow-md: var(--aacp-shadow-md);
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --aacp-bg: #e7e5df;
-    --aacp-surface: #ffffff;
-    --aacp-surface-2: #f6f5f2;
-    --aacp-surface-3: #efeee9;
-    --aacp-fg: #141418;
-    --aacp-muted: #71717a;
-    --aacp-faint: #9a978e;
-    --aacp-line: rgba(15, 15, 25, 0.09);
-    --aacp-line-strong: rgba(15, 15, 25, 0.1);
-    --aacp-success: #10b981;
-    --aacp-warning: #b45309;
-    --aacp-panel-bg: #ffffff;
-    --aacp-inset-bg: #f6f5f2;
-    --aacp-shell-bg: #ffffff;
-    --aacp-shell-border: rgba(15, 15, 25, 0.1);
-    --aacp-shadow-sm: 0 1px 2px rgba(40, 30, 80, 0.08);
-    --aacp-shadow-md: 0 8px 24px rgba(40, 30, 80, 0.12);
-    --aacp-shadow-lg: 0 34px 70px -30px rgba(40, 30, 80, 0.28);
-  }
-}
+/* Light mode disabled — storefront uses merchant theme exclusively */
 
 * {
   box-sizing: border-box;
