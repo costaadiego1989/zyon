@@ -4,22 +4,16 @@ export type OrderStatusDonutProps = {
   data: Record<string, number>;
 };
 
-type Slice = { label: string; value: number; color: string; cssVar: string };
+type Slice = { label: string; value: number; color: string; hex: string };
 
-const STATUS_META: Record<string, { label: string; cssVar: string }> = {
-  pending: { label: "Pendente", cssVar: "var(--warn)" },
-  approved: { label: "Aprovado", cssVar: "var(--accent)" },
-  paid: { label: "Pago", cssVar: "var(--accent)" },
-  shipped: { label: "Enviado", cssVar: "var(--color-info, #6ea8ff)" },
-  delivered: { label: "Entregue", cssVar: "var(--good)" },
-  cancelled: { label: "Cancelado", cssVar: "var(--danger)" },
+const STATUS_META: Record<string, { label: string; cssVar: string; hex: string }> = {
+  pending: { label: "Pendente", cssVar: "var(--warn)", hex: "#f59e0b" },
+  approved: { label: "Aprovado", cssVar: "var(--accent)", hex: "#3b82f6" },
+  paid: { label: "Pago", cssVar: "var(--accent)", hex: "#8b5cf6" },
+  shipped: { label: "Enviado", cssVar: "var(--color-info, #6ea8ff)", hex: "#06b6d4" },
+  delivered: { label: "Entregue", cssVar: "var(--good)", hex: "#22c55e" },
+  cancelled: { label: "Cancelado", cssVar: "var(--danger)", hex: "#ef4444" },
 };
-
-function readCssVar(name: string, fallback: string): string {
-  if (typeof window === "undefined") return fallback;
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return v || fallback;
-}
 
 export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -29,8 +23,8 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
   const slices: Slice[] = Object.entries(data)
     .filter(([, v]) => v > 0)
     .map(([key, value]) => {
-      const meta = STATUS_META[key.toLowerCase()] ?? { label: key, cssVar: "var(--muted)" };
-      return { label: meta.label, value, color: meta.cssVar, cssVar: meta.cssVar };
+      const meta = STATUS_META[key.toLowerCase()] ?? { label: key, cssVar: "var(--muted)", hex: "#888888" };
+      return { label: meta.label, value, color: meta.cssVar, hex: meta.hex };
     });
 
   useEffect(() => {
@@ -56,7 +50,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
       ctx.beginPath();
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.lineWidth = thickness;
-      ctx.strokeStyle = readCssVar("--border", "#333");
+      ctx.strokeStyle = "#333";
       ctx.stroke();
       return;
     }
@@ -67,7 +61,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
       ctx.beginPath();
       ctx.arc(cx, cy, radius, start, start + angle);
       ctx.lineWidth = thickness;
-      ctx.strokeStyle = readCssVar(slice.cssVar.replace("var(", "").replace(")", ""), slice.color);
+      ctx.strokeStyle = slice.hex;
       ctx.lineCap = "butt";
       ctx.stroke();
       start += angle;
@@ -128,7 +122,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
                       width: 10,
                       height: 10,
                       borderRadius: 999,
-                      background: slice.color,
+                      background: slice.hex,
                       flexShrink: 0,
                     }}
                   />
