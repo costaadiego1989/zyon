@@ -12,6 +12,7 @@ interface SupportPanelProps {
   open: boolean;
   onClose: () => void;
   merchantId?: string;
+  agentName?: string;
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
@@ -23,7 +24,8 @@ const FAQ_ITEMS = [
   { icon: "👤", label: "Falar com atendente" },
 ];
 
-export default function SupportPanel({ open, onClose, merchantId }: SupportPanelProps) {
+export default function SupportPanel({ open, onClose, merchantId, agentName }: SupportPanelProps) {
+  const agent = agentName || "Assistente";
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -231,7 +233,7 @@ export default function SupportPanel({ open, onClose, merchantId }: SupportPanel
               </div>
               <div style={{ fontSize: "11px", color: "var(--aacp-muted, #8b8b95)", display: "flex", alignItems: "center", gap: "4px" }}>
                 <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "var(--aacp-success, #34d399)" }} />
-                Suporte 24h
+                {agent} · Suporte
               </div>
             </div>
           </div>
@@ -294,7 +296,7 @@ export default function SupportPanel({ open, onClose, merchantId }: SupportPanel
                   Oi! Sou o assistente de suporte.
                 </div>
                 <div style={{ fontSize: "12px", color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.5 }}>
-                  Posso ajudar com dúvidas sobre entrega, pagamento, trocas e muito mais.
+                  Posso ajudar com dúvidas sobre entrega, pagamento, trocas e muito mais. Como posso te ajudar?
                 </div>
               </div>
 

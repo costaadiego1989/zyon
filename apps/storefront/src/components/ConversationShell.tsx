@@ -18,7 +18,6 @@ import {
 import BlockRenderer from "./blocks/BlockRenderer";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
-import SupportFAB from "./SupportFAB";
 import SupportPanel from "./SupportPanel";
 
 type Message = {
@@ -439,6 +438,11 @@ export default function ConversationShell({
           {/* Buyer Hub Trigger */}
           <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} hasNotifications={false} />
 
+          {/* Support icon */}
+          <button type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+          </button>
+
           {/* Social icons */}
           {storeSettings?.social?.instagram && (
             <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="Instagram">
@@ -522,8 +526,11 @@ export default function ConversationShell({
                 <PulseAgentOrb size={72} />
                 <div style={{ marginTop: "8px" }}>
                   <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--aacp-fg)", lineHeight: 1.4 }}>Olá! Sou {agent} 👋</div>
-                  <div style={{ fontSize: "12.5px", color: "var(--aacp-muted)", marginTop: "6px", lineHeight: 1.5, maxWidth: "300px" }}>
-                    Posso te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra.
+                  <div style={{ fontSize: "12.5px", color: "var(--aacp-muted)", marginTop: "6px", lineHeight: 1.6, maxWidth: "340px" }}>
+                    A partir de agora serei sua vendedora particular e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra de forma bem fluida e fácil. Vamos começar!
+                  </div>
+                  <div style={{ fontSize: "11.5px", color: "var(--aacp-muted)", marginTop: "10px", opacity: 0.7 }}>
+                    Selecione uma opção abaixo ou digite algo para interagirmos.
                   </div>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "12px" }}>
@@ -650,8 +657,7 @@ export default function ConversationShell({
       {/* Support FAB + Panel — only in chat mode */}
       {mode === "chat" && (
         <>
-          <SupportFAB open={supportOpen} onToggle={() => setSupportOpen((v) => !v)} />
-          <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} />
+          <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} agentName={agentName} />
         </>
       )}
 
