@@ -546,9 +546,21 @@ export default function ConversationShell({
 
             {messages.map((m) => {
               if (m.role === "agent") {
+                const hasProductCard = m.blocks?.some((b) => b.type === "product_card");
                 const hasOnlyBlocks = !m.text && m.blocks?.length;
+                const isFullWidth = hasOnlyBlocks || hasProductCard;
+
+                if (hasProductCard) {
+                  const cardBlock = m.blocks!.find((b) => b.type === "product_card")!;
+                  return (
+                    <div key={m.id} style={{ width: "100%", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                      <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} />
+                    </div>
+                  );
+                }
+
                 return (
-                  <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: hasOnlyBlocks ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: hasOnlyBlocks ? "100%" : undefined }}>
+                  <div key={m.id} style={{ display: "flex", gap: "9px", alignItems: "flex-start", maxWidth: isFullWidth ? "100%" : "min(82%, 520px)", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both", width: isFullWidth ? "100%" : undefined }}>
                     <div style={{ width: "26px", height: "26px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", marginTop: "4px" }}>
                       <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
                         <span style={{ width: "2px", height: "3px", borderRadius: "50%", background: "#fff" }} />
