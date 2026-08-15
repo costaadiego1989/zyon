@@ -3,23 +3,82 @@
 import { useMemo, useState } from "react";
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 
-function formatPrice(value: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(value);
+const COLOR_KEYWORDS = [
+  "preto",
+  "azul",
+  "verde",
+  "branco",
+  "vermelho",
+  "cinza",
+  "bege",
+  "marinho",
+  "amarelo",
+  "rosa",
+  "lilas",
+  "laranja",
+  "marrom",
+  "vinho",
+];
+
+const COLOR_HEX: Record<string, string> = {
+  preto: "#111111",
+  azul: "#2563eb",
+  verde: "#16a34a",
+  branco: "#f5f5f5",
+  vermelho: "#dc2626",
+  cinza: "#6b7280",
+  bege: "#d6c5a3",
+  marinho: "#1e3a8a",
+  amarelo: "#facc15",
+  rosa: "#ec4899",
+  lilas: "#a855f7",
+  laranja: "#f97316",
+  marrom: "#92400e",
+  vinho: "#7f1d1d",
+};
+
+function getInitial(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return "★";
+  return trimmed.charAt(0).toUpperCase();
+}
+
+function isColorToken(value: string): boolean {
+  const v = value.trim().toLowerCase();
+  if (/^(#([0-9a-f]{3,8})|rgb\(|hsl\()/i.test(value.trim())) return true;
+  return COLOR_KEYWORDS.some((k) => v.includes(k));
+}
+
+function colorFromToken(value: string): string {
+  const v = value.trim().toLowerCase();
+  if (/^#([0-9a-f]{3,8})$/i.test(v)) return v;
+  for (const key of COLOR_KEYWORDS) {
+    if (v.includes(key)) return COLOR_HEX[key];
+  }
+  return "#9ca3af";
+}
+
+function isLightHex(hex: string): boolean {
+  const m = hex.replace("#", "");
+  if (m.length !== 6 && m.length !== 3) return false;
+  const full =
+    m.length === 3
+      ? m
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : m;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.65;
 }
 
 function StarRating({ value, count }: { value: number; count: number }) {
   const full = Math.floor(value);
-  const half = value - full >= 0.5;
+  const partial = Math.max(0, Math.min(1, value - full));
   const total = 5;
-  const stars: Array<"full" | "half" | "empty"> = [];
-  for (let i = 0; i < total; i++) {
-    if (i < full) stars.push("full");
-    else if (i === full && half) stars.push("half");
-    else stars.push("empty");
-  }
   return (
     <div
       style={{
@@ -29,7 +88,7 @@ function StarRating({ value, count }: { value: number; count: number }) {
         fontSize: "12px",
         color: "var(--aacp-muted)",
       }}
-      aria-label={`Avaliação ${value} de 5`}
+      aria-label={`Avaliação ${value.toFixed(1)} de 5`}
     >
       <span
         style={{
@@ -40,26 +99,36 @@ function StarRating({ value, count }: { value: number; count: number }) {
           lineHeight: 1,
           letterSpacing: "0.5px",
         }}
+        aria-hidden
       >
-        {stars.map((s, i) => (
-          <span key={i} aria-hidden style={{ position: "relative" }}>
-            <span style={{ color: "rgba(245, 179, 1, 0.22)" }}>★</span>
-            {s !== "empty" && (
-              <span
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  width: s === "half" ? "50%" : "100%",
-                  overflow: "hidden",
-                  color: "#F5B301",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                ★
-              </span>
-            )}
-          </span>
-        ))}
+        {Array.from({ length: total }).map((_, i) => {
+          let fillRatio = 0;
+          if (i < full) fillRatio = 1;
+          else if (i === full) fillRatio = partial;
+          const empty = fillRatio === 0;
+          return (
+            <span
+              key={i}
+              style={{ position: "relative", display: "inline-block" }}
+            >
+              <span style={{ color: "rgba(245, 179, 1, 0.22)" }}>★</span>
+              {!empty && (
+                <span
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    width: `${fillRatio * 100}%`,
+                    overflow: "hidden",
+                    color: "#F5B301",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  ★
+                </span>
+              )}
+            </span>
+          );
+        })}
       </span>
       <span style={{ fontWeight: 600, color: "var(--aacp-fg)" }}>
         {value.toFixed(1)}
@@ -69,16 +138,6 @@ function StarRating({ value, count }: { value: number; count: number }) {
       </span>
     </div>
   );
-}
-
-function getInitial(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "★";
-  return trimmed.charAt(0).toUpperCase();
-}
-
-function isColorToken(value: string): boolean {
-  return /^(#([0-9a-f]{3,8})|rgb\(|hsl\()/i.test(value.trim());
 }
 
 export default function ProductCardBlock({
@@ -102,6 +161,13 @@ export default function ProductCardBlock({
     );
   }, [data.originalPrice, data.price, data.discountPercent]);
 
+  const variants = data.variants ?? [];
+  const variantsAreColors =
+    variants.length > 0 && isColorToken(variants[0].value);
+
+  const selectedVariant =
+    variants.find((v) => v.id === selectedVariantId) ?? null;
+
   const quickReplies = [
     "Calcular frete",
     "Tem em outra cor?",
@@ -109,8 +175,10 @@ export default function ProductCardBlock({
     "Ver avaliações",
   ];
 
-  const selectedVariant =
-    data.variants?.find((v) => v.id === selectedVariantId) ?? null;
+  const buildCtaText = (verb: string) =>
+    `${verb} ${data.name}${
+      selectedVariant ? ` (${selectedVariant.name}: ${selectedVariant.value})` : ""
+    }`;
 
   return (
     <article
@@ -119,27 +187,26 @@ export default function ProductCardBlock({
         border: "1px solid var(--aacp-line)",
         borderRadius: "14px",
         overflow: "hidden",
-        boxShadow: "0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)",
+        boxShadow:
+          "0 1px 2px rgba(0,0,0,0.04), 0 12px 32px rgba(0,0,0,0.10)",
         display: "flex",
         flexDirection: "column",
-        maxWidth: "420px",
         width: "100%",
+        maxWidth: "100%",
         fontFamily: "var(--aacp-font)",
         color: "var(--aacp-fg)",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow =
-          "0 2px 4px rgba(0,0,0,0.05), 0 16px 36px rgba(0,0,0,0.10)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow =
-          "0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)";
+        animation: "fadeSlideIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both",
+        boxSizing: "border-box",
       }}
     >
-      {/* Hero image — 45% of card (~200px) */}
+      <style>{`
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+
+      {/* Hero image — 200px height, full width */}
       <div
         aria-hidden
         style={{
@@ -148,13 +215,12 @@ export default function ProductCardBlock({
           height: "200px",
           background: data.image
             ? "linear-gradient(180deg, var(--aacp-surface-2) 0%, var(--aacp-surface-3) 100%)"
-            : `linear-gradient(135deg, color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface-2)) 0%, var(--aacp-surface-3) 100%)`,
+            : "linear-gradient(135deg, var(--aacp-surface-2) 0%, var(--aacp-surface-3) 100%)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          borderTopLeftRadius: "14px",
-          borderTopRightRadius: "14px",
           overflow: "hidden",
+          flexShrink: 0,
         }}
       >
         {data.image ? (
@@ -175,10 +241,10 @@ export default function ProductCardBlock({
           <span
             style={{
               fontFamily: "var(--aacp-font-display)",
-              fontSize: "96px",
+              fontSize: "72px",
               fontWeight: 800,
               lineHeight: 1,
-              color: "color-mix(in srgb, var(--aacp-accent) 35%, transparent)",
+              color: "color-mix(in srgb, var(--aacp-accent) 30%, transparent)",
               letterSpacing: "-0.04em",
               userSelect: "none",
             }}
@@ -187,77 +253,176 @@ export default function ProductCardBlock({
           </span>
         )}
 
-        {/* Discount badge overlay */}
-        {hasDiscount && (
+        {/* Top-left badges */}
+        <div
+          style={{
+            position: "absolute",
+            top: "12px",
+            left: "12px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "6px",
+            alignItems: "flex-start",
+          }}
+        >
           <span
             style={{
-              position: "absolute",
-              top: "12px",
-              left: "12px",
-              background: "var(--aacp-accent)",
-              color: "#fff",
-              fontSize: "11px",
+              background: "color-mix(in srgb, var(--aacp-success) 18%, var(--aacp-surface))",
+              color: "var(--aacp-success)",
+              fontSize: "10.5px",
               fontWeight: 700,
               padding: "5px 9px",
               borderRadius: "999px",
-              letterSpacing: "0.05em",
-              boxShadow: "0 4px 12px color-mix(in srgb, var(--aacp-accent) 35%, transparent)",
+              letterSpacing: "0.04em",
+              border: "1px solid color-mix(in srgb, var(--aacp-success) 35%, transparent)",
+              backdropFilter: "blur(6px)",
             }}
           >
-            {data.discountPercent}% OFF
+            Frete grátis
           </span>
-        )}
+          {hasDiscount && (
+            <span
+              style={{
+                background: "var(--aacp-accent)",
+                color: "#fff",
+                fontSize: "11px",
+                fontWeight: 700,
+                padding: "5px 9px",
+                borderRadius: "999px",
+                letterSpacing: "0.05em",
+                boxShadow:
+                  "0 4px 12px color-mix(in srgb, var(--aacp-accent) 35%, transparent)",
+              }}
+            >
+              -{data.discountPercent}%
+            </span>
+          )}
+        </div>
 
-        {/* Free shipping badge overlay */}
-        <span
+        {/* Wishlist heart (top-right) */}
+        <button
+          type="button"
+          aria-label="Adicionar à lista de desejos"
+          onClick={() => onQuickReply?.(`Adicionar ${data.name} à lista de desejos`)}
           style={{
             position: "absolute",
             top: "12px",
             right: "12px",
-            background: "color-mix(in srgb, var(--aacp-success) 18%, var(--aacp-surface))",
-            color: "var(--aacp-success)",
-            fontSize: "10.5px",
-            fontWeight: 700,
-            padding: "5px 9px",
-            borderRadius: "999px",
-            letterSpacing: "0.04em",
-            border: "1px solid color-mix(in srgb, var(--aacp-success) 35%, transparent)",
+            width: "34px",
+            height: "34px",
+            borderRadius: "50%",
+            background: "color-mix(in srgb, var(--aacp-surface) 80%, transparent)",
+            border: "1px solid var(--aacp-line)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            color: "var(--aacp-muted)",
             backdropFilter: "blur(6px)",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "#ef4444";
+            e.currentTarget.style.borderColor = "#ef4444";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--aacp-muted)";
+            e.currentTarget.style.borderColor = "var(--aacp-line)";
           }}
         >
-          FRETE GRÁTIS
-        </span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+          </svg>
+        </button>
       </div>
 
       {/* Body */}
       <div
         style={{
-          padding: "16px 16px 14px",
+          padding: "16px 18px 16px",
           display: "flex",
           flexDirection: "column",
-          gap: "10px",
-          flex: 1,
+          gap: "12px",
         }}
       >
+        {/* Rating row + free shipping badge */}
+        {(data.rating !== undefined || hasDiscount) && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+              flexWrap: "wrap",
+            }}
+          >
+            {data.rating !== undefined ? (
+              <StarRating value={data.rating} count={data.reviewCount ?? 0} />
+            ) : (
+              <span />
+            )}
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "10.5px",
+                fontWeight: 700,
+                color: "var(--aacp-success)",
+                padding: "4px 9px",
+                borderRadius: "999px",
+                background:
+                  "color-mix(in srgb, var(--aacp-success) 14%, var(--aacp-surface))",
+                border:
+                  "1px solid color-mix(in srgb, var(--aacp-success) 30%, transparent)",
+                letterSpacing: "0.04em",
+              }}
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <path d="M3 7h13l5 5v7h-2" />
+                <path d="M3 17V7" />
+                <circle cx="7.5" cy="17.5" r="2.5" />
+                <circle cx="17.5" cy="17.5" r="2.5" />
+              </svg>
+              FRETE GRÁTIS
+            </span>
+          </div>
+        )}
+
         {/* Product name */}
         <h3
           style={{
             fontFamily: "var(--aacp-font-display)",
-            fontSize: "17px",
+            fontSize: "18px",
             fontWeight: 700,
             margin: 0,
             color: "var(--aacp-fg)",
-            lineHeight: 1.25,
+            lineHeight: 1.3,
             letterSpacing: "-0.01em",
           }}
         >
           {data.name}
         </h3>
-
-        {/* Rating */}
-        {data.rating !== undefined && (
-          <StarRating value={data.rating} count={data.reviewCount ?? 0} />
-        )}
 
         {/* Description */}
         {data.description && (
@@ -278,86 +443,170 @@ export default function ProductCardBlock({
           </p>
         )}
 
-        {/* Variants — selectable pills */}
-        {data.variants && data.variants.length > 0 && (
+        {/* Variants */}
+        {variants.length > 0 && (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "6px",
-              marginTop: "2px",
+              gap: "8px",
+              paddingTop: "4px",
             }}
           >
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                color: "var(--aacp-muted)",
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-              }}
-            >
-              {data.variants[0].name}
-              {selectedVariant && selectedVariant.name === data.variants[0].name
-                ? `: ${selectedVariant.value}`
-                : ""}
-            </span>
             <div
               style={{
                 display: "flex",
-                flexWrap: "wrap",
-                gap: "6px",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "8px",
               }}
             >
-              {data.variants.map((v) => {
-                const isSelected = v.id === selectedVariantId;
-                const isColor = isColorToken(v.value);
-                return (
-                  <button
-                    key={v.id}
-                    type="button"
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedVariantId(v.id)}
-                    title={v.value}
-                    style={{
-                      minWidth: isColor ? "28px" : "36px",
-                      height: "30px",
-                      padding: isColor ? "0" : "0 10px",
-                      borderRadius: isColor ? "50%" : "8px",
-                      border: isSelected
-                        ? `1.5px solid var(--aacp-accent)`
-                        : "1px solid var(--aacp-line)",
-                      background: isColor ? v.value : "var(--aacp-surface-2)",
-                      color: "var(--aacp-fg)",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      fontFamily: "inherit",
-                      cursor: "pointer",
-                      boxShadow: isSelected
-                        ? "0 0 0 3px color-mix(in srgb, var(--aacp-accent) 18%, transparent)"
-                        : "none",
-                      transition: "all 0.15s ease",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    {!isColor && v.value}
-                  </button>
-                );
-              })}
+              <span
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--aacp-muted)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  fontFamily: "var(--aacp-font-display)",
+                }}
+              >
+                Variantes
+              </span>
+              {selectedVariant && (
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: "var(--aacp-fg)",
+                  }}
+                >
+                  {selectedVariant.name}: {selectedVariant.value}
+                </span>
+              )}
             </div>
+
+            {variantsAreColors ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  alignItems: "center",
+                }}
+              >
+                {variants.map((v) => {
+                  const isSelected = v.id === selectedVariantId;
+                  const color = colorFromToken(v.value);
+                  const light = isLightHex(color);
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      aria-label={v.value}
+                      title={`${v.name}: ${v.value}`}
+                      onClick={() => setSelectedVariantId(v.id)}
+                      style={{
+                        position: "relative",
+                        width: "28px",
+                        height: "28px",
+                        borderRadius: "50%",
+                        border: isSelected
+                          ? "2px solid var(--aacp-accent)"
+                          : light
+                          ? "1px solid var(--aacp-line)"
+                          : "1px solid color-mix(in srgb, #ffffff 20%, transparent)",
+                        background: color,
+                        cursor: "pointer",
+                        padding: 0,
+                        boxShadow: isSelected
+                          ? "0 0 0 3px color-mix(in srgb, var(--aacp-accent) 22%, transparent), inset 0 0 0 2px var(--aacp-surface)"
+                          : "none",
+                        transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                        transform: isSelected ? "scale(1.08)" : "scale(1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.transform = "scale(1.08)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.transform = "scale(1)";
+                        }
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "6px",
+                  alignItems: "center",
+                }}
+              >
+                {variants.map((v) => {
+                  const isSelected = v.id === selectedVariantId;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => setSelectedVariantId(v.id)}
+                      style={{
+                        minWidth: "40px",
+                        height: "34px",
+                        padding: "0 12px",
+                        borderRadius: "9px",
+                        border: isSelected
+                          ? "1.5px solid var(--aacp-accent)"
+                          : "1px solid var(--aacp-line)",
+                        background: isSelected
+                          ? "color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface-2))"
+                          : "var(--aacp-surface-2)",
+                        color: "var(--aacp-fg)",
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        fontFamily: "inherit",
+                        cursor: "pointer",
+                        boxShadow: isSelected
+                          ? "0 0 0 3px color-mix(in srgb, var(--aacp-accent) 18%, transparent)"
+                          : "none",
+                        transition: "all 0.15s ease",
+                        transform: isSelected ? "scale(1.04)" : "scale(1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = "var(--aacp-muted)";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) {
+                          e.currentTarget.style.borderColor = "var(--aacp-line)";
+                        }
+                      }}
+                    >
+                      {v.value}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Price section */}
+        {/* Price block */}
         <div
           style={{
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "space-between",
-            gap: "10px",
-            marginTop: "8px",
+            gap: "12px",
+            marginTop: "6px",
             paddingTop: "12px",
             borderTop: "1px solid var(--aacp-line)",
           }}
@@ -366,25 +615,52 @@ export default function ProductCardBlock({
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: "2px",
+              gap: "3px",
               minWidth: 0,
             }}
           >
             {hasDiscount && (
-              <span
+              <div
                 style={{
-                  fontSize: "12px",
-                  color: "var(--aacp-muted)",
-                  textDecoration: "line-through",
-                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
               >
-                {formatPrice(data.originalPrice!)}
-              </span>
+                <span
+                  style={{
+                    fontSize: "13px",
+                    color: "var(--aacp-muted)",
+                    textDecoration: "line-through",
+                    fontWeight: 500,
+                  }}
+                >
+                  {data.originalPriceFormatted ??
+                    (data.originalPrice !== undefined
+                      ? new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(data.originalPrice / 100)
+                      : "")}
+                </span>
+                <span
+                  style={{
+                    fontSize: "10px",
+                    fontWeight: 700,
+                    color: "#fff",
+                    background: "var(--aacp-accent)",
+                    padding: "2px 6px",
+                    borderRadius: "4px",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  -{data.discountPercent}%
+                </span>
+              </div>
             )}
             <span
               style={{
-                fontSize: "22px",
+                fontSize: "24px",
                 fontWeight: 800,
                 color: "var(--aacp-accent)",
                 fontFamily: "var(--aacp-font-display)",
@@ -406,18 +682,19 @@ export default function ProductCardBlock({
               fontWeight: 600,
               color: data.inStock ? "var(--aacp-success)" : "#ef4444",
               paddingBottom: "4px",
+              whiteSpace: "nowrap",
             }}
             aria-live="polite"
           >
             <span
               style={{
-                width: "7px",
-                height: "7px",
+                width: "8px",
+                height: "8px",
                 borderRadius: "50%",
                 background: data.inStock ? "var(--aacp-success)" : "#ef4444",
                 boxShadow: data.inStock
-                  ? "0 0 0 3px color-mix(in srgb, var(--aacp-success) 20%, transparent)"
-                  : "0 0 0 3px color-mix(in srgb, #ef4444 20%, transparent)",
+                  ? "0 0 0 3px color-mix(in srgb, var(--aacp-success) 22%, transparent)"
+                  : "0 0 0 3px color-mix(in srgb, #ef4444 22%, transparent)",
               }}
               aria-hidden
             />
@@ -425,80 +702,130 @@ export default function ProductCardBlock({
           </div>
         </div>
 
-        {/* Add to cart — full width primary */}
-        <button
-          type="button"
-          onClick={() =>
-            onQuickReply?.(
-              `Adicionar ${data.name}${
-                selectedVariant ? ` (${selectedVariant.name}: ${selectedVariant.value})` : ""
-              } ao carrinho`,
-            )
-          }
-          disabled={!data.inStock}
-          style={{
-            marginTop: "4px",
-            padding: "12px 14px",
-            borderRadius: "12px",
-            border: "none",
-            background: data.inStock
-              ? "var(--aacp-accent)"
-              : "color-mix(in srgb, var(--aacp-muted) 30%, var(--aacp-surface-2))",
-            color: "#fff",
-            fontSize: "13.5px",
-            fontWeight: 700,
-            fontFamily: "inherit",
-            letterSpacing: "0.01em",
-            cursor: data.inStock ? "pointer" : "not-allowed",
-            opacity: data.inStock ? 1 : 0.6,
-            transition: "transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease",
-            boxShadow: data.inStock
-              ? "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)"
-              : "none",
-          }}
-          onMouseEnter={(e) => {
-            if (data.inStock) {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow =
-                "0 8px 22px color-mix(in srgb, var(--aacp-accent) 42%, transparent)";
-              e.currentTarget.style.filter = "brightness(1.05)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "none";
-            e.currentTarget.style.boxShadow =
-              "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)";
-            e.currentTarget.style.filter = "none";
-          }}
-        >
-          {data.inStock ? "Adicionar ao carrinho" : "Produto indisponível"}
-        </button>
+        {/* Stock + shipping note */}
+        {data.inStock && (
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              fontSize: "11.5px",
+              color: "var(--aacp-muted)",
+              marginTop: "-2px",
+            }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--aacp-success)"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M3 7h13l5 5v7h-2" />
+              <path d="M3 17V7" />
+              <circle cx="7.5" cy="17.5" r="2.5" />
+              <circle cx="17.5" cy="17.5" r="2.5" />
+            </svg>
+            <span>
+              Frete grátis para todo o Brasil
+            </span>
+          </div>
+        )}
 
-        {/* Secondary link */}
-        <button
-          type="button"
-          onClick={() => onQuickReply?.(`Ver mais opções de ${data.name}`)}
+        {/* Action buttons */}
+        <div
           style={{
-            padding: "4px 0",
-            border: "none",
-            background: "transparent",
-            color: "var(--aacp-muted)",
-            fontSize: "12px",
-            fontWeight: 500,
-            fontFamily: "inherit",
-            cursor: "pointer",
-            textAlign: "center",
-            transition: "color 0.15s ease",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--aacp-accent)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--aacp-muted)";
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            marginTop: "6px",
           }}
         >
-          Ver mais opções
-        </button>
+          <button
+            type="button"
+            onClick={() => onQuickReply?.(buildCtaText("Adicionar"))}
+            disabled={!data.inStock}
+            style={{
+              width: "100%",
+              height: "44px",
+              padding: "0 16px",
+              borderRadius: "10px",
+              border: "none",
+              background: data.inStock
+                ? "var(--aacp-accent)"
+                : "color-mix(in srgb, var(--aacp-muted) 30%, var(--aacp-surface-2))",
+              color: "#fff",
+              fontSize: "14px",
+              fontWeight: 700,
+              fontFamily: "inherit",
+              letterSpacing: "0.01em",
+              cursor: data.inStock ? "pointer" : "not-allowed",
+              opacity: data.inStock ? 1 : 0.6,
+              transition:
+                "transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease",
+              boxShadow: data.inStock
+                ? "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)"
+                : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (data.inStock) {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow =
+                  "0 8px 22px color-mix(in srgb, var(--aacp-accent) 42%, transparent)";
+                e.currentTarget.style.filter = "brightness(1.05)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (data.inStock) {
+                e.currentTarget.style.transform = "none";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 14px color-mix(in srgb, var(--aacp-accent) 30%, transparent)";
+                e.currentTarget.style.filter = "none";
+              }
+            }}
+          >
+            {data.inStock ? "Adicionar ao carrinho" : "Produto indisponível"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onQuickReply?.(buildCtaText("Comprar"))}
+            disabled={!data.inStock}
+            style={{
+              width: "100%",
+              height: "44px",
+              padding: "0 16px",
+              borderRadius: "10px",
+              border: "1.5px solid var(--aacp-accent)",
+              background: "transparent",
+              color: data.inStock ? "var(--aacp-accent)" : "var(--aacp-muted)",
+              fontSize: "14px",
+              fontWeight: 700,
+              fontFamily: "inherit",
+              letterSpacing: "0.01em",
+              cursor: data.inStock ? "pointer" : "not-allowed",
+              opacity: data.inStock ? 1 : 0.6,
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (data.inStock) {
+                e.currentTarget.style.background =
+                  "color-mix(in srgb, var(--aacp-accent) 10%, transparent)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (data.inStock) {
+                e.currentTarget.style.background = "transparent";
+              }
+            }}
+          >
+            Comprar agora
+          </button>
+        </div>
       </div>
 
       {/* Quick replies */}
@@ -507,18 +834,32 @@ export default function ProductCardBlock({
           display: "flex",
           flexWrap: "wrap",
           gap: "6px",
-          padding: "10px 16px 14px",
+          padding: "12px 18px 14px",
           borderTop: "1px solid var(--aacp-line)",
           background: "var(--aacp-surface-2)",
         }}
       >
+        <span
+          style={{
+            width: "100%",
+            fontSize: "10.5px",
+            fontWeight: 600,
+            color: "var(--aacp-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: "2px",
+            fontFamily: "var(--aacp-font-display)",
+          }}
+        >
+          Respostas rápidas
+        </span>
         {quickReplies.map((reply) => (
           <button
             key={reply}
             type="button"
             onClick={() => onQuickReply?.(reply)}
             style={{
-              padding: "6px 10px",
+              padding: "6px 12px",
               borderRadius: "999px",
               border: "1px solid var(--aacp-line)",
               background: "var(--aacp-surface)",
@@ -532,7 +873,8 @@ export default function ProductCardBlock({
             onMouseEnter={(e) => {
               e.currentTarget.style.color = "var(--aacp-accent)";
               e.currentTarget.style.borderColor = "var(--aacp-accent)";
-              e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 6%, var(--aacp-surface))";
+              e.currentTarget.style.background =
+                "color-mix(in srgb, var(--aacp-accent) 6%, var(--aacp-surface))";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = "var(--aacp-muted)";
