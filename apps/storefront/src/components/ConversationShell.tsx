@@ -139,6 +139,7 @@ export default function ConversationShell({
   const [isLoading, setIsLoading] = useState(false);
   const [listening, setListening] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [supportOpen, setSupportOpen] = useState(false);
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
@@ -249,6 +250,7 @@ export default function ConversationShell({
       role: "agent",
       text: `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`,
     }]);
+    setTimeout(() => inputRef.current?.focus(), 200);
   };
 
   const toggleChannel = () => {
@@ -369,6 +371,7 @@ export default function ConversationShell({
 
     setIsLoading(false);
     scrollToBottom();
+    setTimeout(() => inputRef.current?.focus(), 100);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, merchantId, history, channel]);
 
@@ -638,7 +641,7 @@ export default function ConversationShell({
             ) : (
               /* Chat composer */
               <form onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", borderRadius: "14px" }}>
-                <input type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
+                <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
                 <button type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0, opacity: !input.trim() || isLoading ? 0.4 : 1 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </button>
