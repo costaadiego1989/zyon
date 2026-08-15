@@ -3293,6 +3293,7 @@ button.dash-tab.active {
 .ov-sync:hover { border-color: var(--color-border-strong); }
 .ov-spin { animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
 /* Grid layout matching prototype */
 .ov-grid {

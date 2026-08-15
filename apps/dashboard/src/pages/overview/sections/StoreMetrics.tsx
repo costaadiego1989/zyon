@@ -7,6 +7,7 @@ import { RevenueChart } from "../components/RevenueChart.js";
 
 export type StoreMetricsProps = {
   overview: StoreOverview;
+  previousOverview: StoreOverview | null;
   timeseries: TimeseriesResponse | null;
 };
 
@@ -14,7 +15,13 @@ function formatCurrency(n: number): string {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function StoreMetrics({ overview, timeseries }: StoreMetricsProps) {
+function calcTrend(current: number, previous: number | undefined): number | undefined {
+  if (previous === undefined || previous === 0) return undefined;
+  return ((current - previous) / previous) * 100;
+}
+
+export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMetricsProps) {
+  const prev = previousOverview;
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
@@ -26,30 +33,36 @@ export function StoreMetrics({ overview, timeseries }: StoreMetricsProps) {
           value={formatCurrency(overview.revenue)}
           prefix="R$"
           accent="var(--accent)"
+          trend={calcTrend(overview.revenue, prev?.revenue)}
         />
         <StatCard
           label="Pedidos"
           value={overview.orders_count}
+          trend={calcTrend(overview.orders_count, prev?.orders_count)}
         />
         <StatCard
           label="Ticket Médio"
           value={formatCurrency(overview.average_ticket)}
           prefix="R$"
+          trend={calcTrend(overview.average_ticket, prev?.average_ticket)}
         />
         <StatCard
           label="Produtos Vendidos"
           value={overview.products_sold}
+          trend={calcTrend(overview.products_sold, prev?.products_sold)}
         />
         <StatCard
           label="Novos Clientes"
           value={overview.new_customers}
           accent="var(--good)"
+          trend={calcTrend(overview.new_customers, prev?.new_customers)}
         />
         <StatCard
           label="Abandono"
           value={`${(overview.abandonment_rate * 100).toFixed(1)}`}
           suffix="%"
           accent="var(--danger)"
+          trend={calcTrend(overview.abandonment_rate * 100, prev?.abandonment_rate ? prev.abandonment_rate * 100 : undefined)}
         />
       </div>
 
@@ -64,6 +77,7 @@ export function StoreMetrics({ overview, timeseries }: StoreMetricsProps) {
           type="bar"
           label="Receita diária"
           color="var(--accent)"
+          valueFormat="currency"
         />
       )}
     </section>

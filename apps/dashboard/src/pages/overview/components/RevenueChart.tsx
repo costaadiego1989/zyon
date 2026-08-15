@@ -7,9 +7,20 @@ export type RevenueChartProps = {
   type?: "line" | "bar";
   label?: string;
   color?: string;
+  valueFormat?: "currency" | "percent" | "number";
 };
 
-export function RevenueChart({ data, type = "line", label = "Receita", color = "var(--accent)" }: RevenueChartProps) {
+export function RevenueChart({ data, type = "line", label = "Receita", color = "var(--accent)", valueFormat = "number" }: RevenueChartProps) {
+  const formatValue = (val: number): string => {
+    if (valueFormat === "currency") {
+      return `R$ ${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
+    }
+    if (valueFormat === "percent") {
+      return `${val.toFixed(1)}%`;
+    }
+    return val.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
+  };
+
   const aligned = useMemo((): uPlot.AlignedData => {
     const timestamps = data.map((d) => Math.floor(new Date(d.date).getTime() / 1000));
     const values = data.map((d) => d.value);
@@ -27,18 +38,28 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
         paths: type === "bar" ? (uPlot as any).paths?.bars?.({ size: [0.6] }) : undefined,
       },
     ];
+
     return {
       width: 400,
       height: 200,
       series,
       axes: [
         { stroke: "var(--muted)", grid: { stroke: "var(--border)", width: 1 } },
-        { stroke: "var(--muted)", grid: { stroke: "var(--border)", width: 1 }, size: 50 },
+        {
+          stroke: "var(--muted)",
+          grid: { stroke: "var(--border)", width: 1 },
+          size: 50,
+          values: (_u, vals) => vals.map((v) => (typeof v === "number" ? formatValue(v) : "")),
+        },
       ],
-      cursor: { show: true },
+      cursor: {
+        show: true,
+        drag: { setScale: false },
+        points: { show: true },
+      },
       legend: { show: false },
     };
-  }, [label, color, type]);
+  }, [label, color, type, valueFormat]);
 
   if (data.length === 0) {
     return (

@@ -6,6 +6,7 @@ import { RevenueChart } from "../components/RevenueChart.js";
 
 export type CheckoutMetricsProps = {
   overview: DashboardOverview;
+  previousOverview: DashboardOverview | null;
   timeseries: TimeseriesResponse | null;
 };
 
@@ -13,7 +14,13 @@ function formatCurrency(n: number): string {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-export function CheckoutMetrics({ overview, timeseries }: CheckoutMetricsProps) {
+function calcTrend(current: number, previous: number | undefined): number | undefined {
+  if (previous === undefined || previous === 0) return undefined;
+  return ((current - previous) / previous) * 100;
+}
+
+export function CheckoutMetrics({ overview, previousOverview, timeseries }: CheckoutMetricsProps) {
+  const prev = previousOverview;
   const funnelSteps = [
     { label: "Sessões", value: overview.conversations_started, color: "var(--accent)" },
     { label: "Ofertas vistas", value: overview.offers_viewed, color: "var(--color-info, #6ea8ff)" },
@@ -30,28 +37,33 @@ export function CheckoutMetrics({ overview, timeseries }: CheckoutMetricsProps) 
         <StatCard
           label="Conversas"
           value={overview.conversations_started}
+          trend={calcTrend(overview.conversations_started, prev?.conversations_started)}
         />
         <StatCard
           label="Taxa de Conversão"
           value={`${(overview.conversion_rate_with_agent * 100).toFixed(1)}`}
           suffix="%"
           accent="var(--good)"
+          trend={calcTrend(overview.conversion_rate_with_agent * 100, prev?.conversion_rate_with_agent ? prev.conversion_rate_with_agent * 100 : undefined)}
         />
         <StatCard
           label="Ofertas"
           value={`${overview.offers_accepted}/${overview.offers_viewed}`}
+          trend={calcTrend(overview.offers_accepted, prev?.offers_accepted)}
         />
         <StatCard
           label="Receita Incremental"
           value={formatCurrency(overview.incremental_revenue)}
           prefix="R$"
           accent="var(--accent)"
+          trend={calcTrend(overview.incremental_revenue, prev?.incremental_revenue)}
         />
         <StatCard
           label="Desconto Médio"
           value={`${(overview.average_discount * 100).toFixed(1)}`}
           suffix="%"
           accent="var(--warn)"
+          trend={calcTrend(overview.average_discount * 100, prev?.average_discount ? prev.average_discount * 100 : undefined)}
         />
       </div>
 
@@ -63,6 +75,7 @@ export function CheckoutMetrics({ overview, timeseries }: CheckoutMetricsProps) 
           type="line"
           label="Conversão diária"
           color="var(--accent)"
+          valueFormat="percent"
         />
       )}
     </section>
