@@ -266,21 +266,6 @@ export default function ProductCardBlock({
             alignItems: "flex-start",
           }}
         >
-          <span
-            style={{
-              background: "color-mix(in srgb, var(--aacp-success) 18%, var(--aacp-surface))",
-              color: "var(--aacp-success)",
-              fontSize: "10.5px",
-              fontWeight: 700,
-              padding: "5px 9px",
-              borderRadius: "999px",
-              letterSpacing: "0.04em",
-              border: "1px solid color-mix(in srgb, var(--aacp-success) 35%, transparent)",
-              backdropFilter: "blur(6px)",
-            }}
-          >
-            Frete grátis
-          </span>
           {hasDiscount && (
             <span
               style={{
@@ -356,8 +341,8 @@ export default function ProductCardBlock({
           gap: "12px",
         }}
       >
-        {/* Rating row + free shipping badge */}
-        {(data.rating !== undefined || hasDiscount) && (
+        {/* Rating row */}
+        {data.rating !== undefined && (
           <div
             style={{
               display: "flex",
@@ -367,46 +352,7 @@ export default function ProductCardBlock({
               flexWrap: "wrap",
             }}
           >
-            {data.rating !== undefined ? (
-              <StarRating value={data.rating} count={data.reviewCount ?? 0} />
-            ) : (
-              <span />
-            )}
-            <span
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "5px",
-                fontSize: "10.5px",
-                fontWeight: 700,
-                color: "var(--aacp-success)",
-                padding: "4px 9px",
-                borderRadius: "999px",
-                background:
-                  "color-mix(in srgb, var(--aacp-success) 14%, var(--aacp-surface))",
-                border:
-                  "1px solid color-mix(in srgb, var(--aacp-success) 30%, transparent)",
-                letterSpacing: "0.04em",
-              }}
-            >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden
-              >
-                <path d="M3 7h13l5 5v7h-2" />
-                <path d="M3 17V7" />
-                <circle cx="7.5" cy="17.5" r="2.5" />
-                <circle cx="17.5" cy="17.5" r="2.5" />
-              </svg>
-              FRETE GRÁTIS
-            </span>
+            <StarRating value={data.rating} count={data.reviewCount ?? 0} />
           </div>
         )}
 
