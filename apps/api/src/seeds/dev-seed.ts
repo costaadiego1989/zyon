@@ -13,6 +13,7 @@
 import { resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { createPrismaClient } from "../shared/persistence/prisma-client.js";
+import { seedDashboardData } from "./dashboard-seed.js";
 
 // Load env the same way the API does so DATABASE_URL is available to the
 // Prisma 7 driver adapter (PrismaPg). Without this the bare PrismaClient()
@@ -227,6 +228,9 @@ async function main() {
   -H "Authorization: Bearer <MERCHANT_TOKEN>" \\
   -d '${JSON.stringify(supportFaq)}'\n`
   );
+
+  // 6. Dashboard data (checkout sessions, offers, orders, events)
+  await seedDashboardData(prisma, MERCHANT_ID);
 
   console.log("Seed complete.\n");
 }
