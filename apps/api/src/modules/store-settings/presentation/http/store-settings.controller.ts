@@ -1,10 +1,11 @@
 import { Controller, Get, Put, Param, Body, UseGuards } from "@nestjs/common";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { GetStoreSettingsUseCase } from "../../application/use-cases/get-store-settings.use-case.js";
 import { UpdateStoreSettingsUseCase, type StoreSettings } from "../../application/use-cases/update-store-settings.use-case.js";
 
-@UseGuards(RequirePlanGuard)
+@UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
 export class StoreSettingsController {
   constructor(

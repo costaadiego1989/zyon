@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from "@nestjs/common";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { AddProductUseCase } from "../../application/use-cases/add-product.use-case.js";
@@ -13,7 +14,7 @@ import { CreateCategoryUseCase } from "../../application/use-cases/create-catego
 import { UpdateCategoryUseCase } from "../../application/use-cases/update-category.use-case.js";
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 
-@UseGuards(RequirePlanGuard)
+@UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
 export class StoreBuilderCatalogController {
   constructor(

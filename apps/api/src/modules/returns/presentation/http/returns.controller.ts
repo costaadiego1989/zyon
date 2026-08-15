@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { RequestReturnUseCase } from "../../application/use-cases/request-return.use-case.js";
@@ -11,7 +12,7 @@ import { ListReturnsUseCase } from "../../application/use-cases/list-returns.use
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnStatus, ItemCondition } from "../../domain/entities/return.entity.js";
 
-@UseGuards(RequirePlanGuard)
+@UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
 export class ReturnsController {
   constructor(

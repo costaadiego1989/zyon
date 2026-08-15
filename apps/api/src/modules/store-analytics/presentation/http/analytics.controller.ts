@@ -1,10 +1,11 @@
 import { Controller, Get, Param, Query, UseGuards } from "@nestjs/common";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
 import { GetDashboardMetricsUseCase, DashboardPeriod } from "../../application/use-cases/get-dashboard-metrics.use-case.js";
 import { GetProductPerformanceUseCase } from "../../application/use-cases/get-product-performance.use-case.js";
 
-@UseGuards(RequirePlanGuard)
+@UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
 export class AnalyticsController {
   constructor(
