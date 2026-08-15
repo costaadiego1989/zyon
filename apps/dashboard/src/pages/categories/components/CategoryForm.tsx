@@ -146,13 +146,13 @@ export function CategoryForm({
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
         <h2 style={{ font: "600 15px var(--serif)", color: "var(--ink)", margin: 0 }}>
-          {mode === "edit" ? "Editar categoria" : "Nova categoria"}
+          {mode === "edit" ? `Editar: ${category?.name ?? ""}` : "Nova categoria"}
         </h2>
         <button
           type="button"
           onClick={onCancel}
           disabled={saving}
-          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--faint)" }}
+          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}
         >
           <X size={14} />
         </button>
@@ -225,16 +225,16 @@ export function CategoryForm({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            style={{ flex: 1, padding: "9px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", cursor: "pointer", font: "600 12px var(--sans)" }}
+            style={{ flex: 1, padding: "9px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", font: "600 12.5px var(--sans)" }}
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={saving || uploading}
-            style={{ flex: 1, padding: "9px 14px", borderRadius: 7, border: "none", background: "var(--accent)", color: "#fff", cursor: "pointer", font: "600 12px var(--sans)", opacity: saving || uploading ? 0.6 : 1 }}
+            style={{ flex: 1, padding: "9px 14px", borderRadius: 7, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", color: "#fff", cursor: "pointer", font: "600 12.5px var(--sans)", opacity: saving || uploading ? 0.6 : 1 }}
           >
-            {saving ? "Salvando..." : "Salvar"}
+            {saving ? "Salvando..." : mode === "edit" ? "Atualizar" : "Criar categoria"}
           </button>
         </div>
       </form>
