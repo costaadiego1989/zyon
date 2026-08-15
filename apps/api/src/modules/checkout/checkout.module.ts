@@ -13,6 +13,8 @@ import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use
 import {
   GetDashboardOverviewUseCase,
   GetMerchantRulesUseCase,
+  GetStoreOverviewUseCase,
+  GetTimeseriesUseCase,
   UpdateMerchantRulesUseCase
 } from "./application/use-cases/dashboard.use-cases.js";
 import { EvaluateShippingUseCase } from "./application/use-cases/evaluate-shipping.use-case.js";
@@ -32,6 +34,7 @@ import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.rep
 import { OFFER_REPOSITORY } from "./domain/ports/offer.repository.port.js";
 import { ORDER_REPOSITORY } from "./domain/ports/order.repository.port.js";
 import { DASHBOARD_READ_MODEL } from "./domain/ports/dashboard-read-model.port.js";
+import { STORE_OVERVIEW_READ_MODEL } from "./domain/ports/store-overview-read-model.port.js";
 import { AGENT_CONTEXT_PORT } from "./domain/ports/agent-context.port.js";
 import { CHECKOUT_SETTINGS_PORT } from "./domain/ports/checkout-settings.port.js";
 import { CHECKOUT_INTERVENTION_LEDGER } from "./domain/ports/checkout-intervention-ledger.port.js";
@@ -46,6 +49,7 @@ import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.noti
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
+import { PrismaStoreOverviewRepository } from "./infrastructure/prisma/prisma-store-overview.repository.js";
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
 import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
@@ -89,6 +93,8 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     UpdateOrderTrackingUseCase,
     UpdateCartUseCase,
     GetDashboardOverviewUseCase,
+    GetStoreOverviewUseCase,
+    GetTimeseriesUseCase,
     GetMerchantRulesUseCase,
     UpdateMerchantRulesUseCase,
     AgentRulesContextAdapter,
@@ -107,6 +113,11 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: ORDER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
     { provide: DASHBOARD_READ_MODEL, useExisting: CHECKOUT_REPOSITORY },
+    {
+      provide: STORE_OVERVIEW_READ_MODEL,
+      useFactory: (prisma: PrismaClient) => new PrismaStoreOverviewRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
     { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },

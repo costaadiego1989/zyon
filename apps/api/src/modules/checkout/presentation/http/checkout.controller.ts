@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ChatMessageRequest,
@@ -7,6 +7,7 @@ import type {
   MerchantRules,
   ShippingEvaluateRequest,
   StartCheckoutRequest,
+  StorePeriod,
   TrackEventRequest,
   UpdateCartRequest,
   UpdateOrderTrackingRequest
@@ -16,6 +17,8 @@ import { CompleteOrderUseCase } from "../../application/use-cases/complete-order
 import {
   GetDashboardOverviewUseCase,
   GetMerchantRulesUseCase,
+  GetStoreOverviewUseCase,
+  GetTimeseriesUseCase,
   UpdateMerchantRulesUseCase
 } from "../../application/use-cases/dashboard.use-cases.js";
 import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
@@ -45,7 +48,9 @@ export class CheckoutController {
     private readonly getRules: GetMerchantRulesUseCase,
     private readonly updateRules: UpdateMerchantRulesUseCase,
     private readonly updateOrderTracking?: UpdateOrderTrackingUseCase,
-    private readonly updateCart?: UpdateCartUseCase
+    private readonly updateCart?: UpdateCartUseCase,
+    private readonly getStoreOverview?: GetStoreOverviewUseCase,
+    private readonly getTimeseries?: GetTimeseriesUseCase,
   ) {}
 
   @Post("start-checkout")
@@ -109,6 +114,24 @@ export class CheckoutController {
   @Get("dashboard/overview/:merchantId")
   overview(@Param("merchantId") merchantId: string) {
     return this.getDashboardOverview.execute(merchantId);
+  }
+
+  @Get("dashboard/store-overview/:merchantId")
+  storeOverview(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    if (!this.getStoreOverview) throw new Error("store_overview_not_configured");
+    return this.getStoreOverview.execute(merchantId, period ?? "7d");
+  }
+
+  @Get("dashboard/overview/timeseries/:merchantId")
+  timeseries(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    if (!this.getTimeseries) throw new Error("timeseries_not_configured");
+    return this.getTimeseries.execute(merchantId, period ?? "7d");
   }
 
   @Get("dashboard/rules/:merchantId")

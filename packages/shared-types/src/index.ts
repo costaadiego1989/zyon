@@ -932,3 +932,49 @@ export interface DashboardOverview {
   recent_sessions: CheckoutSession[];
   recent_offers: AuthorizedOffer[];
 }
+
+export type StorePeriod = "today" | "7d" | "30d" | "90d";
+
+export interface StoreOverviewTopProduct {
+  product_id: string;
+  name: string;
+  image_url?: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface StoreOverviewRecentOrder {
+  id: string;
+  buyer_name: string;
+  total: number;
+  status: string;
+  created_at: string;
+}
+
+export interface StoreOverview {
+  merchant_id: string;
+  period: string;
+  revenue: number;
+  orders_count: number;
+  average_ticket: number;
+  products_sold: number;
+  new_customers: number;
+  abandonment_rate: number;
+  orders_by_status: Record<string, number>;
+  top_products: StoreOverviewTopProduct[];
+  recent_orders: StoreOverviewRecentOrder[];
+}
+
+export interface TimeseriesDataPoint {
+  date: string;
+  value: number;
+}
+
+export interface TimeseriesResponse {
+  merchant_id: string;
+  period: string;
+  revenue_daily: TimeseriesDataPoint[];
+  orders_daily: TimeseriesDataPoint[];
+  sessions_daily: TimeseriesDataPoint[];
+  conversion_daily: TimeseriesDataPoint[];
+}
