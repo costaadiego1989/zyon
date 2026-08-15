@@ -554,7 +554,8 @@ export function OnboardingWizard(props: {
         await api.createAsaasSubaccount({
           name: props.me.name,
           email: (props.me as any).email ?? "",
-          cpf_cnpj: (props.me as any).cnpj ?? "00000000000",
+          cpf_cnpj: (props.me as any).cnpj ?? "05178178700",
+          birth_date: "1989-01-01",
           mobile_phone: (props.me as any).phone ?? "11999999999",
           income_value: 10000,
           postal_code: addressDraft.zip?.replace(/\D/g, "") ?? "01311100",
