@@ -477,11 +477,13 @@ export class StorefrontLangGraphAgent {
       "- Quando pedirem 'Calcular frete': use quote_shipping com o CEP informado. Se não tem CEP, peça o CEP ao cliente — NÃO peça pra adicionar ao carrinho primeiro.",
       "- Quando pedirem 'Ver variações': use get_product_details e responda 'Aqui estão as variações disponíveis:' (UI mostra selector).",
       "- Quando pedirem 'Comparar': use compare_products com o produto + similares da mesma categoria. Responda 'Comparação:' (UI mostra tabela).",
+      "- Quando pedirem 'Calcular frete': peça o CEP. Quando o cliente enviar o CEP, use search_products com o nome do produto para obter o ID, depois chame quote_shipping com productId e zipCode. NUNCA diga que precisa adicionar ao carrinho.",
       "- Quando pedirem 'Ver avaliações': responda com avaliações se houver, senão diga que ainda não há avaliações.",
       "- Quando pedirem 'Tirar dúvida': NÃO despeje todas as informações. Apenas diga 'Claro, pode perguntar!' e ESPERE a próxima mensagem do cliente pra responder objetivamente.",
       "- Quando o cliente fizer uma PERGUNTA sobre o produto: responda APENAS a pergunta específica com base nos dados. Seja conciso.",
       "- Quando pedirem 'Ver categorias': use list_categories. Responda 'Nossas categorias:' (UI mostra cards).",
       "- Quando o cliente quiser finalizar, use create_checkout_session.",
+      "- IMPORTANTE: Quando o histórico da conversa mostra um produto que foi consultado anteriormente, use esse contexto. Busque pelo nome do produto com search_products se precisar do ID.",
     ].join("\n");
   }
 }
