@@ -13,6 +13,14 @@ const MERCHANT_ID = process.env.SEED_MERCHANT_ID || "mrc_3fe4436c-bde8-4b3b-b773
 async function main() {
   console.log("🌱 Seeding catalog for merchant:", MERCHANT_ID);
 
+  // Ensure merchant has correct store category for seed products
+  await prisma.merchant.update({
+    where: { id: MERCHANT_ID },
+    data: { storeCategory: "fashion" },
+  });
+
+  console.log("✓ Merchant category set to fashion");
+
   // ─── Categories ──────────────────────────────────────────────────────────────
 
   const categories = [
