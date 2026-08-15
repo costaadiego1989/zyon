@@ -12,7 +12,6 @@
     "test:prisma": "pnpm --filter @zyon/api test:prisma",
     "test:e2e:db": "pnpm db:up && pnpm db:migrate && pnpm test:prisma",
     "dev:api": "pnpm --filter @zyon/api dev",
-    "dev:fake-commerce": "pnpm --filter @zyon/fake-commerce-api build && pnpm --filter @zyon/fake-commerce-api start",
     "dev:widget": "pnpm --filter @zyon/widget dev",
     "dev:dashboard": "pnpm --filter @zyon/dashboard dev",
     "test": "pnpm -r test",

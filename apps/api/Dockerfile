@@ -40,7 +40,6 @@ COPY packages/agentic-checkout-js/package.json packages/agentic-checkout-js/pack
 COPY apps/api/package.json                   apps/api/package.json
 COPY apps/widget/package.json                apps/widget/package.json
 COPY apps/dashboard/package.json             apps/dashboard/package.json
-COPY apps/fake-commerce-api/package.json     apps/fake-commerce-api/package.json
 
 # 3) Install full workspace deps (dev included — needed for the build).
 #    `--filter ...` narrows to the API and its build-time workspace deps so we
