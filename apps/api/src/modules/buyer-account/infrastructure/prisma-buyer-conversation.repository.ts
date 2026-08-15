@@ -33,6 +33,19 @@ export class PrismaBuyerConversationRepository implements BuyerConversationRepos
     return rows.map(toDomain);
   }
 
+  async listByBuyerSince(globalUserId: string, since: Date): Promise<BuyerConversation[]> {
+    const rows = await (this.prisma.buyerConversation as unknown as {
+      findMany: (args: {
+        where: { globalUserId: string; lastMessageAt: { gte: Date } };
+        orderBy: Record<string, "desc">;
+      }) => Promise<ConversationRow[]>;
+    }).findMany({
+      where: { globalUserId, lastMessageAt: { gte: since } },
+      orderBy: { lastMessageAt: "desc" },
+    });
+    return rows.map(toDomain);
+  }
+
   async findById(globalUserId: string, id: string): Promise<BuyerConversation | null> {
     const row = await (this.prisma.buyerConversation as unknown as {
       findFirst: (args: { where: { id: string; globalUserId: string } }) => Promise<ConversationRow | null>;
@@ -45,6 +58,59 @@ export class PrismaBuyerConversationRepository implements BuyerConversationRepos
       findFirst: (args: { where: { merchantId: string; sessionId: string } }) => Promise<ConversationRow | null>;
     }).findFirst({ where: { merchantId, sessionId } });
     return row ? toDomain(row) : null;
+  }
+
+  async upsertConversation(input: {
+    globalUserId: string;
+    sessionId: string;
+    merchantId: string;
+    message: BuyerConversationMessage;
+  }): Promise<void> {
+    const now = new Date();
+    const serializedMsg = {
+      id: input.message.id,
+      role: input.message.role,
+      content: input.message.content,
+      createdAt: input.message.createdAt.toISOString(),
+      rating: input.message.rating
+    };
+
+    const existing = await this.findBySession(input.merchantId, input.sessionId);
+    if (existing) {
+      const currentMessages = existing.messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.createdAt.toISOString(),
+        rating: m.rating
+      }));
+      currentMessages.push(serializedMsg);
+
+      await (this.prisma.buyerConversation as unknown as {
+        update: (args: {
+          where: { id: string };
+          data: { messages: unknown; lastMessageAt: Date };
+        }) => Promise<unknown>;
+      }).update({
+        where: { id: existing.id },
+        data: { messages: currentMessages, lastMessageAt: now }
+      });
+    } else {
+      await (this.prisma.buyerConversation as unknown as {
+        create: (args: {
+          data: { globalUserId: string; merchantId: string; sessionId: string; messages: unknown; startedAt: Date; lastMessageAt: Date };
+        }) => Promise<unknown>;
+      }).create({
+        data: {
+          globalUserId: input.globalUserId,
+          merchantId: input.merchantId,
+          sessionId: input.sessionId,
+          messages: [serializedMsg],
+          startedAt: now,
+          lastMessageAt: now
+        }
+      });
+    }
   }
 
   async upsertFromCheckout(input: {

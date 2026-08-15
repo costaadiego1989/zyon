@@ -12,6 +12,11 @@ class InMemoryBuyerConversationRepository implements BuyerConversationRepository
       .filter((c) => c.globalUserId === globalUserId && c.lastMessageAt >= cutoff)
       .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
   }
+  async listByBuyerSince(globalUserId: string, since: Date): Promise<BuyerConversation[]> {
+    return [...this.byId.values()]
+      .filter((c) => c.globalUserId === globalUserId && c.lastMessageAt >= since)
+      .sort((a, b) => b.lastMessageAt.getTime() - a.lastMessageAt.getTime());
+  }
   async findById(globalUserId: string, id: string): Promise<BuyerConversation | null> {
     const c = this.byId.get(id);
     if (!c || c.globalUserId !== globalUserId) return null;
@@ -19,6 +24,30 @@ class InMemoryBuyerConversationRepository implements BuyerConversationRepository
   }
   async findBySession(merchantId: string, sessionId: string): Promise<BuyerConversation | null> {
     return [...this.byId.values()].find((c) => c.merchantId === merchantId && c.sessionId === sessionId) ?? null;
+  }
+  async upsertConversation(input: {
+    globalUserId: string;
+    sessionId: string;
+    merchantId: string;
+    message: BuyerConversationMessage;
+  }): Promise<void> {
+    const existing = await this.findBySession(input.merchantId, input.sessionId);
+    if (existing) {
+      existing.messages.push(input.message);
+      existing.lastMessageAt = new Date();
+      this.byId.set(existing.id, existing);
+    } else {
+      const id = `conv_${Date.now()}`;
+      this.byId.set(id, {
+        id,
+        globalUserId: input.globalUserId,
+        merchantId: input.merchantId,
+        sessionId: input.sessionId,
+        startedAt: new Date(),
+        lastMessageAt: new Date(),
+        messages: [input.message]
+      });
+    }
   }
   async upsertFromCheckout(input: {
     merchantId: string;
@@ -63,7 +92,7 @@ class InMemoryBuyerConversationRepository implements BuyerConversationRepository
 }
 
 function buildConversation(globalUserId: string, id: string): BuyerConversation {
-  const now = new Date("2026-06-10T12:00:00.000Z");
+  const now = new Date(Date.now() - 5 * 24 * 3600_000); // 5 days ago (within 30-day window)
   const messages: BuyerConversationMessage[] = [
     {
       id: `${id}_m1`,
@@ -76,7 +105,7 @@ function buildConversation(globalUserId: string, id: string): BuyerConversation 
       id: `${id}_m2`,
       role: "agent",
       content: "Posso oferecer 5%.",
-      createdAt: new Date("2026-06-10T12:00:30.000Z"),
+      createdAt: new Date(now.getTime() + 30_000),
       rating: null,
     },
   ];
@@ -93,8 +122,12 @@ function buildConversation(globalUserId: string, id: string): BuyerConversation 
 
 test("BuyerConversationRepository.listByBuyer returns buyer conversations ordered by recency", async () => {
   const repo = new InMemoryBuyerConversationRepository();
-  await repo.save(buildConversation("guser_1", "conv_1"));
-  await repo.save(buildConversation("guser_1", "conv_2"));
+  const c1 = buildConversation("guser_1", "conv_1");
+  c1.lastMessageAt = new Date(Date.now() - 4 * 24 * 3600_000); // 4 days ago
+  const c2 = buildConversation("guser_1", "conv_2");
+  c2.lastMessageAt = new Date(Date.now() - 2 * 24 * 3600_000); // 2 days ago (more recent)
+  await repo.save(c1);
+  await repo.save(c2);
   await repo.save(buildConversation("guser_OTHER", "conv_3"));
 
   const list = await repo.listByBuyer("guser_1");
@@ -163,4 +196,68 @@ test("Rating throws when messageId does not belong to conversation", async () =>
       }),
     /buyer_conversation_message_not_found/
   );
+});
+
+test("upsertConversation creates new conversation when none exists", async () => {
+  const repo = new InMemoryBuyerConversationRepository();
+  const msg: BuyerConversationMessage = {
+    id: "msg_1",
+    role: "buyer",
+    content: "Oi, tem estoque?",
+    createdAt: new Date("2026-08-01T10:00:00Z"),
+    rating: null,
+  };
+
+  await repo.upsertConversation({
+    globalUserId: "guser_1",
+    sessionId: "sess_new",
+    merchantId: "mrc_1",
+    message: msg,
+  });
+
+  const found = await repo.findBySession("mrc_1", "sess_new");
+  assert.ok(found);
+  assert.equal(found!.messages.length, 1);
+  assert.equal(found!.messages[0]!.content, "Oi, tem estoque?");
+});
+
+test("upsertConversation appends message to existing conversation", async () => {
+  const repo = new InMemoryBuyerConversationRepository();
+  await repo.save(buildConversation("guser_1", "conv_1"));
+
+  const msg: BuyerConversationMessage = {
+    id: "msg_new",
+    role: "agent",
+    content: "Sim, temos em estoque!",
+    createdAt: new Date("2026-08-01T11:00:00Z"),
+    rating: null,
+  };
+
+  await repo.upsertConversation({
+    globalUserId: "guser_1",
+    sessionId: "session_conv_1",
+    merchantId: "mrc_1",
+    message: msg,
+  });
+
+  const found = await repo.findBySession("mrc_1", "session_conv_1");
+  assert.ok(found);
+  assert.equal(found!.messages.length, 3); // 2 original + 1 appended
+  assert.equal(found!.messages[2]!.content, "Sim, temos em estoque!");
+});
+
+test("listByBuyerSince filters by date cutoff", async () => {
+  const repo = new InMemoryBuyerConversationRepository();
+  const recent = buildConversation("guser_1", "conv_recent");
+  recent.lastMessageAt = new Date("2026-08-10T12:00:00Z");
+  await repo.save(recent);
+
+  const old = buildConversation("guser_1", "conv_old");
+  old.lastMessageAt = new Date("2026-06-01T12:00:00Z");
+  await repo.save(old);
+
+  const since = new Date("2026-07-01T00:00:00Z");
+  const result = await repo.listByBuyerSince("guser_1", since);
+  assert.equal(result.length, 1);
+  assert.equal(result[0]!.id, "conv_recent");
 });

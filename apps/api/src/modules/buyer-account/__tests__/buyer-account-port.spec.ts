@@ -68,12 +68,16 @@ class InMemoryConversationRepo implements BuyerConversationRepository {
   async listByBuyer(): Promise<never[]> {
     return [];
   }
+  async listByBuyerSince(): Promise<never[]> {
+    return [];
+  }
   async findById(): Promise<null> {
     return null;
   }
   async findBySession(): Promise<null> {
     return null;
   }
+  async upsertConversation(): Promise<void> {}
   async upsertFromCheckout(): Promise<void> {}
   async rateMessage(): Promise<void> {}
 }

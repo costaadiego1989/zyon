@@ -23,8 +23,15 @@ export const BUYER_CONVERSATION_REPOSITORY = Symbol("BUYER_CONVERSATION_REPOSITO
 
 export interface BuyerConversationRepository {
   listByBuyer(globalUserId: string, options?: { maxAgeDays?: number }): Promise<BuyerConversation[]>;
+  listByBuyerSince(globalUserId: string, since: Date): Promise<BuyerConversation[]>;
   findById(globalUserId: string, id: string): Promise<BuyerConversation | null>;
   findBySession(merchantId: string, sessionId: string): Promise<BuyerConversation | null>;
+  upsertConversation(input: {
+    globalUserId: string;
+    sessionId: string;
+    merchantId: string;
+    message: BuyerConversationMessage;
+  }): Promise<void>;
   upsertFromCheckout(input: {
     merchantId: string;
     sessionId: string;
