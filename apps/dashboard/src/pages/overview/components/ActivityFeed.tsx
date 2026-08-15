@@ -46,7 +46,7 @@ function formatCurrency(n: number): string {
 }
 
 export function ActivityFeed({ items }: ActivityFeedProps) {
-  const visible = items.slice(0, 10);
+  const visible = (items ?? []).slice(0, 10);
 
   return (
     <div

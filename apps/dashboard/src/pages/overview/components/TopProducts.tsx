@@ -87,7 +87,7 @@ export function TopProducts({ products }: TopProductsProps) {
                     flexShrink: 0,
                   }}
                 >
-                  {product.name.slice(0, 1).toUpperCase()}
+                  {(product.name || "?").slice(0, 1).toUpperCase()}
                 </span>
               )}
               <span
