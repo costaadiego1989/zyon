@@ -489,8 +489,8 @@ export default function ConversationShell({
             <div style={{ fontSize: "27px", fontWeight: 700, letterSpacing: "-0.5px", marginBottom: "10px" }}>
               Oi, eu sou a {agent}.
             </div>
-            <div style={{ fontSize: "13.5px", lineHeight: 1.55, color: "var(--aacp-muted)", maxWidth: "300px", marginBottom: "22px" }}>
-              Eu cuido da sua compra do início ao fim — acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
+            <div style={{ fontSize: "13.5px", lineHeight: 1.55, color: "var(--aacp-muted)", maxWidth: "100%", marginBottom: "22px" }}>
+              Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
             </div>
 
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
