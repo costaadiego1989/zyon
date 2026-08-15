@@ -88,6 +88,7 @@ export class StoreBuilderCatalogController {
     @Query("inStockOnly") inStockOnly?: string,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
+    @Query("offset") offset?: string,
   ) {
     return this.searchProducts.execute({
       merchantId,
@@ -96,6 +97,7 @@ export class StoreBuilderCatalogController {
       inStockOnly: inStockOnly === "true",
       limit: limit ? parseInt(limit, 10) : undefined,
       cursor,
+      offset: offset ? parseInt(offset, 10) : undefined,
     });
   }
 

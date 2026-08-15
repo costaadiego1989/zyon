@@ -34,6 +34,7 @@ export interface SearchProductsInput {
   isActiveOnly?: boolean;
   limit?: number;
   cursor?: string;
+  offset?: number;
 }
 
 export interface SearchProductsResult {

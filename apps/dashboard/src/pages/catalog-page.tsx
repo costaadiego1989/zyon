@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, ShoppingBag, Trash2, Pencil, Upload, Pause, Play } from "lucide-react";
+import { Plus, Search, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
-import { useCursorPagination } from "../hooks/useCursorPagination.js";
+import { Pagination } from "../components/Pagination.js";
+import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
 
 export interface CatalogPageProps {
@@ -37,7 +38,7 @@ export function totalStock(product: Product): number {
 export function CatalogPage(props: CatalogPageProps) {
   const api = useApi();
   const [search, setSearch] = useState("");
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
@@ -46,6 +47,14 @@ export function CatalogPage(props: CatalogPageProps) {
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
+  // Page-based pagination
+  const PAGE_SIZE = 20;
+  const [page, setPage] = useState(1);
+  const [items, setItems] = useState<Product[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const merchantId = props.me?.id;
 
   useEffect(() => {
@@ -53,47 +62,52 @@ export function CatalogPage(props: CatalogPageProps) {
     api.listCategories?.(merchantId).then(setCategories).catch(() => {});
   }, [api, merchantId]);
 
-  const fetcher = useCallback(
-    async (cursor?: string) => {
-      if (!merchantId) {
-        return { products: [], nextCursor: undefined, total: 0 };
-      }
-      return api.listProducts(merchantId, {
+  const load = useCallback(async () => {
+    if (!merchantId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await api.listProducts(merchantId, {
         query: search || undefined,
         categoryId: categoryFilter || undefined,
-        inStockOnly: inStockOnly || undefined,
-        limit: 30,
-        cursor,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       });
-    },
-    [api, merchantId, search, inStockOnly, categoryFilter],
-  );
+      setItems(result.products);
+      setTotal(result.total);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [api, merchantId, search, categoryFilter, page]);
 
-  const adapted = useCallback(
-    async (cursor?: string) => {
-      const result = await fetcher(cursor);
-      return {
-        data: result.products,
-        next_cursor: result.nextCursor ?? null,
-        has_more: result.nextCursor !== undefined,
-      };
-    },
-    [fetcher],
-  );
+  useEffect(() => {
+    void load();
+  }, [load]);
 
-  const { items, hasMore, loading, loadingMore, error, load, loadMore } =
-    useCursorPagination<Product>(adapted);
+  // Reset page on filter change
+  useEffect(() => {
+    setPage(1);
+  }, [search, categoryFilter, statusFilter]);
+
+  // Client-side status filter
+  const filteredItems = useMemo(() => {
+    if (statusFilter === "all") return items;
+    if (statusFilter === "active") return items.filter(p => p.isActive);
+    return items.filter(p => !p.isActive);
+  }, [items, statusFilter]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
   const totals = useMemo(() => {
-    const total = items.length;
-    const inStock = items.filter((p) => totalStock(p) > 0).length;
-    const inactive = items.filter((p) => !p.isActive).length;
-    return { total, inStock, inactive };
-  }, [items]);
+    const totalCount = total;
+    const inStock = filteredItems.filter((p) => totalStock(p) > 0).length;
+    const inactive = filteredItems.filter((p) => !p.isActive).length;
+    return { total: totalCount, inStock, inactive };
+  }, [filteredItems, total]);
 
   async function confirmDelete(product: Product) {
     const ok = window.confirm(`Remover "${product.name}"? Esta ação não pode ser desfeita.`);
@@ -200,29 +214,22 @@ export function CatalogPage(props: CatalogPageProps) {
       ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
-        {[
-          { label: "PRODUTOS", value: totals.total },
-          { label: "EM ESTOQUE", value: totals.inStock },
-          { label: "INATIVOS", value: totals.inactive },
-        ].map((st) => (
-          <div key={st.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
-            <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.07em", color: "var(--faint)", marginBottom: 12 }}>{st.label}</div>
-            <div style={{ font: "500 26px var(--serif)", color: "var(--ink)", letterSpacing: "-0.01em" }}>{st.value}</div>
-          </div>
-        ))}
+        <StatCard label="Produtos" value={totals.total} icon={<Package size={16} />} />
+        <StatCard label="Em estoque" value={totals.inStock} accent="var(--good)" />
+        <StatCard label="Inativos" value={totals.inactive} accent="var(--faint)" />
       </div>
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            {(["all", "in-stock"] as const).map((value) => {
-              const active = value === "all" ? !inStockOnly : inStockOnly;
-              const labels = { all: "Todos", "in-stock": "Em estoque" };
+            {(["all", "active", "inactive"] as const).map((value) => {
+              const active = statusFilter === value;
+              const labels = { all: "Todos", active: "Ativos", inactive: "Inativos" };
               return (
                 <div
                   key={value}
-                  onClick={() => setInStockOnly(value === "in-stock")}
-                  style={{ padding: "7px 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}` }}
+                  onClick={() => setStatusFilter(value)}
+                  style={{ height: 34, display: "flex", alignItems: "center", padding: "0 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}` }}
                 >
                   {labels[value]}
                 </div>
@@ -232,7 +239,7 @@ export function CatalogPage(props: CatalogPageProps) {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ padding: "7px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none" }}
+                style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none" }}
               >
                 <option value="">Todas categorias</option>
                 {categories.map((cat) => (
@@ -247,14 +254,14 @@ export function CatalogPage(props: CatalogPageProps) {
               placeholder="Buscar por nome..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ width: 280, padding: "8px 12px 8px 30px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
+              style={{ height: 34, width: 280, padding: "0 12px 0 30px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
             />
           </div>
         </div>
 
         {loading ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produtos...</div>
-        ) : items.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
             <ShoppingBag size={32} />
             <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhum produto cadastrado.</strong>
@@ -270,7 +277,7 @@ export function CatalogPage(props: CatalogPageProps) {
               </tr>
             </thead>
             <tbody>
-              {items.map((p) => {
+              {filteredItems.map((p) => {
                 const stock = totalStock(p);
                 const { price, currency } = variantPrice(p);
                 return (
@@ -322,18 +329,13 @@ export function CatalogPage(props: CatalogPageProps) {
           </table>
         )}
 
-        {hasMore ? (
-          <div style={{ padding: "14px 22px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "center" }}>
-            <button
-              type="button"
-              onClick={() => void loadMore()}
-              disabled={loadingMore}
-              style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: loadingMore ? "not-allowed" : "pointer", font: "600 12.5px var(--sans)" }}
-            >
-              {loadingMore ? "Carregando..." : "Carregar mais"}
-            </button>
-          </div>
-        ) : null}
+        <Pagination
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={total}
+          onChange={setPage}
+          disabled={loading}
+        />
       </div>
 
       <CsvImportModal

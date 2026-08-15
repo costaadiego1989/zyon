@@ -118,7 +118,9 @@ export class PrismaProductRepository implements ProductRepositoryPort {
         variants: { include: { price: true, stock: true, media: { take: 1 } } },
       },
     };
-    if (input.cursor) {
+    if (input.offset != null) {
+      findArgs.skip = input.offset;
+    } else if (input.cursor) {
       findArgs.cursor = { id: input.cursor };
       findArgs.skip = 1;
     }

@@ -26,7 +26,7 @@ export interface ProductMetadata {
   fileSize?: string;
   fileFormat?: string;
   // Service
-  serviceType?: "presencial" | "remoto" | "hibrido"; // presencial, remoto ou híbrido
+  serviceType?: "presencial" | "remoto";
   startDate?: string; // ISO date: 2026-08-15
   startTime?: string; // HH:mm: 09:00
   endDate?: string;
@@ -647,33 +647,19 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
               <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>AGENDAMENTO DO SERVIÇO</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
-                {/* Service Type Selection */}
-                <div>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Tipo de serviço *</span>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-                    {(["presencial", "remoto", "hibrido"] as const).map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setMetadata({ ...metadata, serviceType: type })}
-                        style={{
-                          padding: "10px",
-                          borderRadius: 8,
-                          border: `1px solid ${metadata.serviceType === type ? "var(--accent-dark)" : "var(--border)"}`,
-                          background: metadata.serviceType === type ? "var(--accent-soft)" : "var(--bg)",
-                          color: metadata.serviceType === type ? "var(--accent-dark)" : "var(--ink)",
-                          cursor: "pointer",
-                          font: "600 11px var(--sans)",
-                          transition: "all 0.15s",
-                        }}
-                      >
-                        {type === "presencial" && "🏢 Presencial"}
-                        {type === "remoto" && "💻 Remoto"}
-                        {type === "hibrido" && "🔄 Híbrido"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                {/* Service Type Selection — dropdown */}
+                <label style={{ display: "block" }}>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Modalidade *</span>
+                  <select
+                    value={metadata.serviceType ?? ""}
+                    onChange={(e) => setMetadata({ ...metadata, serviceType: e.target.value as "presencial" | "remoto" })}
+                    style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--card)", cursor: "pointer" }}
+                  >
+                    <option value="">Selecione</option>
+                    <option value="presencial">Presencial</option>
+                    <option value="remoto">Remoto</option>
+                  </select>
+                </label>
 
                 {/* Date & Time */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
@@ -716,16 +702,22 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                 </div>
 
                 {/* Remote Link (conditional) */}
-                {(metadata.serviceType === "remoto" || metadata.serviceType === "hibrido") && (
+                {metadata.serviceType === "remoto" && (
                   <label style={{ display: "block" }}>
-                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Link da reunião (Zoom / Google Meet)</span>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Link da reunião</span>
                     <input
                       value={metadata.remoteLink ?? ""}
                       onChange={(e) => setMetadata({ ...metadata, remoteLink: e.target.value })}
                       placeholder="https://zoom.us/j/... ou https://meet.google.com/..."
                       style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
                     />
-                    <span style={{ font: "10px var(--sans)", color: "var(--faint)", marginTop: 4, display: "block" }}>🔜 Em breve: integração automática com Zoom e Google Meet</span>
+                    <span style={{ font: "10px var(--sans)", color: "var(--faint)", marginTop: 6, display: "flex", gap: 8, alignItems: "center" }}>
+                      <a href="https://meet.google.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-dark)", textDecoration: "none" }}>Google Meet</a>
+                      <span style={{ color: "var(--border)" }}>|</span>
+                      <a href="https://zoom.us" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent-dark)", textDecoration: "none" }}>Zoom</a>
+                      <span style={{ color: "var(--border)" }}>|</span>
+                      <span>Em breve: integração automática</span>
+                    </span>
                   </label>
                 )}
 
