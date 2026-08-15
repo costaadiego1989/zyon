@@ -46,6 +46,12 @@ export default function BlockRenderer({
       return <VariantSelectorBlock block={block} onQuickReply={onQuickReply} />;
     case "product_comparison":
       return <ProductComparisonBlock block={block} onQuickReply={onQuickReply} />;
+    case "reviews":
+      return <ReviewsBlock block={block} onQuickReply={onQuickReply} />;
+    case "add_review":
+      return <AddReviewBlock block={block} onQuickReply={onQuickReply} />;
+    case "cross_sell":
+      return <CrossSellBlock block={block} onQuickReply={onQuickReply} />;
     default:
       return null;
   }
