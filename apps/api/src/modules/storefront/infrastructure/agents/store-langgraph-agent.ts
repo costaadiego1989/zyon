@@ -375,6 +375,22 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
+    if (toolResults["list_categories"]) {
+      const catData = toolResults["list_categories"] as any;
+      if (catData?.categories?.length > 0) {
+        blocks.push({
+          type: "category_carousel",
+          data: {
+            categories: catData.categories.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              slug: c.slug,
+              productCount: c.productCount ?? 0,
+            }))
+          }
+        } as any);
+      }
+    }
 
     // When product_card is present, remove carousel (detail view is exclusive)
     const hasProductCard = blocks.some(b => b.type === "product_card");

@@ -327,7 +327,7 @@ export default function ConversationShell({
         if (res.ok) {
           const data = await res.json();
           // Suppress text when carousel/card blocks are present (visual is enough)
-          const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary");
+          const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options");
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
             role: "agent",

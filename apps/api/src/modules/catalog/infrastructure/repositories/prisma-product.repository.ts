@@ -148,6 +148,20 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     });
   }
 
+  async listCategories(merchantId: string): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>> {
+    const categories = await this.prisma.productCategory.findMany({
+      where: { merchantId },
+      include: { _count: { select: { products: true } } },
+      orderBy: { name: "asc" },
+    });
+    return categories.map((c) => ({
+      id: c.id,
+      name: c.name,
+      slug: c.slug,
+      productCount: c._count.products,
+    }));
+  }
+
   async addVariant(
     merchantId: string,
     productId: string,

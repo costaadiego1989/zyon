@@ -169,6 +169,20 @@ export interface CrossSellBlock {
   };
 }
 
+export interface CategoryCarouselBlock {
+  type: "category_carousel";
+  data: {
+    categories: Array<{
+      id: string;
+      name: string;
+      slug: string;
+      description?: string;
+      emoji?: string;
+      productCount?: number;
+    }>;
+  };
+}
+
 export type ConversationBlock =
   | ProductCardBlock
   | ProductCarouselBlock
@@ -183,4 +197,5 @@ export type ConversationBlock =
   | ProductComparisonBlock
   | ReviewsBlock
   | AddReviewBlock
-  | CrossSellBlock;
+  | CrossSellBlock
+  | CategoryCarouselBlock;

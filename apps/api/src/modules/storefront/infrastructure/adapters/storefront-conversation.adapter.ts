@@ -264,6 +264,30 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         const widgetBaseUrl = process.env.WIDGET_BASE_URL ?? "http://localhost:5173";
         const checkoutUrl = `${widgetBaseUrl}/embed/checkout/${sessionId}?cartId=${args.cartId}`;
         return { checkoutUrl, sessionId };
+      },
+
+      listCategories: async () => {
+        const result = await this.productRepo.search({
+          merchantId: this.currentMerchantId,
+          query: undefined,
+          limit: 1,
+        });
+        // Fetch categories directly from prisma via product repo's listCategories if available
+        // For now, derive from products — but ideally call listCategories use-case
+        try {
+          const cats = await (this.productRepo as any).listCategories?.(this.currentMerchantId);
+          if (cats?.length) {
+            return {
+              categories: cats.map((c: any) => ({
+                id: c.id,
+                name: c.name,
+                slug: c.slug,
+                productCount: c._count?.products ?? 0,
+              }))
+            };
+          }
+        } catch { /* fallback */ }
+        return { categories: [] };
       }
     };
 

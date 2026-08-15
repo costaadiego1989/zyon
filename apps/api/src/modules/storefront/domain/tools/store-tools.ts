@@ -49,6 +49,7 @@ export interface StoreToolHandlers {
   quoteShipping: (args: { cartId: string; zipCode: string }) => Promise<unknown>;
   applyCoupon: (args: { cartId: string; couponCode: string }) => Promise<unknown>;
   listPromotions: (args: { cartId: string }) => Promise<unknown>;
+  listCategories: () => Promise<unknown>;
   removeCoupon: (args: { cartId: string }) => Promise<unknown>;
   createCheckoutSession: (args: { cartId: string }) => Promise<unknown>;
 }
@@ -324,6 +325,17 @@ const REMOVE_COUPON: ToolDefinition = {
   }
 };
 
+const LIST_CATEGORIES: ToolDefinition = {
+  name: "list_categories",
+  description:
+    "List all product categories for this store. Returns category names and IDs for browsing by section.",
+  parameters: {
+    type: "object",
+    properties: {},
+    required: []
+  }
+};
+
 export function buildStoreTools(): ToolDefinition[] {
   return [
     SEARCH_PRODUCTS,
@@ -339,6 +351,7 @@ export function buildStoreTools(): ToolDefinition[] {
     APPLY_COUPON,
     LIST_PROMOTIONS,
     REMOVE_COUPON,
+    LIST_CATEGORIES,
     CREATE_CHECKOUT_SESSION
   ];
 }
@@ -418,6 +431,10 @@ export function createRemoveCouponTool(ctx: StoreToolContext): ExecutableTool {
   return wrapHandler("remove_coupon", (args) => ctx.handlers.removeCoupon(args));
 }
 
+export function createListCategoriesTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("list_categories", () => ctx.handlers.listCategories());
+}
+
 export function createCreateCheckoutSessionTool(ctx: StoreToolContext): ExecutableTool {
   return wrapHandler("create_checkout_session", (args) =>
     ctx.handlers.createCheckoutSession(args)
@@ -439,6 +456,7 @@ export function buildExecutableStoreTools(ctx: StoreToolContext): ExecutableTool
     createApplyCouponTool(ctx),
     createListPromotionsTool(ctx),
     createRemoveCouponTool(ctx),
+    createListCategoriesTool(ctx),
     createCreateCheckoutSessionTool(ctx)
   ];
 }
