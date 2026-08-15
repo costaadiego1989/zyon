@@ -319,29 +319,25 @@ export function OverviewPage(props: OverviewPageProps) {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", fontFamily: "var(--mono)" }}>
-            Início
-          </span>
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>INÍCIO</div>
           <h2
             style={{
-              fontSize: 22,
-              fontWeight: 800,
+              font: "700 22px var(--serif)",
               color: "var(--ink)",
+              letterSpacing: "-0.02em",
               margin: 0,
-              fontFamily: "var(--serif)",
-              letterSpacing: -0.3,
+              marginBottom: 6,
             }}
           >
             Visão Geral
           </h2>
           <p
             style={{
-              fontSize: 13,
+              font: "17px var(--serif)",
+              fontStyle: "italic",
               color: "var(--muted)",
               margin: 0,
-              fontFamily: "var(--sans)",
-              fontStyle: "italic",
             }}
           >
             Métricas consolidadas do seu negócio
