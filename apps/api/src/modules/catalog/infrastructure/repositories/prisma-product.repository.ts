@@ -81,8 +81,12 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
     const where: Prisma.ProductWhereInput = {
       merchantId: input.merchantId,
-      isActive: true,
     };
+
+    // Only filter by isActive when explicitly requested (storefront uses true, dashboard shows all)
+    if (input.isActiveOnly) {
+      where.isActive = true;
+    }
 
     // Skip filter for generic/browse queries — return all products
     const BROWSE_TERMS = ["produtos", "produto", "tudo", "catálogo", "catalogo", "ver tudo", "todos", "listar", "mostrar"];

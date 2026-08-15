@@ -29,6 +29,7 @@ export interface SearchProductsInput {
   minPriceCents?: number;
   maxPriceCents?: number;
   inStockOnly?: boolean;
+  isActiveOnly?: boolean;
   limit?: number;
   cursor?: string;
 }

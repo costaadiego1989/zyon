@@ -47,6 +47,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           categoryId: args.categoryId,
           maxPriceCents: args.maxPrice,
           inStockOnly: args.inStockOnly,
+          isActiveOnly: true,
           limit: Math.min(args.limit ?? 10, 20)
         });
         return {
