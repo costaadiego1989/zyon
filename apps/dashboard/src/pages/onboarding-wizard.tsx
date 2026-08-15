@@ -1097,19 +1097,15 @@ export function OnboardingWizard(props: {
             <div className="onb-preview-frame">
               <span className="onb-preview-tag">Visualização em tempo real</span>
               <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: 12, overflow: "hidden", fontFamily: themeDraft.bodyFont?.split(",")[0] || "Space Grotesk" }}>
-                {/* Logo or Orb */}
-                {themeDraft.logoUrl ? (
-                  <img src={themeDraft.logoUrl} alt="" style={{ width: 56, height: 56, borderRadius: 14, objectFit: "cover", border: `2px solid ${themeDraft.accentColor}33` }} />
-                ) : (
-                  <div className="onb-widget-orb" style={{ "--orb-c1": themeDraft.accentColor, "--orb-c2": (themeDraft.secondaryColor || themeDraft.accentColor) + "cc", "--orb-c3": themeDraft.accentColor + "66" } as React.CSSProperties}>
-                    <div className="onb-widget-orb__halo" />
-                    <div className="onb-widget-orb__core" />
-                    <div className="onb-widget-orb__eyes">
-                      <span />
-                      <span />
-                    </div>
+                {/* Agent Orb — always shown (logo goes in header, not here) */}
+                <div className="onb-widget-orb" style={{ "--orb-c1": themeDraft.accentColor, "--orb-c2": (themeDraft.secondaryColor || themeDraft.accentColor) + "cc", "--orb-c3": themeDraft.accentColor + "66" } as React.CSSProperties}>
+                  <div className="onb-widget-orb__halo" />
+                  <div className="onb-widget-orb__core" />
+                  <div className="onb-widget-orb__eyes">
+                    <span />
+                    <span />
                   </div>
-                )}
+                </div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "9px", fontWeight: 600, letterSpacing: "0.1em", color: themeDraft.accentColor }}>
                   GERENTE DE VENDAS{themeDraft.headerTitle ? ` DA ${themeDraft.headerTitle.toUpperCase()}` : ""}
                 </div>
@@ -1134,9 +1130,9 @@ export function OnboardingWizard(props: {
                   ))}
                 </div>
                 {/* CTA button with secondary color */}
-                <button type="button" disabled style={{ marginTop: 10, width: "100%", maxWidth: 260, padding: "11px 16px", borderRadius: 12, border: "none", background: themeDraft.secondaryColor || themeDraft.accentColor, color: "#fff", fontFamily: themeDraft.headingFont?.split(",")[0] || "Space Grotesk", fontSize: "13px", fontWeight: 600, cursor: "default" }}>
+                <div style={{ marginTop: 10, width: "100%", maxWidth: 260, padding: "11px 16px", borderRadius: 12, background: themeDraft.secondaryColor || themeDraft.accentColor, color: "#fff", fontFamily: themeDraft.headingFont?.split(",")[0] || "Space Grotesk", fontSize: "13px", fontWeight: 600, textAlign: "center" }}>
                   Começar a comprar →
-                </button>
+                </div>
               </div>
             </div>
           </aside>
