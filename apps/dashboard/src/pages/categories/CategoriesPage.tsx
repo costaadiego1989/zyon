@@ -116,7 +116,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
         {/* Filters bar */}
         <FilterToolbar
           tabs={[
-            { key: "all", label: "Todas" },
+            { key: "all", label: "Todos" },
             { key: "active", label: "Ativas" },
           ]}
           activeTab={activeOnly ? "active" : "all"}

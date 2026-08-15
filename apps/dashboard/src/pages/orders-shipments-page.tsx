@@ -86,7 +86,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         {/* Toolbar: tabs + search */}
         <FilterToolbar
           tabs={[
-            { key: "all", label: "Todos os pedidos" },
+            { key: "all", label: "Todos" },
             { key: "approved", label: "Aprovados" },
             { key: "cancelled", label: "Cancelados" },
           ]}
