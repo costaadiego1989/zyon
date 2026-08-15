@@ -29,15 +29,9 @@ export function CheckoutMetrics({
 }: CheckoutMetricsProps) {
   const prev = previousOverview;
 
-  const funnelSteps = [
-    { label: "Sessoes", value: overview.conversations_started, color: "var(--accent)" },
-    { label: "Ofertas vistas", value: overview.offers_viewed, color: "oklch(70% 0.14 250)" },
-    { label: "Ofertas aceitas", value: overview.offers_accepted, color: "var(--warn)" },
-    { label: "Pedidos", value: overview.orders_completed, color: "var(--good)" },
-  ];
-
   const convSparkline = timeseries?.conversion_daily?.map((d) => d.value) ?? [];
   const revSparkline = timeseries?.revenue_daily?.map((d) => d.value) ?? [];
+  const sessionsSparkline = timeseries?.sessions_daily?.map((d) => d.value) ?? [];
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -53,7 +47,7 @@ export function CheckoutMetrics({
           label="Conversas"
           value={overview.conversations_started}
           trend={calcTrend(overview.conversations_started, prev?.conversations_started)}
-          sparkline={timeseries?.sessions_daily?.map((d) => d.value)}
+          sparkline={sessionsSparkline}
         />
         <StatCard
           label="Taxa de Conversao"
@@ -72,6 +66,7 @@ export function CheckoutMetrics({
           label="Ofertas"
           value={`${overview.offers_accepted ?? 0}/${overview.offers_viewed ?? 0}`}
           trend={calcTrend(overview.offers_accepted ?? 0, prev?.offers_accepted)}
+          sparkline={convSparkline}
         />
         <StatCard
           label="Receita Incremental"
@@ -90,10 +85,11 @@ export function CheckoutMetrics({
             (overview.average_discount ?? 0) * 100,
             prev?.average_discount ? prev.average_discount * 100 : undefined,
           )}
+          sparkline={convSparkline}
         />
       </div>
 
-      {/* Bento grid: 2/3 chart + 1/3 funnel */}
+      {/* Bento grid: 2/3 charts stacked + 1/3 funnel */}
       <div
         style={{
           display: "grid",
@@ -101,45 +97,51 @@ export function CheckoutMetrics({
           gap: 12,
         }}
       >
-        {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 ? (
-          <RevenueChart
-            data={timeseries.conversion_daily}
-            type="line"
-            label="Conversao diaria"
-            color="var(--accent)"
-            valueFormat="percent"
-          />
-        ) : (
-          <div
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 14,
-              padding: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--muted)",
-              fontSize: 13,
-            }}
-          >
-            Sem dados de conversao
-          </div>
-        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 ? (
+            <RevenueChart
+              data={timeseries.conversion_daily}
+              type="line"
+              label="Conversao diaria"
+              color="var(--accent)"
+              valueFormat="percent"
+            />
+          ) : (
+            <div
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--muted)",
+                fontSize: 13,
+              }}
+            >
+              Sem dados de conversao
+            </div>
+          )}
 
-        <ConversionFunnel steps={funnelSteps} title="Funil de Conversao" />
+          {timeseries?.revenue_daily && timeseries.revenue_daily.length > 0 && (
+            <RevenueChart
+              data={timeseries.revenue_daily}
+              type="bar"
+              label="Receita diaria"
+              color="var(--accent)"
+              valueFormat="currency"
+            />
+          )}
+        </div>
+
+        <ConversionFunnel steps={[
+          { label: "Sessoes", value: overview.conversations_started ?? 0, color: "var(--accent)" },
+          { label: "Ofertas vistas", value: overview.offers_viewed ?? 0, color: "oklch(70% 0.14 250)" },
+          { label: "Ofertas aceitas", value: overview.offers_accepted ?? 0, color: "var(--warn)" },
+          { label: "Pedidos", value: overview.orders_completed ?? 0, color: "var(--good)" },
+        ]} title="Funil de Conversao" />
       </div>
-
-      {/* Full-width revenue chart */}
-      {timeseries?.revenue_daily && timeseries.revenue_daily.length > 0 && (
-        <RevenueChart
-          data={timeseries.revenue_daily}
-          type="bar"
-          label="Receita diaria do checkout"
-          color="var(--accent)"
-          valueFormat="currency"
-        />
-      )}
     </section>
   );
 }
