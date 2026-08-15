@@ -1160,6 +1160,7 @@ export function OnboardingWizard(props: {
               if (currentStep === 1) void saveStep1();
               else if (currentStep === 2) void saveStep2();
               else if (currentStep === 3) void saveStep3();
+              else if (currentStep === 4) setCurrentStep(5);
               else void finish();
             }}
           >
@@ -1181,17 +1182,19 @@ export function OnboardingWizard(props: {
 }
 
 const STEP_TITLE: Record<number, string> = {
-  1: "Configure sua loja",
-  2: "Personalize o checkout",
+  1: "Identidade da loja",
+  2: "Endereço",
   3: "Configure os pagamentos",
-  4: "Credenciais e publicação",
+  4: "Credenciais de integração",
+  5: "Escolha sua plataforma",
 };
 
 const STEP_LEAD: Record<number, string> = {
-  1: "Informe os dados da sua loja para personalizar a experiência do comprador",
-  2: "Adapte cores, logo e mensagens para combinar com sua marca",
+  1: "Logo, cores, tipografia e nome do agente que representa sua marca",
+  2: "CEP e endereço completo da sua loja — usado para calcular frete",
   3: "Configure os métodos de pagamento que você aceita (Stripe, Asaas ou Crypto)",
-  4: "Gere sua API Key e escolha onde sua loja está hospedada",
+  4: "Gere sua API Key para integrar o checkout ao seu site",
+  5: "Selecione onde sua loja está hospedada para configurar a integração",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
