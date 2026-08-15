@@ -374,11 +374,11 @@ export default function ConversationShell({
     void sendMessage(option);
   };
 
-  const chatQuickReplies = quickReplies?.filter(r => r !== "Ver produtos") ?? [
-    "Quais categorias vocês têm?",
-    "Tem promoção hoje?",
-    "Rastrear pedido",
-    "Falar com humano",
+  const chatQuickReplies = [
+    "Ver categorias",
+    "Buscar produto",
+    "Calcular frete",
+    "Aplicar cupom",
   ];
 
   return (
@@ -574,8 +574,8 @@ export default function ConversationShell({
             )}
           </div>
 
-          {/* Quick replies */}
-          {messages.length <= 2 && (
+          {/* Quick replies — only when no welcome state and few messages */}
+          {messages.length > 0 && messages.length <= 2 && (
             <div style={{ display: "flex", gap: "8px", padding: "8px 18px", overflowX: "auto", flex: "none" }}>
               {chatQuickReplies.map((label) => (
                 <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "12px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", flex: "none", transition: "all 0.15s" }}
