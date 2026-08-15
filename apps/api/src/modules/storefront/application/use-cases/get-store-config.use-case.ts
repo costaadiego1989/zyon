@@ -89,7 +89,7 @@ export class GetStoreConfigUseCase {
       },
       agentName: theme?.agentName,
       agentPersonality: undefined,
-      quickReplies: ["Ver produtos", "Ver categorias", "Promoções", "Rastrear pedido", "Meus dados"],
+      quickReplies: ["Ver produtos", "Encontrar produto", "Ver categorias", "Promoções", "Rastrear pedido", "Meus dados"],
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
     };

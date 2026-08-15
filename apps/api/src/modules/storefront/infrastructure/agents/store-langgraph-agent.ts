@@ -235,7 +235,8 @@ export class StorefrontLangGraphAgent {
       // ─── LLM failure fallback ─────────────────────────────────────────
       // If the LLM call fails (network, rate limit, timeout), return safe message.
       const errorMessage = err instanceof Error ? err.message : String(err);
-      console.error("[StorefrontAgent] LLM call failed:", errorMessage);
+      const errorStack = err instanceof Error ? err.stack?.slice(0, 300) : "";
+      console.error("[StorefrontAgent] LLM call failed:", errorMessage, errorStack);
       finalContent = "";
 
       return {
