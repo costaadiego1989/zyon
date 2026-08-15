@@ -11,6 +11,10 @@ export interface ProductCardBlock {
     inStock: boolean;
     rating?: number;
     reviewCount?: number;
+    description?: string;
+    originalPrice?: number;
+    originalPriceFormatted?: string;
+    discountPercent?: number;
   };
 }
 

@@ -127,6 +127,7 @@ export default function ProductCarouselBlock({
                   alignItems: "center",
                   justifyContent: "center",
                   padding: "16px",
+                  position: "relative",
                 }}
               >
                 {product.image ? (
@@ -137,6 +138,12 @@ export default function ProductCarouselBlock({
                   />
                 ) : (
                   <div style={{ fontSize: "40px", opacity: 0.3 }}>📦</div>
+                )}
+                {/* Discount badge */}
+                {(product as any).discountPercent > 0 && (
+                  <div style={{ position: "absolute", top: "8px", left: "8px", padding: "3px 8px", borderRadius: "6px", background: "var(--aacp-accent)", color: "#fff", fontSize: "10px", fontWeight: 700, letterSpacing: "0.02em" }}>
+                    -{(product as any).discountPercent}%
+                  </div>
                 )}
               </div>
 
@@ -166,8 +173,8 @@ export default function ProductCarouselBlock({
                 {/* Spacer */}
                 <div style={{ flex: 1, minHeight: "10px" }} />
 
-                {/* Price — large, accent, bold */}
-                <div style={{ marginTop: "8px" }}>
+                {/* Price — large, accent, bold + old price strikethrough */}
+                <div style={{ marginTop: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
                   <span style={{
                     fontSize: "20px",
                     fontWeight: 800,
@@ -176,6 +183,11 @@ export default function ProductCarouselBlock({
                   }}>
                     {product.priceFormatted}
                   </span>
+                  {(product as any).originalPriceFormatted && (
+                    <span style={{ fontSize: "11px", color: "var(--aacp-muted)", textDecoration: "line-through" }}>
+                      {(product as any).originalPriceFormatted}
+                    </span>
+                  )}
                 </div>
 
                 {/* Promo badge (if has old price) */}
