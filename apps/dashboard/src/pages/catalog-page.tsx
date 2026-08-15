@@ -222,7 +222,7 @@ export function CatalogPage(props: CatalogPageProps) {
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center", height: 32 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
             {(["all", "active", "inactive"] as const).map((value) => {
               const isActive = statusFilter === value;
               const labels = { all: "Todos", active: "Ativos", inactive: "Inativos" };
@@ -231,7 +231,7 @@ export function CatalogPage(props: CatalogPageProps) {
                   key={value}
                   type="button"
                   onClick={() => setStatusFilter(value)}
-                  style={{ height: 32, display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: 7, font: "600 12px var(--sans)", cursor: "pointer", background: isActive ? "var(--accent-dark)" : "transparent", color: isActive ? "#fff" : "var(--ink)", border: `1px solid ${isActive ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box" }}
+                  style={{ height: 32, display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: 7, font: "600 12px var(--sans)", cursor: "pointer", background: isActive ? "var(--accent-dark)" : "transparent", color: isActive ? "#fff" : "var(--ink)", border: `1px solid ${isActive ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box", lineHeight: 1 }}
                 >
                   {labels[value]}
                 </button>
@@ -241,7 +241,7 @@ export function CatalogPage(props: CatalogPageProps) {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ height: 32, padding: "0 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none", boxSizing: "border-box" }}
+                style={{ height: 32, padding: "0 24px 0 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none", boxSizing: "border-box", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
               >
                 <option value="">Todas categorias</option>
                 {categories.map((cat) => (

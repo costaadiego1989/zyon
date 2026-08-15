@@ -9,17 +9,17 @@ export interface SearchInputProps {
 
 export function SearchInput({ value, onChange, placeholder = "Buscar...", width = 260 }: SearchInputProps) {
   return (
-    <div style={{ position: "relative", height: 32 }}>
+    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: 32 }}>
       <svg
-        width="13"
-        height="13"
+        width="14"
+        height="14"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--faint)" }}
+        style={{ position: "absolute", left: 10, color: "var(--faint)", pointerEvents: "none" }}
       >
         <circle cx="11" cy="11" r="8" />
         <path d="M21 21l-4.35-4.35" />
@@ -31,8 +31,8 @@ export function SearchInput({ value, onChange, placeholder = "Buscar...", width 
         style={{
           width,
           height: 32,
-          padding: "0 12px 0 30px",
-          borderRadius: 8,
+          padding: "0 12px 0 32px",
+          borderRadius: 7,
           border: "1px solid var(--border)",
           font: "13px var(--sans)",
           color: "var(--ink)",
