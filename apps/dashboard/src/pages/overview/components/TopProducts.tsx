@@ -16,6 +16,7 @@ function formatCurrency(n: number): string {
 }
 
 export function TopProducts({ products }: TopProductsProps) {
+  if (!products || products.length === 0) return null;
   const top = products.slice(0, 5);
 
   return (

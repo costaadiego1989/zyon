@@ -11,6 +11,14 @@ export type RevenueChartProps = {
 };
 
 export function RevenueChart({ data, type = "line", label = "Receita", color = "var(--accent)", valueFormat = "number" }: RevenueChartProps) {
+  if (!data || data.length === 0) {
+    return (
+      <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12, background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)" }}>
+        Sem dados no período
+      </div>
+    );
+  }
+
   const formatValue = (val: number): string => {
     if (valueFormat === "currency") {
       return `R$ ${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;

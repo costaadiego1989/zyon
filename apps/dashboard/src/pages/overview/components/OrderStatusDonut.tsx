@@ -22,6 +22,7 @@ function readCssVar(name: string, fallback: string): string {
 
 export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  if (!data || Object.keys(data).length === 0) return null;
   const total = Object.values(data).reduce((a, b) => a + b, 0);
 
   const slices: Slice[] = Object.entries(data)
