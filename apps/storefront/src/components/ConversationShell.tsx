@@ -524,18 +524,18 @@ export default function ConversationShell({
             {messages.length === 0 && !isLoading && (
               <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", padding: "40px 20px", textAlign: "center" }}>
                 <PulseAgentOrb size={72} />
-                <div style={{ marginTop: "8px" }}>
-                  <div style={{ fontSize: "15px", fontWeight: 600, color: "var(--aacp-fg)", lineHeight: 1.4 }}>Olá! Sou {agent} 👋</div>
-                  <div style={{ fontSize: "12.5px", color: "var(--aacp-muted)", marginTop: "6px", lineHeight: 1.6, maxWidth: "340px" }}>
+                <div style={{ marginTop: "8px", maxWidth: "100%", width: "100%" }}>
+                  <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
+                  <div style={{ fontSize: "13.5px", color: "var(--aacp-muted)", marginTop: "10px", lineHeight: 1.6, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)" }}>
                     A partir de agora serei sua vendedora particular e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra de forma bem fluida e fácil. Vamos começar!
                   </div>
-                  <div style={{ fontSize: "11.5px", color: "var(--aacp-muted)", marginTop: "10px", opacity: 0.7 }}>
-                    Selecione uma opção abaixo ou digite algo para interagirmos.
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginTop: "18px" }}>
+                    Selecione uma opção abaixo ou digite algo
                   </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "12px" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "16px", width: "100%" }}>
                   {(quickReplies ?? chatQuickReplies).map((label) => (
-                    <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "12px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s" }}
+                    <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "9px 16px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "12px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
                     >{label}</button>
