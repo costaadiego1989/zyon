@@ -21,10 +21,12 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-        padding: 24,
+        padding: 20,
         display: "flex",
         flexDirection: "column",
-        gap: 20,
+        gap: 16,
+        height: "100%",
+        overflow: "hidden",
       }}
     >
       {title && (

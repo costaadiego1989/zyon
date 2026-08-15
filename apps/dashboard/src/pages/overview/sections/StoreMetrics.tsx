@@ -95,31 +95,43 @@ export function StoreMetrics({
           gap: 12,
         }}
       >
-        {timeseries?.revenue_daily && timeseries.revenue_daily.length > 0 ? (
-          <RevenueChart
-            data={timeseries.revenue_daily}
-            type="bar"
-            label="Receita diaria"
-            color="var(--accent)"
-            valueFormat="currency"
-          />
-        ) : (
-          <div
-            style={{
-              background: "var(--card)",
-              border: "1px solid var(--border)",
-              borderRadius: 14,
-              padding: 32,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--muted)",
-              fontSize: 13,
-            }}
-          >
-            Sem dados de receita
-          </div>
-        )}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {timeseries?.revenue_daily && timeseries.revenue_daily.length > 0 ? (
+            <RevenueChart
+              data={timeseries.revenue_daily}
+              type="bar"
+              label="Receita diaria"
+              color="var(--accent)"
+              valueFormat="currency"
+            />
+          ) : (
+            <div
+              style={{
+                background: "var(--card)",
+                border: "1px solid var(--border)",
+                borderRadius: 14,
+                padding: 32,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--muted)",
+                fontSize: 13,
+              }}
+            >
+              Sem dados de receita
+            </div>
+          )}
+
+          {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 && (
+            <RevenueChart
+              data={timeseries.conversion_daily}
+              type="line"
+              label="Conversao diaria"
+              color="var(--accent)"
+              valueFormat="percent"
+            />
+          )}
+        </div>
 
         <ConversionFunnel
           title="Funil de Pedidos"
@@ -161,17 +173,6 @@ export function StoreMetrics({
         {overview.orders_by_status && <OrderStatusDonut data={overview.orders_by_status} />}
         {overview.top_products && <TopProducts products={overview.top_products} />}
       </div>
-
-      {/* Full-width conversion chart */}
-      {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 && (
-        <RevenueChart
-          data={timeseries.conversion_daily}
-          type="line"
-          label="Conversao diaria"
-          color="var(--accent)"
-          valueFormat="percent"
-        />
-      )}
     </section>
   );
 }
