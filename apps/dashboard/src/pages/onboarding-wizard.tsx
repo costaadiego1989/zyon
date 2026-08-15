@@ -1090,6 +1090,11 @@ export function OnboardingWizard(props: {
           </div>
 
           <aside className="onb-preview">
+            {/* Load selected fonts from Google Fonts for live preview */}
+            <link
+              rel="stylesheet"
+              href={`https://fonts.googleapis.com/css2?family=${encodeURIComponent(themeDraft.headingFont?.split(",")[0]?.trim() || "Manrope")}:wght@400;600;700&family=${encodeURIComponent(themeDraft.bodyFont?.split(",")[0]?.trim() || "Inter")}:wght@400;500;600&display=swap`}
+            />
             <div className="onb-preview-frame">
               <span className="onb-preview-tag">Visualização em tempo real</span>
               <div className="onb-preview-live" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", padding: "28px 20px", background: "#0a0f0a", gap: 14, textAlign: "center", borderRadius: 12, overflow: "hidden", fontFamily: themeDraft.bodyFont?.split(",")[0] || "Space Grotesk" }}>
