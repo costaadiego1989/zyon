@@ -14,6 +14,7 @@ export interface StoreConfigOutput {
   merchantId: string;
   name: string;
   logo?: string;
+  favicon?: string;
   theme: {
     accentColor: string;
     secondaryColor?: string;
@@ -74,6 +75,7 @@ export class GetStoreConfigUseCase {
       merchantId: row.id,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,
+      favicon: theme?.logoUrl ?? undefined,
       theme: {
         accentColor: theme?.accentColor ?? "#0F766E",
         secondaryColor: theme?.secondaryColor,

@@ -16,6 +16,7 @@ interface StoreConfig {
   merchantId: string;
   name: string;
   logo?: string;
+  favicon?: string;
   description?: string;
   theme: {
     accentColor: string;
@@ -101,6 +102,7 @@ export async function generateMetadata({
     alternates: {
       canonical: `${SITE_URL}/store/${slug}`,
     },
+    icons: config?.favicon ? { icon: config.favicon, apple: config.favicon } : undefined,
   };
 }
 
