@@ -488,9 +488,9 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep3() {
-    // Validate: at least one payment method configured
+    // Validate: at least one payment method configured or pending
     const hasStripe = paymentDraft.stripeStatus === "active";
-    const hasAsaas = paymentDraft.asaasStatus === "active";
+    const hasAsaas = paymentDraft.asaasStatus === "active" || paymentDraft.asaasStatus === "pending";
     const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(paymentDraft.walletAddress);
     if (!hasStripe && !hasAsaas && !hasCrypto) {
       setMessage("Configure pelo menos um método de pagamento para continuar.");
@@ -512,7 +512,18 @@ export function OnboardingWizard(props: {
         });
       }
       await markOnboardingStep("checkout_config");
-      setCurrentStep(4);
+
+      // Conditional flow: STORE_ONLY finishes here, CHECKOUT/BOTH continue to API Key + Integration
+      const plan = (props.me as any).plan;
+      if (plan === "STORE_ONLY") {
+        // Store-only: no embed needed, finish onboarding
+        await markOnboardingStep("embed");
+        await markOnboardingStep("publish");
+        localStorage.removeItem(STORAGE_KEY);
+        setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
+      } else {
+        setCurrentStep(4);
+      }
     } catch (e) {
       setMessage(friendlyError(e));
     } finally {
@@ -650,7 +661,10 @@ export function OnboardingWizard(props: {
   }
 
   const activeMeta = STEPS[currentStep - 1];
-  const pct = Math.round(((currentStep - 1) / TOTAL_STEPS) * 100);
+  const isStoreOnly = (props.me as any).plan === "STORE_ONLY";
+  const visibleSteps = isStoreOnly ? STEPS.slice(0, 3) : STEPS;
+  const totalSteps = visibleSteps.length;
+  const pct = Math.round(((currentStep - 1) / totalSteps) * 100);
 
   return (
     <div className="onb">
@@ -669,7 +683,7 @@ export function OnboardingWizard(props: {
         </div>
 
         <ol className="onb-rail-steps">
-          {STEPS.map((step) => {
+          {visibleSteps.map((step) => {
             const state =
               step.id < currentStep ? "done" : step.id === currentStep ? "active" : "todo";
             const Icon = step.icon;
@@ -706,7 +720,7 @@ export function OnboardingWizard(props: {
       <section className="onb-stage" aria-live="polite">
         <header className="onb-stage-head">
           <span className="onb-kicker">
-            Etapa {String(currentStep).padStart(2, "0")} de {String(TOTAL_STEPS).padStart(2, "0")}
+            Etapa {String(currentStep).padStart(2, "0")} de {String(totalSteps).padStart(2, "0")}
           </span>
           <h1 className="onb-stage-title">{STEP_TITLE[currentStep]}</h1>
           <p className="onb-stage-lead">{STEP_LEAD[currentStep]}</p>
@@ -1182,7 +1196,7 @@ export function OnboardingWizard(props: {
                 Voltar
               </button>
             ) : (
-              <span className="onb-footer-hint">Etapa {currentStep} de {TOTAL_STEPS}</span>
+              <span className="onb-footer-hint">Etapa {currentStep} de {totalSteps}</span>
             )}
           </div>
 
@@ -1199,11 +1213,11 @@ export function OnboardingWizard(props: {
             }}
           >
             <span className="onb-cta-face">
-              {currentStep === TOTAL_STEPS ? <Rocket size={15} /> : null}
+              {currentStep === totalSteps ? <Rocket size={15} /> : null}
               {busy
-                ? currentStep === TOTAL_STEPS ? "Finalizando..." : "Salvando..."
-                : currentStep === TOTAL_STEPS ? "Finalizar" : "Continuar"}
-              {!busy && currentStep < TOTAL_STEPS ? <ArrowRight size={15} /> : null}
+                ? currentStep === totalSteps ? "Finalizando..." : "Salvando..."
+                : currentStep === totalSteps ? "Finalizar" : "Continuar"}
+              {!busy && currentStep < totalSteps ? <ArrowRight size={15} /> : null}
             </span>
           </button>
         </footer>
