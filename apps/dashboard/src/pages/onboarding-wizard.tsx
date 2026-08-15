@@ -406,7 +406,6 @@ export function OnboardingWizard(props: {
       try { current = (await api.getMerchantTheme()) as unknown as Record<string, unknown>; } catch {}
       const { originZip, storeCategory, secondaryColor, headingFont, bodyFont, ...themeFields } = themeDraft;
       const payload = { ...current, ...themeFields, secondaryColor, fontDisplay: headingFont, fontFamily: bodyFont } as Parameters<typeof api.putMerchantTheme>[0];
-      if (payload.logoUrl && String(payload.logoUrl).startsWith("blob:")) payload.logoUrl = "";
       await api.putMerchantTheme(payload);
       if (originZip) {
         try { await api.putMerchantRules({ originZip }); } catch {}
@@ -765,14 +764,11 @@ export function OnboardingWizard(props: {
                         </span>
                       )}
                     </div>
-                    <input
-                      type="url"
-                      placeholder="Ou cole a URL do logotipo (https://...)"
-                      value={themeDraft.logoUrl?.startsWith("blob:") ? "" : themeDraft.logoUrl}
-                      onChange={(e) => setThemeDraft((d) => ({ ...d, logoUrl: e.target.value.trim() }))}
-                      style={{ marginTop: 8, width: "100%", height: 36, padding: "0 12px", borderRadius: "6px", border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px" }}
-                    />
-                    {fieldErrors.logoUrl && <span className="onb-field-error">{fieldErrors.logoUrl}</span>}
+                    {themeDraft.logoUrl && (
+                      <button type="button" onClick={() => setThemeDraft((d) => ({ ...d, logoUrl: "" }))} style={{ marginTop: 6, fontSize: "11px", color: "var(--color-text-muted)", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                        Remover logo
+                      </button>
+                    )}
                   </div>
 
                   <div className="onb-field">
