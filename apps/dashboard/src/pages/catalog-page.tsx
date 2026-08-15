@@ -241,7 +241,7 @@ export function CatalogPage(props: CatalogPageProps) {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ height: 32, padding: "0 24px 0 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none", boxSizing: "border-box", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
+                style={{ height: 32, padding: "0 26px 0 12px", borderRadius: 7, border: "1px solid var(--border)", font: "600 12px var(--sans)", color: "var(--ink)", background: "transparent", cursor: "pointer", outline: "none", boxSizing: "border-box", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
               >
                 <option value="">Todas categorias</option>
                 {categories.map((cat) => (

@@ -163,18 +163,18 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         {vm.hasLoaded && vm.orders.length > 0 && vm.filteredOrders.length === 0 && !vm.busy ? (
           <div style={{ padding: "30px 22px", textAlign: "center", font: "13px var(--sans)", color: "var(--faint)" }}>Nenhum pedido corresponde ao filtro</div>
         ) : null}
-      </div>
 
-      {/* Pagination */}
-      {vm.hasLoaded && vm.filteredOrders.length > 0 ? (
-        <Pagination
-          page={vm.page}
-          pageSize={vm.PAGE_SIZE}
-          total={vm.filteredOrders.length}
-          onChange={vm.setPage}
-          disabled={vm.busy}
-        />
-      ) : null}
+        {/* Pagination — inside card */}
+        {vm.hasLoaded && vm.filteredOrders.length > 0 ? (
+          <Pagination
+            page={vm.page}
+            pageSize={vm.PAGE_SIZE}
+            total={vm.filteredOrders.length}
+            onChange={vm.setPage}
+            disabled={vm.busy}
+          />
+        ) : null}
+      </div>
 
       {/* Side Panel */}
       {vm.expandedOrderId && <OrderSidePanel vm={vm} />}
