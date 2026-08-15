@@ -198,9 +198,23 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       quoteShipping: async (args) => {
-        const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId);
-        const totalWeight = cart.items.length * 300; // avg 300g per item fallback
-        // Use deterministic quotes until shipping-engine integration is wired
+        let totalWeight = 300; // default fallback
+
+        if (args.cartId) {
+          const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId);
+          totalWeight = cart.items.length > 0 ? cart.items.length * 300 : 300;
+        }
+
+        // If productId provided (or extracted from context), try to get actual weight
+        if ((args as any).productId) {
+          try {
+            const product = await this.productRepo.findById(this.currentMerchantId, (args as any).productId);
+            if (product?.variants?.[0]?.weightGrams) {
+              totalWeight = product.variants[0].weightGrams;
+            }
+          } catch { /* use fallback */ }
+        }
+
         const sedexPrice = Math.max(1500, Math.round(totalWeight * 0.5) + 800);
         const pacPrice = Math.max(800, Math.round(totalWeight * 0.3) + 400);
         return {

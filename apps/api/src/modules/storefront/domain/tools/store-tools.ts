@@ -46,7 +46,7 @@ export interface StoreToolHandlers {
   removeCartItem: (args: { cartId: string; variantId: string }) => Promise<unknown>;
   updateCartItem: (args: { cartId: string; variantId: string; quantity: number }) => Promise<unknown>;
   clearCart: (args: { cartId: string }) => Promise<unknown>;
-  quoteShipping: (args: { cartId: string; zipCode: string }) => Promise<unknown>;
+  quoteShipping: (args: { cartId?: string; productId?: string; zipCode: string }) => Promise<unknown>;
   applyCoupon: (args: { cartId: string; couponCode: string }) => Promise<unknown>;
   listPromotions: (args: { cartId: string }) => Promise<unknown>;
   listCategories: () => Promise<unknown>;
@@ -204,20 +204,24 @@ const REMOVE_CART_ITEM: ToolDefinition = {
 const QUOTE_SHIPPING: ToolDefinition = {
   name: "quote_shipping",
   description:
-    "Get shipping quote for cart. Returns carriers (Sedex, PAC), price in cents, and delivery days.",
+    "Get shipping quote. Can quote for a cart OR for a single product (by productId). Returns carriers (Sedex, PAC), price in cents, and delivery days. Does NOT require product to be in cart.",
   parameters: {
     type: "object",
     properties: {
       cartId: {
         type: "string",
-        description: "Cart ID"
+        description: "Cart ID (optional — use when quoting for whole cart)"
+      },
+      productId: {
+        type: "string",
+        description: "Product ID (optional — use when quoting shipping for a specific product without cart)"
       },
       zipCode: {
         type: "string",
         description: "8-digit Brazilian CEP or ZIP code"
       }
     },
-    required: ["cartId", "zipCode"]
+    required: ["zipCode"]
   }
 };
 
