@@ -414,9 +414,24 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                           }}
                           disabled={uploadingVariant === v.id}
                           aria-label="Remover imagem"
-                          style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 4, background: "rgba(0,0,0,0.7)", border: "none", color: "white", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 12px var(--sans)", opacity: uploadingVariant === v.id ? 0.6 : 1 }}
+                          style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 4, background: "rgba(220,38,38,0.9)", border: "none", color: "white", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", lineHeight: 1, opacity: uploadingVariant === v.id ? 0.6 : 1 }}
                         >
-                          <X size={14} />
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    {/* Pending images (create mode — not yet uploaded) */}
+                    {(v.pendingImages || []).map((base64, imgIdx) => (
+                      <div key={`pending-${imgIdx}`} style={{ position: "relative", borderRadius: 8, overflow: "hidden", aspectRatio: "1", background: "var(--border)" }}>
+                        <img src={base64} alt="Pendente" style={{ width: "100%", height: "100%", objectFit: "cover", opacity: 0.7 }} />
+                        <div style={{ position: "absolute", bottom: 4, left: 4, padding: "2px 6px", borderRadius: 4, background: "rgba(0,0,0,0.7)", color: "#fff", fontSize: "9px", fontWeight: 600 }}>Pendente</div>
+                        <button
+                          type="button"
+                          onClick={() => updateVariant(idx, { pendingImages: v.pendingImages.filter((_, i) => i !== imgIdx) })}
+                          aria-label="Remover imagem pendente"
+                          style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 4, background: "rgba(220,38,38,0.9)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", lineHeight: 1 }}
+                        >
+                          ✕
                         </button>
                       </div>
                     ))}
