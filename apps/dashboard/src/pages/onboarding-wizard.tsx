@@ -352,7 +352,24 @@ export function OnboardingWizard(props: {
     return () => { active = false; };
   }, [api]);
 
-  // load existing theme/rules/checkout to pre-fill drafts (only if no localStorage draft)
+  // Reconcile Stripe status on mount (handles return from Stripe redirect)
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const conn = await api.syncStripeConnection();
+        if (!active) return;
+        if (conn.status === "active") {
+          setPaymentDraft((d) => ({ ...d, stripeStatus: "active" }));
+        } else if (conn.status === "pending") {
+          setPaymentDraft((d) => ({ ...d, stripeStatus: "pending" }));
+        }
+      } catch {
+        // No Stripe connection yet — ignore
+      }
+    })();
+    return () => { active = false; };
+  }, [api]);
   useEffect(() => {
     if (saved) return;
     let active = true;
