@@ -166,8 +166,8 @@ function formatCurrency(n: number | null | undefined): string {
   });
 }
 
-function calcTrend(current: number, previous: number | undefined): number | undefined {
-  if (previous === undefined || previous === 0) return undefined;
+function calcTrend(current: number, previous: number | null | undefined): number {
+  if (previous === undefined || previous === null || previous === 0) return 0;
   return ((current - previous) / previous) * 100;
 }
 
@@ -319,18 +319,21 @@ export function OverviewPage(props: OverviewPageProps) {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted)", fontFamily: "var(--mono)" }}>
+            Início
+          </span>
           <h2
             style={{
               fontSize: 22,
               fontWeight: 800,
               color: "var(--ink)",
               margin: 0,
-              fontFamily: "var(--sans)",
-              letterSpacing: -0.5,
+              fontFamily: "var(--serif)",
+              letterSpacing: -0.3,
             }}
           >
-            Visao Geral
+            Visão Geral
           </h2>
           <p
             style={{
@@ -340,7 +343,7 @@ export function OverviewPage(props: OverviewPageProps) {
               fontFamily: "var(--sans)",
             }}
           >
-            Metricas consolidadas do seu negocio
+            Métricas consolidadas do seu negócio
           </p>
         </div>
 

@@ -18,8 +18,8 @@ function formatCurrency(n: number | null | undefined): string {
   });
 }
 
-function calcTrend(current: number, previous: number | undefined): number | undefined {
-  if (previous === undefined || previous === 0) return undefined;
+function calcTrend(current: number, previous: number | null | undefined): number {
+  if (previous === undefined || previous === null || previous === 0) return 0;
   return ((current - previous) / previous) * 100;
 }
 
