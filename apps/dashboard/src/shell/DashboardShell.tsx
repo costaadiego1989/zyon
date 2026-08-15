@@ -44,14 +44,21 @@ export interface DashboardShellProps {
   me: MerchantDashboardProfile;
   initialTab?: TabKey;
   onLogout: () => void;
+  onboardingCompleted?: boolean;
 }
 
-export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps) {
+export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted }: DashboardShellProps) {
   const [tab, setTab] = useState<TabKey>(initialTab ?? "overview");
+  const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
 
-  const groupedSections = useMemo(() => [...new Set(NAV_ITEMS.map((item) => item.section))], []);
+  const visibleNavItems = useMemo(
+    () => hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS,
+    [hideOnboarding]
+  );
 
-  const activeItem = NAV_ITEMS.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
+  const groupedSections = useMemo(() => [...new Set(visibleNavItems.map((item) => item.section))], [visibleNavItems]);
+
+  const activeItem = visibleNavItems.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
   const ActiveIcon = activeItem.icon;
   const activeSection = activeItem.section;
 
@@ -77,7 +84,7 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
           {groupedSections.map((section) => (
             <div key={section} style={{ marginBottom: 16 }}>
               <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.08em", color: "var(--sidebar-muted)", padding: "0 10px 6px" }}>{section}</div>
-              {NAV_ITEMS.filter((item) => item.section === section).map((item) => {
+              {visibleNavItems.filter((item) => item.section === section).map((item) => {
                 const Icon = item.icon;
                 const active = tab === item.key;
                 return (
@@ -138,7 +145,7 @@ export function DashboardShell({ me, initialTab, onLogout }: DashboardShellProps
                 apiBaseUrl={API_BASE_URL}
                 me={me}
                 onNavigate={(target: TabKey) => setTab(target)}
-                onFinished={() => setTab("overview")}
+                onFinished={() => { setHideOnboarding(true); setTab("overview"); }}
               />
             ) : null}
             {tab === "overview" ? (

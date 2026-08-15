@@ -37,6 +37,7 @@ function App({ api }: AppProps) {
   const [busy, setBusy] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
+  const [onboardingCompleted, setOnboardingCompleted] = useState(true);
 
   async function refreshSession() {
     try {
@@ -45,6 +46,7 @@ function App({ api }: AppProps) {
       setAuthHint(null);
       try {
         const onboarding = await api.getOnboardingState();
+        setOnboardingCompleted(onboarding.completed);
         if (!onboarding.completed && checkingSession) setInitialTab("onboarding");
       } catch {
         // Onboarding state is best-effort; never block console access.
@@ -157,7 +159,7 @@ function App({ api }: AppProps) {
     );
   }
 
-  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} />;
+  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} onboardingCompleted={onboardingCompleted} />;
 }
 
 function AppRoot() {
