@@ -23,7 +23,11 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
   const slices: Slice[] = Object.entries(data)
     .filter(([, v]) => v > 0)
     .map(([key, value]) => {
-      const meta = STATUS_META[key.toLowerCase()] ?? { label: key, cssVar: "var(--muted)", hex: "#888888" };
+      const meta = STATUS_META[key.toLowerCase()] ?? {
+        label: key,
+        cssVar: "var(--muted)",
+        hex: "#888888",
+      };
       return { label: meta.label, value, color: meta.cssVar, hex: meta.hex };
     });
 
@@ -31,7 +35,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
-    const size = 180;
+    const size = 160;
     canvas.width = size * dpr;
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
@@ -43,8 +47,8 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
 
     const cx = size / 2;
     const cy = size / 2;
-    const radius = 80;
-    const thickness = 22;
+    const radius = 68;
+    const thickness = 18;
 
     if (total === 0 || slices.length === 0) {
       ctx.beginPath();
@@ -74,18 +78,42 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-        padding: 16,
+        padding: 20,
         display: "flex",
         flexDirection: "column",
         gap: 16,
       }}
     >
-      <h3 style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+      <h3
+        style={{
+          fontSize: 14,
+          fontWeight: 700,
+          color: "var(--ink)",
+          margin: 0,
+          fontFamily: "var(--sans)",
+          letterSpacing: -0.3,
+        }}
+      >
         Pedidos por Status
       </h3>
-      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-        <div style={{ position: "relative", width: 180, height: 180, flexShrink: 0 }}>
-          <canvas ref={canvasRef} aria-label="Distribuição de status de pedidos" />
+
+      <div
+        style={{
+          display: "flex",
+          gap: 20,
+          alignItems: "center",
+          flexWrap: "wrap",
+        }}
+      >
+        <div
+          style={{
+            position: "relative",
+            width: 160,
+            height: 160,
+            flexShrink: 0,
+          }}
+        >
+          <canvas ref={canvasRef} aria-label="Distribuicao de status de pedidos" />
           <div
             style={{
               position: "absolute",
@@ -97,15 +125,42 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
               pointerEvents: "none",
             }}
           >
-            <span style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 0.4 }}>
+            <span
+              style={{
+                fontSize: 10,
+                color: "var(--muted)",
+                textTransform: "uppercase",
+                letterSpacing: 0.4,
+                fontWeight: 600,
+              }}
+            >
               Total
             </span>
-            <span style={{ fontSize: 26, fontFamily: "var(--mono)", fontWeight: 600, color: "var(--ink)" }}>
+            <span
+              style={{
+                fontSize: 24,
+                fontFamily: "var(--mono)",
+                fontWeight: 700,
+                color: "var(--ink)",
+              }}
+            >
               {total}
             </span>
           </div>
         </div>
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 140 }}>
+
+        <ul
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            flex: 1,
+            minWidth: 130,
+          }}
+        >
           {slices.length === 0 ? (
             <li style={{ fontSize: 12, color: "var(--muted)" }}>Sem pedidos</li>
           ) : (
@@ -114,21 +169,46 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
               return (
                 <li
                   key={slice.label}
-                  style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--ink)" }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    fontSize: 12,
+                    color: "var(--ink)",
+                    padding: "4px 0",
+                  }}
                 >
                   <span
                     aria-hidden
                     style={{
                       width: 10,
                       height: 10,
-                      borderRadius: 999,
+                      borderRadius: 3,
                       background: slice.hex,
                       flexShrink: 0,
                     }}
                   />
-                  <span style={{ flex: 1 }}>{slice.label}</span>
-                  <span style={{ fontFamily: "var(--mono)", color: "var(--muted)", fontWeight: 600 }}>
-                    {slice.value} · {pct.toFixed(0)}%
+                  <span style={{ flex: 1, fontWeight: 500 }}>{slice.label}</span>
+                  <span
+                    style={{
+                      fontFamily: "var(--mono)",
+                      color: "var(--muted)",
+                      fontWeight: 700,
+                      fontSize: 11,
+                    }}
+                  >
+                    {slice.value}
+                  </span>
+                  <span
+                    style={{
+                      fontFamily: "var(--mono)",
+                      color: "var(--faint)",
+                      fontSize: 10,
+                      minWidth: 30,
+                      textAlign: "right",
+                    }}
+                  >
+                    {pct.toFixed(0)}%
                   </span>
                 </li>
               );

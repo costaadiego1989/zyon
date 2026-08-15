@@ -16,16 +16,23 @@ export type ActivityFeedProps = {
 
 const TYPE_COLOR: Record<ActivityType, string> = {
   order: "var(--accent)",
-  session: "var(--color-info, #6ea8ff)",
+  session: "oklch(70% 0.14 250)",
   offer: "var(--warn)",
   payment: "var(--good)",
 };
 
 const TYPE_ICON: Record<ActivityType, string> = {
-  order: "�",
-  session: "◌",
-  offer: "%",
-  payment: "$",
+  order: "■",
+  session: "●",
+  offer: "◆",
+  payment: "▲",
+};
+
+const TYPE_LABEL: Record<ActivityType, string> = {
+  order: "Pedido",
+  session: "Sessao",
+  offer: "Oferta",
+  payment: "Pagamento",
 };
 
 function relativeTime(iso: string): string {
@@ -34,15 +41,19 @@ function relativeTime(iso: string): string {
   const diff = Date.now() - then;
   const m = Math.floor(diff / 60000);
   if (m < 1) return "agora";
-  if (m < 60) return `${m}m atrás`;
+  if (m < 60) return `${m}m atras`;
   const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h atrás`;
+  if (h < 24) return `${h}h atras`;
   const d = Math.floor(h / 24);
-  return `${d}d atrás`;
+  return `${d}d atras`;
 }
 
 function formatCurrency(n: number | null | undefined): string {
-  return (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+  return (n ?? 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
 }
 
 export function ActivityFeed({ items }: ActivityFeedProps) {
@@ -54,80 +65,158 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-        padding: 12,
-        maxHeight: 360,
+        padding: 20,
+        maxHeight: 480,
         overflowY: "auto",
       }}
     >
+      <div style={{ marginBottom: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", margin: 0, fontFamily: "var(--sans)", letterSpacing: -0.3 }}>
+          Atividade Recente
+        </h3>
+        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Últimos eventos</p>
+      </div>
       {visible.length === 0 ? (
-        <div style={{ padding: 16, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Sem atividade recente</div>
+        <div
+          style={{
+            padding: 32,
+            textAlign: "center",
+            color: "var(--muted)",
+            fontSize: 13,
+          }}
+        >
+          Sem atividade recente
+        </div>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-          {visible.map((item) => {
+        <div
+          style={{
+            position: "relative",
+            paddingLeft: 24,
+          }}
+        >
+          {/* Vertical timeline line */}
+          <div
+            style={{
+              position: "absolute",
+              left: 7,
+              top: 8,
+              bottom: 8,
+              width: 2,
+              background: "var(--border)",
+              borderRadius: 999,
+            }}
+          />
+
+          {visible.map((item, index) => {
             const color = TYPE_COLOR[item.type];
             return (
-              <li
+              <div
                 key={item.id}
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "8px 6px",
-                  borderBottom: "1px solid var(--border)",
+                  alignItems: "flex-start",
+                  gap: 16,
+                  padding: "14px 0",
+                  position: "relative",
+                  transition: "opacity 200ms",
                 }}
               >
-                <span
-                  aria-hidden
+                {/* Timeline dot */}
+                <div
                   style={{
-                    width: 28,
-                    height: 28,
+                    position: "absolute",
+                    left: -20,
+                    top: 18,
+                    width: 12,
+                    height: 12,
                     borderRadius: 999,
-                    background: "var(--color-surface-alt)",
-                    color,
+                    background: "var(--card)",
+                    border: `2px solid ${color}`,
+                    boxShadow: `0 0 0 3px oklch(18.5% 0.004 145)`,
+                    zIndex: 2,
+                  }}
+                />
+
+                {/* Content */}
+                <div
+                  style={{
+                    flex: 1,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontFamily: "var(--mono)",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    flexShrink: 0,
+                    justifyContent: "space-between",
+                    gap: 12,
+                    minWidth: 0,
                   }}
                 >
-                  {TYPE_ICON[item.type]}
-                </span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 12,
-                      color: "var(--ink)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {item.description}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: "var(--ink)",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {item.description}
+                    </div>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        marginTop: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 10,
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: 0.3,
+                          color,
+                          background: color + "1a",
+                          padding: "2px 6px",
+                          borderRadius: 4,
+                          fontFamily: "var(--sans)",
+                        }}
+                      >
+                        {TYPE_LABEL[item.type]}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: 11,
+                          color: "var(--muted)",
+                          fontFamily: "var(--mono)",
+                        }}
+                      >
+                        {relativeTime(item.timestamp)}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: 10, color: "var(--muted)", fontFamily: "var(--mono)" }}>
-                    {relativeTime(item.timestamp)}
-                  </div>
+
+                  {item.amount !== undefined ? (
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontFamily: "var(--mono)",
+                        fontWeight: 700,
+                        color: "var(--ink)",
+                        flexShrink: 0,
+                        background: "var(--accent-soft)",
+                        padding: "4px 10px",
+                        borderRadius: 8,
+                      }}
+                    >
+                      {formatCurrency(item.amount)}
+                    </span>
+                  ) : null}
                 </div>
-                {item.amount !== undefined ? (
-                  <span
-                    style={{
-                      fontSize: 12,
-                      fontFamily: "var(--mono)",
-                      fontWeight: 600,
-                      color: "var(--ink)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    {formatCurrency(item.amount)}
-                  </span>
-                ) : null}
-              </li>
+              </div>
             );
           })}
-        </ul>
+        </div>
       )}
     </div>
   );

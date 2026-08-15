@@ -10,14 +10,32 @@ export type RevenueChartProps = {
   valueFormat?: "currency" | "percent" | "number";
 };
 
-export function RevenueChart({ data, type = "line", label = "Receita", color = "var(--accent)", valueFormat = "number" }: RevenueChartProps) {
+export function RevenueChart({
+  data,
+  type = "line",
+  label = "Receita",
+  color = "var(--accent)",
+  valueFormat = "number",
+}: RevenueChartProps) {
   if (!data || data.length === 0) {
     return (
-      <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--muted)", fontSize: 12, background: "var(--card)", borderRadius: 12, border: "1px solid var(--border)" }}>
-        Sem dados no período
+      <div
+        style={{
+          padding: "32px 16px",
+          textAlign: "center",
+          color: "var(--muted)",
+          fontSize: 13,
+          background: "var(--card)",
+          borderRadius: 14,
+          border: "1px solid var(--border)",
+        }}
+      >
+        Sem dados no periodo
       </div>
     );
   }
+
+  const latestValue = data[data.length - 1]?.value ?? 0;
 
   const formatValue = (val: number): string => {
     if (valueFormat === "currency") {
@@ -41,7 +59,7 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
       {
         label,
         stroke: color,
-        fill: type === "line" ? "oklch(74% 0.19 149 / 0.08)" : color + "33",
+        fill: type === "line" ? "oklch(74% 0.19 149 / 0.06)" : color + "22",
         width: 2,
         paths: type === "bar" ? (uPlot as any).paths?.bars?.({ size: [0.6] }) : undefined,
       },
@@ -49,15 +67,21 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
 
     return {
       width: 400,
-      height: 240,
+      height: 200,
       series,
       axes: [
-        { stroke: "oklch(50% 0.006 145)", grid: { stroke: "oklch(25% 0.006 145)", width: 1 } },
         {
           stroke: "oklch(50% 0.006 145)",
-          grid: { stroke: "oklch(25% 0.006 145)", width: 1 },
-          size: 50,
-          values: (_u, vals) => vals.map((v) => (typeof v === "number" ? formatValue(v) : "")),
+          grid: { stroke: "oklch(22% 0.006 145)", width: 1 },
+          ticks: { stroke: "oklch(22% 0.006 145)", width: 1 },
+        },
+        {
+          stroke: "oklch(50% 0.006 145)",
+          grid: { stroke: "oklch(22% 0.006 145)", width: 1 },
+          ticks: { stroke: "oklch(22% 0.006 145)", width: 1 },
+          size: 56,
+          values: (_u, vals) =>
+            vals.map((v) => (typeof v === "number" ? formatValue(v) : "")),
         },
       ],
       cursor: {
@@ -69,20 +93,65 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
     };
   }, [label, color, type, valueFormat]);
 
-  if (data.length === 0) {
-    return (
-      <div style={{ padding: 24, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>
-        Sem dados no período
-      </div>
-    );
-  }
-
   return (
-    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
-      <div style={{ fontSize: 12, color: "var(--ink)", marginBottom: 8, fontWeight: 600 }}>
-        {label}
+    <div
+      style={{
+        background: "var(--card)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: 20,
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}
+    >
+      {/* Header with title + current value */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: 14,
+              color: "var(--ink)",
+              fontWeight: 700,
+              fontFamily: "var(--sans)",
+              letterSpacing: -0.3,
+            }}
+          >
+            {label}
+          </div>
+          <div
+            style={{
+              fontSize: 11,
+              color: "var(--muted)",
+              marginTop: 2,
+              fontFamily: "var(--sans)",
+            }}
+          >
+            {data.length} pontos · periodo atual
+          </div>
+        </div>
+        <div
+          style={{
+            fontSize: 22,
+            fontFamily: "var(--mono)",
+            fontWeight: 700,
+            color: "var(--ink)",
+            letterSpacing: -0.5,
+          }}
+        >
+          {formatValue(latestValue)}
+        </div>
       </div>
-      <ChartWrapper options={options} data={aligned} style={{ width: "100%", height: 240 }} />
+
+      {/* Chart */}
+      <ChartWrapper options={options} data={aligned} style={{ width: "100%", height: 200 }} />
     </div>
   );
 }

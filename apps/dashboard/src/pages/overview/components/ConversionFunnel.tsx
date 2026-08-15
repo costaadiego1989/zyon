@@ -21,164 +21,229 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-        padding: 20,
+        padding: 24,
         display: "flex",
         flexDirection: "column",
-        gap: 16,
+        gap: 20,
       }}
     >
       {title && (
-        <h4 style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+        <h4
+          style={{
+            fontSize: 14,
+            fontWeight: 700,
+            color: "var(--ink)",
+            margin: 0,
+            fontFamily: "var(--sans)",
+            letterSpacing: -0.3,
+          }}
+        >
           {title}
         </h4>
       )}
 
-      <div style={{ display: "flex", gap: 0, alignItems: "stretch" }}>
+      {/* Real trapezoid funnel */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+          alignItems: "stretch",
+        }}
+      >
         {steps.map((step, i) => {
           const fill = step.color ?? "var(--accent)";
           const prevValue = i > 0 ? steps[i - 1].value : null;
-          const dropRate = prevValue && prevValue > 0
-            ? ((prevValue - (step.value ?? 0)) / prevValue) * 100
-            : null;
-          const convRate = prevValue && prevValue > 0
-            ? ((step.value ?? 0) / prevValue) * 100
-            : null;
-          const barHeight = Math.max(20, ((step.value ?? 0) / max) * 100);
+          const convRate =
+            prevValue && prevValue > 0 ? ((step.value ?? 0) / prevValue) * 100 : null;
+          const percentage = ((step.value ?? 0) / max) * 100;
+          const widthPercent = Math.max(20, 100 - i * 15);
 
           return (
-            <React.Fragment key={step.label}>
-              {i > 0 && (
-                <div
-                  style={{
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 6px",
-                    minWidth: 36,
-                  }}
-                >
-                  <svg width="20" height="16" viewBox="0 0 20 16" fill="none" style={{ opacity: 0.5 }}>
-                    <path d="M4 8h12M12 4l4 4-4 4" stroke="var(--muted)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  {convRate !== null && (
-                    <span
-                      style={{
-                        fontSize: 10,
-                        fontFamily: "var(--mono)",
-                        fontWeight: 700,
-                        color: convRate >= 50 ? "var(--good)" : convRate >= 20 ? "var(--warn)" : "var(--danger)",
-                        marginTop: 2,
-                      }}
-                    >
-                      {convRate.toFixed(0)}%
-                    </span>
-                  )}
-                  {dropRate !== null && dropRate > 0 && (
-                    <span
-                      style={{
-                        fontSize: 9,
-                        fontFamily: "var(--mono)",
-                        color: "var(--muted)",
-                        marginTop: 1,
-                      }}
-                    >
-                      −{dropRate.toFixed(0)}%
-                    </span>
-                  )}
-                </div>
-              )}
-
+            <div
+              key={step.label}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
               <div
                 style={{
-                  flex: 1,
+                  width: `${widthPercent}%`,
+                  minWidth: "50px",
+                  background: fill,
+                  opacity: 0.85,
+                  borderRadius: 12,
+                  padding: "20px 24px",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
+                  justifyContent: "center",
                   gap: 8,
-                  minWidth: 0,
+                  transition: "all 300ms cubic-bezier(0.16,1,0.3,1), opacity 200ms",
+                  position: "relative",
+                  overflow: "hidden",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.opacity = "1";
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
+                  (e.currentTarget as HTMLElement).style.boxShadow =
+                    "0 8px 24px " + fill + "33";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.opacity = "0.85";
+                  (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
+                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
                 }}
               >
-                <div
-                  style={{
-                    width: "100%",
-                    height: 120,
-                    display: "flex",
-                    alignItems: "flex-end",
-                    justifyContent: "center",
-                    position: "relative",
-                  }}
-                >
-                  <div
-                    style={{
-                      width: "70%",
-                      height: `${barHeight}%`,
-                      minHeight: 24,
-                      background: fill,
-                      opacity: 0.9,
-                      borderRadius: "8px 8px 4px 4px",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      transition: "height 300ms cubic-bezier(0.16,1,0.3,1)",
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 14,
-                        fontFamily: "var(--mono)",
-                        fontWeight: 700,
-                        color: "#fff",
-                        textShadow: "0 1px 2px rgba(0,0,0,0.3)",
-                      }}
-                    >
-                      {(step.value ?? 0).toLocaleString("pt-BR")}
-                    </span>
-                  </div>
-                </div>
-
                 <span
                   style={{
-                    fontSize: 11,
-                    fontWeight: 500,
-                    color: "var(--ink)",
-                    textAlign: "center",
-                    lineHeight: 1.2,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    maxWidth: "100%",
+                    fontSize: 16,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 700,
+                    color: "#fff",
+                    textShadow: "0 2px 4px rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {(step.value ?? 0).toLocaleString("pt-BR")}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.9)",
+                    fontWeight: 600,
+                    fontFamily: "var(--sans)",
                   }}
                 >
                   {step.label}
                 </span>
               </div>
-            </React.Fragment>
+
+              {/* Percentage labels between steps */}
+              {convRate !== null && i > 0 && (
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 700,
+                    color:
+                      convRate >= 50
+                        ? "var(--good)"
+                        : convRate >= 25
+                          ? "var(--warn)"
+                          : "var(--danger)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 2,
+                      height: 8,
+                      background: "currentColor",
+                      borderRadius: 999,
+                    }}
+                  />
+                  {convRate.toFixed(0)}% conversão
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
 
+      {/* Summary stats */}
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          paddingTop: 8,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+          gap: 12,
+          paddingTop: 12,
           borderTop: "1px solid var(--border)",
-          fontSize: 11,
-          color: "var(--muted)",
-          fontFamily: "var(--mono)",
         }}
       >
-        <span>Entrada: {(steps[0]?.value ?? 0).toLocaleString("pt-BR")}</span>
-        <span>Saída: {(steps[steps.length - 1]?.value ?? 0).toLocaleString("pt-BR")}</span>
-        <span>
-          Conversão total:{" "}
-          <strong style={{ color: "var(--ink)" }}>
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            Entrada
+          </div>
+          <div
+            style={{
+              fontSize: 16,
+              fontFamily: "var(--mono)",
+              fontWeight: 700,
+              color: "var(--ink)",
+            }}
+          >
+            {(steps[0]?.value ?? 0).toLocaleString("pt-BR")}
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            Saída
+          </div>
+          <div
+            style={{
+              fontSize: 16,
+              fontFamily: "var(--mono)",
+              fontWeight: 700,
+              color: "var(--ink)",
+            }}
+          >
+            {(steps[steps.length - 1]?.value ?? 0).toLocaleString("pt-BR")}
+          </div>
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--muted)",
+              textTransform: "uppercase",
+              letterSpacing: 0.4,
+              fontWeight: 600,
+              marginBottom: 4,
+            }}
+          >
+            Conversão Total
+          </div>
+          <div
+            style={{
+              fontSize: 16,
+              fontFamily: "var(--mono)",
+              fontWeight: 700,
+              color:
+                steps[0]?.value && steps[0].value > 0
+                  ? "var(--good)"
+                  : "var(--muted)",
+            }}
+          >
             {steps[0]?.value && steps[0].value > 0
               ? `${(((steps[steps.length - 1]?.value ?? 0) / steps[0].value) * 100).toFixed(1)}%`
               : "0%"}
-          </strong>
-        </span>
+          </div>
+        </div>
       </div>
     </div>
   );

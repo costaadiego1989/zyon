@@ -12,12 +12,17 @@ export type TopProductsProps = {
 };
 
 function formatCurrency(n: number | null | undefined): string {
-  return (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+  return (n ?? 0).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+  });
 }
 
 export function TopProducts({ products }: TopProductsProps) {
   if (!products || products.length === 0) return null;
   const top = products.slice(0, 5);
+  const maxRevenue = Math.max(...top.map((p) => p.revenue), 1);
 
   return (
     <div
@@ -25,119 +30,190 @@ export function TopProducts({ products }: TopProductsProps) {
         background: "var(--card)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-        padding: 16,
+        padding: 20,
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 16,
       }}
     >
-      <h3 style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
+      <h3
+        style={{
+          fontSize: 14,
+          fontWeight: 700,
+          color: "var(--ink)",
+          margin: 0,
+          fontFamily: "var(--sans)",
+          letterSpacing: -0.3,
+        }}
+      >
         Top Produtos
       </h3>
+
       {top.length === 0 ? (
-        <div style={{ padding: 16, textAlign: "center", color: "var(--muted)", fontSize: 12 }}>Sem vendas no período</div>
+        <div
+          style={{
+            padding: 24,
+            textAlign: "center",
+            color: "var(--muted)",
+            fontSize: 12,
+          }}
+        >
+          Sem vendas no periodo
+        </div>
       ) : (
-        <ol style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 4 }}>
-          {top.map((product, i) => (
-            <li
-              key={`${product.name}-${i}`}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "8px 6px",
-                borderBottom: i < top.length - 1 ? "1px solid var(--border)" : "none",
-              }}
-            >
-              <span
-                aria-hidden
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+          }}
+        >
+          {top.map((product, i) => {
+            const progressWidth = (product.revenue / maxRevenue) * 100;
+            const rankColors = ["var(--accent)", "var(--good)", "var(--warn)", "var(--muted)", "var(--muted)"];
+
+            return (
+              <div
+                key={`${product.name}-${i}`}
                 style={{
-                  width: 24,
-                  fontSize: 13,
-                  fontFamily: "var(--mono)",
-                  fontWeight: 700,
-                  color: i === 0 ? "var(--accent)" : "var(--muted)",
-                  textAlign: "center",
-                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "10px 0",
+                  borderBottom:
+                    i < top.length - 1 ? "1px solid var(--border)" : "none",
                 }}
               >
-                {i + 1}
-              </span>
-              {product.image_url ? (
-                <img
-                  src={product.image_url}
-                  alt=""
-                  style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 999,
-                    objectFit: "cover",
-                    border: "1px solid var(--border)",
-                    flexShrink: 0,
-                  }}
-                />
-              ) : (
+                {/* Rank badge */}
                 <span
-                  aria-hidden
                   style={{
-                    width: 32,
-                    height: 32,
-                    borderRadius: 999,
-                    background: "var(--color-surface-alt)",
-                    border: "1px solid var(--border)",
+                    width: 26,
+                    height: 26,
+                    borderRadius: 8,
+                    background: rankColors[i] + "1a",
+                    border: `1px solid ${rankColors[i]}33`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: 11,
-                    color: "var(--muted)",
+                    fontSize: 12,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 800,
+                    color: rankColors[i],
                     flexShrink: 0,
                   }}
                 >
-                  {(product.name || "?").slice(0, 1).toUpperCase()}
+                  {i + 1}
                 </span>
-              )}
-              <span
-                style={{
-                  flex: 1,
-                  fontSize: 13,
-                  color: "var(--ink)",
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                }}
-              >
-                {product.name}
-              </span>
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "var(--mono)",
-                  color: "var(--muted)",
-                  background: "var(--color-surface-alt)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 999,
-                  padding: "2px 8px",
-                  flexShrink: 0,
-                }}
-              >
-                {product.quantity}×
-              </span>
-              <span
-                style={{
-                  fontSize: 12,
-                  fontFamily: "var(--mono)",
-                  fontWeight: 600,
-                  color: "var(--ink)",
-                  minWidth: 80,
-                  textAlign: "right",
-                  flexShrink: 0,
-                }}
-              >
-                {formatCurrency(product.revenue)}
-              </span>
-            </li>
-          ))}
-        </ol>
+
+                {/* Product image or initial */}
+                {product.image_url ? (
+                  <img
+                    src={product.image_url}
+                    alt=""
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      objectFit: "cover",
+                      border: "1px solid var(--border)",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <span
+                    aria-hidden
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: "oklch(16% 0.003 145)",
+                      border: "1px solid var(--border)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: 13,
+                      color: "var(--muted)",
+                      fontWeight: 700,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {(product.name || "?").slice(0, 1).toUpperCase()}
+                  </span>
+                )}
+
+                {/* Name and progress */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "var(--ink)",
+                      fontWeight: 500,
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      marginBottom: 6,
+                    }}
+                  >
+                    {product.name}
+                  </div>
+                  {/* Revenue progress bar */}
+                  <div
+                    style={{
+                      width: "100%",
+                      height: 4,
+                      background: "oklch(22% 0.006 145)",
+                      borderRadius: 999,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${progressWidth}%`,
+                        height: "100%",
+                        background: rankColors[i],
+                        borderRadius: 999,
+                        transition: "width 500ms cubic-bezier(0.16,1,0.3,1)",
+                        opacity: 0.7,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Quantity */}
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "var(--mono)",
+                    color: "var(--muted)",
+                    background: "oklch(16% 0.003 145)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    padding: "3px 8px",
+                    flexShrink: 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  {product.quantity}x
+                </span>
+
+                {/* Revenue */}
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontFamily: "var(--mono)",
+                    fontWeight: 700,
+                    color: "var(--ink)",
+                    minWidth: 85,
+                    textAlign: "right",
+                    flexShrink: 0,
+                  }}
+                >
+                  {formatCurrency(product.revenue)}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
