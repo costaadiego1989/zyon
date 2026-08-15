@@ -14,6 +14,7 @@ import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -287,16 +288,49 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       storeSettings: input.storeSettings
     });
 
+    // Resolve cart state for context-aware quick replies
+    let cartState: StorefrontCartState | undefined;
+    if (input.cartId) {
+      try {
+        const cart = await this.cartRepo.getOrCreate("", input.cartId);
+        cartState = {
+          items: cart.items.map(i => ({
+            variantId: i.variantId,
+            name: i.name,
+            quantity: i.quantity
+          })),
+          total: cart.total,
+          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+          couponCode: cart.couponCode ?? null
+        };
+      } catch {
+        // Non-critical: proceed without cart state
+      }
+    }
+
+    // Convert shipping options if quote_shipping was used
+    let shippingOptions: StorefrontShippingOption[] | undefined;
+    const lastTool = result.toolsUsed[result.toolsUsed.length - 1];
+    if (lastTool === "quote_shipping" && (result as any).shippingOptions) {
+      shippingOptions = (result as any).shippingOptions.map((opt: any) => ({
+        carrier: opt.carrier,
+        name: opt.name,
+        price: opt.price,
+        days: opt.days
+      }));
+    }
+
     return {
       message: result.message,
       blocks: result.blocks,
       cartId: result.cartId,
-      suggestedNext: this.buildSuggestedActions(result.toolsUsed, result.cartId)
+      suggestedNext: storefrontQuickReplies(lastTool, cartState, shippingOptions)
     };
   }
 
   /**
    * Generate smart quick-reply suggestions based on last tool actions.
+   * @deprecated Use storefrontQuickReplies() instead — now delegated to domain service.
    */
   private buildSuggestedActions(toolsUsed: string[], cartId?: string): string[] {
     const lastTool = toolsUsed[toolsUsed.length - 1];

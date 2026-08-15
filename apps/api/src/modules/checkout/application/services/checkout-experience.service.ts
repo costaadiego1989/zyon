@@ -40,7 +40,18 @@ export interface ExperienceDeps {
   showBranding?: boolean;
 }
 
-export function quickRepliesForStage(stage: ChatStage, missingFields: string[] = [], rules?: MerchantRules): string[] {
+export interface CartSnapshot {
+  items: Array<{ name: string; quantity: number }>;
+  total: number;
+  couponCode?: string | null;
+}
+
+export function quickRepliesForStage(
+  stage: ChatStage,
+  missingFields: string[] = [],
+  rules?: MerchantRules,
+  cart?: CartSnapshot
+): string[] {
   const next = missingFields[0];
   if (next === "confirmar endereço") {
     return ["Sim", "Não"];
@@ -48,6 +59,10 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
   let customReplies: string[] | undefined;
 
   if (stage === "data_collection") {
+    // Empty cart: show product discovery actions
+    if (cart?.items.length === 0) {
+      return ["Ver produtos", "Buscar por categoria", "Quais as promoções?"];
+    }
     const dRules = rules?.quickReplies?.data_collection;
     if (next === "nome") customReplies = dRules?.nome;
     else if (next === "email") customReplies = dRules?.email;
@@ -55,6 +70,11 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
     else if (next === "telefone") customReplies = dRules?.telefone;
     if (!customReplies?.length) customReplies = dRules?.default;
   } else if (stage === "shipping") {
+    // Cart-aware: show carrier options as quick replies when frete stage is ready
+    if (next === "frete" && cart?.items.length) {
+      // Carrier options will be provided separately via shippingOptionReplies
+      return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
+    }
     const sRules = rules?.quickReplies?.shipping;
     if (next === "CEP") customReplies = sRules?.CEP;
     else if (next?.includes("confirmar")) customReplies = sRules?.confirmar;
@@ -110,10 +130,21 @@ export function quickRepliesForStage(stage: ChatStage, missingFields: string[] =
       if (rules?.cryptoPayments?.enabled) {
         base.push("Pagar com crypto");
       }
-      if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0) {
-        return ["Tenho um cupom de desconto", ...base, "Alterar quantidade", "Remover item"];
+      const cartAwareReplies: string[] = [];
+      // Add quantity modification option if any item has qty > 1
+      if (cart?.items.some(item => item.quantity > 1)) {
+        cartAwareReplies.push("Quero alterar quantidade");
       }
-      return [...base, "Alterar quantidade", "Remover item"];
+      // Add item removal option if cart has 2+ items
+      if (cart && cart.items.length >= 2) {
+        cartAwareReplies.push("Remover item");
+      }
+      // Filter out coupon mention if not applicable or already applied
+      const couponReplies: string[] = [];
+      if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0 && !cart?.couponCode) {
+        couponReplies.push("Tenho um cupom de desconto");
+      }
+      return [...couponReplies, ...base, ...cartAwareReplies];
     }
     case "completed":
       return ["Obrigado!", "Quero acompanhar o pedido", "Voltar à loja"];
@@ -158,6 +189,13 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
     if (next === "CEP" || next?.includes("número")) expected_input_type = "number";
   }
 
+  // Build cart snapshot for cart-aware quick replies
+  const cartSnapshot: CartSnapshot = {
+    items: input.cart.items.map(item => ({ name: item.name, quantity: item.quantity })),
+    total: subtotal,
+    couponCode: (input.cart as any).couponCode ?? null
+  };
+
   return {
     stage: chatStage,
     brand: {
@@ -199,7 +237,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       headline: `${merchantName}: finalize sua compra com ajuda da IA`,
       subheadline: `${items.length} item(ns) no pedido, total ${formatMoney(total, input.cart.currency)} com contexto real do carrinho.`,
       trust_badges: [],
-      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules),
+      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules, cartSnapshot),
       focus_input: chatStage !== "completed",
       expected_input_type
     }
