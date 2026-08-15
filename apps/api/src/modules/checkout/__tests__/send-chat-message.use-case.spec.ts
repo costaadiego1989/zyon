@@ -327,7 +327,10 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
     async getStripeConnectAccountId() {
       return undefined;
     },
-    async setStripeConnectAccountId() {}
+    async setStripeConnectAccountId() {},
+    async updateStoreCategory() {},
+    async getStoreSettings() { return {}; },
+    async updateStoreSettings(_mid: string, s: any) { return s; }
   };
 
   const brevoCaptured: BuyerEmailCapturePayload[] = [];
@@ -546,7 +549,10 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
     async getStripeConnectAccountId() {
       return undefined;
     },
-    async setStripeConnectAccountId() {}
+    async setStripeConnectAccountId() {},
+    async updateStoreCategory() {},
+    async getStoreSettings() { return {}; },
+    async updateStoreSettings(_mid: string, s: any) { return s; }
   };
 
   const useCase = createTestUseCase(repository, new RecordingConversationPort(), undefined, merchantRepo);
