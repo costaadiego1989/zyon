@@ -311,7 +311,7 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   const conversation = new RecordingConversationPort();
   const merchantRepo: MerchantRepository = {
     async getProfile(id) {
-      return { id, name: "Loja E2E Journey" };
+      return { id, name: "Loja E2E Journey", plan: "BOTH" };
     },
     async getRules() {
       return merchantRules();

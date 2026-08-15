@@ -21,7 +21,8 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
     const profile = this.profiles.get(merchantId);
     if (!profile) return undefined;
     const stripeConnectAccountId = this.stripeAccounts.get(merchantId);
-    return stripeConnectAccountId ? { ...profile, stripeConnectAccountId } : profile;
+    const base = { ...profile, plan: profile.plan || "BOTH" };
+    return stripeConnectAccountId ? { ...base, stripeConnectAccountId } : base;
   }
 
   async getStripeConnectAccountId(merchantId: string): Promise<string | undefined> {

@@ -78,7 +78,7 @@ export class InMemoryCheckoutRepository
   }
 
   async getProfile(merchantId: string) {
-    return { id: merchantId, name: merchantId };
+    return { id: merchantId, name: merchantId, plan: "BOTH" };
   }
 
   async getStripeConnectAccountId(_merchantId: string): Promise<string | undefined> {

@@ -137,7 +137,7 @@ test("StartCheckoutUseCase returns enterprise experience from merchant, cart, sh
     async getProfile() {
       return {
         id: "mrc_1",
-        name: "Northstar Atelier",
+        name: "Northstar Atelier", plan: "BOTH",
         theme: {
           accentColor: "#FF0066",
           textColor: "#0F172A",
