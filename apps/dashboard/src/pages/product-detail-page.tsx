@@ -414,7 +414,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                           }}
                           disabled={uploadingVariant === v.id}
                           aria-label="Remover imagem"
-                          style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 4, background: "rgba(220,38,38,0.9)", border: "none", color: "white", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", lineHeight: 1, opacity: uploadingVariant === v.id ? 0.6 : 1 }}
+                          style={{ position: "absolute", top: 4, right: 4, width: 24, height: 24, borderRadius: 4, background: "rgba(0,0,0,0.5)", border: "none", color: "white", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", lineHeight: 1, opacity: uploadingVariant === v.id ? 0.6 : 1 }}
                         >
                           ✕
                         </button>
@@ -429,7 +429,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                           type="button"
                           onClick={() => updateVariant(idx, { pendingImages: v.pendingImages.filter((_, i) => i !== imgIdx) })}
                           aria-label="Remover imagem pendente"
-                          style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 4, background: "rgba(220,38,38,0.9)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", lineHeight: 1 }}
+                          style={{ position: "absolute", top: 4, right: 4, width: 22, height: 22, borderRadius: 4, background: "rgba(0,0,0,0.5)", border: "none", color: "white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", lineHeight: 1 }}
                         >
                           ✕
                         </button>
