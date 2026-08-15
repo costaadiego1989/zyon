@@ -16,6 +16,10 @@ import {
   trackPurchase,
 } from "@/lib/analytics";
 import BlockRenderer from "./blocks/BlockRenderer";
+import { BuyerHub } from "./BuyerHub";
+import { BuyerHubTrigger } from "./BuyerHubTrigger";
+import SupportFAB from "./SupportFAB";
+import SupportPanel from "./SupportPanel";
 
 type Message = {
   id: string;
@@ -137,6 +141,8 @@ export default function ConversationShell({
   const [listening, setListening] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [buyerHubOpen, setBuyerHubOpen] = useState(false);
   const threadRef = useRef<HTMLDivElement | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
@@ -430,6 +436,9 @@ export default function ConversationShell({
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
 
+          {/* Buyer Hub Trigger */}
+          <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} hasNotifications={false} />
+
           {/* Social icons */}
           {storeSettings?.social?.instagram && (
             <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="Instagram">
@@ -637,6 +646,17 @@ export default function ConversationShell({
           )}
         </div>
       )}
+
+      {/* Support FAB + Panel — only in chat mode */}
+      {mode === "chat" && (
+        <>
+          <SupportFAB open={supportOpen} onToggle={() => setSupportOpen((v) => !v)} />
+          <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} />
+        </>
+      )}
+
+      {/* Buyer Hub Panel */}
+      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} />
     </div>
   );
 }
