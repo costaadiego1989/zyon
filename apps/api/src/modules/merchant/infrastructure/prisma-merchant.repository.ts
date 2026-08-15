@@ -18,6 +18,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       name: row.name,
       theme: decodePersistedTheme(row.theme),
       storeCategory: row.storeCategory ?? undefined,
+      plan: row.plan,
       stripeConnectAccountId: row.stripeConnectAccountId ?? undefined
     };
   }

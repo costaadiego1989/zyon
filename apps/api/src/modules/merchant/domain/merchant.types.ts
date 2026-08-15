@@ -38,6 +38,7 @@ export interface MerchantProfile {
   name: string;
   theme?: MerchantTheme;
   storeCategory?: string;
+  plan: string;
   storeSettings?: MerchantStoreSettings;
   stripeConnectAccountId?: string;
 }
