@@ -538,6 +538,7 @@ export function OnboardingWizard(props: {
       });
       setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
       setFieldErrors({});
+      setMessage("Api do Asaas conectado com sucesso!");
     } catch (e) {
       setPaymentDraft((d) => ({ ...d, asaasStatus: "error" }));
       setFieldErrors({ asaasApiKey: friendlyError(e) });
@@ -926,6 +927,7 @@ export function OnboardingWizard(props: {
                         type="password"
                         placeholder={props.apiBaseUrl.includes("localhost") || props.apiBaseUrl.includes("127.0.0.1") ? "API Key sandbox ($aact_...)" : "API Key de produção ($aact_...)"}
                         value={paymentDraft.asaasApiKey}
+                        disabled={paymentDraft.asaasStatus === "active"}
                         onChange={(e) => {
                           setPaymentDraft((d) => ({ ...d, asaasApiKey: e.target.value }));
                           if (fieldErrors.asaasApiKey) setFieldErrors((prev) => {
