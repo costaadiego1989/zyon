@@ -223,6 +223,14 @@ export default function ConversationShell({
     });
   };
 
+  // Auto-focus input when entering chat mode or after loading completes
+  useEffect(() => {
+    if (mode === "chat" && !isLoading) {
+      const t = setTimeout(() => inputRef.current?.focus(), 150);
+      return () => clearTimeout(t);
+    }
+  }, [mode, isLoading]);
+
   // Initialize conversation via API
   async function initConversation() {
     if (!merchantId || conversationId) return;
