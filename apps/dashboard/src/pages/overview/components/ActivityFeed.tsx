@@ -41,8 +41,8 @@ function relativeTime(iso: string): string {
   return `${d}d atrás`;
 }
 
-function formatCurrency(n: number): string {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+function formatCurrency(n: number | null | undefined): string {
+  return (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 }
 
 export function ActivityFeed({ items }: ActivityFeedProps) {

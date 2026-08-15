@@ -65,7 +65,7 @@ export function ConversionFunnel({ steps }: ConversionFunnelProps) {
                   textAlign: "right",
                 }}
               >
-                {step.value.toLocaleString("pt-BR")}
+                {(step.value ?? 0).toLocaleString("pt-BR")}
               </span>
             </div>
           </div>

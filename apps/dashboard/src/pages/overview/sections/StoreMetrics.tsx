@@ -11,8 +11,8 @@ export type StoreMetricsProps = {
   timeseries: TimeseriesResponse | null;
 };
 
-function formatCurrency(n: number): string {
-  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatCurrency(n: number | null | undefined): string {
+  return (n ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function calcTrend(current: number, previous: number | undefined): number | undefined {
@@ -59,10 +59,10 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
         />
         <StatCard
           label="Abandono"
-          value={`${(overview.abandonment_rate * 100).toFixed(1)}`}
+          value={`${((overview.abandonment_rate ?? 0) * 100).toFixed(1)}`}
           suffix="%"
           accent="var(--danger)"
-          trend={calcTrend(overview.abandonment_rate * 100, prev?.abandonment_rate ? prev.abandonment_rate * 100 : undefined)}
+          trend={calcTrend((overview.abandonment_rate ?? 0) * 100, prev?.abandonment_rate ? prev.abandonment_rate * 100 : undefined)}
         />
       </div>
 

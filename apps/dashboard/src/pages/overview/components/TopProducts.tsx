@@ -11,8 +11,8 @@ export type TopProductsProps = {
   products: TopProduct[];
 };
 
-function formatCurrency(n: number): string {
-  return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
+function formatCurrency(n: number | null | undefined): string {
+  return (n ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 2 });
 }
 
 export function TopProducts({ products }: TopProductsProps) {

@@ -10,8 +10,8 @@ export type CheckoutMetricsProps = {
   timeseries: TimeseriesResponse | null;
 };
 
-function formatCurrency(n: number): string {
-  return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function formatCurrency(n: number | null | undefined): string {
+  return (n ?? 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function calcTrend(current: number, previous: number | undefined): number | undefined {
@@ -41,15 +41,15 @@ export function CheckoutMetrics({ overview, previousOverview, timeseries }: Chec
         />
         <StatCard
           label="Taxa de Conversão"
-          value={`${(overview.conversion_rate_with_agent * 100).toFixed(1)}`}
+          value={`${((overview.conversion_rate_with_agent ?? 0) * 100).toFixed(1)}`}
           suffix="%"
           accent="var(--good)"
-          trend={calcTrend(overview.conversion_rate_with_agent * 100, prev?.conversion_rate_with_agent ? prev.conversion_rate_with_agent * 100 : undefined)}
+          trend={calcTrend((overview.conversion_rate_with_agent ?? 0) * 100, prev?.conversion_rate_with_agent ? prev.conversion_rate_with_agent * 100 : undefined)}
         />
         <StatCard
           label="Ofertas"
-          value={`${overview.offers_accepted}/${overview.offers_viewed}`}
-          trend={calcTrend(overview.offers_accepted, prev?.offers_accepted)}
+          value={`${overview.offers_accepted ?? 0}/${overview.offers_viewed ?? 0}`}
+          trend={calcTrend(overview.offers_accepted ?? 0, prev?.offers_accepted)}
         />
         <StatCard
           label="Receita Incremental"
@@ -60,10 +60,10 @@ export function CheckoutMetrics({ overview, previousOverview, timeseries }: Chec
         />
         <StatCard
           label="Desconto Médio"
-          value={`${(overview.average_discount * 100).toFixed(1)}`}
+          value={`${((overview.average_discount ?? 0) * 100).toFixed(1)}`}
           suffix="%"
           accent="var(--warn)"
-          trend={calcTrend(overview.average_discount * 100, prev?.average_discount ? prev.average_discount * 100 : undefined)}
+          trend={calcTrend((overview.average_discount ?? 0) * 100, prev?.average_discount ? prev.average_discount * 100 : undefined)}
         />
       </div>
 
