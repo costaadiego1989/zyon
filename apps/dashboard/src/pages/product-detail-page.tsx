@@ -420,9 +420,18 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         </button>
                       </div>
                     ))}
-                    <label style={{ borderRadius: 8, border: "2px dashed var(--border)", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", aspectRatio: "1", cursor: uploadingVariant === v.id ? "not-allowed" : "pointer", opacity: uploadingVariant === v.id ? 0.6 : 1 }}>
-                      <ImageIcon size={24} style={{ color: "var(--faint)", marginBottom: 4 }} />
-                      <span style={{ font: "11px var(--sans)", color: "var(--faint)", textAlign: "center" }}>Upload</span>
+                    <label style={{ borderRadius: 8, border: "2px dashed var(--border)", background: "var(--bg)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", aspectRatio: "1", cursor: (uploadingVariant === v.id || uploadingVariant === `pending-${idx}`) ? "not-allowed" : "pointer", opacity: (uploadingVariant === v.id || uploadingVariant === `pending-${idx}`) ? 0.6 : 1 }}>
+                      {(uploadingVariant === v.id || uploadingVariant === `pending-${idx}`) ? (
+                        <>
+                          <div style={{ width: 20, height: 20, border: "2px solid var(--faint)", borderTopColor: "var(--accent-dark)", borderRadius: "50%", animation: "spin 0.8s linear infinite", marginBottom: 4 }} />
+                          <span style={{ font: "11px var(--sans)", color: "var(--accent-dark)", textAlign: "center" }}>Enviando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon size={24} style={{ color: "var(--faint)", marginBottom: 4 }} />
+                          <span style={{ font: "11px var(--sans)", color: "var(--faint)", textAlign: "center" }}>Upload</span>
+                        </>
+                      )}
                       <input
                         type="file"
                         accept="image/*"
