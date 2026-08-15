@@ -30,9 +30,14 @@ export function CheckoutMetrics({ overview, previousOverview, timeseries }: Chec
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
-        Checkout Inteligente
-      </h3>
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", margin: 0 }}>
+          Checkout Inteligente
+        </h3>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+          Performance do agente de vendas e funil de conversão
+        </p>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
         <StatCard
           label="Conversas"
@@ -67,6 +72,8 @@ export function CheckoutMetrics({ overview, previousOverview, timeseries }: Chec
         />
       </div>
 
+      <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
+
       <ConversionFunnel steps={funnelSteps} />
 
       {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 && (
@@ -76,6 +83,16 @@ export function CheckoutMetrics({ overview, previousOverview, timeseries }: Chec
           label="Conversão diária"
           color="var(--accent)"
           valueFormat="percent"
+        />
+      )}
+
+      {timeseries?.revenue_daily && timeseries.revenue_daily.length > 0 && (
+        <RevenueChart
+          data={timeseries.revenue_daily}
+          type="bar"
+          label="Receita diária do checkout"
+          color="var(--accent)"
+          valueFormat="currency"
         />
       )}
     </section>

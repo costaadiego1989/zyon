@@ -41,7 +41,7 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
       {
         label,
         stroke: color,
-        fill: type === "bar" ? color + "33" : undefined,
+        fill: type === "line" ? "oklch(74% 0.19 149 / 0.08)" : color + "33",
         width: 2,
         paths: type === "bar" ? (uPlot as any).paths?.bars?.({ size: [0.6] }) : undefined,
       },
@@ -49,13 +49,13 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
 
     return {
       width: 400,
-      height: 200,
+      height: 240,
       series,
       axes: [
-        { stroke: "var(--muted)", grid: { stroke: "var(--border)", width: 1 } },
+        { stroke: "oklch(50% 0.006 145)", grid: { stroke: "oklch(25% 0.006 145)", width: 1 } },
         {
-          stroke: "var(--muted)",
-          grid: { stroke: "var(--border)", width: 1 },
+          stroke: "oklch(50% 0.006 145)",
+          grid: { stroke: "oklch(25% 0.006 145)", width: 1 },
           size: 50,
           values: (_u, vals) => vals.map((v) => (typeof v === "number" ? formatValue(v) : "")),
         },
@@ -78,11 +78,11 @@ export function RevenueChart({ data, type = "line", label = "Receita", color = "
   }
 
   return (
-    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 12 }}>
-      <div style={{ fontSize: 11, color: "var(--muted)", marginBottom: 8, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.4 }}>
+    <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 16 }}>
+      <div style={{ fontSize: 12, color: "var(--ink)", marginBottom: 8, fontWeight: 600 }}>
         {label}
       </div>
-      <ChartWrapper options={options} data={aligned} style={{ width: "100%", height: 200 }} />
+      <ChartWrapper options={options} data={aligned} style={{ width: "100%", height: 240 }} />
     </div>
   );
 }

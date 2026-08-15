@@ -133,6 +133,9 @@ export function OverviewPage(props: OverviewPageProps) {
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--ink)", margin: 0 }}>
             Visão Geral
           </h2>
+          <p style={{ fontSize: 13, color: "var(--muted)", margin: 0 }}>
+            Métricas consolidadas do seu negócio
+          </p>
           <LastUpdatedCounter lastUpdated={vm.lastUpdated} />
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -194,7 +197,13 @@ export function OverviewPage(props: OverviewPageProps) {
         />
       )}
 
-      <ActivityFeed items={activityItems} />
+      <div>
+        <div style={{ marginBottom: 8 }}>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", margin: 0 }}>Atividade Recente</h3>
+          <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>Últimos eventos de checkout e vendas</p>
+        </div>
+        <ActivityFeed items={activityItems} />
+      </div>
     </div>
   );
 }

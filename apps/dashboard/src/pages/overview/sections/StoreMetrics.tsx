@@ -24,9 +24,14 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
   const prev = previousOverview;
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--ink)", margin: 0 }}>
-        Loja
-      </h3>
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ fontSize: 15, fontWeight: 700, color: "var(--ink)", margin: 0 }}>
+          Loja
+        </h3>
+        <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>
+          Vendas, pedidos e performance do catálogo
+        </p>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
         <StatCard
           label="Receita"
@@ -66,6 +71,8 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
         />
       </div>
 
+      <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {overview.orders_by_status && <OrderStatusDonut data={overview.orders_by_status} />}
         {overview.top_products && <TopProducts products={overview.top_products} />}
@@ -78,6 +85,16 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
           label="Receita diária"
           color="var(--accent)"
           valueFormat="currency"
+        />
+      )}
+
+      {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 && (
+        <RevenueChart
+          data={timeseries.conversion_daily}
+          type="line"
+          label="Conversão diária"
+          color="var(--accent)"
+          valueFormat="percent"
         />
       )}
     </section>
