@@ -124,6 +124,52 @@ export class StoreBuilderCatalogController {
     });
   }
 
+  @Put(":mid/products/:pid/variants/:vid")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async updateVariant(
+    @Param("mid") merchantId: string,
+    @Param("pid") _productId: string,
+    @Param("vid") variantId: string,
+    @Body() body: {
+      basePriceInCents?: number;
+      costInCents?: number | null;
+      stockQuantity?: number;
+      weightGrams?: number | null;
+      lengthCm?: number | null;
+      widthCm?: number | null;
+      heightCm?: number | null;
+    },
+  ) {
+    // Update variant fields
+    if (body.basePriceInCents !== undefined || body.costInCents !== undefined) {
+      await this.prisma.productPrice.updateMany({
+        where: { variantId },
+        data: {
+          ...(body.basePriceInCents !== undefined ? { basePriceInCents: body.basePriceInCents } : {}),
+          ...(body.costInCents !== undefined ? { costInCents: body.costInCents } : {}),
+        },
+      });
+    }
+    if (body.weightGrams !== undefined || body.lengthCm !== undefined || body.widthCm !== undefined || body.heightCm !== undefined) {
+      await this.prisma.productVariant.update({
+        where: { id: variantId },
+        data: {
+          ...(body.weightGrams !== undefined ? { weightGrams: body.weightGrams } : {}),
+          ...(body.lengthCm !== undefined ? { lengthCm: body.lengthCm } : {}),
+          ...(body.widthCm !== undefined ? { widthCm: body.widthCm } : {}),
+          ...(body.heightCm !== undefined ? { heightCm: body.heightCm } : {}),
+        },
+      });
+    }
+    if (body.stockQuantity !== undefined) {
+      await this.prisma.productStock.updateMany({
+        where: { variantId },
+        data: { quantity: body.stockQuantity },
+      });
+    }
+    return { updated: true };
+  }
+
   @Delete(":mid/products/:pid")
   @RequirePlan("STORE_ONLY", "BOTH")
   async remove(

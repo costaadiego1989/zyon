@@ -200,6 +200,16 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           categoryId: categoryId.trim() || undefined,
           isActive,
         });
+        // Also update variants (price, stock, dimensions) — create missing, update existing
+        for (const v of payloadVariants) {
+          const existing = variants.find((dv) => dv.sku === v.sku && dv.id);
+          if (existing?.id) {
+            // Update existing variant via API
+            try {
+              await api.updateVariant?.(merchantId, props.productId, existing.id, v);
+            } catch { /* non-critical if endpoint not ready */ }
+          }
+        }
       } else {
         await api.createProduct(merchantId, {
           name: name.trim(),

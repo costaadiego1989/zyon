@@ -118,6 +118,14 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+    updateVariant(merchantId: string, productId: string, variantId: string, data: { basePriceInCents?: number; costInCents?: number | null; stockQuantity?: number; weightGrams?: number | null; lengthCm?: number | null; widthCm?: number | null; heightCm?: number | null }): Promise<unknown> {
+      return dashboardJson(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`,
+        { method: "PUT", jsonBody: data },
+        f,
+      );
+    },
     uploadProductMedia(merchantId: string, variantId: string, imageBase64: string): Promise<{ id: string; url: string }> {
       return dashboardJson<{ id: string; url: string }>(
         base,
