@@ -7,8 +7,38 @@ import {
   IsString,
   Matches,
   Max,
-  Min
+  Min,
+  ValidateNested,
+  IsNumber
 } from "class-validator";
+import { Type } from "class-transformer";
+
+class CryptoPaymentsDto {
+  @IsBoolean()
+  enabled!: boolean;
+
+  @IsIn(["polygon", "base"])
+  chain!: "polygon" | "base";
+
+  @IsIn(["mainnet", "testnet"])
+  network!: "mainnet" | "testnet";
+
+  @IsString()
+  treasuryAddress!: string;
+
+  @IsIn(["USDC"])
+  token!: "USDC";
+
+  @IsInt()
+  @Min(60)
+  @Max(3600)
+  quoteTtlSeconds!: number;
+
+  @IsNumber()
+  @Min(0.01)
+  @IsOptional()
+  brlPerUsdc?: number;
+}
 
 export class UpdateMerchantRulesDto {
   @IsInt()
@@ -88,4 +118,9 @@ export class UpdateMerchantRulesDto {
     refundUrl?: string;
     shippingUrl?: string;
   };
+
+  @ValidateNested()
+  @Type(() => CryptoPaymentsDto)
+  @IsOptional()
+  cryptoPayments?: CryptoPaymentsDto;
 }
