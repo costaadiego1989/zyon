@@ -1,5 +1,5 @@
 import React from "react";
-import { Pencil, Trash2, Pause, Play, Plus, GripVertical } from "lucide-react";
+import { Pencil, Pause, Play, Trash2, Plus, GripVertical } from "lucide-react";
 import type { ProductCategoryDTO } from "../../../api/endpoints/catalog.js";
 
 interface CategoryRowProps {
@@ -57,100 +57,75 @@ export function CategoryRow({
         onDrop(e);
       }}
       style={{
-        display: "grid",
-        gridTemplateColumns: `${20 + depth * 24}px 1fr 80px 80px 160px`,
+        display: "flex",
         alignItems: "center",
-        padding: "10px 16px",
-        gap: 10,
+        padding: "14px 20px",
+        paddingLeft: 20 + depth * 28,
+        gap: 12,
         borderBottom: "1px solid var(--border)",
-        border: isDropTarget ? "2px solid var(--accent)" : undefined,
         background: isDropTarget ? "var(--accent-soft)" : "transparent",
-        transition: "background 150ms, border 150ms",
+        borderLeft: isDropTarget ? "3px solid var(--accent)" : "3px solid transparent",
+        transition: "background 120ms, border-left 120ms",
         cursor: "grab",
+        minHeight: 56,
       }}
     >
-      {/* Grip + indent */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
-        <GripVertical size={14} style={{ color: "var(--faint)", flexShrink: 0 }} />
-      </div>
+      {/* Drag handle */}
+      <GripVertical size={14} style={{ color: "var(--faint)", flexShrink: 0, opacity: 0.5 }} />
 
-      {/* Name + image */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        {category.image_url ? (
-          <img
-            src={category.image_url}
-            alt=""
-            style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover", flexShrink: 0, border: "1px solid var(--border)" }}
-          />
-        ) : (
-          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, font: "600 13px var(--sans)", color: "var(--accent)" }}>
-            {(category.name || "?").charAt(0).toUpperCase()}
-          </div>
-        )}
-        <div style={{ minWidth: 0 }}>
-          <div style={{ font: "600 13px var(--sans)", color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {category.name}
-          </div>
-          {category.description && (
-            <div style={{ font: "12px var(--sans)", color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 280 }}>
-              {category.description}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Status */}
-      <div style={{ textAlign: "center" }}>
-        <span
-          style={{
-            display: "inline-block",
-            padding: "3px 8px",
-            borderRadius: 5,
-            font: "600 10.5px var(--mono)",
-            background: category.is_active ? "var(--good-soft)" : "var(--bg)",
-            color: category.is_active ? "var(--good)" : "var(--faint)",
-            border: `1px solid ${category.is_active ? "var(--good)" : "var(--border)"}`,
-          }}
-        >
-          {category.is_active ? "Ativa" : "Pausada"}
+      {/* Name — takes remaining space */}
+      <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+        <span style={{ font: "500 14px var(--sans)", color: "var(--ink)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {category.name}
         </span>
+        {category.description && (
+          <span style={{ font: "12px var(--sans)", color: "var(--faint)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }}>
+            — {category.description}
+          </span>
+        )}
       </div>
 
       {/* Product count */}
-      <div style={{ textAlign: "center", font: "13px var(--mono)", color: "var(--muted)" }}>
+      <div style={{ width: 80, textAlign: "center", font: "600 13px var(--mono)", color: "var(--accent)", flexShrink: 0 }}>
         {category.product_count ?? 0}
       </div>
 
+      {/* Status */}
+      <div style={{ width: 80, textAlign: "center", flexShrink: 0 }}>
+        <span style={{ font: "500 12px var(--sans)", color: category.is_active ? "var(--ink)" : "var(--faint)" }}>
+          {category.is_active ? "Ativo" : "Pausado"}
+        </span>
+      </div>
+
       {/* Actions */}
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 4 }}>
+      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit(); }}
-          style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 3, font: "600 11px var(--sans)" }}
+          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, font: "600 12px var(--sans)" }}
         >
-          <Pencil size={11} /> Editar
+          <Pencil size={12} /> Editar
         </button>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleActive(); }}
-          title={category.is_active ? "Pausar" : "Ativar"}
-          style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: category.is_active ? "var(--muted)" : "var(--good)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+          style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, font: "600 12px var(--sans)" }}
         >
           {category.is_active ? <Pause size={12} /> : <Play size={12} />}
+          {category.is_active ? "Pausar" : "Ativar"}
         </button>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          title="Excluir"
-          style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+          style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, font: "600 12px var(--sans)" }}
         >
-          <Trash2 size={12} />
+          <Trash2 size={12} /> Remover
         </button>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onAddChild(); }}
           title="Adicionar subcategoria"
-          style={{ padding: "5px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+          style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
         >
           <Plus size={12} />
         </button>

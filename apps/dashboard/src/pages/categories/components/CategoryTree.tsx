@@ -39,56 +39,28 @@ function TreeNode({
 
   return (
     <>
-      <div style={{ position: "relative" }}>
-        {hasChildren && (
-          <button
-            type="button"
-            onClick={() => setExpanded(!expanded)}
-            style={{
-              position: "absolute",
-              left: 16 + depth * 24,
-              top: "50%",
-              transform: "translateY(-50%)",
-              zIndex: 2,
-              width: 18,
-              height: 18,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              border: "none",
-              background: "var(--card)",
-              borderRadius: 4,
-              cursor: "pointer",
-              color: "var(--muted)",
-              padding: 0,
-            }}
-          >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-          </button>
-        )}
-        <CategoryRow
-          category={node}
-          depth={depth}
-          isDropTarget={dragOverId === node.id}
-          onEdit={() => onEdit(node)}
-          onDelete={() => onDelete(node.id)}
-          onToggleActive={() => onToggleActive(node.id, node.is_active)}
-          onAddChild={() => onAddChild(node.id)}
-          onDragStart={(e) => {
-            e.dataTransfer.setData("category-id", node.id);
-            e.dataTransfer.effectAllowed = "move";
-          }}
-          onDragOver={(e) => setDragOverId(node.id)}
-          onDragLeave={() => setDragOverId(null)}
-          onDrop={(e) => {
-            const draggedId = e.dataTransfer.getData("category-id");
-            if (draggedId && draggedId !== node.id) {
-              onReparent(draggedId, node.id);
-            }
-            setDragOverId(null);
-          }}
-        />
-      </div>
+      <CategoryRow
+        category={node}
+        depth={depth}
+        isDropTarget={dragOverId === node.id}
+        onEdit={() => onEdit(node)}
+        onDelete={() => onDelete(node.id)}
+        onToggleActive={() => onToggleActive(node.id, node.is_active)}
+        onAddChild={() => onAddChild(node.id)}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("category-id", node.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={() => setDragOverId(node.id)}
+        onDragLeave={() => setDragOverId(null)}
+        onDrop={(e) => {
+          const draggedId = e.dataTransfer.getData("category-id");
+          if (draggedId && draggedId !== node.id) {
+            onReparent(draggedId, node.id);
+          }
+          setDragOverId(null);
+        }}
+      />
       {expanded && hasChildren
         ? node.children.map((child) => (
             <TreeNode
@@ -131,26 +103,22 @@ export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChil
       {/* Header */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "20px 1fr 80px 80px 160px",
+          display: "flex",
           alignItems: "center",
-          padding: "10px 16px",
-          gap: 10,
+          padding: "12px 20px",
           borderBottom: "1px solid var(--border)",
-          background: "var(--bg)",
         }}
       >
-        <div />
-        <div style={{ font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)" }}>NOME</div>
-        <div style={{ font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textAlign: "center" }}>STATUS</div>
-        <div style={{ font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textAlign: "center" }}>PRODUTOS</div>
-        <div style={{ font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textAlign: "right" }}>AÇÕES</div>
+        <div style={{ flex: 1, font: "italic 600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", paddingLeft: 26 }}>NOME</div>
+        <div style={{ width: 80, textAlign: "center", font: "italic 600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)" }}>PRODUTOS</div>
+        <div style={{ width: 80, textAlign: "center", font: "italic 600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)" }}>STATUS</div>
+        <div style={{ width: 340, textAlign: "right", font: "italic 600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", paddingRight: 4 }}></div>
       </div>
 
       {/* Rows */}
       {tree.length === 0 ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--muted)", font: "13px var(--sans)" }}>
-          Nenhuma categoria criada ainda.
+        <div style={{ padding: 48, textAlign: "center", color: "var(--muted)", font: "14px var(--sans)" }}>
+          Nenhuma categoria criada ainda. Clique em "Nova categoria" para começar.
         </div>
       ) : (
         tree.map((node) => (
