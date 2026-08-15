@@ -388,13 +388,12 @@ export default function ConversationShell({
         @keyframes waveRing { 0%{transform:scale(0.7);opacity:0.5} 100%{transform:scale(1.5);opacity:0} }
         @keyframes eyeBlink { 0%,92%,100%{transform:scaleY(1)} 96%{transform:scaleY(0.12)} }
         @keyframes eyeLookLR { 0%,100%{transform:translateX(-2.5px)} 50%{transform:translateX(2.5px)} }
+        @keyframes eyeThinkUp { 0%,80%,100%{transform:translateY(0)} 20%,60%{transform:translateY(-1.5px)} }
         @keyframes bubble-in { from{opacity:0;transform:translateY(8px) scale(.98)} to{opacity:1;transform:translateY(0) scale(1)} }
         @keyframes dot-pulse { 0%,80%,100%{opacity:.3;transform:scale(.65)} 40%{opacity:1;transform:scale(1)} }
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(255,76,108,0.5)} 100%{box-shadow:0 0 0 9px rgba(255,76,108,0)} }
         @keyframes shimmerSlide { 0%{left:-100%} 50%{left:100%} 100%{left:100%} }
-        @keyframes thinkingPulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.12)} }
-        @keyframes thinkingRing { 0%{transform:scale(0.8);opacity:0.5} 100%{transform:scale(1.6);opacity:0} }
       `}</style>
 
       {/* Header (chat mode) */}
@@ -558,15 +557,18 @@ export default function ConversationShell({
 
             {isLoading && (
               <div style={{ display: "flex", gap: "9px", alignItems: "flex-end", alignSelf: "flex-start", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", animation: "thinkingPulse 1.8s ease-in-out infinite" }}>
-                  <div style={{ position: "absolute", inset: "-3px", borderRadius: "50%", border: "1.5px solid var(--aacp-accent)", opacity: 0.4, animation: "thinkingRing 1.8s ease-out infinite" }} />
-                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: "2.5px" }}>
-                    <span style={{ width: "2.5px", height: "3px", borderRadius: "50%", background: "#fff", animation: "dot-pulse 1.2s infinite", animationDelay: "0s" }} />
-                    <span style={{ width: "2.5px", height: "3px", borderRadius: "50%", background: "#fff", animation: "dot-pulse 1.2s infinite", animationDelay: "0.2s" }} />
-                  </div>
+                {/* Thinking orb with eyes looking up */}
+                <div style={{ width: "28px", height: "28px", borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent)`, flex: "none", position: "relative", display: "flex", alignItems: "center", justifyContent: "center", gap: "2.2px" }}>
+                  {/* Left eye — looking up */}
+                  <span style={{ width: "2.5px", height: "3.5px", borderRadius: "50%", background: "#fff", boxShadow: "0 0 8px rgba(0,0,0,0.12)", animation: "eyeThinkUp 2s ease-in-out infinite", flex: "none" }} />
+                  {/* Right eye — looking up */}
+                  <span style={{ width: "2.5px", height: "3.5px", borderRadius: "50%", background: "#fff", boxShadow: "0 0 8px rgba(0,0,0,0.12)", animation: "eyeThinkUp 2s ease-in-out infinite", animationDelay: "0.1s", flex: "none" }} />
                 </div>
-                <div style={{ padding: "10px 14px", borderRadius: "16px 16px 16px 4px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", fontSize: "12px", color: "var(--aacp-muted)", fontStyle: "italic" }}>
-                  Pensando...
+                {/* 3-dot bubble */}
+                <div style={{ padding: "10px 14px", borderRadius: "16px 16px 16px 4px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", gap: "3px", alignItems: "center" }}>
+                  <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0s" }} />
+                  <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0.2s" }} />
+                  <span style={{ width: "3px", height: "3px", borderRadius: "50%", background: "var(--aacp-muted)", animation: "dot-pulse 1.2s infinite", animationDelay: "0.4s" }} />
                 </div>
               </div>
             )}

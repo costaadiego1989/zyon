@@ -19,9 +19,9 @@ export default function BlockRenderer({
 }) {
   switch (block.type) {
     case "product_card":
-      return <ProductCardBlock block={block} />;
+      return <ProductCardBlock block={block} onQuickReply={onQuickReply} />;
     case "product_carousel":
-      return <ProductCarouselBlock block={block} />;
+      return <ProductCarouselBlock block={block} onQuickReply={onQuickReply} />;
     case "comparison_table":
       return <ComparisonTableBlock block={block} />;
     case "cart_summary":
