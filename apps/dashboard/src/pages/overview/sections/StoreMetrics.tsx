@@ -74,7 +74,7 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
 
       <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
 
-      <ConversionFunnel steps={[
+      <ConversionFunnel title="Funil de Pedidos" steps={[
         { label: "Pedidos", value: overview.orders_count ?? 0, color: "var(--accent)" },
         { label: "Aprovados", value: (overview.orders_by_status?.approved ?? 0) + (overview.orders_by_status?.paid ?? 0) + (overview.orders_by_status?.shipped ?? 0) + (overview.orders_by_status?.delivered ?? 0), color: "var(--good)" },
         { label: "Enviados", value: (overview.orders_by_status?.shipped ?? 0) + (overview.orders_by_status?.delivered ?? 0), color: "var(--color-info, #6ea8ff)" },

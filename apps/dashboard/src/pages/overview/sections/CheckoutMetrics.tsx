@@ -74,7 +74,7 @@ export function CheckoutMetrics({ overview, previousOverview, timeseries }: Chec
 
       <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
 
-      <ConversionFunnel steps={funnelSteps} />
+      <ConversionFunnel steps={funnelSteps} title="Funil de Conversão" />
 
       {timeseries?.conversion_daily && timeseries.conversion_daily.length > 0 && (
         <RevenueChart
