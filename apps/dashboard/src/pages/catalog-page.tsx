@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Plus, Search, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from "lucide-react";
+import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { Pagination } from "../components/Pagination.js";
+import { SearchInput } from "../components/SearchInput.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
 
@@ -220,26 +221,27 @@ export function CatalogPage(props: CatalogPageProps) {
       </div>
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", height: 32 }}>
             {(["all", "active", "inactive"] as const).map((value) => {
-              const active = statusFilter === value;
+              const isActive = statusFilter === value;
               const labels = { all: "Todos", active: "Ativos", inactive: "Inativos" };
               return (
-                <div
+                <button
                   key={value}
+                  type="button"
                   onClick={() => setStatusFilter(value)}
-                  style={{ height: 34, lineHeight: "34px", padding: "0 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box" }}
+                  style={{ height: 32, display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: 7, font: "600 12px var(--sans)", cursor: "pointer", background: isActive ? "var(--accent-dark)" : "transparent", color: isActive ? "#fff" : "var(--ink)", border: `1px solid ${isActive ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box" }}
                 >
                   {labels[value]}
-                </div>
+                </button>
               );
             })}
             {categories.length > 0 && (
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none", boxSizing: "border-box" }}
+                style={{ height: 32, padding: "0 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none", boxSizing: "border-box" }}
               >
                 <option value="">Todas categorias</option>
                 {categories.map((cat) => (
@@ -248,15 +250,7 @@ export function CatalogPage(props: CatalogPageProps) {
               </select>
             )}
           </div>
-          <div style={{ position: "relative" }}>
-            <Search size={13} style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", color: "var(--faint)" }} />
-            <input
-              placeholder="Buscar por nome..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ height: 34, width: 280, padding: "0 12px 0 30px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)", boxSizing: "border-box" }}
-            />
-          </div>
+          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nome..." />
         </div>
 
         {loading ? (

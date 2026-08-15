@@ -1,5 +1,4 @@
 import React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 
 export interface PaginationProps {
   page: number;
@@ -7,6 +6,22 @@ export interface PaginationProps {
   total: number;
   onChange: (page: number) => void;
   disabled?: boolean;
+}
+
+function ChevronLeftIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 18l6-6-6-6" />
+    </svg>
+  );
 }
 
 export function Pagination({ page, pageSize, total, onChange, disabled }: PaginationProps) {
@@ -17,30 +32,48 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
   const start = Math.min((page - 1) * pageSize + 1, total);
   const end = Math.min(page * pageSize, total);
 
+  const btnStyle = (enabled: boolean): React.CSSProperties => ({
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    border: "1px solid var(--border)",
+    background: "var(--bg)",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: enabled ? "pointer" : "not-allowed",
+    opacity: enabled ? 1 : 0.35,
+    color: "#fff",
+    padding: 0,
+    font: "inherit",
+  });
+
   return (
-    <div role="navigation" aria-label="Paginação" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderTop: "1px solid var(--border)", background: "var(--card)" }}>
-      <span style={{ font: "12.5px var(--mono)", color: "var(--muted)" }}>
+    <div role="navigation" aria-label="Paginação" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
+      <span style={{ font: "12px var(--mono)", color: "var(--muted)" }}>
         {total === 0 ? "Nenhum item" : `${start}–${end} de ${total}`}
       </span>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <button
           type="button"
           disabled={!canPrev || disabled}
           onClick={() => onChange(page - 1)}
           aria-label="Página anterior"
-          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: canPrev && !disabled ? "pointer" : "not-allowed", opacity: canPrev && !disabled ? 1 : 0.4 }}
+          style={btnStyle(canPrev && !disabled)}
         >
-          <ChevronLeft size={14} color="#fff" />
+          <ChevronLeftIcon />
         </button>
-        <span style={{ font: "600 12px var(--mono)", color: "var(--ink)", padding: "0 8px", minWidth: 40, textAlign: "center" }}>{page} / {totalPages}</span>
+        <span style={{ font: "600 12px var(--mono)", color: "var(--ink)", minWidth: 44, textAlign: "center" }}>
+          {page} / {totalPages}
+        </span>
         <button
           type="button"
           disabled={!canNext || disabled}
           onClick={() => onChange(page + 1)}
           aria-label="Próxima página"
-          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: canNext && !disabled ? "pointer" : "not-allowed", opacity: canNext && !disabled ? 1 : 0.4 }}
+          style={btnStyle(canNext && !disabled)}
         >
-          <ChevronRight size={14} color="#fff" />
+          <ChevronRightIcon />
         </button>
       </div>
     </div>
