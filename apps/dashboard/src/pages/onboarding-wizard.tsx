@@ -488,6 +488,12 @@ export function OnboardingWizard(props: {
   }
 
   async function saveStep3() {
+    // If crypto enabled, validate wallet before proceeding
+    if (paymentDraft.cryptoEnabled && !isValidEvmAddress(paymentDraft.walletAddress)) {
+      setFieldErrors({ walletAddress: "Endereço EVM inválido (0x + 40 caracteres hex)" });
+      return;
+    }
+    setFieldErrors({});
     setBusy(true);
     setMessage(null);
     try {
