@@ -8,7 +8,7 @@ import { FeatureGate } from "../components/FeatureGate.js";
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
 // Lazy-loaded pages
-const OverviewDemoPage = lazy(() => import("../pages/overview-demo-page.js").then(m => ({ default: m.OverviewDemoPage })));
+const OverviewPage = lazy(() => import("../pages/overview/index.js").then(m => ({ default: m.OverviewPage })));
 const MerchantRulesAuthenticatedPage = lazy(() => import("../pages/merchant-rules-page.js").then(m => ({ default: m.MerchantRulesAuthenticatedPage })));
 const CheckoutSettingsPage = lazy(() => import("../pages/checkout-settings/index.js").then(m => ({ default: m.CheckoutSettingsPage })));
 const NegotiationPage = lazy(() => import("../pages/negotiation-page.js").then(m => ({ default: m.NegotiationPage })));
@@ -149,7 +149,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               />
             ) : null}
             {tab === "overview" ? (
-              <OverviewDemoPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id} me={me} />
+              <OverviewPage apiBaseUrl={API_BASE_URL} defaultMerchantId={me.id} me={me} />
             ) : null}
             {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}

@@ -35,6 +35,7 @@ import type {
   ConnectCommercePayload,
   Installation,
 } from "../types.js";
+import type { StoreOverview, TimeseriesResponse } from "@zyon/shared-types";
 
 export function otherEndpoints(base: string, f: typeof fetch) {
   return {
@@ -215,6 +216,22 @@ export function otherEndpoints(base: string, f: typeof fetch) {
       return dashboardJson<DashboardOverview>(
         base,
         `/checkout/dashboard/overview/${encodeURIComponent(merchantId)}`,
+        { method: "GET" },
+        f,
+      );
+    },
+    getStoreOverview(merchantId: string, period: string): Promise<StoreOverview> {
+      return dashboardJson<StoreOverview>(
+        base,
+        `/dashboard/store-overview?period=${encodeURIComponent(period)}`,
+        { method: "GET" },
+        f,
+      );
+    },
+    getTimeseries(merchantId: string, period: string): Promise<TimeseriesResponse> {
+      return dashboardJson<TimeseriesResponse>(
+        base,
+        `/dashboard/overview/timeseries?period=${encodeURIComponent(period)}`,
         { method: "GET" },
         f,
       );
