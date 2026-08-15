@@ -393,9 +393,13 @@ export class StorefrontLangGraphAgent {
       }
     }
 
-    // When product_card is present, remove carousel (detail view is exclusive)
+    // Filter blocks: exclusive views remove carousel noise
     const hasProductCard = blocks.some(b => b.type === "product_card");
-    const finalBlocks = hasProductCard
+    const hasShippingOptions = blocks.some(b => b.type === "shipping_options");
+    const hasComparison = blocks.some(b => b.type === "product_comparison");
+    const hasCategoryCarousel = blocks.some(b => b.type === "category_carousel");
+    const removeCarousel = hasProductCard || hasShippingOptions || hasComparison || hasCategoryCarousel;
+    const finalBlocks = removeCarousel
       ? blocks.filter(b => b.type !== "product_carousel")
       : blocks;
 
