@@ -34,6 +34,10 @@ export function StoreMetrics({
 
   const revSparkline = timeseries?.revenue_daily?.map((d) => d.value) ?? [];
   const ordersSparkline = timeseries?.orders_daily?.map((d) => d.value) ?? [];
+  const ticketSparkline = timeseries?.revenue_daily?.map((d, i) => {
+    const orders = timeseries?.orders_daily?.[i]?.value ?? 1;
+    return orders > 0 ? d.value / orders : 0;
+  }) ?? [];
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -67,6 +71,7 @@ export function StoreMetrics({
           prefix="R$"
           trend={calcTrend(overview.average_ticket, prev?.average_ticket)}
           icon={<Receipt size={16} />}
+          sparkline={ticketSparkline}
         />
         <StatCard
           label="Abandono"
@@ -75,7 +80,7 @@ export function StoreMetrics({
           accent="var(--danger)"
           trend={calcTrend(
             (overview.abandonment_rate ?? 0) * 100,
-            prev?.abandonment_rate ? prev.abandonment_rate * 100 : undefined,
+            prev?.abandonment_rate != null ? prev.abandonment_rate * 100 : undefined,
           )}
           icon={<TrendingDown size={16} />}
         />

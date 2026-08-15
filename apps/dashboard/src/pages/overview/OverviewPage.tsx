@@ -341,6 +341,7 @@ export function OverviewPage(props: OverviewPageProps) {
               color: "var(--muted)",
               margin: 0,
               fontFamily: "var(--sans)",
+              fontStyle: "italic",
             }}
           >
             Métricas consolidadas do seu negócio
