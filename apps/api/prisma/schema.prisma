@@ -16,6 +16,8 @@ model Merchant {
   id                     String         @id
   name                   String
   theme                  Json?
+  storeCategory          String?        @map("store_category")
+  storeSettings          Json?          @map("store_settings")
   stripeConnectAccountId String?        @map("stripe_connect_account_id")
   cryptoPaymentsEnabled  Boolean        @default(false) @map("crypto_payments_enabled")
   plan                   MerchantPlan   @default(CHECKOUT_ONLY)
@@ -893,7 +895,9 @@ model Coupon {
   discountType   String    @map("discount_type")
   discountValue  Decimal   @map("discount_value") @db.Decimal(12, 4)
   minCartTotal   Decimal?  @map("min_cart_total") @db.Decimal(12, 4)
+  freeShippingMinCartTotal Decimal? @map("free_shipping_min_cart_total") @db.Decimal(12, 4)
   maxUsages      Int?      @map("max_usages")
+  minPerBuyer    Int?      @map("min_per_buyer")
   maxPerBuyer    Int?      @map("max_per_buyer")
   usagesCount    Int       @default(0) @map("usages_count")
   allowedSkus    String[]  @default([]) @map("allowed_skus")
@@ -910,6 +914,7 @@ model Coupon {
 
   @@unique([merchantId, code])
   @@index([merchantId, status])
+  @@index([endsAt])
   @@map("coupons")
 }
 
@@ -1491,3 +1496,43 @@ model MerchantDomain {
   @@map("merchant_domains")
 }
 
+// ─── Storefront Cart (browsing phase before checkout) ─────────────────────────
+
+model StorefrontCart {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  sessionId  String   @map("session_id")
+  items      Json     @default("[]")
+  couponCode String?  @map("coupon_code")
+  discount   Float    @default(0)
+  total      Float    @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  expiresAt  DateTime @map("expires_at")
+
+  @@unique([merchantId, sessionId])
+  @@index([expiresAt])
+  @@map("storefront_carts")
+}
+
+// ─── Product Promotions (scheduled discounts per variant or category) ─────────
+
+model ProductPromotion {
+  id                String    @id @default(cuid())
+  merchantId        String    @map("merchant_id")
+  variantId         String?   @map("variant_id")
+  categoryId        String?   @map("category_id")
+  discountType      String    @map("discount_type")       // "percent" | "fixed"
+  discountValue     Int       @map("discount_value")      // percent (0-100) or cents
+  promoPriceInCents Int?      @map("promo_price_in_cents")
+  isActive          Boolean   @default(true) @map("is_active")
+  startsAt          DateTime  @map("starts_at")
+  endsAt            DateTime  @map("ends_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([merchantId, isActive, endsAt])
+  @@index([variantId, isActive])
+  @@index([categoryId, isActive])
+  @@map("product_promotions")
+}

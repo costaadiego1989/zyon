@@ -17,6 +17,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       id: row.id,
       name: row.name,
       theme: decodePersistedTheme(row.theme),
+      storeCategory: row.storeCategory ?? undefined,
       stripeConnectAccountId: row.stripeConnectAccountId ?? undefined
     };
   }
@@ -42,6 +43,26 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       data: { theme: theme as unknown as object }
     });
     return ((updated.theme as MerchantTheme | null) ?? theme);
+  }
+
+  async updateStoreCategory(merchantId: string, storeCategory: string): Promise<void> {
+    await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { storeCategory }
+    });
+  }
+
+  async getStoreSettings(merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
+    const row = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+    return (row?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
+  }
+
+  async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
+    const updated = await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { storeSettings: settings as unknown as object }
+    });
+    return (updated.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? settings;
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {

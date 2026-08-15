@@ -1,9 +1,44 @@
 import type { MerchantRules, MerchantTheme } from "@zyon/shared-types";
 
+export interface MerchantStoreSettings {
+  social?: {
+    instagram?: string;
+    facebook?: string;
+    linkedin?: string;
+    youtube?: string;
+    googleMaps?: string;
+  };
+  company?: {
+    cnpj?: string;
+    razaoSocial?: string;
+    inscricaoEstadual?: string;
+    email?: string;
+    phone?: string;
+    address?: {
+      street?: string;
+      number?: string;
+      complement?: string;
+      neighborhood?: string;
+      city?: string;
+      state?: string;
+      zip?: string;
+    };
+    businessHours?: string;
+  };
+  policies?: {
+    privacy?: string;
+    returns?: string;
+    terms?: string;
+    shipping?: string;
+  };
+}
+
 export interface MerchantProfile {
   id: string;
   name: string;
   theme?: MerchantTheme;
+  storeCategory?: string;
+  storeSettings?: MerchantStoreSettings;
   stripeConnectAccountId?: string;
 }
 

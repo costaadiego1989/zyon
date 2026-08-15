@@ -91,6 +91,12 @@ export class InMemoryCheckoutRepository
     return theme;
   }
 
+  async updateStoreCategory(_merchantId: string, _storeCategory: string): Promise<void> {}
+
+  async getStoreSettings(_merchantId: string): Promise<any> { return {}; }
+
+  async updateStoreSettings(_merchantId: string, settings: any): Promise<any> { return settings; }
+
   resolveGlobalUserId(merchantId: string, customer?: CustomerHints): string {
     const identityKey = CheckoutIdentityService.identityKey(merchantId, customer);
     if (!identityKey) return `usr_${crypto.randomUUID()}`;

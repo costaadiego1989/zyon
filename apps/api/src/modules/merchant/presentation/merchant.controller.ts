@@ -148,4 +148,25 @@ export class MerchantController {
   putTheme(@CurrentTenant() merchantId: string, @Body() body: MerchantTheme) {
     return this.updateTheme.execute(merchantId, body);
   }
+
+  @Put("store-category")
+  async putStoreCategory(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { storeCategory: string }
+  ) {
+    return this.updateTheme.executeCategory(merchantId, body.storeCategory);
+  }
+
+  @Get("store-settings")
+  async getStoreSettings(@CurrentTenant() merchantId: string) {
+    return this.updateTheme.getStoreSettings(merchantId);
+  }
+
+  @Put("store-settings")
+  async putStoreSettings(
+    @CurrentTenant() merchantId: string,
+    @Body() body: Record<string, unknown>
+  ) {
+    return this.updateTheme.updateStoreSettings(merchantId, body);
+  }
 }

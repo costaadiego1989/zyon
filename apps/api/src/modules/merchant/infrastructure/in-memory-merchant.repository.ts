@@ -59,4 +59,17 @@ export class InMemoryMerchantRepository implements MerchantRepository, MerchantR
     this.profiles.set(merchantId, { ...existing, theme });
     return theme;
   }
+
+  async updateStoreCategory(merchantId: string, storeCategory: string): Promise<void> {
+    const existing = this.profiles.get(merchantId) ?? { id: merchantId, name: merchantId };
+    this.profiles.set(merchantId, { ...existing, storeCategory });
+  }
+
+  async getStoreSettings(_merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
+    return {};
+  }
+
+  async updateStoreSettings(_merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
+    return settings;
+  }
 }
