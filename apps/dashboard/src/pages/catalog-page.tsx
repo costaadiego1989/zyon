@@ -215,8 +215,8 @@ export function CatalogPage(props: CatalogPageProps) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
         <StatCard label="Produtos" value={totals.total} icon={<Package size={16} />} />
-        <StatCard label="Em estoque" value={totals.inStock} accent="var(--good)" />
-        <StatCard label="Inativos" value={totals.inactive} accent="var(--faint)" />
+        <StatCard label="Em estoque" value={totals.inStock} icon={<ShoppingBag size={16} />} accent="var(--good)" />
+        <StatCard label="Inativos" value={totals.inactive} icon={<Pause size={16} />} accent="var(--faint)" />
       </div>
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
@@ -229,7 +229,7 @@ export function CatalogPage(props: CatalogPageProps) {
                 <div
                   key={value}
                   onClick={() => setStatusFilter(value)}
-                  style={{ height: 34, display: "flex", alignItems: "center", padding: "0 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}` }}
+                  style={{ height: 34, lineHeight: "34px", padding: "0 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box" }}
                 >
                   {labels[value]}
                 </div>
@@ -239,7 +239,7 @@ export function CatalogPage(props: CatalogPageProps) {
               <select
                 value={categoryFilter}
                 onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none" }}
+                style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", font: "12.5px var(--sans)", color: "var(--ink)", background: "var(--card)", cursor: "pointer", outline: "none", boxSizing: "border-box" }}
               >
                 <option value="">Todas categorias</option>
                 {categories.map((cat) => (
@@ -254,7 +254,7 @@ export function CatalogPage(props: CatalogPageProps) {
               placeholder="Buscar por nome..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              style={{ height: 34, width: 280, padding: "0 12px 0 30px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
+              style={{ height: 34, width: 280, padding: "0 12px 0 30px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)", boxSizing: "border-box" }}
             />
           </div>
         </div>

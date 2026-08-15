@@ -28,9 +28,9 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
           disabled={!canPrev || disabled}
           onClick={() => onChange(page - 1)}
           aria-label="Página anterior"
-          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: canPrev && !disabled ? "pointer" : "not-allowed", opacity: canPrev && !disabled ? 1 : 0.4, color: "var(--ink)" }}
+          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: canPrev && !disabled ? "pointer" : "not-allowed", opacity: canPrev && !disabled ? 1 : 0.4 }}
         >
-          <ChevronLeft size={14} />
+          <ChevronLeft size={14} color="#fff" />
         </button>
         <span style={{ font: "600 12px var(--mono)", color: "var(--ink)", padding: "0 8px", minWidth: 40, textAlign: "center" }}>{page} / {totalPages}</span>
         <button
@@ -38,9 +38,9 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
           disabled={!canNext || disabled}
           onClick={() => onChange(page + 1)}
           aria-label="Próxima página"
-          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: canNext && !disabled ? "pointer" : "not-allowed", opacity: canNext && !disabled ? 1 : 0.4, color: "var(--ink)" }}
+          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", display: "flex", alignItems: "center", justifyContent: "center", cursor: canNext && !disabled ? "pointer" : "not-allowed", opacity: canNext && !disabled ? 1 : 0.4 }}
         >
-          <ChevronRight size={14} />
+          <ChevronRight size={14} color="#fff" />
         </button>
       </div>
     </div>
