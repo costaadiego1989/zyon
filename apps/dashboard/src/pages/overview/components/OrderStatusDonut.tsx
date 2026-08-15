@@ -29,7 +29,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
   const slices: Slice[] = Object.entries(data)
     .filter(([, v]) => v > 0)
     .map(([key, value]) => {
-      const meta = STATUS_META[key] ?? { label: key, cssVar: "var(--muted)" };
+      const meta = STATUS_META[key.toLowerCase()] ?? { label: key, cssVar: "var(--muted)" };
       return { label: meta.label, value, color: meta.cssVar, cssVar: meta.cssVar };
     });
 

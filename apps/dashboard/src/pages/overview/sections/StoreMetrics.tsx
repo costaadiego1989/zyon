@@ -4,6 +4,7 @@ import { StatCard } from "../components/StatCard.js";
 import { OrderStatusDonut } from "../components/OrderStatusDonut.js";
 import { TopProducts } from "../components/TopProducts.js";
 import { RevenueChart } from "../components/RevenueChart.js";
+import { ConversionFunnel } from "../components/ConversionFunnel.js";
 
 export type StoreMetricsProps = {
   overview: StoreOverview;
@@ -72,6 +73,13 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
       </div>
 
       <div style={{ borderTop: "1px solid var(--border)", marginTop: 4 }} />
+
+      <ConversionFunnel steps={[
+        { label: "Pedidos", value: overview.orders_count ?? 0, color: "var(--accent)" },
+        { label: "Aprovados", value: (overview.orders_by_status?.approved ?? 0) + (overview.orders_by_status?.paid ?? 0) + (overview.orders_by_status?.shipped ?? 0) + (overview.orders_by_status?.delivered ?? 0), color: "var(--good)" },
+        { label: "Enviados", value: (overview.orders_by_status?.shipped ?? 0) + (overview.orders_by_status?.delivered ?? 0), color: "var(--color-info, #6ea8ff)" },
+        { label: "Entregues", value: overview.orders_by_status?.delivered ?? 0, color: "var(--good)" },
+      ]} />
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {overview.orders_by_status && <OrderStatusDonut data={overview.orders_by_status} />}
