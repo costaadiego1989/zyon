@@ -45,9 +45,18 @@ import {
   CreateBillingCheckoutDto,
 } from "./payment-platform.dto.js";
 
+import { IsString, IsOptional, IsBoolean } from "class-validator";
+
 class SaveAsaasConfigDto {
+  @IsString()
   api_key!: string;
+
+  @IsOptional()
+  @IsString()
   webhook_token?: string;
+
+  @IsOptional()
+  @IsBoolean()
   sandbox?: boolean;
 }
 
