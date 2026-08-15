@@ -16,7 +16,7 @@ function buildActivityItems(vm: ReturnType<typeof useOverviewPage>): ActivityIte
   const items: ActivityItem[] = [];
 
   if (vm.checkoutOverview?.recent_sessions) {
-    for (const s of vm.checkoutOverview.recent_sessions.slice(0, 5)) {
+    for (const s of (vm.checkoutOverview.recent_sessions ?? []).slice(0, 5)) {
       items.push({
         id: s.sessionId ?? `session-${items.length}`,
         type: "session",
@@ -27,7 +27,7 @@ function buildActivityItems(vm: ReturnType<typeof useOverviewPage>): ActivityIte
   }
 
   if (vm.storeOverview?.recent_orders) {
-    for (const o of vm.storeOverview.recent_orders.slice(0, 5)) {
+    for (const o of (vm.storeOverview.recent_orders ?? []).slice(0, 5)) {
       items.push({
         id: o.id,
         type: "order",

@@ -67,8 +67,8 @@ export function StoreMetrics({ overview, previousOverview, timeseries }: StoreMe
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <OrderStatusDonut data={overview.orders_by_status} />
-        <TopProducts products={overview.top_products} />
+        {overview.orders_by_status && <OrderStatusDonut data={overview.orders_by_status} />}
+        {overview.top_products && <TopProducts products={overview.top_products} />}
       </div>
 
       {timeseries?.revenue_daily && timeseries.revenue_daily.length > 0 && (
