@@ -337,6 +337,44 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
+    if (toolResults["quote_shipping"]) {
+      const shippingData = toolResults["quote_shipping"] as any;
+      if (shippingData?.options?.length > 0) {
+        const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        blocks.push({
+          type: "shipping_options",
+          data: {
+            options: shippingData.options.map((o: any) => ({
+              carrier: o.carrier,
+              name: o.name,
+              price: o.price,
+              priceFormatted: formatPrice(o.price),
+              days: o.days,
+            }))
+          }
+        });
+      }
+    }
+    if (toolResults["compare_products"]) {
+      const compareData = toolResults["compare_products"] as any;
+      if (compareData?.comparison?.length > 0) {
+        const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        blocks.push({
+          type: "product_comparison",
+          data: {
+            products: compareData.comparison.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              priceFormatted: formatPrice(p.price),
+              rating: p.rating,
+              inStock: (p.stock ?? 0) > 0,
+              attributes: p.attributes ?? {},
+            }))
+          }
+        });
+      }
+    }
 
     // When product_card is present, remove carousel (detail view is exclusive)
     const hasProductCard = blocks.some(b => b.type === "product_card");
