@@ -295,7 +295,8 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
-    if (toolResults["get_cart"]) {
+    const skipCartBlock = !!toolResults["quote_shipping"];
+    if (toolResults["get_cart"] && !skipCartBlock) {
       const cartData = toolResults["get_cart"] as any;
       if (cartData?.items?.length > 0) {
         blocks.push({
@@ -316,7 +317,7 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
-    if (toolResults["add_item_to_cart"]) {
+    if (toolResults["add_item_to_cart"] && !skipCartBlock) {
       const cartData = toolResults["add_item_to_cart"] as any;
       if (cartData?.items?.length > 0) {
         blocks.push({
