@@ -1,7 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards } from "@nestjs/common";
+import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, Inject, BadRequestException } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
+import { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
 import { AddProductUseCase } from "../../application/use-cases/add-product.use-case.js";
 import { SearchProductsUseCase } from "../../application/use-cases/search-products.use-case.js";
 import { ReserveStockUseCase } from "../../application/use-cases/reserve-stock.use-case.js";
@@ -29,6 +32,8 @@ export class StoreBuilderCatalogController {
     private readonly createCategory: CreateCategoryUseCase,
     private readonly updateCategory: UpdateCategoryUseCase,
     private readonly deleteCategory: DeleteCategoryUseCase,
+    private readonly s3: S3UploadService,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   @Post(":mid/products")
@@ -188,6 +193,39 @@ export class StoreBuilderCatalogController {
     @Param("cid") categoryId: string,
   ) {
     await this.deleteCategory.execute(merchantId, categoryId);
+    return { deleted: true };
+  }
+
+  // --- Product Media ---
+
+  @Post(":mid/products/media")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async uploadMedia(
+    @Param("mid") merchantId: string,
+    @Body() body: { variantId: string; image: string },
+  ) {
+    if (!body.variantId || !body.image) throw new BadRequestException("variantId_and_image_required");
+    if (!this.s3.isConfigured()) throw new BadRequestException("s3_not_configured");
+
+    const result = await this.s3.uploadBase64(body.image, `merchants/${merchantId}/products`);
+    const media = await this.prisma.productMedia.create({
+      data: {
+        variantId: body.variantId,
+        url: result.url,
+        type: "IMAGE",
+        order: 0,
+      },
+    });
+    return { id: media.id, url: media.url };
+  }
+
+  @Delete(":mid/products/media/:mediaId")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async deleteMedia(
+    @Param("mid") _merchantId: string,
+    @Param("mediaId") mediaId: string,
+  ) {
+    await this.prisma.productMedia.delete({ where: { id: mediaId } });
     return { deleted: true };
   }
 }
