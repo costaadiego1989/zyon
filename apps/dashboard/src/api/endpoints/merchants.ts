@@ -22,5 +22,17 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     putMerchantTheme(theme: MerchantTheme): Promise<MerchantTheme> {
       return dashboardJson(base, "/merchants/me/theme", { method: "PUT", jsonBody: theme }, f);
     },
+
+    putStoreCategory(storeCategory: string): Promise<{ storeCategory: string }> {
+      return dashboardJson(base, "/merchants/me/store-category", { method: "PUT", jsonBody: { storeCategory } }, f);
+    },
+
+    getStoreSettings(): Promise<Record<string, unknown>> {
+      return dashboardJson(base, "/merchants/me/store-settings", { method: "GET" }, f);
+    },
+
+    putStoreSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
+      return dashboardJson(base, "/merchants/me/store-settings", { method: "PUT", jsonBody: settings }, f);
+    },
   };
 }
