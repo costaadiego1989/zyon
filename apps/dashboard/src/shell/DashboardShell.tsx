@@ -27,7 +27,7 @@ const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => (
 const CommerceConnectionsPage = lazy(() => import("../pages/commerce-connections-page.js").then(m => ({ default: m.CommerceConnectionsPage })));
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
-const CategoriesPage = lazy(() => import("../pages/categories-page.js").then(m => ({ default: m.CategoriesPage })));
+const CategoriesPage = lazy(() => import("../pages/categories/index.js").then(m => ({ default: m.CategoriesPage })));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings-page.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
 const BillingPlansPage = lazy(() => import("../pages/billing-plans-page.js").then(m => ({ default: m.BillingPlansPage })));
@@ -49,6 +49,7 @@ export interface DashboardShellProps {
 
 export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted }: DashboardShellProps) {
   const [tab, setTab] = useState<TabKey>(initialTab ?? "overview");
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
 
   const visibleNavItems = useMemo(
@@ -171,15 +172,15 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               <CatalogPage
                 apiBaseUrl={API_BASE_URL}
                 me={me}
-                onCreate={() => setTab("product-detail")}
-                onEdit={() => setTab("product-detail")}
+                onCreate={() => { setEditingProductId(null); setTab("product-detail"); }}
+                onEdit={(id) => { setEditingProductId(id); setTab("product-detail"); }}
               />
             ) : null}
             {tab === "product-detail" ? (
               <ProductDetailPage
                 apiBaseUrl={API_BASE_URL}
                 me={me}
-                productId={null}
+                productId={editingProductId}
                 onBack={() => setTab("catalog")}
                 onSaved={() => setTab("catalog")}
               />
