@@ -457,7 +457,11 @@ export class StorefrontLangGraphAgent {
       "- NUNCA invente produtos, preços ou quantidades em estoque.",
       "- Se uma ferramenta falhar, diga ao cliente de forma clara e educada.",
       "- Sempre confirm ações do cliente: 'Quer adicionar 2 unidades ao carrinho?' antes de chamar add_item_to_cart.",
-      "- Quando o cliente quiser finalizar, use create_checkout_session."
+      "- Quando o cliente quiser finalizar, use create_checkout_session.",
+      "- Após mostrar detalhes de um produto, diga ao cliente que pode tirar qualquer dúvida sobre aquele produto.",
+      "- Quando o cliente perguntar algo sobre o produto selecionado, responda APENAS com base nos dados retornados pela ferramenta get_product_details. NUNCA invente especificações, materiais ou dimensões que não estejam nos atributos do produto.",
+      "- 'Ver variações' deve retornar TODAS as variantes do produto (tamanhos, cores, capacidades, etc.) — não apenas cores.",
+      "- Ao responder dúvidas técnicas, formate os atributos do produto de forma clara (peso, dimensões, material se disponível).",
     ].join("\n");
   }
 }

@@ -170,9 +170,10 @@ export default function ProductCardBlock({
 
   const quickReplies = [
     `Calcular frete para ${data.name}`,
-    `Tem ${data.name} em outra cor?`,
+    `Ver variações de ${data.name}`,
     `Comparar ${data.name} com similar`,
     `Ver avaliações de ${data.name}`,
+    `Tirar dúvida sobre ${data.name}`,
   ];
 
   const buildCtaText = (verb: string) =>
