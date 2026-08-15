@@ -11,10 +11,13 @@ export class UpdateCategoryUseCase {
     categoryId: string,
     data: {
       name?: string;
-      parentId?: string;
+      parentId?: string | null;
+      description?: string;
+      imageUrl?: string;
+      isActive?: boolean;
+      sortOrder?: number;
     },
   ) {
-    // Validate category exists and belongs to merchant
     const category = await this.prisma.productCategory.findUnique({
       where: { id: categoryId },
     });
@@ -23,8 +26,7 @@ export class UpdateCategoryUseCase {
       throw new Error("category_not_found");
     }
 
-    // If parentId provided, validate it exists and is not self
-    if (data.parentId) {
+    if (data.parentId !== undefined && data.parentId !== null) {
       if (data.parentId === categoryId) {
         throw new Error("category_cannot_be_parent_to_itself");
       }
@@ -36,17 +38,28 @@ export class UpdateCategoryUseCase {
       }
     }
 
+    const updateData: Record<string, unknown> = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.parentId !== undefined) updateData.parentId = data.parentId;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.imageUrl !== undefined) updateData.imageUrl = data.imageUrl;
+    if (data.isActive !== undefined) updateData.isActive = data.isActive;
+    if (data.sortOrder !== undefined) updateData.sortOrder = data.sortOrder;
+
     const updated = await this.prisma.productCategory.update({
       where: { id: categoryId },
-      data: {
-        name: data.name,
-        parentId: data.parentId,
-      },
+      data: updateData,
       select: {
         id: true,
         name: true,
         slug: true,
         parentId: true,
+        description: true,
+        imageUrl: true,
+        isActive: true,
+        sortOrder: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -54,7 +67,13 @@ export class UpdateCategoryUseCase {
       id: updated.id,
       name: updated.name,
       slug: updated.slug,
-      parentId: updated.parentId ?? undefined,
+      parent_id: updated.parentId ?? null,
+      description: updated.description ?? null,
+      image_url: updated.imageUrl ?? null,
+      is_active: updated.isActive,
+      sort_order: updated.sortOrder,
+      created_at: updated.createdAt.toISOString(),
+      updated_at: updated.updatedAt.toISOString(),
     };
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, Query, UseGuards, Inject, BadRequestException } from "@nestjs/common";
+import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards, Inject, BadRequestException } from "@nestjs/common";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
@@ -16,6 +16,7 @@ import { ListCategoriesUseCase } from "../../application/use-cases/list-categori
 import { CreateCategoryUseCase } from "../../application/use-cases/create-category.use-case.js";
 import { UpdateCategoryUseCase } from "../../application/use-cases/update-category.use-case.js";
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
+import { ReorderCategoriesUseCase } from "../../application/use-cases/reorder-categories.use-case.js";
 
 @UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -32,6 +33,7 @@ export class StoreBuilderCatalogController {
     private readonly createCategory: CreateCategoryUseCase,
     private readonly updateCategory: UpdateCategoryUseCase,
     private readonly deleteCategory: DeleteCategoryUseCase,
+    private readonly reorderCategories: ReorderCategoriesUseCase,
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
@@ -217,7 +219,13 @@ export class StoreBuilderCatalogController {
   @RequirePlan("STORE_ONLY", "BOTH")
   async createCat(
     @Param("mid") merchantId: string,
-    @Body() body: { name: string; slug?: string; parentId?: string },
+    @Body() body: {
+      name: string;
+      slug?: string;
+      parentId?: string;
+      description?: string;
+      imageUrl?: string;
+    },
   ) {
     return this.createCategory.execute(merchantId, body);
   }
@@ -227,9 +235,28 @@ export class StoreBuilderCatalogController {
   async updateCat(
     @Param("mid") merchantId: string,
     @Param("cid") categoryId: string,
-    @Body() body: { name?: string; parentId?: string },
+    @Body() body: {
+      name?: string;
+      parentId?: string;
+      parent_id?: string;
+      description?: string;
+      imageUrl?: string;
+      image_url?: string;
+      isActive?: boolean;
+      is_active?: boolean;
+      sortOrder?: number;
+      sort_order?: number;
+    },
   ) {
-    return this.updateCategory.execute(merchantId, categoryId, body);
+    const normalized = {
+      name: body.name,
+      parentId: body.parentId ?? body.parent_id,
+      description: body.description,
+      imageUrl: body.imageUrl ?? body.image_url,
+      isActive: body.isActive ?? body.is_active,
+      sortOrder: body.sortOrder ?? body.sort_order,
+    };
+    return this.updateCategory.execute(merchantId, categoryId, normalized);
   }
 
   @Delete(":mid/categories/:cid")
@@ -240,6 +267,16 @@ export class StoreBuilderCatalogController {
   ) {
     await this.deleteCategory.execute(merchantId, categoryId);
     return { deleted: true };
+  }
+
+  @Patch(":mid/categories/reorder")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async reorderCats(
+    @Param("mid") merchantId: string,
+    @Body() body: Array<{ id: string; sort_order: number }>,
+  ) {
+    await this.reorderCategories.execute(merchantId, body);
+    return { reordered: true };
   }
 
   // --- Product Media ---

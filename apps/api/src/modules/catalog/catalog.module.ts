@@ -23,6 +23,7 @@ import { ListCategoriesUseCase } from "./application/use-cases/list-categories.u
 import { CreateCategoryUseCase } from "./application/use-cases/create-category.use-case.js";
 import { UpdateCategoryUseCase } from "./application/use-cases/update-category.use-case.js";
 import { DeleteCategoryUseCase } from "./application/use-cases/delete-category.use-case.js";
+import { ReorderCategoriesUseCase } from "./application/use-cases/reorder-categories.use-case.js";
 import { STOREFRONT_CATALOG_PORT } from "./domain/ports/storefront-catalog.port.js";
 import { CROSS_SELL_RESOLVER_PORT } from "./domain/ports/cross-sell-resolver.port.js";
 import { TenantStorefrontCatalogAdapter } from "./infrastructure/tenant-storefront-catalog.adapter.js";
@@ -86,6 +87,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     CreateCategoryUseCase,
     UpdateCategoryUseCase,
     DeleteCategoryUseCase,
+    ReorderCategoriesUseCase,
     CatalogStockExpiryScheduler,
     StockExpiryWorker,
     PromotionExpiryScheduler,
@@ -106,6 +108,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     CreateCategoryUseCase,
     UpdateCategoryUseCase,
     DeleteCategoryUseCase,
+    ReorderCategoriesUseCase,
     CatalogCacheService,
     "ProductRepositoryPort",
     "StockRepositoryPort",

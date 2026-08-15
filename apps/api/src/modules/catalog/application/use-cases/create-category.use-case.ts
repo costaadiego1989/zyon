@@ -12,16 +12,16 @@ export class CreateCategoryUseCase {
       name: string;
       slug?: string;
       parentId?: string;
+      description?: string;
+      imageUrl?: string;
     },
   ) {
     if (!data.name?.trim()) {
       throw new ConflictException("category_name_required");
     }
 
-    // Auto-generate slug if not provided
     const slug = data.slug ?? this.generateSlug(data.name);
 
-    // Check slug uniqueness per merchant
     const existing = await this.prisma.productCategory.findUnique({
       where: { merchantId_slug: { merchantId, slug } },
     });
@@ -30,7 +30,6 @@ export class CreateCategoryUseCase {
       throw new ConflictException("category_slug_already_exists");
     }
 
-    // If parentId provided, validate it exists
     if (data.parentId) {
       const parent = await this.prisma.productCategory.findUnique({
         where: { id: data.parentId },
@@ -46,12 +45,20 @@ export class CreateCategoryUseCase {
         name: data.name.trim(),
         slug,
         parentId: data.parentId,
+        description: data.description,
+        imageUrl: data.imageUrl,
       },
       select: {
         id: true,
         name: true,
         slug: true,
         parentId: true,
+        description: true,
+        imageUrl: true,
+        isActive: true,
+        sortOrder: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
@@ -59,7 +66,13 @@ export class CreateCategoryUseCase {
       id: category.id,
       name: category.name,
       slug: category.slug,
-      parentId: category.parentId ?? undefined,
+      parent_id: category.parentId ?? null,
+      description: category.description ?? null,
+      image_url: category.imageUrl ?? null,
+      is_active: category.isActive,
+      sort_order: category.sortOrder,
+      created_at: category.createdAt.toISOString(),
+      updated_at: category.updatedAt.toISOString(),
     };
   }
 
