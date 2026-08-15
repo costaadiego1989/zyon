@@ -169,10 +169,10 @@ export default function ProductCardBlock({
     variants.find((v) => v.id === selectedVariantId) ?? null;
 
   const quickReplies = [
-    "Calcular frete",
-    "Tem em outra cor?",
-    "Comparar com similar",
-    "Ver avaliações",
+    `Calcular frete para ${data.name}`,
+    `Tem ${data.name} em outra cor?`,
+    `Comparar ${data.name} com similar`,
+    `Ver avaliações de ${data.name}`,
   ];
 
   const buildCtaText = (verb: string) =>

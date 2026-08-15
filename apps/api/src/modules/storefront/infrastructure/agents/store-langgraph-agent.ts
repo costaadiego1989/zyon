@@ -129,12 +129,10 @@ export class StorefrontLangGraphAgent {
   }
 
   async run(input: StorefrontAgentInput): Promise<StorefrontAgentResult> {
-    // Pre-check budget.
     if (!this.costTracker.canAfford(0.01)) {
       throw new Error("agent_budget_exhausted");
     }
 
-    // ─── Intent classification ────────────────────────────────────────────
     const intentResult = classifyIntent(input.userMessage);
     const modelTier = getModelForIntent(intentResult.intent);
     const modelUsed = modelTier === "fast" ? this.fastModel : this.strongModel;
@@ -142,7 +140,6 @@ export class StorefrontLangGraphAgent {
     input.callbacks?.onIntentClassified?.(intentResult);
     input.callbacks?.onModelRouted?.(modelTier, intentResult.intent);
 
-    // ─── Tool loop ────────────────────────────────────────────────────────
     const toolsUsed: string[] = [];
     const toolResults: Record<string, unknown> = {};
     let totalPromptTokens = 0;
@@ -150,7 +147,6 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
-    // Build messages for LLM.
     const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system" as const, content: systemContent },
@@ -164,7 +160,6 @@ export class StorefrontLangGraphAgent {
       content: m.content
     }));
 
-    // Tool loop: LLM may call tools, we execute and feed results back.
     let finalContent = "";
     let loops = 0;
     const openRouterTools = this.tools.map((t) => ({
@@ -192,9 +187,7 @@ export class StorefrontLangGraphAgent {
           completionTokens: result.usage.completionTokens
         });
 
-        // If tool calls, execute them.
         if (result.toolCalls && result.toolCalls.length > 0) {
-          // First, add assistant message with tool_calls (required by OpenAI-compatible APIs)
           messages.push({
             role: "assistant",
             content: result.content || "",
@@ -205,7 +198,6 @@ export class StorefrontLangGraphAgent {
             }))
           } as any);
 
-          // Then execute each tool and add tool result messages
           for (const tc of result.toolCalls) {
             toolsUsed.push(tc.name);
             input.callbacks?.onToolCall?.(tc.name, tc.args);
@@ -227,13 +219,10 @@ export class StorefrontLangGraphAgent {
           continue; // loop back to LLM with tool results
         }
 
-        // No tool calls → final answer.
         finalContent = result.content;
         break;
       }
     } catch (err: unknown) {
-      // ─── LLM failure fallback ─────────────────────────────────────────
-      // If the LLM call fails (network, rate limit, timeout), return safe message.
       const errorMessage = err instanceof Error ? err.message : String(err);
       const errorStack = err instanceof Error ? err.stack?.slice(0, 300) : "";
       console.error("[StorefrontAgent] LLM call failed:", errorMessage, errorStack);
@@ -294,12 +283,13 @@ export class StorefrontLangGraphAgent {
           data: {
             id: p.id,
             name: p.name,
+            description: p.description,
             price,
             priceFormatted: formatPrice(price),
             image: p.media?.[0]?.url ?? p.image,
             inStock: (p.stock ?? 0) > 0,
-            rating: p.rating,
-            reviewCount: p.reviewCount,
+            rating: p.rating ?? 4.3,
+            reviewCount: p.reviewCount ?? 0,
             variants: p.variants?.map((v: any) => ({ id: v.id ?? v.sku, name: Object.keys(v.attributes ?? {})[0] ?? "SKU", value: Object.values(v.attributes ?? {})[0] ?? v.sku })),
           }
         });
@@ -348,6 +338,12 @@ export class StorefrontLangGraphAgent {
       }
     }
 
+    // When product_card is present, remove carousel (detail view is exclusive)
+    const hasProductCard = blocks.some(b => b.type === "product_card");
+    const finalBlocks = hasProductCard
+      ? blocks.filter(b => b.type !== "product_carousel")
+      : blocks;
+
     // ─── Safety validation ────────────────────────────────────────────────
     const messageToValidate = finalContent || FALLBACK_MESSAGE;
 
@@ -367,7 +363,7 @@ export class StorefrontLangGraphAgent {
 
     return {
       message: validation.message,
-      blocks,
+      blocks: finalBlocks,
       cartId: input.cartId,
       usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
       toolsUsed,
