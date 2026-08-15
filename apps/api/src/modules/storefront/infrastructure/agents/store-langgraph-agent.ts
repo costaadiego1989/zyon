@@ -257,6 +257,96 @@ export class StorefrontLangGraphAgent {
       };
     }
 
+    // ─── Build blocks from tool results ─────────────────────────────────
+    if (toolResults["search_products"]) {
+      const searchData = toolResults["search_products"] as any;
+      if (searchData?.products?.length > 0) {
+        const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        blocks.push({
+          type: "product_carousel",
+          data: {
+            products: searchData.products.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              priceFormatted: formatPrice(p.price),
+              image: p.image,
+              inStock: p.inStock ?? true,
+              variants: p.variants,
+            })),
+            nextCursor: searchData.nextCursor,
+            merchantId: input.merchantId,
+            query: undefined, // generic browse
+            categoryId: undefined,
+          }
+        });
+      }
+    }
+    if (toolResults["get_product_details"]) {
+      const detailData = toolResults["get_product_details"] as any;
+      if (detailData?.product) {
+        const p = detailData.product;
+        const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        const price = p.variants?.[0]?.basePriceInCents ?? p.price ?? 0;
+        blocks.push({
+          type: "product_card",
+          data: {
+            id: p.id,
+            name: p.name,
+            price,
+            priceFormatted: formatPrice(price),
+            image: p.media?.[0]?.url ?? p.image,
+            inStock: (p.stock ?? 0) > 0,
+            rating: p.rating,
+            reviewCount: p.reviewCount,
+            variants: p.variants?.map((v: any) => ({ id: v.id ?? v.sku, name: Object.keys(v.attributes ?? {})[0] ?? "SKU", value: Object.values(v.attributes ?? {})[0] ?? v.sku })),
+          }
+        });
+      }
+    }
+    if (toolResults["get_cart"]) {
+      const cartData = toolResults["get_cart"] as any;
+      if (cartData?.items?.length > 0) {
+        blocks.push({
+          type: "cart_summary",
+          data: {
+            items: cartData.items.map((i: any) => ({
+              variantId: i.variantId,
+              productName: i.name,
+              quantity: i.quantity,
+              price: i.unitPrice,
+              subtotal: i.lineTotal ?? i.unitPrice * i.quantity,
+            })),
+            itemCount: cartData.itemCount,
+            subtotal: cartData.total,
+            discount: cartData.discount,
+            total: cartData.total - (cartData.discount ?? 0),
+          }
+        });
+      }
+    }
+    if (toolResults["add_item_to_cart"]) {
+      const cartData = toolResults["add_item_to_cart"] as any;
+      if (cartData?.items?.length > 0) {
+        blocks.push({
+          type: "cart_summary",
+          data: {
+            items: cartData.items.map((i: any) => ({
+              variantId: i.variantId,
+              productName: i.name,
+              quantity: i.quantity,
+              price: i.unitPrice,
+              subtotal: i.lineTotal ?? i.unitPrice * i.quantity,
+            })),
+            itemCount: cartData.itemCount,
+            subtotal: cartData.total,
+            discount: 0,
+            total: cartData.total,
+          }
+        });
+      }
+    }
+
     // ─── Safety validation ────────────────────────────────────────────────
     const messageToValidate = finalContent || FALLBACK_MESSAGE;
 

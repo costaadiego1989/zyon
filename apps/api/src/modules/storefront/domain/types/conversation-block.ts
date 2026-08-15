@@ -24,6 +24,10 @@ export interface ProductCarouselBlock {
   type: "product_carousel";
   data: {
     products: ProductCardBlock["data"][];
+    nextCursor?: string;
+    merchantId?: string;
+    query?: string;
+    categoryId?: string;
   };
 }
 
