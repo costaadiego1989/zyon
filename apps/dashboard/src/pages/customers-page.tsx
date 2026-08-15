@@ -6,6 +6,7 @@ import {
   type TenantCustomer,
 } from "../api-client.js";
 import { Pagination } from "../components/Pagination.js";
+import { FilterToolbar } from "../components/FilterToolbar.js";
 import { useApi } from "../hooks/useApi.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
 import { DashboardHttpError } from "../api/http/index.js";
@@ -275,25 +276,19 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
 
       {/* Customers table card */}
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 8 }}>
-            {(["all", "7d", "30d"] as const).map((value) => {
-              const labels = { all: "Todos", "7d": "Últimos 7 dias", "30d": "Últimos 30 dias" };
-              const active = dateFilter === value;
-              return (
-                <div key={value} onClick={() => { setDateFilter(value); setPage(1); }} style={{ padding: "7px 14px", borderRadius: 8, font: "600 12.5px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "var(--card)", color: active ? "white" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}` }}>
-                  {labels[value]}
-                </div>
-              );
-            })}
-          </div>
-          <input
-            placeholder="Buscar por nome, e-mail ou telefone..."
-            value={searchTerm}
-            onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
-            style={{ width: 280, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
-          />
-        </div>
+        <FilterToolbar
+          tabs={[
+            { key: "all", label: "Todos" },
+            { key: "7d", label: "Últimos 7 dias" },
+            { key: "30d", label: "Últimos 30 dias" },
+          ]}
+          activeTab={dateFilter}
+          onTabChange={(k) => { setDateFilter(k as "all" | "7d" | "30d"); setPage(1); }}
+          search={searchTerm}
+          onSearchChange={(v) => { setSearchTerm(v); setPage(1); }}
+          searchPlaceholder="Buscar por nome, e-mail ou telefone..."
+          searchWidth={300}
+        />
 
         {loading ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando clientes...</div>

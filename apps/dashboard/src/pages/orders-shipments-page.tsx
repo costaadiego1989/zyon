@@ -8,7 +8,7 @@ import {
   Truck,
   X,
 } from "lucide-react";
-import { SearchInput } from "../components/SearchInput.js";
+import { FilterToolbar } from "../components/FilterToolbar.js";
 import { Pagination } from "../components/Pagination.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import type { MerchantProfile, TenantOrder } from "../api-client.js";
@@ -84,30 +84,19 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
       {/* Orders table card */}
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         {/* Toolbar: tabs + search */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            {(["all", "approved", "cancelled"] as const).map((value) => {
-              const labels = { all: "Todos os pedidos", approved: "Aprovados", cancelled: "Cancelados" };
-              const active = vm.statusFilter === value;
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => vm.setStatusFilter(value)}
-                  style={{ height: 32, display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: 7, font: "600 12px var(--sans)", cursor: "pointer", background: active ? "var(--accent-dark)" : "transparent", color: active ? "#fff" : "var(--ink)", border: `1px solid ${active ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box", lineHeight: 1 }}
-                >
-                  {labels[value]}
-                </button>
-              );
-            })}
-          </div>
-          <SearchInput
-            value={vm.searchQuery}
-            onChange={vm.setSearchQuery}
-            placeholder="Buscar por ID ou cliente..."
-            width={280}
-          />
-        </div>
+        <FilterToolbar
+          tabs={[
+            { key: "all", label: "Todos os pedidos" },
+            { key: "approved", label: "Aprovados" },
+            { key: "cancelled", label: "Cancelados" },
+          ]}
+          activeTab={vm.statusFilter}
+          onTabChange={(k) => vm.setStatusFilter(k as "all" | "approved" | "cancelled")}
+          search={vm.searchQuery}
+          onSearchChange={vm.setSearchQuery}
+          searchPlaceholder="Buscar por ID ou cliente..."
+          searchWidth={280}
+        />
 
         {vm.busy && !vm.hasLoaded ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando pedidos...</div>

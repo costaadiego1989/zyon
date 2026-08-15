@@ -3,7 +3,7 @@ import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from 
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { Pagination } from "../components/Pagination.js";
-import { SearchInput } from "../components/SearchInput.js";
+import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
 
@@ -221,37 +221,28 @@ export function CatalogPage(props: CatalogPageProps) {
       </div>
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderBottom: "1px solid var(--border)" }}>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            {(["all", "active", "inactive"] as const).map((value) => {
-              const isActive = statusFilter === value;
-              const labels = { all: "Todos", active: "Ativos", inactive: "Inativos" };
-              return (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setStatusFilter(value)}
-                  style={{ height: 32, display: "inline-flex", alignItems: "center", padding: "0 14px", borderRadius: 7, font: "600 12px var(--sans)", cursor: "pointer", background: isActive ? "var(--accent-dark)" : "transparent", color: isActive ? "#fff" : "var(--ink)", border: `1px solid ${isActive ? "var(--accent-dark)" : "var(--border)"}`, boxSizing: "border-box", lineHeight: 1 }}
-                >
-                  {labels[value]}
-                </button>
-              );
-            })}
-            {categories.length > 0 && (
-              <select
+        <FilterToolbar
+          tabs={[
+            { key: "all", label: "Todos" },
+            { key: "active", label: "Ativos" },
+            { key: "inactive", label: "Inativos" },
+          ]}
+          activeTab={statusFilter}
+          onTabChange={(k) => setStatusFilter(k as "all" | "active" | "inactive")}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Buscar por nome..."
+          extra={
+            categories.length > 0 ? (
+              <FilterSelect
                 value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                style={{ height: 32, padding: "0 26px 0 12px", borderRadius: 7, border: "1px solid var(--border)", font: "600 12px var(--sans)", color: "var(--ink)", background: "transparent", cursor: "pointer", outline: "none", boxSizing: "border-box", WebkitAppearance: "none", appearance: "none", backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 8px center" }}
-              >
-                <option value="">Todas categorias</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.name}</option>
-                ))}
-              </select>
-            )}
-          </div>
-          <SearchInput value={search} onChange={setSearch} placeholder="Buscar por nome..." />
-        </div>
+                onChange={setCategoryFilter}
+                options={categories.map((c) => ({ value: c.id, label: c.name }))}
+                placeholder="Todas categorias"
+              />
+            ) : undefined
+          }
+        />
 
         {loading ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produtos...</div>
