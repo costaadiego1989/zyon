@@ -9,6 +9,12 @@ import ShippingOptionsBlock from "./ShippingOptionsBlock";
 import QuickRepliesBlock from "./QuickRepliesBlock";
 import CheckoutRedirectBlock from "./CheckoutRedirectBlock";
 import OrderConfirmationBlock from "./OrderConfirmationBlock";
+import ReviewsBlock from "./ReviewsBlock";
+import AddReviewBlock from "./AddReviewBlock";
+import CrossSellBlock from "./CrossSellBlock";
+import ShippingQuoteBlock from "./ShippingQuoteBlock";
+import VariantSelectorBlock from "./VariantSelectorBlock";
+import ProductComparisonBlock from "./ProductComparisonBlock";
 
 export default function BlockRenderer({
   block,
@@ -34,6 +40,12 @@ export default function BlockRenderer({
       return <CheckoutRedirectBlock block={block} />;
     case "order_confirmation":
       return <OrderConfirmationBlock block={block} />;
+    case "shipping_quote_input":
+      return <ShippingQuoteBlock block={block} onQuickReply={onQuickReply} />;
+    case "variant_selector":
+      return <VariantSelectorBlock block={block} onQuickReply={onQuickReply} />;
+    case "product_comparison":
+      return <ProductComparisonBlock block={block} onQuickReply={onQuickReply} />;
     default:
       return null;
   }

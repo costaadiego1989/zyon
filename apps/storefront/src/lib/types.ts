@@ -99,6 +99,76 @@ export interface OrderConfirmationBlock {
   };
 }
 
+export interface ShippingQuoteInputBlock {
+  type: "shipping_quote_input";
+  data: { productName: string; productId: string };
+}
+
+export interface VariantSelectorBlock {
+  type: "variant_selector";
+  data: {
+    productId: string;
+    productName: string;
+    groups: Array<{
+      name: string;
+      options: Array<{ id: string; value: string; available: boolean }>;
+    }>;
+  };
+}
+
+export interface ProductComparisonBlock {
+  type: "product_comparison";
+  data: {
+    products: Array<{
+      id: string;
+      name: string;
+      price: number;
+      priceFormatted: string;
+      rating?: number;
+      inStock: boolean;
+      attributes: Record<string, string>;
+    }>;
+  };
+}
+
+export interface ReviewsBlock {
+  type: "reviews";
+  data: {
+    productId: string;
+    productName: string;
+    averageRating: number;
+    totalReviews: number;
+    reviews: Array<{
+      id: string;
+      author: string;
+      rating: number;
+      text: string;
+      date: string;
+    }>;
+    nextCursor?: string;
+  };
+}
+
+export interface AddReviewBlock {
+  type: "add_review";
+  data: { productId: string; productName: string };
+}
+
+export interface CrossSellBlock {
+  type: "cross_sell";
+  data: {
+    trigger: string;
+    products: Array<{
+      id: string;
+      name: string;
+      price: number;
+      priceFormatted: string;
+      image?: string;
+      inStock: boolean;
+    }>;
+  };
+}
+
 export type ConversationBlock =
   | ProductCardBlock
   | ProductCarouselBlock
@@ -107,4 +177,10 @@ export type ConversationBlock =
   | ShippingOptionsBlock
   | QuickRepliesBlock
   | CheckoutRedirectBlock
-  | OrderConfirmationBlock;
+  | OrderConfirmationBlock
+  | ShippingQuoteInputBlock
+  | VariantSelectorBlock
+  | ProductComparisonBlock
+  | ReviewsBlock
+  | AddReviewBlock
+  | CrossSellBlock;
