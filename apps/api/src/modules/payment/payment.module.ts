@@ -60,6 +60,7 @@ import {
 import {
   BillingController,
   PaymentPlatformController,
+  MerchantPaymentConnectionsController,
 } from "./presentation/http/payment-platform.controller.js";
 
 @Module({
@@ -76,6 +77,7 @@ import {
     AsaasWebhookController,
     StripeWebhookController,
     PaymentPlatformController,
+    MerchantPaymentConnectionsController,
     BillingController,
   ],
   providers: [
