@@ -44,8 +44,12 @@ export interface StoreToolHandlers {
   }) => Promise<unknown>;
   getCart: (args: { cartId: string }) => Promise<unknown>;
   removeCartItem: (args: { cartId: string; variantId: string }) => Promise<unknown>;
+  updateCartItem: (args: { cartId: string; variantId: string; quantity: number }) => Promise<unknown>;
+  clearCart: (args: { cartId: string }) => Promise<unknown>;
   quoteShipping: (args: { cartId: string; zipCode: string }) => Promise<unknown>;
   applyCoupon: (args: { cartId: string; couponCode: string }) => Promise<unknown>;
+  listPromotions: (args: { cartId: string }) => Promise<unknown>;
+  removeCoupon: (args: { cartId: string }) => Promise<unknown>;
   createCheckoutSession: (args: { cartId: string }) => Promise<unknown>;
 }
 
@@ -251,6 +255,75 @@ const CREATE_CHECKOUT_SESSION: ToolDefinition = {
   }
 };
 
+const UPDATE_CART_ITEM: ToolDefinition = {
+  name: "update_cart_item",
+  description: "Update quantity of an item already in the cart. Returns updated cart.",
+  parameters: {
+    type: "object",
+    properties: {
+      cartId: {
+        type: "string",
+        description: "Cart ID"
+      },
+      variantId: {
+        type: "string",
+        description: "Product variant ID to update"
+      },
+      quantity: {
+        type: "number",
+        description: "New quantity (min: 1, max: 99)"
+      }
+    },
+    required: ["cartId", "variantId", "quantity"]
+  }
+};
+
+const CLEAR_CART: ToolDefinition = {
+  name: "clear_cart",
+  description: "Remove all items from the cart. Returns empty cart.",
+  parameters: {
+    type: "object",
+    properties: {
+      cartId: {
+        type: "string",
+        description: "Cart ID"
+      }
+    },
+    required: ["cartId"]
+  }
+};
+
+const LIST_PROMOTIONS: ToolDefinition = {
+  name: "list_promotions",
+  description:
+    "List active promotions and coupons available for this merchant. Returns available discount codes, minimum cart value requirements, and expiration.",
+  parameters: {
+    type: "object",
+    properties: {
+      cartId: {
+        type: "string",
+        description: "Cart ID (to check eligibility)"
+      }
+    },
+    required: ["cartId"]
+  }
+};
+
+const REMOVE_COUPON: ToolDefinition = {
+  name: "remove_coupon",
+  description: "Remove an applied coupon from the cart. Returns updated cart without discount.",
+  parameters: {
+    type: "object",
+    properties: {
+      cartId: {
+        type: "string",
+        description: "Cart ID"
+      }
+    },
+    required: ["cartId"]
+  }
+};
+
 export function buildStoreTools(): ToolDefinition[] {
   return [
     SEARCH_PRODUCTS,
@@ -260,8 +333,12 @@ export function buildStoreTools(): ToolDefinition[] {
     ADD_ITEM_TO_CART,
     GET_CART,
     REMOVE_CART_ITEM,
+    UPDATE_CART_ITEM,
+    CLEAR_CART,
     QUOTE_SHIPPING,
     APPLY_COUPON,
+    LIST_PROMOTIONS,
+    REMOVE_COUPON,
     CREATE_CHECKOUT_SESSION
   ];
 }
@@ -317,12 +394,28 @@ export function createRemoveCartItemTool(ctx: StoreToolContext): ExecutableTool 
   return wrapHandler("remove_cart_item", (args) => ctx.handlers.removeCartItem(args));
 }
 
+export function createUpdateCartItemTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("update_cart_item", (args) => ctx.handlers.updateCartItem(args));
+}
+
+export function createClearCartTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("clear_cart", (args) => ctx.handlers.clearCart(args));
+}
+
 export function createQuoteShippingTool(ctx: StoreToolContext): ExecutableTool {
   return wrapHandler("quote_shipping", (args) => ctx.handlers.quoteShipping(args));
 }
 
 export function createApplyCouponTool(ctx: StoreToolContext): ExecutableTool {
   return wrapHandler("apply_coupon", (args) => ctx.handlers.applyCoupon(args));
+}
+
+export function createListPromotionsTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("list_promotions", (args) => ctx.handlers.listPromotions(args));
+}
+
+export function createRemoveCouponTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("remove_coupon", (args) => ctx.handlers.removeCoupon(args));
 }
 
 export function createCreateCheckoutSessionTool(ctx: StoreToolContext): ExecutableTool {
@@ -340,8 +433,12 @@ export function buildExecutableStoreTools(ctx: StoreToolContext): ExecutableTool
     createAddItemToCartTool(ctx),
     createGetCartTool(ctx),
     createRemoveCartItemTool(ctx),
+    createUpdateCartItemTool(ctx),
+    createClearCartTool(ctx),
     createQuoteShippingTool(ctx),
     createApplyCouponTool(ctx),
+    createListPromotionsTool(ctx),
+    createRemoveCouponTool(ctx),
     createCreateCheckoutSessionTool(ctx)
   ];
 }

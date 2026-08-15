@@ -32,6 +32,7 @@ import { PrismaProductRepository } from "./infrastructure/repositories/prisma-pr
 import { PrismaStockRepository } from "./infrastructure/repositories/prisma-stock.repository.js";
 import { EmbeddingService } from "./infrastructure/services/embedding.service.js";
 import { StockExpiryWorker, CatalogStockExpiryScheduler } from "./infrastructure/jobs/stock-expiry.job.js";
+import { PromotionExpiryScheduler, PromotionExpiryWorker } from "./infrastructure/jobs/promotion-expiry.job.js";
 import { WidgetCatalogController } from "./presentation/http/widget-catalog.controller.js";
 import { StoreBuilderCatalogController } from "./presentation/http/catalog.controller.js";
 
@@ -87,6 +88,8 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     DeleteCategoryUseCase,
     CatalogStockExpiryScheduler,
     StockExpiryWorker,
+    PromotionExpiryScheduler,
+    PromotionExpiryWorker,
   ],
   exports: [
     SearchStorefrontProductsUseCase,
