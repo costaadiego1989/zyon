@@ -23,6 +23,10 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/merchants/me/theme", { method: "PUT", jsonBody: theme }, f);
     },
 
+    uploadLogo(logoBase64: string): Promise<{ logoUrl: string }> {
+      return dashboardJson(base, "/merchants/me/logo", { method: "POST", jsonBody: { logo: logoBase64 } }, f);
+    },
+
     putStoreCategory(storeCategory: string): Promise<{ storeCategory: string }> {
       return dashboardJson(base, "/merchants/me/store-category", { method: "PUT", jsonBody: { storeCategory } }, f);
     },

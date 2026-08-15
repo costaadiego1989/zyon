@@ -200,7 +200,17 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     setBusy(true);
     setMessage(null);
     try {
-      const saved = mergeTheme(await api.putMerchantTheme(normalizedTheme()));
+      const payload = normalizedTheme();
+      // Upload logo to S3 if it's a base64 data URI
+      if (payload.logoUrl && payload.logoUrl.startsWith("data:")) {
+        try {
+          const { logoUrl } = await api.uploadLogo(payload.logoUrl);
+          payload.logoUrl = logoUrl;
+        } catch {
+          // S3 failed — save inline as fallback
+        }
+      }
+      const saved = mergeTheme(await api.putMerchantTheme(payload));
       setTheme(saved);
       const badges = (saved.trustBadges ?? []).join(", ");
       setBadgesText(badges);

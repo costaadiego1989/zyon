@@ -420,7 +420,19 @@ export function OnboardingWizard(props: {
       let current: Record<string, unknown> = {};
       try { current = (await api.getMerchantTheme()) as unknown as Record<string, unknown>; } catch {}
       const { originZip, storeCategory, secondaryColor, headingFont, bodyFont, ...themeFields } = themeDraft;
-      const payload = { ...current, ...themeFields, secondaryColor, fontDisplay: headingFont, fontFamily: bodyFont } as Parameters<typeof api.putMerchantTheme>[0];
+
+      // Upload logo to S3 if it's a base64 data URI
+      let finalLogoUrl = themeFields.logoUrl;
+      if (finalLogoUrl && finalLogoUrl.startsWith("data:")) {
+        try {
+          const { logoUrl } = await api.uploadLogo(finalLogoUrl);
+          finalLogoUrl = logoUrl;
+        } catch {
+          // S3 upload failed — fall back to saving base64 inline (works but large)
+        }
+      }
+
+      const payload = { ...current, ...themeFields, logoUrl: finalLogoUrl, secondaryColor, fontDisplay: headingFont, fontFamily: bodyFont } as Parameters<typeof api.putMerchantTheme>[0];
       await api.putMerchantTheme(payload);
       if (originZip) {
         try { await api.putMerchantRules({ originZip }); } catch {}
