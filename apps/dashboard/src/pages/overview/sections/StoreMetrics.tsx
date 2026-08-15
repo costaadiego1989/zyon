@@ -1,6 +1,6 @@
 import React from "react";
 import type { StoreOverview, TimeseriesResponse } from "@zyon/shared-types";
-import { DollarSign, ShoppingCart, Receipt, Package, Users, TrendingDown } from "lucide-react";
+import { DollarSign, ShoppingCart, Receipt, TrendingDown } from "lucide-react";
 import { StatCard } from "../components/StatCard.js";
 import { OrderStatusDonut } from "../components/OrderStatusDonut.js";
 import { TopProducts } from "../components/TopProducts.js";
@@ -37,11 +37,11 @@ export function StoreMetrics({
 
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Hero metric cards */}
+      {/* Hero metric cards — max 4 */}
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+          gridTemplateColumns: "repeat(4, 1fr)",
           gap: 12,
         }}
       >
@@ -67,19 +67,6 @@ export function StoreMetrics({
           prefix="R$"
           trend={calcTrend(overview.average_ticket, prev?.average_ticket)}
           icon={<Receipt size={16} />}
-        />
-        <StatCard
-          label="Produtos Vendidos"
-          value={overview.products_sold}
-          trend={calcTrend(overview.products_sold, prev?.products_sold)}
-          icon={<Package size={16} />}
-        />
-        <StatCard
-          label="Novos Clientes"
-          value={overview.new_customers}
-          accent="var(--good)"
-          trend={calcTrend(overview.new_customers, prev?.new_customers)}
-          icon={<Users size={16} />}
         />
         <StatCard
           label="Abandono"

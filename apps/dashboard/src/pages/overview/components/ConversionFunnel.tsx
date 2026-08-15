@@ -49,8 +49,10 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 16,
+          gap: 8,
           alignItems: "stretch",
+          flex: 1,
+          justifyContent: "center",
         }}
       >
         {steps.map((step, i) => {
@@ -67,7 +69,7 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
               style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 8,
+                gap: 4,
                 alignItems: "center",
               }}
             >
@@ -77,13 +79,13 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
                   minWidth: "50px",
                   background: fill,
                   opacity: 0.85,
-                  borderRadius: 12,
-                  padding: "20px 24px",
+                  borderRadius: 10,
+                  padding: "12px 16px",
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 8,
+                  gap: 4,
                   transition: "all 300ms cubic-bezier(0.16,1,0.3,1), opacity 200ms",
                   position: "relative",
                   overflow: "hidden",
@@ -102,18 +104,18 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
               >
                 <span
                   style={{
-                    fontSize: 16,
+                    fontSize: 14,
                     fontFamily: "var(--mono)",
                     fontWeight: 700,
                     color: "#fff",
-                    textShadow: "0 2px 4px rgba(0,0,0,0.4)",
+                    textShadow: "0 1px 3px rgba(0,0,0,0.4)",
                   }}
                 >
                   {(step.value ?? 0).toLocaleString("pt-BR")}
                 </span>
                 <span
                   style={{
-                    fontSize: 12,
+                    fontSize: 11,
                     color: "rgba(255,255,255,0.9)",
                     fontWeight: 600,
                     fontFamily: "var(--sans)",

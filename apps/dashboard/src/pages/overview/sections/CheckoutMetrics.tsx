@@ -1,6 +1,6 @@
 import React from "react";
 import type { DashboardOverview, TimeseriesResponse } from "@zyon/shared-types";
-import { MessageSquare, Percent, Gift, DollarSign, Tag } from "lucide-react";
+import { MessageSquare, Percent, Gift, DollarSign } from "lucide-react";
 import { StatCard } from "../components/StatCard.js";
 import { ConversionFunnel } from "../components/ConversionFunnel.js";
 import { RevenueChart } from "../components/RevenueChart.js";
@@ -40,7 +40,7 @@ export function CheckoutMetrics({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+          gridTemplateColumns: "repeat(4, 1fr)",
           gap: 12,
         }}
       >
@@ -80,18 +80,6 @@ export function CheckoutMetrics({
           trend={calcTrend(overview.incremental_revenue, prev?.incremental_revenue)}
           sparkline={revSparkline}
           icon={<DollarSign size={16} />}
-        />
-        <StatCard
-          label="Desconto Medio"
-          value={`${((overview.average_discount ?? 0) * 100).toFixed(1)}`}
-          suffix="%"
-          accent="var(--warn)"
-          trend={calcTrend(
-            (overview.average_discount ?? 0) * 100,
-            prev?.average_discount ? prev.average_discount * 100 : undefined,
-          )}
-          sparkline={convSparkline}
-          icon={<Tag size={16} />}
         />
       </div>
 
