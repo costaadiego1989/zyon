@@ -13,12 +13,14 @@ import { MerchantController } from "./merchant.controller.js";
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 
 function buildController(repository: InMemoryMerchantRepository) {
+  const s3Mock = { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any;
   return new MerchantController(
     new GetMerchantProfileUseCase(repository),
     new GetMerchantRulesUseCase(repository),
     new UpdateMerchantRulesUseCase(repository),
     new GetMerchantThemeUseCase(repository),
-    new UpdateMerchantThemeUseCase(repository)
+    new UpdateMerchantThemeUseCase(repository),
+    s3Mock
   );
 }
 

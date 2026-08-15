@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Put, UseGuards, ValidationPipe } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, UseGuards, ValidationPipe, BadRequestException } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
+import { S3UploadService } from "../../../shared/storage/s3-upload.service.js";
 import {
   ApiOperation,
   ApiResponse,
@@ -29,7 +30,8 @@ export class MerchantController {
     private readonly getRules: GetMerchantRulesUseCase,
     private readonly updateRules: UpdateMerchantRulesUseCase,
     private readonly getTheme: GetMerchantThemeUseCase,
-    private readonly updateTheme: UpdateMerchantThemeUseCase
+    private readonly updateTheme: UpdateMerchantThemeUseCase,
+    private readonly s3: S3UploadService
   ) {}
 
   @ApiOperation({
@@ -147,6 +149,22 @@ export class MerchantController {
   @Put("theme")
   putTheme(@CurrentTenant() merchantId: string, @Body() body: MerchantTheme) {
     return this.updateTheme.execute(merchantId, body);
+  }
+
+  @Post("logo")
+  @ApiOperation({ summary: "Upload merchant logo to S3 and save URL" })
+  @ApiResponse({ status: 201, description: "Logo uploaded and URL saved to theme" })
+  async uploadLogo(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { logo: string }
+  ) {
+    if (!body.logo) throw new BadRequestException("logo_required");
+    if (!this.s3.isConfigured()) throw new BadRequestException("s3_not_configured");
+
+    const result = await this.s3.uploadBase64(body.logo, `merchants/${merchantId}/logos`);
+    // Save URL in theme.logoUrl
+    await this.updateTheme.execute(merchantId, { logoUrl: result.url } as any);
+    return { logoUrl: result.url };
   }
 
   @Put("store-category")

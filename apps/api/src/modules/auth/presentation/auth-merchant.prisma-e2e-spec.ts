@@ -32,7 +32,8 @@ test(
       new GetMerchantRulesUseCase(merchantRepository),
       new UpdateMerchantRulesUseCase(merchantRepository),
       new GetMerchantThemeUseCase(merchantRepository),
-      new UpdateMerchantThemeUseCase(merchantRepository)
+      new UpdateMerchantThemeUseCase(merchantRepository),
+      { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any
     );
     const email = `mrc_auth_${crypto.randomUUID()}@example.com`;
     let merchantId = "";

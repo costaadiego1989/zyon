@@ -72,9 +72,7 @@ export class GetStoreConfigUseCase {
     return {
       merchantId: row.id,
       name: row.name,
-      logo: theme?.logoUrl?.startsWith("data:")
-        ? `${process.env.PUBLIC_API_URL ?? ""}/storefront/${row.id}/logo`
-        : theme?.logoUrl,
+      logo: theme?.logoUrl ?? undefined,
       theme: {
         accentColor: theme?.accentColor ?? "#0F766E",
         secondaryColor: theme?.secondaryColor,
