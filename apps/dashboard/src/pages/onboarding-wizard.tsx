@@ -493,9 +493,10 @@ export function OnboardingWizard(props: {
     setBusy(true);
     setMessage(null);
     try {
+      const baseUrl = window.location.origin;
       const { url } = await api.createStripeOnboardingLink({
-        return_url: window.location.href,
-        refresh_url: window.location.href,
+        return_url: baseUrl,
+        refresh_url: baseUrl,
       });
       setPaymentDraft((d) => ({ ...d, stripeStatus: "pending" }));
       window.location.href = url;
