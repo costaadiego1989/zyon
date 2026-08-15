@@ -45,12 +45,21 @@ export interface ProductDetailPageProps {
 
 // Price conversion helpers: REAIS ↔ CENTAVOS
 export function centsToReais(cents: number): string {
-  return (cents / 100).toFixed(2);
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 export function reaisToCents(input: string): number {
-  const clean = input.replace(",", ".").replace(/[^\d.]/g, "");
-  return Math.round(parseFloat(clean) * 100) || 0;
+  // Accept pt-BR format: "1.500,90" → 150090
+  const cleaned = input.replace(/\./g, "").replace(",", ".");
+  const num = parseFloat(cleaned);
+  return Number.isFinite(num) ? Math.round(num * 100) : 0;
+}
+
+/** Format currency input on blur: raw typing → formatted pt-BR */
+export function formatCurrencyInput(raw: string): string {
+  const cents = reaisToCents(raw);
+  if (cents <= 0 && !raw.trim()) return "";
+  return centsToReais(cents);
 }
 
 export function emptyVariant(): ProductVariantDraft {
@@ -748,14 +757,14 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                   error={formErrors["simple_sku"]}
                   placeholder="Auto-gerado do nome se vazio"
                 />
-                <Field
+                <CurrencyField
                   label="Preço (R$) *"
                   value={variants[0].basePriceInput}
                   onChange={(val) => updateVariant(0, { basePriceInput: val })}
                   error={formErrors["simple_price"]}
                   placeholder="89,90"
                 />
-                <Field
+                <CurrencyField
                   label="Custo (R$)"
                   value={variants[0].costInput}
                   onChange={(val) => updateVariant(0, { costInput: val })}
@@ -865,14 +874,14 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         error={formErrors[`variant_${idx}_sku`]}
                         placeholder="SKU-001"
                       />
-                      <Field
+                      <CurrencyField
                         label="Preço (R$) *"
                         value={v.basePriceInput}
                         onChange={(val) => updateVariant(idx, { basePriceInput: val })}
                         error={formErrors[`variant_${idx}_price`]}
                         placeholder="89,90"
                       />
-                      <Field
+                      <CurrencyField
                         label="Custo (R$)"
                         value={v.costInput}
                         onChange={(val) => updateVariant(idx, { costInput: val })}
@@ -974,6 +983,25 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
+        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--danger)" : "var(--border)"}`, font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+      />
+      {props.error ? (
+        <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{props.error}</span>
+      ) : null}
+    </label>
+  );
+}
+
+function CurrencyField(props: { label: string; value: string; onChange: (v: string) => void; error?: string; placeholder?: string }) {
+  return (
+    <label style={{ display: "block" }}>
+      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>{props.label}</span>
+      <input
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        onBlur={() => props.onChange(formatCurrencyInput(props.value))}
+        placeholder={props.placeholder}
+        inputMode="decimal"
         style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--danger)" : "var(--border)"}`, font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
       />
       {props.error ? (
