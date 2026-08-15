@@ -134,6 +134,7 @@ export default function ProductCarouselBlock({
                   <img
                     src={product.image}
                     alt={product.name}
+                    loading="lazy"
                     style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
                   />
                 ) : (

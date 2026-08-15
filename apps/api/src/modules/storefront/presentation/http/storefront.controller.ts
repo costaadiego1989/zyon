@@ -30,6 +30,24 @@ export class StorefrontController {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient
   ) {}
 
+  @Get("index")
+  async getStoreIndex() {
+    const merchants = await this.prisma.merchant.findMany({
+      where: { plan: { in: ["STORE_ONLY", "BOTH"] } },
+      select: { id: true, name: true, updatedAt: true },
+    });
+    const stores = merchants.map((m) => ({
+      slug: m.name
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, "")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .trim(),
+      updatedAt: m.updatedAt.toISOString(),
+    }));
+    return { stores };
+  }
+
   @Get(":slug/config")
   async getConfig(@Param("slug") slug: string) {
     return this.getStoreConfig.execute(slug);

@@ -423,7 +423,7 @@ export default function ConversationShell({
         <>
         <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "12px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
           {logo ? (
-            <img src={logo} alt={storeName} style={{ maxWidth: "80px", maxHeight: "80px", objectFit: "contain", flex: "none" }} />
+            <img src={logo} alt={storeName} width={80} height={80} loading="eager" style={{ maxWidth: "80px", maxHeight: "80px", objectFit: "contain", flex: "none" }} />
           ) : (
             <div style={{ width: "34px", height: "34px", borderRadius: "12px", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", color: "var(--aacp-fg)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", overflow: "hidden", fontSize: "13px", fontWeight: 800, letterSpacing: "-.2px" }}>
               {storeName.charAt(0).toUpperCase()}
