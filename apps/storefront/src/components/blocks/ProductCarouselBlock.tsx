@@ -71,7 +71,7 @@ export default function ProductCarouselBlock({
   }, [cursor, loadingMore, loadMore]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "6px", position: "relative" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: "6px", position: "relative", margin: "0 -18px", padding: "0 18px" }}>
       <style>{`
         .aacp-carousel-scroll::-webkit-scrollbar { display: none; }
         .aacp-carousel-scroll { -ms-overflow-style: none; scrollbar-width: none; }
@@ -82,7 +82,7 @@ export default function ProductCarouselBlock({
         className="aacp-carousel-scroll"
         style={{
           display: "flex",
-          gap: "12px",
+          gap: "10px",
           overflowX: "auto",
           paddingBottom: "4px",
           scrollSnapType: "x mandatory",
@@ -91,8 +91,13 @@ export default function ProductCarouselBlock({
         }}
       >
         {products.map((product) => (
-          <div key={product.id} style={{ minWidth: "180px", maxWidth: "200px", flex: "0 0 180px", scrollSnapAlign: "start" }}>
-            <article style={{ background: "var(--aacp-surface)", border: "1px solid var(--aacp-line)", borderRadius: "10px", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", height: "100%", transition: "border-color 0.18s ease" }}>
+          <div key={product.id} style={{ minWidth: "160px", maxWidth: "180px", flex: "0 0 160px", scrollSnapAlign: "start" }}>
+            <article
+              onClick={() => onQuickReply?.(`Detalhes ${product.name}`)}
+              style={{ background: "var(--aacp-surface)", border: "1px solid var(--aacp-line)", borderRadius: "10px", overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", display: "flex", flexDirection: "column", height: "100%", cursor: "pointer", transition: "border-color 0.18s ease, transform 0.15s ease" }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.transform = "translateY(-2px)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.transform = "none"; }}
+            >
               {/* Image */}
               <div aria-hidden style={{ width: "100%", height: "120px", borderRadius: "10px 10px 0 0", background: product.image ? `url(${product.image}) center / cover` : "linear-gradient(135deg, color-mix(in srgb, var(--aacp-accent) 12%, transparent), color-mix(in srgb, var(--aacp-accent) 4%, transparent))", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", fontSize: "32px" }}>
                 {!product.image && "🛍️"}
@@ -106,14 +111,15 @@ export default function ProductCarouselBlock({
                   {product.inStock ? "Em estoque" : "Esgotado"}
                 </span>
                 <div style={{ flex: 1 }} />
-                <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
-                  <button type="button" onClick={() => onQuickReply?.(`Detalhes ${product.name}`)} style={{ flex: 1, padding: "7px 6px", borderRadius: "7px", border: "1px solid var(--aacp-accent)", background: "transparent", color: "var(--aacp-accent)", fontSize: "10.5px", fontWeight: 600, cursor: "pointer", fontFamily: "inherit", transition: "all 0.15s ease" }}>
-                    Detalhes
-                  </button>
-                  <button type="button" onClick={() => onQuickReply?.(`Adicionar ${product.name} ao carrinho`)} disabled={!product.inStock} style={{ flex: 1, padding: "7px 6px", borderRadius: "7px", border: "none", background: product.inStock ? "var(--aacp-accent)" : "var(--aacp-muted)", color: "#fff", fontSize: "10.5px", fontWeight: 600, cursor: product.inStock ? "pointer" : "not-allowed", opacity: product.inStock ? 1 : 0.5, fontFamily: "inherit", transition: "all 0.15s ease" }}>
-                    🛒 Adicionar
-                  </button>
-                </div>
+                {/* Single add button */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onQuickReply?.(`Adicionar ${product.name} ao carrinho`); }}
+                  disabled={!product.inStock}
+                  style={{ width: "100%", padding: "7px 8px", borderRadius: "7px", border: "none", background: product.inStock ? "var(--aacp-accent)" : "var(--aacp-muted)", color: "#fff", fontSize: "10.5px", fontWeight: 600, cursor: product.inStock ? "pointer" : "not-allowed", opacity: product.inStock ? 1 : 0.5, fontFamily: "inherit", transition: "all 0.15s ease", marginTop: "8px" }}
+                >
+                  Adicionar ao carrinho
+                </button>
               </div>
             </article>
           </div>
