@@ -6,6 +6,15 @@
 
 import type { ConversationBlock } from "../types/conversation-block.js";
 
+export interface MerchantPolicy {
+  maxDiscountPercent?: number;
+  allowFreeShipping?: boolean;
+  allowShippingDiscount?: boolean;
+  freeShippingMinCartValue?: number;
+  maxPartialShippingDiscount?: number;
+  offerExpirationMinutes?: number;
+}
+
 export interface StorefrontConversationInput {
   userMessage: string;
   cartId?: string;
@@ -16,6 +25,7 @@ export interface StorefrontConversationInput {
   storeCategory: string;
   storeSettings?: Record<string, any>;
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
+  merchantPolicy?: MerchantPolicy;
 }
 
 export interface StorefrontConversationOutput {

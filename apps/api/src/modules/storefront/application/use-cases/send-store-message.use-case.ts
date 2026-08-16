@@ -58,6 +58,32 @@ export class SendStoreMessageUseCase {
       if (identity) agentIdentity = identity;
     } catch { /* optional — fallback to no identity */ }
 
+    // Load merchant rules (discount/shipping policy limits)
+    let merchantPolicy: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number } | undefined;
+    try {
+      const merchantRules = await this.prisma.merchantRule.findUnique({
+        where: { merchantId: input.merchant_id },
+        select: {
+          maxDiscountPercent: true,
+          allowFreeShipping: true,
+          allowShippingDiscount: true,
+          freeShippingMinCartValue: true,
+          maxPartialShippingDiscount: true,
+          offerExpirationMinutes: true,
+        },
+      });
+      if (merchantRules) {
+        merchantPolicy = {
+          maxDiscountPercent: Number(merchantRules.maxDiscountPercent),
+          allowFreeShipping: merchantRules.allowFreeShipping,
+          allowShippingDiscount: merchantRules.allowShippingDiscount,
+          freeShippingMinCartValue: Number(merchantRules.freeShippingMinCartValue),
+          maxPartialShippingDiscount: Number(merchantRules.maxPartialShippingDiscount),
+          offerExpirationMinutes: merchantRules.offerExpirationMinutes,
+        };
+      }
+    } catch { /* optional — fallback to no policy */ }
+
     const result = await this.conversation.reply({
       userMessage: input.user_message,
       cartId: input.cart_id,
@@ -67,7 +93,8 @@ export class SendStoreMessageUseCase {
       merchantName: merchant.name,
       storeCategory: merchant.storeCategory || "others",
       storeSettings,
-      agentIdentity
+      agentIdentity,
+      merchantPolicy
     });
 
     // Persist conversation history (non-blocking, best-effort)

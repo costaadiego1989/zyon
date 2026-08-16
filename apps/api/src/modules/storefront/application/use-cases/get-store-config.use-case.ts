@@ -54,12 +54,17 @@ export class GetStoreConfigUseCase {
     // Try by ID first
     let row = await this.prisma.merchant.findUnique({ where: { id: slug } });
 
-    // If not found, try slugified name match
+    // If not found, try persisted slug in storeSettings, then slugified name
     if (!row) {
       const merchants = await this.prisma.merchant.findMany({
-        select: { id: true, name: true, theme: true }
+        select: { id: true, name: true, theme: true, storeSettings: true }
       });
-      const match = merchants.find((m) => slugify(m.name) === slug);
+      const match = merchants.find((m) => {
+        const settings = m.storeSettings as Record<string, unknown> | null;
+        const persistedSlug = settings?.slug as string | undefined;
+        if (persistedSlug === slug) return true;
+        return slugify(m.name) === slug;
+      });
       if (match) {
         row = await this.prisma.merchant.findUnique({ where: { id: match.id } });
       }

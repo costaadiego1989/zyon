@@ -57,6 +57,7 @@ export interface StorefrontAgentInput {
   storeCategory: string;
   storeSettings?: Record<string, any>;
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
+  merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
   callbacks?: StorefrontAgentCallbacks;
 }
 
@@ -148,7 +149,7 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
-    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity);
+    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system" as const, content: systemContent },
       ...input.history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -439,7 +440,7 @@ export class StorefrontLangGraphAgent {
     };
   }
 
-  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }): string {
+  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }, merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number }): string {
     const name = merchantName ? ` da loja ${merchantName}` : "";
     const agentNameLabel = agentIdentity?.agentName || "Assistente";
     const categoryContext = storeCategory && storeCategory !== "others"
@@ -475,8 +476,21 @@ export class StorefrontLangGraphAgent {
       personaContext = `\nSua personalidade: ${agentIdentity.persona}.`;
     }
 
+    // Merchant policy context (discount/shipping limits)
+    let policyContext = "";
+    if (merchantPolicy) {
+      const policyParts: string[] = [];
+      if (merchantPolicy.maxDiscountPercent != null) policyParts.push(`Desconto máximo permitido: ${merchantPolicy.maxDiscountPercent}%`);
+      if (merchantPolicy.allowFreeShipping != null) policyParts.push(`Frete grátis ${merchantPolicy.allowFreeShipping ? "permitido" : "NÃO permitido"}`);
+      if (merchantPolicy.allowShippingDiscount != null) policyParts.push(`Desconto no frete ${merchantPolicy.allowShippingDiscount ? "permitido" : "NÃO permitido"}`);
+      if (merchantPolicy.freeShippingMinCartValue != null && merchantPolicy.freeShippingMinCartValue > 0) policyParts.push(`Valor mínimo para frete grátis: R$ ${(merchantPolicy.freeShippingMinCartValue / 100).toFixed(2)}`);
+      if (merchantPolicy.maxPartialShippingDiscount != null && merchantPolicy.maxPartialShippingDiscount > 0) policyParts.push(`Desconto máximo no frete: ${merchantPolicy.maxPartialShippingDiscount}%`);
+      if (merchantPolicy.offerExpirationMinutes != null) policyParts.push(`Ofertas expiram em ${merchantPolicy.offerExpirationMinutes} minutos`);
+      if (policyParts.length > 0) policyContext = `\nLIMITES DE NEGOCIAÇÃO: ${policyParts.join(". ")}.`;
+    }
+
     return [
-      `Você é ${agentNameLabel}, assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}${personaContext}`,
+      `Você é ${agentNameLabel}, assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}${personaContext}${policyContext}`,
       "Ajude o cliente a encontrar produtos, comparar, adicionar ao carrinho e finalizar compra.",
       `Seja breve, direto e ${agentIdentity?.tone || "amigável"}. Não use markdown nem tabelas — a interface renderiza os dados visualmente.`,
       "",
