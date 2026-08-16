@@ -27,6 +27,7 @@ import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
+import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -46,6 +47,7 @@ export class SendChatMessageUseCase {
     @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
     @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
+    @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
@@ -144,6 +146,15 @@ export class SendChatMessageUseCase {
       }
     }
 
+    // Load merchant advanced rules from checkout settings
+    let merchantRules: string[] | undefined;
+    try {
+      const settingsCtx = await this.checkoutSettings?.getContext(input.merchant_id);
+      if (settingsCtx?.merchant_rules?.length) {
+        merchantRules = settingsCtx.merchant_rules;
+      }
+    } catch { /* rules are advisory, not critical */ }
+
     const reply = await this.conversation.reply({
       userMessage: input.user_message,
       brandVoice: rules.brandVoice,
@@ -155,7 +166,8 @@ export class SendChatMessageUseCase {
       stage,
       missingFields,
       deliverySummary: this.shippingService.summarizeDelivery(working),
-      shippingOptions: working.shippingOptions
+      shippingOptions: working.shippingOptions,
+      merchantRules
     });
 
     const safetyCheck = isSafeGeneratedMessage(reply.message);

@@ -164,6 +164,12 @@ export class LangGraphConversationAdapter implements ConversationPort {
         `Oferta autorizada: ${input.authorizedOffer.type} = ${input.authorizedOffer.value}. Proponha se apropriado.`
       );
     }
+    if (input.merchantRules?.length) {
+      parts.push("");
+      parts.push("REGRAS DO MERCHANT (siga durante o checkout — primeira que encaixar é a que vale):");
+      input.merchantRules.forEach((r, i) => parts.push(`${i + 1}. ${r}`));
+      parts.push("IMPORTANTE: Proponha via ferramenta apply_discount para que o rules-engine valide.");
+    }
 
     return parts.join("\n");
   }

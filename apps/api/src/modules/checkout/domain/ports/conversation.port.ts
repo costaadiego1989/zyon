@@ -15,6 +15,7 @@ export interface ConversationReplyInput {
   missingFields?: string[];
   deliverySummary?: string;
   shippingOptions?: ShippingQuote[];
+  merchantRules?: string[];
 }
 
 export interface ConversationPort {
