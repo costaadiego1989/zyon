@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Save, ChevronDown, ChevronRight, X, Plus } from "lucide-react";
+import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
@@ -237,7 +237,10 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
                   </select>
                 </label>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Tom de Voz</span>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                    Tom de Voz
+                    <span title="Define o estilo de comunicação do agente: Consultivo (orientação), Premium (exclusividade), Direto (objetivo), Amigável (casual), Técnico (preciso)" style={{ color: "var(--faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+                  </span>
                   <select value={form.tone} onChange={(e) => patch({ tone: e.target.value as AgentTone })} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}>
                     {Object.entries(TONE_PT_TO_EN).map(([label, value]) => (
                       <option key={value} value={value}>{label}</option>
@@ -245,15 +248,21 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
                   </select>
                 </label>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Persona</span>
-                  <input value={form.persona} onChange={(e) => patch({ persona: e.target.value })} placeholder="Descreva a personalidade do agente" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.persona ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }} />
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                    Persona
+                    <span title="Descreva brevemente quem é o agente: ex. 'Vendedora simpática de loja de roupas femininas' ou 'Especialista em tecnologia que simplifica termos complexos'" style={{ color: "var(--faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+                  </span>
+                  <input value={form.persona} onChange={(e) => patch({ persona: e.target.value })} placeholder="Ex: Vendedora experiente e atenciosa" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.persona ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }} />
                   {errors.persona && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.persona}</span>}
                 </label>
               </div>
               <div style={{ marginTop: 12 }}>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Saudação Inicial</span>
-                  <input value={form.greeting} onChange={(e) => patch({ greeting: e.target.value })} placeholder="Olá! Como posso ajudá-lo?" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }} />
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+                    Texto de Apresentação
+                    <span title="Este é o primeiro texto que o cliente verá ao abrir o chat. Apresente o agente e diga como ele pode ajudar." style={{ color: "var(--faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+                  </span>
+                  <textarea value={form.greeting} onChange={(e) => patch({ greeting: e.target.value })} placeholder="Olá! Sou a Micha 👋&#10;A partir de agora serei sua vendedora particular e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra de forma bem fluida e fácil. Vamos começar!" rows={4} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)", resize: "vertical", lineHeight: 1.5 }} />
                   {errors.greeting && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.greeting}</span>}
                 </label>
               </div>
