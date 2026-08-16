@@ -23,6 +23,7 @@ export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAda
 export class StorefrontConversationAdapter implements StorefrontConversationPort {
   private readonly agent: StorefrontLangGraphAgent;
   private currentMerchantId = "";
+  private currentSessionId = "";
 
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
@@ -114,7 +115,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
       addItemToCart: async (args) => {
         const merchantId = this.currentMerchantId;
-        const sessionId = args.cartId ?? `cart_${Date.now()}`;
+        // Use args.cartId if LLM passes it, otherwise use conversation sessionId as stable cart key
+        const sessionId = args.cartId ?? this.currentSessionId ?? `cart_${Date.now()}`;
 
         // Resolve product data: try findById (productId) first, then search by variant
         let productName = "Produto";
@@ -535,6 +537,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     this.currentMerchantId = input.merchantId;
+    this.currentSessionId = input.sessionId;
     const result = await this.agent.run({
       sessionId: input.sessionId,
       merchantId: input.merchantId,
