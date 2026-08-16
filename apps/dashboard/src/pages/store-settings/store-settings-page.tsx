@@ -3,6 +3,7 @@ import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload,
 import { TabBar } from "../../components/TabBar.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm } from "./useStoreSettingsPage.js";
+import { maskPhone, maskCEP } from "../../utils/masks.js";
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -186,7 +187,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Telefone</span>
-            <input style={fieldStyle} placeholder="(11) 99999-9999" value={company.phone} onChange={(e) => onCompanyChange({ ...company, phone: e.target.value })} />
+            <input style={fieldStyle} placeholder="(11) 99999-9999" value={company.phone} onChange={(e) => onCompanyChange({ ...company, phone: maskPhone(e.target.value) })} />
           </label>
         </div>
       </div>
@@ -197,7 +198,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CEP</span>
-            <input style={{ ...fieldStyle, opacity: cepLoading ? 0.6 : 1 }} placeholder="01311-100" value={company.zip} onChange={(e) => onCepChange(e.target.value)} disabled={cepLoading} />
+            <input style={{ ...fieldStyle, opacity: cepLoading ? 0.6 : 1 }} placeholder="01311-100" value={company.zip} onChange={(e) => { const masked = maskCEP(e.target.value); onCepChange(masked); }} disabled={cepLoading} />
           </label>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 12 }}>

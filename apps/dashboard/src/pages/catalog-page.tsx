@@ -14,6 +14,14 @@ export interface CatalogPageProps {
   onEdit?: (productId: string) => void;
 }
 
+const PRODUCT_TYPE_LABELS: Record<string, string> = {
+  simple: "Simples",
+  physical: "Simples",
+  variable: "Variável",
+  digital: "Digital",
+  service: "Serviço",
+};
+
 export function formatPrice(cents: number, currency: string): string {
   const value = (cents ?? 0) / 100;
   try {
@@ -256,7 +264,7 @@ export function CatalogPage(props: CatalogPageProps) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                {["NOME", "PREÇO", "ESTOQUE", "STATUS", ""].map((c) => (
+                {["NOME", "TIPO", "PREÇO", "ESTOQUE", "STATUS", ""].map((c) => (
                   <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
                 ))}
               </tr>
@@ -274,6 +282,7 @@ export function CatalogPage(props: CatalogPageProps) {
                     style={{ cursor: "pointer", background: hoveredRow === p.id ? "var(--bg)" : "transparent", transition: "background 0.15s" }}
                   >
                     <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{p.name}</td>
+                    <td style={{ padding: "12px 22px", font: "11px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{PRODUCT_TYPE_LABELS[p.type ?? "simple"] || p.type || "—"}</td>
                     <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatPrice(price, currency)}</td>
                     <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: stock > 0 ? "var(--good)" : "var(--danger)", borderBottom: "1px solid var(--border)" }}>{stock}</td>
                     <td style={{ padding: "12px 22px", font: "12px var(--mono)", color: p.isActive ? "var(--good)" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>

@@ -96,7 +96,7 @@ export function FilterSelect(props: {
         border: "1px solid var(--border)",
         font: "600 12px var(--sans)",
         color: "var(--ink)",
-        background: "transparent",
+        background: "var(--bg)",
         cursor: "pointer",
         outline: "none",
         boxSizing: "border-box",

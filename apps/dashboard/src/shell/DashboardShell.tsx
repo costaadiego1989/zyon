@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useMemo, useState } from "react";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck, ExternalLink } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
@@ -7,6 +7,18 @@ import { ToastContainer } from "../components/Toast.js";
 import { FeatureGate } from "../components/FeatureGate.js";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
+
+// Construct storefront URL
+function getStorefrontUrl(merchantId: string): string {
+  const env = import.meta.env;
+  const storefrontUrl = (env.VITE_STOREFRONT_URL as string | undefined)?.trim();
+  if (storefrontUrl) return `${storefrontUrl}/store/${merchantId}`;
+
+  // Fallback: derive from API base URL
+  const apiUrl = new URL(API_BASE_URL);
+  apiUrl.port = "3001"; // storefront typically runs on 3001
+  return `${apiUrl.origin}/store/${merchantId}`;
+}
 
 // Lazy-loaded pages
 const OverviewPage = lazy(() => import("../pages/overview/index.js").then(m => ({ default: m.OverviewPage })));
@@ -133,6 +145,17 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && (
+              <a
+                href={getStorefrontUrl(me.id)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--card)", font: "12.5px var(--sans)", color: "var(--accent)", textDecoration: "none", cursor: "pointer", transition: "background 0.15s" }}
+              >
+                <ExternalLink size={14} />
+                Acessar loja
+              </a>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--card)", font: "12.5px var(--sans)", color: "var(--muted)" }}>
               <ShieldCheck size={14} />
               {me.name || me.id}

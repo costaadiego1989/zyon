@@ -96,6 +96,8 @@ export function useStoreSettingsPage() {
         const settings = await api.getStoreSettings() as Record<string, any>;
         if (cancelled) return;
 
+        const loadedLogoUrl = settings?.logoUrl ?? "";
+
         setState((prev) => ({
           ...prev,
           company: settings?.company ? {
@@ -115,9 +117,19 @@ export function useStoreSettingsPage() {
           policies: settings?.policies ? { ...EMPTY_POLICIES, ...settings.policies } : EMPTY_POLICIES,
           social: settings?.social ? { ...EMPTY_SOCIAL, ...settings.social } : EMPTY_SOCIAL,
           businessHours: settings?.businessHours ?? EMPTY_BUSINESS_HOURS,
-          logoUrl: settings?.logoUrl ?? "",
+          logoUrl: loadedLogoUrl,
           loading: false,
         }));
+
+        // Fallback: if no logo from store settings, try merchant theme (saved during onboarding)
+        if (!loadedLogoUrl) {
+          try {
+            const theme = await api.getMerchantTheme();
+            if (!cancelled && theme.logoUrl) {
+              setState((p) => ({ ...p, logoUrl: theme.logoUrl! }));
+            }
+          } catch {}
+        }
       } catch {
         if (!cancelled) setState((p) => ({ ...p, loading: false }));
       }
@@ -127,10 +139,11 @@ export function useStoreSettingsPage() {
 
   async function handleCepChange(zip: string) {
     setState((p) => ({ ...p, company: { ...p.company, zip } }));
-    if (zip.length < 8) return;
+    const digits = zip.replace(/\D/g, "");
+    if (digits.length < 8) return;
     setState((p) => ({ ...p, cepLoading: true }));
     try {
-      const res = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
+      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
       const data = await res.json() as any;
       if (data.erro) {
         setState((p) => ({ ...p, cepLoading: false }));
