@@ -8,7 +8,8 @@ export interface StoreSettingsState {
   policies: PoliciesForm;
   social: SocialForm;
   businessHours: BusinessHour[];
-  activeTab: "company" | "policies" | "social";
+  styles: StylesForm;
+  activeTab: "company" | "policies" | "social" | "styles";
   loading: boolean;
   saving: boolean;
   saveResult: "success" | "error" | null;
@@ -16,6 +17,15 @@ export interface StoreSettingsState {
   cepLoading: boolean;
   generatingPolicy: string | null;
   logoUrl: string;
+}
+
+export interface StylesForm {
+  logoUrl: string;
+  faviconUrl: string;
+  accentColor: string;
+  secondaryColor: string;
+  fontDisplay: string;
+  fontFamily: string;
 }
 
 export interface CompanyForm {
@@ -62,6 +72,7 @@ const EMPTY_COMPANY: CompanyForm = {
 };
 const EMPTY_POLICIES: PoliciesForm = { privacy: "", returns: "", terms: "", shipping: "" };
 const EMPTY_SOCIAL: SocialForm = { instagram: "", facebook: "", linkedin: "", youtube: "", googleMaps: "" };
+const EMPTY_STYLES: StylesForm = { logoUrl: "", faviconUrl: "", accentColor: "#000000", secondaryColor: "#666666", fontDisplay: "Inter, ui-sans-serif, system-ui, sans-serif", fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" };
 const EMPTY_BUSINESS_HOURS: BusinessHour[] = [
   { day: "seg", startTime: "09:00", endTime: "18:00", closed: false },
   { day: "ter", startTime: "09:00", endTime: "18:00", closed: false },
@@ -79,6 +90,7 @@ export function useStoreSettingsPage() {
     policies: EMPTY_POLICIES,
     social: EMPTY_SOCIAL,
     businessHours: EMPTY_BUSINESS_HOURS,
+    styles: EMPTY_STYLES,
     activeTab: "company",
     loading: true,
     saving: false,
@@ -97,6 +109,10 @@ export function useStoreSettingsPage() {
         if (cancelled) return;
 
         const loadedLogoUrl = settings?.logoUrl ?? "";
+        let theme: any = null;
+        try {
+          theme = await api.getMerchantTheme();
+        } catch {}
 
         setState((prev) => ({
           ...prev,
@@ -117,19 +133,17 @@ export function useStoreSettingsPage() {
           policies: settings?.policies ? { ...EMPTY_POLICIES, ...settings.policies } : EMPTY_POLICIES,
           social: settings?.social ? { ...EMPTY_SOCIAL, ...settings.social } : EMPTY_SOCIAL,
           businessHours: settings?.businessHours ?? EMPTY_BUSINESS_HOURS,
+          styles: {
+            logoUrl: theme?.logoUrl ?? loadedLogoUrl ?? "",
+            faviconUrl: theme?.faviconUrl ?? "",
+            accentColor: theme?.accentColor ?? "#000000",
+            secondaryColor: theme?.secondaryColor ?? "#666666",
+            fontDisplay: theme?.fontDisplay ?? "Inter, ui-sans-serif, system-ui, sans-serif",
+            fontFamily: theme?.fontFamily ?? "Inter, ui-sans-serif, system-ui, sans-serif",
+          },
           logoUrl: loadedLogoUrl,
           loading: false,
         }));
-
-        // Fallback: if no logo from store settings, try merchant theme (saved during onboarding)
-        if (!loadedLogoUrl) {
-          try {
-            const theme = await api.getMerchantTheme();
-            if (!cancelled && theme.logoUrl) {
-              setState((p) => ({ ...p, logoUrl: theme.logoUrl! }));
-            }
-          } catch {}
-        }
       } catch {
         if (!cancelled) setState((p) => ({ ...p, loading: false }));
       }
@@ -168,29 +182,42 @@ export function useStoreSettingsPage() {
   async function handleSave() {
     setState((p) => ({ ...p, saving: true, saveResult: null, saveError: null }));
     try {
-      const payload = {
-        social: Object.fromEntries(Object.entries(state.social).filter(([, v]) => v)),
-        company: {
-          ...(state.company.cnpj && { cnpj: state.company.cnpj }),
-          ...(state.company.razaoSocial && { razaoSocial: state.company.razaoSocial }),
-          ...(state.company.inscricaoEstadual && { inscricaoEstadual: state.company.inscricaoEstadual }),
-          ...(state.company.email && { email: state.company.email }),
-          ...(state.company.phone && { phone: state.company.phone }),
-          address: {
-            street: state.company.street,
-            number: state.company.number,
-            complement: state.company.complement,
-            neighborhood: state.company.neighborhood,
-            city: state.company.city,
-            state: state.company.state,
-            zip: state.company.zip,
+      if (state.activeTab === "styles") {
+        // Save theme
+        await api.putMerchantTheme({
+          logoUrl: state.styles.logoUrl,
+          faviconUrl: state.styles.faviconUrl,
+          accentColor: state.styles.accentColor,
+          secondaryColor: state.styles.secondaryColor,
+          fontDisplay: state.styles.fontDisplay,
+          fontFamily: state.styles.fontFamily,
+        } as any);
+      } else {
+        // Save store settings
+        const payload = {
+          social: Object.fromEntries(Object.entries(state.social).filter(([, v]) => v)),
+          company: {
+            ...(state.company.cnpj && { cnpj: state.company.cnpj }),
+            ...(state.company.razaoSocial && { razaoSocial: state.company.razaoSocial }),
+            ...(state.company.inscricaoEstadual && { inscricaoEstadual: state.company.inscricaoEstadual }),
+            ...(state.company.email && { email: state.company.email }),
+            ...(state.company.phone && { phone: state.company.phone }),
+            address: {
+              street: state.company.street,
+              number: state.company.number,
+              complement: state.company.complement,
+              neighborhood: state.company.neighborhood,
+              city: state.company.city,
+              state: state.company.state,
+              zip: state.company.zip,
+            },
           },
-        },
-        businessHours: state.businessHours,
-        policies: Object.fromEntries(Object.entries(state.policies).filter(([, v]) => v)),
-        ...(state.logoUrl && { logoUrl: state.logoUrl }),
-      };
-      await api.putStoreSettings(payload);
+          businessHours: state.businessHours,
+          policies: Object.fromEntries(Object.entries(state.policies).filter(([, v]) => v)),
+          ...(state.logoUrl && { logoUrl: state.logoUrl }),
+        };
+        await api.putStoreSettings(payload);
+      }
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
       showToast("success", "Configurações salvas com sucesso");
     } catch (e) {
@@ -228,8 +255,9 @@ export function useStoreSettingsPage() {
     setPolicies: (policies: PoliciesForm) => setState((p) => ({ ...p, policies })),
     setSocial: (social: SocialForm) => setState((p) => ({ ...p, social })),
     setBusinessHours: (hours: BusinessHour[]) => setState((p) => ({ ...p, businessHours: hours })),
+    setStyles: (styles: StylesForm) => setState((p) => ({ ...p, styles })),
     setLogoUrl: (url: string) => setState((p) => ({ ...p, logoUrl: url })),
-    setActiveTab: (tab: "company" | "policies" | "social") => setState((p) => ({ ...p, activeTab: tab })),
+    setActiveTab: (tab: "company" | "policies" | "social" | "styles") => setState((p) => ({ ...p, activeTab: tab })),
     handleCepChange,
     handleSave,
     generatePolicy,

@@ -1,9 +1,9 @@
 import React, { useRef, useState } from "react";
-import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2 } from "lucide-react";
+import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
 import { useApi } from "../../hooks/useApi.js";
-import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm } from "./useStoreSettingsPage.js";
-import { maskPhone, maskCEP } from "../../utils/masks.js";
+import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm, type StylesForm } from "./useStoreSettingsPage.js";
+import { maskPhone, maskCEP, maskCNPJ } from "../../utils/masks.js";
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -11,7 +11,7 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 export function StoreSettingsPage() {
-  const { state, setCompany, setPolicies, setSocial, setBusinessHours, setActiveTab, setLogoUrl, handleCepChange, handleSave, generatePolicy, dismiss } = useStoreSettingsPage();
+  const { state, setCompany, setPolicies, setSocial, setBusinessHours, setStyles, setActiveTab, setLogoUrl, handleCepChange, handleSave, generatePolicy, dismiss } = useStoreSettingsPage();
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>Carregando...</div>;
 
@@ -31,18 +31,20 @@ export function StoreSettingsPage() {
           { key: "company", label: "Empresa" },
           { key: "policies", label: "Políticas" },
           { key: "social", label: "Redes Sociais" },
+          { key: "styles", label: "Estilos" },
         ]}
         activeTab={state.activeTab}
-        onTabChange={(k) => setActiveTab(k as "company" | "policies" | "social")}
+        onTabChange={(k) => setActiveTab(k as "company" | "policies" | "social" | "styles")}
       />
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginTop: 16 }}>
 
         {/* Content */}
         <div style={{ padding: "24px 22px", minHeight: 400 }}>
-          {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} logoUrl={state.logoUrl ?? ""} onLogoChange={setLogoUrl} />}
+          {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} />}
           {state.activeTab === "policies" && <PoliciesTab policies={state.policies} onChange={setPolicies} onGenerate={generatePolicy} generatingPolicy={state.generatingPolicy} />}
           {state.activeTab === "social" && <SocialTab social={state.social} onChange={setSocial} />}
+          {state.activeTab === "styles" && <StylesTab styles={state.styles} onChange={setStyles} />}
         </div>
       </div>
 
@@ -76,98 +78,25 @@ export function StoreSettingsPage() {
   );
 }
 
-function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHoursChange, onCepChange, logoUrl, onLogoChange }: {
+function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHoursChange, onCepChange }: {
   company: CompanyForm;
   businessHours: BusinessHour[];
   cepLoading: boolean;
   onCompanyChange: (c: CompanyForm) => void;
   onHoursChange: (h: BusinessHour[]) => void;
   onCepChange: (zip: string) => void;
-  logoUrl: string;
-  onLogoChange: (url: string) => void;
 }) {
-  const api = useApi();
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [logoPreview, setLogoPreview] = useState(logoUrl);
-  const [uploading, setUploading] = useState(false);
-
-  // Sync external logoUrl into preview
-  if (logoUrl && !logoPreview) setLogoPreview(logoUrl);
-
-  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result as string;
-      setLogoPreview(base64);
-      try {
-        const { logoUrl: url } = await api.uploadLogo(base64);
-        onLogoChange(url);
-        setLogoPreview(url);
-      } catch {
-        // fallback to base64 preview
-        onLogoChange(base64);
-      } finally {
-        setUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  }
-
-  function handleRemoveLogo() {
-    setLogoPreview("");
-    onLogoChange("");
-  }
-
   const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", fontFamily: "var(--sans)", outline: "none", color: "var(--ink)" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Logo Upload */}
-      <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Logotipo</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {logoPreview ? (
-              <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <Upload size={20} style={{ color: "var(--faint)" }} />
-            )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} />
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
-            >
-              <Upload size={13} />
-              {uploading ? "Enviando..." : "Alterar logo"}
-            </button>
-            {logoPreview && (
-              <button
-                type="button"
-                onClick={handleRemoveLogo}
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
-              >
-                <Trash2 size={11} /> Remover
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
       {/* Company Info */}
       <div>
         <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Informações Principais</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CNPJ</span>
-            <input style={fieldStyle} placeholder="00.000.000/0000-00" value={company.cnpj} onChange={(e) => onCompanyChange({ ...company, cnpj: e.target.value })} />
+            <input style={fieldStyle} placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(e) => onCompanyChange({ ...company, cnpj: e.target.value.replace(/\D/g, "") })} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Razão Social</span>
@@ -187,7 +116,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Telefone</span>
-            <input style={fieldStyle} placeholder="(11) 99999-9999" value={company.phone} onChange={(e) => onCompanyChange({ ...company, phone: maskPhone(e.target.value) })} />
+            <input style={fieldStyle} placeholder="(11) 99999-9999" value={maskPhone(company.phone)} onChange={(e) => onCompanyChange({ ...company, phone: e.target.value.replace(/\D/g, "") })} />
           </label>
         </div>
       </div>
@@ -198,7 +127,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CEP</span>
-            <input style={{ ...fieldStyle, opacity: cepLoading ? 0.6 : 1 }} placeholder="01311-100" value={company.zip} onChange={(e) => { const masked = maskCEP(e.target.value); onCepChange(masked); }} disabled={cepLoading} />
+            <input style={{ ...fieldStyle, opacity: cepLoading ? 0.6 : 1 }} placeholder="01311-100" value={maskCEP(company.zip)} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ""); onCepChange(digits); }} disabled={cepLoading} />
           </label>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 12 }}>
@@ -341,6 +270,182 @@ function SocialTab({ social, onChange }: {
         <MapPin size={18} style={{ color: "var(--good)", flex: "none" }} />
         <input placeholder="https://maps.google.com/..." value={social.googleMaps} onChange={(e) => onChange({ ...social, googleMaps: e.target.value })} style={fieldStyle} />
       </label>
+    </div>
+  );
+}
+
+function StylesTab({ styles, onChange }: {
+  styles: StylesForm;
+  onChange: (s: StylesForm) => void;
+}) {
+  const api = useApi();
+  const logoFileRef = useRef<HTMLInputElement>(null);
+  const faviconFileRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState(styles.logoUrl);
+  const [faviconPreview, setFaviconPreview] = useState(styles.faviconUrl);
+  const [uploading, setUploading] = useState<"logo" | "favicon" | null>(null);
+
+  if (styles.logoUrl && !logoPreview) setLogoPreview(styles.logoUrl);
+  if (styles.faviconUrl && !faviconPreview) setFaviconPreview(styles.faviconUrl);
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, type: "logo" | "favicon") {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(type);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      if (type === "logo") {
+        setLogoPreview(base64);
+        try {
+          const { logoUrl: url } = await api.uploadLogo(base64);
+          onChange({ ...styles, logoUrl: url });
+          setLogoPreview(url);
+        } catch {
+          onChange({ ...styles, logoUrl: base64 });
+        }
+      } else {
+        setFaviconPreview(base64);
+        onChange({ ...styles, faviconUrl: base64 });
+      }
+      setUploading(null);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", outline: "none", color: "var(--ink)" };
+
+  const FONT_OPTIONS = [
+    "Inter, ui-sans-serif, system-ui, sans-serif",
+    "DM Sans, Inter, ui-sans-serif, system-ui, sans-serif",
+    "Plus Jakarta Sans, Inter, ui-sans-serif, system-ui, sans-serif",
+    "Manrope, Inter, ui-sans-serif, system-ui, sans-serif",
+    "Space Grotesk, Inter, ui-sans-serif, system-ui, sans-serif",
+    "Sora, Inter, ui-sans-serif, system-ui, sans-serif",
+    "Poppins, Inter, ui-sans-serif, system-ui, sans-serif",
+    "Outfit, Inter, ui-sans-serif, system-ui, sans-serif",
+  ];
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Logo */}
+      <div>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Logotipo</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {logoPreview ? (
+              <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <Upload size={20} style={{ color: "var(--faint)" }} />
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input ref={logoFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e, "logo")} />
+            <button
+              type="button"
+              onClick={() => logoFileRef.current?.click()}
+              disabled={uploading !== null}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
+            >
+              <Upload size={13} />
+              {uploading === "logo" ? "Enviando..." : "Alterar logo"}
+            </button>
+            {logoPreview && (
+              <button
+                type="button"
+                onClick={() => { setLogoPreview(""); onChange({ ...styles, logoUrl: "" }); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+              >
+                <Trash2 size={11} /> Remover
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Favicon */}
+      <div>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Favicon</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {faviconPreview ? (
+              <img src={faviconPreview} alt="Favicon" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <Palette size={18} style={{ color: "var(--faint)" }} />
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input ref={faviconFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e, "favicon")} />
+            <button
+              type="button"
+              onClick={() => faviconFileRef.current?.click()}
+              disabled={uploading !== null}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
+            >
+              <Upload size={13} />
+              {uploading === "favicon" ? "Enviando..." : "Alterar favicon"}
+            </button>
+            {faviconPreview && (
+              <button
+                type="button"
+                onClick={() => { setFaviconPreview(""); onChange({ ...styles, faviconUrl: "" }); }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+              >
+                <Trash2 size={11} /> Remover
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Colors */}
+      <div>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Cores</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Cor Primária</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="color" value={styles.accentColor} onChange={(e) => onChange({ ...styles, accentColor: e.target.value })} style={{ width: 50, height: 38, borderRadius: 7, border: "1px solid var(--border)", cursor: "pointer" }} />
+              <input style={{ ...fieldStyle, fontFamily: "var(--mono)", fontSize: 12 }} placeholder="#000000" value={styles.accentColor} onChange={(e) => onChange({ ...styles, accentColor: e.target.value })} />
+            </div>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Cor Secundária</span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="color" value={styles.secondaryColor} onChange={(e) => onChange({ ...styles, secondaryColor: e.target.value })} style={{ width: 50, height: 38, borderRadius: 7, border: "1px solid var(--border)", cursor: "pointer" }} />
+              <input style={{ ...fieldStyle, fontFamily: "var(--mono)", fontSize: 12 }} placeholder="#666666" value={styles.secondaryColor} onChange={(e) => onChange({ ...styles, secondaryColor: e.target.value })} />
+            </div>
+          </label>
+        </div>
+      </div>
+
+      {/* Fonts */}
+      <div>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Tipografia</h3>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Fonte de Títulos</span>
+            <select style={{ ...fieldStyle, cursor: "pointer" }} value={styles.fontDisplay} onChange={(e) => onChange({ ...styles, fontDisplay: e.target.value })}>
+              {FONT_OPTIONS.map((font) => (
+                <option key={font} value={font}>
+                  {font.split(",")[0].trim()}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Fonte de Corpo</span>
+            <select style={{ ...fieldStyle, cursor: "pointer" }} value={styles.fontFamily} onChange={(e) => onChange({ ...styles, fontFamily: e.target.value })}>
+              {FONT_OPTIONS.map((font) => (
+                <option key={font} value={font}>
+                  {font.split(",")[0].trim()}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
     </div>
   );
 }
