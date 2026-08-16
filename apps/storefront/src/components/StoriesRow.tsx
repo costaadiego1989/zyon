@@ -53,13 +53,12 @@ export default function StoriesRow({ merchantSlug, initialCategories }: { mercha
     setViewed(getViewedSet(merchantSlug));
   }, [merchantSlug]);
 
-  // Only fetch if no initial data provided
+  // Always fetch stories client-side (SSR serialization may lose data)
   useEffect(() => {
-    if (initialCategories && initialCategories.length > 0) return;
     let cancelled = false;
     async function fetchStories() {
       try {
-        const res = await fetch(`${API_BASE}/v1/storefront/${merchantSlug}/stories`);
+        const res = await fetch(`${API_BASE}/storefront/${merchantSlug}/stories`);
         if (!res.ok) return;
         const data = await res.json();
         const cats = data.categories ?? data;
