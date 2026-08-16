@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
-import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
 import { TabBar } from "../components/TabBar.js";
 import { showToast } from "../components/Toast.js";
 import type { StageQuickReplies, AgentTone } from "@zyon/shared-types";
@@ -196,12 +195,6 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
           <Save size={14} /> {saving ? "Salvando..." : "Salvar alterações"}
         </button>
       </div>
-
-      <SaveFeedbackBanner
-        result={saveResult}
-        errorMessage={saveError ?? undefined}
-        onDismiss={() => { setSaveResult(null); setSaveError(null); }}
-      />
 
       {loading ? (
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando configuração do agente...</div>
