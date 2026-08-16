@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
+import { applyCurrencyMask } from "../utils/currency.js";
 import { TabBar } from "../components/TabBar.js";
 import { useAgentConfigPage, TONE_PT_TO_EN, DEFAULT_STAGE_QR, type StageQrConfig } from "./useAgentConfigPage.js";
 import type { AgentTone } from "@zyon/shared-types";
@@ -128,7 +129,18 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   </label>
                   {vm.form.allowFreeShipping && (
                     <div style={{ paddingLeft: 46, maxWidth: 280 }}>
-                      <NumberField label="Valor mínimo carrinho para frete grátis (R$)" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: v })} error={vm.errors.freeShippingMinCartValue} />
+                      <label>
+                        <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Valor mínimo carrinho para frete grátis</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+                          <span style={{ padding: "7px 10px", borderRadius: "7px 0 0 7px", border: "1px solid var(--border)", borderRight: "none", background: "oklch(20% 0.004 145)", color: "var(--muted)", font: "12.5px var(--mono)" }}>R$</span>
+                          <input
+                            value={vm.form.freeShippingMinCartValue}
+                            onChange={(e) => vm.patch({ freeShippingMinCartValue: applyCurrencyMask(e.target.value) })}
+                            placeholder="250,00"
+                            style={{ flex: 1, padding: "7px 10px", borderRadius: "0 7px 7px 0", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }}
+                          />
+                        </div>
+                      </label>
                     </div>
                   )}
                   <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
