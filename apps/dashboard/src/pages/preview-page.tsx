@@ -67,9 +67,9 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   const [previewMode, setPreviewMode] = useState<PreviewMode>(() => pickInitialMode(props.me.plan));
   const [storefrontKey, setStorefrontKey] = useState(0);
 
-  const showTabs = props.me.plan === "BOTH";
-  const isCheckoutTab = !showTabs || previewMode === "checkout";
-  const isStorefrontTab = !showTabs || previewMode === "storefront";
+  const showTabs = props.me.plan === "BOTH" || !props.me.plan;
+  const isCheckoutTab = previewMode === "checkout";
+  const isStorefrontTab = previewMode === "storefront";
 
   const merchantSlug =
     (props.me as unknown as { storeSettings?: { slug?: string } }).storeSettings?.slug ||
