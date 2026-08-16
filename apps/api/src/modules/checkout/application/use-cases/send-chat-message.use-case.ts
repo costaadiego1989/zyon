@@ -27,7 +27,6 @@ import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
-import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -47,7 +46,6 @@ export class SendChatMessageUseCase {
     @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
     @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
-    @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
   ) {}
 
@@ -146,12 +144,27 @@ export class SendChatMessageUseCase {
       }
     }
 
-    // Load merchant advanced rules from checkout settings
+    // Load merchant advanced rules from checkout settings (advisory)
     let merchantRules: string[] | undefined;
     try {
-      const settingsCtx = await this.checkoutSettings?.getContext(input.merchant_id);
-      if (settingsCtx?.merchant_rules?.length) {
-        merchantRules = settingsCtx.merchant_rules;
+      const { PrismaClient } = await import("@prisma/client");
+      const prisma = new PrismaClient();
+      const setting = await prisma.checkoutSetting.findUnique({
+        where: { merchantId: input.merchant_id },
+        select: { advancedRules: true },
+      });
+      await prisma.$disconnect();
+      if (setting?.advancedRules) {
+        const rules2 = setting.advancedRules as Array<{ enabled: boolean; priority: number; conditions: Array<{ field: string; operator: string; value: string | number | boolean }>; action: { type: string; params: Record<string, string | number> } }>;
+        const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto", category_in_cart: "categoria", coupon_applied: "cupom", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens" };
+        const actionLabels = (a: { type: string; params: Record<string, string | number> }) => {
+          const map: Record<string, string> = { offer_discount: `ofereça ${a.params.percent || "?"}% de desconto`, offer_free_shipping: "ofereça frete grátis", suggest_product: `sugira ${a.params.productName || "produto"}`, show_message: `diga: "${a.params.message || ""}"`, offer_installments: `ofereça ${a.params.maxInstallments || "?"}x`, do_nothing: "não intervenha", offer_coupon: `ofereça o cupom ${a.params.code || ""}` };
+          return map[a.type] || "aja conforme melhor";
+        };
+        merchantRules = rules2.filter(r => r.enabled).sort((a, b) => a.priority - b.priority).map(r => {
+          const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
+          return `SE ${conds} ENTÃO ${actionLabels(r.action)}`;
+        });
       }
     } catch { /* rules are advisory, not critical */ }
 
