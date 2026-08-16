@@ -400,10 +400,8 @@ function CustomerDetailModal({
               </div>
               <div>
                 <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>{row?.name ?? customerName}</div>
-                <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 2 }}>{row?.email ?? (profile?.email as string) ?? "-"}</div>
-                {row?.phone && row.phone !== "-" && (
-                  <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{row.phone}</div>
-                )}
+                <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 2 }}>{row?.email ?? (profile?.email as string) ?? "Sem e-mail"}</div>
+                <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{row?.phone && row.phone !== "-" ? row.phone : "Sem telefone"}</div>
               </div>
             </div>
 
@@ -451,7 +449,7 @@ function CustomerDetailModal({
                   ))}
                 </div>
               ) : (
-                <p style={{ color: "var(--faint)", font: "13px var(--sans)", margin: 0 }}>Nenhum pedido registrado</p>
+                <p style={{ color: "var(--faint)", font: "13px var(--sans)", margin: 0, padding: "20px 0", textAlign: "center", background: "var(--bg)", borderRadius: 8 }}>Nenhum pedido registrado ainda</p>
               )}
             </div>
           </>
