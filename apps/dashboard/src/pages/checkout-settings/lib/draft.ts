@@ -8,6 +8,15 @@ import type {
 import { ALL_TRIGGERS, PROGRESSIVE_PRESETS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
 import type { ProgressiveLevel } from "./constants.js";
 
+export interface AdvancedRule {
+  id: string;
+  name: string;
+  conditions: Array<{ field: string; operator: string; value: string | number | boolean }>;
+  action: { type: string; params: Record<string, string | number> };
+  enabled: boolean;
+  priority: number;
+}
+
 export interface Draft {
   mode: CheckoutSettingsMode;
   openWidgetOnTrigger: boolean;
@@ -30,6 +39,7 @@ export interface Draft {
   fabColor: string;
   inviteText: string;
   showCartBadge: boolean;
+  advancedRules: AdvancedRule[];
 }
 
 export const DEFAULT_DRAFT: Draft = {
@@ -60,6 +70,7 @@ export const DEFAULT_DRAFT: Draft = {
   fabColor: "#3b82f6",
   inviteText: "Posso ajudar?",
   showCartBadge: true,
+  advancedRules: [],
 };
 
 function inferProgressiveLevel(stages: {
@@ -124,6 +135,7 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     fabColor: s.widgetBehavior.fabColor ?? "#3b82f6",
     inviteText: s.widgetBehavior.inviteText ?? "Posso ajudar?",
     showCartBadge: s.widgetBehavior.showCartBadge !== false,
+    advancedRules: (s as any).advancedRules ?? [],
   };
 }
 
@@ -166,6 +178,7 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
       fabClickAction: "open_widget",
       fabRedirectUrl: "",
     },
+    advancedRules: d.advancedRules,
   } as CheckoutSettingsPatch;
 }
 
