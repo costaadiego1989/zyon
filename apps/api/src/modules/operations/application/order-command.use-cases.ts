@@ -21,6 +21,10 @@ import {
   OPERATIONS_READ_REPOSITORY,
   type OperationsReadRepository,
 } from "../domain/ports/operations-read.repository.port.js";
+import {
+  DOMAIN_EVENT_BUS,
+  type DomainEventBus,
+} from "../../../shared/events/domain-event-bus.port.js";
 
 @Injectable()
 export class CancelOrderUseCase {
@@ -153,6 +157,8 @@ export class UpdateOrderStatusUseCase {
     @Inject(ORDER_REPOSITORY)
     private readonly orders: OrderRepository,
     private readonly webhooks: TenantWebhookPublisher,
+    @Inject(DOMAIN_EVENT_BUS)
+    private readonly eventBus: DomainEventBus,
   ) {}
 
   async execute(input: {
@@ -191,6 +197,41 @@ export class UpdateOrderStatusUseCase {
         },
       },
     });
+
+    // Emit domain events for notification system (email via Resend, WhatsApp)
+    const customerData = order.customer as { email?: string; full_name?: string; phone?: string } | null;
+    const buyerEmail = customerData?.email ?? "";
+    const buyerName = customerData?.full_name;
+    const buyerPhone = customerData?.phone;
+
+    if (status === "shipped") {
+      await this.eventBus.publish({
+        eventType: "order.shipped",
+        merchantId,
+        payload: {
+          type: "ORDER_SHIPPED",
+          merchantId,
+          orderId: order.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone,
+          trackingNumber: order.trackingCode,
+        },
+      });
+    } else if (status === "delivered") {
+      await this.eventBus.publish({
+        eventType: "order.delivered",
+        merchantId,
+        payload: {
+          type: "ORDER_DELIVERED",
+          merchantId,
+          orderId: order.id,
+          buyerEmail,
+          buyerName,
+          buyerPhone,
+        },
+      });
+    }
 
     return {
       id: order.id,

@@ -107,6 +107,7 @@ describe("UpdateOrderStatusUseCase", () => {
           return [];
         },
       } as unknown as TenantWebhookPublisher,
+      { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
     );
 
     const result = await useCase.execute({
@@ -134,6 +135,7 @@ describe("UpdateOrderStatusUseCase", () => {
       new StaticStatusOperationsRepository("delivered"),
       completedOrderRepository(),
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
     );
 
     await assert.rejects(
@@ -152,6 +154,7 @@ describe("UpdateOrderStatusUseCase", () => {
       new StubOperationsRepository(),
       checkout,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      { publish: async () => {}, subscribe: () => {}, handlersFor: () => [] } as any,
     );
 
     await assert.rejects(
