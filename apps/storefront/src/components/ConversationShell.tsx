@@ -151,7 +151,6 @@ export default function ConversationShell({
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [supportOpen, setSupportOpen] = useState(false);
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
-  const [checkoutPanelOpen, setCheckoutPanelOpen] = useState(false);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -390,12 +389,6 @@ export default function ConversationShell({
 
           // Update cart state from response blocks
           updateFromBlocks(blocks);
-
-          // Open widget panel when checkout_redirect received (replaces old hard-redirect)
-          const hasCheckout = blocks.some((b: any) => b.type === "checkout_redirect");
-          if (hasCheckout) {
-            setCheckoutPanelOpen(true);
-          }
 
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
@@ -770,16 +763,12 @@ export default function ConversationShell({
         </>
       )}
 
-      {/* Checkout Cart Widget — always mounted as FAB, opens panel on click or add-to-cart */}
+      {/* Native Cart — FAB + CartSheet, no iframe */}
       {mode === "chat" && (
         <CheckoutWidgetPanel
-          merchantId={merchantId}
-          open={checkoutPanelOpen}
-          onToggle={setCheckoutPanelOpen}
-          onOrderComplete={(orderId) => {
-            setCheckoutPanelOpen(false);
-            handleQuickReply(`Meu pedido ${orderId} foi confirmado`);
-          }}
+          onCheckout={() => handleQuickReply("Finalizar Compra")}
+          onUpdateQty={(variantId, qty) => handleQuickReply(`Atualizar quantidade do item ${variantId} para ${qty}`)}
+          onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
         />
       )}
 
