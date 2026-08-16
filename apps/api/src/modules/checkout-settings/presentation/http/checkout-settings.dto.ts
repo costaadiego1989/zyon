@@ -16,6 +16,7 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
+import type { AdvancedRule } from "@zyon/shared-types";
 
 
 class ProgressiveDiscountStagesDto {
@@ -212,6 +213,12 @@ export class CheckoutSettingsPatchDto {
   @ValidateNested()
   @Type(() => HandoffDto)
   handoff?: HandoffDto;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsArray()
+  @Type(() => Object)
+  advancedRules?: AdvancedRule[];
 }
 
 export class WidgetConfigDto {
