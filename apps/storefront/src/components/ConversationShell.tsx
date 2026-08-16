@@ -17,10 +17,13 @@ import {
 } from "@/lib/analytics";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { initTriggerDetection } from "@/lib/triggers";
+import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
+import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
 import BlockRenderer from "./blocks/BlockRenderer";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
+import StoriesRow from "./StoriesRow";
 
 type Message = {
   id: string;
@@ -114,6 +117,7 @@ export default function ConversationShell({
   agentName,
   quickReplies,
   merchantId,
+  merchantSlug,
   storeSettings,
   agentGreeting,
 }: {
@@ -124,6 +128,7 @@ export default function ConversationShell({
   agentGreeting?: string;
   quickReplies?: string[];
   merchantId?: string;
+  merchantSlug?: string;
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -195,12 +200,35 @@ export default function ConversationShell({
         sessionId: conversationId || undefined,
       },
       (triggerEvent) => {
-        console.debug(`Trigger detected: ${triggerEvent}`);
+        if (!widgetConfig) return;
+        if (widgetConfig.mode === "manual_only") return;
+        if (!widgetConfig.enabledTriggers?.includes(triggerEvent)) return;
+
+        const maxInterventions = 3;
+        const cooldownMs = 120 * 1000; // 120 seconds
+
+        if (getInterventionCount(merchantId || "") >= maxInterventions) return;
+        if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
+
+        const nudgeText = TRIGGER_MESSAGES[triggerEvent];
+        if (!nudgeText) return;
+
+        incrementIntervention(merchantId || "");
+        recordTriggerFired(merchantId || "", triggerEvent);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: crypto.randomUUID(),
+            role: "agent",
+            text: nudgeText,
+          },
+        ]);
       }
     );
 
     return cleanup;
-  }, [merchantId, conversationId]);
+  }, [merchantId, conversationId, widgetConfig]);
 
   const trackedOrderRef = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -271,6 +299,7 @@ export default function ConversationShell({
       id: "welcome",
       role: "agent",
       text: `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`,
+      blocks: [{ type: "quick_replies", data: { options: quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"] } }],
     }]);
     setTimeout(() => inputRef.current?.focus(), 200);
   };
@@ -347,11 +376,16 @@ export default function ConversationShell({
         if (res.ok) {
           const data = await res.json();
           const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options");
+          // Inject quick replies from backend as a block
+          const blocks = data.blocks ?? [];
+          if (data.suggested_next?.length) {
+            blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
+          }
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
             role: "agent",
             text: hasVisualBlock ? undefined : data.message,
-            blocks: data.blocks,
+            blocks,
           };
           setMessages((prev) => [...prev, agentMsg]);
           setHistory((prev) => [...prev, { role: "assistant", content: data.message }]);
@@ -459,37 +493,37 @@ export default function ConversationShell({
 
           <nav aria-label="Ações rápidas" style={{ display: "flex", gap: "6px" }}>
             {storeSettings?.social?.instagram && (
-              <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="Instagram"
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.15)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}>
+              <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Instagram"
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
               </a>
             )}
             {storeSettings?.social?.facebook && (
-              <a href={storeSettings.social.facebook} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="Facebook"
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.15)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}>
+              <a href={storeSettings.social.facebook} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Facebook"
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
               </a>
             )}
             {storeSettings?.social?.linkedin && (
-              <a href={storeSettings.social.linkedin} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="LinkedIn"
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.15)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}>
+              <a href={storeSettings.social.linkedin} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="LinkedIn"
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" /><rect x="2" y="9" width="4" height="12" /><circle cx="4" cy="4" r="2" /></svg>
               </a>
             )}
             {storeSettings?.social?.youtube && (
-              <a href={storeSettings.social.youtube} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="YouTube"
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.15)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}>
+              <a href={storeSettings.social.youtube} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="YouTube"
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" /></svg>
               </a>
             )}
             {storeSettings?.social?.googleMaps && (
-              <a href={storeSettings.social.googleMaps} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="Google Maps"
-                onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.15)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}>
+              <a href={storeSettings.social.googleMaps} target="_blank" rel="noopener noreferrer" style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "all 0.15s", cursor: "pointer" }} title="Google Maps"
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.background = "color-mix(in srgb, var(--aacp-accent) 12%, transparent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.background = "var(--aacp-card)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               </a>
             )}
@@ -500,6 +534,9 @@ export default function ConversationShell({
           <div style={{ position: "absolute", inset: 0, background: "var(--aacp-line)", opacity: 0.5 }} />
           <div style={{ position: "absolute", top: 0, left: "-100%", width: "60%", height: "100%", background: "linear-gradient(90deg, transparent, var(--aacp-accent, #0f766e), transparent)", animation: "shimmerSlide 3s ease-in-out infinite", opacity: 0.7 }} />
         </div>
+
+        {/* Stories Row */}
+        {merchantSlug && <StoriesRow merchantSlug={merchantSlug} />}
         </>
       )}
 
@@ -599,7 +636,7 @@ export default function ConversationShell({
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px", flex: 1, minWidth: 0 }}>
                       {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }}>{m.text}</div>}
-                      {m.blocks?.filter((b) => b.type !== "quick_replies").map((block, idx) => (
+                      {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
                           <BlockRenderer block={block} onQuickReply={handleQuickReply} />
                         </div>
@@ -634,18 +671,6 @@ export default function ConversationShell({
               </div>
             )}
           </main>
-
-          {/* Quick replies — only when no welcome state and few messages */}
-          {messages.length > 0 && messages.length <= 2 && (
-            <div style={{ display: "flex", gap: "8px", padding: "8px 18px", overflowX: "auto", flex: "none" }}>
-              {chatQuickReplies.map((label) => (
-                <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "8px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "12px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", flex: "none", transition: "all 0.15s" }}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
-                >{label}</button>
-              ))}
-            </div>
-          )}
 
           {/* Composer / Voice indicator */}
           <div style={{ padding: "9px 14px 14px", flex: "none" }}>

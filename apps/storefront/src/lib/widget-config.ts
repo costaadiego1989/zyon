@@ -24,6 +24,8 @@ export interface WidgetConfig {
   handoffEnabled: boolean;
   handoffMessage: string;
   handoffChannels: string[];
+  cooldownSeconds?: number;
+  maxInterventionsPerSession?: number;
 }
 
 export interface WidgetConfigState {
