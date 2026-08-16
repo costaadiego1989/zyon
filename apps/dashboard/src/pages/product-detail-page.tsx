@@ -50,17 +50,19 @@ export function centsToReais(cents: number): string {
 }
 
 export function reaisToCents(input: string): number {
-  // Accept: "150,90" or "150.90" or "1500,00" or "1500"
-  const cleaned = input.replace(/\s/g, "").replace(",", ".");
-  const num = parseFloat(cleaned);
+  // Remove tudo exceto dígitos e vírgula/ponto
+  // Trata vírgula como separador decimal (padrão BR)
+  const stripped = input.replace(/[^\d,]/g, ""); // remove pontos, espaços, letras
+  const normalized = stripped.replace(",", "."); // vírgula → ponto decimal
+  const num = parseFloat(normalized);
   return Number.isFinite(num) ? Math.round(num * 100) : 0;
 }
 
-/** Format currency input on blur: normalizes to comma decimal (no milhar) */
+/** Format currency input on blur: normalizes to comma decimal */
 export function formatCurrencyInput(raw: string): string {
   if (!raw.trim()) return "";
   const cents = reaisToCents(raw);
-  if (cents <= 0) return raw; // don't destroy user input if can't parse
+  if (cents <= 0) return raw;
   return centsToReais(cents);
 }
 

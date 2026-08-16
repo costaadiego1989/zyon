@@ -357,6 +357,9 @@ Regras:
     for (const provider of providers) {
       if (!provider.apiKey) continue;
       try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
         const res = await fetch(`${provider.baseUrl}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
@@ -366,8 +369,10 @@ Regras:
             max_tokens: 300,
             temperature: 0.7,
           }),
-          signal: AbortSignal.timeout(15000),
+          signal: controller.signal,
         });
+
+        clearTimeout(timeout);
 
         if (!res.ok) continue;
 
