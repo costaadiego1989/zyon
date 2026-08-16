@@ -350,60 +350,92 @@ export class SendChatMessageUseCase {
     const model = process.env.OLLAMA_MODEL || "llama3.2";
     const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
 
+    const tools = [
+      {
+        type: "function" as const,
+        function: {
+          name: "apply_discount",
+          description: "Aplica desconto percentual no carrinho do comprador",
+          parameters: { type: "object", properties: { percent: { type: "number", description: "Percentual de desconto (ex: 10 para 10%)" } }, required: ["percent"] }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "apply_free_shipping",
+          description: "Aplica frete grátis no pedido do comprador",
+          parameters: { type: "object", properties: {}, required: [] }
+        }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "apply_coupon",
+          description: "Aplica um cupom de desconto no carrinho",
+          parameters: { type: "object", properties: { code: { type: "string", description: "Código do cupom" } }, required: ["code"] }
+        }
+      }
+    ];
+
     const systemPrompt = [
       `Você é assistente de checkout da ${merchantName || "loja"}. Seja breve e direto.`,
       cartInfo,
       "",
-      "REGRAS COMERCIAIS (siga a primeira que encaixar):",
+      "REGRAS COMERCIAIS (siga a primeira que encaixar e USE A FERRAMENTA correspondente):",
       ...merchantRules.map((r, i) => `${i + 1}. ${r}`),
       "",
-      "Responda em português. Sem markdown. Máximo 2 frases.",
+      "IMPORTANTE: Quando uma regra diz 'ofereça X% desconto', CHAME apply_discount. Quando diz 'frete grátis', CHAME apply_free_shipping. Quando diz 'cupom CODIGO', CHAME apply_coupon.",
+      "Após chamar a ferramenta, confirme ao cliente o que foi aplicado.",
+      "Responda em português. Sem markdown.",
     ].join("\n");
 
-    try {
-      const res = await fetch(`${baseUrl}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: "Bearer ollama" },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: userMessage },
-          ],
-          max_tokens: 200,
-          temperature: 0.5,
-        }),
-      });
-      if (!res.ok) throw new Error(`ollama_http_${res.status}`);
-      const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const content = json.choices?.[0]?.message?.content?.trim();
-      if (content) return { message: content, objection: "unknown" as any };
-    } catch (e) {
-      // Fallback to DeepSeek
-      const cloudKey = process.env.DEEPSEEK_API_KEY;
-      if (cloudKey) {
-        try {
-          const res = await fetch(`${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"}/chat/completions`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${cloudKey}` },
-            body: JSON.stringify({
-              model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userMessage },
-              ],
-              max_tokens: 200,
-              temperature: 0.5,
-            }),
-          });
-          if (res.ok) {
-            const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-            const content = json.choices?.[0]?.message?.content?.trim();
-            if (content) return { message: content, objection: "unknown" as any };
+    const messages = [
+      { role: "system" as const, content: systemPrompt },
+      { role: "user" as const, content: userMessage },
+    ];
+
+    // Try Llama first, fallback to DeepSeek
+    const providers = [
+      { url: `${baseUrl}/chat/completions`, key: "ollama", model },
+      ...(process.env.DEEPSEEK_API_KEY ? [{ url: `${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"}/chat/completions`, key: process.env.DEEPSEEK_API_KEY, model: process.env.DEEPSEEK_MODEL || "deepseek-chat" }] : []),
+    ];
+
+    for (const provider of providers) {
+      try {
+        const res = await fetch(provider.url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
+          body: JSON.stringify({ model: provider.model, messages, tools, max_tokens: 300, temperature: 0.3 }),
+        });
+        if (!res.ok) throw new Error(`http_${res.status}`);
+        const json = await res.json() as any;
+        const choice = json.choices?.[0];
+
+        // Handle tool calls
+        if (choice?.message?.tool_calls?.length) {
+          const toolResults: string[] = [];
+          for (const tc of choice.message.tool_calls) {
+            const fn = tc.function?.name;
+            const args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments ?? {};
+            if (fn === "apply_discount") toolResults.push(`✅ Desconto de ${args.percent}% aplicado no carrinho`);
+            if (fn === "apply_free_shipping") toolResults.push(`✅ Frete grátis aplicado`);
+            if (fn === "apply_coupon") toolResults.push(`✅ Cupom ${args.code} aplicado`);
           }
-        } catch { /* fall through */ }
+          const textContent = choice.message.content?.trim() || "";
+          const finalMsg = toolResults.length > 0
+            ? `${textContent ? textContent + " " : ""}${toolResults.join(". ")}`
+            : textContent || "Benefício aplicado ao seu pedido!";
+          return { message: finalMsg, objection: "unknown" as any };
+        }
+
+        // No tool call — just text response
+        const content = choice?.message?.content?.trim();
+        if (content) return { message: content, objection: "unknown" as any };
+      } catch {
+        continue; // try next provider
       }
     }
+
     return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
   }
 }
