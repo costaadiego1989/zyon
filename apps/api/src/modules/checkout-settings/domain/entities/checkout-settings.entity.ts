@@ -1,10 +1,13 @@
 import type {
+  AdvancedRule,
   CheckoutSettings,
   CheckoutSettingsContext,
   CheckoutSettingsPatch,
   CheckoutTriggerName,
   CheckoutTriggerRule,
-  ProgressiveDiscountStage
+  ProgressiveDiscountStage,
+  RuleAction,
+  RuleCondition
 } from "@zyon/shared-types";
 import { CheckoutSettingsValidationError } from "../checkout-settings.errors.js";
 
@@ -90,6 +93,7 @@ export class CheckoutSettingsEntity {
         message: "I can call a store specialist if you prefer.",
         channels: ["chat", "email"]
       },
+      advancedRules: [],
       createdAt: now,
       updatedAt: now
     });
@@ -118,6 +122,7 @@ export class CheckoutSettingsEntity {
         ...patch.handoff,
         channels: patch.handoff?.channels ?? this.props.handoff.channels
       },
+      advancedRules: patch.advancedRules ?? this.props.advancedRules,
       updatedAt: now.toISOString()
     });
   }
@@ -148,6 +153,10 @@ export class CheckoutSettingsEntity {
         suppressed_steps: this.props.suppressionRules.suppressedSteps,
         blocked_regions: this.props.suppressionRules.blockedRegions
       },
+      merchant_rules: this.props.advancedRules
+        .filter(r => r.enabled)
+        .sort((a, b) => a.priority - b.priority)
+        .map(r => this.ruleToInstruction(r)),
       operational_constraints: [
         "Do not open the widget more than the configured max interventions per session.",
         "Respect the configured cooldown before another intervention.",
@@ -170,7 +179,8 @@ export class CheckoutSettingsEntity {
       handoff: {
         ...this.props.handoff,
         channels: [...this.props.handoff.channels]
-      }
+      },
+      advancedRules: this.props.advancedRules.map(r => ({ ...r, conditions: [...r.conditions], action: { ...r.action, params: { ...r.action.params } } }))
     };
   }
 
@@ -196,6 +206,45 @@ export class CheckoutSettingsEntity {
     }
     // CSS-H4: Validate blockedRegions format (ISO 3166 alpha-2)
     validateBlockedRegions(this.props.suppressionRules.blockedRegions);
+    // Validate advanced rules
+    validateAdvancedRules(this.props.advancedRules);
+  }
+
+  private ruleToInstruction(rule: AdvancedRule): string {
+    const conditions = rule.conditions.map(c => CheckoutSettingsEntity.conditionToText(c)).join(" E ");
+    const action = CheckoutSettingsEntity.actionToText(rule.action);
+    return `SE ${conditions} ENTÃO ${action}`;
+  }
+
+  private static conditionToText(c: RuleCondition): string {
+    const fieldLabels: Record<string, string> = {
+      cart_total: "carrinho",
+      shipping_cost: "frete",
+      product_in_cart: "carrinho contém",
+      category_in_cart: "categoria",
+      coupon_applied: "cupom aplicado",
+      buyer_type: "comprador",
+      payment_method: "pagamento",
+      trigger_fired: "trigger",
+      cart_item_count: "itens no carrinho",
+    };
+    const opLabels: Record<string, string> = {
+      gt: ">", lt: "<", gte: ">=", lte: "<=", eq: "=", contains: "contém", is: "é",
+    };
+    return `${fieldLabels[c.field] ?? c.field} ${opLabels[c.operator] ?? c.operator} ${c.value}`;
+  }
+
+  private static actionToText(a: RuleAction): string {
+    switch (a.type) {
+      case "offer_discount": return `ofereça ${a.params.percent}% de desconto`;
+      case "offer_free_shipping": return "ofereça frete grátis";
+      case "suggest_product": return `sugira o produto ${a.params.productName}`;
+      case "show_message": return `diga: "${a.params.text}"`;
+      case "offer_installments": return `ofereça ${a.params.maxInstallments}x sem juros`;
+      case "do_nothing": return "não intervenha";
+      case "offer_coupon": return `ofereça o cupom ${a.params.code}`;
+      default: return "aja conforme melhor conveniência";
+    }
   }
 }
 
@@ -267,6 +316,23 @@ function validateBlockedRegions(regions: string[]): void {
   for (const region of regions) {
     if (!ISO_3166_ALPHA2.test(region)) {
       throw new CheckoutSettingsValidationError("invalid_blocked_region_code");
+    }
+  }
+}
+
+function validateAdvancedRules(rules: AdvancedRule[]): void {
+  if (rules.length > 20) {
+    throw new CheckoutSettingsValidationError("advanced_rules_max_exceeded");
+  }
+  for (const rule of rules) {
+    if (!rule.name || !rule.name.trim()) {
+      throw new CheckoutSettingsValidationError("advanced_rule_name_required");
+    }
+    if (!rule.conditions || rule.conditions.length === 0) {
+      throw new CheckoutSettingsValidationError("advanced_rule_conditions_required");
+    }
+    if (!rule.action) {
+      throw new CheckoutSettingsValidationError("advanced_rule_action_required");
     }
   }
 }

@@ -20,6 +20,7 @@ class StrictCheckoutSettingsPort implements CheckoutSettingsPort {
         enabled_triggers: ["payment_failed" as const],
         handoff_enabled: false
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }
@@ -52,6 +53,7 @@ test("GetDecisionUseCase keeps deterministic scoring but respects configured tri
           enabled_triggers: ["payment_failed" as const],
           handoff_enabled: true
         },
+        merchant_rules: [],
         operational_constraints: []
       };
     }
@@ -88,6 +90,7 @@ class LedgerMaxTwoSettings implements CheckoutSettingsPort {
         enabled_triggers: DECISION_LEDGER_TRIGGERS,
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }

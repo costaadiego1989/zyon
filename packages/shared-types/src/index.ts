@@ -785,6 +785,7 @@ export interface CheckoutSettings {
   triggerRules: CheckoutTriggerRule[];
   suppressionRules: CheckoutSuppressionRules;
   handoff: CheckoutHandoffSettings;
+  advancedRules: AdvancedRule[];
   createdAt: string;
   updatedAt: string;
 }
@@ -798,6 +799,7 @@ export interface CheckoutSettingsPatch {
   triggerRules?: CheckoutTriggerRule[];
   suppressionRules?: Partial<CheckoutSuppressionRules>;
   handoff?: Partial<CheckoutHandoffSettings>;
+  advancedRules?: AdvancedRule[];
 }
 
 export interface CheckoutSettingsContext {
@@ -825,6 +827,7 @@ export interface CheckoutSettingsContext {
     suppressed_steps?: string[];
     blocked_regions?: string[];
   };
+  merchant_rules: string[];
   operational_constraints: string[];
 }
 
@@ -1026,4 +1029,48 @@ export interface StoreQuickReplyStage {
 export interface StoreQuickRepliesConfig {
   stages: StoreQuickReplyStage[];
   fallback: string[];
+}
+
+// ── Advanced Rules ──────────────────────────────────────────────────────────
+
+export type ConditionField =
+  | "cart_total"
+  | "shipping_cost"
+  | "product_in_cart"
+  | "category_in_cart"
+  | "coupon_applied"
+  | "buyer_type"
+  | "payment_method"
+  | "trigger_fired"
+  | "cart_item_count";
+
+export type ConditionOperator = "gt" | "lt" | "gte" | "lte" | "eq" | "contains" | "is";
+
+export interface RuleCondition {
+  field: ConditionField;
+  operator: ConditionOperator;
+  value: string | number | boolean;
+}
+
+export type ActionType =
+  | "offer_discount"
+  | "offer_free_shipping"
+  | "suggest_product"
+  | "show_message"
+  | "offer_installments"
+  | "do_nothing"
+  | "offer_coupon";
+
+export interface RuleAction {
+  type: ActionType;
+  params: Record<string, string | number>;
+}
+
+export interface AdvancedRule {
+  id: string;
+  name: string;
+  conditions: RuleCondition[];
+  action: RuleAction;
+  enabled: boolean;
+  priority: number;
 }

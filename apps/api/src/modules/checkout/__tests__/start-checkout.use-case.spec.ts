@@ -48,6 +48,7 @@ class ManualOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
         enabled_triggers: ["payment_failed" as const],
         handoff_enabled: false
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }

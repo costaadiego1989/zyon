@@ -40,6 +40,7 @@ model Merchant {
   onboardingState        MerchantOnboardingState?
   installations          MerchantInstallation[]
   auditEvents            MerchantAuditEvent[]
+  storyCategories        StoryCategory[]
 
   @@map("merchants")
 }
@@ -232,6 +233,7 @@ model CheckoutSetting {
   triggerRules       Json     @map("trigger_rules")
   suppressionRules   Json     @map("suppression_rules")
   handoff            Json
+  advancedRules      Json     @default("[]") @map("advanced_rules")
   createdAt          DateTime @default(now()) @map("created_at")
   updatedAt          DateTime @updatedAt @map("updated_at")
 
@@ -1541,4 +1543,42 @@ model ProductPromotion {
   @@index([variantId, isActive])
   @@index([categoryId, isActive])
   @@map("product_promotions")
+}
+
+// ─── Stories (Merchant-managed story categories and story content) ─────────────
+
+model StoryCategory {
+  id           String   @id @default(cuid())
+  merchantId   String   @map("merchant_id")
+  name         String
+  coverImage   String?  @map("cover_image")
+  sortOrder    Int      @default(0) @map("sort_order")
+  isArchived   Boolean  @default(false) @map("is_archived")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  stories      Story[]
+
+  @@index([merchantId, isArchived])
+  @@map("story_categories")
+}
+
+model Story {
+  id           String   @id @default(cuid())
+  categoryId   String   @map("category_id")
+  merchantId   String   @map("merchant_id")
+  imageUrl     String   @map("image_url")
+  title        String?
+  titleConfig  Json?    @map("title_config")
+  duration     Int      @default(7)
+  sortOrder    Int      @default(0) @map("sort_order")
+  isArchived   Boolean  @default(false) @map("is_archived")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  category     StoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId, isArchived])
+  @@index([merchantId])
+  @@map("stories")
 }

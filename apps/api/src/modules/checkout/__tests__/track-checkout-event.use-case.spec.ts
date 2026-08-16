@@ -21,6 +21,7 @@ class PaymentOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
         enabled_triggers: ["payment_failed" as const],
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }
@@ -48,6 +49,7 @@ class ProgressiveDiscountSettingsPort implements CheckoutSettingsPort {
           }
         }
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }
@@ -233,6 +235,7 @@ class LedgerCapCheckoutSettings implements CheckoutSettingsPort {
         enabled_triggers: TRACK_LEDGER_TRIGGERS,
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }

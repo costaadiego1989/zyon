@@ -46,6 +46,7 @@ class InterventionLedgerCheckoutSettings implements CheckoutSettingsPort {
         enabled_triggers: ALL_LEDGER_TEST_TRIGGERS,
         handoff_enabled: true
       },
+      merchant_rules: [],
       operational_constraints: []
     };
   }
