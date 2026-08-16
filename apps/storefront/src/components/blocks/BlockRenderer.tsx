@@ -4,10 +4,8 @@ import type { ConversationBlock } from "@/lib/types";
 import ProductCardBlock from "./ProductCardBlock";
 import ProductCarouselBlock from "./ProductCarouselBlock";
 import ComparisonTableBlock from "./ComparisonTableBlock";
-import CartSummaryBlock from "./CartSummaryBlock";
 import ShippingOptionsBlock from "./ShippingOptionsBlock";
 import QuickRepliesBlock from "./QuickRepliesBlock";
-import CheckoutRedirectBlock from "./CheckoutRedirectBlock";
 import OrderConfirmationBlock from "./OrderConfirmationBlock";
 import ReviewsBlock from "./ReviewsBlock";
 import AddReviewBlock from "./AddReviewBlock";
@@ -20,11 +18,9 @@ import CategoryCarouselBlock from "./CategoryCarouselBlock";
 export default function BlockRenderer({
   block,
   onQuickReply,
-  onOpenCheckout,
 }: {
   block: ConversationBlock;
   onQuickReply?: (option: string) => void;
-  onOpenCheckout?: (url: string, sessionId: string) => void;
 }) {
   switch (block.type) {
     case "product_card":
@@ -34,13 +30,17 @@ export default function BlockRenderer({
     case "comparison_table":
       return <ComparisonTableBlock block={block} />;
     case "cart_summary":
-      return <CartSummaryBlock block={block} />;
+      // Cart state handled by CartProvider → sent to widget via postMessage.
+      // No inline rendering — widget FAB shows badge.
+      return null;
+    case "checkout_redirect":
+      // Legacy checkout redirect — widget handles checkout natively now.
+      // Just open the widget panel instead.
+      return null;
     case "shipping_options":
       return <ShippingOptionsBlock block={block} />;
     case "quick_replies":
       return <QuickRepliesBlock block={block} onSelect={onQuickReply} />;
-    case "checkout_redirect":
-      return <CheckoutRedirectBlock block={block} onOpenCheckout={onOpenCheckout} />;
     case "order_confirmation":
       return <OrderConfirmationBlock block={block} />;
     case "shipping_quote_input":

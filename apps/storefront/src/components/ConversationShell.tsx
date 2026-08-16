@@ -25,7 +25,6 @@ import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
-import CartFAB from "./CartFAB";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 
 type Message = {
@@ -392,6 +391,12 @@ export default function ConversationShell({
           // Update cart state from response blocks
           updateFromBlocks(blocks);
 
+          // Open widget panel when checkout_redirect received (replaces old hard-redirect)
+          const hasCheckout = blocks.some((b: any) => b.type === "checkout_redirect");
+          if (hasCheckout) {
+            setCheckoutPanelOpen(true);
+          }
+
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
             role: "agent",
@@ -632,7 +637,7 @@ export default function ConversationShell({
                   const cardBlock = m.blocks!.find((b) => b.type === "product_card")!;
                   return (
                     <div key={m.id} style={{ width: "100%", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                      <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} onOpenCheckout={() => setCheckoutPanelOpen(true)} />
+                      <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} />
                     </div>
                   );
                 }
@@ -649,7 +654,7 @@ export default function ConversationShell({
                       {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }}>{m.text}</div>}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} onQuickReply={handleQuickReply} onOpenCheckout={() => setCheckoutPanelOpen(true)} />
+                          <BlockRenderer block={block} onQuickReply={handleQuickReply} />
                         </div>
                       ))}
                     </div>
@@ -765,16 +770,12 @@ export default function ConversationShell({
         </>
       )}
 
-      {/* Cart FAB — shows when items in cart and checkout panel is closed */}
-      {mode === "chat" && !checkoutPanelOpen && (
-        <CartFAB onClick={() => setCheckoutPanelOpen(true)} />
-      )}
-
-      {/* Checkout Widget Panel — floating iframe */}
-      {checkoutPanelOpen && (
+      {/* Checkout Cart Widget — always mounted as FAB, opens panel on click or add-to-cart */}
+      {mode === "chat" && (
         <CheckoutWidgetPanel
           merchantId={merchantId}
-          onClose={() => setCheckoutPanelOpen(false)}
+          open={checkoutPanelOpen}
+          onToggle={setCheckoutPanelOpen}
           onOrderComplete={(orderId) => {
             setCheckoutPanelOpen(false);
             handleQuickReply(`Meu pedido ${orderId} foi confirmado`);
