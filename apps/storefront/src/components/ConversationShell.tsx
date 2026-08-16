@@ -16,6 +16,7 @@ import {
   trackPurchase,
 } from "@/lib/analytics";
 import { useWidgetConfig } from "@/lib/widget-config";
+import { useCart } from "@/lib/cart-store";
 import { initTriggerDetection } from "@/lib/triggers";
 import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
@@ -24,6 +25,8 @@ import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
+import CartFAB from "./CartFAB";
+import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 
 type Message = {
   id: string;
@@ -120,6 +123,7 @@ export default function ConversationShell({
   merchantSlug,
   storeSettings,
   agentGreeting,
+  initialStories,
 }: {
   storeName: string;
   logo?: string;
@@ -129,6 +133,7 @@ export default function ConversationShell({
   quickReplies?: string[];
   merchantId?: string;
   merchantSlug?: string;
+  initialStories?: any[];
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
@@ -147,11 +152,13 @@ export default function ConversationShell({
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [supportOpen, setSupportOpen] = useState(false);
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
+  const [checkoutPanelOpen, setCheckoutPanelOpen] = useState(false);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<any>(null);
   const agent = agentName || "Assistente";
   const { config: widgetConfig } = useWidgetConfig();
+  const { updateFromBlocks } = useCart();
 
   // The widgetConfig is now available to this component and can be used for trigger logic,
   // suppression rules, etc. SupportFAB handles presentation mode (position, color, delay) separately.
@@ -381,6 +388,10 @@ export default function ConversationShell({
           if (data.suggested_next?.length) {
             blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
           }
+
+          // Update cart state from response blocks
+          updateFromBlocks(blocks);
+
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
             role: "agent",
@@ -536,7 +547,7 @@ export default function ConversationShell({
         </div>
 
         {/* Stories Row */}
-        {merchantSlug && <StoriesRow merchantSlug={merchantSlug} />}
+        {merchantSlug && <StoriesRow merchantSlug={merchantSlug} initialCategories={initialStories} />}
         </>
       )}
 
@@ -621,7 +632,7 @@ export default function ConversationShell({
                   const cardBlock = m.blocks!.find((b) => b.type === "product_card")!;
                   return (
                     <div key={m.id} style={{ width: "100%", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
-                      <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} />
+                      <BlockRenderer block={cardBlock} onQuickReply={handleQuickReply} onOpenCheckout={() => setCheckoutPanelOpen(true)} />
                     </div>
                   );
                 }
@@ -638,7 +649,7 @@ export default function ConversationShell({
                       {m.text && <div style={{ padding: "12px 16px", borderRadius: "16px 16px 16px 4px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }}>{m.text}</div>}
                       {m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} onQuickReply={handleQuickReply} />
+                          <BlockRenderer block={block} onQuickReply={handleQuickReply} onOpenCheckout={() => setCheckoutPanelOpen(true)} />
                         </div>
                       ))}
                     </div>
@@ -752,6 +763,23 @@ export default function ConversationShell({
         <>
           <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} agentName={agentName} />
         </>
+      )}
+
+      {/* Cart FAB — shows when items in cart and checkout panel is closed */}
+      {mode === "chat" && !checkoutPanelOpen && (
+        <CartFAB onClick={() => setCheckoutPanelOpen(true)} />
+      )}
+
+      {/* Checkout Widget Panel — floating iframe */}
+      {checkoutPanelOpen && (
+        <CheckoutWidgetPanel
+          merchantId={merchantId}
+          onClose={() => setCheckoutPanelOpen(false)}
+          onOrderComplete={(orderId) => {
+            setCheckoutPanelOpen(false);
+            handleQuickReply(`Meu pedido ${orderId} foi confirmado`);
+          }}
+        />
       )}
 
       {/* Buyer Hub Panel */}

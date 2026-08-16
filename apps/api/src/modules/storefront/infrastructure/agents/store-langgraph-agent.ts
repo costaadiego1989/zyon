@@ -312,6 +312,7 @@ export class StorefrontLangGraphAgent {
         blocks.push({
           type: "cart_summary",
           data: {
+            cartId: cartData.cartId,
             items: cartData.items.map((i: any) => ({
               variantId: i.variantId,
               productName: i.name,
@@ -333,6 +334,7 @@ export class StorefrontLangGraphAgent {
         blocks.push({
           type: "cart_summary",
           data: {
+            cartId: cartData.cartId,
             items: cartData.items.map((i: any) => ({
               variantId: i.variantId,
               productName: i.name,

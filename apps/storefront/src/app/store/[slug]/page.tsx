@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
 import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
+import { CartProvider } from "@/lib/cart-store";
 import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema } from "@/components/StructuredData";
 import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { getDemoMerchant } from "@/lib/demo-merchant";
@@ -52,6 +53,19 @@ async function fetchStoreConfig(slug: string): Promise<StoreConfig | null> {
     return (await res.json()) as StoreConfig;
   } catch {
     return null;
+  }
+}
+
+async function fetchStoreStories(slug: string): Promise<any[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/storefront/${slug}/stories`, {
+      next: { revalidate: 30 },
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.categories ?? [];
+  } catch {
+    return [];
   }
 }
 
@@ -120,6 +134,7 @@ export default async function StorePage({
 
   // Try real API first, fallback to demo fixture
   const config = await fetchStoreConfig(slug);
+  const stories = await fetchStoreStories(slug);
   const merchant = config ? null : getDemoMerchant(slug);
 
   if (!config && !merchant) {
@@ -249,16 +264,20 @@ export default async function StorePage({
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <div className="storefront-shell">
         <WidgetConfigProvider merchantId={config?.merchantId}>
-          <ConversationShell
-            storeName={name}
-            logo={logo}
-            returnOrderId={order}
-            agentName={config?.agentName}
-            agentGreeting={config?.agentGreeting}
-            quickReplies={config?.quickReplies}
-            merchantId={config?.merchantId}
-            storeSettings={config?.storeSettings}
-          />
+          <CartProvider>
+            <ConversationShell
+              storeName={name}
+              logo={logo}
+              returnOrderId={order}
+              agentName={config?.agentName}
+              agentGreeting={config?.agentGreeting}
+              quickReplies={config?.quickReplies}
+              merchantId={config?.merchantId}
+              merchantSlug={slug}
+              storeSettings={config?.storeSettings}
+              initialStories={stories}
+            />
+          </CartProvider>
         </WidgetConfigProvider>
       </div>
     </>

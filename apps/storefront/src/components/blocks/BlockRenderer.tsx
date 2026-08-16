@@ -20,9 +20,11 @@ import CategoryCarouselBlock from "./CategoryCarouselBlock";
 export default function BlockRenderer({
   block,
   onQuickReply,
+  onOpenCheckout,
 }: {
   block: ConversationBlock;
   onQuickReply?: (option: string) => void;
+  onOpenCheckout?: (url: string, sessionId: string) => void;
 }) {
   switch (block.type) {
     case "product_card":
@@ -38,7 +40,7 @@ export default function BlockRenderer({
     case "quick_replies":
       return <QuickRepliesBlock block={block} onSelect={onQuickReply} />;
     case "checkout_redirect":
-      return <CheckoutRedirectBlock block={block} />;
+      return <CheckoutRedirectBlock block={block} onOpenCheckout={onOpenCheckout} />;
     case "order_confirmation":
       return <OrderConfirmationBlock block={block} />;
     case "shipping_quote_input":

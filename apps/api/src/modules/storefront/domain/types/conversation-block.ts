@@ -53,6 +53,7 @@ export interface ComparisonTableBlock {
 export interface CartSummaryBlock {
   type: "cart_summary";
   data: {
+    cartId?: string;
     items: Array<{
       variantId: string;
       productName: string;
