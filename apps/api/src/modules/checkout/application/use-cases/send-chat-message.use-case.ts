@@ -347,7 +347,7 @@ export class SendChatMessageUseCase {
     cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number }
   ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] }> {
     const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
-    const model = process.env.OLLAMA_MODEL || "llama3.1:8b";
+    const model = process.env.OLLAMA_MODEL || "llama3.2";
     const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
 
     const systemPrompt = [
