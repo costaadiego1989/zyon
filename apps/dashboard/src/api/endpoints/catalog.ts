@@ -108,7 +108,7 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
   return {
     listProducts(
       merchantId: string,
-      opts: { query?: string; categoryId?: string; inStockOnly?: boolean; limit?: number; cursor?: string } = {},
+      opts: { query?: string; categoryId?: string; inStockOnly?: boolean; limit?: number; cursor?: string; offset?: number } = {},
     ): Promise<ProductSearchResult> {
       const params = new URLSearchParams();
       if (opts.query) params.set("query", opts.query);
@@ -116,6 +116,7 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
       if (opts.inStockOnly) params.set("inStockOnly", "true");
       if (opts.limit) params.set("limit", String(opts.limit));
       if (opts.cursor) params.set("cursor", opts.cursor);
+      if (opts.offset != null) params.set("offset", String(opts.offset));
       const qs = params.toString();
       return dashboardJson<ProductSearchResult>(
         base,
@@ -217,6 +218,14 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         base,
         `/merchants/${encodeURIComponent(merchantId)}/categories/reorder`,
         { method: "PATCH", jsonBody: { items } },
+        f,
+      );
+    },
+    generateDescription(merchantId: string, data: { name: string; notes?: string; type?: string }): Promise<{ description: string }> {
+      return dashboardJson<{ description: string }>(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/generate-description`,
+        { method: "POST", jsonBody: data },
         f,
       );
     },

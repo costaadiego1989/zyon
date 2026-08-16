@@ -321,4 +321,49 @@ export class StoreBuilderCatalogController {
     await this.prisma.productMedia.delete({ where: { id: mediaId } });
     return { deleted: true };
   }
+
+  @Post(":mid/products/generate-description")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async generateDescription(
+    @Param("mid") _merchantId: string,
+    @Body() body: { name: string; notes?: string; type?: string },
+  ) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    const baseUrl = process.env.OPENAI_BASE_URL || "https://api.deepseek.com/v1";
+    const model = process.env.OPENAI_MODEL || "deepseek-chat";
+
+    if (!apiKey) throw new BadRequestException("ai_not_configured");
+
+    const prompt = `Gere uma descrição de produto para e-commerce em português brasileiro.
+Nome do produto: ${body.name}
+Tipo: ${body.type ?? "physical"}
+${body.notes ? `Referência do lojista: ${body.notes}` : ""}
+
+Regras:
+- Máximo 3 parágrafos curtos
+- Tom profissional e persuasivo
+- Destaque benefícios, não apenas características
+- Não use markdown, apenas texto puro
+- Não invente especificações técnicas`;
+
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 300,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.text().catch(() => "unknown");
+      throw new BadRequestException(`ai_generation_failed: ${err.slice(0, 100)}`);
+    }
+
+    const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+    return { description: text };
+  }
 }

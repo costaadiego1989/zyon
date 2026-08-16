@@ -140,6 +140,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
   const [variantMedia, setVariantMedia] = useState<Record<string, Array<{ id: string; url: string }>>>({});
   const [uploadingVariant, setUploadingVariant] = useState<string | null>(null);
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const [generatingDesc, setGeneratingDesc] = useState(false);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -578,16 +579,42 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                 <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{formErrors["name"]}</span>
               ) : null}
             </label>
-            <label style={{ display: "block", marginBottom: 12 }}>
-              <span style={{ font: "600 12px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Descrição</span>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Descrição</span>
+                <button
+                  type="button"
+                  disabled={generatingDesc}
+                  onClick={async () => {
+                    if (!merchantId) return;
+                    if (!name.trim()) { setSaveResult("error"); setSaveErrorMsg("Preencha o nome do produto antes de gerar descrição"); return; }
+                    setGeneratingDesc(true);
+                    try {
+                      const result = await api.generateDescription(merchantId, { name: name.trim(), notes: description.trim() || undefined, type: productType });
+                      if (result?.description) setDescription(result.description);
+                    } catch { /* silently fail */ }
+                    finally { setGeneratingDesc(false); }
+                  }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "1px solid var(--accent-line)", background: "var(--accent-soft)", color: "var(--accent-dark)", font: "600 11px var(--sans)", cursor: generatingDesc ? "not-allowed" : "pointer", opacity: generatingDesc ? 0.6 : 1 }}
+                >
+                  {generatingDesc ? (
+                    <>
+                      <div style={{ width: 10, height: 10, border: "1.5px solid var(--accent-dark)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite", flex: "none" }} />
+                      Gerando...
+                    </>
+                  ) : (
+                    <>✦ Gerar com IA</>
+                  )}
+                </button>
+              </div>
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
                 rows={4}
-                placeholder="Detalhes do produto..."
+                placeholder={name.trim() ? "Descreva o produto ou clique em 'Gerar com IA'..." : "Preencha o nome do produto primeiro para gerar com IA"}
                 style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)", outline: "none", background: "var(--bg)", resize: "vertical" }}
               />
-            </label>
+            </div>
             <label style={{ display: "block", marginBottom: 12 }}>
               <span style={{ font: "600 12px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Categoria</span>
               {categories.length > 0 ? (
@@ -748,7 +775,9 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           {/* SIMPLE PRODUCT MODE - Price & Stock */}
           {!hasVariants && (
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>PREÇO E ESTOQUE</h3>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>
+                {productType === "physical" ? "PREÇO E ESTOQUE" : "PREÇO"}
+              </h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
                 <Field
                   label="SKU *"
@@ -764,19 +793,14 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                   error={formErrors["simple_price"]}
                   placeholder="89,90"
                 />
-                <CurrencyField
-                  label="Custo (R$)"
-                  value={variants[0].costInput}
-                  onChange={(val) => updateVariant(0, { costInput: val })}
-                  error={formErrors["simple_cost"]}
-                  placeholder="35,00"
-                />
-                <Field
-                  label="Estoque"
-                  value={variants[0].stockInput}
-                  onChange={(val) => updateVariant(0, { stockInput: val })}
-                  placeholder="0"
-                />
+                {productType === "physical" && (
+                  <Field
+                    label="Estoque"
+                    value={variants[0].stockInput}
+                    onChange={(val) => updateVariant(0, { stockInput: val })}
+                    placeholder="0"
+                  />
+                )}
               </div>
             </section>
           )}
@@ -881,44 +905,47 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         error={formErrors[`variant_${idx}_price`]}
                         placeholder="89,90"
                       />
-                      <CurrencyField
-                        label="Custo (R$)"
-                        value={v.costInput}
-                        onChange={(val) => updateVariant(idx, { costInput: val })}
-                        error={formErrors[`variant_${idx}_cost`]}
-                        placeholder="35,00"
-                      />
-                      <Field
-                        label="Estoque"
-                        value={v.stockInput}
-                        onChange={(val) => updateVariant(idx, { stockInput: val })}
-                        placeholder="0"
-                      />
-                      <Field
-                        label="Peso (g)"
-                        value={v.weightInput}
-                        onChange={(val) => updateVariant(idx, { weightInput: val })}
-                        error={formErrors[`variant_${idx}_weight`]}
-                        placeholder="300"
-                      />
-                      <Field
-                        label="Comprimento (cm)"
-                        value={v.lengthInput}
-                        onChange={(val) => updateVariant(idx, { lengthInput: val })}
-                        placeholder="20"
-                      />
-                      <Field
-                        label="Largura (cm)"
-                        value={v.widthInput}
-                        onChange={(val) => updateVariant(idx, { widthInput: val })}
-                        placeholder="15"
-                      />
-                      <Field
-                        label="Altura (cm)"
-                        value={v.heightInput}
-                        onChange={(val) => updateVariant(idx, { heightInput: val })}
-                        placeholder="5"
-                      />
+                      {productType === "physical" && (
+                        <Field
+                          label="Estoque"
+                          value={v.stockInput}
+                          onChange={(val) => updateVariant(idx, { stockInput: val })}
+                          placeholder="0"
+                        />
+                      )}
+                      {productType === "physical" && (
+                        <Field
+                          label="Peso (g)"
+                          value={v.weightInput}
+                          onChange={(val) => updateVariant(idx, { weightInput: val })}
+                          error={formErrors[`variant_${idx}_weight`]}
+                          placeholder="300"
+                        />
+                      )}
+                      {productType === "physical" && (
+                        <Field
+                          label="Comprimento (cm)"
+                          value={v.lengthInput}
+                          onChange={(val) => updateVariant(idx, { lengthInput: val })}
+                          placeholder="20"
+                        />
+                      )}
+                      {productType === "physical" && (
+                        <Field
+                          label="Largura (cm)"
+                          value={v.widthInput}
+                          onChange={(val) => updateVariant(idx, { widthInput: val })}
+                          placeholder="15"
+                        />
+                      )}
+                      {productType === "physical" && (
+                        <Field
+                          label="Altura (cm)"
+                          value={v.heightInput}
+                          onChange={(val) => updateVariant(idx, { heightInput: val })}
+                          placeholder="5"
+                        />
+                      )}
                     </div>
 
                     {/* ATTRIBUTES */}
