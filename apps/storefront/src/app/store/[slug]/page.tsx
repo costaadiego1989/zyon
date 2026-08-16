@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
+import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
 import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema } from "@/components/StructuredData";
 import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { getDemoMerchant } from "@/lib/demo-merchant";
@@ -246,15 +247,17 @@ export default async function StorePage({
       />
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <div className="storefront-shell">
-        <ConversationShell
-          storeName={name}
-          logo={logo}
-          returnOrderId={order}
-          agentName={config?.agentName}
-          quickReplies={config?.quickReplies}
-          merchantId={config?.merchantId}
-          storeSettings={config?.storeSettings}
-        />
+        <WidgetConfigProvider merchantId={config?.merchantId}>
+          <ConversationShell
+            storeName={name}
+            logo={logo}
+            returnOrderId={order}
+            agentName={config?.agentName}
+            quickReplies={config?.quickReplies}
+            merchantId={config?.merchantId}
+            storeSettings={config?.storeSettings}
+          />
+        </WidgetConfigProvider>
       </div>
     </>
   );

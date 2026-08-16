@@ -409,6 +409,11 @@ input, textarea {
   cursor: not-allowed;
 }
 
+/* Pulse widget: single-column mobile-first */
+.pulse-widget-shell {
+  /* inherits from page */
+}
+
 /* === Mobile-first: fullscreen === */
 @media (max-width: 640px) {
   .store-header {

@@ -15,6 +15,8 @@ import {
   trackProductView,
   trackPurchase,
 } from "@/lib/analytics";
+import { useWidgetConfig } from "@/lib/widget-config";
+import { initTriggerDetection } from "@/lib/triggers";
 import BlockRenderer from "./blocks/BlockRenderer";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
@@ -32,7 +34,6 @@ type Theme = "dark" | "light";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
-/* ─── Theme tokens (exact match widget CheckoutViewModel) ─── */
 const THEME_TOKENS: Record<Theme, Record<string, string>> = {
   dark: {
     "--aacp-bg": "#08080c",
@@ -66,7 +67,6 @@ const THEME_TOKENS: Record<Theme, Record<string, string>> = {
   },
 };
 
-/* ─── Inline PulseAgentOrb ─── */
 function PulseAgentOrb({ size = 96 }: { size?: number }) {
   const eyeW = Math.max(2, Math.round(size * 0.086));
   const eyeH = Math.max(3, Math.round(size * 0.125));
@@ -87,11 +87,8 @@ function PulseAgentOrb({ size = 96 }: { size?: number }) {
   );
 }
 
-/* ─── Voice helpers ─── */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createRecognition(): any {
   if (typeof window === "undefined") return null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
   if (!SR) return null;
   const r = new SR();
@@ -144,11 +141,13 @@ export default function ConversationShell({
   const [supportOpen, setSupportOpen] = useState(false);
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
   const threadRef = useRef<HTMLDivElement | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const recognitionRef = useRef<any>(null);
   const agent = agentName || "Assistente";
+  const { config: widgetConfig } = useWidgetConfig();
 
-  // Restore preferences from localStorage
+  // The widgetConfig is now available to this component and can be used for trigger logic,
+  // suppression rules, etc. SupportFAB handles presentation mode (position, color, delay) separately.
+
   useEffect(() => {
     try {
       const savedChannel = localStorage.getItem("pulse-channel-pref") as Channel | null;
@@ -163,10 +162,8 @@ export default function ConversationShell({
         initConversation();
       }
     } catch { /* SSR/privacy */ }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Apply theme tokens to document
   function applyTheme(t: Theme) {
     if (typeof document === "undefined") return;
     const tokens = THEME_TOKENS[t];
@@ -182,8 +179,25 @@ export default function ConversationShell({
     try { localStorage.setItem("pulse-theme-pref", next); } catch { /* */ }
   }
 
-  // Analytics
   useEffect(() => { trackConversationStart(storeName); }, [storeName]);
+
+  useEffect(() => {
+    const cleanup = initTriggerDetection(
+      {
+        enableExitIntent: true,
+        enableIdleTimer: true,
+        idleThresholdMs: 30000,
+        apiBaseUrl: API_BASE,
+        merchantId,
+        sessionId: conversationId || undefined,
+      },
+      (triggerEvent) => {
+        console.debug(`Trigger detected: ${triggerEvent}`);
+      }
+    );
+
+    return cleanup;
+  }, [merchantId, conversationId]);
 
   const trackedOrderRef = useRef<string | undefined>(undefined);
   useEffect(() => {
@@ -223,7 +237,6 @@ export default function ConversationShell({
     });
   };
 
-  // Auto-focus input when entering chat mode or after loading completes
   useEffect(() => {
     if (mode === "chat" && !isLoading) {
       const t = setTimeout(() => inputRef.current?.focus(), 150);
@@ -231,7 +244,6 @@ export default function ConversationShell({
     }
   }, [mode, isLoading]);
 
-  // Initialize conversation via API
   async function initConversation() {
     if (!merchantId || conversationId) return;
     try {
@@ -252,7 +264,6 @@ export default function ConversationShell({
     setMode("chat");
     try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
     initConversation();
-    // Add greeting
     setMessages([{
       id: "welcome",
       role: "agent",
@@ -269,12 +280,10 @@ export default function ConversationShell({
     else stopListening();
   };
 
-  // Voice
   function startListening() {
     const r = createRecognition();
     if (!r) return;
     recognitionRef.current = r;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     r.onresult = (e: any) => {
       const transcript = e.results[0]?.[0]?.transcript;
       if (transcript) {
@@ -293,7 +302,6 @@ export default function ConversationShell({
     setListening(false);
   }
 
-  // Send message to real API
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -308,7 +316,6 @@ export default function ConversationShell({
     setHistory(newHistory);
 
     try {
-      // Ensure conversation exists
       let convId = conversationId;
       if (!convId && merchantId) {
         const startRes = await fetch(`${API_BASE}/storefront/conversations`, {
@@ -336,7 +343,6 @@ export default function ConversationShell({
 
         if (res.ok) {
           const data = await res.json();
-          // Suppress text when carousel/card blocks are present (visual is enough)
           const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options");
           const agentMsg: Message = {
             id: `a-${Date.now()}`,
@@ -347,14 +353,12 @@ export default function ConversationShell({
           setMessages((prev) => [...prev, agentMsg]);
           setHistory((prev) => [...prev, { role: "assistant", content: data.message }]);
 
-          // Voice: speak response
           if (channel === "voice" && data.message) {
             speak(data.message);
             // Auto-listen again after speech
             setTimeout(() => startListening(), 1500);
           }
         } else {
-          // API error fallback
           setMessages((prev) => [...prev, {
             id: `a-${Date.now()}`,
             role: "agent",
@@ -362,7 +366,6 @@ export default function ConversationShell({
           }]);
         }
       } else {
-        // No merchant — local fallback
         setMessages((prev) => [...prev, {
           id: `a-${Date.now()}`,
           role: "agent",
@@ -380,7 +383,6 @@ export default function ConversationShell({
     setIsLoading(false);
     scrollToBottom();
     setTimeout(() => inputRef.current?.focus(), 100);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, merchantId, history, channel]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -401,7 +403,6 @@ export default function ConversationShell({
 
   return (
     <div className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative" }}>
-      {/* SEO: Visually hidden h1 */}
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -418,7 +419,6 @@ export default function ConversationShell({
         @keyframes shimmerSlide { 0%{left:-100%} 50%{left:100%} 100%{left:100%} }
       `}</style>
 
-      {/* Header (chat mode) */}
       {mode === "chat" && (
         <>
         <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "12px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
@@ -436,7 +436,6 @@ export default function ConversationShell({
             </div>
           </div>
 
-          {/* Voice toggle */}
           <button type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             {channel === "voice" ? (
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
@@ -445,20 +444,16 @@ export default function ConversationShell({
             )}
           </button>
 
-          {/* Theme toggle */}
           <button type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
 
-          {/* Buyer Hub Trigger */}
           <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} hasNotifications={false} />
 
-          {/* Support icon */}
           <button type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
 
-          {/* Social icons */}
           <nav aria-label="Ações rápidas" style={{ display: "flex", gap: "4px" }}>
             {storeSettings?.social?.instagram && (
               <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="Instagram">
