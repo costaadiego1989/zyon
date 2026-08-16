@@ -116,20 +116,27 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         const merchantId = this.currentMerchantId;
         const sessionId = args.cartId ?? `cart_${Date.now()}`;
 
-        // Fetch product/variant data to get real name and price
+        // Resolve product data: try findById (productId) first, then search by variant
         let productName = "Produto";
         let unitPriceCents = 0;
         let imageUrl: string | undefined;
         try {
-          const product = await this.productRepo.findById(merchantId, args.variantId);
+          let product = await this.productRepo.findById(merchantId, args.variantId);
+          if (!product) {
+            // variantId might be a variant ID, search all products and find matching variant
+            const searchResult = await this.productRepo.search({ merchantId, limit: 50 });
+            product = searchResult.products.find(p =>
+              p.variants.some(v => v.id === args.variantId)
+            ) ?? null;
+          }
           if (product) {
             productName = product.name;
-            const variant = product.variants?.[0];
+            const variant = product.variants.find(v => v.id === args.variantId) ?? product.variants[0];
             unitPriceCents = variant?.basePriceInCents ?? 0;
             imageUrl = variant?.media?.[0]?.url;
           }
         } catch {
-          // Non-critical: fallback to empty values
+          // Non-critical: proceed with defaults
         }
 
         // Stock check before adding
