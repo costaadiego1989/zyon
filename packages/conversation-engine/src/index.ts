@@ -199,10 +199,12 @@ function buildResponsesInput(input: ConversationInput): string {
 }
 
 function systemPrompt(input: ConversationInput, objection: Objection): string {
-  const agent = input.agentContext?.agent ?? { agentName: "Assistente", persona: "ajudante", language: "pt-BR" };
+  const agent = input.agentContext?.agent ?? { agentName: "Assistente", persona: "ajudante", language: "pt-BR", tone: "consultative" as const };
+  // Prefer agent.tone (from agent_rules.identity) over brandVoice (merchant_rules)
+  const voiceDirective = agent.tone ?? input.brandVoice ?? "consultativa";
   const lines = [
     `Você é ${agent.agentName}, persona: ${agent.persona}, atuando para ${input.merchantName || "nossa loja"}.`,
-    `Voz da marca: ${input.brandVoice || "consultativa"}`,
+    `Voz da marca: ${voiceDirective}`,
     `Idioma: ${agent.language}`,
     "Seja breve, direto e focado no checkout. Não perca tempo com conversas fiadas.",
     "NUNCA use formatação markdown (como asteriscos ** para negrito ou itálico) em suas respostas. Use texto puro.",
