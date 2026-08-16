@@ -107,11 +107,41 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
           )}
 
           {vm.activeTab === "negotiation" && (
-            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>LIMITES DE NEGOCIAÇÃO</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <NumberField label="Desconto máximo (%)" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} error={vm.errors.maxDiscountPercent} />
-                <NumberField label="Margem mínima (%)" value={vm.form.minimumMarginPercent} onChange={(v) => vm.patch({ minimumMarginPercent: v })} error={vm.errors.minimumMarginPercent} />
+            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px", display: "flex", flexDirection: "column", gap: 20 }}>
+              <div>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DESCONTO</h3>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <NumberField label="Desconto máximo (%)" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} error={vm.errors.maxDiscountPercent} />
+                  <NumberField label="Margem mínima (%)" value={vm.form.minimumMarginPercent} onChange={(v) => vm.patch({ minimumMarginPercent: v })} error={vm.errors.minimumMarginPercent} />
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>FRETE</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={vm.form.allowFreeShipping} onChange={(e) => vm.patch({ allowFreeShipping: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
+                    <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir frete grátis</span>
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={vm.form.allowShippingDiscount} onChange={(e) => vm.patch({ allowShippingDiscount: e.target.checked })} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
+                    <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
+                  </label>
+                  {vm.form.allowFreeShipping && (
+                    <NumberField label="Valor mínimo carrinho para frete grátis (R$)" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: v })} error={vm.errors.freeShippingMinCartValue} />
+                  )}
+                  {vm.form.allowShippingDiscount && (
+                    <div>
+                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Desconto parcial máximo no frete: <strong style={{ color: "var(--accent)" }}>{vm.form.maxPartialShippingDiscount}%</strong></span>
+                      <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ width: "100%", accentColor: "var(--accent)" }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>OFERTAS</h3>
+                <NumberField label="Expiração da oferta (minutos)" value={vm.form.offerExpirationMinutes} onChange={(v) => vm.patch({ offerExpirationMinutes: v })} error={vm.errors.offerExpirationMinutes} />
               </div>
             </section>
           )}

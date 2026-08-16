@@ -12,6 +12,11 @@ export interface AgentConfigForm {
   greeting: string;
   maxDiscountPercent: string;
   minimumMarginPercent: string;
+  allowFreeShipping: boolean;
+  allowShippingDiscount: boolean;
+  freeShippingMinCartValue: string;
+  maxPartialShippingDiscount: string;
+  offerExpirationMinutes: string;
   quickReplies: StageQuickReplies | undefined;
 }
 
@@ -23,6 +28,11 @@ const DEFAULT_FORM: AgentConfigForm = {
   greeting: "Olá! Como posso ajudá-lo?",
   maxDiscountPercent: "10",
   minimumMarginPercent: "15",
+  allowFreeShipping: false,
+  allowShippingDiscount: true,
+  freeShippingMinCartValue: "250",
+  maxPartialShippingDiscount: "20",
+  offerExpirationMinutes: "15",
   quickReplies: undefined,
 };
 
@@ -32,9 +42,15 @@ export function validateAgentConfig(form: AgentConfigForm): Record<string, strin
   if (form.persona.length > 200) errors.persona = "Máximo 200 caracteres";
   if (form.greeting.length > 500) errors.greeting = "Máximo 500 caracteres";
   const maxDiscount = Number(form.maxDiscountPercent);
-  if (Number.isNaN(maxDiscount) || maxDiscount < 0 || maxDiscount > 100) errors.maxDiscountPercent = "Informe um valor entre 0 e 100";
+  if (Number.isNaN(maxDiscount) || maxDiscount < 0 || maxDiscount > 50) errors.maxDiscountPercent = "Informe um valor entre 0 e 50";
   const minMargin = Number(form.minimumMarginPercent);
-  if (Number.isNaN(minMargin) || minMargin < 0 || minMargin > 100) errors.minimumMarginPercent = "Informe um valor entre 0 e 100";
+  if (Number.isNaN(minMargin) || minMargin < 5 || minMargin > 80) errors.minimumMarginPercent = "Informe um valor entre 5 e 80";
+  const freeMin = Number(form.freeShippingMinCartValue);
+  if (form.allowFreeShipping && (Number.isNaN(freeMin) || freeMin < 0)) errors.freeShippingMinCartValue = "Valor inválido";
+  const partialMax = Number(form.maxPartialShippingDiscount);
+  if (form.allowShippingDiscount && (Number.isNaN(partialMax) || partialMax < 0 || partialMax > 100)) errors.maxPartialShippingDiscount = "Entre 0 e 100";
+  const expMin = Number(form.offerExpirationMinutes);
+  if (Number.isNaN(expMin) || expMin < 1 || expMin > 1440) errors.offerExpirationMinutes = "Entre 1 e 1440 minutos";
   return errors;
 }
 
@@ -109,6 +125,11 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           greeting: String(identity.greeting ?? ""),
           maxDiscountPercent: String(rulesUnknown.maxDiscountPercent ?? 10),
           minimumMarginPercent: String(rulesUnknown.minimumMarginPercent ?? 15),
+          allowFreeShipping: Boolean(rulesUnknown.allowFreeShipping ?? false),
+          allowShippingDiscount: Boolean(rulesUnknown.allowShippingDiscount ?? true),
+          freeShippingMinCartValue: String(rulesUnknown.freeShippingMinCartValue ?? 250),
+          maxPartialShippingDiscount: String(rulesUnknown.maxPartialShippingDiscount ?? 20),
+          offerExpirationMinutes: String(rulesUnknown.offerExpirationMinutes ?? 15),
           quickReplies: (rulesUnknown.quickReplies as unknown as StageQuickReplies | undefined) ?? undefined,
         });
       } catch {
@@ -135,6 +156,11 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
       await api.putMerchantRules({
         maxDiscountPercent: Number(form.maxDiscountPercent),
         minimumMarginPercent: Number(form.minimumMarginPercent),
+        allowFreeShipping: form.allowFreeShipping,
+        allowShippingDiscount: form.allowShippingDiscount,
+        freeShippingMinCartValue: Number(form.freeShippingMinCartValue),
+        maxPartialShippingDiscount: Number(form.maxPartialShippingDiscount),
+        offerExpirationMinutes: Number(form.offerExpirationMinutes),
         quickReplies: form.quickReplies,
       } as never);
 
