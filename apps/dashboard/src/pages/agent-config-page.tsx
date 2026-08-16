@@ -117,9 +117,9 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               </section>
 
               <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>FRETE</h3>
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Opções de frete grátis e desconto parcial no envio.</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", margin: 0 }}>FRETE</h3>
+                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 10px" }}>Opções de frete grátis e desconto parcial no envio.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                     <span onClick={() => vm.patch({ allowFreeShipping: !vm.form.allowFreeShipping })} style={{ width: 36, height: 20, borderRadius: 10, background: vm.form.allowFreeShipping ? "var(--accent)" : "oklch(30% 0.006 145)", position: "relative", cursor: "pointer", transition: "background 150ms", flexShrink: 0 }}>
                       <span style={{ position: "absolute", top: 2, left: vm.form.allowFreeShipping ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 150ms", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
@@ -138,7 +138,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                     <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
                   </label>
                   {vm.form.allowShippingDiscount && (
-                    <div style={{ paddingLeft: 46, marginTop: 4 }}>
+                    <div style={{ paddingLeft: 46, marginTop: 2 }}>
                       <span style={{ font: "13px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>
                         Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)", fontWeight: 600 }}>{vm.form.maxPartialShippingDiscount}%</span>
                       </span>
