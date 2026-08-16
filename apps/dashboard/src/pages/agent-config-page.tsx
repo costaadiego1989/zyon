@@ -107,37 +107,48 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
           )}
 
           {vm.activeTab === "negotiation" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* DESCONTO card */}
-              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 4 }}>DESCONTO</h3>
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", marginBottom: 14, margin: 0, marginTop: 4 }}>O agente pode oferecer descontos mantendo a margem de lucro mínima.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>DESCONTO</h3>
+                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Limites de desconto que o agente pode oferecer automaticamente.</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <NumberField label="Desconto máximo (%)" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} error={vm.errors.maxDiscountPercent} />
                   <NumberField label="Margem mínima (%)" value={vm.form.minimumMarginPercent} onChange={(v) => vm.patch({ minimumMarginPercent: v })} error={vm.errors.minimumMarginPercent} />
                 </div>
               </section>
 
-              {/* FRETE card */}
-              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 4 }}>FRETE</h3>
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", marginBottom: 14, margin: 0, marginTop: 4 }}>Configure opções de frete grátis e descontos parciais no envio.</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <CheckboxField label="Permitir frete grátis" checked={vm.form.allowFreeShipping} onChange={(c) => vm.patch({ allowFreeShipping: c })} />
-                  <CheckboxField label="Permitir desconto parcial no frete" checked={vm.form.allowShippingDiscount} onChange={(c) => vm.patch({ allowShippingDiscount: c })} />
+              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>FRETE</h3>
+                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Opções de frete grátis e desconto parcial no envio.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={vm.form.allowFreeShipping} onChange={(e) => vm.patch({ allowFreeShipping: e.target.checked })} style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
+                    <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir frete grátis</span>
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <input type="checkbox" checked={vm.form.allowShippingDiscount} onChange={(e) => vm.patch({ allowShippingDiscount: e.target.checked })} style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
+                    <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
+                  </label>
                   {vm.form.allowFreeShipping && (
-                    <NumberField label="Valor mínimo carrinho para frete grátis (R$)" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: v })} error={vm.errors.freeShippingMinCartValue} />
+                    <div style={{ marginTop: 4 }}>
+                      <NumberField label="Valor mínimo carrinho para frete grátis (R$)" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: v })} error={vm.errors.freeShippingMinCartValue} />
+                    </div>
                   )}
                   {vm.form.allowShippingDiscount && (
-                    <RangeField label="Desconto parcial máximo no frete" value={vm.form.maxPartialShippingDiscount} onChange={(v) => vm.patch({ maxPartialShippingDiscount: v })} unit="%" />
+                    <div style={{ marginTop: 4 }}>
+                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Desconto parcial máximo no frete:</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ flex: 1, accentColor: "var(--accent)", cursor: "pointer", height: 4 }} />
+                        <span style={{ font: "700 13px var(--mono)", color: "var(--accent)", minWidth: 36, textAlign: "right" }}>{vm.form.maxPartialShippingDiscount}%</span>
+                      </div>
+                    </div>
                   )}
                 </div>
               </section>
 
-              {/* OFERTAS card */}
-              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "18px 20px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 4 }}>OFERTAS</h3>
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", marginBottom: 14, margin: 0, marginTop: 4 }}>Após este tempo, a oferta expira e o agente pode gerar uma nova.</p>
+              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>OFERTAS</h3>
+                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Após expirar, o agente pode gerar uma nova proposta.</p>
                 <NumberField label="Expiração da oferta (minutos)" value={vm.form.offerExpirationMinutes} onChange={(v) => vm.patch({ offerExpirationMinutes: v })} error={vm.errors.offerExpirationMinutes} />
               </section>
             </div>
@@ -159,39 +170,6 @@ function NumberField(props: { label: string; value: string; onChange: (v: string
       <input value={props.value} onChange={(e) => props.onChange(e.target.value)} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }} />
       {props.error && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{props.error}</span>}
     </label>
-  );
-}
-
-function CheckboxField(props: { label: string; checked: boolean; onChange: (c: boolean) => void }) {
-  return (
-    <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}>
-      <input
-        type="checkbox"
-        checked={props.checked}
-        onChange={(e) => props.onChange(e.target.checked)}
-        style={{ width: 18, height: 18, accentColor: "var(--accent)", cursor: "pointer", margin: 0 }}
-      />
-      <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{props.label}</span>
-    </label>
-  );
-}
-
-function RangeField(props: { label: string; value: string | number; onChange: (v: string) => void; unit?: string }) {
-  const numValue = typeof props.value === "string" ? props.value : String(props.value);
-  return (
-    <div>
-      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>{props.label}: <strong style={{ color: "var(--accent)" }}>{numValue}{props.unit || ""}</strong></span>
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          value={numValue}
-          onChange={(e) => props.onChange(e.target.value)}
-          style={{ flex: 1, accentColor: "var(--accent)", cursor: "pointer", height: 6 }}
-        />
-      </div>
-    </div>
   );
 }
 

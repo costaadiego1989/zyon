@@ -75,6 +75,12 @@ export interface ConversationInput {
   missingFields?: string[];
   deliverySummary?: string;
   shippingOptions?: ShippingQuote[];
+  shippingPolicy?: {
+    allowFreeShipping?: boolean;
+    allowShippingDiscount?: boolean;
+    freeShippingMinCartValue?: number;
+    maxPartialShippingDiscount?: number;
+  };
   fetchFn?: typeof fetch;
 }
 
@@ -246,6 +252,15 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
         "NUNCA revele dados privados."
       );
     }
+  }
+  if (input.shippingPolicy) {
+    const sp = input.shippingPolicy;
+    const shippingRules: string[] = [];
+    if (!sp.allowFreeShipping) shippingRules.push("NÃO ofereça frete grátis — merchant não permite.");
+    else if (sp.freeShippingMinCartValue) shippingRules.push(`Frete grátis SOMENTE se carrinho >= R$${sp.freeShippingMinCartValue}.`);
+    if (!sp.allowShippingDiscount) shippingRules.push("NÃO ofereça desconto no frete.");
+    else if (sp.maxPartialShippingDiscount) shippingRules.push(`Desconto máximo no frete: ${sp.maxPartialShippingDiscount}%.`);
+    if (shippingRules.length) lines.push("Política de frete do merchant: " + shippingRules.join(" "));
   }
   lines.push(
     "Regras rígidas: " +
