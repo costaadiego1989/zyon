@@ -23,8 +23,13 @@ export interface MerchantStoreSettings {
       state?: string;
       zip?: string;
     };
-    businessHours?: string;
   };
+  businessHours?: Array<{
+    day: string;
+    startTime: string;
+    endTime: string;
+    closed: boolean;
+  }>;
   policies?: {
     privacy?: string;
     returns?: string;

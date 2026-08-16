@@ -54,8 +54,20 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   }
 
   async getStoreSettings(merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
-    const row = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
-    return (row?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
+    const row = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { storeSettings: true, name: true, users: { select: { email: true }, take: 1 } },
+    });
+    const stored = (row?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
+
+    if (!stored.company?.razaoSocial && row?.name) {
+      stored.company = { ...stored.company, razaoSocial: row.name };
+    }
+    if (!stored.company?.email && row?.users?.[0]?.email) {
+      stored.company = { ...stored.company, email: row.users[0].email };
+    }
+
+    return stored;
   }
 
   async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {

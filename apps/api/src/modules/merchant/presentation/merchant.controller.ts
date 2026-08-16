@@ -187,4 +187,76 @@ export class MerchantController {
   ) {
     return this.updateTheme.updateStoreSettings(merchantId, body);
   }
+
+  @Post("generate-policy")
+  async generatePolicy(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { type: "privacy" | "returns" | "terms" | "shipping"; company?: Record<string, unknown> },
+  ) {
+    const typeLabels: Record<string, string> = {
+      privacy: "Política de Privacidade",
+      returns: "Política de Devolução e Trocas",
+      terms: "Termos de Uso",
+      shipping: "Política de Envio e Frete",
+    };
+
+    const companyContext = body.company
+      ? `Dados da empresa: ${JSON.stringify(body.company)}`
+      : "";
+
+    const prompt = `Gere uma ${typeLabels[body.type]} completa e profissional para um e-commerce brasileiro.
+${companyContext}
+
+Regras:
+- Texto em português brasileiro, tom profissional
+- Adequada ao CDC (Código de Defesa do Consumidor) e LGPD
+- Estruturada com seções claras (use títulos sem markdown)
+- Prazo de devolução: 7 dias corridos (direito de arrependimento)
+- Texto puro, sem markdown
+- Máximo 800 palavras`;
+
+    const providers = [
+      {
+        baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
+        apiKey: process.env.LOCAL_LLM_API_KEY || "ollama",
+        model: process.env.LOCAL_LLM_MODEL || "llama3.2",
+      },
+      {
+        baseUrl: process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || "https://api.deepseek.com/v1",
+        apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || "",
+        model: process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || "deepseek-chat",
+      },
+    ];
+
+    for (const provider of providers) {
+      if (!provider.apiKey) continue;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+
+        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 1200,
+            temperature: 0.6,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+        if (!res.ok) continue;
+
+        const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+        if (text) return { policy: text };
+      } catch {
+        continue;
+      }
+    }
+
+    throw new BadRequestException("ai_generation_failed: all providers unavailable");
+  }
 }
