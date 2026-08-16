@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { RefreshCw, UsersRound, UserPlus, Repeat, Download, ArrowUpDown } from "lucide-react";
+import { UsersRound, UserPlus, Repeat, Download, ArrowUpDown } from "lucide-react";
+import { StatCard } from "./overview/components/StatCard.js";
 import {
   type CursorPage,
   type MerchantProfile,
@@ -260,18 +261,29 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
 
       {message ? <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>{message}</div> : null}
 
-      {/* 4-col stat cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
-        {[
-          { label: "TOTAL", value: metrics.total },
-          { label: "NOVOS (7D)", value: metrics.newLast7Days },
-          { label: "RETORNO", value: Math.round(metrics.returningRate * 100) + "%" },
-        ].map((st) => (
-          <div key={st.label} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "18px 20px" }}>
-            <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.07em", color: "var(--faint)", marginBottom: 12 }}>{st.label}</div>
-            <div style={{ font: "500 26px var(--serif)", color: "var(--ink)", letterSpacing: "-0.01em" }}>{st.value}</div>
-          </div>
-        ))}
+      {/* KPI cards — matching overview StatCard pattern */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+        <StatCard
+          label="Total de Clientes"
+          value={metrics.total}
+          icon={<UsersRound size={16} />}
+          trend={0}
+        />
+        <StatCard
+          label="Novos (7 dias)"
+          value={metrics.newLast7Days}
+          icon={<UserPlus size={16} />}
+          accent="var(--good)"
+          trend={0}
+        />
+        <StatCard
+          label="Taxa de Retorno"
+          value={`${Math.round(metrics.returningRate * 100)}`}
+          suffix="%"
+          icon={<Repeat size={16} />}
+          accent="var(--accent)"
+          trend={0}
+        />
       </div>
 
       {/* Customers table card */}
