@@ -26,6 +26,8 @@ import { SliderField } from "./components/SliderField.js";
 import { NumberField } from "./components/NumberField.js";
 import { ActivationFlow } from "./components/ActivationFlow.js";
 import { TriggerCard } from "./components/TriggerCard.js";
+import { RulesList } from "./components/RulesList.js";
+import { RuleEditor } from "./components/RuleEditor.js";
 import { ALL_TRIGGERS, MODE_OPTIONS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
 import type { Draft } from "./lib/draft.js";
 import "./checkout-settings-page.css";
@@ -152,9 +154,10 @@ export function CheckoutSettingsPage(props: {
               { key: "behavior", label: "Aparência" },
               { key: "triggers", label: "Sinais & Limites" },
               { key: "discounts", label: "Descontos" },
+              { key: "rules", label: "Regras" },
             ]}
             activeTab={vm.activeTab}
-            onTabChange={(k) => vm.setActiveTab(k as "behavior" | "triggers" | "discounts")}
+            onTabChange={(k) => vm.setActiveTab(k as "behavior" | "triggers" | "discounts" | "rules")}
           />
 
           <div className="cfg-panel">
@@ -457,6 +460,48 @@ export function CheckoutSettingsPage(props: {
               </p>
             </SectionRail>
             </>}
+
+            {vm.activeTab === "rules" && <>
+            <SectionRail
+              icon={<Activity size={16} strokeWidth={1.75} />}
+              index="06"
+              title="Regras avançadas"
+              desc="Defina regras customizadas para que o agente siga durante o checkout."
+              aside={
+                <span className={`badge ${vm.draft!.advancedRules.length > 0 ? "ok" : "muted"}`}>
+                  {vm.draft!.advancedRules.length} {vm.draft!.advancedRules.length === 1 ? "regra" : "regras"}
+                </span>
+              }
+            >
+              <RulesList
+                rules={vm.draft!.advancedRules}
+                busy={vm.busy}
+                onAdd={() => vm.openRuleEditor(null)}
+                onEdit={(id) => {
+                  const rule = vm.draft!.advancedRules.find((r) => r.id === id);
+                  if (rule) vm.openRuleEditor(rule);
+                }}
+                onDelete={(id) => vm.deleteRule(id)}
+                onToggle={(id, enabled) => vm.toggleRule(id, enabled)}
+                onReorder={(rules) => vm.reorderRules(rules)}
+              />
+            </SectionRail>
+            </>}
+
+            {vm.editorOpen && (
+              <RuleEditor
+                rule={vm.editingRule}
+                onSave={(rule) => {
+                  if (vm.editingRule?.id === rule.id) {
+                    vm.updateRule(rule.id, rule);
+                  } else {
+                    vm.addRule(rule);
+                  }
+                }}
+                onCancel={() => vm.closeRuleEditor()}
+                busy={vm.busy}
+              />
+            )}
 
             {/* Footer actions */}
             <div className="cfg-footer">

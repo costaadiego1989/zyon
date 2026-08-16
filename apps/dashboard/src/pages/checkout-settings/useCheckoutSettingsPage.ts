@@ -5,7 +5,7 @@ import {
   type MerchantProfile as MerchantMeProfile,
 } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
-import type { Draft } from "./lib/draft.js";
+import type { Draft, AdvancedRule } from "./lib/draft.js";
 import { settingsToDraft, draftToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
 import { validate, type ValidationErrors } from "./lib/validation.js";
 
@@ -19,16 +19,25 @@ export interface CheckoutSettingsViewModel {
   draft: Draft | null;
   busy: boolean;
   message: { text: string; kind: "info" | "error" } | null;
-  activeTab: "behavior" | "triggers" | "discounts";
+  activeTab: "behavior" | "triggers" | "discounts" | "rules";
   dirty: boolean;
   errors: ValidationErrors;
+  editingRule: AdvancedRule | null;
+  editorOpen: boolean;
   save: () => void;
   load: () => void;
   restoreDefaults: () => void;
   discardChanges: () => void;
   patchDraft: (partial: Partial<Draft>) => void;
   patchTrigger: (trigger: CheckoutTriggerName, partial: Partial<{ enabled: boolean }>) => void;
-  setActiveTab: (tab: "behavior" | "triggers" | "discounts") => void;
+  setActiveTab: (tab: "behavior" | "triggers" | "discounts" | "rules") => void;
+  openRuleEditor: (rule: AdvancedRule | null) => void;
+  closeRuleEditor: () => void;
+  addRule: (rule: AdvancedRule) => void;
+  updateRule: (id: string, rule: AdvancedRule) => void;
+  deleteRule: (id: string) => void;
+  toggleRule: (id: string, enabled: boolean) => void;
+  reorderRules: (rules: AdvancedRule[]) => void;
 }
 
 export function useCheckoutSettingsPage(props: {
@@ -41,7 +50,9 @@ export function useCheckoutSettingsPage(props: {
   const [savedDraft, setSavedDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
-  const [activeTab, setActiveTab] = useState<"behavior" | "triggers" | "discounts">("behavior");
+  const [activeTab, setActiveTab] = useState<"behavior" | "triggers" | "discounts" | "rules">("behavior");
+  const [editingRule, setEditingRule] = useState<AdvancedRule | null>(null);
+  const [editorOpen, setEditorOpen] = useState(false);
 
   useEffect(() => {
     if (!props.me) {
@@ -134,6 +145,73 @@ export function useCheckoutSettingsPage(props: {
     });
   }
 
+  function openRuleEditor(rule: AdvancedRule | null) {
+    setEditingRule(rule);
+    setEditorOpen(true);
+  }
+
+  function closeRuleEditor() {
+    setEditingRule(null);
+    setEditorOpen(false);
+  }
+
+  function addRule(rule: AdvancedRule) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const newRule: AdvancedRule = {
+        ...rule,
+        id: crypto.randomUUID(),
+        priority: prev.advancedRules.length + 1,
+      };
+      return { ...prev, advancedRules: [...prev.advancedRules, newRule] };
+    });
+    setEditingRule(null);
+  }
+
+  function updateRule(id: string, rule: AdvancedRule) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        advancedRules: prev.advancedRules.map((r) => (r.id === id ? { ...rule, id } : r)),
+      };
+    });
+    setEditingRule(null);
+  }
+
+  function deleteRule(id: string) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const filtered = prev.advancedRules.filter((r) => r.id !== id);
+      return {
+        ...prev,
+        advancedRules: filtered.map((r, i) => ({ ...r, priority: i + 1 })),
+      };
+    });
+  }
+
+  function toggleRule(id: string, enabled: boolean) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        advancedRules: prev.advancedRules.map((r) =>
+          r.id === id ? { ...r, enabled } : r
+        ),
+      };
+    });
+  }
+
+  function reorderRules(rules: AdvancedRule[]) {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        advancedRules: rules.map((r, i) => ({ ...r, priority: i + 1 })),
+      };
+    });
+  }
+
   const dirty = draft && savedDraft ? !draftsEqual(draft, savedDraft) : false;
 
   // Unsaved changes guard
@@ -156,6 +234,8 @@ export function useCheckoutSettingsPage(props: {
     activeTab,
     dirty,
     errors,
+    editingRule,
+    editorOpen,
     save: () => void save(),
     load: () => void load(),
     restoreDefaults,
@@ -163,5 +243,12 @@ export function useCheckoutSettingsPage(props: {
     patchDraft,
     patchTrigger,
     setActiveTab,
+    openRuleEditor,
+    closeRuleEditor,
+    addRule,
+    updateRule,
+    deleteRule,
+    toggleRule,
+    reorderRules,
   };
 }
