@@ -3,6 +3,8 @@ import { ArrowLeft, Plus, Save, Trash2, Upload, X, Image as ImageIcon, Package, 
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
+import { CurrencyField } from "../components/CurrencyField.js";
+import { centsToReais, reaisToCents } from "../utils/currency.js";
 
 export type ProductType = "physical" | "digital" | "service";
 
@@ -43,35 +45,9 @@ export interface ProductDetailPageProps {
   onSaved?: () => void;
 }
 
-// Price conversion helpers: REAIS ↔ CENTAVOS
-export function centsToReais(cents: number): string {
-  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
-}
-
-export function reaisToCents(input: string): number {
-  // Accept: "1.500,90" (BR standard) or "150,90" or "150.90" (dot decimal)
-  const trimmed = input.trim();
-  if (!trimmed) return 0;
-
-  // If has comma → treat comma as decimal, dots as milhar (strip dots)
-  if (trimmed.includes(",")) {
-    const stripped = trimmed.replace(/\./g, "").replace(",", ".");
-    const num = parseFloat(stripped);
-    return Number.isFinite(num) ? Math.round(num * 100) : 0;
-  }
-
-  // No comma → dot is decimal (e.g. "89.90")
-  const num = parseFloat(trimmed.replace(/[^\d.]/g, ""));
-  return Number.isFinite(num) ? Math.round(num * 100) : 0;
-}
-
-/** Format currency input on blur: normalizes to pt-BR format (1.500,90) */
-export function formatCurrencyInput(raw: string): string {
-  if (!raw.trim()) return "";
-  const cents = reaisToCents(raw);
-  if (cents <= 0) return raw;
-  return centsToReais(cents);
-}
+// Re-export for backward compat (used in spec)
+export { centsToReais, reaisToCents } from "../utils/currency.js";
+export { formatCurrencyInput } from "../utils/currency.js";
 
 export function emptyVariant(): ProductVariantDraft {
   return {
@@ -1040,34 +1016,3 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
   );
 }
 
-function CurrencyField(props: { label: string; value: string; onChange: (v: string) => void; error?: string; placeholder?: string }) {
-  function handleChange(raw: string) {
-    // Strip tudo que não é dígito
-    const digits = raw.replace(/\D/g, "");
-    if (!digits) { props.onChange(""); return; }
-
-    // Tratar como centavos: "2590" → 25,90
-    const cents = parseInt(digits, 10);
-    const reais = (cents / 100).toFixed(2);
-    // Formatar pt-BR: 1500.00 → 1.500,00
-    const [intPart, decPart] = reais.split(".");
-    const formatted = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + decPart;
-    props.onChange(formatted);
-  }
-
-  return (
-    <label style={{ display: "block" }}>
-      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>{props.label}</span>
-      <input
-        value={props.value}
-        onChange={(e) => handleChange(e.target.value)}
-        placeholder={props.placeholder}
-        inputMode="numeric"
-        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--danger)" : "var(--border)"}`, font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
-      />
-      {props.error ? (
-        <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{props.error}</span>
-      ) : null}
-    </label>
-  );
-}

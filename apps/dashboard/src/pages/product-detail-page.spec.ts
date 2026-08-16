@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { centsToReais, reaisToCents, formatCurrencyInput } from "./product-detail-page.js";
+import { centsToReais, reaisToCents, formatCurrencyInput, applyCurrencyMask } from "../utils/currency.js";
 
 describe("centsToReais", () => {
   it("formats 15090 cents as 150,90", () => {
@@ -98,5 +98,35 @@ describe("formatCurrencyInput (onBlur)", () => {
 
   it("15,9 becomes 15,90", () => {
     expect(formatCurrencyInput("15,9")).toBe("15,90");
+  });
+});
+
+describe("applyCurrencyMask (live typing)", () => {
+  it("'2590' → '25,90'", () => {
+    expect(applyCurrencyMask("2590")).toBe("25,90");
+  });
+
+  it("'150000' → '1.500,00'", () => {
+    expect(applyCurrencyMask("150000")).toBe("1.500,00");
+  });
+
+  it("'8990' → '89,90'", () => {
+    expect(applyCurrencyMask("8990")).toBe("89,90");
+  });
+
+  it("'1' → '0,01'", () => {
+    expect(applyCurrencyMask("1")).toBe("0,01");
+  });
+
+  it("'25' → '0,25'", () => {
+    expect(applyCurrencyMask("25")).toBe("0,25");
+  });
+
+  it("empty → ''", () => {
+    expect(applyCurrencyMask("")).toBe("");
+  });
+
+  it("strips non-digits: '25,90' → treats as '2590' → '25,90'", () => {
+    expect(applyCurrencyMask("25,90")).toBe("25,90");
   });
 });
