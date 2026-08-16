@@ -108,8 +108,8 @@ export default function CheckoutWidgetPanel({
   const fabColor = config?.fabColor ?? "var(--aacp-accent, #0f766e)";
 
   const posMap: Record<string, Record<string, string>> = {
-    bottom_right: { bottom: "16px", right: "16px" },
-    bottom_left: { bottom: "16px", left: "16px" },
+    bottom_right: { bottom: "80px", right: "16px" },
+    bottom_left: { bottom: "80px", left: "16px" },
     top_right: { top: "16px", right: "16px" },
     top_left: { top: "16px", left: "16px" },
   };
