@@ -71,6 +71,17 @@ export class GetStoreConfigUseCase {
 
     const theme = decodePersistedTheme(row.theme);
 
+    // Read agent identity from agent_rules (source of truth for agent name)
+    let agentName = theme?.agentName;
+    try {
+      const agentRule = await this.prisma.agentRule.findFirst({
+        where: { merchantId: row.id },
+        select: { identity: true },
+      });
+      const identity = agentRule?.identity as { agentName?: string } | null;
+      if (identity?.agentName) agentName = identity.agentName;
+    } catch {}
+
     return {
       merchantId: row.id,
       name: row.name,
@@ -89,7 +100,7 @@ export class GetStoreConfigUseCase {
         surfaceElevatedColor: theme?.surfaceElevatedColor,
         borderColor: theme?.borderColor,
       },
-      agentName: theme?.agentName,
+      agentName,
       agentPersonality: undefined,
       quickReplies: ["Ver produtos", "Encontrar produto", "Ver categorias", "Promoções", "Rastrear pedido", "Meus dados"],
       storeCategory: row.storeCategory ?? undefined,
