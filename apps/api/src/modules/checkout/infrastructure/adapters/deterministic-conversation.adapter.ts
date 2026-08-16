@@ -98,7 +98,7 @@ export class DeterministicConversationAdapter implements ConversationPort {
     };
     // Strategy 1: Local Llama via Ollama
     const localBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
-    const localModel = process.env.OLLAMA_MODEL || "llama3.2";
+    const localModel = process.env.OLLAMA_MODEL || "llama3.1:8b";
 
     try {
       const result = await generateSalesReply({
