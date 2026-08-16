@@ -25,10 +25,10 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
         onClick={onClose}
         role="presentation"
         style={{
-          position: "absolute",
+          position: "fixed",
           inset: 0,
           background: "rgba(0, 0, 0, 0.45)",
-          zIndex: 95,
+          zIndex: 9995,
           animation: "ckui-scrim-in 0.2s ease both",
         }}
       />
@@ -38,11 +38,11 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
         role="dialog"
         aria-label="Carrinho"
         style={{
-          position: "absolute",
+          position: "fixed",
           ...(isBottom
-            ? { bottom: 0, left: 0, right: 0, maxHeight: "65vh", borderRadius: "20px 20px 0 0" }
-            : { top: 0, right: 0, bottom: 0, width: "min(340px, 85vw)" }),
-          zIndex: 96,
+            ? { bottom: 0, left: 0, right: 0, maxHeight: "75vh", borderRadius: "20px 20px 0 0" }
+            : { top: 0, right: 0, bottom: 0, width: "min(380px, 90vw)" }),
+          zIndex: 9996,
           background: "var(--aacp-surface, #0f0f16)",
           borderLeft: isBottom ? undefined : "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
           borderTop: isBottom ? "1px solid var(--aacp-line, rgba(255,255,255,0.1))" : undefined,
@@ -50,37 +50,47 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
           flexDirection: "column",
           overflow: "hidden",
           animation: `${isBottom ? "ckui-sheet-up" : "ckui-drawer-right"} 0.28s cubic-bezier(0.22, 1, 0.36, 1) both`,
+          boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
         }}
       >
-        {/* Handle (bottom only) */}
+        {/* Drag handle (bottom sheet only) */}
         {isBottom && (
-          <div style={{ padding: "10px 0 4px", display: "flex", justifyContent: "center" }}>
-            <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--aacp-muted, #8b8b95)", opacity: 0.4 }} />
+          <div style={{ padding: "10px 0 4px", display: "flex", justifyContent: "center", cursor: "grab", touchAction: "none" }}>
+            <div style={{ width: "38px", height: "4px", borderRadius: "4px", background: "var(--aacp-muted, #8b8b95)", opacity: 0.4 }} />
           </div>
         )}
 
-        {/* Header */}
-        <div style={{ padding: "12px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent, #0f766e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="21" r="1" />
-              <circle cx="20" cy="21" r="1" />
-              <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+        {/* Header — cart icon + badge + total + close */}
+        <div style={{ padding: "12px 18px 14px", display: "flex", alignItems: "center", gap: "11px" }}>
+          <span style={{ position: "relative", width: "34px", height: "34px", borderRadius: "10px", background: "color-mix(in srgb, var(--aacp-accent, #0f766e) 12%, transparent)", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent, #0f766e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 6h15l-1.5 9h-12z" />
+              <path d="M6 6L5 3H2" />
+              <circle cx="9" cy="20" r="1.4" />
+              <circle cx="18" cy="20" r="1.4" />
             </svg>
-            <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--aacp-fg, #f5f5f7)" }}>
-              Carrinho
-            </span>
             {cart.itemCount > 0 && (
-              <span style={{ fontSize: "11px", color: "var(--aacp-muted, #8b8b95)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", padding: "2px 8px", borderRadius: "10px", fontWeight: 600 }}>
+              <span style={{ position: "absolute", top: "-4px", right: "-4px", minWidth: "16px", height: "16px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "9px", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>
                 {cart.itemCount}
               </span>
             )}
+          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--aacp-fg, #f5f5f7)" }}>Carrinho</span>
+            </div>
+            <div style={{ fontSize: "10.5px", color: "var(--aacp-muted, #8b8b95)", marginTop: "2px" }}>
+              {cart.itemCount} {cart.itemCount === 1 ? "item" : "itens"}
+            </div>
+          </div>
+          <div style={{ textAlign: "right", marginRight: "8px" }}>
+            <div style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "-0.3px", color: "var(--aacp-fg)" }}>{formatPrice(cart.total)}</div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Fechar carrinho"
-            style={{ width: "28px", height: "28px", borderRadius: "50%", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+            style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -88,97 +98,113 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
           </button>
         </div>
 
-        {/* Items */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "8px 18px" }}>
+        {/* Items list */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "4px 18px 20px" }}>
           {cart.items.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "32px 12px", color: "var(--aacp-muted)" }}>
-              <p style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)", margin: "0 0 4px" }}>Carrinho vazio</p>
-              <p style={{ fontSize: "11.5px", margin: 0 }}>Adicione produtos pelo chat.</p>
+            <div style={{ textAlign: "center", padding: "40px 10px", color: "var(--aacp-muted)" }}>
+              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>Carrinho vazio</div>
+              <div style={{ fontSize: "11.5px", marginTop: "4px" }}>Use a busca para escolher um produto.</div>
             </div>
           ) : (
-            cart.items.map((item) => (
-              <div
-                key={item.variantId}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "10px",
-                  padding: "10px 0",
-                  borderBottom: "1px solid var(--aacp-line, rgba(255,255,255,0.06))",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: "12.5px", fontWeight: 600, color: "var(--aacp-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {item.productName}
-                  </p>
-                  <p style={{ margin: "2px 0 0", fontSize: "10.5px", color: "var(--aacp-muted)" }}>
-                    {formatPrice(item.price)} un.
-                  </p>
-                </div>
+            <>
+              {cart.items.map((item) => (
+                <div
+                  key={item.variantId}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "14px",
+                    borderRadius: "14px",
+                    background: "var(--aacp-surface-2, rgba(255,255,255,0.04))",
+                    border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
+                    marginBottom: "10px",
+                  }}
+                >
+                  {/* Product thumbnail placeholder */}
+                  <div style={{ width: "46px", height: "46px", borderRadius: "10px", flexShrink: 0, background: "linear-gradient(135deg, var(--aacp-surface-2), var(--aacp-surface-3, rgba(255,255,255,0.08)))", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-accent)", opacity: 0.4 }}>
+                      {item.productName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <button
-                    type="button"
-                    onClick={() => item.quantity <= 1 ? onRemoveItem(item.variantId) : onUpdateQty(item.variantId, item.quantity - 1)}
-                    style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-fg)", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    −
-                  </button>
-                  <span style={{ fontSize: "11.5px", fontWeight: 600, minWidth: "14px", textAlign: "center", color: "var(--aacp-fg)" }}>
-                    {item.quantity}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
-                    style={{ width: "22px", height: "22px", borderRadius: "6px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-fg)", fontSize: "13px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                  >
-                    +
-                  </button>
-                </div>
+                  {/* Product details */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {item.productName}
+                    </div>
+                    <div style={{ fontSize: "10.5px", color: "var(--aacp-muted)", marginTop: "2px" }}>
+                      {formatPrice(item.price)} un.
+                    </div>
+                  </div>
 
-                <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--aacp-fg)", fontVariantNumeric: "tabular-nums", minWidth: "60px", textAlign: "right" }}>
-                  {formatPrice(item.subtotal)}
-                </span>
+                  {/* Qty controls */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <button
+                      type="button"
+                      onClick={() => item.quantity <= 1 ? onRemoveItem(item.variantId) : onUpdateQty(item.variantId, item.quantity - 1)}
+                      style={{ width: "24px", height: "24px", borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    >
+                      −
+                    </button>
+                    <span style={{ fontSize: "13px", fontWeight: 600, minWidth: "14px", textAlign: "center", color: "var(--aacp-fg)" }}>
+                      {item.quantity}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
+                      style={{ width: "24px", height: "24px", borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Summary rows */}
+              <div style={{ borderTop: "1px solid var(--aacp-line)", paddingTop: "12px", marginTop: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
+                  <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Subtotal</span>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)", fontVariantNumeric: "tabular-nums" }}>{formatPrice(cart.subtotal)}</span>
+                </div>
+                {cart.discount > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
+                    <span style={{ fontSize: "12px", color: "var(--aacp-success, #34d399)" }}>Desconto</span>
+                    <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-success, #34d399)" }}>-{formatPrice(cart.discount)}</span>
+                  </div>
+                )}
+                <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", padding: "10px 0 0", borderTop: "1px solid var(--aacp-line)", marginTop: "6px" }}>
+                  <span style={{ fontSize: "12.5px", color: "var(--aacp-muted)" }}>Total final</span>
+                  <span style={{ fontSize: "22px", fontWeight: 700, letterSpacing: "-0.4px", color: "var(--aacp-fg)" }}>{formatPrice(cart.total)}</span>
+                </div>
               </div>
-            ))
+            </>
           )}
         </div>
 
-        {/* Footer */}
+        {/* Footer CTAs */}
         {cart.items.length > 0 && (
-          <div style={{ padding: "12px 18px 16px", borderTop: "1px solid var(--aacp-line)", display: "flex", flexDirection: "column", gap: "8px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span style={{ fontSize: "11.5px", color: "var(--aacp-muted)" }}>Subtotal</span>
-              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)", fontVariantNumeric: "tabular-nums" }}>{formatPrice(cart.subtotal)}</span>
-            </div>
-            {cart.discount > 0 && (
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ fontSize: "11.5px", color: "var(--aacp-success, #34d399)" }}>Desconto</span>
-                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-success, #34d399)" }}>-{formatPrice(cart.discount)}</span>
-              </div>
-            )}
-            <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "6px", borderTop: "1px solid var(--aacp-line)" }}>
-              <span style={{ fontSize: "14px", fontWeight: 700, color: "var(--aacp-fg)" }}>Total</span>
-              <span style={{ fontSize: "16px", fontWeight: 800, color: "var(--aacp-accent)", fontVariantNumeric: "tabular-nums" }}>{formatPrice(cart.total)}</span>
-            </div>
-
+          <div style={{ padding: "0 18px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
             <button
               type="button"
               onClick={onCheckout}
               style={{
                 width: "100%",
-                height: "44px",
-                borderRadius: "10px",
+                height: "48px",
+                borderRadius: "12px",
                 border: "none",
                 background: "var(--aacp-accent, #0f766e)",
                 color: "#fff",
-                fontSize: "13px",
+                fontSize: "14px",
                 fontWeight: 700,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                marginTop: "4px",
-                boxShadow: "0 4px 14px color-mix(in srgb, var(--aacp-accent, #0f766e) 30%, transparent)",
+                letterSpacing: "0.01em",
+                boxShadow: "0 4px 16px color-mix(in srgb, var(--aacp-accent, #0f766e) 35%, transparent)",
+                transition: "transform 0.15s ease, box-shadow 0.15s ease",
               }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px color-mix(in srgb, var(--aacp-accent) 45%, transparent)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 16px color-mix(in srgb, var(--aacp-accent) 35%, transparent)"; }}
             >
               Finalizar pedido
             </button>
@@ -189,7 +215,7 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
                 onClick={onViewCart}
                 style={{
                   width: "100%",
-                  height: "36px",
+                  height: "40px",
                   borderRadius: "10px",
                   border: "1px solid var(--aacp-line)",
                   background: "transparent",
@@ -198,9 +224,12 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
                   fontWeight: 500,
                   cursor: "pointer",
                   fontFamily: "inherit",
+                  transition: "border-color 0.15s, color 0.15s",
                 }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
               >
-                Ver carrinho completo
+                Continuar comprando
               </button>
             )}
           </div>
