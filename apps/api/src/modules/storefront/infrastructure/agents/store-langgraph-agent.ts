@@ -56,6 +56,7 @@ export interface StorefrontAgentInput {
   merchantName?: string;
   storeCategory: string;
   storeSettings?: Record<string, any>;
+  agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
   callbacks?: StorefrontAgentCallbacks;
 }
 
@@ -147,7 +148,7 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
-    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings);
+    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system" as const, content: systemContent },
       ...input.history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -397,8 +398,7 @@ export class StorefrontLangGraphAgent {
     const hasProductCard = blocks.some(b => b.type === "product_card");
     const hasShippingOptions = blocks.some(b => b.type === "shipping_options");
     const hasComparison = blocks.some(b => b.type === "product_comparison");
-    const hasCategoryCarousel = blocks.some(b => b.type === "category_carousel");
-    const removeCarousel = hasProductCard || hasShippingOptions || hasComparison || hasCategoryCarousel;
+    const removeCarousel = hasProductCard || hasShippingOptions || hasComparison;
     const finalBlocks = removeCarousel
       ? blocks.filter(b => b.type !== "product_carousel")
       : blocks;
@@ -439,7 +439,7 @@ export class StorefrontLangGraphAgent {
     };
   }
 
-  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>): string {
+  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }): string {
     const name = merchantName ? ` da loja ${merchantName}` : "";
     const categoryContext = storeCategory && storeCategory !== "others"
       ? `\nEsta é uma loja do segmento "${storeCategory}". Todos os produtos são exclusivamente deste segmento. NUNCA sugira ou mencione produtos fora deste segmento.`
@@ -471,7 +471,7 @@ export class StorefrontLangGraphAgent {
     return [
       `Você é um assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}`,
       "Ajude o cliente a encontrar produtos, comparar, adicionar ao carrinho e finalizar compra.",
-      "Seja breve, direto e amigável. Não use markdown nem tabelas — a interface renderiza os dados visualmente.",
+      `Seja breve, direto e ${agentIdentity?.tone || "amigável"}. Não use markdown nem tabelas — a interface renderiza os dados visualmente.`,
       "",
       "REGRAS CRÍTICAS:",
       "- Use as ferramentas para TODOS os dados. NUNCA invente produtos, preços ou estoque.",
