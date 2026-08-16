@@ -26,6 +26,7 @@ export interface StorefrontConversationInput {
   storeSettings?: Record<string, any>;
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
   merchantPolicy?: MerchantPolicy;
+  advancedRules?: string[];
 }
 
 export interface StorefrontConversationOutput {

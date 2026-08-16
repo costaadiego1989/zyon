@@ -58,6 +58,7 @@ export interface StorefrontAgentInput {
   storeSettings?: Record<string, any>;
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
   merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
+  advancedRules?: string[];
   callbacks?: StorefrontAgentCallbacks;
 }
 
@@ -149,7 +150,7 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
-    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy);
+    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system" as const, content: systemContent },
       ...input.history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
@@ -260,15 +261,19 @@ export class StorefrontLangGraphAgent {
             products: searchData.products.map((p: any) => ({
               id: p.id,
               name: p.name,
+              description: p.description,
               price: p.price,
               priceFormatted: formatPrice(p.price),
               image: p.image,
+              images: p.images ?? (p.image ? [p.image] : []),
               inStock: p.inStock ?? true,
+              rating: p.rating,
+              reviewCount: p.reviewCount,
               variants: p.variants,
             })),
             nextCursor: searchData.nextCursor,
             merchantId: input.merchantId,
-            query: undefined, // generic browse
+            query: undefined,
             categoryId: undefined,
           }
         });
@@ -394,6 +399,80 @@ export class StorefrontLangGraphAgent {
         } as any);
       }
     }
+    if (toolResults["get_reviews"]) {
+      const reviewsData = toolResults["get_reviews"] as any;
+      if (reviewsData?.reviews?.length > 0) {
+        blocks.push({
+          type: "reviews",
+          data: {
+            productId: "",
+            productName: "",
+            averageRating: reviewsData.averageRating ?? 4.5,
+            totalReviews: reviewsData.totalCount ?? reviewsData.reviews.length,
+            reviews: reviewsData.reviews.map((r: any) => ({
+              id: r.id,
+              author: r.author,
+              rating: r.rating,
+              text: r.text,
+              date: r.date,
+            })),
+          }
+        } as any);
+      }
+    }
+    if (toolResults["get_similar_products"]) {
+      const similarData = toolResults["get_similar_products"] as any;
+      if (similarData?.products?.length > 0) {
+        const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        blocks.push({
+          type: "cross_sell",
+          data: {
+            trigger: "similar",
+            products: similarData.products.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              priceFormatted: formatPrice(p.price),
+              image: p.image,
+              inStock: p.inStock ?? true,
+            }))
+          }
+        } as any);
+      }
+    }
+    if (toolResults["get_daily_deals"]) {
+      const dealsData = toolResults["get_daily_deals"] as any;
+      if (dealsData?.deals?.length > 0) {
+        const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        blocks.push({
+          type: "product_carousel",
+          data: {
+            products: dealsData.deals.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              price: p.price,
+              priceFormatted: formatPrice(p.price),
+              image: p.image,
+              inStock: p.inStock ?? true,
+              discountPercent: p.discountPercent,
+            })),
+            merchantId: input.merchantId,
+          }
+        });
+      }
+    }
+    if (toolResults["create_checkout_session"]) {
+      const checkoutData = toolResults["create_checkout_session"] as any;
+      if (checkoutData?.checkoutUrl) {
+        blocks.push({
+          type: "checkout_redirect",
+          data: {
+            url: checkoutData.checkoutUrl,
+            sessionId: checkoutData.sessionId ?? "",
+          }
+        } as any);
+      }
+    }
 
     // Filter blocks: exclusive views remove carousel noise
     const hasProductCard = blocks.some(b => b.type === "product_card");
@@ -440,7 +519,7 @@ export class StorefrontLangGraphAgent {
     };
   }
 
-  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }, merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number }): string {
+  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }, merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number }, advancedRules?: string[]): string {
     const name = merchantName ? ` da loja ${merchantName}` : "";
     const agentNameLabel = agentIdentity?.agentName || "Assistente";
     const categoryContext = storeCategory && storeCategory !== "others"
@@ -516,12 +595,47 @@ export class StorefrontLangGraphAgent {
       "- 'Categorias' → use list_categories. Responda 'Aqui estão nossas categorias:'.",
       "- 'Ver produtos de [Categoria]' → use search_products com categoryId da categoria mencionada. NÃO liste categorias novamente.",
       "- 'Prazo de Entrega' → peça o CEP ao cliente. Depois use quote_shipping.",
-      "- 'Trocas e Devoluções' → Responda com a política de devoluções da loja. Se não houver, diga para contactar suporte.",
-      "- 'Rastrear Pedido' → Peça o número/ID do pedido ao cliente.",
-      "- 'Meus Dados' → Diga: 'Você pode visualizar seus dados e histórico na seção de perfil. Posso ajudar com algo específico?'",
-      "- 'Ofertas' ou 'Promoções' → use search_products com query 'promoção' ou use list_promotions. Responda 'Aqui estão nossas ofertas:'.",
+      "- 'Trocas e Devoluções' → use get_store_policies com policyType 'returns'. Responda com a política da loja.",
+      "- 'Rastrear Pedido' → Peça o número/ID do pedido ao cliente. Depois use track_order.",
+      "- 'Meus Dados' → use get_buyer_profile. Responda com as informações disponíveis.",
+      "- 'Ofertas' ou 'Promoções' → use get_daily_deals. Responda 'Aqui estão nossas ofertas:'.",
+      "- 'Selecionar Produto' → Pergunte qual produto quer ver. Use get_product_details com o ID.",
+      "- 'Filtrar Produtos' → Pergunte critério (preço, avaliação, etc). Use search_products com sortBy.",
+      "- 'Ofertas do Dia' → use get_daily_deals. A UI mostra carrossel com badges de desconto.",
+      "- 'Mais Informações' → use get_product_details. Foque na info solicitada (specs, material, etc).",
+      "- 'Ver Avaliações' → use get_reviews com productId. A UI mostra bloco de reviews.",
+      "- 'Tirar Dúvidas' → use get_product_questions ou diga 'Pode perguntar!' e ESPERE.",
+      "- 'Comparar' → use compare_products. A UI mostra tabela comparativa.",
+      "- 'Lista de Desejos' → use add_to_wishlist ou get_wishlist conforme contexto.",
+      "- 'Produtos Semelhantes' → use get_similar_products. A UI mostra cross-sell block.",
+      "- 'Escrever Avaliação' → use create_review. Peça rating (1-5) e texto ao cliente.",
+      "- 'Fazer Pergunta' → use create_question. Peça a pergunta ao cliente.",
+      "- 'FAQ' → use get_faq. Responda com as perguntas frequentes.",
+      "- 'Falar com Humano' → use escalate_to_human. Confirme o encaminhamento.",
+      "- 'Nota Fiscal' → use get_invoice com orderId. Retorne o link.",
+      "- 'Cancelar Pedido' → use cancel_order. Peça confirmação antes.",
+      "- 'Garantia' → use get_store_policies com policyType 'warranty'.",
+      "",
+      "ADICIONAR AO CARRINHO — REGRA OBRIGATÓRIA:",
+      "- Quando o cliente diz 'Adicionar X ao carrinho' ou 'Adicionar X': use search_products com o nome do produto para obter o ID/variantId, depois use add_item_to_cart com variantId e quantity 1. NÃO peça confirmação de variante — use a primeira variante disponível.",
+      "- Se o produto já apareceu no histórico (get_product_details foi chamado antes), use o ID do histórico direto — NÃO busque novamente.",
+      "- Após add_item_to_cart funcionar, responda: 'Produto adicionado ao carrinho!' (a UI mostra o carrinho).",
+      "",
+      "COMPRAR AGORA — REGRA OBRIGATÓRIA:",
+      "- Quando o cliente diz 'Comprar X' ou 'Comprar agora': faça o mesmo que 'Adicionar ao carrinho' E depois use create_checkout_session com o cartId retornado.",
+      "- Responda: 'Redirecionando para o pagamento...' (a UI redireciona automaticamente).",
+      "",
+      "NUNCA peça confirmação de cor/tamanho/variante a não ser que o cliente pergunte explicitamente. Use a variante padrão (primeira disponível).",
       "",
       "IMPORTANTE: Quando o cliente diz 'Ver produtos' ou pede para listar produtos, SEMPRE use search_products (com query '*' se necessário). NUNCA responda com categorias quando o pedido é por PRODUTOS.",
+      "",
+      // Advanced rules from merchant checkout settings
+      ...(advancedRules && advancedRules.length > 0 ? [
+        "REGRAS CONFIGURADAS PELO MERCHANT (siga durante a conversa — primeira que encaixar é a que vale):",
+        ...advancedRules.map((r, i) => `${i + 1}. ${r}`),
+        "IMPORTANTE: O motor de regras valida descontos. Se oferecer desconto acima do permitido, o sistema rejeita. Mantenha-se dentro dos valores das regras.",
+        "",
+      ] : []),
     ].join("\n");
   }
 }

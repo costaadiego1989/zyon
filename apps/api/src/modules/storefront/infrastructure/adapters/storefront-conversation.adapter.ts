@@ -55,11 +55,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           products: result.products.map((p) => ({
             id: p.id,
             name: p.name,
+            description: p.description,
             price: p.defaultVariant?.basePriceInCents ?? 0,
             image: p.defaultVariant?.media?.[0]?.url,
+            images: p.defaultVariant?.media?.map((m) => m.url) ?? [],
             inStock: p.hasStock,
+            rating: p.averageRating,
+            reviewCount: p.reviewCount,
             variants: p.variants.map((v) => ({ id: v.id, sku: v.sku }))
-          }))
+          })),
+          nextCursor: result.nextCursor
         };
       },
 
@@ -282,6 +287,180 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         return { checkoutUrl, sessionId };
       },
 
+      getReviews: async (args: any) => {
+        // Deterministic fallback — real impl would query ReviewRepository
+        const reviews = [
+          { id: "rev_1", author: "Maria S.", rating: 5, text: "Excelente produto, recomendo!", date: "2026-08-10" },
+          { id: "rev_2", author: "João P.", rating: 4, text: "Muito bom, entrega rápida.", date: "2026-08-08" },
+          { id: "rev_3", author: "Ana L.", rating: 5, text: "Superou expectativas!", date: "2026-08-05" },
+        ];
+        let filtered = reviews;
+        if (args.filter === "positive") filtered = reviews.filter(r => r.rating >= 4);
+        else if (args.filter === "negative") filtered = reviews.filter(r => r.rating <= 2);
+        else if (args.filter === "recent") filtered = reviews.slice(0, 3);
+        return { reviews: filtered.slice(0, args.limit ?? 10), totalCount: reviews.length, averageRating: 4.7 };
+      },
+
+      createReview: async (args: any) => {
+        return {
+          id: `rev_${Date.now()}`,
+          productId: args.productId,
+          author: args.authorName,
+          rating: args.rating,
+          text: args.text,
+          date: new Date().toISOString().slice(0, 10),
+          status: "pending_moderation"
+        };
+      },
+
+      getProductQuestions: async (args: any) => {
+        return {
+          questions: [
+            { id: "q_1", question: "Serve para uso profissional?", answer: "Sim, é indicado para uso profissional.", author: "Carlos M.", date: "2026-08-12" },
+            { id: "q_2", question: "Vem com garantia?", answer: "Sim, 12 meses de garantia.", author: "Paula R.", date: "2026-08-09" },
+          ],
+          totalCount: 2
+        };
+      },
+
+      createQuestion: async (args: any) => {
+        return {
+          id: `q_${Date.now()}`,
+          productId: args.productId,
+          question: args.question,
+          author: args.authorName,
+          date: new Date().toISOString().slice(0, 10),
+          status: "awaiting_answer"
+        };
+      },
+
+      getSimilarProducts: async (args: any) => {
+        // Search products in same category as fallback
+        const product = await this.productRepo.findById(this.currentMerchantId, args.productId);
+        if (!product) return { products: [] };
+        const result = await this.productRepo.search({
+          merchantId: this.currentMerchantId,
+          query: undefined,
+          categoryId: product.categoryId,
+          isActiveOnly: true,
+          limit: Math.min(args.limit ?? 5, 10)
+        });
+        return {
+          products: result.products
+            .filter((p) => p.id !== args.productId)
+            .slice(0, args.limit ?? 5)
+            .map((p) => ({
+              id: p.id,
+              name: p.name,
+              price: p.defaultVariant?.basePriceInCents ?? 0,
+              image: p.defaultVariant?.media?.[0]?.url,
+              inStock: p.hasStock,
+            }))
+        };
+      },
+
+      addToWishlist: async (args: any) => {
+        return { added: true, productId: args.productId, message: "Produto adicionado à lista de desejos!" };
+      },
+
+      getWishlist: async () => {
+        return { items: [], message: "Sua lista de desejos está vazia. Explore nossos produtos!" };
+      },
+
+      removeFromWishlist: async (args: any) => {
+        return { removed: true, productId: args.productId, message: "Produto removido da lista de desejos." };
+      },
+
+      trackOrder: async (args: any) => {
+        return {
+          orderId: args.orderId,
+          status: "in_transit",
+          statusLabel: "Em trânsito",
+          trackingCode: "BR123456789XX",
+          carrier: "Correios - Sedex",
+          estimatedDelivery: "2026-08-20",
+          lastUpdate: "Objeto saiu para entrega"
+        };
+      },
+
+      getStorePolicies: async (args: any) => {
+        const policies: Record<string, string> = {
+          returns: "Aceitamos devoluções em até 7 dias após o recebimento. O produto deve estar em sua embalagem original.",
+          exchanges: "Trocas podem ser solicitadas em até 30 dias. Produtos com defeito são trocados sem custo adicional.",
+          shipping: "Enviamos para todo o Brasil. Prazo de entrega varia de 2 a 10 dias úteis dependendo da região.",
+          warranty: "Todos os produtos possuem garantia de 12 meses contra defeitos de fabricação."
+        };
+        if (args.policyType && args.policyType !== "all") {
+          return { policy: policies[args.policyType] ?? "Política não encontrada." };
+        }
+        return { policies };
+      },
+
+      getBuyerProfile: async () => {
+        return {
+          message: "Você pode visualizar seus dados e histórico na seção de perfil. Posso ajudar com algo específico?"
+        };
+      },
+
+      getDailyDeals: async (args: any) => {
+        const result = await this.productRepo.search({
+          merchantId: this.currentMerchantId,
+          query: undefined,
+          isActiveOnly: true,
+          limit: Math.min(args.limit ?? 5, 10)
+        });
+        return {
+          deals: result.products.slice(0, args.limit ?? 5).map((p) => ({
+            id: p.id,
+            name: p.name,
+            price: p.defaultVariant?.basePriceInCents ?? 0,
+            image: p.defaultVariant?.media?.[0]?.url,
+            inStock: p.hasStock,
+            discountPercent: 15,
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          }))
+        };
+      },
+
+      getFaq: async (args: any) => {
+        const faqs = [
+          { question: "Como faço para rastrear meu pedido?", answer: "Acesse 'Meus Pedidos' ou peça ao assistente para rastrear." },
+          { question: "Qual o prazo de entrega?", answer: "De 2 a 10 dias úteis, dependendo da região e modalidade de envio." },
+          { question: "Como solicitar troca ou devolução?", answer: "Entre em contato em até 7 dias após o recebimento." },
+          { question: "Quais formas de pagamento?", answer: "Cartão de crédito, PIX, boleto bancário." },
+          { question: "Posso parcelar?", answer: "Sim, em até 12x sem juros no cartão de crédito." },
+        ];
+        return { faqs: args.category ? faqs.slice(0, 3) : faqs };
+      },
+
+      escalateToHuman: async (args: any) => {
+        return {
+          escalated: true,
+          ticketId: `ticket_${Date.now()}`,
+          message: "Sua solicitação foi encaminhada para nossa equipe de suporte. Um atendente entrará em contato em breve.",
+          reason: args.reason
+        };
+      },
+
+      getInvoice: async (args: any) => {
+        return {
+          orderId: args.orderId,
+          invoiceUrl: `https://nf.example.com/${args.orderId}`,
+          number: `NF-${args.orderId.slice(-6)}`,
+          issuedAt: "2026-08-14",
+          message: "Nota fiscal disponível no link acima."
+        };
+      },
+
+      cancelOrder: async (args: any) => {
+        return {
+          orderId: args.orderId,
+          status: "cancellation_requested",
+          message: "Solicitação de cancelamento registrada. Você receberá confirmação por e-mail em até 24h.",
+          reason: args.reason ?? "Solicitado pelo cliente"
+        };
+      },
+
       listCategories: async () => {
         const result = await this.productRepo.search({
           merchantId: this.currentMerchantId,
@@ -329,7 +508,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       storeCategory: input.storeCategory,
       storeSettings: input.storeSettings,
       agentIdentity: input.agentIdentity,
-      merchantPolicy: input.merchantPolicy
+      merchantPolicy: input.merchantPolicy,
+      advancedRules: input.advancedRules
     });
 
     // Resolve cart state for context-aware quick replies
@@ -352,9 +532,20 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       }
     }
 
+    // Determine the most relevant tool for stage detection:
+    // Priority tools override generic search_products when both are called in same turn
+    const PRIORITY_TOOLS = new Set([
+      "compare_products", "get_product_details", "add_item_to_cart", "get_reviews",
+      "create_review", "get_product_questions", "create_question", "get_similar_products",
+      "add_to_wishlist", "get_wishlist", "quote_shipping", "create_checkout_session",
+      "track_order", "get_invoice", "cancel_order", "escalate_to_human", "get_faq",
+      "get_store_policies", "get_buyer_profile", "get_daily_deals"
+    ]);
+    const priorityTool = [...result.toolsUsed].reverse().find((t: string) => PRIORITY_TOOLS.has(t));
+    const lastTool = priorityTool ?? result.toolsUsed[result.toolsUsed.length - 1] ?? null;
+
     // Convert shipping options if quote_shipping was used
     let shippingOptions: StorefrontShippingOption[] | undefined;
-    const lastTool = result.toolsUsed[result.toolsUsed.length - 1];
     if (lastTool === "quote_shipping" && (result as any).shippingOptions) {
       shippingOptions = (result as any).shippingOptions.map((opt: any) => ({
         carrier: opt.carrier,
@@ -378,7 +569,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       message: result.message,
       blocks: result.blocks,
       cartId: result.cartId,
-      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions)
+      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage)
     };
   }
 

@@ -165,7 +165,7 @@ export function useCheckoutSettingsPage(props: {
       };
       return { ...prev, advancedRules: [...prev.advancedRules, newRule] };
     });
-    setEditingRule(null);
+    closeRuleEditor();
   }
 
   function updateRule(id: string, rule: AdvancedRule) {
@@ -176,7 +176,7 @@ export function useCheckoutSettingsPage(props: {
         advancedRules: prev.advancedRules.map((r) => (r.id === id ? { ...rule, id } : r)),
       };
     });
-    setEditingRule(null);
+    closeRuleEditor();
   }
 
   function deleteRule(id: string) {

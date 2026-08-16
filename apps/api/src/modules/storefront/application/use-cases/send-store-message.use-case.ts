@@ -28,6 +28,7 @@ export interface SendStoreMessageOutput {
   blocks: ConversationBlock[];
   cart_id?: string;
   conversation_id: string;
+  suggested_next: string[];
 }
 
 @Injectable()
@@ -84,6 +85,28 @@ export class SendStoreMessageUseCase {
       }
     } catch { /* optional — fallback to no policy */ }
 
+    // Load advanced rules from checkout settings
+    let advancedRules: string[] = [];
+    try {
+      const checkoutSetting = await this.prisma.checkoutSetting.findUnique({
+        where: { merchantId: input.merchant_id },
+        select: { advancedRules: true },
+      });
+      if (checkoutSetting?.advancedRules) {
+        const rules = checkoutSetting.advancedRules as Array<{ enabled: boolean; priority: number; name: string; conditions: Array<{ field: string; operator: string; value: string | number | boolean }>; action: { type: string; params: Record<string, string | number> } }>;
+        advancedRules = rules
+          .filter(r => r.enabled)
+          .sort((a, b) => a.priority - b.priority)
+          .map(r => {
+            const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto no carrinho", category_in_cart: "categoria", coupon_applied: "cupom aplicado", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens no carrinho" };
+            const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
+            const actionLabels: Record<string, string> = { offer_discount: `ofereça ${r.action.params.percent || "?"}% de desconto`, offer_free_shipping: "ofereça frete grátis", suggest_product: `sugira o produto ${r.action.params.productName || ""}`, show_message: `diga: "${r.action.params.message || ""}"`, offer_installments: `ofereça ${r.action.params.maxInstallments || "?"}x sem juros`, do_nothing: "não intervenha", offer_coupon: `ofereça o cupom ${r.action.params.code || ""}` };
+            const action = actionLabels[r.action.type] || "aja conforme melhor";
+            return `SE ${conds} ENTÃO ${action}`;
+          });
+      }
+    } catch { /* optional — rules are advisory */ }
+
     const result = await this.conversation.reply({
       userMessage: input.user_message,
       cartId: input.cart_id,
@@ -94,7 +117,8 @@ export class SendStoreMessageUseCase {
       storeCategory: merchant.storeCategory || "others",
       storeSettings,
       agentIdentity,
-      merchantPolicy
+      merchantPolicy,
+      advancedRules
     });
 
     // Persist conversation history (non-blocking, best-effort)
@@ -134,7 +158,8 @@ export class SendStoreMessageUseCase {
       message: result.message,
       blocks: result.blocks,
       cart_id: result.cartId,
-      conversation_id: input.conversation_id
+      conversation_id: input.conversation_id,
+      suggested_next: result.suggestedNext ?? []
     };
   }
 }
