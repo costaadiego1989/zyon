@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/index.js";
+import { showToast } from "../../components/Toast.js";
 
 export interface StoreSettingsState {
   company: CompanyForm;
@@ -159,7 +160,6 @@ export function useStoreSettingsPage() {
           ...(state.company.inscricaoEstadual && { inscricaoEstadual: state.company.inscricaoEstadual }),
           ...(state.company.email && { email: state.company.email }),
           ...(state.company.phone && { phone: state.company.phone }),
-          ...(state.businessHours.length && { businessHours: state.businessHours }),
           address: {
             street: state.company.street,
             number: state.company.number,
@@ -170,13 +170,16 @@ export function useStoreSettingsPage() {
             zip: state.company.zip,
           },
         },
+        businessHours: state.businessHours,
         policies: Object.fromEntries(Object.entries(state.policies).filter(([, v]) => v)),
       };
       await api.putStoreSettings(payload);
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
+      showToast("success", "Configurações salvas com sucesso");
     } catch (e) {
       const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : String(e);
       setState((p) => ({ ...p, saveResult: "error", saveError: msg, saving: false }));
+      showToast("error", msg || "Erro ao salvar configurações");
     }
   }
 

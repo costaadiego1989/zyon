@@ -34,7 +34,7 @@ export function StoreSettingsPage() {
         onTabChange={(k) => setActiveTab(k as "company" | "policies" | "social")}
       />
 
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginTop: 16 }}>
 
         {/* Content */}
         <div style={{ padding: "24px 22px", minHeight: 400 }}>

@@ -3,6 +3,7 @@ import { LogOut, ShieldCheck } from "lucide-react";
 import { PageErrorBoundary } from "./PageErrorBoundary.js";
 import { NAV_ITEMS, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
+import { ToastContainer } from "../components/Toast.js";
 import { FeatureGate } from "../components/FeatureGate.js";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
@@ -28,7 +29,7 @@ const CommerceConnectionsPage = lazy(() => import("../pages/commerce-connections
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
 const CategoriesPage = lazy(() => import("../pages/categories/index.js").then(m => ({ default: m.CategoriesPage })));
-const StoreSettingsPage = lazy(() => import("../pages/store-settings-page.js").then(m => ({ default: m.StoreSettingsPage })));
+const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
 const BillingPlansPage = lazy(() => import("../pages/billing-plans-page.js").then(m => ({ default: m.BillingPlansPage })));
 
@@ -186,12 +187,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               />
             ) : null}
             {tab === "categories" ? <CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "store-settings" ? <StoreSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "store-settings" ? <StoreSettingsPage /> : null}
             {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>
       </main>
+      <ToastContainer />
     </div>
   );
 }

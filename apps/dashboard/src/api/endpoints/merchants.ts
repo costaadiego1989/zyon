@@ -38,5 +38,9 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     putStoreSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
       return dashboardJson(base, "/merchants/me/store-settings", { method: "PUT", jsonBody: settings }, f);
     },
+
+    generatePolicy(type: string, company?: Record<string, unknown>): Promise<{ policy: string }> {
+      return dashboardJson(base, "/merchants/me/generate-policy", { method: "POST", jsonBody: { type, company } }, f);
+    },
   };
 }
