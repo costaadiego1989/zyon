@@ -36,6 +36,7 @@ interface StoreConfig {
   agentName?: string;
   agentGreeting?: string;
   quickReplies?: string[];
+  stories?: any[];
   storeCategory?: string;
   storeSettings?: {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
@@ -134,7 +135,7 @@ export default async function StorePage({
 
   // Try real API first, fallback to demo fixture
   const config = await fetchStoreConfig(slug);
-  const stories = await fetchStoreStories(slug);
+  const stories = config?.stories ?? await fetchStoreStories(slug);
   const merchant = config ? null : getDemoMerchant(slug);
 
   if (!config && !merchant) {
@@ -264,7 +265,7 @@ export default async function StorePage({
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
       <div className="storefront-shell">
         <WidgetConfigProvider merchantId={config?.merchantId}>
-          <CartProvider>
+          <CartProvider merchantId={config?.merchantId}>
             <ConversationShell
               storeName={name}
               logo={logo}

@@ -16,6 +16,7 @@ export interface CartState {
   itemCount: number;
   discount: number;
   total: number;
+  loading: boolean;
 }
 
 interface CartContextValue {
@@ -23,7 +24,8 @@ interface CartContextValue {
   updateFromBlocks: (blocks: any[]) => void;
 }
 
-const STORAGE_KEY = "zyon-storefront-cart";
+const STORAGE_KEY = "zyon-cart-id";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 const EMPTY_CART: CartState = {
   cartId: null,
@@ -31,23 +33,20 @@ const EMPTY_CART: CartState = {
   itemCount: 0,
   discount: 0,
   total: 0,
+  loading: false,
 };
 
-function loadFromSession(): CartState {
-  if (typeof window === "undefined") return EMPTY_CART;
+function getSavedCartId(): string | null {
+  if (typeof window === "undefined") return null;
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return EMPTY_CART;
-    const parsed = JSON.parse(raw) as CartState;
-    if (parsed.items?.length > 0) return parsed;
-  } catch { /* ignore */ }
-  return EMPTY_CART;
+    return sessionStorage.getItem(STORAGE_KEY);
+  } catch { return null; }
 }
 
-function saveToSession(cart: CartState): void {
+function saveCartId(cartId: string): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+    sessionStorage.setItem(STORAGE_KEY, cartId);
   } catch { /* quota/privacy */ }
 }
 
@@ -60,19 +59,55 @@ export function useCart(): CartContextValue {
   return useContext(CartContext);
 }
 
-export function CartProvider({ children }: { children: ReactNode }) {
+export function CartProvider({ children, merchantId }: { children: ReactNode; merchantId?: string }) {
   const [cart, setCart] = useState<CartState>(EMPTY_CART);
 
-  // Restore from sessionStorage on mount
+  // On mount: if cartId in sessionStorage, fetch full cart from API
   useEffect(() => {
-    const saved = loadFromSession();
-    if (saved.items.length > 0) setCart(saved);
-  }, []);
+    const savedId = getSavedCartId();
+    if (!savedId || !merchantId) return;
 
-  // Persist to sessionStorage on change
-  useEffect(() => {
-    if (cart.items.length > 0) saveToSession(cart);
-  }, [cart]);
+    setCart((prev) => ({ ...prev, cartId: savedId, loading: true }));
+
+    fetch(`${API_BASE}/storefront/conversations/_/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        merchant_id: merchantId,
+        user_message: "Ver carrinho",
+        history: [],
+      }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!data?.blocks) return;
+        const cartBlock = data.blocks.find(
+          (b: any) => b.type === "cart_summary" && b.data?.items?.length > 0
+        );
+        if (cartBlock) {
+          const { items, itemCount, total, discount, cartId } = cartBlock.data;
+          setCart({
+            cartId: cartId ?? savedId,
+            items: items.map((i: any) => ({
+              variantId: i.variantId,
+              productName: i.productName,
+              quantity: i.quantity,
+              price: i.price,
+              subtotal: i.subtotal,
+            })),
+            itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + i.quantity, 0),
+            discount: discount ?? 0,
+            total,
+            loading: false,
+          });
+        } else {
+          setCart((prev) => ({ ...prev, loading: false }));
+        }
+      })
+      .catch(() => {
+        setCart((prev) => ({ ...prev, loading: false }));
+      });
+  }, [merchantId]);
 
   const updateFromBlocks = useCallback((blocks: any[]) => {
     const cartBlock = blocks?.find(
@@ -81,9 +116,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (!cartBlock) return;
 
     const { items, itemCount, total, discount, cartId } = cartBlock.data;
+    const resolvedCartId = cartId ?? cart.cartId;
 
-    const newCart: CartState = {
-      cartId: cartId ?? cart.cartId,
+    if (resolvedCartId) saveCartId(resolvedCartId);
+
+    setCart({
+      cartId: resolvedCartId,
       items: items.map((i: any) => ({
         variantId: i.variantId,
         productName: i.productName,
@@ -94,9 +132,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
       itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + i.quantity, 0),
       discount: discount ?? 0,
       total,
-    };
-
-    setCart(newCart);
+      loading: false,
+    });
   }, [cart.cartId]);
 
   return (
