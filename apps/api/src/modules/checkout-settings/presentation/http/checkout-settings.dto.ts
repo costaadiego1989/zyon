@@ -17,10 +17,6 @@ import {
   ValidateNested,
 } from "class-validator";
 
-/**
- * CSS-H3: Dedicated DTO with bounds validation.
- * Ensures API rejects invalid input with 400, not 500 from entity validation.
- */
 
 class ProgressiveDiscountStagesDto {
   @ApiPropertyOptional({ minimum: 0, maximum: 100 })
@@ -216,4 +212,60 @@ export class CheckoutSettingsPatchDto {
   @ValidateNested()
   @Type(() => HandoffDto)
   handoff?: HandoffDto;
+}
+
+export class WidgetConfigDto {
+  @ApiProperty({ enum: ["silent_until_trigger", "proactive", "manual_only"] })
+  mode!: "silent_until_trigger" | "proactive" | "manual_only";
+
+  @ApiPropertyOptional({ enum: ["bottom_right", "bottom_left", "top_right", "top_left"] })
+  position?: string;
+
+  @ApiPropertyOptional()
+  fabColor?: string;
+
+  @ApiPropertyOptional()
+  inviteText?: string;
+
+  @ApiPropertyOptional()
+  presentationMode?: string;
+
+  @ApiPropertyOptional()
+  startMinimized?: boolean;
+
+  @ApiPropertyOptional({ minimum: 0 })
+  initialDelaySeconds?: number;
+
+  @ApiPropertyOptional()
+  showCartBadge?: boolean;
+
+  @ApiPropertyOptional()
+  fabClickAction?: string;
+
+  @ApiPropertyOptional()
+  fabRedirectUrl?: string;
+
+  @ApiProperty()
+  openWidgetOnTrigger!: boolean;
+
+  @ApiProperty({ type: [String] })
+  enabledTriggers!: string[];
+
+  @ApiProperty({ type: [String] })
+  suppressedSteps!: string[];
+
+  @ApiProperty({ type: [String] })
+  blockedRegions!: string[];
+
+  @ApiPropertyOptional({ minimum: 0 })
+  minimumCartValue?: number;
+
+  @ApiProperty()
+  handoffEnabled!: boolean;
+
+  @ApiProperty()
+  handoffMessage!: string;
+
+  @ApiProperty({ type: [String] })
+  handoffChannels!: string[];
 }

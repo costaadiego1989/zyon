@@ -10,11 +10,11 @@ import {
 } from "./application/checkout-settings.use-cases.js";
 import { CHECKOUT_SETTINGS_REPOSITORY } from "./domain/ports/checkout-settings-repository.port.js";
 import { PrismaCheckoutSettingsRepository } from "./infrastructure/prisma-checkout-settings.repository.js";
-import { CheckoutSettingsController } from "./presentation/http/checkout-settings.controller.js";
+import { CheckoutSettingsController, CheckoutSettingsPublicController } from "./presentation/http/checkout-settings.controller.js";
 
 @Module({
   imports: [TenantAccessModule],
-  controllers: [CheckoutSettingsController],
+  controllers: [CheckoutSettingsPublicController, CheckoutSettingsController],
   providers: [
     GetCheckoutSettingsUseCase,
     UpdateCheckoutSettingsUseCase,

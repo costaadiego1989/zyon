@@ -5,6 +5,7 @@ import {
   Headers,
   Post,
   Put,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -14,6 +15,7 @@ import {
   ApiBearerAuth,
   ApiCookieAuth,
   ApiOperation,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
@@ -22,6 +24,7 @@ import type { Response } from "express";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
 import { EntityTagService } from "../../../../shared/http/entity-tag.service.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
+import { PublicRoute } from "../../../../shared/tenant/tenant.guard.js";
 import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../integrations/presentation/http/tenant-credential.guard.js";
@@ -31,7 +34,63 @@ import {
   ResetCheckoutSettingsUseCase,
   UpdateCheckoutSettingsUseCase
 } from "../../application/checkout-settings.use-cases.js";
-import { CheckoutSettingsPatchDto } from "./checkout-settings.dto.js";
+import { CheckoutSettingsPatchDto, WidgetConfigDto } from "./checkout-settings.dto.js";
+
+/**
+ * Public controller for widget initialization.
+ * No auth guards — the widget runs on the buyer's browser.
+ */
+@ApiTags("Checkout configuration")
+@Controller("checkout-settings")
+export class CheckoutSettingsPublicController {
+  constructor(
+    private readonly getSettings: GetCheckoutSettingsUseCase,
+  ) {}
+
+  @ApiOperation({
+    summary: "Get widget config (public)",
+    description:
+      "Retrieve widget configuration for the storefront. Public endpoint (no auth required). Returns only widget-relevant settings for client-side initialization.",
+  })
+  @ApiQuery({
+    name: "merchantId",
+    description: "Merchant ID",
+    required: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Widget configuration retrieved",
+  })
+  @Get("widget-config")
+  @PublicRoute()
+  async getWidgetConfig(
+    @Query("merchantId") merchantId: string,
+  ): Promise<WidgetConfigDto> {
+    const settings = await this.getSettings.execute(merchantId);
+    return {
+      mode: settings.mode,
+      position: settings.widgetBehavior.position,
+      fabColor: settings.widgetBehavior.fabColor,
+      inviteText: settings.widgetBehavior.inviteText,
+      presentationMode: settings.widgetBehavior.presentationMode,
+      startMinimized: settings.widgetBehavior.startMinimized,
+      initialDelaySeconds: settings.widgetBehavior.initialDelaySeconds,
+      showCartBadge: settings.widgetBehavior.showCartBadge,
+      fabClickAction: settings.widgetBehavior.fabClickAction,
+      fabRedirectUrl: settings.widgetBehavior.fabRedirectUrl,
+      openWidgetOnTrigger: settings.widgetBehavior.openWidgetOnTrigger,
+      enabledTriggers: settings.triggerRules
+        .filter((rule) => rule.enabled)
+        .map((rule) => rule.trigger),
+      suppressedSteps: settings.suppressionRules.suppressedSteps,
+      blockedRegions: settings.suppressionRules.blockedRegions,
+      minimumCartValue: settings.suppressionRules.minimumCartValue,
+      handoffEnabled: settings.handoff.enabled,
+      handoffMessage: settings.handoff.message,
+      handoffChannels: settings.handoff.channels,
+    };
+  }
+}
 
 @ApiTags("Checkout configuration")
 @ApiBearerAuth("service_api_key")
