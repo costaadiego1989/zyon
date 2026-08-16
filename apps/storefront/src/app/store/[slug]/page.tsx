@@ -33,6 +33,7 @@ interface StoreConfig {
     borderColor?: string;
   };
   agentName?: string;
+  agentGreeting?: string;
   quickReplies?: string[];
   storeCategory?: string;
   storeSettings?: {
@@ -253,6 +254,7 @@ export default async function StorePage({
             logo={logo}
             returnOrderId={order}
             agentName={config?.agentName}
+            agentGreeting={config?.agentGreeting}
             quickReplies={config?.quickReplies}
             merchantId={config?.merchantId}
             storeSettings={config?.storeSettings}

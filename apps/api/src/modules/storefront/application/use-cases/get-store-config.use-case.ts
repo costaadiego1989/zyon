@@ -29,7 +29,7 @@ export interface StoreConfigOutput {
     borderColor?: string;
   };
   agentName?: string;
-  agentPersonality?: string;
+  agentGreeting?: string;
   quickReplies?: string[];
   storeCategory?: string;
   storeSettings?: Record<string, unknown>;
@@ -73,13 +73,15 @@ export class GetStoreConfigUseCase {
 
     // Read agent identity from agent_rules (source of truth for agent name)
     let agentName = theme?.agentName;
+    let agentGreeting: string | undefined;
     try {
       const agentRule = await this.prisma.agentRule.findFirst({
         where: { merchantId: row.id },
         select: { identity: true },
       });
-      const identity = agentRule?.identity as { agentName?: string } | null;
+      const identity = agentRule?.identity as { agentName?: string; greeting?: string } | null;
       if (identity?.agentName) agentName = identity.agentName;
+      if (identity?.greeting) agentGreeting = identity.greeting;
     } catch {}
 
     return {
@@ -101,7 +103,7 @@ export class GetStoreConfigUseCase {
         borderColor: theme?.borderColor,
       },
       agentName,
-      agentPersonality: undefined,
+      agentGreeting,
       quickReplies: ["Ver produtos", "Encontrar produto", "Ver categorias", "Promoções", "Rastrear pedido", "Meus dados"],
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,

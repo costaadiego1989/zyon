@@ -115,11 +115,13 @@ export default function ConversationShell({
   quickReplies,
   merchantId,
   storeSettings,
+  agentGreeting,
 }: {
   storeName: string;
   logo?: string;
   returnOrderId?: string;
   agentName?: string;
+  agentGreeting?: string;
   quickReplies?: string[];
   merchantId?: string;
   storeSettings?: {
@@ -140,6 +142,7 @@ export default function ConversationShell({
   const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [supportOpen, setSupportOpen] = useState(false);
   const [buyerHubOpen, setBuyerHubOpen] = useState(false);
+  const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const recognitionRef = useRef<any>(null);
   const agent = agentName || "Assistente";
@@ -454,25 +457,30 @@ export default function ConversationShell({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
 
-          <nav aria-label="Ações rápidas" style={{ display: "flex", gap: "4px" }}>
+          <nav aria-label="Ações rápidas" style={{ display: "flex", gap: "6px" }}>
             {storeSettings?.social?.instagram && (
-              <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="Instagram">
+              <a href={storeSettings.social.instagram} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="Instagram">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg>
               </a>
             )}
             {storeSettings?.social?.facebook && (
-              <a href={storeSettings.social.facebook} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="Facebook">
+              <a href={storeSettings.social.facebook} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="Facebook">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg>
               </a>
             )}
             {storeSettings?.social?.linkedin && (
-              <a href={storeSettings.social.linkedin} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="LinkedIn">
+              <a href={storeSettings.social.linkedin} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="LinkedIn">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6z" /><rect x="2" y="9" width="4" height="12" /><circle cx="4" cy="4" r="2" /></svg>
               </a>
             )}
             {storeSettings?.social?.youtube && (
-              <a href={storeSettings.social.youtube} target="_blank" rel="noopener noreferrer" style={{ width: "28px", height: "28px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none" }} title="YouTube">
+              <a href={storeSettings.social.youtube} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="YouTube">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19.13C5.12 19.56 12 19.56 12 19.56s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.43z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" /></svg>
+              </a>
+            )}
+            {storeSettings?.social?.googleMaps && (
+              <a href={storeSettings.social.googleMaps} target="_blank" rel="noopener noreferrer" style={{ width: "32px", height: "32px", borderRadius: "50%", background: "rgba(255,255,255,0.1)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)", flex: "none", transition: "background 0.15s" }} title="Google Maps">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
               </a>
             )}
           </nav>
@@ -538,8 +546,8 @@ export default function ConversationShell({
                 <PulseAgentOrb size={72} />
                 <div style={{ marginTop: "8px", maxWidth: "100%", width: "100%" }}>
                   <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
-                  <div style={{ fontSize: "13.5px", color: "var(--aacp-muted)", marginTop: "10px", lineHeight: 1.6, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)" }}>
-                    A partir de agora serei sua vendedora particular e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra de forma bem fluida e fácil. Vamos começar!
+                  <div style={{ fontSize: "13.5px", color: "var(--aacp-muted)", marginTop: "10px", lineHeight: 1.6, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
+                    {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
                   </div>
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginTop: "18px" }}>
                     Selecione uma opção abaixo ou digite algo
@@ -666,15 +674,41 @@ export default function ConversationShell({
           <span style={{ fontSize: "9px", color: "var(--aacp-muted)", fontFamily: "'Space Mono', monospace", letterSpacing: "0.5px" }}>
             {storeSettings.company.razaoSocial && `${storeSettings.company.razaoSocial} · `}CNPJ {storeSettings.company.cnpj}
           </span>
-          {storeSettings.policies?.privacy && (
-            <a href={storeSettings.policies.privacy.startsWith("http") ? storeSettings.policies.privacy : "#"} target="_blank" rel="noopener noreferrer" style={{ fontSize: "9px", color: "var(--aacp-muted)", textDecoration: "none" }}>Privacidade</a>
+          {storeSettings?.policies?.privacy && (
+            <button type="button" onClick={() => setPolicyModal({ title: "Política de Privacidade", content: storeSettings.policies!.privacy || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Privacidade</button>
           )}
-          {storeSettings.policies?.returns && (
-            <a href={storeSettings.policies.returns.startsWith("http") ? storeSettings.policies.returns : "#"} target="_blank" rel="noopener noreferrer" style={{ fontSize: "9px", color: "var(--aacp-muted)", textDecoration: "none" }}>Devoluções</a>
+          {storeSettings?.policies?.returns && (
+            <button type="button" onClick={() => setPolicyModal({ title: "Trocas e Devoluções", content: storeSettings.policies!.returns || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Devoluções</button>
           )}
-          {storeSettings.policies?.terms && (
-            <a href={storeSettings.policies.terms.startsWith("http") ? storeSettings.policies.terms : "#"} target="_blank" rel="noopener noreferrer" style={{ fontSize: "9px", color: "var(--aacp-muted)", textDecoration: "none" }}>Termos</a>
+          {storeSettings?.policies?.terms && (
+            <button type="button" onClick={() => setPolicyModal({ title: "Termos de Uso", content: storeSettings.policies!.terms || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Termos</button>
           )}
+          {storeSettings?.policies?.shipping && (
+            <button type="button" onClick={() => setPolicyModal({ title: "Política de Envio", content: storeSettings.policies!.shipping || "" })} style={{ fontSize: "9px", color: "var(--aacp-muted)", background: "transparent", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>Envio</button>
+          )}
+        </div>
+      )}
+
+      {/* Policy Modal */}
+      {policyModal && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }} onClick={() => setPolicyModal(null)}>
+          <div style={{ background: "var(--aacp-panel-bg)", borderRadius: "16px", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
+              <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "var(--aacp-fg)" }}>{policyModal.title}</h2>
+              <button type="button" onClick={() => setPolicyModal(null)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-muted)" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px", color: "var(--aacp-fg)", fontSize: "13px", lineHeight: 1.6 }}>
+              {policyModal.content ? (
+                <div dangerouslySetInnerHTML={{ __html: policyModal.content }} style={{ wordWrap: "break-word" }} />
+              ) : (
+                <p style={{ color: "var(--aacp-muted)" }}>Política não configurada</p>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
