@@ -6,12 +6,14 @@ import { CartFAB, CartSheet } from "@zyon/checkout-ui";
 
 interface NativeCartPanelProps {
   onCheckout: () => void;
+  onViewCart: () => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
 }
 
 export default function NativeCartPanel({
   onCheckout,
+  onViewCart,
   onUpdateQty,
   onRemoveItem,
 }: NativeCartPanelProps) {
@@ -39,6 +41,10 @@ export default function NativeCartPanel({
         onCheckout={() => {
           setSheetOpen(false);
           onCheckout();
+        }}
+        onViewCart={() => {
+          setSheetOpen(false);
+          onViewCart();
         }}
         onUpdateQty={onUpdateQty}
         onRemoveItem={onRemoveItem}

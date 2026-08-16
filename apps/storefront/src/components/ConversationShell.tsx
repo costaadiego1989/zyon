@@ -235,6 +235,29 @@ export default function ConversationShell({
     return cleanup;
   }, [merchantId, conversationId, widgetConfig]);
 
+  // Proactive mode: auto-send nudge after initialDelaySeconds without waiting for trigger
+  useEffect(() => {
+    if (!widgetConfig) return;
+    if (widgetConfig.mode !== "proactive") return;
+    const delaySec = widgetConfig.initialDelaySeconds ?? 4;
+    const delayMs = delaySec * 1000;
+
+    const timer = setTimeout(() => {
+      if (getInterventionCount(merchantId || "") >= (widgetConfig.maxInterventionsPerSession ?? 3)) return;
+      incrementIntervention(merchantId || "");
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `proactive-${Date.now()}`,
+          role: "agent" as const,
+          text: "Oi! Vi que você está por aqui. Posso ajudar a encontrar algo ou tirar alguma dúvida?",
+        },
+      ]);
+    }, delayMs);
+
+    return () => clearTimeout(timer);
+  }, [widgetConfig, merchantId]);
+
   const trackedOrderRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!returnOrderId) return;
@@ -763,10 +786,11 @@ export default function ConversationShell({
         </>
       )}
 
-      {/* Native Cart — FAB + CartSheet, no iframe */}
+      {/* Native Cart — FAB + lateral drawer, no iframe */}
       {mode === "chat" && (
         <CheckoutWidgetPanel
           onCheckout={() => handleQuickReply("Finalizar Compra")}
+          onViewCart={() => handleQuickReply("Ver carrinho")}
           onUpdateQty={(variantId, qty) => handleQuickReply(`Atualizar quantidade do item ${variantId} para ${qty}`)}
           onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
         />
