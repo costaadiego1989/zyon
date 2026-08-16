@@ -394,49 +394,116 @@ export class SendChatMessageUseCase {
       { role: "user" as const, content: userMessage },
     ];
 
-    // Try Llama first, fallback to DeepSeek
-    const providers = [
-      { url: `${baseUrl}/chat/completions`, key: "ollama", model },
-      ...(process.env.DEEPSEEK_API_KEY ? [{ url: `${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"}/chat/completions`, key: process.env.DEEPSEEK_API_KEY, model: process.env.DEEPSEEK_MODEL || "deepseek-chat" }] : []),
-    ];
+    // Try Llama first
+    const llamaResult = await this.callProvider(
+      `${baseUrl}/chat/completions`, "ollama", model, messages, tools
+    );
 
-    for (const provider of providers) {
-      try {
-        const res = await fetch(provider.url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.key}` },
-          body: JSON.stringify({ model: provider.model, messages, tools, max_tokens: 300, temperature: 0.3 }),
-        });
-        if (!res.ok) throw new Error(`http_${res.status}`);
-        const json = await res.json() as any;
-        const choice = json.choices?.[0];
+    if (llamaResult) {
+      // Validate: check if tool call matches what rules expect
+      const isValid = this.validateToolCallAgainstRules(llamaResult.toolCalls, merchantRules, userMessage);
+      if (isValid) {
+        return { message: llamaResult.message, objection: "unknown" as any };
+      }
+      // Llama confused — rollback and try DeepSeek
+      console.log("[CHECKOUT] Llama tool-call didn't match rules, falling back to DeepSeek");
+    }
 
-        // Handle tool calls
-        if (choice?.message?.tool_calls?.length) {
-          const toolResults: string[] = [];
-          for (const tc of choice.message.tool_calls) {
-            const fn = tc.function?.name;
-            const args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments ?? {};
-            if (fn === "apply_discount") toolResults.push(`✅ Desconto de ${args.percent}% aplicado no carrinho`);
-            if (fn === "apply_free_shipping") toolResults.push(`✅ Frete grátis aplicado`);
-            if (fn === "apply_coupon") toolResults.push(`✅ Cupom ${args.code} aplicado`);
-          }
-          const textContent = choice.message.content?.trim() || "";
-          const finalMsg = toolResults.length > 0
-            ? `${textContent ? textContent + " " : ""}${toolResults.join(". ")}`
-            : textContent || "Benefício aplicado ao seu pedido!";
-          return { message: finalMsg, objection: "unknown" as any };
-        }
-
-        // No tool call — just text response
-        const content = choice?.message?.content?.trim();
-        if (content) return { message: content, objection: "unknown" as any };
-      } catch {
-        continue; // try next provider
+    // Fallback: DeepSeek (more intelligent, better tool-calling)
+    const cloudKey = process.env.DEEPSEEK_API_KEY;
+    if (cloudKey) {
+      const deepseekResult = await this.callProvider(
+        `${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"}/chat/completions`,
+        cloudKey,
+        process.env.DEEPSEEK_MODEL || "deepseek-chat",
+        messages,
+        tools
+      );
+      if (deepseekResult) {
+        return { message: deepseekResult.message, objection: "unknown" as any };
       }
     }
 
     return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+  }
+
+  private async callProvider(
+    url: string, key: string, model: string,
+    messages: Array<{ role: string; content: string }>,
+    tools: Array<{ type: string; function: { name: string; description: string; parameters: object } }>
+  ): Promise<{ message: string; toolCalls: Array<{ name: string; args: Record<string, any> }> } | null> {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, messages, tools, max_tokens: 300, temperature: 0.3 }),
+      });
+      if (!res.ok) throw new Error(`http_${res.status}`);
+      const json = await res.json() as any;
+      const choice = json.choices?.[0];
+
+      if (choice?.message?.tool_calls?.length) {
+        const toolCalls: Array<{ name: string; args: Record<string, any> }> = [];
+        const toolResults: string[] = [];
+        for (const tc of choice.message.tool_calls) {
+          const fn = tc.function?.name;
+          const args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments ?? {};
+          toolCalls.push({ name: fn, args });
+          if (fn === "apply_discount") toolResults.push(`✅ Desconto de ${args.percent}% aplicado no carrinho`);
+          if (fn === "apply_free_shipping") toolResults.push(`✅ Frete grátis aplicado`);
+          if (fn === "apply_coupon") toolResults.push(`✅ Cupom ${args.code} aplicado`);
+        }
+        const textContent = choice.message.content?.trim() || "";
+        const finalMsg = toolResults.length > 0
+          ? `${textContent ? textContent + " " : ""}${toolResults.join(". ")}`
+          : textContent || "Benefício aplicado ao seu pedido!";
+        return { message: finalMsg, toolCalls };
+      }
+
+      const content = choice?.message?.content?.trim();
+      if (content) return { message: content, toolCalls: [] };
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Validate that the LLM's tool calls match what the merchant rules expect.
+   * If rules say "cupom PROMO15" but LLM called "apply_free_shipping" → invalid.
+   */
+  private validateToolCallAgainstRules(
+    toolCalls: Array<{ name: string; args: Record<string, any> }>,
+    merchantRules: string[],
+    userMessage: string
+  ): boolean {
+    if (toolCalls.length === 0) return true; // no tool call = text-only response, OK
+
+    const rulesText = merchantRules.join(" ").toLowerCase();
+    const msg = userMessage.toLowerCase();
+
+    for (const tc of toolCalls) {
+      if (tc.name === "apply_coupon") {
+        // Rule must mention "cupom" for this to be valid
+        if (!rulesText.includes("cupom")) return false;
+      }
+      if (tc.name === "apply_free_shipping") {
+        // Rule must mention "frete grátis" or "frete gratis"
+        if (!rulesText.includes("frete gr")) return false;
+      }
+      if (tc.name === "apply_discount") {
+        // Rule must mention "desconto" or percentage
+        if (!rulesText.includes("desconto") && !rulesText.includes("%")) return false;
+      }
+    }
+
+    // Cross-check: if message mentions "cupom" and rules have coupon, but LLM called free_shipping → wrong
+    if (msg.includes("cupom") && rulesText.includes("cupom")) {
+      const calledCoupon = toolCalls.some(tc => tc.name === "apply_coupon");
+      if (!calledCoupon) return false; // should have called coupon, didn't
+    }
+
+    return true;
   }
 }
 
