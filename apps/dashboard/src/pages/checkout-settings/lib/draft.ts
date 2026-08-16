@@ -5,7 +5,8 @@ import type {
   CheckoutTriggerName,
   CheckoutWidgetPosition,
 } from "@zyon/shared-types";
-import { ALL_TRIGGERS } from "./constants.js";
+import { ALL_TRIGGERS, PROGRESSIVE_PRESETS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
+import type { ProgressiveLevel } from "./constants.js";
 
 export interface Draft {
   mode: CheckoutSettingsMode;
@@ -16,15 +17,19 @@ export interface Draft {
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
   maxInterventionsPerSession: number;
-  triggers: Record<CheckoutTriggerName, { enabled: boolean; priority: number }>;
+  triggers: Record<CheckoutTriggerName, { enabled: boolean }>;
   suppressAfterOfferAccepted: boolean;
   respectBuyerOptOut: boolean;
   minimumCartValue: number;
-  suppressedSteps: string[];
-  blockedRegions: string[];
-  handoffEnabled: boolean;
-  handoffMessage: string;
-  handoffChannels: Array<"email" | "whatsapp" | "chat">;
+  progressiveDiscountEnabled: boolean;
+  progressiveLevel: ProgressiveLevel;
+  progressiveInitialCouponPercent: number;
+  progressiveExitIntentPercent: number;
+  progressiveAbandonedCartPercent: number;
+  progressivePaymentNudgePercent: number;
+  fabColor: string;
+  inviteText: string;
+  showCartBadge: boolean;
 }
 
 export const DEFAULT_DRAFT: Draft = {
@@ -37,30 +42,65 @@ export const DEFAULT_DRAFT: Draft = {
   cooldownSeconds: 90,
   maxInterventionsPerSession: 3,
   triggers: {
-    shipping_objection_detected: { enabled: true, priority: 70 },
-    coupon_field_clicked: { enabled: true, priority: 60 },
-    payment_failed: { enabled: true, priority: 90 },
-    exit_intent_detected: { enabled: true, priority: 50 },
-    idle_30_seconds: { enabled: false, priority: 30 },
+    shipping_objection_detected: { enabled: true },
+    coupon_field_clicked: { enabled: true },
+    payment_failed: { enabled: true },
+    exit_intent_detected: { enabled: true },
+    idle_30_seconds: { enabled: false },
   },
   suppressAfterOfferAccepted: true,
   respectBuyerOptOut: true,
   minimumCartValue: 0,
-  suppressedSteps: [],
-  blockedRegions: [],
-  handoffEnabled: false,
-  handoffMessage:
-    "Vou transferir você para um atendente humano. Um momento, por favor.",
-  handoffChannels: ["chat"],
+  progressiveDiscountEnabled: false,
+  progressiveLevel: "moderate",
+  progressiveInitialCouponPercent: 7,
+  progressiveExitIntentPercent: 10,
+  progressiveAbandonedCartPercent: 15,
+  progressivePaymentNudgePercent: 7,
+  fabColor: "#3b82f6",
+  inviteText: "Posso ajudar?",
+  showCartBadge: true,
 };
+
+function inferProgressiveLevel(stages: {
+  initial_coupon: number;
+  exit_intent: number;
+  abandoned_cart: number;
+  payment_nudge: number;
+}): ProgressiveLevel {
+  let best: ProgressiveLevel = "moderate";
+  let bestDiff = Infinity;
+  for (const [key, preset] of Object.entries(PROGRESSIVE_PRESETS) as [
+    ProgressiveLevel,
+    typeof PROGRESSIVE_PRESETS["conservative"],
+  ][]) {
+    const diff =
+      Math.abs(stages.initial_coupon - preset.initial_coupon) +
+      Math.abs(stages.exit_intent - preset.exit_intent) +
+      Math.abs(stages.abandoned_cart - preset.abandoned_cart) +
+      Math.abs(stages.payment_nudge - preset.payment_nudge);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = key;
+    }
+  }
+  return best;
+}
 
 export function settingsToDraft(s: CheckoutSettings): Draft {
   const triggers = Object.fromEntries(
     ALL_TRIGGERS.map((t) => {
       const rule = s.triggerRules.find((r) => r.trigger === t);
-      return [t, { enabled: rule?.enabled ?? false, priority: rule?.priority ?? 50 }];
+      return [t, { enabled: rule?.enabled ?? false }];
     })
   ) as Draft["triggers"];
+
+  const stages = s.interventionPolicy.progressiveDiscount?.stages ?? {
+    initial_coupon: 5,
+    exit_intent: 7,
+    abandoned_cart: 10,
+    payment_nudge: 5,
+  };
 
   return {
     mode: s.mode,
@@ -75,46 +115,58 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     suppressAfterOfferAccepted: s.suppressionRules.suppressAfterOfferAccepted,
     respectBuyerOptOut: s.suppressionRules.respectBuyerOptOut,
     minimumCartValue: s.suppressionRules.minimumCartValue ?? 0,
-    suppressedSteps: s.suppressionRules.suppressedSteps,
-    blockedRegions: s.suppressionRules.blockedRegions,
-    handoffEnabled: s.handoff.enabled,
-    handoffMessage: s.handoff.message,
-    handoffChannels: s.handoff.channels,
+    progressiveDiscountEnabled: s.interventionPolicy.progressiveDiscount?.enabled ?? false,
+    progressiveLevel: inferProgressiveLevel(stages),
+    progressiveInitialCouponPercent: stages.initial_coupon,
+    progressiveExitIntentPercent: stages.exit_intent,
+    progressiveAbandonedCartPercent: stages.abandoned_cart,
+    progressivePaymentNudgePercent: stages.payment_nudge,
+    fabColor: s.widgetBehavior.fabColor ?? "#3b82f6",
+    inviteText: s.widgetBehavior.inviteText ?? "Posso ajudar?",
+    showCartBadge: s.widgetBehavior.showCartBadge !== false,
   };
 }
 
 export function draftToPatch(d: Draft): CheckoutSettingsPatch {
+  const stages = {
+    initial_coupon: d.progressiveInitialCouponPercent,
+    exit_intent: d.progressiveExitIntentPercent,
+    abandoned_cart: d.progressiveAbandonedCartPercent,
+    payment_nudge: d.progressivePaymentNudgePercent,
+  };
   return {
     mode: d.mode,
-    widgetBehavior: {
-      openWidgetOnTrigger: d.openWidgetOnTrigger,
-      startMinimized: d.startMinimized,
-      position: d.position,
-      initialDelaySeconds: d.initialDelaySeconds,
-    },
     interventionPolicy: {
       minimumAbandonmentScore: d.minimumAbandonmentScore,
       cooldownSeconds: d.cooldownSeconds,
       maxInterventionsPerSession: d.maxInterventionsPerSession,
+      progressiveDiscount: {
+        enabled: d.progressiveDiscountEnabled,
+        stages,
+      },
     },
     triggerRules: ALL_TRIGGERS.map((t) => ({
       trigger: t,
       enabled: d.triggers[t].enabled,
-      priority: d.triggers[t].priority,
+      priority: TRIGGER_FIXED_PRIORITIES[t],
     })),
     suppressionRules: {
       suppressAfterOfferAccepted: d.suppressAfterOfferAccepted,
       respectBuyerOptOut: d.respectBuyerOptOut,
       minimumCartValue: d.minimumCartValue > 0 ? d.minimumCartValue : undefined,
-      suppressedSteps: d.suppressedSteps,
-      blockedRegions: d.blockedRegions,
     },
-    handoff: {
-      enabled: d.handoffEnabled,
-      message: d.handoffMessage,
-      channels: d.handoffChannels,
+    widgetBehavior: {
+      openWidgetOnTrigger: d.openWidgetOnTrigger,
+      startMinimized: d.startMinimized,
+      position: d.position,
+      initialDelaySeconds: d.initialDelaySeconds,
+      fabColor: d.fabColor,
+      inviteText: d.inviteText,
+      showCartBadge: d.showCartBadge,
+      fabClickAction: "open_widget",
+      fabRedirectUrl: "",
     },
-  };
+  } as CheckoutSettingsPatch;
 }
 
 export function draftsEqual(a: Draft, b: Draft): boolean {

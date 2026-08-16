@@ -1,5 +1,29 @@
 import type { CheckoutTriggerName, CheckoutSettingsMode } from "@zyon/shared-types";
 
+export const TRIGGER_LABELS: Record<CheckoutTriggerName, string> = {
+  shipping_objection_detected: "Frete alto",
+  coupon_field_clicked: "Busca cupom",
+  payment_failed: "Pagamento falhou",
+  exit_intent_detected: "Tentativa de sair",
+  idle_30_seconds: "Inatividade",
+};
+
+export const TRIGGER_HELP: Record<CheckoutTriggerName, string> = {
+  shipping_objection_detected: "Comprador reclama do frete → agente oferece subsídio de frete",
+  coupon_field_clicked: "Comprador abre campo de cupom → agente sugere cupom disponível",
+  payment_failed: "Pagamento recusado → agente sugere método alternativo",
+  exit_intent_detected: "Cursor sai da página → agente pergunta se pode ajudar",
+  idle_30_seconds: "30s sem interação → agente oferece ajuda proativa",
+};
+
+export const TRIGGER_STATUS: Record<CheckoutTriggerName, "active" | "soon"> = {
+  exit_intent_detected: "active",
+  idle_30_seconds: "active",
+  shipping_objection_detected: "soon",
+  coupon_field_clicked: "soon",
+  payment_failed: "soon",
+};
+
 export const ALL_TRIGGERS: CheckoutTriggerName[] = [
   "shipping_objection_detected",
   "coupon_field_clicked",
@@ -8,57 +32,50 @@ export const ALL_TRIGGERS: CheckoutTriggerName[] = [
   "idle_30_seconds",
 ];
 
-export const TRIGGER_LABELS: Record<CheckoutTriggerName, string> = {
-  shipping_objection_detected: "Objeção de frete",
-  coupon_field_clicked: "Campo de cupom clicado",
-  payment_failed: "Pagamento falhou",
-  exit_intent_detected: "Intenção de saída detectada",
-  idle_30_seconds: "30s sem interação",
+export const TRIGGER_FIXED_PRIORITIES: Record<CheckoutTriggerName, number> = {
+  shipping_objection_detected: 100,
+  payment_failed: 90,
+  coupon_field_clicked: 80,
+  exit_intent_detected: 70,
+  idle_30_seconds: 60,
 };
 
-export const TRIGGER_HELP: Record<CheckoutTriggerName, string> = {
-  shipping_objection_detected: "Comprador hesita no custo ou prazo de entrega.",
-  coupon_field_clicked: "Comprador procura por um cupom de desconto.",
-  payment_failed: "A tentativa de pagamento foi recusada ou expirou.",
-  exit_intent_detected: "O cursor indica intenção de sair da página.",
-  idle_30_seconds: "Nenhuma interação por 30 segundos seguidos.",
-};
+export const PROGRESSIVE_PRESETS = {
+  conservative: { initial_coupon: 5, exit_intent: 7, abandoned_cart: 10, payment_nudge: 5 },
+  moderate: { initial_coupon: 7, exit_intent: 10, abandoned_cart: 15, payment_nudge: 7 },
+  aggressive: { initial_coupon: 10, exit_intent: 15, abandoned_cart: 20, payment_nudge: 10 },
+} as const;
 
-export const MODE_OPTIONS: {
+export type ProgressiveLevel = "conservative" | "moderate" | "aggressive";
+
+export interface ModeOption {
   value: CheckoutSettingsMode;
   label: string;
   desc: string;
+  iconName: "Radio" | "Eye" | "EyeOff";
   isDefault: boolean;
-}[] = [
+}
+
+export const MODE_OPTIONS: ModeOption[] = [
   {
     value: "silent_until_trigger",
-    label: "Silencioso até o gatilho",
-    desc: "Aguarda um gatilho antes de agir. Recomendado para a maioria dos casos.",
+    label: "Esperar sinal",
+    desc: "Agente espera um sinal do comprador para agir",
+    iconName: "Radio",
     isDefault: true,
   },
   {
     value: "proactive",
-    label: "Proativo",
-    desc: "Inicia a conversa automaticamente após o atraso inicial configurado.",
+    label: "Iniciar sozinho",
+    desc: "Agente inicia contato quando identifica oportunidade",
+    iconName: "Eye",
     isDefault: false,
   },
   {
     value: "manual_only",
-    label: "Somente manual",
-    desc: "O comprador abre o widget manualmente. Sem intervenções automáticas.",
+    label: "Só manual",
+    desc: "Agente só responde quando chamado",
+    iconName: "EyeOff",
     isDefault: false,
   },
 ];
-
-export const ALLOWED_SUPPRESSED_STEPS = [
-  "payment",
-  "review",
-  "shipping",
-  "identification",
-] as const;
-
-export const BRAZILIAN_UF_CODES = [
-  "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO",
-  "MA", "MG", "MS", "MT", "PA", "PB", "PE", "PI", "PR",
-  "RJ", "RN", "RO", "RR", "RS", "SC", "SE", "SP", "TO",
-] as const;
