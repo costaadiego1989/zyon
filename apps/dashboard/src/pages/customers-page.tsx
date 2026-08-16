@@ -41,15 +41,18 @@ function text(value: unknown): string {
 
 export function toCustomerRows(customers: TenantCustomer[]): CustomerRow[] {
   return customers.map((customer) => {
-    const name = text(customer.profile.full_name);
+    const rawName = typeof customer.profile.full_name === "string" && customer.profile.full_name ? customer.profile.full_name : "";
+    const rawEmail = typeof customer.profile.email === "string" && customer.profile.email ? customer.profile.email : "";
+    const rawPhone = typeof customer.profile.phone === "string" && customer.profile.phone ? customer.profile.phone : "";
+    const name = rawName || "Cliente sem nome";
     return {
       globalUserId: customer.id,
       name,
-      email: text(customer.profile.email),
-      phone: text(customer.profile.phone),
+      email: rawEmail || "email@exemplo.com",
+      phone: rawPhone || "(00) 00000-0000",
       firstSeen: customer.first_seen_at,
       lastSeen: customer.last_seen_at,
-      initials: getInitials(name),
+      initials: getInitials(rawName || name),
     };
   });
 }
