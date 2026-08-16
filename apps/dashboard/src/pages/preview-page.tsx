@@ -75,7 +75,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
     (props.me as unknown as { storeSettings?: { slug?: string } }).storeSettings?.slug ||
     props.me.id;
   const storefrontBase =
-    process.env.NEXT_PUBLIC_STOREFRONT_URL || "http://localhost:3001";
+    (import.meta as any).env?.VITE_STOREFRONT_URL || "http://localhost:3001";
   const storefrontUrl = `${storefrontBase}/store/${encodeURIComponent(merchantSlug)}`;
 
   const handleTokenIssued = useCallback((expiresAtUnix: number) => {
