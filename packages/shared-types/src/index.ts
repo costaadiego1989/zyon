@@ -748,6 +748,7 @@ export interface CheckoutWidgetBehavior {
   showCartBadge?: boolean;
   fabClickAction?: CheckoutFabClickAction;
   fabRedirectUrl?: string;
+  cartPresentationMode?: "floating" | "page" | "redirect";
 }
 
 export interface CheckoutInterventionPolicy {
@@ -1073,4 +1074,14 @@ export interface AdvancedRule {
   action: RuleAction;
   enabled: boolean;
   priority: number;
+}
+
+// ── OAuth ───────────────────────────────────────────────────────────────────
+
+export type OAuthProvider = "github" | "google";
+
+export interface OAuthCallbackPayload {
+  provider: OAuthProvider;
+  code: string;
+  state: string;
 }

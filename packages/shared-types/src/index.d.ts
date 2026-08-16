@@ -177,6 +177,8 @@ export interface AgentContext {
 }
 export type CheckoutSettingsMode = "silent_until_trigger" | "proactive" | "manual_only";
 export type CheckoutWidgetPosition = "bottom_right" | "bottom_left";
+export type CheckoutWidgetPresentationMode = "fab" | "mini_card" | "bottom_banner" | "trigger_only" | "inline";
+export type CheckoutFabClickAction = "open_widget" | "redirect_to_cart" | "open_new_tab";
 export type CheckoutTriggerName = "shipping_objection_detected" | "coupon_field_clicked" | "payment_failed" | "exit_intent_detected" | "idle_30_seconds";
 export type ProgressiveDiscountStage = "initial_coupon" | "exit_intent" | "abandoned_cart" | "payment_nudge";
 export interface ProgressiveDiscountPolicy {
@@ -192,6 +194,13 @@ export interface CheckoutWidgetBehavior {
     startMinimized: boolean;
     position: CheckoutWidgetPosition;
     initialDelaySeconds: number;
+    presentationMode?: CheckoutWidgetPresentationMode;
+    showCartBadge?: boolean;
+    inviteText?: string;
+    fabColor?: string;
+    fabClickAction?: CheckoutFabClickAction;
+    fabRedirectUrl?: string;
+    cartPresentationMode?: "floating" | "page" | "redirect";
 }
 export interface CheckoutInterventionPolicy {
     minimumAbandonmentScore: number;

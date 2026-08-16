@@ -111,6 +111,11 @@ class WidgetBehaviorDto {
   @IsNumber()
   @Min(0)
   initialDelaySeconds?: number;
+
+  @ApiPropertyOptional({ enum: ["floating", "page", "redirect"] })
+  @IsOptional()
+  @IsIn(["floating", "page", "redirect"])
+  cartPresentationMode?: string;
 }
 
 class TriggerRuleDto {
@@ -251,6 +256,9 @@ export class WidgetConfigDto {
 
   @ApiPropertyOptional()
   fabRedirectUrl?: string;
+
+  @ApiPropertyOptional({ enum: ["floating", "page", "redirect"] })
+  cartPresentationMode?: string;
 
   @ApiProperty()
   openWidgetOnTrigger!: boolean;

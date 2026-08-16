@@ -11,6 +11,7 @@ export interface WidgetConfig {
   fabColor?: string;
   inviteText?: string;
   presentationMode?: "fab" | "banner" | "inline";
+  cartPresentationMode?: "floating" | "page" | "redirect";
   startMinimized?: boolean;
   initialDelaySeconds?: number;
   showCartBadge?: boolean;

@@ -66,7 +66,8 @@ export class CheckoutSettingsEntity {
         showCartBadge: true,
         inviteText: "Posso ajudar?",
         fabClickAction: "open_widget",
-        fabRedirectUrl: ""
+        fabRedirectUrl: "",
+        cartPresentationMode: "floating"
       },
       interventionPolicy: {
         minimumAbandonmentScore: 0.7,
