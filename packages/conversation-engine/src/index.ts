@@ -81,6 +81,7 @@ export interface ConversationInput {
     freeShippingMinCartValue?: number;
     maxPartialShippingDiscount?: number;
   };
+  merchantRules?: string[];
   fetchFn?: typeof fetch;
 }
 
@@ -261,6 +262,11 @@ function systemPrompt(input: ConversationInput, objection: Objection): string {
     if (!sp.allowShippingDiscount) shippingRules.push("NÃO ofereça desconto no frete.");
     else if (sp.maxPartialShippingDiscount) shippingRules.push(`Desconto máximo no frete: ${sp.maxPartialShippingDiscount}%.`);
     if (shippingRules.length) lines.push("Política de frete do merchant: " + shippingRules.join(" "));
+  }
+  if (input.merchantRules?.length) {
+    lines.push("");
+    lines.push("REGRAS COMERCIAIS DO MERCHANT (siga durante o checkout — primeira que encaixar é a que vale):");
+    input.merchantRules.forEach((r, i) => lines.push(`${i + 1}. ${r}`));
   }
   lines.push(
     "Regras rígidas: " +
