@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
 import { TabBar } from "../components/TabBar.js";
+import { showToast } from "../components/Toast.js";
 import type { StageQuickReplies, AgentTone } from "@zyon/shared-types";
 
 const TONE_PT_TO_EN: Record<string, AgentTone> = {
@@ -157,9 +158,11 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
       await api.putAgentRules(agentRulesPatch as never);
 
       setSaveResult("success");
+      showToast("success", "Configurações do agente salvas com sucesso");
     } catch (e) {
       setSaveResult("error");
       setSaveError(e instanceof Error ? e.message : String(e));
+      showToast("error", "Erro ao salvar configurações do agente");
     } finally {
       setSaving(false);
     }
