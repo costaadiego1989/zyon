@@ -120,21 +120,25 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                 <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>FRETE</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Opções de frete grátis e desconto parcial no envio.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input type="checkbox" checked={vm.form.allowFreeShipping} onChange={(e) => vm.patch({ allowFreeShipping: e.target.checked })} style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }} />
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                    <span onClick={() => vm.patch({ allowFreeShipping: !vm.form.allowFreeShipping })} style={{ width: 36, height: 20, borderRadius: 10, background: vm.form.allowFreeShipping ? "var(--accent)" : "oklch(30% 0.006 145)", position: "relative", cursor: "pointer", transition: "background 150ms", flexShrink: 0 }}>
+                      <span style={{ position: "absolute", top: 2, left: vm.form.allowFreeShipping ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 150ms", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                    </span>
                     <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir frete grátis</span>
                   </label>
                   {vm.form.allowFreeShipping && (
-                    <div style={{ paddingLeft: 22, maxWidth: 280 }}>
+                    <div style={{ paddingLeft: 46, maxWidth: 280 }}>
                       <NumberField label="Valor mínimo carrinho para frete grátis (R$)" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: v })} error={vm.errors.freeShippingMinCartValue} />
                     </div>
                   )}
-                  <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input type="checkbox" checked={vm.form.allowShippingDiscount} onChange={(e) => vm.patch({ allowShippingDiscount: e.target.checked })} style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }} />
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                    <span onClick={() => vm.patch({ allowShippingDiscount: !vm.form.allowShippingDiscount })} style={{ width: 36, height: 20, borderRadius: 10, background: vm.form.allowShippingDiscount ? "var(--accent)" : "oklch(30% 0.006 145)", position: "relative", cursor: "pointer", transition: "background 150ms", flexShrink: 0 }}>
+                      <span style={{ position: "absolute", top: 2, left: vm.form.allowShippingDiscount ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 150ms", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
+                    </span>
                     <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
                   </label>
                   {vm.form.allowShippingDiscount && (
-                    <div style={{ paddingLeft: 22 }}>
+                    <div style={{ paddingLeft: 46 }}>
                       <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
                         Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)" }}>{vm.form.maxPartialShippingDiscount}%</span>
                       </span>
