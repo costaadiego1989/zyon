@@ -131,8 +131,8 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                     <div style={{ paddingLeft: 46, maxWidth: 280 }}>
                       <label>
                         <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Valor mínimo carrinho para frete grátis</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-                          <span style={{ padding: "7px 10px", borderRadius: "7px 0 0 7px", border: "1px solid var(--border)", borderRight: "none", background: "oklch(20% 0.004 145)", color: "var(--muted)", font: "12.5px var(--mono)" }}>R$</span>
+                        <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
+                          <span style={{ padding: "0 10px", borderRadius: "7px 0 0 7px", border: "1px solid var(--border)", borderRight: "none", background: "oklch(20% 0.004 145)", color: "var(--muted)", font: "12.5px var(--mono)", display: "flex", alignItems: "center" }}>R$</span>
                           <input
                             value={vm.form.freeShippingMinCartValue}
                             onChange={(e) => vm.patch({ freeShippingMinCartValue: applyCurrencyMask(e.target.value) })}
@@ -151,7 +151,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   </label>
                   {vm.form.allowShippingDiscount && (
                     <div style={{ paddingLeft: 46, marginTop: 2 }}>
-                      <span style={{ font: "13px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>
+                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
                         Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)", fontWeight: 600 }}>{vm.form.maxPartialShippingDiscount}%</span>
                       </span>
                       <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ width: "100%", maxWidth: 280, accentColor: "var(--accent)", cursor: "pointer", height: 4 }} />
