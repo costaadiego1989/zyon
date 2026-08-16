@@ -1,6 +1,7 @@
-import React from "react";
-import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2 } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
+import { useApi } from "../../hooks/useApi.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm } from "./useStoreSettingsPage.js";
 
 const DAY_LABELS: Record<string, string> = {
@@ -9,7 +10,7 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 export function StoreSettingsPage() {
-  const { state, setCompany, setPolicies, setSocial, setBusinessHours, setActiveTab, handleCepChange, handleSave, generatePolicy, dismiss } = useStoreSettingsPage();
+  const { state, setCompany, setPolicies, setSocial, setBusinessHours, setActiveTab, setLogoUrl, handleCepChange, handleSave, generatePolicy, dismiss } = useStoreSettingsPage();
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>Carregando...</div>;
 
@@ -38,7 +39,7 @@ export function StoreSettingsPage() {
 
         {/* Content */}
         <div style={{ padding: "24px 22px", minHeight: 400 }}>
-          {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} />}
+          {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} logoUrl={state.logoUrl ?? ""} onLogoChange={setLogoUrl} />}
           {state.activeTab === "policies" && <PoliciesTab policies={state.policies} onChange={setPolicies} onGenerate={generatePolicy} generatingPolicy={state.generatingPolicy} />}
           {state.activeTab === "social" && <SocialTab social={state.social} onChange={setSocial} />}
         </div>
@@ -74,18 +75,91 @@ export function StoreSettingsPage() {
   );
 }
 
-function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHoursChange, onCepChange }: {
+function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHoursChange, onCepChange, logoUrl, onLogoChange }: {
   company: CompanyForm;
   businessHours: BusinessHour[];
   cepLoading: boolean;
   onCompanyChange: (c: CompanyForm) => void;
   onHoursChange: (h: BusinessHour[]) => void;
   onCepChange: (zip: string) => void;
+  logoUrl: string;
+  onLogoChange: (url: string) => void;
 }) {
+  const api = useApi();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [logoPreview, setLogoPreview] = useState(logoUrl);
+  const [uploading, setUploading] = useState(false);
+
+  // Sync external logoUrl into preview
+  if (logoUrl && !logoPreview) setLogoPreview(logoUrl);
+
+  async function handleLogoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      setLogoPreview(base64);
+      try {
+        const { logoUrl: url } = await api.uploadLogo(base64);
+        onLogoChange(url);
+        setLogoPreview(url);
+      } catch {
+        // fallback to base64 preview
+        onLogoChange(base64);
+      } finally {
+        setUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function handleRemoveLogo() {
+    setLogoPreview("");
+    onLogoChange("");
+  }
+
   const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", fontFamily: "var(--sans)", outline: "none", color: "var(--ink)" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Logo Upload */}
+      <div>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Logotipo</h3>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            {logoPreview ? (
+              <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              <Upload size={20} style={{ color: "var(--faint)" }} />
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleLogoUpload} />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
+            >
+              <Upload size={13} />
+              {uploading ? "Enviando..." : "Alterar logo"}
+            </button>
+            {logoPreview && (
+              <button
+                type="button"
+                onClick={handleRemoveLogo}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+              >
+                <Trash2 size={11} /> Remover
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Company Info */}
       <div>
         <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Informações Principais</h3>

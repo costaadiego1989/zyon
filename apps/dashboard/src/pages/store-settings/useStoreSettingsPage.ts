@@ -15,6 +15,7 @@ export interface StoreSettingsState {
   saveError: string | null;
   cepLoading: boolean;
   generatingPolicy: string | null;
+  logoUrl: string;
 }
 
 export interface CompanyForm {
@@ -85,6 +86,7 @@ export function useStoreSettingsPage() {
     saveError: null,
     cepLoading: false,
     generatingPolicy: null,
+    logoUrl: "",
   });
 
   useEffect(() => {
@@ -113,6 +115,7 @@ export function useStoreSettingsPage() {
           policies: settings?.policies ? { ...EMPTY_POLICIES, ...settings.policies } : EMPTY_POLICIES,
           social: settings?.social ? { ...EMPTY_SOCIAL, ...settings.social } : EMPTY_SOCIAL,
           businessHours: settings?.businessHours ?? EMPTY_BUSINESS_HOURS,
+          logoUrl: settings?.logoUrl ?? "",
           loading: false,
         }));
       } catch {
@@ -172,6 +175,7 @@ export function useStoreSettingsPage() {
         },
         businessHours: state.businessHours,
         policies: Object.fromEntries(Object.entries(state.policies).filter(([, v]) => v)),
+        ...(state.logoUrl && { logoUrl: state.logoUrl }),
       };
       await api.putStoreSettings(payload);
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
@@ -211,6 +215,7 @@ export function useStoreSettingsPage() {
     setPolicies: (policies: PoliciesForm) => setState((p) => ({ ...p, policies })),
     setSocial: (social: SocialForm) => setState((p) => ({ ...p, social })),
     setBusinessHours: (hours: BusinessHour[]) => setState((p) => ({ ...p, businessHours: hours })),
+    setLogoUrl: (url: string) => setState((p) => ({ ...p, logoUrl: url })),
     setActiveTab: (tab: "company" | "policies" | "social") => setState((p) => ({ ...p, activeTab: tab })),
     handleCepChange,
     handleSave,

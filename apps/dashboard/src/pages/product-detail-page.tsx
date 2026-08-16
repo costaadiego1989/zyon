@@ -4,7 +4,8 @@ import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
 import { CurrencyField } from "../components/CurrencyField.js";
-import { centsToReais, reaisToCents } from "../utils/currency.js";
+import { PrefixInput } from "../components/PrefixInput.js";
+import { centsToReais, reaisToCents, applyCurrencyMask } from "../utils/currency.js";
 
 export type ProductType = "physical" | "digital" | "service";
 
@@ -783,12 +784,13 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                   error={formErrors["simple_sku"]}
                   placeholder="Auto-gerado do nome se vazio"
                 />
-                <CurrencyField
-                  label="Preço (R$) *"
+                <PrefixInput
+                  prefix="R$"
+                  label="Preço *"
                   value={variants[0].basePriceInput}
                   onChange={(val) => updateVariant(0, { basePriceInput: val })}
                   error={formErrors["simple_price"]}
-                  placeholder="89,90"
+                  placeholder="0,00"
                 />
                 {productType === "physical" && (
                   <Field
@@ -807,27 +809,31 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
               <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES</h3>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-                <Field
-                  label="Peso (g)"
+                <PrefixInput
+                  prefix="g"
+                  label="Peso"
                   value={variants[0].weightInput}
                   onChange={(val) => updateVariant(0, { weightInput: val })}
                   error={formErrors["simple_weight"]}
                   placeholder="300"
                 />
-                <Field
-                  label="Comprimento (cm)"
+                <PrefixInput
+                  prefix="cm"
+                  label="Comprimento"
                   value={variants[0].lengthInput}
                   onChange={(val) => updateVariant(0, { lengthInput: val })}
                   placeholder="20"
                 />
-                <Field
-                  label="Largura (cm)"
+                <PrefixInput
+                  prefix="cm"
+                  label="Largura"
                   value={variants[0].widthInput}
                   onChange={(val) => updateVariant(0, { widthInput: val })}
                   placeholder="15"
                 />
-                <Field
-                  label="Altura (cm)"
+                <PrefixInput
+                  prefix="cm"
+                  label="Altura"
                   value={variants[0].heightInput}
                   onChange={(val) => updateVariant(0, { heightInput: val })}
                   placeholder="5"
@@ -895,12 +901,13 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         error={formErrors[`variant_${idx}_sku`]}
                         placeholder="SKU-001"
                       />
-                      <CurrencyField
-                        label="Preço (R$) *"
+                      <PrefixInput
+                        prefix="R$"
+                        label="Preço *"
                         value={v.basePriceInput}
                         onChange={(val) => updateVariant(idx, { basePriceInput: val })}
                         error={formErrors[`variant_${idx}_price`]}
-                        placeholder="89,90"
+                        placeholder="0,00"
                       />
                       {productType === "physical" && (
                         <Field
@@ -911,8 +918,9 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         />
                       )}
                       {productType === "physical" && (
-                        <Field
-                          label="Peso (g)"
+                        <PrefixInput
+                          prefix="g"
+                          label="Peso"
                           value={v.weightInput}
                           onChange={(val) => updateVariant(idx, { weightInput: val })}
                           error={formErrors[`variant_${idx}_weight`]}
@@ -920,24 +928,27 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                         />
                       )}
                       {productType === "physical" && (
-                        <Field
-                          label="Comprimento (cm)"
+                        <PrefixInput
+                          prefix="cm"
+                          label="Comprimento"
                           value={v.lengthInput}
                           onChange={(val) => updateVariant(idx, { lengthInput: val })}
                           placeholder="20"
                         />
                       )}
                       {productType === "physical" && (
-                        <Field
-                          label="Largura (cm)"
+                        <PrefixInput
+                          prefix="cm"
+                          label="Largura"
                           value={v.widthInput}
                           onChange={(val) => updateVariant(idx, { widthInput: val })}
                           placeholder="15"
                         />
                       )}
                       {productType === "physical" && (
-                        <Field
-                          label="Altura (cm)"
+                        <PrefixInput
+                          prefix="cm"
+                          label="Altura"
                           value={v.heightInput}
                           onChange={(val) => updateVariant(idx, { heightInput: val })}
                           placeholder="5"
