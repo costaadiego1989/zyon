@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { CartSummaryBlock as CartSummaryBlockType } from "@/lib/types";
 
 function formatPrice(value: number): string {
@@ -14,167 +15,117 @@ export default function CartSummaryBlock({
 }: {
   block: CartSummaryBlockType;
 }) {
-  const { items, subtotal, discount, total } = block.data;
+  const { items, total } = block.data;
+  const [pulse, setPulse] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPulse(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const itemCount = items.reduce((sum, i) => sum + i.quantity, 0);
+  const lastItem = items[items.length - 1];
 
   return (
     <div
       style={{
-        background: "var(--aacp-inset-bg)",
-        borderRadius: "var(--aacp-radius-md)",
-        border: "1px solid var(--aacp-line-strong)",
-        padding: "14px 16px",
+        background: "var(--aacp-surface-2)",
+        borderRadius: "var(--aacp-radius-md, 12px)",
+        border: "1px solid var(--aacp-line)",
+        padding: "12px 16px",
         display: "flex",
-        flexDirection: "column",
+        alignItems: "center",
         gap: 12,
+        animation: pulse ? "cartPulse 0.5s ease" : undefined,
       }}
     >
-      <h4
-        style={{
-          fontSize: 13,
-          fontWeight: 700,
-          margin: 0,
-          color: "var(--aacp-fg)",
-          fontFamily: "var(--aacp-font-display)",
-        }}
-      >
-        Seu carrinho
-      </h4>
+      <style>{`
+        @keyframes cartPulse {
+          0% { transform: scale(0.95); opacity: 0.7; }
+          50% { transform: scale(1.02); }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map((item) => (
-          <div
-            key={item.variantId}
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              fontSize: 13,
-              color: "var(--aacp-fg)",
-            }}
-          >
-            <span>
-              {item.productName} × {item.quantity}
-            </span>
-            <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-              {formatPrice(item.subtotal)}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      {/* Totals section */}
+      {/* Cart icon */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "1fr auto",
-          rowGap: "10px",
-          columnGap: "16px",
-          padding: "14px 16px",
-          background: "var(--aacp-inset-bg)",
-          border: "1px solid var(--aacp-line-strong)",
-          borderRadius: "var(--aacp-radius-md)",
-          fontSize: 13,
-          fontVariantNumeric: "tabular-nums",
+          width: "36px",
+          height: "36px",
+          borderRadius: "50%",
+          background: "color-mix(in srgb, var(--aacp-accent) 15%, transparent)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
         }}
       >
-        <dt style={{ color: "var(--aacp-muted)", fontWeight: 500 }}>Subtotal</dt>
-        <dd
-          style={{
-            margin: 0,
-            fontWeight: 600,
-            textAlign: "right",
-            color: "var(--aacp-fg)",
-            fontFamily: "var(--aacp-font-display)",
-          }}
+        <svg
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="var(--aacp-accent)"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
         >
-          {formatPrice(subtotal)}
-        </dd>
-
-        {discount !== undefined && discount > 0 && (
-          <>
-            <dt style={{ color: "var(--aacp-success)", fontWeight: 500 }}>
-              Desconto
-            </dt>
-            <dd
-              style={{
-                margin: 0,
-                fontWeight: 700,
-                textAlign: "right",
-                color: "var(--aacp-success)",
-                fontFamily: "var(--aacp-font-display)",
-              }}
-            >
-              -{formatPrice(discount)}
-            </dd>
-          </>
-        )}
-
-        <div
-          style={{
-            gridColumn: "1 / -1",
-            borderTop: "1px solid var(--aacp-line-strong)",
-            paddingTop: "12px",
-            marginTop: "2px",
-            display: "grid",
-            gridTemplateColumns: "1fr auto",
-            columnGap: "16px",
-          }}
-        >
-          <dt
-            style={{
-              fontFamily: "var(--aacp-font-display)",
-              fontSize: "18px",
-              fontWeight: 700,
-              color: "var(--aacp-fg)",
-            }}
-          >
-            Total
-          </dt>
-          <dd
-            style={{
-              margin: 0,
-              fontFamily: "var(--aacp-font-display)",
-              fontSize: "18px",
-              fontWeight: 700,
-              textAlign: "right",
-              color: "var(--aacp-accent)",
-            }}
-          >
-            {formatPrice(total)}
-          </dd>
-        </div>
+          <circle cx="9" cy="21" r="1" />
+          <circle cx="20" cy="21" r="1" />
+          <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+        </svg>
       </div>
 
-      <button
-        type="button"
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: "13px",
+            fontWeight: 600,
+            color: "var(--aacp-fg)",
+            lineHeight: 1.3,
+          }}
+        >
+          {lastItem ? `${lastItem.productName} adicionado` : "Carrinho atualizado"}
+        </p>
+        <p
+          style={{
+            margin: "2px 0 0",
+            fontSize: "11px",
+            color: "var(--aacp-muted)",
+          }}
+        >
+          {itemCount} {itemCount === 1 ? "item" : "itens"} · {formatPrice(total)}
+        </p>
+      </div>
+
+      {/* Checkmark */}
+      <div
         style={{
-          width: "100%",
-          padding: "13px 16px",
-          borderRadius: "var(--aacp-radius-md)",
-          border: "none",
-          background: "var(--aacp-grad-primary)",
-          color: "#fff",
-          fontSize: 13,
-          fontWeight: 800,
-          letterSpacing: "0.01em",
-          cursor: "pointer",
-          fontFamily: "inherit",
-          transition: "transform 0.15s ease, box-shadow 0.15s ease",
-          boxShadow: "0 12px 28px var(--aacp-accent-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.18)",
-        }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-1px)";
-          (e.currentTarget as HTMLButtonElement).style.boxShadow =
-            "0 16px 32px var(--aacp-accent-shadow-strong)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.transform = "none";
-          (e.currentTarget as HTMLButtonElement).style.boxShadow =
-            "0 12px 28px var(--aacp-accent-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.18)";
+          width: "24px",
+          height: "24px",
+          borderRadius: "50%",
+          background: "var(--aacp-accent)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
         }}
       >
-        Finalizar
-      </button>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#fff"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      </div>
     </div>
   );
 }

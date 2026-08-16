@@ -302,10 +302,24 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       createReview: async (args: any) => {
+        if (!args.authorName || !args.authorPhone) {
+          return {
+            error: "Para criar uma avaliação, preciso do seu nome e telefone. Pode informar?",
+            requiresIdentification: true,
+          };
+        }
+        const phoneDigits = (args.authorPhone as string).replace(/\D/g, "");
+        if (phoneDigits.length < 10 || phoneDigits.length > 11) {
+          return {
+            error: "Telefone inválido. Informe um número com DDD (10 ou 11 dígitos).",
+            requiresIdentification: true,
+          };
+        }
         return {
           id: `rev_${Date.now()}`,
           productId: args.productId,
           author: args.authorName,
+          phone: phoneDigits,
           rating: args.rating,
           text: args.text,
           date: new Date().toISOString().slice(0, 10),

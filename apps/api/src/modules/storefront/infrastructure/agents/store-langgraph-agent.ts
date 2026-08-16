@@ -251,7 +251,10 @@ export class StorefrontLangGraphAgent {
     }
 
     // ─── Build blocks from tool results ─────────────────────────────────
-    if (toolResults["search_products"]) {
+    // Skip product carousel when add_item_to_cart was called in the same turn
+    // (search_products was used only to resolve the product ID, not to display results)
+    const skipProductCarousel = !!toolResults["add_item_to_cart"];
+    if (toolResults["search_products"] && !skipProductCarousel) {
       const searchData = toolResults["search_products"] as any;
       if (searchData?.products?.length > 0) {
         const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -608,7 +611,7 @@ export class StorefrontLangGraphAgent {
       "- 'Comparar' → use compare_products. A UI mostra tabela comparativa.",
       "- 'Lista de Desejos' → use add_to_wishlist ou get_wishlist conforme contexto.",
       "- 'Produtos Semelhantes' → use get_similar_products. A UI mostra cross-sell block.",
-      "- 'Escrever Avaliação' → use create_review. Peça rating (1-5) e texto ao cliente.",
+      "- 'Escrever Avaliação' → Para criar avaliação, o cliente PRECISA informar nome e telefone. Peça o nome primeiro e depois o telefone no formato (11) 99999-9999. Se a mensagem contém [nome:X|tel:Y], extraia os dados e use create_review com authorName=X e authorPhone=Y. Se NÃO contém esses dados, peça nome e telefone antes de prosseguir.",
       "- 'Fazer Pergunta' → use create_question. Peça a pergunta ao cliente.",
       "- 'FAQ' → use get_faq. Responda com as perguntas frequentes.",
       "- 'Falar com Humano' → use escalate_to_human. Confirme o encaminhamento.",

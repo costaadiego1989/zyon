@@ -6,22 +6,22 @@ import { useWidgetConfig } from "@/lib/widget-config";
 interface SupportFABProps {
   open: boolean;
   onToggle: () => void;
+  cartItemCount?: number;
 }
 
-export default function SupportFAB({ open, onToggle }: SupportFABProps) {
-  const { config, loading } = useWidgetConfig();
+export default function SupportFAB({ open, onToggle, cartItemCount = 0 }: SupportFABProps) {
+  const { config } = useWidgetConfig();
   const [showTooltip, setShowTooltip] = useState(true);
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(true);
+  const [badgePulse, setBadgePulse] = useState(false);
 
-  // Derive settings from widget config with fallback defaults
   const position = config?.position ?? "bottom_right";
   const fabColor = config?.fabColor ?? "var(--aacp-accent, #0f766e)";
   const inviteText = config?.inviteText ?? "Precisa de ajuda?";
   const initialDelay = (config?.initialDelaySeconds ?? 0) * 1000;
   const startMinimized = config?.startMinimized ?? true;
 
-  // Position mapping
   const positionStyles: Record<string, { bottom?: string; top?: string; left?: string; right?: string }> = {
     bottom_right: { bottom: "16px", right: "16px" },
     bottom_left: { bottom: "16px", left: "16px" },
@@ -30,7 +30,6 @@ export default function SupportFAB({ open, onToggle }: SupportFABProps) {
   };
   const posStyle = positionStyles[position] ?? positionStyles.bottom_right;
 
-  // Tooltip position (near FAB)
   const tooltipPositionStyles: Record<string, { bottom?: string; top?: string; left?: string; right?: string }> = {
     bottom_right: { bottom: "72px", right: "16px" },
     bottom_left: { bottom: "72px", left: "16px" },
@@ -39,7 +38,6 @@ export default function SupportFAB({ open, onToggle }: SupportFABProps) {
   };
   const tooltipPos = tooltipPositionStyles[position] ?? tooltipPositionStyles.bottom_right;
 
-  // Respect initialDelaySeconds: show FAB after delay
   useEffect(() => {
     if (initialDelay <= 0) {
       setVisible(true);
@@ -49,14 +47,12 @@ export default function SupportFAB({ open, onToggle }: SupportFABProps) {
     return () => clearTimeout(timer);
   }, [initialDelay]);
 
-  // Trigger scale-in animation once visible
   useEffect(() => {
     if (visible) {
       requestAnimationFrame(() => setMounted(true));
     }
   }, [visible]);
 
-  // Show tooltip for 5 seconds after FAB appears
   useEffect(() => {
     if (!visible || !startMinimized) return;
     setShowTooltip(true);
@@ -64,13 +60,25 @@ export default function SupportFAB({ open, onToggle }: SupportFABProps) {
     return () => clearTimeout(timer);
   }, [visible, startMinimized]);
 
+  // Pulse badge when cart count changes
+  useEffect(() => {
+    if (cartItemCount > 0) {
+      setBadgePulse(true);
+      const timer = setTimeout(() => setBadgePulse(false), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [cartItemCount]);
+
   if (!visible) return null;
+
+  const showCartBadge = cartItemCount > 0 && !open;
 
   return (
     <>
       <style>{`
         @keyframes fabScaleIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         @keyframes tooltipFadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes badgeBounce { 0% { transform: scale(0.5); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
       `}</style>
 
       {/* Tooltip */}
@@ -145,19 +153,29 @@ export default function SupportFAB({ open, onToggle }: SupportFABProps) {
         }}
       >
         {/* Cart badge */}
-        {showCartBadge && !open && (
+        {showCartBadge && (
           <span
             style={{
               position: "absolute",
-              top: "-2px",
-              right: "-2px",
-              width: "12px",
-              height: "12px",
-              borderRadius: "50%",
+              top: "-4px",
+              right: "-4px",
+              minWidth: "18px",
+              height: "18px",
+              borderRadius: "9px",
               background: "#ef4444",
               border: "2px solid var(--aacp-bg, #08080c)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "10px",
+              fontWeight: 700,
+              color: "#fff",
+              padding: "0 4px",
+              animation: badgePulse ? "badgeBounce 0.4s ease" : undefined,
             }}
-          />
+          >
+            {cartItemCount}
+          </span>
         )}
         {open ? (
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

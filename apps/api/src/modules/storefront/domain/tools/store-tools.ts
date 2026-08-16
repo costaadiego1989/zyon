@@ -52,6 +52,41 @@ export interface StoreToolHandlers {
   listCategories: () => Promise<unknown>;
   removeCoupon: (args: { cartId: string }) => Promise<unknown>;
   createCheckoutSession: (args: { cartId: string }) => Promise<unknown>;
+  getReviews: (args: {
+    productId: string;
+    filter?: "positive" | "negative" | "recent";
+    limit?: number;
+  }) => Promise<unknown>;
+  createReview: (args: {
+    productId: string;
+    rating: number;
+    text: string;
+    authorName: string;
+    authorPhone: string;
+  }) => Promise<unknown>;
+  getProductQuestions: (args: {
+    productId: string;
+    filter?: "answered" | "unanswered" | "mine";
+  }) => Promise<unknown>;
+  createQuestion: (args: {
+    productId: string;
+    question: string;
+    authorName: string;
+  }) => Promise<unknown>;
+  getSimilarProducts: (args: { productId: string; limit?: number }) => Promise<unknown>;
+  addToWishlist: (args: { productId: string }) => Promise<unknown>;
+  getWishlist: () => Promise<unknown>;
+  removeFromWishlist: (args: { productId: string }) => Promise<unknown>;
+  trackOrder: (args: { orderId: string }) => Promise<unknown>;
+  getStorePolicies: (args: {
+    policyType?: "returns" | "exchanges" | "shipping" | "warranty" | "all";
+  }) => Promise<unknown>;
+  getBuyerProfile: () => Promise<unknown>;
+  getDailyDeals: (args: { limit?: number }) => Promise<unknown>;
+  getFaq: (args: { category?: string }) => Promise<unknown>;
+  escalateToHuman: (args: { reason: string }) => Promise<unknown>;
+  getInvoice: (args: { orderId: string }) => Promise<unknown>;
+  cancelOrder: (args: { orderId: string; reason?: string }) => Promise<unknown>;
 }
 
 export interface StoreToolContext {
@@ -88,9 +123,311 @@ const SEARCH_PRODUCTS: ToolDefinition = {
       limit: {
         type: "number",
         description: "Max results (default: 10, max: 20)"
+      },
+      sortBy: {
+        type: "string",
+        enum: ["price_asc", "price_desc", "rating", "best_sellers", "newest", "discount"],
+        description:
+          "Sort order: price_asc (cheapest first), price_desc (most expensive first), rating (highest rated), best_sellers (most sold), newest (latest added), discount (biggest discount first)"
       }
     },
     required: ["query"]
+  }
+};
+
+const GET_REVIEWS: ToolDefinition = {
+  name: "get_reviews",
+  description:
+    "Get product reviews. Returns array of reviews with id, author, rating (1-5), text, and date. Use when buyer asks about opinions, ratings, or feedback on a product.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID to fetch reviews for"
+      },
+      filter: {
+        type: "string",
+        enum: ["positive", "negative", "recent"],
+        description:
+          "Filter reviews: positive (4-5 stars), negative (1-2 stars), recent (latest first). Optional."
+      },
+      limit: {
+        type: "number",
+        description: "Max reviews to return (default: 10, max: 50)"
+      }
+    },
+    required: ["productId"]
+  }
+};
+
+const CREATE_REVIEW: ToolDefinition = {
+  name: "create_review",
+  description:
+    "Submit a product review on behalf of a buyer. Requires rating (1-5), text, authorName, and authorPhone. The buyer must provide their phone for identification. Returns the created review with id and date.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID being reviewed"
+      },
+      rating: {
+        type: "number",
+        description: "Rating from 1 (worst) to 5 (best)"
+      },
+      text: {
+        type: "string",
+        description: "Review text content"
+      },
+      authorName: {
+        type: "string",
+        description: "Display name of the reviewer"
+      },
+      authorPhone: {
+        type: "string",
+        description: "Phone number of the reviewer (Brazilian format with DDD, e.g. 11999999999). Required for buyer identification."
+      }
+    },
+    required: ["productId", "rating", "text", "authorName", "authorPhone"]
+  }
+};
+
+const GET_PRODUCT_QUESTIONS: ToolDefinition = {
+  name: "get_product_questions",
+  description:
+    "Get Q&A for a product. Returns questions with id, question text, answer (if any), author, and date. Use when buyer asks about product details not in the description.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID to fetch questions for"
+      },
+      filter: {
+        type: "string",
+        enum: ["answered", "unanswered", "mine"],
+        description:
+          "Filter questions: answered (has reply), unanswered (no reply yet), mine (asked by current buyer). Optional."
+      }
+    },
+    required: ["productId"]
+  }
+};
+
+const CREATE_QUESTION: ToolDefinition = {
+  name: "create_question",
+  description:
+    "Ask a question about a product on behalf of a buyer. Requires question text and authorName. Returns the created question awaiting an answer.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID being asked about"
+      },
+      question: {
+        type: "string",
+        description: "Question text"
+      },
+      authorName: {
+        type: "string",
+        description: "Display name of the asker"
+      }
+    },
+    required: ["productId", "question", "authorName"]
+  }
+};
+
+const GET_SIMILAR_PRODUCTS: ToolDefinition = {
+  name: "get_similar_products",
+  description:
+    "Get similar or related products for a given product. Returns products in the same shape as search_products (id, name, price, image, stock). Use when buyer wants alternatives or comparisons.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID to find similar items for"
+      },
+      limit: {
+        type: "number",
+        description: "Max results (default: 5, max: 20)"
+      }
+    },
+    required: ["productId"]
+  }
+};
+
+const ADD_TO_WISHLIST: ToolDefinition = {
+  name: "add_to_wishlist",
+  description:
+    "Add a product to the buyer's wishlist. Returns updated wishlist with items.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID to add to wishlist"
+      }
+    },
+    required: ["productId"]
+  }
+};
+
+const GET_WISHLIST: ToolDefinition = {
+  name: "get_wishlist",
+  description:
+    "Get the current buyer's wishlist. Returns array of saved products.",
+  parameters: {
+    type: "object",
+    properties: {},
+    required: []
+  }
+};
+
+const REMOVE_FROM_WISHLIST: ToolDefinition = {
+  name: "remove_from_wishlist",
+  description:
+    "Remove a product from the buyer's wishlist. Returns updated wishlist.",
+  parameters: {
+    type: "object",
+    properties: {
+      productId: {
+        type: "string",
+        description: "Product ID to remove from wishlist"
+      }
+    },
+    required: ["productId"]
+  }
+};
+
+const TRACK_ORDER: ToolDefinition = {
+  name: "track_order",
+  description:
+    "Track order status and shipping. Returns order status, tracking code, carrier, and estimated delivery date. Use when buyer asks about delivery progress.",
+  parameters: {
+    type: "object",
+    properties: {
+      orderId: {
+        type: "string",
+        description: "Order ID to track"
+      }
+    },
+    required: ["orderId"]
+  }
+};
+
+const GET_STORE_POLICIES: ToolDefinition = {
+  name: "get_store_policies",
+  description:
+    "Get store policies: returns, exchanges, shipping, or warranty. Returns policy text. Use when buyer asks about return windows, exchange rules, shipping terms, or warranty coverage.",
+  parameters: {
+    type: "object",
+    properties: {
+      policyType: {
+        type: "string",
+        enum: ["returns", "exchanges", "shipping", "warranty", "all"],
+        description:
+          "Type of policy to retrieve. Use 'all' to get every policy in one call. Default: 'all'."
+      }
+    },
+    required: []
+  }
+};
+
+const GET_BUYER_PROFILE: ToolDefinition = {
+  name: "get_buyer_profile",
+  description:
+    "Get the logged-in buyer's profile: name, email, saved addresses, and order count. Use to personalize responses or pre-fill checkout.",
+  parameters: {
+    type: "object",
+    properties: {},
+    required: []
+  }
+};
+
+const GET_DAILY_DEALS: ToolDefinition = {
+  name: "get_daily_deals",
+  description:
+    "Get current daily or flash deals. Returns products with deal info including discount percent and expiration time. Use when buyer asks about promotions, deals, or limited-time offers.",
+  parameters: {
+    type: "object",
+    properties: {
+      limit: {
+        type: "number",
+        description: "Max deals to return (default: 10, max: 30)"
+      }
+    },
+    required: []
+  }
+};
+
+const GET_FAQ: ToolDefinition = {
+  name: "get_faq",
+  description:
+    "Get frequently asked questions for the store. Optionally filter by category (e.g. 'payment', 'shipping', 'account'). Returns FAQ items with question and answer.",
+  parameters: {
+    type: "object",
+    properties: {
+      category: {
+        type: "string",
+        description: "Filter by FAQ category (optional)"
+      }
+    },
+    required: []
+  }
+};
+
+const ESCALATE_TO_HUMAN: ToolDefinition = {
+  name: "escalate_to_human",
+  description:
+    "Request escalation to a human support agent. Use when the buyer explicitly asks for human help, the issue is too complex, or the buyer is frustrated. Returns ticket/escalation confirmation.",
+  parameters: {
+    type: "object",
+    properties: {
+      reason: {
+        type: "string",
+        description: "Reason for escalation (what the buyer needs help with)"
+      }
+    },
+    required: ["reason"]
+  }
+};
+
+const GET_INVOICE: ToolDefinition = {
+  name: "get_invoice",
+  description:
+    "Get invoice/nota fiscal for an order. Returns invoice URL and details (number, issue date, total, tax info).",
+  parameters: {
+    type: "object",
+    properties: {
+      orderId: {
+        type: "string",
+        description: "Order ID to fetch invoice for"
+      }
+    },
+    required: ["orderId"]
+  }
+};
+
+const CANCEL_ORDER: ToolDefinition = {
+  name: "cancel_order",
+  description:
+    "Request cancellation of an order. Optional reason. Returns cancellation status (approved/rejected) and any refund info.",
+  parameters: {
+    type: "object",
+    properties: {
+      orderId: {
+        type: "string",
+        description: "Order ID to cancel"
+      },
+      reason: {
+        type: "string",
+        description: "Optional reason for cancellation"
+      }
+    },
+    required: ["orderId"]
   }
 };
 
@@ -356,7 +693,23 @@ export function buildStoreTools(): ToolDefinition[] {
     LIST_PROMOTIONS,
     REMOVE_COUPON,
     LIST_CATEGORIES,
-    CREATE_CHECKOUT_SESSION
+    CREATE_CHECKOUT_SESSION,
+    GET_REVIEWS,
+    CREATE_REVIEW,
+    GET_PRODUCT_QUESTIONS,
+    CREATE_QUESTION,
+    GET_SIMILAR_PRODUCTS,
+    ADD_TO_WISHLIST,
+    GET_WISHLIST,
+    REMOVE_FROM_WISHLIST,
+    TRACK_ORDER,
+    GET_STORE_POLICIES,
+    GET_BUYER_PROFILE,
+    GET_DAILY_DEALS,
+    GET_FAQ,
+    ESCALATE_TO_HUMAN,
+    GET_INVOICE,
+    CANCEL_ORDER
   ];
 }
 
@@ -445,6 +798,74 @@ export function createCreateCheckoutSessionTool(ctx: StoreToolContext): Executab
   );
 }
 
+export function createGetReviewsTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_reviews", (args) => ctx.handlers.getReviews(args));
+}
+
+export function createCreateReviewTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("create_review", (args) => ctx.handlers.createReview(args));
+}
+
+export function createGetProductQuestionsTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_product_questions", (args) =>
+    ctx.handlers.getProductQuestions(args)
+  );
+}
+
+export function createCreateQuestionTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("create_question", (args) => ctx.handlers.createQuestion(args));
+}
+
+export function createGetSimilarProductsTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_similar_products", (args) => ctx.handlers.getSimilarProducts(args));
+}
+
+export function createAddToWishlistTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("add_to_wishlist", (args) => ctx.handlers.addToWishlist(args));
+}
+
+export function createGetWishlistTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_wishlist", () => ctx.handlers.getWishlist());
+}
+
+export function createRemoveFromWishlistTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("remove_from_wishlist", (args) =>
+    ctx.handlers.removeFromWishlist(args)
+  );
+}
+
+export function createTrackOrderTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("track_order", (args) => ctx.handlers.trackOrder(args));
+}
+
+export function createGetStorePoliciesTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_store_policies", (args) => ctx.handlers.getStorePolicies(args));
+}
+
+export function createGetBuyerProfileTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_buyer_profile", () => ctx.handlers.getBuyerProfile());
+}
+
+export function createGetDailyDealsTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_daily_deals", (args) => ctx.handlers.getDailyDeals(args));
+}
+
+export function createGetFaqTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_faq", (args) => ctx.handlers.getFaq(args));
+}
+
+export function createEscalateToHumanTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("escalate_to_human", (args) => ctx.handlers.escalateToHuman(args));
+}
+
+export function createGetInvoiceTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("get_invoice", (args) => ctx.handlers.getInvoice(args));
+}
+
+export function createCancelOrderTool(ctx: StoreToolContext): ExecutableTool {
+  return wrapHandler("cancel_order", (args) => ctx.handlers.cancelOrder(args));
+}
+
 export function buildExecutableStoreTools(ctx: StoreToolContext): ExecutableTool[] {
   return [
     createSearchProductsTool(ctx),
@@ -461,6 +882,22 @@ export function buildExecutableStoreTools(ctx: StoreToolContext): ExecutableTool
     createListPromotionsTool(ctx),
     createRemoveCouponTool(ctx),
     createListCategoriesTool(ctx),
-    createCreateCheckoutSessionTool(ctx)
+    createCreateCheckoutSessionTool(ctx),
+    createGetReviewsTool(ctx),
+    createCreateReviewTool(ctx),
+    createGetProductQuestionsTool(ctx),
+    createCreateQuestionTool(ctx),
+    createGetSimilarProductsTool(ctx),
+    createAddToWishlistTool(ctx),
+    createGetWishlistTool(ctx),
+    createRemoveFromWishlistTool(ctx),
+    createTrackOrderTool(ctx),
+    createGetStorePoliciesTool(ctx),
+    createGetBuyerProfileTool(ctx),
+    createGetDailyDealsTool(ctx),
+    createGetFaqTool(ctx),
+    createEscalateToHumanTool(ctx),
+    createGetInvoiceTool(ctx),
+    createCancelOrderTool(ctx)
   ];
 }
