@@ -41,7 +41,7 @@ export default function ProductCarouselBlock({
         price: p.variants?.[0]?.basePriceInCents ?? 0,
         priceFormatted: formatPrice(p.variants?.[0]?.basePriceInCents ?? 0),
         image: p.variants?.[0]?.media?.[0]?.url,
-        inStock: p.variants?.some((v: any) => (v.stockQuantity ?? 0) - (v.stockReserved ?? 0) > 0) ?? false,
+        inStock: p.type === "digital" || p.type === "service" || (p.variants?.some((v: any) => (v.stockQuantity ?? 0) - (v.stockReserved ?? 0) > 0) ?? false),
       }));
       setProducts((prev) => [...prev, ...newProducts]);
       setCursor(result.nextCursor ?? undefined);

@@ -78,6 +78,7 @@ export class ProductEntity {
   }
 
   get hasStock(): boolean {
+    if (this.type === "digital" || this.type === "service") return true;
     return this.totalStock > 0;
   }
 
