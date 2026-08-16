@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Save } from "lucide-react";
+import { Save, ChevronDown, ChevronRight, X, Plus } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
-import { QuickRepliesSection } from "../components/quick-replies-section.js";
 import type { StageQuickReplies, AgentTone } from "@zyon/shared-types";
 
 const TONE_PT_TO_EN: Record<string, AgentTone> = {
@@ -79,6 +78,8 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
   const [saveResult, setSaveResult] = useState<"success" | "error" | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState<"identity" | "negotiation" | "quick-replies">("identity");
+  const [stageQrConfig, setStageQrConfig] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
 
   const errors = useMemo(() => validateAgentConfig(form), [form]);
   const hasErrors = Object.keys(errors).length > 0;
@@ -201,101 +202,77 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
       {loading ? (
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando configuração do agente...</div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
-          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IDENTIDADE DO AGENTE</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Nome do Agente</span>
-                <input
-                  value={form.agentName}
-                  onChange={(e) => patch({ agentName: e.target.value })}
-                  placeholder="Assistente"
-                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.agentName ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
-                />
-                {errors.agentName && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.agentName}</span>}
-              </label>
-              <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Idioma</span>
-                <select
-                  value={form.language}
-                  onChange={(e) => patch({ language: e.target.value })}
-                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
-                >
-                  <option value="pt-BR">Português (BR)</option>
-                  <option value="en-US">English (US)</option>
-                  <option value="es-ES">Español</option>
-                </select>
-              </label>
-              <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Tom de Voz</span>
-                <select
-                  value={form.tone}
-                  onChange={(e) => patch({ tone: e.target.value as AgentTone })}
-                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
-                >
-                  {Object.entries(TONE_PT_TO_EN).map(([label, value]) => (
-                    <option key={value} value={value}>{label}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Persona</span>
-                <input
-                  value={form.persona}
-                  onChange={(e) => patch({ persona: e.target.value })}
-                  placeholder="Descreva a personalidade do agente"
-                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.persona ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
-                />
-                {errors.persona && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.persona}</span>}
-              </label>
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Saudação Inicial</span>
-                <input
-                  value={form.greeting}
-                  onChange={(e) => patch({ greeting: e.target.value })}
-                  placeholder="Olá! Como posso ajudá-lo?"
-                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
-                />
-                {errors.greeting && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.greeting}</span>}
-              </label>
-            </div>
-          </section>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* Tabs */}
+          <div style={{ display: "inline-flex", background: "oklch(16% 0.003 145)", border: "1px solid var(--border)", borderRadius: 10, padding: 3, gap: 2 }}>
+            {(["identity", "negotiation", "quick-replies"] as const).map((tab) => {
+              const labels = { identity: "Identidade", negotiation: "Negociação", "quick-replies": "Quick Replies" };
+              const active = activeTab === tab;
+              return (
+                <button key={tab} type="button" onClick={() => setActiveTab(tab)} style={{ background: active ? "var(--card)" : "transparent", color: active ? "var(--ink)" : "var(--muted)", border: active ? "1px solid var(--border)" : "1px solid transparent", borderRadius: 7, padding: "7px 16px", font: "600 12.5px var(--sans)", cursor: "pointer", transition: "all 150ms" }}>
+                  {labels[tab]}
+                </button>
+              );
+            })}
+          </div>
 
-          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>LIMITES DE NEGOCIAÇÃO</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <NumberField
-                label="Desconto máximo (%)"
-                value={form.maxDiscountPercent}
-                onChange={(v) => patch({ maxDiscountPercent: v })}
-                error={errors.maxDiscountPercent}
-              />
-              <NumberField
-                label="Margem mínima (%)"
-                value={form.minimumMarginPercent}
-                onChange={(v) => patch({ minimumMarginPercent: v })}
-                error={errors.minimumMarginPercent}
-              />
-            </div>
-          </section>
+          {/* Identity Tab */}
+          {activeTab === "identity" && (
+            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IDENTIDADE DO AGENTE</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <label>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Nome do Agente</span>
+                  <input value={form.agentName} onChange={(e) => patch({ agentName: e.target.value })} placeholder="Assistente" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.agentName ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }} />
+                  {errors.agentName && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.agentName}</span>}
+                </label>
+                <label>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Idioma</span>
+                  <select value={form.language} onChange={(e) => patch({ language: e.target.value })} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}>
+                    <option value="pt-BR">Português (BR)</option>
+                    <option value="en-US">English (US)</option>
+                    <option value="es-ES">Español</option>
+                  </select>
+                </label>
+                <label>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Tom de Voz</span>
+                  <select value={form.tone} onChange={(e) => patch({ tone: e.target.value as AgentTone })} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}>
+                    {Object.entries(TONE_PT_TO_EN).map(([label, value]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Persona</span>
+                  <input value={form.persona} onChange={(e) => patch({ persona: e.target.value })} placeholder="Descreva a personalidade do agente" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.persona ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }} />
+                  {errors.persona && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.persona}</span>}
+                </label>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <label>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Saudação Inicial</span>
+                  <input value={form.greeting} onChange={(e) => patch({ greeting: e.target.value })} placeholder="Olá! Como posso ajudá-lo?" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }} />
+                  {errors.greeting && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.greeting}</span>}
+                </label>
+              </div>
+            </section>
+          )}
 
-          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>FAQ / BASE DE CONHECIMENTO</h3>
-            <p style={{ font: "12.5px var(--sans)", color: "var(--muted)", margin: 0 }}>
-              Gerencie FAQ em <a href="/support/settings" style={{ color: "var(--accent-dark)" }}>Configurações de Suporte</a>.
-            </p>
-          </section>
+          {/* Negotiation Tab */}
+          {activeTab === "negotiation" && (
+            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>LIMITES DE NEGOCIAÇÃO</h3>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <NumberField label="Desconto máximo (%)" value={form.maxDiscountPercent} onChange={(v) => patch({ maxDiscountPercent: v })} error={errors.maxDiscountPercent} />
+                <NumberField label="Margem mínima (%)" value={form.minimumMarginPercent} onChange={(v) => patch({ minimumMarginPercent: v })} error={errors.minimumMarginPercent} />
+              </div>
+            </section>
+          )}
 
-          <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>QUICK REPLIES</h3>
-            <QuickRepliesSection
-              value={form.quickReplies}
-              onChange={(qr) => patch({ quickReplies: qr })}
-            />
-          </section>
+          {/* Quick Replies Tab */}
+          {activeTab === "quick-replies" && (
+            <StageQuickRepliesEditor config={stageQrConfig} onChange={setStageQrConfig} />
+          )}
         </div>
       )}
     </div>
@@ -322,4 +299,92 @@ const VALID_TONES: AgentTone[] = ["consultative", "premium", "direct", "friendly
 
 function isValidTone(value: unknown): value is AgentTone {
   return typeof value === "string" && VALID_TONES.includes(value as AgentTone);
+}
+
+type StageQrStage = { stage: string; label: string; replies: string[] };
+type StageQrConfig = { stages: StageQrStage[]; fallback: string[] };
+
+const DEFAULT_STAGE_QR: StageQrConfig = {
+  stages: [
+    { stage: "welcome", label: "Início", replies: ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"] },
+    { stage: "browsing", label: "Navegação", replies: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia", "Voltar ao Início"] },
+    { stage: "filter", label: "Filtros", replies: ["Por Preço", "Por Avaliação", "Mais Vendidos", "Novidades", "Frete Grátis", "Por Desconto", "Limpar Filtros"] },
+    { stage: "categories", label: "Categorias", replies: ["Ver Todas", "Filtrar Categoria", "Voltar"] },
+    { stage: "product_detail", label: "Detalhe do Produto", replies: ["Adicionar ao Carrinho", "Mais Informações", "Ver Avaliações", "Tirar Dúvidas", "Comparar", "Lista de Desejos", "Produtos Semelhantes", "Voltar"] },
+    { stage: "more_info", label: "Informações", replies: ["Especificações Técnicas", "Dimensões e Peso", "Material", "Garantia", "Prazo de Entrega", "Voltar ao Produto"] },
+    { stage: "reviews", label: "Avaliações", replies: ["Escrever Avaliação", "Positivas", "Negativas", "Ordenar por Recentes", "Voltar ao Produto"] },
+    { stage: "review_card", label: "Avaliação Selecionada", replies: ["Curtir", "Responder", "Reportar", "Voltar às Avaliações"] },
+    { stage: "questions", label: "Dúvidas", replies: ["Fazer Pergunta", "Ver Respondidas", "Minhas Perguntas", "Voltar ao Produto"] },
+    { stage: "compare", label: "Comparação", replies: ["Ver Tabela Comparativa", "Escolher Outro", "Adicionar ao Carrinho", "Voltar ao Produto"] },
+    { stage: "wishlist", label: "Lista de Desejos", replies: ["Ver Lista", "Compartilhar", "Mover para Carrinho", "Remover Item", "Voltar"] },
+    { stage: "added_to_cart", label: "Adicionado ao Carrinho", replies: ["Ver Carrinho", "Continuar Comprando", "Produtos Similares", "Aplicar Cupom", "Finalizar Compra"] },
+    { stage: "post_purchase", label: "Pós-compra", replies: ["Rastrear Pedido", "Nota Fiscal", "Alterar Endereço", "Cancelar Pedido", "Avaliar Produto", "Suporte"] },
+    { stage: "support", label: "Suporte", replies: ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido", "Voltar ao Início"] },
+  ],
+  fallback: ["Ver Produtos", "Categorias", "Meus Dados", "Suporte"],
+};
+
+function StageQuickRepliesEditor({ config, onChange }: { config: StageQrConfig; onChange: (c: StageQrConfig) => void }) {
+  const [expandedStage, setExpandedStage] = useState<string | null>(null);
+  const [newReply, setNewReply] = useState("");
+
+  function removeReply(stageIdx: number, replyIdx: number) {
+    const updated = { ...config, stages: config.stages.map((s, i) => i === stageIdx ? { ...s, replies: s.replies.filter((_, ri) => ri !== replyIdx) } : s) };
+    onChange(updated);
+  }
+
+  function addReply(stageIdx: number) {
+    if (!newReply.trim()) return;
+    const updated = { ...config, stages: config.stages.map((s, i) => i === stageIdx ? { ...s, replies: [...s.replies, newReply.trim()] } : s) };
+    onChange(updated);
+    setNewReply("");
+  }
+
+  function resetStage(stageIdx: number) {
+    const defaultStage = DEFAULT_STAGE_QR.stages[stageIdx];
+    if (!defaultStage) return;
+    const updated = { ...config, stages: config.stages.map((s, i) => i === stageIdx ? { ...s, replies: [...defaultStage.replies] } : s) };
+    onChange(updated);
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ marginBottom: 8 }}>
+        <h3 style={{ font: "600 13px var(--sans)", color: "var(--ink)", margin: 0 }}>Quick Replies por Estágio</h3>
+        <p style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 4, margin: 0 }}>Configure as sugestões em cada etapa da jornada de compra</p>
+      </div>
+      {config.stages.map((stage, stageIdx) => {
+        const isExpanded = expandedStage === stage.stage;
+        return (
+          <div key={stage.stage} style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
+            <button type="button" onClick={() => setExpandedStage(isExpanded ? null : stage.stage)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", border: "none", background: "transparent", cursor: "pointer", color: "var(--ink)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                <span style={{ font: "600 13px var(--sans)" }}>{stage.label}</span>
+                <span style={{ font: "11px var(--mono)", color: "var(--faint)" }}>{stage.stage}</span>
+              </div>
+              <span style={{ font: "11px var(--mono)", color: "var(--muted)" }}>{stage.replies.length} replies</span>
+            </button>
+            {isExpanded && (
+              <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {stage.replies.map((reply, ri) => (
+                    <span key={ri} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--accent-soft)", color: "var(--accent)", borderRadius: 999, padding: "4px 12px", font: "12px var(--sans)" }}>
+                      {reply}
+                      <button type="button" onClick={() => removeReply(stageIdx, ri)} style={{ border: "none", background: "none", color: "var(--accent)", cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input value={newReply} onChange={(e) => setNewReply(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReply(stageIdx); } }} placeholder="Nova resposta..." style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12px var(--sans)" }} />
+                  <button type="button" onClick={() => addReply(stageIdx)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", font: "600 11px var(--sans)", display: "flex", alignItems: "center", gap: 4 }}><Plus size={12} /> Adicionar</button>
+                  <button type="button" onClick={() => resetStage(stageIdx)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--muted)", cursor: "pointer", font: "600 11px var(--sans)" }}>Resetar</button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
