@@ -268,4 +268,10 @@ export class WidgetConfigDto {
 
   @ApiProperty({ type: [String] })
   handoffChannels!: string[];
+
+  @ApiPropertyOptional({ minimum: 30 })
+  cooldownSeconds?: number;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 10 })
+  maxInterventionsPerSession?: number;
 }

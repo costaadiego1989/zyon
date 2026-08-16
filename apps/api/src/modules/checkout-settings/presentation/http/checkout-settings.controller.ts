@@ -88,6 +88,9 @@ export class CheckoutSettingsPublicController {
       handoffEnabled: settings.handoff.enabled,
       handoffMessage: settings.handoff.message,
       handoffChannels: settings.handoff.channels,
+      cooldownSeconds: settings.interventionPolicy.cooldownSeconds,
+      maxInterventionsPerSession:
+        settings.interventionPolicy.maxInterventionsPerSession,
     };
   }
 }
