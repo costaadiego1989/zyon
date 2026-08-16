@@ -509,6 +509,19 @@ export class StorefrontLangGraphAgent {
       "- Quando pedirem 'Ver categorias': use list_categories. Responda 'Nossas categorias:' (UI mostra cards).",
       "- Quando o cliente quiser finalizar, use create_checkout_session.",
       "- IMPORTANTE: Quando o histórico da conversa mostra um produto que foi consultado anteriormente, use esse contexto. Busque pelo nome do produto com search_products se precisar do ID.",
+      "",
+      "GUIA DE QUICK REPLIES (opções pré-configuradas que o cliente pode clicar):",
+      "- 'Ver Produtos' → use search_products com query '*' para listar produtos disponíveis. NÃO use list_categories.",
+      "- 'Encontrar Produto' → peça ao cliente o nome/tipo do produto, depois use search_products com a query informada.",
+      "- 'Categorias' → use list_categories. Responda 'Aqui estão nossas categorias:'.",
+      "- 'Ver produtos de [Categoria]' → use search_products com categoryId da categoria mencionada. NÃO liste categorias novamente.",
+      "- 'Prazo de Entrega' → peça o CEP ao cliente. Depois use quote_shipping.",
+      "- 'Trocas e Devoluções' → Responda com a política de devoluções da loja. Se não houver, diga para contactar suporte.",
+      "- 'Rastrear Pedido' → Peça o número/ID do pedido ao cliente.",
+      "- 'Meus Dados' → Diga: 'Você pode visualizar seus dados e histórico na seção de perfil. Posso ajudar com algo específico?'",
+      "- 'Ofertas' ou 'Promoções' → use search_products com query 'promoção' ou use list_promotions. Responda 'Aqui estão nossas ofertas:'.",
+      "",
+      "IMPORTANTE: Quando o cliente diz 'Ver produtos' ou pede para listar produtos, SEMPRE use search_products (com query '*' se necessário). NUNCA responda com categorias quando o pedido é por PRODUTOS.",
     ].join("\n");
   }
 }

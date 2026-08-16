@@ -65,17 +65,17 @@ export interface StoreToolContext {
 const SEARCH_PRODUCTS: ToolDefinition = {
   name: "search_products",
   description:
-    "Search the merchant's product catalog. Returns matching products with id, name, price, image, and stock status.",
+    "Search the merchant's product catalog. Use empty query or '*' to list all/featured products. Use categoryId to filter by category. Returns matching products with id, name, price, image, and stock status.",
   parameters: {
     type: "object",
     properties: {
       query: {
         type: "string",
-        description: "Product search query (brand, category, or product name)"
+        description: "Product search query (brand, category, product name, or '*' for all products)"
       },
       categoryId: {
         type: "string",
-        description: "Filter by category ID (optional)"
+        description: "Filter by category ID (use this when user wants products from a specific category)"
       },
       maxPrice: {
         type: "number",
