@@ -50,6 +50,7 @@ export interface SignupWizardProps {
   hint: string | null;
   onRegister: (payload: { merchant_name: string; email: string; password: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
+  onSaveCompanyData?: (data: { company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
   onComplete: () => Promise<void>;
   onSwitchToLogin: () => void;
 }
@@ -134,6 +135,17 @@ export function SignupWizard(props: SignupWizardProps) {
         headerTitle: business.name.trim(),
         agentName: "Assistente Zyon",
       });
+      if (props.onSaveCompanyData) {
+        await props.onSaveCompanyData({
+          company: {
+            razaoSocial: business.name.trim(),
+            cnpj: business.taxId.replace(/\D/g, ""),
+            email: account.email.trim(),
+            phone: account.phone.replace(/\D/g, ""),
+            ...(business.url && { url: business.url.trim() }),
+          },
+        });
+      }
       await props.onComplete();
     } catch (err) {
       setError(friendlyAuthError(err));

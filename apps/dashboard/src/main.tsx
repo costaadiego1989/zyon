@@ -29,7 +29,11 @@ interface AppProps {
 
 function App({ api }: AppProps) {
   const [me, setMe] = useState<MerchantDashboardProfile | null>(null);
-  const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [authMode, setAuthMode] = useState<AuthMode>(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("token") && window.location.pathname.includes("reset-password")) return "reset";
+    return "login";
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [merchantName, setMerchantName] = useState("");
@@ -118,6 +122,10 @@ function App({ api }: AppProps) {
     await api.putMerchantTheme(fullTheme);
   }
 
+  async function handleSaveCompanyData(data: { company: Record<string, unknown>; social?: Record<string, unknown> }) {
+    await api.putStoreSettings(data);
+  }
+
   async function handleSignupComplete() {
     await api.completeOnboardingStep("account");
     await refreshSession();
@@ -153,6 +161,7 @@ function App({ api }: AppProps) {
         onSubmit={submitAuth}
         onRegister={handleRegister}
         onSaveTheme={handleSaveTheme}
+        onSaveCompanyData={handleSaveCompanyData}
         onComplete={handleSignupComplete}
         apiBaseUrl={API_BASE_URL}
       />

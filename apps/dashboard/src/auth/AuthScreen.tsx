@@ -3,7 +3,7 @@ import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
 import "./auth-screen.css";
 
-export type AuthMode = "login" | "signup" | "forgot";
+export type AuthMode = "login" | "signup" | "forgot" | "reset";
 
 export interface AuthScreenProps {
   mode: AuthMode;
@@ -19,6 +19,7 @@ export interface AuthScreenProps {
   onSubmit: (event: React.FormEvent) => void;
   onRegister: (payload: { merchant_name: string; email: string; password: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
+  onSaveCompanyData?: (data: { company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
   onComplete: () => Promise<void>;
   apiBaseUrl?: string;
 }
@@ -58,7 +59,9 @@ export function AuthScreen(props: AuthScreenProps) {
           </div>
 
           <div className="auth-form-area">
-            {mode === "forgot" ? (
+            {mode === "reset" ? (
+              <ResetPasswordForm apiBaseUrl={props.apiBaseUrl} onBack={() => props.setMode("login")} />
+            ) : mode === "forgot" ? (
               <ForgotPasswordForm apiBaseUrl={props.apiBaseUrl} onBack={() => props.setMode("login")} />
             ) : isSignup ? (
               <SignupWizard
@@ -66,6 +69,7 @@ export function AuthScreen(props: AuthScreenProps) {
                 hint={props.hint}
                 onRegister={props.onRegister}
                 onSaveTheme={props.onSaveTheme}
+                onSaveCompanyData={props.onSaveCompanyData}
                 onComplete={props.onComplete}
                 onSwitchToLogin={() => props.setMode("login")}
               />
@@ -202,6 +206,85 @@ function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBac
       {error ? <div className="auth-hint">{error}</div> : null}
       <button type="submit" disabled={busy} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
       <button type="button" onClick={onBack} className="auth-switch__link" style={{ textAlign: "center", width: "100%", marginTop: 8 }}>← Voltar ao login</button>
+    </form>
+  );
+}
+
+export function ResetPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBack: () => void }) {
+  const [newPassword, setNewPassword] = React.useState("");
+  const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [showPw, setShowPw] = React.useState(false);
+  const [done, setDone] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const token = new URLSearchParams(window.location.search).get("token") || "";
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (newPassword.length < 8) { setError("Senha deve ter no mínimo 8 caracteres"); return; }
+    if (newPassword !== confirmPassword) { setError("Senhas não conferem"); return; }
+    setBusy(true);
+    try {
+      const base = (apiBaseUrl || "http://localhost:3009").replace(/\/$/, "");
+      const res = await fetch(`${base}/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token, password: newPassword }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({})) as Record<string, unknown>;
+        const msg = body.code === "token_expired" ? "Link expirado. Solicite novamente." : body.code === "invalid_or_expired_token" ? "Link inválido ou expirado." : (body.detail as string) || "Erro ao redefinir senha";
+        throw new Error(msg);
+      }
+      setDone(true);
+      // Clean URL
+      window.history.replaceState({}, "", "/");
+    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  };
+
+  if (!token) {
+    return (
+      <div className="auth-form" style={{ textAlign: "center" }}>
+        <h2 className="auth-form__title">Link inválido</h2>
+        <p className="auth-form__subtitle">O link de redefinição está incompleto ou expirado.</p>
+        <button type="button" onClick={onBack} className="auth-switch__link" style={{ marginTop: 16 }}>← Voltar ao login</button>
+      </div>
+    );
+  }
+
+  if (done) {
+    return (
+      <div className="auth-form" style={{ textAlign: "center" }}>
+        <h2 className="auth-form__title">Senha redefinida! ✓</h2>
+        <p className="auth-form__subtitle">Sua nova senha está ativa. Faça login para acessar.</p>
+        <button type="button" onClick={onBack} className="auth-cta" style={{ marginTop: 16 }}>Fazer Login</button>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="auth-form">
+      <div className="auth-form__header">
+        <h2 className="auth-form__title">Nova senha</h2>
+        <p className="auth-form__subtitle">Defina sua nova senha de acesso.</p>
+      </div>
+      <div className="auth-field">
+        <label className="auth-field__label">Nova senha</label>
+        <div style={{ position: "relative" }}>
+          <input type={showPw ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required minLength={8} className="auth-field__input" />
+          <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--faint)" }}>
+            {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+      </div>
+      <div className="auth-field">
+        <label className="auth-field__label">Confirmar senha</label>
+        <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repita a nova senha" required className="auth-field__input" />
+      </div>
+      {error ? <div className="auth-hint">{error}</div> : null}
+      <button type="submit" disabled={busy} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
     </form>
   );
 }
