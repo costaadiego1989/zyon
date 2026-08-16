@@ -978,3 +978,52 @@ export interface TimeseriesResponse {
   sessions_daily: TimeseriesDataPoint[];
   conversion_daily: TimeseriesDataPoint[];
 }
+
+export interface ProductCategoryDTO {
+  id: string;
+  merchant_id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  description: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  children?: ProductCategoryDTO[];
+  product_count?: number;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  parent_id?: string;
+  description?: string;
+  image_url?: string;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  parent_id?: string | null;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface ReorderCategoryItem {
+  id: string;
+  sort_order: number;
+}
+
+export interface StoreQuickReplyStage {
+  stage: string;
+  label: string;
+  replies: string[];
+}
+
+export interface StoreQuickRepliesConfig {
+  stages: StoreQuickReplyStage[];
+  fallback: string[];
+}

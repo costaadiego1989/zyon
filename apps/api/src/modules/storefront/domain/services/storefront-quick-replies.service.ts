@@ -1,12 +1,13 @@
 /**
- * Storefront quick replies — context-intelligent tool-driven suggestions.
+ * Storefront quick replies — stage-based and context-intelligent suggestions.
  *
- * Generates deterministic quick-reply suggestions based on last tool used
- * and current cart state. Used to populate suggestedNext after storefront
- * agent tool calls.
- *
- * Max 5 replies per context; always deterministic, never LLM-generated.
+ * Generates deterministic quick-reply suggestions based on conversation stage,
+ * last tool used, and current context (cart state, shipping options).
+ * Max 8 replies per stage; always deterministic, never LLM-generated.
  */
+
+import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
+import { DEFAULT_STORE_QUICK_REPLIES } from "../defaults/store-quick-replies.defaults.js";
 
 export interface StorefrontCartState {
   items: Array<{ variantId: string; name: string; quantity: number }>;
@@ -22,113 +23,76 @@ export interface StorefrontShippingOption {
   days: number;
 }
 
+export type StoreStage =
+  | "welcome" | "browsing" | "filter" | "categories"
+  | "product_detail" | "more_info" | "reviews" | "review_card"
+  | "questions" | "compare" | "wishlist" | "added_to_cart"
+  | "post_purchase" | "support";
+
 /**
- * Generate smart quick-reply suggestions based on last tool action and cart state.
+ * Detect conversation stage from the last tool that was executed.
+ * Maps tool names to semantic stages for better UX flows.
+ */
+export function detectStoreStage(lastToolUsed: string | null | undefined, context?: { cartItemCount?: number }): StoreStage {
+  if (!lastToolUsed) return "welcome";
+
+  const toolToStage: Record<string, StoreStage> = {
+    search_products: "browsing",
+    list_products: "browsing",
+    get_product: "product_detail",
+    get_product_details: "product_detail",
+    add_item_to_cart: "added_to_cart",
+    remove_cart_item: "added_to_cart",
+    update_cart_item: "added_to_cart",
+    get_cart: context?.cartItemCount ? "added_to_cart" : "welcome",
+    quote_shipping: "added_to_cart",
+    list_categories: "categories",
+    get_reviews: "reviews",
+    create_review: "reviews",
+    get_wishlist: "wishlist",
+    add_to_wishlist: "wishlist",
+    compare_products: "compare",
+    track_order: "post_purchase",
+    get_order_status: "post_purchase",
+  };
+
+  return toolToStage[lastToolUsed] ?? "welcome";
+}
+
+/**
+ * Generate smart quick-reply suggestions based on stage, tool context, and merchant config.
  *
  * @param lastToolUsed Name of the tool that was just executed
+ * @param config Merchant's custom quick replies config (loaded from storeSettings)
  * @param cartState Current cart state (items, total, coupon)
  * @param shippingOptions Available shipping options (if quote_shipping was called)
- * @returns Array of 1-5 quick-reply strings (Portuguese)
+ * @returns Array of quick-reply strings matching the stage
  */
 export function storefrontQuickReplies(
-  lastToolUsed: string | undefined,
+  lastToolUsed: string | null | undefined,
+  config?: StoreQuickRepliesConfig | null,
   cartState?: StorefrontCartState,
   shippingOptions?: StorefrontShippingOption[]
 ): string[] {
-  if (!lastToolUsed) {
-    // Default: no recent tool call
-    return cartState?.items.length
-      ? ["Ver meu carrinho", "Buscar produtos", "Preciso de ajuda"]
-      : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
+  const cfg = config ?? DEFAULT_STORE_QUICK_REPLIES;
+  const stage = detectStoreStage(lastToolUsed, { cartItemCount: cartState?.itemCount });
+
+  // Find stage configuration
+  const stageConfig = cfg.stages.find(s => s.stage === stage);
+  if (!stageConfig) return cfg.fallback.slice(0, 5);
+
+  // For shipping stage, inject dynamic carrier options if available
+  if (lastToolUsed === "quote_shipping" && shippingOptions?.length) {
+    return shippingOptions
+      .map(o => {
+        const days = o.days ? ` (${o.days} dias)` : "";
+        const price = formatMoney(o.price);
+        return `${o.name}${days} - ${price}`;
+      })
+      .slice(0, 5);
   }
 
-  switch (lastToolUsed) {
-    case "search_products":
-      // After search: show product actions
-      return ["Adicionar ao carrinho", "Ver detalhes", "Buscar outro produto"];
-
-    case "get_product_details":
-      // After viewing details: add to cart or continue
-      return ["Adicionar ao carrinho", "Comparar com outro", "Continuar buscando"];
-
-    case "add_item_to_cart":
-      // After adding: continue shopping or go to cart
-      return ["Continuar comprando", "Ver meu carrinho", "Finalizar compra"];
-
-    case "remove_cart_item":
-    case "update_cart_item":
-      // After modifying cart: show updated cart and checkout
-      return ["Ver carrinho atualizado", "Continuar comprando", "Finalizar compra"];
-
-    case "get_cart": {
-      // Context based on cart content
-      if (!cartState?.items.length) {
-        return ["Buscar produtos", "Ver promoções", "Quais categorias?"];
-      }
-      const hasMultipleItems = cartState.items.length > 1;
-      const replies: string[] = ["Finalizar compra"];
-      if (!cartState.couponCode) {
-        replies.push("Aplicar cupom");
-      }
-      if (hasMultipleItems) {
-        replies.push("Remover item");
-      }
-      replies.push("Continuar comprando");
-      return replies.slice(0, 5);
-    }
-
-    case "apply_coupon": {
-      // Coupon application result will be determined by success/failure in context
-      // Success: show checkout, failure: show retry or continue
-      // For now, generic: continue or finalize
-      return ["Finalizar compra", "Ver carrinho atualizado", "Continuar comprando"];
-    }
-
-    case "remove_coupon":
-      // After removing coupon
-      return ["Aplicar outro cupom", "Finalizar compra", "Continuar comprando"];
-
-    case "list_promotions":
-      // After viewing promotions
-      return ["Aplicar cupom ZYON10", "Ver carrinho", "Continuar comprando"];
-
-    case "quote_shipping": {
-      // After shipping quote: show carrier options as quick replies
-      if (shippingOptions && shippingOptions.length > 0) {
-        const carrierReplies = shippingOptions.map(opt => {
-          const days = opt.days ? ` (${opt.days} dias)` : "";
-          const price = formatMoney(opt.price);
-          return `${opt.name}${days} - ${price}`;
-        });
-        // Trim to max 5
-        return carrierReplies.slice(0, 5);
-      }
-      // Fallback if no options
-      return ["Sedex", "PAC", "Finalizar compra"];
-    }
-
-    case "clear_cart":
-      // After clearing: browse or view promotions
-      return ["Buscar produtos", "Ver promoções", "Ver categorias"];
-
-    case "create_checkout_session":
-      // After checkout handoff: finishing flow
-      return ["Acompanhar pedido", "Voltar à loja", "Suporte"];
-
-    case "compare_products":
-      // After comparison: add one or search more
-      return ["Adicionar ao carrinho", "Buscar outro", "Ver detalhes"];
-
-    case "get_product_availability":
-      // After checking stock
-      return ["Adicionar ao carrinho", "Notificar quando disponível", "Buscar alternativa"];
-
-    default:
-      // Fallback for unknown tools
-      return cartState?.items.length
-        ? ["Ver meu carrinho", "Buscar produtos", "Preciso de ajuda"]
-        : ["Buscar produtos", "Ver promoções", "Continuar comprando"];
-  }
+  return stageConfig.replies.slice(0, 8);
 }
 
 /**
@@ -138,4 +102,13 @@ export function storefrontQuickReplies(
 function formatMoney(valueCents: number): string {
   const valueReal = valueCents / 100;
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(valueReal);
+}
+
+// Legacy adapter for backward compatibility (deprecated)
+export function storefrontQuickRepliesLegacy(
+  lastToolUsed: string | undefined,
+  cartState?: StorefrontCartState,
+  shippingOptions?: StorefrontShippingOption[]
+): string[] {
+  return storefrontQuickReplies(lastToolUsed, null, cartState, shippingOptions);
 }

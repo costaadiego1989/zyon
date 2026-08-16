@@ -4,10 +4,17 @@ import type { MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
 import { QuickRepliesSection } from "../components/quick-replies-section.js";
-import type { StageQuickReplies } from "@zyon/shared-types";
+import type { StageQuickReplies, AgentTone } from "@zyon/shared-types";
 
-const PERSONALITIES = ["formal", "casual", "descontraido"] as const;
-const TONES = ["prestativo", "profissional", "divertido"] as const;
+const TONE_PT_TO_EN: Record<string, AgentTone> = {
+  "Consultivo": "consultative",
+  "Premium": "premium",
+  "Direto": "direct",
+  "Amigável": "friendly",
+  "Técnico": "technical"
+};
+
+const TONE_EN_TO_PT = Object.fromEntries(Object.entries(TONE_PT_TO_EN).map(([k, v]) => [v, k]));
 
 export interface AgentConfigPageProps {
   apiBaseUrl: string;
@@ -15,27 +22,41 @@ export interface AgentConfigPageProps {
 }
 
 export interface AgentConfigForm {
-  personality: (typeof PERSONALITIES)[number];
-  tone: (typeof TONES)[number];
+  agentName: string;
+  persona: string;
+  tone: AgentTone;
+  language: string;
+  greeting: string;
   maxDiscountPercent: string;
   minimumMarginPercent: string;
-  maxCouponCents: string;
-  faqJson: string;
   quickReplies: StageQuickReplies | undefined;
 }
 
 const DEFAULT_FORM: AgentConfigForm = {
-  personality: "casual",
-  tone: "prestativo",
+  agentName: "Assistente",
+  persona: "",
+  tone: "consultative",
+  language: "pt-BR",
+  greeting: "Olá! Como posso ajudá-lo?",
   maxDiscountPercent: "10",
   minimumMarginPercent: "15",
-  maxCouponCents: "5000",
-  faqJson: "[]",
   quickReplies: undefined,
 };
 
 export function validateAgentConfig(form: AgentConfigForm): Record<string, string> {
   const errors: Record<string, string> = {};
+
+  if (form.agentName.trim().length > 100) {
+    errors.agentName = "Máximo 100 caracteres";
+  }
+
+  if (form.persona.length > 200) {
+    errors.persona = "Máximo 200 caracteres";
+  }
+
+  if (form.greeting.length > 500) {
+    errors.greeting = "Máximo 500 caracteres";
+  }
 
   const maxDiscount = Number(form.maxDiscountPercent);
   if (Number.isNaN(maxDiscount) || maxDiscount < 0 || maxDiscount > 100) {
@@ -45,20 +66,6 @@ export function validateAgentConfig(form: AgentConfigForm): Record<string, strin
   const minMargin = Number(form.minimumMarginPercent);
   if (Number.isNaN(minMargin) || minMargin < 0 || minMargin > 100) {
     errors.minimumMarginPercent = "Informe um valor entre 0 e 100";
-  }
-
-  const coupon = Number(form.maxCouponCents);
-  if (Number.isNaN(coupon) || coupon < 0) {
-    errors.maxCouponCents = "Valor inválido";
-  }
-
-  if (form.faqJson.trim()) {
-    try {
-      const parsed = JSON.parse(form.faqJson);
-      if (!Array.isArray(parsed)) errors.faqJson = "FAQ deve ser uma lista";
-    } catch (e) {
-      errors.faqJson = `JSON inválido: ${e instanceof Error ? e.message : String(e)}`;
-    }
   }
 
   return errors;
@@ -91,17 +98,16 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
 
         const arUnknown = ar as unknown as Record<string, unknown>;
         const rulesUnknown = rules as unknown as Record<string, unknown>;
-        const personalityRaw = arUnknown.personality;
-        const toneRaw = arUnknown.tone;
-        const faqRaw = arUnknown.faq;
+        const identity = (arUnknown.identity ?? {}) as Record<string, unknown>;
 
         setForm({
-          personality: isPersonality(personalityRaw) ? personalityRaw : "casual",
-          tone: isTone(toneRaw) ? toneRaw : "prestativo",
+          agentName: String(identity.agentName ?? "Assistente"),
+          persona: String(identity.persona ?? ""),
+          tone: isValidTone(identity.tone) ? identity.tone : "consultative",
+          language: String(identity.language ?? "pt-BR"),
+          greeting: String(identity.greeting ?? ""),
           maxDiscountPercent: String(rulesUnknown.maxDiscountPercent ?? 10),
           minimumMarginPercent: String(rulesUnknown.minimumMarginPercent ?? 15),
-          maxCouponCents: String(arUnknown.maxCouponCents ?? 5000),
-          faqJson: faqRaw ? JSON.stringify(faqRaw, null, 2) : "[]",
           quickReplies: (rulesUnknown.quickReplies as unknown as StageQuickReplies | undefined) ?? undefined,
         });
       } catch (e) {
@@ -136,16 +142,17 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
       };
       await api.putMerchantRules(rulesPatch as never);
 
-      const agentRules = await api.getAgentRules();
-      const arUnknown = agentRules as unknown as Record<string, unknown>;
-      const next = {
-        ...arUnknown,
-        personality: form.personality,
-        tone: form.tone,
-        maxCouponCents: Number(form.maxCouponCents),
-        faq: form.faqJson.trim() ? JSON.parse(form.faqJson) : [],
+      // Send agent rules in proper nested format
+      const agentRulesPatch = {
+        identity: {
+          agentName: form.agentName,
+          persona: form.persona,
+          tone: form.tone,
+          language: form.language,
+          greeting: form.greeting,
+        }
       };
-      await api.putAgentRules(next as never);
+      await api.putAgentRules(agentRulesPatch as never);
 
       setSaveResult("success");
     } catch (e) {
@@ -196,38 +203,70 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
           <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>PERSONALIDADE E TOM</h3>
+            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IDENTIDADE DO AGENTE</h3>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Personalidade</span>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Nome do Agente</span>
+                <input
+                  value={form.agentName}
+                  onChange={(e) => patch({ agentName: e.target.value })}
+                  placeholder="Assistente"
+                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.agentName ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
+                />
+                {errors.agentName && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.agentName}</span>}
+              </label>
+              <label>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Idioma</span>
                 <select
-                  value={form.personality}
-                  onChange={(e) => patch({ personality: e.target.value as AgentConfigForm["personality"] })}
+                  value={form.language}
+                  onChange={(e) => patch({ language: e.target.value })}
                   style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
                 >
-                  {PERSONALITIES.map((p) => (
-                    <option key={p} value={p}>{personalityLabel(p)}</option>
+                  <option value="pt-BR">Português (BR)</option>
+                  <option value="en-US">English (US)</option>
+                  <option value="es-ES">Español</option>
+                </select>
+              </label>
+              <label>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Tom de Voz</span>
+                <select
+                  value={form.tone}
+                  onChange={(e) => patch({ tone: e.target.value as AgentTone })}
+                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
+                >
+                  {Object.entries(TONE_PT_TO_EN).map(([label, value]) => (
+                    <option key={value} value={value}>{label}</option>
                   ))}
                 </select>
               </label>
               <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Tom</span>
-                <select
-                  value={form.tone}
-                  onChange={(e) => patch({ tone: e.target.value as AgentConfigForm["tone"] })}
-                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
-                >
-                  {TONES.map((t) => (
-                    <option key={t} value={t}>{toneLabel(t)}</option>
-                  ))}
-                </select>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Persona</span>
+                <input
+                  value={form.persona}
+                  onChange={(e) => patch({ persona: e.target.value })}
+                  placeholder="Descreva a personalidade do agente"
+                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.persona ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
+                />
+                {errors.persona && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.persona}</span>}
+              </label>
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <label>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Saudação Inicial</span>
+                <input
+                  value={form.greeting}
+                  onChange={(e) => patch({ greeting: e.target.value })}
+                  placeholder="Olá! Como posso ajudá-lo?"
+                  style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
+                />
+                {errors.greeting && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.greeting}</span>}
               </label>
             </div>
           </section>
 
           <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
             <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>LIMITES DE NEGOCIAÇÃO</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <NumberField
                 label="Desconto máximo (%)"
                 value={form.maxDiscountPercent}
@@ -240,33 +279,14 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
                 onChange={(v) => patch({ minimumMarginPercent: v })}
                 error={errors.minimumMarginPercent}
               />
-              <NumberField
-                label="Valor máximo de cupom (centavos)"
-                value={form.maxCouponCents}
-                onChange={(v) => patch({ maxCouponCents: v })}
-                error={errors.maxCouponCents}
-              />
             </div>
           </section>
 
           <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>KNOWLEDGE BASE / FAQ</h3>
-            <label style={{ display: "block" }}>
-              <textarea
-                value={form.faqJson}
-                onChange={(e) => patch({ faqJson: e.target.value })}
-                rows={8}
-                placeholder='[{"question": "...", "answer": "..."}]'
-                style={{ width: "100%", padding: "8px 12px", borderRadius: 7, border: `1px solid ${errors.faqJson ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12px var(--mono)", resize: "vertical" }}
-              />
-              {errors.faqJson ? (
-                <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{errors.faqJson}</span>
-              ) : (
-                <span style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 4, display: "block" }}>
-                  JSON opcional. Lista de perguntas frequentes para o agente.
-                </span>
-              )}
-            </label>
+            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>FAQ / BASE DE CONHECIMENTO</h3>
+            <p style={{ font: "12.5px var(--sans)", color: "var(--muted)", margin: 0 }}>
+              Gerencie FAQ em <a href="/support/settings" style={{ color: "var(--accent-dark)" }}>Configurações de Suporte</a>.
+            </p>
           </section>
 
           <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
@@ -298,18 +318,8 @@ function NumberField(props: { label: string; value: string; onChange: (v: string
   );
 }
 
-function personalityLabel(p: (typeof PERSONALITIES)[number]): string {
-  return { formal: "Formal", casual: "Casual", descontraido: "Descontraído" }[p];
-}
+const VALID_TONES: AgentTone[] = ["consultative", "premium", "direct", "friendly", "technical"];
 
-function toneLabel(t: (typeof TONES)[number]): string {
-  return { prestativo: "Prestativo", profissional: "Profissional", divertido: "Divertido" }[t];
-}
-
-function isPersonality(value: unknown): value is AgentConfigForm["personality"] {
-  return typeof value === "string" && (PERSONALITIES as readonly string[]).includes(value);
-}
-
-function isTone(value: unknown): value is AgentConfigForm["tone"] {
-  return typeof value === "string" && (TONES as readonly string[]).includes(value);
+function isValidTone(value: unknown): value is AgentTone {
+  return typeof value === "string" && VALID_TONES.includes(value as AgentTone);
 }

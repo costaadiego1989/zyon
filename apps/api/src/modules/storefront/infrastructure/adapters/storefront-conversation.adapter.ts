@@ -15,6 +15,7 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
+import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -361,11 +362,21 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       }));
     }
 
+    // Load merchant's quick replies config from storeSettings if available
+    let quickRepliesConfig: StoreQuickRepliesConfig | null = null;
+    if (input.storeSettings?.quick_replies) {
+      try {
+        quickRepliesConfig = input.storeSettings.quick_replies as StoreQuickRepliesConfig;
+      } catch {
+        // Non-critical: use defaults if config is malformed
+      }
+    }
+
     return {
       message: result.message,
       blocks: result.blocks,
       cartId: result.cartId,
-      suggestedNext: storefrontQuickReplies(lastTool, cartState, shippingOptions)
+      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions)
     };
   }
 
