@@ -24,12 +24,11 @@ function getStorefrontUrl(merchantId: string): string {
 const OverviewPage = lazy(() => import("../pages/overview/index.js").then(m => ({ default: m.OverviewPage })));
 const MerchantRulesAuthenticatedPage = lazy(() => import("../pages/merchant-rules-page.js").then(m => ({ default: m.MerchantRulesAuthenticatedPage })));
 const CheckoutSettingsPage = lazy(() => import("../pages/checkout-settings/index.js").then(m => ({ default: m.CheckoutSettingsPage })));
-const NegotiationPage = lazy(() => import("../pages/negotiation-page.js").then(m => ({ default: m.NegotiationPage })));
 const SupportSettingsPage = lazy(() => import("../pages/support-settings-page.js").then(m => ({ default: m.SupportSettingsPage })));
 const IntegrationsPage = lazy(() => import("../pages/integrations-page.js").then(m => ({ default: m.IntegrationsPage })));
 const OrdersShipmentsPage = lazy(() => import("../pages/orders-shipments-page.js").then(m => ({ default: m.OrdersShipmentsPage })));
 const CustomersPage = lazy(() => import("../pages/customers-page.js").then(m => ({ default: m.CustomersPage })));
-const FunnelPage = lazy(() => import("../pages/funnel-page.js").then(m => ({ default: m.FunnelPage })));
+const FunnelPage = lazy(() => import("../pages/funnel/index.js").then(m => ({ default: m.FunnelPage })));
 const EmbedPage = lazy(() => import("../pages/embed-page.js").then(m => ({ default: m.EmbedPage })));
 const ThemePage = lazy(() => import("../pages/theme-page.js").then(m => ({ default: m.ThemePage })));
 const OnboardingWizard = lazy(() => import("../pages/onboarding-wizard/index.js").then(m => ({ default: m.OnboardingWizard })));
@@ -43,6 +42,7 @@ const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").t
 const CategoriesPage = lazy(() => import("../pages/categories/index.js").then(m => ({ default: m.CategoriesPage })));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
+const StoriesPage = lazy(() => import("../pages/stories-page.js").then(m => ({ default: m.StoriesPage })));
 const BillingPlansPage = lazy(() => import("../pages/billing-plans-page.js").then(m => ({ default: m.BillingPlansPage })));
 
 function LoadingFallback() {
@@ -178,7 +178,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             ) : null}
             {tab === "rules" ? <MerchantRulesAuthenticatedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "settings" ? <CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "negotiation" ? <NegotiationPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "support" ? <SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "integrations" ? <IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "shipments" ? <OrdersShipmentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
@@ -187,6 +186,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "embed" ? <EmbedPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "preview" ? <CheckoutPreviewPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "theme-checkout" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "billing" ? <BillingPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "billing-plans" ? <BillingPlansPage currentPlan={me.plan ?? null} renewalDate={null} /> : null}
             {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
@@ -212,6 +212,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "categories" ? <CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "store-settings" ? <StoreSettingsPage /> : null}
             {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "agent-config-checkout" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "stories" ? <StoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>

@@ -1,0 +1,322 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Funnel Page
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.funnel-page {
+  --funnel-brand: var(--accent, #3b82f6);
+  --funnel-radius: 12px;
+  --funnel-surface: var(--color-surface, #111827);
+  --funnel-surface-raised: var(--color-surface-raised, #1a2332);
+  --funnel-pad: clamp(1rem, 3vw, 2rem);
+  --funnel-hair: color-mix(in srgb, var(--color-border) 60%, transparent);
+}
+
+.funnel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.funnel-head > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.funnel-head h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.funnel-head .page-lead {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ── Filters ──────────────────────────────────────────────────────────────── */
+
+.funnel-filters {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.funnel-period-btn {
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.funnel-period-btn:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+.funnel-period-btn.active {
+  background: var(--funnel-brand);
+  border-color: var(--funnel-brand);
+  color: white;
+}
+
+/* ── Bottleneck Banner ────────────────────────────────────────────────────── */
+
+.funnel-bottleneck {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--warning-border, #d97706);
+  border-left: 4px solid var(--warning, #f59e0b);
+  border-radius: var(--funnel-radius);
+  background: var(--warning-bg, rgba(245, 158, 11, 0.08));
+  margin-bottom: 2rem;
+  align-items: flex-start;
+}
+
+.funnel-bottleneck-icon {
+  color: var(--warning, #f59e0b);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.funnel-bottleneck-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.funnel-bottleneck-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 4px 0;
+}
+
+.funnel-bottleneck-text {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+/* ── Metrics Grid ─────────────────────────────────────────────────────────── */
+
+.funnel-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.funnel-metric-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--funnel-radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.funnel-metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.funnel-metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.funnel-metric-secondary {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* ── Chart Container ──────────────────────────────────────────────────────── */
+
+.funnel-chart-container {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--funnel-radius);
+  padding: 2rem;
+  margin-bottom: 2rem;
+  overflow-x: auto;
+}
+
+.funnel-chart-svg {
+  min-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── Active Sessions List ─────────────────────────────────────────────────── */
+
+.funnel-sessions {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--funnel-radius);
+  overflow: hidden;
+}
+
+.funnel-sessions-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.funnel-sessions-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0;
+}
+
+.funnel-sessions-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.funnel-sessions-table thead tr {
+  border-bottom: 1px solid var(--border);
+}
+
+.funnel-sessions-table th {
+  text-align: left;
+  padding: 12px 16px;
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 11px;
+  background: transparent;
+}
+
+.funnel-sessions-table td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--funnel-hair);
+  color: var(--ink);
+}
+
+.funnel-sessions-table tr:last-child td {
+  border-bottom: none;
+}
+
+.funnel-sessions-table tbody tr:hover {
+  background: var(--funnel-surface-raised);
+}
+
+.funnel-sessions-stage {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--accent-soft, rgba(59, 130, 246, 0.1));
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.funnel-sessions-risk {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.funnel-sessions-risk.risk-low {
+  color: var(--good, #10b981);
+}
+
+.funnel-sessions-risk.risk-med {
+  color: var(--warn, #f59e0b);
+}
+
+.funnel-sessions-risk.risk-high {
+  color: var(--danger, #ef4444);
+}
+
+.funnel-sessions-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ── Loading & Error ──────────────────────────────────────────────────────── */
+
+.funnel-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 2rem;
+}
+
+.funnel-skeleton {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--funnel-radius);
+  height: 100px;
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.8; }
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .funnel-page {
+    --funnel-pad: 1rem;
+  }
+
+  .funnel-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .funnel-head h1 {
+    font-size: 18px;
+  }
+
+  .funnel-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .funnel-chart-container {
+    padding: 1rem;
+  }
+
+  .funnel-sessions-table th,
+  .funnel-sessions-table td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .funnel-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .funnel-head h1 {
+    font-size: 16px;
+  }
+}
