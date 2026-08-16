@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { applyCurrencyMask } from "../utils/currency.js";
+import { PrefixInput } from "../components/PrefixInput.js";
 import { TabBar } from "../components/TabBar.js";
 import { useAgentConfigPage, TONE_PT_TO_EN, DEFAULT_STAGE_QR, type StageQrConfig } from "./useAgentConfigPage.js";
 import type { AgentTone } from "@zyon/shared-types";
@@ -113,7 +114,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                 <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>DESCONTO</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Limite máximo de desconto que o agente pode conceder ao comprador.</p>
                 <div style={{ maxWidth: 280 }}>
-                  <NumberField label="Desconto máximo (%)" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} error={vm.errors.maxDiscountPercent} />
+                  <PrefixInput prefix="%" label="Desconto máximo" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} placeholder="10" error={vm.errors.maxDiscountPercent} />
                 </div>
               </section>
 
@@ -129,18 +130,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   </label>
                   {vm.form.allowFreeShipping && (
                     <div style={{ paddingLeft: 46, maxWidth: 280 }}>
-                      <label>
-                        <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Valor mínimo carrinho para frete grátis</span>
-                        <div style={{ display: "flex", alignItems: "stretch", gap: 0 }}>
-                          <span style={{ padding: "0 10px", borderRadius: "7px 0 0 7px", border: "1px solid var(--border)", borderRight: "none", background: "oklch(20% 0.004 145)", color: "var(--muted)", font: "12.5px var(--mono)", display: "flex", alignItems: "center" }}>R$</span>
-                          <input
-                            value={vm.form.freeShippingMinCartValue}
-                            onChange={(e) => vm.patch({ freeShippingMinCartValue: applyCurrencyMask(e.target.value) })}
-                            placeholder="250,00"
-                            style={{ flex: 1, padding: "7px 10px", borderRadius: "0 7px 7px 0", border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }}
-                          />
-                        </div>
-                      </label>
+                      <PrefixInput prefix="R$" label="Valor mínimo carrinho para frete grátis" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: applyCurrencyMask(v) })} placeholder="250,00" error={vm.errors.freeShippingMinCartValue} />
                     </div>
                   )}
                   <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
