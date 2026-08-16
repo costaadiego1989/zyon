@@ -1,6 +1,7 @@
 import { Module, Global, OnModuleInit, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
 import { LoginUseCase } from "./application/login.use-case.js";
 import { LoginWithRateLimitUseCase } from "./application/login-with-rate-limit.use-case.js";
 import { RegisterMerchantUseCase } from "./application/register-merchant.use-case.js";
@@ -24,6 +25,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
  */
 @Global()
 @Module({
+  imports: [NotificationsModule],
   controllers: [AuthController],
   providers: [
     // Use-cases
