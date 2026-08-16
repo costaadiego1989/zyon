@@ -27,6 +27,7 @@ import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -46,7 +47,8 @@ export class SendChatMessageUseCase {
     @Optional() private readonly crossSellUseCase?: ListEligibleCrossSellsUseCase,
     @Optional() @Inject(PRODUCT_SEARCH_PORT) private readonly productSearch?: ProductSearchPort,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -147,13 +149,11 @@ export class SendChatMessageUseCase {
     // Load merchant advanced rules from checkout settings (advisory)
     let merchantRules: string[] | undefined;
     try {
-      const { PrismaClient } = await import("@prisma/client");
-      const prisma = new PrismaClient();
-      const setting = await prisma.checkoutSetting.findUnique({
-        where: { merchantId: input.merchant_id },
-        select: { advancedRules: true, interventionPolicy: true },
-      });
-      await prisma.$disconnect();
+      if (this.prisma) {
+        const setting = await this.prisma.checkoutSetting.findUnique({
+          where: { merchantId: input.merchant_id },
+          select: { advancedRules: true, interventionPolicy: true },
+        });
 
       merchantRules = [];
 
@@ -183,11 +183,15 @@ export class SendChatMessageUseCase {
       }
 
       if (merchantRules.length === 0) merchantRules = undefined;
-    } catch { /* rules are advisory, not critical */ }
+      }
+    } catch (rulesErr) {
+      console.error("[RULES LOAD ERROR]", rulesErr instanceof Error ? rulesErr.message : rulesErr);
+    }
 
     // Off-script detection: if user asks question/objection instead of providing data, route to LLM
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
     const isOffScript = this.detectOffScript(input.user_message, stage, missingFields);
+    console.log(`[CHECKOUT] msg="${input.user_message.slice(0,40)}" stage=${stage} missing=${missingFields?.join(",")} offScript=${isOffScript} rules=${merchantRules?.length ?? "none"}`);
 
     if (isOffScript && merchantRules?.length) {
       // Call Llama directly for off-script with merchant rules
