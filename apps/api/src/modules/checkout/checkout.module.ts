@@ -25,6 +25,8 @@ import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
 import { UpdateCartUseCase } from "./application/use-cases/update-cart.use-case.js";
+import { GetFunnelUseCase } from "./application/use-cases/get-funnel.use-case.js";
+import { GetFunnelSessionsUseCase } from "./application/use-cases/get-funnel-sessions.use-case.js";
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
@@ -97,6 +99,8 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     GetTimeseriesUseCase,
     GetMerchantRulesUseCase,
     UpdateMerchantRulesUseCase,
+    GetFunnelUseCase,
+    GetFunnelSessionsUseCase,
     AgentRulesContextAdapter,
     BuyerPurchaseHistoryAdapter,
     CheckoutSettingsAdapter,

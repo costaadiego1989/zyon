@@ -14,6 +14,8 @@ import type {
 } from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
+import { GetFunnelUseCase } from "../../application/use-cases/get-funnel.use-case.js";
+import { GetFunnelSessionsUseCase } from "../../application/use-cases/get-funnel-sessions.use-case.js";
 import {
   GetDashboardOverviewUseCase,
   GetMerchantRulesUseCase,
@@ -51,6 +53,8 @@ export class CheckoutController {
     private readonly updateCart?: UpdateCartUseCase,
     private readonly getStoreOverview?: GetStoreOverviewUseCase,
     private readonly getTimeseries?: GetTimeseriesUseCase,
+    private readonly getFunnel?: GetFunnelUseCase,
+    private readonly getFunnelSessions?: GetFunnelSessionsUseCase,
   ) {}
 
   @Post("start-checkout")
@@ -142,5 +146,20 @@ export class CheckoutController {
   @Put("dashboard/rules/:merchantId")
   update(@Param("merchantId") merchantId: string, @Body() body: Partial<MerchantRules>) {
     return this.updateRules.execute(merchantId, body);
+  }
+
+  @Get("funnel/:merchantId")
+  funnel(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: string,
+  ) {
+    if (!this.getFunnel) throw new Error("funnel_not_configured");
+    return this.getFunnel.execute(merchantId, (period ?? "7d") as "today" | "7d" | "30d" | "90d");
+  }
+
+  @Get("funnel/:merchantId/sessions")
+  funnelSessions(@Param("merchantId") merchantId: string) {
+    if (!this.getFunnelSessions) throw new Error("funnel_sessions_not_configured");
+    return this.getFunnelSessions.execute(merchantId);
   }
 }
