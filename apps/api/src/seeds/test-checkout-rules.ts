@@ -7,7 +7,7 @@
  * Usage: npx tsx apps/api/src/seeds/test-checkout-rules.ts
  */
 
-const API_BASE = "http://localhost:3009";
+const API_BASE = "http://[::1]:3009";
 const MERCHANT_ID = "mrc_3fe4436c-bde8-4b3b-b773-3d4374a414fa";
 
 // Set env to skip Llama (OOM on dev machine) and go straight to DeepSeek
@@ -131,14 +131,16 @@ async function saveRules(token: string): Promise<void> {
 async function startSession(token: string, cartTotal: number): Promise<string> {
   const r = await fetch(`${API_BASE}/checkout/start-checkout`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       merchant_id: MERCHANT_ID,
-      customer: { email: `test-${Date.now()}@x.com` },
+      customer: { email: `test-${Date.now()}-${Math.random().toString(36).slice(2)}@x.com` },
       cart: { currency: "BRL", total: cartTotal, items: [{ sku: "prod-1", name: "Produto Teste", quantity: 1, unit_price: cartTotal }] },
     }),
   });
+  if (!r.ok) throw new Error(`start-checkout failed: ${r.status} ${(await r.text()).slice(0,100)}`);
   const json = await r.json() as { session_id: string };
+  if (!json.session_id) throw new Error(`no session_id in response`);
   return json.session_id;
 }
 
@@ -148,12 +150,15 @@ async function sendMessage(token: string, sessionId: string, message: string): P
   try {
     const r = await fetch(`${API_BASE}/checkout/chat/message`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ merchant_id: MERCHANT_ID, session_id: sessionId, user_message: message }),
       signal: controller.signal,
     });
-    const json = await r.json() as { message: string };
-    return json.message;
+    if (!r.ok) return `[API ERROR ${r.status}]`;
+    const json = await r.json() as any;
+    return json?.message ?? json?.text ?? "[no message in response]";
+  } catch (e) {
+    return `[FETCH ERROR: ${e instanceof Error ? e.message : String(e)}]`;
   } finally {
     clearTimeout(timeout);
   }
