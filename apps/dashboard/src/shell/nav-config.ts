@@ -16,12 +16,12 @@ import {
   Settings2,
   ShieldCheck,
   ShoppingBag,
-  SlidersHorizontal,
   Store,
   UsersRound,
   Webhook,
   Zap,
   BarChart3,
+  CircleDashed,
   type LucideIcon
 } from "lucide-react";
 
@@ -37,10 +37,10 @@ export type TabKey =
   | "embed"
   | "preview"
   | "theme"
+  | "theme-checkout"
   | "support"
   | "settings"
   | "rules"
-  | "negotiation"
   | "billing"
   | "billing-plans"
   | "payment-connections"
@@ -50,7 +50,9 @@ export type TabKey =
   | "product-detail"
   | "categories"
   | "store-settings"
-  | "agent-config";
+  | "agent-config"
+  | "agent-config-checkout"
+  | "stories";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -66,18 +68,19 @@ export const NAV_ITEMS: Array<{
   // ─── Loja (Storefront) ───
   { key: "catalog", label: "Catálogo", section: "Loja", icon: ShoppingBag, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "categories", label: "Categorias", section: "Loja", icon: FolderTree, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "stories", label: "Stories", section: "Loja", icon: CircleDashed, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "shipments", label: "Pedidos e envios", section: "Loja", icon: PackageSearch, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "customers", label: "Clientes", section: "Loja", icon: UsersRound, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "agent-config", label: "Agente IA", section: "Loja", icon: Bot, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "theme", label: "Tema", section: "Loja", icon: Palette, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "store-settings", label: "Configurações", section: "Loja", icon: Save, requiredPlan: ["STORE_ONLY", "BOTH"] },
 
   // ─── Checkout (Widget) ───
   { key: "settings", label: "Configurações", section: "Checkout", icon: Settings2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
-  { key: "rules", label: "Agente IA", section: "Checkout", icon: Bot, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
-  { key: "negotiation", label: "Negociação", section: "Checkout", icon: SlidersHorizontal, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
-  { key: "theme", label: "Tema", section: "Checkout", icon: Palette, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "agent-config-checkout", label: "Agente IA", section: "Checkout", icon: Bot, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "theme-checkout", label: "Tema", section: "Checkout", icon: Palette, requiredPlan: ["CHECKOUT_ONLY"] },
   { key: "embed", label: "Embed / Instalação", section: "Checkout", icon: Code2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
-  { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
 
   // ─── Integrações ───
