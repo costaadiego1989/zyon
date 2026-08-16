@@ -459,7 +459,16 @@ export default function ConversationShell({
     void sendMessage(input);
   };
 
+  const [cartDrawerForceOpen, setCartDrawerForceOpen] = useState(false);
+
   const handleQuickReply = (option: string) => {
+    // Intercept cart-related actions — open drawer directly instead of sending to LLM
+    const lower = option.toLowerCase();
+    if (lower === "ver carrinho" || lower === "ver meu carrinho") {
+      setCartDrawerForceOpen(true);
+      setTimeout(() => setCartDrawerForceOpen(false), 100);
+      return;
+    }
     void sendMessage(option);
   };
 
@@ -490,7 +499,7 @@ export default function ConversationShell({
 
       {mode === "chat" && (
         <>
-        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "12px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
+        <header style={{ display: "flex", alignItems: "center", gap: "11px", padding: "8px 14px", borderBottom: "none", zIndex: 9, background: "var(--aacp-bg)", flex: "none" }}>
           {logo ? (
             <img src={logo} alt={storeName} width={80} height={80} loading="eager" style={{ maxWidth: "80px", maxHeight: "80px", objectFit: "contain", flex: "none" }} />
           ) : (
@@ -618,23 +627,23 @@ export default function ConversationShell({
       ) : (
         /* ─── CHAT STAGE ─── */
         <>
-          <main ref={threadRef} role="main" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "20px 18px", display: "flex", flexDirection: "column", gap: "14px", minHeight: 0, scrollBehavior: "smooth" }}>
+          <main ref={threadRef} role="main" style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "12px 18px", display: "flex", flexDirection: "column", gap: "14px", minHeight: 0, scrollBehavior: "smooth", msOverflowStyle: "none", scrollbarWidth: "none" }}>
             {/* Welcome state — no messages yet */}
             {messages.length === 0 && !isLoading && (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "16px", padding: "40px 20px", textAlign: "center" }}>
-                <PulseAgentOrb size={72} />
-                <div style={{ marginTop: "8px", maxWidth: "100%", width: "100%" }}>
-                  <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
-                  <div style={{ fontSize: "13.5px", color: "var(--aacp-muted)", marginTop: "10px", lineHeight: 1.6, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", padding: "16px 20px", textAlign: "center" }}>
+                <PulseAgentOrb size={56} />
+                <div style={{ marginTop: "4px", maxWidth: "100%", width: "100%" }}>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
+                  <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
                     {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
                   </div>
-                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginTop: "18px" }}>
+                  <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginTop: "14px" }}>
                     Selecione uma opção abaixo ou digite algo
                   </div>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center", marginTop: "16px", width: "100%" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "7px", justifyContent: "center", marginTop: "10px", paddingBottom: "8px", width: "100%" }}>
                   {(quickReplies ?? chatQuickReplies).map((label) => (
-                    <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "9px 16px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "12px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
+                    <button key={label} type="button" onClick={() => handleQuickReply(label)} style={{ padding: "7px 14px", borderRadius: "999px", border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: "11.5px", fontWeight: 500, cursor: "pointer", whiteSpace: "nowrap", transition: "all 0.15s", fontFamily: "var(--aacp-font)" }}
                       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--aacp-accent)"; e.currentTarget.style.color = "var(--aacp-fg)"; }}
                       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--aacp-line)"; e.currentTarget.style.color = "var(--aacp-muted)"; }}
                     >{label}</button>
@@ -790,9 +799,10 @@ export default function ConversationShell({
       {mode === "chat" && (
         <CheckoutWidgetPanel
           onCheckout={() => handleQuickReply("Finalizar Compra")}
-          onViewCart={() => handleQuickReply("Ver carrinho")}
+          onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={(variantId, qty) => handleQuickReply(`Atualizar quantidade do item ${variantId} para ${qty}`)}
           onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
+          forceOpen={cartDrawerForceOpen}
         />
       )}
 

@@ -9,6 +9,7 @@ interface NativeCartPanelProps {
   onViewCart: () => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
+  forceOpen?: boolean;
 }
 
 export default function NativeCartPanel({
@@ -16,11 +17,19 @@ export default function NativeCartPanel({
   onViewCart,
   onUpdateQty,
   onRemoveItem,
+  forceOpen,
 }: NativeCartPanelProps) {
   const { cart } = useCart();
   const [sheetOpen, setSheetOpen] = useState(false);
   const prevCountRef = useRef(cart.itemCount);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Force open from parent (e.g., "Ver carrinho" quickReply)
+  useEffect(() => {
+    if (forceOpen) {
+      handleManualOpen();
+    }
+  }, [forceOpen]);
 
   // Auto-open drawer when items are added, auto-close after 3s
   useEffect(() => {
