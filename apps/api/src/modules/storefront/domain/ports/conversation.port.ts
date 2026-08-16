@@ -15,6 +15,7 @@ export interface StorefrontConversationInput {
   merchantName?: string;
   storeCategory: string;
   storeSettings?: Record<string, any>;
+  agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
 }
 
 export interface StorefrontConversationOutput {

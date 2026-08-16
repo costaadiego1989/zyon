@@ -11,6 +11,8 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../domain/ports/conversation.port.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
 export interface SendStoreMessageInput {
   merchant_id: string;
@@ -33,6 +35,7 @@ export class SendStoreMessageUseCase {
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchant: MerchantRepository,
     @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository
   ) {}
 
@@ -44,6 +47,17 @@ export class SendStoreMessageUseCase {
     let storeSettings: Record<string, any> | undefined;
     try { storeSettings = await this.merchant.getStoreSettings(input.merchant_id) as any; } catch { /* optional */ }
 
+    // Load agent identity from agent_rules (source of truth for agent name/persona/tone)
+    let agentIdentity: { agentName?: string; persona?: string; tone?: string; greeting?: string } | undefined;
+    try {
+      const agentRule = await this.prisma.agentRule.findFirst({
+        where: { merchantId: input.merchant_id },
+        select: { identity: true },
+      });
+      const identity = agentRule?.identity as { agentName?: string; persona?: string; tone?: string; greeting?: string } | null;
+      if (identity) agentIdentity = identity;
+    } catch { /* optional — fallback to no identity */ }
+
     const result = await this.conversation.reply({
       userMessage: input.user_message,
       cartId: input.cart_id,
@@ -52,7 +66,8 @@ export class SendStoreMessageUseCase {
       history,
       merchantName: merchant.name,
       storeCategory: merchant.storeCategory || "others",
-      storeSettings
+      storeSettings,
+      agentIdentity
     });
 
     // Persist conversation history (non-blocking, best-effort)

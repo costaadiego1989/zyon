@@ -327,7 +327,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       history: input.history,
       merchantName: input.merchantName,
       storeCategory: input.storeCategory,
-      storeSettings: input.storeSettings
+      storeSettings: input.storeSettings,
+      agentIdentity: input.agentIdentity
     });
 
     // Resolve cart state for context-aware quick replies

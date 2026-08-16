@@ -174,6 +174,12 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
         },
       } as never);
 
+      // Sync agentName to merchant theme for backward compat (storefront reads theme too)
+      try {
+        const currentTheme = await api.getMerchantTheme();
+        await api.putMerchantTheme({ ...currentTheme, agentName: form.agentName, agentGreeting: form.greeting } as never);
+      } catch { /* non-critical sync */ }
+
       showToast("success", "Configurações do agente salvas com sucesso");
     } catch (e) {
       showToast("error", e instanceof Error ? e.message : "Erro ao salvar");

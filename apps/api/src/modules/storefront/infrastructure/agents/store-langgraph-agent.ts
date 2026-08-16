@@ -441,6 +441,7 @@ export class StorefrontLangGraphAgent {
 
   private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }): string {
     const name = merchantName ? ` da loja ${merchantName}` : "";
+    const agentNameLabel = agentIdentity?.agentName || "Assistente";
     const categoryContext = storeCategory && storeCategory !== "others"
       ? `\nEsta é uma loja do segmento "${storeCategory}". Todos os produtos são exclusivamente deste segmento. NUNCA sugira ou mencione produtos fora deste segmento.`
       : "";
@@ -468,8 +469,14 @@ export class StorefrontLangGraphAgent {
       if (pols.length > 0) policiesContext = `\nPolíticas: ${pols.join(". ")}.`;
     }
 
+    // Persona context
+    let personaContext = "";
+    if (agentIdentity?.persona) {
+      personaContext = `\nSua personalidade: ${agentIdentity.persona}.`;
+    }
+
     return [
-      `Você é um assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}`,
+      `Você é ${agentNameLabel}, assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}${personaContext}`,
       "Ajude o cliente a encontrar produtos, comparar, adicionar ao carrinho e finalizar compra.",
       `Seja breve, direto e ${agentIdentity?.tone || "amigável"}. Não use markdown nem tabelas — a interface renderiza os dados visualmente.`,
       "",
