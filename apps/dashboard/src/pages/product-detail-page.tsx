@@ -45,20 +45,22 @@ export interface ProductDetailPageProps {
 
 // Price conversion helpers: REAIS ↔ CENTAVOS
 export function centsToReais(cents: number): string {
-  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
+  const value = (cents / 100).toFixed(2);
+  return value.replace(".", ",");
 }
 
 export function reaisToCents(input: string): number {
-  // Accept pt-BR format: "1.500,90" → 150090
-  const cleaned = input.replace(/\./g, "").replace(",", ".");
+  // Accept: "150,90" or "150.90" or "1500,00" or "1500"
+  const cleaned = input.replace(/\s/g, "").replace(",", ".");
   const num = parseFloat(cleaned);
   return Number.isFinite(num) ? Math.round(num * 100) : 0;
 }
 
-/** Format currency input on blur: raw typing → formatted pt-BR */
+/** Format currency input on blur: normalizes to comma decimal (no milhar) */
 export function formatCurrencyInput(raw: string): string {
+  if (!raw.trim()) return "";
   const cents = reaisToCents(raw);
-  if (cents <= 0 && !raw.trim()) return "";
+  if (cents <= 0) return raw; // don't destroy user input if can't parse
   return centsToReais(cents);
 }
 
@@ -589,17 +591,27 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                     if (!merchantId) return;
                     if (!name.trim()) { setSaveResult("error"); setSaveErrorMsg("Preencha o nome do produto antes de gerar descrição"); return; }
                     setGeneratingDesc(true);
+                    setSaveResult(null);
                     try {
                       const result = await api.generateDescription(merchantId, { name: name.trim(), notes: description.trim() || undefined, type: productType });
-                      if (result?.description) setDescription(result.description);
-                    } catch { /* silently fail */ }
-                    finally { setGeneratingDesc(false); }
+                      if (result?.description) {
+                        setDescription(result.description);
+                      } else {
+                        setSaveResult("error");
+                        setSaveErrorMsg("IA não retornou descrição. Tente novamente.");
+                      }
+                    } catch (err) {
+                      setSaveResult("error");
+                      setSaveErrorMsg(err instanceof Error ? err.message : "Erro ao gerar descrição");
+                    } finally {
+                      setGeneratingDesc(false);
+                    }
                   }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: "1px solid var(--accent-line)", background: "var(--accent-soft)", color: "var(--accent-dark)", font: "600 11px var(--sans)", cursor: generatingDesc ? "not-allowed" : "pointer", opacity: generatingDesc ? 0.6 : 1 }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: generatingDesc ? "1px solid var(--accent-dark)" : "1px solid var(--accent-line)", background: generatingDesc ? "var(--accent-dark)" : "var(--accent-soft)", color: generatingDesc ? "#fff" : "var(--accent-dark)", font: "600 11px var(--sans)", cursor: generatingDesc ? "not-allowed" : "pointer" }}
                 >
                   {generatingDesc ? (
                     <>
-                      <div style={{ width: 10, height: 10, border: "1.5px solid var(--accent-dark)", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite", flex: "none" }} />
+                      <div style={{ width: 10, height: 10, border: "1.5px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.7s linear infinite", flex: "none" }} />
                       Gerando...
                     </>
                   ) : (

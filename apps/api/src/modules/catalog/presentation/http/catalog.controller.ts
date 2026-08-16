@@ -328,12 +328,6 @@ export class StoreBuilderCatalogController {
     @Param("mid") _merchantId: string,
     @Body() body: { name: string; notes?: string; type?: string },
   ) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    const baseUrl = process.env.OPENAI_BASE_URL || "https://api.deepseek.com/v1";
-    const model = process.env.OPENAI_MODEL || "deepseek-chat";
-
-    if (!apiKey) throw new BadRequestException("ai_not_configured");
-
     const prompt = `Gere uma descrição de produto para e-commerce em português brasileiro.
 Nome do produto: ${body.name}
 Tipo: ${body.type ?? "physical"}
@@ -346,24 +340,46 @@ Regras:
 - Não use markdown, apenas texto puro
 - Não invente especificações técnicas`;
 
-    const res = await fetch(`${baseUrl}/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 300,
-        temperature: 0.7,
-      }),
-    });
+    // Try local LLM first (Ollama), fallback to DeepSeek
+    const providers = [
+      {
+        baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
+        apiKey: process.env.LOCAL_LLM_API_KEY || "ollama",
+        model: process.env.LOCAL_LLM_MODEL || "llama3.2",
+      },
+      {
+        baseUrl: process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || "https://api.deepseek.com/v1",
+        apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || "",
+        model: process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || "deepseek-chat",
+      },
+    ];
 
-    if (!res.ok) {
-      const err = await res.text().catch(() => "unknown");
-      throw new BadRequestException(`ai_generation_failed: ${err.slice(0, 100)}`);
+    for (const provider of providers) {
+      if (!provider.apiKey) continue;
+      try {
+        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 300,
+            temperature: 0.7,
+          }),
+          signal: AbortSignal.timeout(15000),
+        });
+
+        if (!res.ok) continue;
+
+        const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+        if (text) return { description: text };
+      } catch {
+        // Provider failed, try next
+        continue;
+      }
     }
 
-    const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const text = data.choices?.[0]?.message?.content?.trim() ?? "";
-    return { description: text };
+    throw new BadRequestException("ai_generation_failed: all providers unavailable");
   }
 }
