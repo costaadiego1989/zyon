@@ -112,35 +112,34 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                 <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>DESCONTO</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Limites de desconto que o agente pode oferecer automaticamente.</p>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <NumberField label="Desconto mínimo (%)" value={vm.form.minimumMarginPercent} onChange={(v) => vm.patch({ minimumMarginPercent: v })} error={vm.errors.minimumMarginPercent} />
                   <NumberField label="Desconto máximo (%)" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} error={vm.errors.maxDiscountPercent} />
-                  <NumberField label="Margem mínima (%)" value={vm.form.minimumMarginPercent} onChange={(v) => vm.patch({ minimumMarginPercent: v })} error={vm.errors.minimumMarginPercent} />
                 </div>
               </section>
 
               <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
                 <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>FRETE</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Opções de frete grátis e desconto parcial no envio.</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input type="checkbox" checked={vm.form.allowFreeShipping} onChange={(e) => vm.patch({ allowFreeShipping: e.target.checked })} style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
+                    <input type="checkbox" checked={vm.form.allowFreeShipping} onChange={(e) => vm.patch({ allowFreeShipping: e.target.checked })} style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }} />
                     <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir frete grátis</span>
                   </label>
                   <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <input type="checkbox" checked={vm.form.allowShippingDiscount} onChange={(e) => vm.patch({ allowShippingDiscount: e.target.checked })} style={{ width: 15, height: 15, accentColor: "var(--accent)", cursor: "pointer" }} />
+                    <input type="checkbox" checked={vm.form.allowShippingDiscount} onChange={(e) => vm.patch({ allowShippingDiscount: e.target.checked })} style={{ width: 14, height: 14, accentColor: "var(--accent)", cursor: "pointer" }} />
                     <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
                   </label>
                   {vm.form.allowFreeShipping && (
-                    <div style={{ marginTop: 4 }}>
+                    <div style={{ marginTop: 6, paddingLeft: 22 }}>
                       <NumberField label="Valor mínimo carrinho para frete grátis (R$)" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: v })} error={vm.errors.freeShippingMinCartValue} />
                     </div>
                   )}
                   {vm.form.allowShippingDiscount && (
-                    <div style={{ marginTop: 4 }}>
-                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Desconto parcial máximo no frete:</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ flex: 1, accentColor: "var(--accent)", cursor: "pointer", height: 4 }} />
-                        <span style={{ font: "700 13px var(--mono)", color: "var(--accent)", minWidth: 36, textAlign: "right" }}>{vm.form.maxPartialShippingDiscount}%</span>
-                      </div>
+                    <div style={{ marginTop: 6, paddingLeft: 22 }}>
+                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
+                        Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)" }}>{vm.form.maxPartialShippingDiscount}%</span>
+                      </span>
+                      <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ width: "100%", accentColor: "var(--accent)", cursor: "pointer", height: 4, borderRadius: 2 }} />
                     </div>
                   )}
                 </div>
