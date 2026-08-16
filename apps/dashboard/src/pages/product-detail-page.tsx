@@ -45,20 +45,27 @@ export interface ProductDetailPageProps {
 
 // Price conversion helpers: REAIS ↔ CENTAVOS
 export function centsToReais(cents: number): string {
-  const value = (cents / 100).toFixed(2);
-  return value.replace(".", ",");
+  return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
 }
 
 export function reaisToCents(input: string): number {
-  // Remove tudo exceto dígitos e vírgula/ponto
-  // Trata vírgula como separador decimal (padrão BR)
-  const stripped = input.replace(/[^\d,]/g, ""); // remove pontos, espaços, letras
-  const normalized = stripped.replace(",", "."); // vírgula → ponto decimal
-  const num = parseFloat(normalized);
+  // Accept: "1.500,90" (BR standard) or "150,90" or "150.90" (dot decimal)
+  const trimmed = input.trim();
+  if (!trimmed) return 0;
+
+  // If has comma → treat comma as decimal, dots as milhar (strip dots)
+  if (trimmed.includes(",")) {
+    const stripped = trimmed.replace(/\./g, "").replace(",", ".");
+    const num = parseFloat(stripped);
+    return Number.isFinite(num) ? Math.round(num * 100) : 0;
+  }
+
+  // No comma → dot is decimal (e.g. "89.90")
+  const num = parseFloat(trimmed.replace(/[^\d.]/g, ""));
   return Number.isFinite(num) ? Math.round(num * 100) : 0;
 }
 
-/** Format currency input on blur: normalizes to comma decimal */
+/** Format currency input on blur: normalizes to pt-BR format (1.500,90) */
 export function formatCurrencyInput(raw: string): string {
   if (!raw.trim()) return "";
   const cents = reaisToCents(raw);
@@ -1040,7 +1047,6 @@ function CurrencyField(props: { label: string; value: string; onChange: (v: stri
       <input
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
-        onBlur={() => props.onChange(formatCurrencyInput(props.value))}
         placeholder={props.placeholder}
         inputMode="decimal"
         style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--danger)" : "var(--border)"}`, font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
