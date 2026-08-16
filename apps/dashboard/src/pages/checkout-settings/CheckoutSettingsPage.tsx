@@ -76,7 +76,8 @@ export function CheckoutSettingsPage(props: {
   }
 
   const hasErrors = Object.keys(vm.errors).length > 0;
-  const activeTriggers = vm.draft ? ALL_TRIGGERS.filter((t) => vm.draft!.triggers[t].enabled).length : 0;
+  const activeTriggers = vm.draft ? ALL_TRIGGERS.filter((t) => vm.draft!.triggers[t].enabled && TRIGGER_STATUS[t] === "active").length : 0;
+  const totalAvailableTriggers = ALL_TRIGGERS.filter((t) => TRIGGER_STATUS[t] === "active").length;
   const modeBadge =
     vm.draft?.mode === "silent_until_trigger"
       ? { cls: "ok", label: "trigger" }
@@ -284,7 +285,7 @@ export function CheckoutSettingsPage(props: {
               desc="Momentos em que o agente pode intervir automaticamente."
               aside={
                 <span className={`badge ${activeTriggers > 0 ? "ok" : "muted"}`}>
-                  {activeTriggers}/{ALL_TRIGGERS.length} ligados
+                  {activeTriggers}/{totalAvailableTriggers} ligados
                 </span>
               }
             >

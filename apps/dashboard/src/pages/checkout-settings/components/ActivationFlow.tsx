@@ -1,18 +1,17 @@
 import React from "react";
-import { MousePointerClick, Gauge, Timer, Zap } from "lucide-react";
+import { MousePointerClick, Timer, Zap, MessageSquare } from "lucide-react";
 import type { Draft } from "../lib/draft.js";
-import { ALL_TRIGGERS } from "../lib/constants.js";
+import { ALL_TRIGGERS, TRIGGER_STATUS } from "../lib/constants.js";
 
 export function ActivationFlow({ draft }: { draft: Draft }) {
-  const activeTriggers = ALL_TRIGGERS.filter((t) => draft.triggers[t].enabled);
-  const scorePct = Math.round(draft.minimumAbandonmentScore * 100);
+  const activeTriggers = ALL_TRIGGERS.filter((t) => draft.triggers[t].enabled && TRIGGER_STATUS[t] === "active");
 
   const modeNode =
     draft.mode === "silent_until_trigger"
       ? { label: "Sinal do comprador", detail: `${activeTriggers.length} gatilhos ativos` }
       : draft.mode === "proactive"
       ? { label: "Tempo na página", detail: `após ${draft.initialDelaySeconds}s` }
-      : { label: "Comprador abre", detail: "ação do usuário" };
+      : { label: "Comprador abre", detail: "clica no chat" };
 
   const nodes = [
     {
@@ -22,21 +21,15 @@ export function ActivationFlow({ draft }: { draft: Draft }) {
       detail: modeNode.detail,
     },
     {
-      key: "score",
-      icon: <Gauge size={15} strokeWidth={1.75} />,
-      label: "Risco de perda",
-      detail: draft.mode === "manual_only" ? "não avaliado" : `≥ ${scorePct}%`,
-      dim: draft.mode === "manual_only",
-    },
-    {
       key: "guard",
       icon: <Timer size={15} strokeWidth={1.75} />,
       label: "Respeita limites",
       detail: `${draft.cooldownSeconds}s espera · máx ${draft.maxInterventionsPerSession}`,
+      dim: draft.mode === "manual_only",
     },
     {
       key: "act",
-      icon: <Zap size={15} strokeWidth={1.75} />,
+      icon: <MessageSquare size={15} strokeWidth={1.75} />,
       label: "Agente age",
       detail: draft.openWidgetOnTrigger ? "abre o chat" : "avisa em silêncio",
       accent: true,
