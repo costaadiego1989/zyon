@@ -3,6 +3,7 @@ import { X, Upload, Image as ImageIcon } from "lucide-react";
 import type { ProductCategoryDTO, CreateCategoryInput, UpdateCategoryInput } from "../../../api/endpoints/catalog.js";
 import { slugify } from "../useCategoriesPage.js";
 import { useApi } from "../../../hooks/useApi.js";
+import { ModalButton } from "../../../components/ModalButton.js";
 
 interface CategoryFormProps {
   mode: "create" | "edit";
@@ -152,9 +153,10 @@ export function CategoryForm({
           type="button"
           onClick={onCancel}
           disabled={saving}
-          style={{ width: 28, height: 28, borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}
+          aria-label="Fechar"
+          style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}
         >
-          <X size={14} />
+          <X size={20} />
         </button>
       </div>
 
@@ -220,22 +222,13 @@ export function CategoryForm({
           </div>
         </div>
 
-        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}>
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={saving}
-            style={{ flex: 1, padding: "9px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", font: "600 12.5px var(--sans)" }}
-          >
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 12 }}>
+          <ModalButton variant="secondary" onClick={onCancel} disabled={saving}>
             Cancelar
-          </button>
-          <button
-            type="submit"
-            disabled={saving || uploading}
-            style={{ flex: 1, padding: "9px 14px", borderRadius: 7, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", color: "#fff", cursor: "pointer", font: "600 12.5px var(--sans)", opacity: saving || uploading ? 0.6 : 1 }}
-          >
+          </ModalButton>
+          <ModalButton variant="primary" type="submit" disabled={saving || uploading} loading={saving} style={{ flex: 1 }}>
             {saving ? "Salvando..." : mode === "edit" ? "Atualizar" : "Criar categoria"}
-          </button>
+          </ModalButton>
         </div>
       </form>
     </div>

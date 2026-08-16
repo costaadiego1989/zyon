@@ -32,6 +32,7 @@ export function CategoryRow({
   return (
     <tr
       draggable
+      onClick={() => onEdit()}
       onDragStart={onDragStart}
       onDragOver={(e) => {
         e.preventDefault();
@@ -55,7 +56,7 @@ export function CategoryRow({
         onDrop(e);
       }}
       style={{
-        cursor: "grab",
+        cursor: "pointer",
         background: isDropTarget ? "var(--accent-soft)" : "transparent",
         transition: "background 0.15s",
         borderLeft: isDropTarget ? "3px solid var(--accent)" : "3px solid transparent",
@@ -99,10 +100,10 @@ export function CategoryRow({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onAddChild(); }}
-            title="Adicionar subcategoria"
-            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center" }}
+            aria-label="Adicionar subcategoria"
+            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
           >
-            <Plus size={12} />
+            <Plus size={12} /> Adicionar
           </button>
         </div>
       </td>

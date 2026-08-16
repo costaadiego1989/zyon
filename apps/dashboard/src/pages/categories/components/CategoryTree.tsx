@@ -62,7 +62,7 @@ export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChil
 
   return (
     <div
-      style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}
+      style={{ background: "var(--card)", overflow: "hidden" }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         const id = e.dataTransfer.getData("category-id");
