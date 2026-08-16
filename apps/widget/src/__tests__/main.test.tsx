@@ -342,7 +342,8 @@ function buildCheckoutSettingsContext(): CheckoutSettingsContext {
       enabled_triggers: ["coupon_field_clicked", "shipping_objection_detected"],
       handoff_enabled: true
     },
-    operational_constraints: ["API como fonte de verdade", "Sem desconto fora da politica"]
+    operational_constraints: ["API como fonte de verdade", "Sem desconto fora da politica"],
+    merchant_rules: []
   };
 }
 

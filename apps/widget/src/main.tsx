@@ -103,6 +103,22 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
     return cleanup;
   }, [serverConfig, config.merchantId]);
 
+  // Proactive mode: auto-open widget after initialDelaySeconds without waiting for trigger
+  useEffect(() => {
+    if (!serverConfig) return;
+    if (serverConfig.mode !== "proactive") return;
+    const delayMs = (serverConfig.initialDelaySeconds ?? 4) * 1000;
+
+    const timer = setTimeout(() => {
+      const maxInterventions = serverConfig.maxInterventionsPerSession ?? 3;
+      if (getInterventionCount(config.merchantId) >= maxInterventions) return;
+      incrementIntervention(config.merchantId);
+      window.dispatchEvent(new CustomEvent("zyon-checkout-agent:open"));
+    }, delayMs);
+
+    return () => clearTimeout(timer);
+  }, [serverConfig, config.merchantId]);
+
   if (shouldUseLegacyPath(config)) {
     return <ConversationalCheckoutAgent config={config} privacyUrl={privacyUrl} />;
   }

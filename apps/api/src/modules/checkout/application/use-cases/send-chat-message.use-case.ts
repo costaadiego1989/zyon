@@ -151,9 +151,23 @@ export class SendChatMessageUseCase {
       const prisma = new PrismaClient();
       const setting = await prisma.checkoutSetting.findUnique({
         where: { merchantId: input.merchant_id },
-        select: { advancedRules: true },
+        select: { advancedRules: true, interventionPolicy: true },
       });
       await prisma.$disconnect();
+
+      merchantRules = [];
+
+      // Progressive discount stages → natural language rules
+      const policy = setting?.interventionPolicy as { progressiveDiscount?: { enabled: boolean; stages?: { initial_coupon?: number; exit_intent?: number; abandoned_cart?: number; payment_nudge?: number } } } | null;
+      if (policy?.progressiveDiscount?.enabled && policy.progressiveDiscount.stages) {
+        const s = policy.progressiveDiscount.stages;
+        if (s.initial_coupon) merchantRules.push(`SE comprador pede cupom ENTÃO ofereça até ${s.initial_coupon}% de desconto`);
+        if (s.exit_intent) merchantRules.push(`SE comprador ameaça sair ENTÃO ofereça até ${s.exit_intent}% de desconto para ficar`);
+        if (s.abandoned_cart) merchantRules.push(`SE carrinho abandonado ENTÃO ofereça até ${s.abandoned_cart}% para recuperar`);
+        if (s.payment_nudge) merchantRules.push(`SE comprador hesita no pagamento ENTÃO ofereça até ${s.payment_nudge}% para fechar agora`);
+      }
+
+      // Advanced rules → natural language
       if (setting?.advancedRules) {
         const rules2 = setting.advancedRules as Array<{ enabled: boolean; priority: number; conditions: Array<{ field: string; operator: string; value: string | number | boolean }>; action: { type: string; params: Record<string, string | number> } }>;
         const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto", category_in_cart: "categoria", coupon_applied: "cupom", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens" };
@@ -161,11 +175,14 @@ export class SendChatMessageUseCase {
           const map: Record<string, string> = { offer_discount: `ofereça ${a.params.percent || "?"}% de desconto`, offer_free_shipping: "ofereça frete grátis", suggest_product: `sugira ${a.params.productName || "produto"}`, show_message: `diga: "${a.params.message || ""}"`, offer_installments: `ofereça ${a.params.maxInstallments || "?"}x`, do_nothing: "não intervenha", offer_coupon: `ofereça o cupom ${a.params.code || ""}` };
           return map[a.type] || "aja conforme melhor";
         };
-        merchantRules = rules2.filter(r => r.enabled).sort((a, b) => a.priority - b.priority).map(r => {
+        const advRules = rules2.filter(r => r.enabled).sort((a, b) => a.priority - b.priority).map(r => {
           const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
           return `SE ${conds} ENTÃO ${actionLabels(r.action)}`;
         });
+        merchantRules.push(...advRules);
       }
+
+      if (merchantRules.length === 0) merchantRules = undefined;
     } catch { /* rules are advisory, not critical */ }
 
     const reply = await this.conversation.reply({
