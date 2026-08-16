@@ -394,16 +394,16 @@ export class SendChatMessageUseCase {
       { role: "user" as const, content: userMessage },
     ];
 
-    // Try Llama first
+    // Try Llama first (15s timeout — if slow/OOM, fallback fast)
     const llamaResult = await this.callProvider(
-      `${baseUrl}/chat/completions`, "ollama", model, messages, tools
+      `${baseUrl}/chat/completions`, "ollama", model, messages, tools, 15000
     );
 
     if (llamaResult) {
       return { message: llamaResult.message, objection: "unknown" as any };
     }
 
-    // Fallback: DeepSeek (more intelligent, better tool-calling)
+    // Fallback: DeepSeek (60s timeout — cloud is reliable)
     const cloudKey = process.env.DEEPSEEK_API_KEY;
     if (cloudKey) {
       const deepseekResult = await this.callProvider(
@@ -411,7 +411,8 @@ export class SendChatMessageUseCase {
         cloudKey,
         process.env.DEEPSEEK_MODEL || "deepseek-chat",
         messages,
-        tools
+        tools,
+        60000
       );
       if (deepseekResult) {
         return { message: deepseekResult.message, objection: "unknown" as any };
@@ -424,14 +425,19 @@ export class SendChatMessageUseCase {
   private async callProvider(
     url: string, key: string, model: string,
     messages: Array<{ role: string; content: string }>,
-    tools: Array<{ type: string; function: { name: string; description: string; parameters: object } }>
+    tools: Array<{ type: string; function: { name: string; description: string; parameters: object } }>,
+    timeoutMs = 30000
   ): Promise<{ message: string; toolCalls: Array<{ name: string; args: Record<string, any> }> } | null> {
     try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({ model, messages, tools, max_tokens: 300, temperature: 0.3 }),
+        signal: controller.signal,
       });
+      clearTimeout(timer);
       if (!res.ok) throw new Error(`http_${res.status}`);
       const json = await res.json() as any;
       const choice = json.choices?.[0];
