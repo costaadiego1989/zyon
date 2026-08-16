@@ -798,10 +798,7 @@ export default function ConversationShell({
       {/* Native Cart — FAB + lateral drawer, no iframe */}
       {mode === "chat" && (
         <CheckoutWidgetPanel
-          onCheckout={() => {
-            setCartDrawerForceOpen(true);
-            setTimeout(() => setCartDrawerForceOpen(false), 100);
-          }}
+          onCheckout={() => handleQuickReply("Finalizar Compra")}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={(variantId, qty) => handleQuickReply(`Atualizar quantidade do item ${variantId} para ${qty}`)}
           onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
