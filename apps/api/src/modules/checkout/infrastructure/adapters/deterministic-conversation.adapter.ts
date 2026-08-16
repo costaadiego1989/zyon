@@ -24,7 +24,9 @@ export class DeterministicConversationAdapter implements ConversationPort {
   private readonly logger = new Logger(DeterministicConversationAdapter.name);
 
   async reply(input: ConversationReplyInput) {
+    console.error("🔥🔥🔥 HYBRID ADAPTER CALLED 🔥🔥🔥", input.userMessage.slice(0, 50));
     const isOffScript = this.isOffScriptMessage(input);
+    this.logger.log(`[HYBRID] msg="${input.userMessage.slice(0,40)}" stage=${input.stage} missing=${input.missingFields?.join(",")} offScript=${isOffScript} rules=${input.merchantRules?.length ?? 0}`);
 
     if (!isOffScript) {
       this.logger.debug("User responding to flow — deterministic");
@@ -85,15 +87,22 @@ export class DeterministicConversationAdapter implements ConversationPort {
 
   /**
    * Call LLM with fallback chain: Llama local → DeepSeek → deterministic
+   * When off-script, strip stage/missingFields so LLM responds to user's actual question
    */
   private async callLlm(input: ConversationReplyInput) {
+    // Strip stage instructions so LLM focuses on the user's question, not data collection
+    const llmInput: ConversationReplyInput = {
+      ...input,
+      stage: undefined,
+      missingFields: undefined,
+    };
     // Strategy 1: Local Llama via Ollama
     const localBaseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
     const localModel = process.env.OLLAMA_MODEL || "llama3.1:8b";
 
     try {
       const result = await generateSalesReply({
-        ...input,
+        ...llmInput,
         apiKey: "ollama",
         baseUrl: localBaseUrl,
         model: localModel,
@@ -111,7 +120,7 @@ export class DeterministicConversationAdapter implements ConversationPort {
     if (cloudKey) {
       try {
         const result = await generateSalesReply({
-          ...input,
+          ...llmInput,
           apiKey: cloudKey,
           baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
           model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
