@@ -11,6 +11,7 @@ export interface OrderConfirmationEvent {
   orderId: string;
   buyerEmail: string;
   buyerName?: string;
+  buyerPhone?: string;
   orderNumber: string;
   items: Array<{
     name: string;
@@ -27,6 +28,7 @@ export interface OrderShippedEvent {
   orderId: string;
   buyerEmail: string;
   buyerName?: string;
+  buyerPhone?: string;
   trackingNumber?: string;
   carrier?: string;
   estimatedDelivery?: string;
@@ -38,6 +40,7 @@ export interface OrderDeliveredEvent {
   orderId: string;
   buyerEmail: string;
   buyerName?: string;
+  buyerPhone?: string;
 }
 
 export interface ReturnApprovedEvent {
