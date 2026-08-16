@@ -156,7 +156,7 @@ export default function ConversationShell({
   const recognitionRef = useRef<any>(null);
   const agent = agentName || "Assistente";
   const { config: widgetConfig } = useWidgetConfig();
-  const { updateFromBlocks } = useCart();
+  const { cart, updateFromBlocks } = useCart();
 
   // The widgetConfig is now available to this component and can be used for trigger logic,
   // suppression rules, etc. SupportFAB handles presentation mode (position, color, delay) separately.
@@ -798,7 +798,14 @@ export default function ConversationShell({
       {/* Native Cart — FAB + lateral drawer, no iframe */}
       {mode === "chat" && (
         <CheckoutWidgetPanel
-          onCheckout={() => handleQuickReply("Finalizar Compra")}
+          onCheckout={() => {
+            // Navigate to checkout widget (separate product)
+            const widgetBase = process.env.NEXT_PUBLIC_WIDGET_BASE_URL ?? "http://localhost:5173";
+            const params = new URLSearchParams();
+            if (merchantId) params.set("merchantId", merchantId);
+            if (cart.cartId) params.set("cartId", cart.cartId);
+            window.location.href = `${widgetBase}?${params.toString()}`;
+          }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={(variantId, qty) => handleQuickReply(`Atualizar quantidade do item ${variantId} para ${qty}`)}
           onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
