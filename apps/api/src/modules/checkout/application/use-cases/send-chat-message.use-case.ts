@@ -400,13 +400,7 @@ export class SendChatMessageUseCase {
     );
 
     if (llamaResult) {
-      // Validate: check if tool call matches what rules expect
-      const isValid = this.validateToolCallAgainstRules(llamaResult.toolCalls, merchantRules, userMessage);
-      if (isValid) {
-        return { message: llamaResult.message, objection: "unknown" as any };
-      }
-      // Llama confused — rollback and try DeepSeek
-      console.log("[CHECKOUT] Llama tool-call didn't match rules, falling back to DeepSeek");
+      return { message: llamaResult.message, objection: "unknown" as any };
     }
 
     // Fallback: DeepSeek (more intelligent, better tool-calling)
@@ -468,43 +462,6 @@ export class SendChatMessageUseCase {
     }
   }
 
-  /**
-   * Validate that the LLM's tool calls match what the merchant rules expect.
-   * If rules say "cupom PROMO15" but LLM called "apply_free_shipping" → invalid.
-   */
-  private validateToolCallAgainstRules(
-    toolCalls: Array<{ name: string; args: Record<string, any> }>,
-    merchantRules: string[],
-    userMessage: string
-  ): boolean {
-    if (toolCalls.length === 0) return true; // no tool call = text-only response, OK
-
-    const rulesText = merchantRules.join(" ").toLowerCase();
-    const msg = userMessage.toLowerCase();
-
-    for (const tc of toolCalls) {
-      if (tc.name === "apply_coupon") {
-        // Rule must mention "cupom" for this to be valid
-        if (!rulesText.includes("cupom")) return false;
-      }
-      if (tc.name === "apply_free_shipping") {
-        // Rule must mention "frete grátis" or "frete gratis"
-        if (!rulesText.includes("frete gr")) return false;
-      }
-      if (tc.name === "apply_discount") {
-        // Rule must mention "desconto" or percentage
-        if (!rulesText.includes("desconto") && !rulesText.includes("%")) return false;
-      }
-    }
-
-    // Cross-check: if message mentions "cupom" and rules have coupon, but LLM called free_shipping → wrong
-    if (msg.includes("cupom") && rulesText.includes("cupom")) {
-      const calledCoupon = toolCalls.some(tc => tc.name === "apply_coupon");
-      if (!calledCoupon) return false; // should have called coupon, didn't
-    }
-
-    return true;
-  }
 }
 
 function isCartEmpty(cart: { items?: unknown[] }): boolean {
