@@ -1,6 +1,6 @@
 import React from "react";
 import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles } from "lucide-react";
-import { SaveFeedbackBanner } from "../../components/save-feedback-banner.js";
+import { TabBar } from "../../components/TabBar.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm } from "./useStoreSettingsPage.js";
 
 const DAY_LABELS: Record<string, string> = {
@@ -23,34 +23,18 @@ export function StoreSettingsPage() {
         </div>
       </div>
 
-      <SaveFeedbackBanner result={state.saveResult} errorMessage={state.saveError ?? undefined} onDismiss={dismiss} />
-
       {/* Card container */}
+      <TabBar
+        tabs={[
+          { key: "company", label: "Empresa" },
+          { key: "policies", label: "Políticas" },
+          { key: "social", label: "Redes Sociais" },
+        ]}
+        activeTab={state.activeTab}
+        onTabChange={(k) => setActiveTab(k as "company" | "policies" | "social")}
+      />
+
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--border)", paddingLeft: 22 }}>
-          {(["company", "policies", "social"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              style={{
-                padding: "12px 20px",
-                fontSize: 13,
-                fontWeight: tab === state.activeTab ? 600 : 500,
-                color: tab === state.activeTab ? "var(--ink)" : "var(--muted)",
-                background: "none",
-                border: "none",
-                borderRadius: 0,
-                borderBottom: tab === state.activeTab ? "1px solid var(--good)" : "1px solid transparent",
-                cursor: "pointer",
-                transition: "color 0.15s, border-color 0.15s",
-                marginBottom: -1,
-              }}
-            >
-              {tab === "company" ? "Empresa" : tab === "policies" ? "Políticas" : "Redes Sociais"}
-            </button>
-          ))}
-        </div>
 
         {/* Content */}
         <div style={{ padding: "24px 22px", minHeight: 400 }}>

@@ -3,6 +3,7 @@ import { Save, ChevronDown, ChevronRight, X, Plus } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
+import { TabBar } from "../components/TabBar.js";
 import type { StageQuickReplies, AgentTone } from "@zyon/shared-types";
 
 const TONE_PT_TO_EN: Record<string, AgentTone> = {
@@ -204,17 +205,15 @@ export function AgentConfigPage(_props: AgentConfigPageProps) {
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {/* Tabs */}
-          <div style={{ display: "inline-flex", background: "oklch(16% 0.003 145)", border: "1px solid var(--border)", borderRadius: 10, padding: 3, gap: 2 }}>
-            {(["identity", "negotiation", "quick-replies"] as const).map((tab) => {
-              const labels = { identity: "Identidade", negotiation: "Negociação", "quick-replies": "Quick Replies" };
-              const active = activeTab === tab;
-              return (
-                <button key={tab} type="button" onClick={() => setActiveTab(tab)} style={{ background: active ? "var(--card)" : "transparent", color: active ? "var(--ink)" : "var(--muted)", border: active ? "1px solid var(--border)" : "1px solid transparent", borderRadius: 7, padding: "7px 16px", font: "600 12.5px var(--sans)", cursor: "pointer", transition: "all 150ms" }}>
-                  {labels[tab]}
-                </button>
-              );
-            })}
-          </div>
+          <TabBar
+            tabs={[
+              { key: "identity", label: "Identidade" },
+              { key: "negotiation", label: "Negociação" },
+              { key: "quick-replies", label: "Quick Replies" },
+            ]}
+            activeTab={activeTab}
+            onTabChange={(k) => setActiveTab(k as typeof activeTab)}
+          />
 
           {/* Identity Tab */}
           {activeTab === "identity" && (

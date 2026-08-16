@@ -3,6 +3,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { useOverviewPage } from "./useOverviewPage.js";
 import { PeriodSelector } from "./components/PeriodSelector.js";
 import { ActivityFeed, type ActivityItem } from "./components/ActivityFeed.js";
+import { TabBar } from "../../components/TabBar.js";
 import { CheckoutMetrics } from "./sections/CheckoutMetrics.js";
 import { StoreMetrics } from "./sections/StoreMetrics.js";
 import { StatCard } from "./components/StatCard.js";
@@ -171,71 +172,6 @@ function calcTrend(current: number, previous: number | null | undefined): number
   return ((current - previous) / previous) * 100;
 }
 
-function SectionTabs({
-  activeTab,
-  onTabChange,
-  showCheckout,
-  showStore,
-}: {
-  activeTab: TabId;
-  onTabChange: (tab: TabId) => void;
-  showCheckout: boolean;
-  showStore: boolean;
-}) {
-  const tabs: Array<{ id: TabId; label: string; visible: boolean }> = [
-    { id: "resumo", label: "Resumo", visible: true },
-    { id: "checkout", label: "Checkout", visible: showCheckout },
-    { id: "loja", label: "Loja", visible: showStore },
-  ];
-
-  return (
-    <div
-      role="tablist"
-      style={{
-        display: "inline-flex",
-        background: "oklch(16% 0.003 145)",
-        border: "1px solid var(--border)",
-        borderRadius: 12,
-        padding: 4,
-        gap: 2,
-      }}
-    >
-      {tabs
-        .filter((t) => t.visible)
-        .map((tab) => {
-          const active = tab.id === activeTab;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onTabChange(tab.id)}
-              style={{
-                background: active ? "var(--card)" : "transparent",
-                color: active ? "var(--ink)" : "var(--muted)",
-                border: active ? "1px solid var(--border)" : "1px solid transparent",
-                borderRadius: 8,
-                padding: "8px 18px",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "var(--sans)",
-                cursor: "pointer",
-                transition:
-                  "all 200ms cubic-bezier(0.16,1,0.3,1)",
-                boxShadow: active
-                  ? "0 2px 8px rgba(0,0,0,0.2)"
-                  : "none",
-              }}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-    </div>
-  );
-}
-
 function HeroMetrics({
   vm,
 }: {
@@ -395,11 +331,14 @@ export function OverviewPage(props: OverviewPageProps) {
       </header>
 
       {/* Section Tabs */}
-      <SectionTabs
+      <TabBar
+        tabs={[
+          { key: "resumo", label: "Resumo" },
+          ...(vm.showCheckout ? [{ key: "checkout", label: "Checkout" }] : []),
+          ...(vm.showStore ? [{ key: "loja", label: "Loja" }] : []),
+        ]}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
-        showCheckout={vm.showCheckout}
-        showStore={vm.showStore}
+        onTabChange={(k) => setActiveTab(k as TabId)}
       />
 
       {/* Tab content */}
