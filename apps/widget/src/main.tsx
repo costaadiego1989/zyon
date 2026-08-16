@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { Cart, CustomerHints, ShippingQuote } from "@zyon/shared-types";
 import { DEFAULT_WIDGET_API_BASE_URL, parseWidgetConfig } from "./lib/widget-schemas.js";
@@ -11,6 +11,8 @@ import { ChatCheckoutExperience } from "./app/ChatCheckoutExperience.js";
 import { CookieConsentBanner } from "./components/consent/CookieConsentBanner.js";
 import { CheckoutErrorBoundary } from "./components/ErrorBoundary.js";
 import { initErrorReporter } from "./lib/error-reporter.js";
+import { initWidgetTriggerDetection, type WidgetTriggerName } from "./lib/trigger-detection.js";
+import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "./lib/intervention-tracker.js";
 import "./styles.css";
 import "./design-system/tokens.css";
 import "./enterprise.css";
@@ -21,6 +23,22 @@ import "./features/pulse/styles/animations.css";
 
 export { themeStyle };
 export type { WidgetConfig, CheckoutProps };
+
+// Widget server config returned by GET /checkout-settings/widget-config
+interface WidgetServerConfig {
+  mode: "silent_until_trigger" | "proactive" | "manual_only";
+  enabledTriggers?: string[];
+  cooldownSeconds?: number;
+  maxInterventionsPerSession?: number;
+  minimumCartValue?: number;
+  openWidgetOnTrigger: boolean;
+  position?: string;
+  fabColor?: string;
+  inviteText?: string;
+  presentationMode?: string;
+  initialDelaySeconds?: number;
+  showCartBadge?: boolean;
+}
 
 // Route logic: embeds with real session token use PulseCheckoutView.
 // Legacy demo flows route through ConversationalCheckoutAgent.
@@ -34,6 +52,56 @@ function shouldUseLegacyPath(config: WidgetConfig): boolean {
 
 export function CheckoutAgent({ config }: { config: WidgetConfig }) {
   const privacyUrl = config.policies?.privacyUrl;
+  const [serverConfig, setServerConfig] = useState<WidgetServerConfig | null>(null);
+
+  // Fetch widget trigger configuration from server
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        const res = await fetch(
+          `${config.apiBaseUrl}/checkout-settings/widget-config?merchantId=${encodeURIComponent(
+            config.merchantId
+          )}`
+        );
+        if (res.ok) {
+          const data = (await res.json()) as WidgetServerConfig;
+          setServerConfig(data);
+        }
+      } catch {
+        // Silent fail — widget works without server config (manual open only)
+      }
+    };
+    fetchConfig();
+  }, [config.apiBaseUrl, config.merchantId]);
+
+  // Initialize trigger detection
+  useEffect(() => {
+    if (!serverConfig) return;
+    if (serverConfig.mode === "manual_only") return;
+
+    const enabledTriggers = serverConfig.enabledTriggers ?? [];
+    if (enabledTriggers.length === 0) return;
+
+    const cleanup = initWidgetTriggerDetection(
+      { enabledTriggers: enabledTriggers as WidgetTriggerName[] },
+      (trigger) => {
+        const maxInterventions = serverConfig.maxInterventionsPerSession ?? 3;
+        const cooldownMs = (serverConfig.cooldownSeconds ?? 120) * 1000;
+
+        if (getInterventionCount(config.merchantId) >= maxInterventions) return;
+        if (!canFireTrigger(config.merchantId, trigger, cooldownMs)) return;
+
+        incrementIntervention(config.merchantId);
+        recordTriggerFired(config.merchantId, trigger);
+
+        // Dispatch custom event to trigger widget open
+        // TriggerOnlyMode listens for this event on the window
+        window.dispatchEvent(new CustomEvent("zyon-checkout-agent:open"));
+      }
+    );
+
+    return cleanup;
+  }, [serverConfig, config.merchantId]);
 
   if (shouldUseLegacyPath(config)) {
     return <ConversationalCheckoutAgent config={config} privacyUrl={privacyUrl} />;
