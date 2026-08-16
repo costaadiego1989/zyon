@@ -115,7 +115,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
       addItemToCart: async (args) => {
         const merchantId = this.currentMerchantId;
-        const sessionId = args.cartId ?? this.currentSessionId ?? `cart_${Date.now()}`;
+        // ALWAYS use conversation sessionId as cart key — stable across multiple adds in same session
+        const sessionId = this.currentSessionId || `cart_${Date.now()}`;
 
         // Resolve product + real variantId (LLM may pass productId or variantId)
         let productName = "Produto";
@@ -189,7 +190,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       getCart: async (args) => {
-        const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId);
+        const cart = await this.cartRepo.getOrCreate(this.currentMerchantId, args.cartId || this.currentSessionId);
         return {
           cartId: cart.sessionId,
           items: cart.items.map((i) => ({
