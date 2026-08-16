@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 export interface CartItem {
   variantId: string;
@@ -23,6 +23,8 @@ interface CartContextValue {
   updateFromBlocks: (blocks: any[]) => void;
 }
 
+const STORAGE_KEY = "zyon-storefront-cart";
+
 const EMPTY_CART: CartState = {
   cartId: null,
   items: [],
@@ -30,6 +32,24 @@ const EMPTY_CART: CartState = {
   discount: 0,
   total: 0,
 };
+
+function loadFromSession(): CartState {
+  if (typeof window === "undefined") return EMPTY_CART;
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return EMPTY_CART;
+    const parsed = JSON.parse(raw) as CartState;
+    if (parsed.items?.length > 0) return parsed;
+  } catch { /* ignore */ }
+  return EMPTY_CART;
+}
+
+function saveToSession(cart: CartState): void {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(cart));
+  } catch { /* quota/privacy */ }
+}
 
 const CartContext = createContext<CartContextValue>({
   cart: EMPTY_CART,
@@ -43,6 +63,17 @@ export function useCart(): CartContextValue {
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartState>(EMPTY_CART);
 
+  // Restore from sessionStorage on mount
+  useEffect(() => {
+    const saved = loadFromSession();
+    if (saved.items.length > 0) setCart(saved);
+  }, []);
+
+  // Persist to sessionStorage on change
+  useEffect(() => {
+    if (cart.items.length > 0) saveToSession(cart);
+  }, [cart]);
+
   const updateFromBlocks = useCallback((blocks: any[]) => {
     const cartBlock = blocks?.find(
       (b: any) => b.type === "cart_summary" && b.data?.items?.length > 0
@@ -51,7 +82,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
     const { items, itemCount, total, discount, cartId } = cartBlock.data;
 
-    setCart({
+    const newCart: CartState = {
       cartId: cartId ?? cart.cartId,
       items: items.map((i: any) => ({
         variantId: i.variantId,
@@ -63,7 +94,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
       itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + i.quantity, 0),
       discount: discount ?? 0,
       total,
-    });
+    };
+
+    setCart(newCart);
   }, [cart.cartId]);
 
   return (

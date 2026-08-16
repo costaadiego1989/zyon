@@ -116,6 +116,22 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         const merchantId = this.currentMerchantId;
         const sessionId = args.cartId ?? `cart_${Date.now()}`;
 
+        // Fetch product/variant data to get real name and price
+        let productName = "Produto";
+        let unitPriceCents = 0;
+        let imageUrl: string | undefined;
+        try {
+          const product = await this.productRepo.findById(merchantId, args.variantId);
+          if (product) {
+            productName = product.name;
+            const variant = product.variants?.[0];
+            unitPriceCents = variant?.basePriceInCents ?? 0;
+            imageUrl = variant?.media?.[0]?.url;
+          }
+        } catch {
+          // Non-critical: fallback to empty values
+        }
+
         // Stock check before adding
         try {
           const stock = await this.stockRepo.getAvailableStock(args.variantId);
@@ -129,10 +145,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         const cart = await this.cartRepo.addItem(merchantId, sessionId, {
           variantId: args.variantId,
           productId: args.variantId,
-          name: (args as any).name ?? "Produto",
-          sku: (args as any).sku ?? args.variantId,
-          unitPriceCents: (args as any).price ?? 0,
-          imageUrl: (args as any).imageUrl,
+          name: productName,
+          sku: args.variantId,
+          unitPriceCents,
+          imageUrl,
           quantity: args.quantity
         });
 
@@ -142,10 +158,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             variantId: i.variantId,
             name: i.name,
             quantity: i.quantity,
-            unitPrice: i.unitPriceCents,
-            lineTotal: i.unitPriceCents * i.quantity
+            unitPrice: i.unitPriceCents / 100,
+            lineTotal: (i.unitPriceCents * i.quantity) / 100
           })),
-          total: cart.total,
+          total: cart.total / 100,
           itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
         };
       },

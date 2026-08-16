@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { CartFAB, CartSheet } from "@zyon/checkout-ui";
 
@@ -19,13 +19,47 @@ export default function NativeCartPanel({
 }: NativeCartPanelProps) {
   const { cart } = useCart();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const prevCountRef = useRef(cart.itemCount);
+  const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-open drawer when items are added, auto-close after 3s
+  useEffect(() => {
+    if (cart.itemCount > prevCountRef.current && cart.itemCount > 0) {
+      setSheetOpen(true);
+
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = setTimeout(() => {
+        setSheetOpen(false);
+        autoCloseTimerRef.current = null;
+      }, 3000);
+    }
+    prevCountRef.current = cart.itemCount;
+  }, [cart.itemCount]);
+
+  // Cancel auto-close on user interaction (manual open)
+  const handleManualOpen = () => {
+    if (autoCloseTimerRef.current) {
+      clearTimeout(autoCloseTimerRef.current);
+      autoCloseTimerRef.current = null;
+    }
+    setSheetOpen(true);
+  };
+
+  // Persist cart to sessionStorage
+  useEffect(() => {
+    if (cart.items.length > 0) {
+      try {
+        sessionStorage.setItem("zyon-cart", JSON.stringify(cart));
+      } catch { /* quota/privacy */ }
+    }
+  }, [cart]);
 
   return (
     <>
       <CartFAB
         itemCount={cart.itemCount}
         total={cart.total}
-        onClick={() => setSheetOpen(true)}
+        onClick={handleManualOpen}
       />
       <CartSheet
         open={sheetOpen}
