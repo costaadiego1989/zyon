@@ -185,20 +185,29 @@ export class SendChatMessageUseCase {
       if (merchantRules.length === 0) merchantRules = undefined;
     } catch { /* rules are advisory, not critical */ }
 
-    const reply = await this.conversation.reply({
-      userMessage: input.user_message,
-      brandVoice: rules.brandVoice,
-      authorizedOffer: offer,
-      agentContext,
-      merchantName: merchant?.name,
-      cart: working.cart,
-      history: working.chatHistory,
-      stage,
-      missingFields,
-      deliverySummary: this.shippingService.summarizeDelivery(working),
-      shippingOptions: working.shippingOptions,
-      merchantRules
-    });
+    // Off-script detection: if user asks question/objection instead of providing data, route to LLM
+    let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
+    const isOffScript = this.detectOffScript(input.user_message, stage, missingFields);
+
+    if (isOffScript && merchantRules?.length) {
+      // Call Llama directly for off-script with merchant rules
+      reply = await this.callLocalLlm(input.user_message, merchantRules, merchant?.name, working.cart);
+    } else {
+      reply = await this.conversation.reply({
+        userMessage: input.user_message,
+        brandVoice: rules.brandVoice,
+        authorizedOffer: offer,
+        agentContext,
+        merchantName: merchant?.name,
+        cart: working.cart,
+        history: working.chatHistory,
+        stage,
+        missingFields,
+        deliverySummary: this.shippingService.summarizeDelivery(working),
+        shippingOptions: working.shippingOptions,
+        merchantRules
+      });
+    }
 
     const safetyCheck = isSafeGeneratedMessage(reply.message);
     const safeMessage = safetyCheck.safe
@@ -307,6 +316,91 @@ export class SendChatMessageUseCase {
       stage,
       missing_fields: missingFields
     };
+  }
+
+  private detectOffScript(message: string, stage?: string, missingFields?: string[]): boolean {
+    if (!stage || !missingFields?.length) return true;
+    const msg = message.toLowerCase();
+    // Question or objection patterns
+    if (/\?$/.test(msg)) return true;
+    if (/(cupom|desconto|promoç|oferta|parcel|frete.*caro|caro.*frete)/i.test(msg)) return true;
+    if (/(quanto|qual|como|onde|quando|posso|pode|tem |aceita)/i.test(msg)) return true;
+    if (/(troca|devoluç|garantia|prazo|politic)/i.test(msg)) return true;
+    if (/(não quero|não vou|desist|cancel)/i.test(msg)) return true;
+    // Data patterns = on-script
+    if (/^\d{2,3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(msg)) return false; // CPF
+    if (/^\d{2}\s?\d{4,5}-?\d{4}$/.test(msg)) return false; // phone
+    if (/^\d{5}-?\d{3}$/.test(msg)) return false; // CEP
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(msg)) return false; // email
+    if (msg.length > 40) return true; // long messages are likely questions
+    return false;
+  }
+
+  private async callLocalLlm(
+    userMessage: string,
+    merchantRules: string[],
+    merchantName?: string,
+    cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number }
+  ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] }> {
+    const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
+    const model = process.env.OLLAMA_MODEL || "llama3.1:8b";
+    const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
+
+    const systemPrompt = [
+      `Você é assistente de checkout da ${merchantName || "loja"}. Seja breve e direto.`,
+      cartInfo,
+      "",
+      "REGRAS COMERCIAIS (siga a primeira que encaixar):",
+      ...merchantRules.map((r, i) => `${i + 1}. ${r}`),
+      "",
+      "Responda em português. Sem markdown. Máximo 2 frases.",
+    ].join("\n");
+
+    try {
+      const res = await fetch(`${baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer ollama" },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          max_tokens: 200,
+          temperature: 0.5,
+        }),
+      });
+      if (!res.ok) throw new Error(`ollama_http_${res.status}`);
+      const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+      const content = json.choices?.[0]?.message?.content?.trim();
+      if (content) return { message: content, objection: "unknown" as any };
+    } catch (e) {
+      // Fallback to DeepSeek
+      const cloudKey = process.env.DEEPSEEK_API_KEY;
+      if (cloudKey) {
+        try {
+          const res = await fetch(`${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"}/chat/completions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${cloudKey}` },
+            body: JSON.stringify({
+              model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userMessage },
+              ],
+              max_tokens: 200,
+              temperature: 0.5,
+            }),
+          });
+          if (res.ok) {
+            const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+            const content = json.choices?.[0]?.message?.content?.trim();
+            if (content) return { message: content, objection: "unknown" as any };
+          }
+        } catch { /* fall through */ }
+      }
+    }
+    return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
   }
 }
 
