@@ -329,72 +329,75 @@ function StylesTab({ styles, onChange }: {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Logo */}
-      <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Logotipo</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {logoPreview ? (
-              <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <Upload size={20} style={{ color: "var(--faint)" }} />
-            )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <input ref={logoFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e, "logo")} />
-            <button
-              type="button"
-              onClick={() => logoFileRef.current?.click()}
-              disabled={uploading !== null}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
-            >
-              <Upload size={13} />
-              {uploading === "logo" ? "Enviando..." : "Alterar logo"}
-            </button>
-            {logoPreview && (
+      {/* Logo + Favicon side by side */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {/* Logo */}
+        <div>
+          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Logotipo</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {logoPreview ? (
+                <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <Upload size={20} style={{ color: "var(--faint)" }} />
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input ref={logoFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e, "logo")} />
               <button
                 type="button"
-                onClick={() => { setLogoPreview(""); onChange({ ...styles, logoUrl: "" }); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+                onClick={() => logoFileRef.current?.click()}
+                disabled={uploading !== null}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
               >
-                <Trash2 size={11} /> Remover
+                <Upload size={13} />
+                {uploading === "logo" ? "Enviando..." : "Alterar logo"}
               </button>
-            )}
+              {logoPreview && (
+                <button
+                  type="button"
+                  onClick={() => { setLogoPreview(""); onChange({ ...styles, logoUrl: "" }); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+                >
+                  <Trash2 size={11} /> Remover
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Favicon */}
-      <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Favicon</h3>
-        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-          <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            {faviconPreview ? (
-              <img src={faviconPreview} alt="Favicon" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-            ) : (
-              <Palette size={18} style={{ color: "var(--faint)" }} />
-            )}
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <input ref={faviconFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e, "favicon")} />
-            <button
-              type="button"
-              onClick={() => faviconFileRef.current?.click()}
-              disabled={uploading !== null}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
-            >
-              <Upload size={13} />
-              {uploading === "favicon" ? "Enviando..." : "Alterar favicon"}
-            </button>
-            {faviconPreview && (
+        {/* Favicon */}
+        <div>
+          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Favicon</h3>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              {faviconPreview ? (
+                <img src={faviconPreview} alt="Favicon" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              ) : (
+                <Palette size={18} style={{ color: "var(--faint)" }} />
+              )}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input ref={faviconFileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={(e) => handleImageUpload(e, "favicon")} />
               <button
                 type="button"
-                onClick={() => { setFaviconPreview(""); onChange({ ...styles, faviconUrl: "" }); }}
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+                onClick={() => faviconFileRef.current?.click()}
+                disabled={uploading !== null}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
               >
-                <Trash2 size={11} /> Remover
+                <Upload size={13} />
+                {uploading === "favicon" ? "Enviando..." : "Alterar favicon"}
               </button>
-            )}
+              {faviconPreview && (
+                <button
+                  type="button"
+                  onClick={() => { setFaviconPreview(""); onChange({ ...styles, faviconUrl: "" }); }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+                >
+                  <Trash2 size={11} /> Remover
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
