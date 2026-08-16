@@ -375,7 +375,11 @@ function CustomerDetailModal({
   const totalOrders = purchaseHistory?.length ?? 0;
   const totalRevenue = purchaseHistory?.reduce((sum, p) => sum + (p.total / 100), 0) ?? 0;
   const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-  const customerName = (profile?.full_name as string) || row?.name || "Cliente";
+
+  const displayName = (profile?.full_name as string) || (row?.name && row.name !== "-" ? row.name : "Cliente sem nome");
+  const displayEmail = (row?.email && row.email !== "-") ? row.email : (profile?.email as string) || "email@exemplo.com";
+  const displayPhone = (row?.phone && row.phone !== "-") ? row.phone : "(00) 00000-0000";
+  const displayInitials = (row?.initials && row.initials !== "?") ? row.initials : displayName.charAt(0).toUpperCase();
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
@@ -383,7 +387,7 @@ function CustomerDetailModal({
       <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--card)", borderLeft: "1px solid var(--border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>{customerName}</h2>
+          <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>{displayName}</h2>
           <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}>
             <X size={20} />
           </button>
@@ -396,12 +400,12 @@ function CustomerDetailModal({
             {/* Contact info */}
             <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
               <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 16px var(--sans)", flexShrink: 0 }}>
-                {row?.initials ?? "?"}
+                {displayInitials}
               </div>
               <div>
-                <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>{row?.name ?? customerName}</div>
-                <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 2 }}>{row?.email ?? (profile?.email as string) ?? "Sem e-mail"}</div>
-                <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{row?.phone && row.phone !== "-" ? row.phone : "Sem telefone"}</div>
+                <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>{displayName}</div>
+                <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 2 }}>{displayEmail}</div>
+                <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{displayPhone}</div>
               </div>
             </div>
 
