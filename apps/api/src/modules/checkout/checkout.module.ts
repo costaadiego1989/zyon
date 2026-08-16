@@ -123,9 +123,7 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
     {
       provide: CONVERSATION_PORT,
-      useFactory: (ai: OpenAiConversationAdapter, fallback: DeterministicConversationAdapter) =>
-        process.env.CHECKOUT_CONVERSATION_PROVIDER === "ai" ? ai : fallback,
-      inject: [OpenAiConversationAdapter, DeterministicConversationAdapter]
+      useClass: DeterministicConversationAdapter
     },
     { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
     { provide: Symbol.for("CheckoutExperienceConfig"), useValue: { platformFeeBrl: 1.99 } },

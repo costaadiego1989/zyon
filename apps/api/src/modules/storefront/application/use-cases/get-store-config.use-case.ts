@@ -31,6 +31,7 @@ export interface StoreConfigOutput {
   agentName?: string;
   agentGreeting?: string;
   quickReplies?: string[];
+  stories?: any[];
   storeCategory?: string;
   storeSettings?: Record<string, unknown>;
 }
@@ -89,6 +90,33 @@ export class GetStoreConfigUseCase {
       if (identity?.greeting) agentGreeting = identity.greeting;
     } catch {}
 
+    // Load quick replies from merchant config, or use default welcome stage
+    let quickReplies: string[] | undefined;
+    try {
+      const settings = row.storeSettings as any;
+      if (settings?.quick_replies?.stages) {
+        const welcomeStage = settings.quick_replies.stages.find((s: any) => s.stage === "welcome");
+        if (welcomeStage?.replies?.length) {
+          quickReplies = welcomeStage.replies;
+        }
+      }
+    } catch {}
+
+    // Fallback to default welcome replies if not configured
+    if (!quickReplies) {
+      quickReplies = ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
+    }
+
+    // Fetch stories for this merchant
+    let stories: any[] = [];
+    try {
+      stories = await this.prisma.storyCategory.findMany({
+        where: { merchantId: row.id, isArchived: false },
+        include: { stories: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } } },
+        orderBy: { sortOrder: "asc" },
+      });
+    } catch { /* stories table may not exist yet */ }
+
     return {
       merchantId: row.id,
       name: row.name,
@@ -109,7 +137,8 @@ export class GetStoreConfigUseCase {
       },
       agentName,
       agentGreeting,
-      quickReplies: ["Ver produtos", "Encontrar produto", "Ver categorias", "Promoções", "Rastrear pedido", "Meus dados"],
+      quickReplies,
+      stories,
       storeCategory: row.storeCategory ?? undefined,
       storeSettings: (row.storeSettings as Record<string, unknown>) ?? undefined,
     };
