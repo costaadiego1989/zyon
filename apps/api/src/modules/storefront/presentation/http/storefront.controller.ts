@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, NotFoundException, Param, Post, Res } from "@nestjs/common";
+import { Body, Controller, Get, Inject, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -7,6 +7,7 @@ import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "../../application/use-cases/get-store-config.use-case.js";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
+import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
@@ -27,7 +28,8 @@ export class StorefrontController {
     private readonly sendStoreMessage: SendStoreMessageUseCase,
     private readonly getConversationHistory: GetConversationHistoryUseCase,
     private readonly getStoreConfig: GetStoreConfigUseCase,
-    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
   ) {}
 
   @Get("index")
@@ -51,6 +53,29 @@ export class StorefrontController {
   @Get(":slug/config")
   async getConfig(@Param("slug") slug: string) {
     return this.getStoreConfig.execute(slug);
+  }
+
+  @Get(":slug/stories")
+  async getStories(@Param("slug") slug: string) {
+    // Resolve merchant using same logic as getStoreConfig
+    let merchant = await this.prisma.merchant.findUnique({ where: { id: slug }, select: { id: true } });
+    if (!merchant) {
+      const all = await this.prisma.merchant.findMany({ select: { id: true, name: true, storeSettings: true } });
+      const match = all.find((m) => {
+        const settings = m.storeSettings as { slug?: string } | null;
+        if (settings?.slug === slug) return true;
+        const slugified = m.name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+        return slugified === slug;
+      });
+      if (match) merchant = { id: match.id };
+    }
+    if (!merchant) return { categories: [] };
+    const categories = await this.prisma.storyCategory.findMany({
+      where: { merchantId: merchant.id, isArchived: false },
+      include: { stories: { where: { isArchived: false }, orderBy: { sortOrder: "asc" } } },
+      orderBy: { sortOrder: "asc" },
+    });
+    return { categories };
   }
 
   @Get(":slug/logo")
@@ -103,5 +128,27 @@ export class StorefrontController {
       merchant_id: body.merchant_id,
       conversation_id: conversationId
     });
+  }
+
+  @Get("cart/:cartId")
+  async getCart(
+    @Param("cartId") cartId: string,
+    @Query("merchantId") merchantId: string
+  ) {
+    if (!merchantId) throw new NotFoundException("merchantId query param required");
+    const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
+    return {
+      cartId: cart.sessionId,
+      items: cart.items.map((i) => ({
+        variantId: i.variantId,
+        productName: i.name,
+        quantity: i.quantity,
+        price: i.unitPriceCents / 100,
+        subtotal: (i.unitPriceCents * i.quantity) / 100,
+      })),
+      itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+      discount: cart.discount ? cart.discount / 100 : 0,
+      total: cart.total / 100,
+    };
   }
 }

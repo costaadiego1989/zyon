@@ -24,6 +24,7 @@ interface CartContextValue {
 }
 
 const STORAGE_KEY = "zyon-cart-id";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 const EMPTY_CART: CartState = {
   cartId: null,
@@ -56,11 +57,31 @@ export function useCart(): CartContextValue {
   return useContext(CartContext);
 }
 
-export function CartProvider({ children }: { children: ReactNode; merchantId?: string }) {
+export function CartProvider({ children, merchantId }: { children: ReactNode; merchantId?: string }) {
   const [cart, setCart] = useState<CartState>(() => {
     const savedId = getSavedCartId();
     return savedId ? { ...EMPTY_CART, cartId: savedId } : EMPTY_CART;
   });
+
+  // Restore cart from API on mount if cartId exists
+  useEffect(() => {
+    const savedId = getSavedCartId();
+    if (!savedId || !merchantId) return;
+
+    fetch(`${API_BASE}/storefront/cart/${encodeURIComponent(savedId)}?merchantId=${encodeURIComponent(merchantId)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (!data || !data.items?.length) return;
+        setCart({
+          cartId: data.cartId,
+          items: data.items,
+          itemCount: data.itemCount,
+          discount: data.discount ?? 0,
+          total: data.total,
+        });
+      })
+      .catch(() => { /* silent — cart stays empty until next interaction */ });
+  }, [merchantId]);
 
   const updateFromBlocks = useCallback((blocks: any[]) => {
     const cartBlock = blocks?.find(
