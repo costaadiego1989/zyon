@@ -115,47 +115,60 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
       addItemToCart: async (args) => {
         const merchantId = this.currentMerchantId;
-        // Use args.cartId if LLM passes it, otherwise use conversation sessionId as stable cart key
         const sessionId = args.cartId ?? this.currentSessionId ?? `cart_${Date.now()}`;
 
-        // Resolve product data: try findById (productId) first, then search by variant
+        // Resolve product + real variantId (LLM may pass productId or variantId)
         let productName = "Produto";
         let unitPriceCents = 0;
         let imageUrl: string | undefined;
+        let resolvedVariantId = args.variantId;
+
         try {
+          // First try: args.variantId is a productId
           let product = await this.productRepo.findById(merchantId, args.variantId);
-          if (!product) {
-            // variantId might be a variant ID, search all products and find matching variant
-            const searchResult = await this.productRepo.search({ merchantId, limit: 50 });
-            product = searchResult.products.find(p =>
-              p.variants.some(v => v.id === args.variantId)
-            ) ?? null;
-          }
           if (product) {
             productName = product.name;
-            const variant = product.variants.find(v => v.id === args.variantId) ?? product.variants[0];
-            unitPriceCents = variant?.basePriceInCents ?? 0;
-            imageUrl = variant?.media?.[0]?.url;
+            const variant = product.variants[0];
+            if (variant) {
+              resolvedVariantId = variant.id;
+              unitPriceCents = variant.basePriceInCents;
+              imageUrl = variant.media?.[0]?.url;
+            }
+          } else {
+            // Second try: args.variantId is actually a variant ID, find parent product
+            const searchResult = await this.productRepo.search({ merchantId, limit: 100 });
+            product = searchResult.products.find(p =>
+              p.variants.some(v => v.id === args.variantId || v.sku === args.variantId)
+            ) ?? null;
+            if (product) {
+              productName = product.name;
+              const variant = product.variants.find(v => v.id === args.variantId || v.sku === args.variantId) ?? product.variants[0];
+              if (variant) {
+                resolvedVariantId = variant.id;
+                unitPriceCents = variant.basePriceInCents;
+                imageUrl = variant.media?.[0]?.url;
+              }
+            }
           }
         } catch {
-          // Non-critical: proceed with defaults
+          // Non-critical: proceed with what we have
         }
 
-        // Stock check before adding
+        // Stock check
         try {
-          const stock = await this.stockRepo.getAvailableStock(args.variantId);
+          const stock = await this.stockRepo.getAvailableStock(resolvedVariantId);
           if (stock.quantity <= 0) {
-            return { error: "out_of_stock", variantId: args.variantId };
+            return { error: "out_of_stock", variantId: resolvedVariantId };
           }
         } catch {
-          // Non-critical: proceed without stock validation in dev
+          // Non-critical: proceed without stock validation
         }
 
         const cart = await this.cartRepo.addItem(merchantId, sessionId, {
-          variantId: args.variantId,
+          variantId: resolvedVariantId,
           productId: args.variantId,
           name: productName,
-          sku: args.variantId,
+          sku: resolvedVariantId,
           unitPriceCents,
           imageUrl,
           quantity: args.quantity

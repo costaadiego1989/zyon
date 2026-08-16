@@ -100,7 +100,7 @@ export interface StoreToolContext {
 const SEARCH_PRODUCTS: ToolDefinition = {
   name: "search_products",
   description:
-    "Search the merchant's product catalog. Use empty query or '*' to list all/featured products. Use categoryId to filter by category. Returns matching products with id, name, price, image, and stock status.",
+    "Search the merchant's product catalog. Use empty query or '*' to list all/featured products. Use categoryId to filter by category. Returns matching products with 'id' (use this ID for add_item_to_cart variantId), name, price, image, variants, and stock status.",
   parameters: {
     type: "object",
     properties: {
@@ -483,21 +483,21 @@ const GET_PRODUCT_AVAILABILITY: ToolDefinition = {
 const ADD_ITEM_TO_CART: ToolDefinition = {
   name: "add_item_to_cart",
   description:
-    "Add product variant to cart. Creates new cart if cartId omitted. Returns updated cart with items, total, and cartId.",
+    "Add product to cart. Accepts either a product ID or a variant ID — the system resolves the correct variant automatically. Creates new cart if cartId omitted. Returns updated cart with items, total, and cartId. ALWAYS call this when user wants to add something to cart.",
   parameters: {
     type: "object",
     properties: {
       cartId: {
         type: "string",
-        description: "Existing cart ID (optional; creates new if omitted)"
+        description: "Existing cart ID (optional; omit to use session cart)"
       },
       variantId: {
         type: "string",
-        description: "Product variant ID"
+        description: "Product ID or variant ID from search_products results. Use the product 'id' field directly — the system resolves the variant."
       },
       quantity: {
         type: "number",
-        description: "Quantity to add (min: 1)"
+        description: "Quantity to add (min: 1, default: 1)"
       }
     },
     required: ["variantId", "quantity"]
