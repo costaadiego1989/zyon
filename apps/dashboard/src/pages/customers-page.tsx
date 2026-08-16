@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { UsersRound, UserPlus, Repeat, Download, ArrowUpDown } from "lucide-react";
+import { UsersRound, UserPlus, Repeat, Download, ArrowUpDown, X } from "lucide-react";
 import { StatCard } from "./overview/components/StatCard.js";
 import {
   type CursorPage,
@@ -344,6 +344,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       {selectedCustomerId ? (
         <CustomerDetailModal
           customer={customerDetail}
+          row={rows.find((r) => r.globalUserId === selectedCustomerId) ?? null}
           loading={loadingDetail}
           onClose={closeCustomerDetail}
         />
@@ -354,10 +355,12 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
 
 function CustomerDetailModal({
   customer,
+  row,
   loading,
   onClose,
 }: {
   customer: unknown;
+  row: CustomerRow | null;
   loading: boolean;
   onClose: () => void;
 }) {
@@ -365,147 +368,93 @@ function CustomerDetailModal({
   const profile = detail?.profile as Record<string, unknown> | null;
   const purchaseHistory = detail?.purchase_history as Array<{
     order_id: string;
-    currency: string;
     total: number;
-    discount: number;
-    items: unknown;
     completed_at: string;
   }> | null;
 
   const totalOrders = purchaseHistory?.length ?? 0;
   const totalRevenue = purchaseHistory?.reduce((sum, p) => sum + (p.total / 100), 0) ?? 0;
   const avgTicket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+  const customerName = (profile?.full_name as string) || row?.name || "Cliente";
 
   return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 900,
-        display: "flex",
-        justifyContent: "flex-end",
-      }}
-    >
+    <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
-      <aside
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "relative",
-          width: 480,
-          maxWidth: "90vw",
-          height: "100vh",
-          overflowY: "auto",
-          background: "var(--color-surface)",
-          borderLeft: "1px solid var(--color-border)",
-          padding: "28px 24px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 20,
-          animation: "slideInRight 0.2s ease-out",
-        }}
-      >
+      <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--card)", borderLeft: "1px solid var(--border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>{customerName}</h2>
+          <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}>
+            <X size={20} />
+          </button>
+        </div>
+
         {loading ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)" }}>Carregando...</div>
-        ) : detail ? (
+          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando...</div>
+        ) : (
           <>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-              <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>
-                {typeof profile?.full_name === "string" ? profile.full_name : "Cliente"}
-              </h2>
-              <button
-                onClick={onClose}
-                style={{
-                  background: "none",
-                  border: "none",
-                  fontSize: 20,
-                  cursor: "pointer",
-                  color: "var(--faint)",
-                }}
-              >
-                ×
-              </button>
+            {/* Contact info */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 16px var(--sans)", flexShrink: 0 }}>
+                {row?.initials ?? "?"}
+              </div>
+              <div>
+                <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>{row?.name ?? customerName}</div>
+                <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 2 }}>{row?.email ?? (profile?.email as string) ?? "-"}</div>
+                {row?.phone && row.phone !== "-" && (
+                  <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{row.phone}</div>
+                )}
+              </div>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 24 }}>
-              {[
-                { label: "E-MAIL", value: profile?.email || "-" },
-                { label: "TELEFONE", value: profile?.phone || "-" },
-                { label: "PEDIDOS", value: totalOrders },
-                { label: "TICKET MÉDIO", value: `R$ ${avgTicket.toFixed(2)}` },
-              ].map((stat) => (
-                <div key={stat.label} style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 6 }}>
-                    {stat.label}
-                  </div>
-                  <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>
-                    {String(stat.value)}
-                  </div>
+            {/* Metrics */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+              <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PEDIDOS</div>
+                <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>{totalOrders}</div>
+              </div>
+              <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>RECEITA</div>
+                <div style={{ font: "600 16px var(--mono)", color: "var(--accent)" }}>R$ {totalRevenue.toFixed(2)}</div>
+              </div>
+              <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>TICKET MÉDIO</div>
+                <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>R$ {avgTicket.toFixed(2)}</div>
+              </div>
+            </div>
+
+            {/* Dates */}
+            {row && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PRIMEIRA VISITA</div>
+                  <div style={{ font: "13px var(--mono)", color: "var(--ink)" }}>{formatDate(row.firstSeen)}</div>
                 </div>
-              ))}
-            </div>
+                <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>ÚLTIMA ATIVIDADE</div>
+                  <div style={{ font: "13px var(--mono)", color: "var(--ink)" }}>{formatDate(row.lastSeen)}</div>
+                </div>
+              </div>
+            )}
 
-            <div style={{ marginBottom: 24 }}>
-              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 12 }}>
-                ÚLTIMOS PEDIDOS
-              </h3>
+            {/* Purchase history */}
+            <div>
+              <div style={{ font: "600 11px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 10, textTransform: "uppercase" }}>Últimos pedidos</div>
               {purchaseHistory && purchaseHistory.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {purchaseHistory.slice(0, 10).map((order, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: "10px 12px",
-                        background: "var(--bg)",
-                        borderRadius: 6,
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        font: "12px var(--mono)",
-                      }}
-                    >
-                      <span style={{ color: "var(--ink)" }}>#{order.order_id}</span>
-                      <span style={{ color: "var(--muted)" }}>
-                        R$ {(order.total / 100).toFixed(2)}
-                      </span>
-                      <span style={{ color: "var(--faint)", fontSize: "11px" }}>
-                        {formatDate(order.completed_at)}
-                      </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {purchaseHistory.slice(0, 8).map((order, idx) => (
+                    <div key={idx} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ font: "12px var(--mono)", color: "var(--ink)" }}>#{order.order_id.slice(-8)}</span>
+                      <span style={{ font: "600 12px var(--mono)", color: "var(--accent)" }}>R$ {(order.total / 100).toFixed(2)}</span>
+                      <span style={{ font: "11px var(--mono)", color: "var(--faint)" }}>{formatDate(order.completed_at)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ color: "var(--faint)", font: "13px var(--sans)" }}>Nenhum pedido registrado</p>
+                <p style={{ color: "var(--faint)", font: "13px var(--sans)", margin: 0 }}>Nenhum pedido registrado</p>
               )}
             </div>
-
-            <div style={{ marginBottom: 24 }}>
-              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 12 }}>
-                RECEITA TOTAL
-              </h3>
-              <div style={{ font: "600 22px var(--serif)", color: "var(--ink)" }}>
-                R$ {totalRevenue.toFixed(2)}
-              </div>
-            </div>
-
-            <button
-              onClick={onClose}
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                font: "600 12.5px var(--sans)",
-                color: "var(--ink)",
-                cursor: "pointer",
-              }}
-            >
-              Fechar
-            </button>
           </>
-        ) : (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)" }}>Erro ao carregar detalhes</div>
         )}
       </aside>
     </div>
