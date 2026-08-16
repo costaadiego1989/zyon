@@ -138,9 +138,9 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                     <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
                   </label>
                   {vm.form.allowShippingDiscount && (
-                    <div style={{ paddingLeft: 46 }}>
-                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
-                        Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)" }}>{vm.form.maxPartialShippingDiscount}%</span>
+                    <div style={{ paddingLeft: 46, marginTop: 4 }}>
+                      <span style={{ font: "13px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>
+                        Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)", fontWeight: 600 }}>{vm.form.maxPartialShippingDiscount}%</span>
                       </span>
                       <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ width: "100%", maxWidth: 280, accentColor: "var(--accent)", cursor: "pointer", height: 4 }} />
                     </div>
