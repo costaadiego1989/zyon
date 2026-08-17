@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
+import { showToast } from "../../components/Toast.js";
 import type { BillingSubscription } from "../../api/types.js";
 
 export interface BillingPlansPageVM {
@@ -72,9 +73,11 @@ export function useBillingPlansPage(): BillingPlansPageVM {
       });
       if (session.url) {
         window.location.href = session.url;
+      } else {
+        showToast("error", "Portal indisponível no momento");
       }
     } catch (err) {
-      setError("Erro ao abrir portal de assinatura");
+      showToast("error", "Não foi possível abrir o portal de assinatura");
       console.error(err);
     }
   }
