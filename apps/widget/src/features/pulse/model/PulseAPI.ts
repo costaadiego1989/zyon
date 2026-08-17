@@ -110,7 +110,11 @@ export class PulseAPI {
   }
 
   private _headers(): Record<string, string> {
-    return { 'Content-Type': 'application/json', ...embedAuthHeaders(this.sessionToken ?? undefined) };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...embedAuthHeaders(this.sessionToken ?? undefined) };
+    if (this.sessionToken === '__dev_bypass__') {
+      headers['x-dev-merchant-id'] = this.merchantId;
+    }
+    return headers;
   }
 
   private _buyerHeaders(): Record<string, string> {
@@ -212,7 +216,9 @@ export class PulseAPI {
           const data = await r.json() as { session_id?: string };
           if (data.session_id) { this.sessionId = data.session_id; return this.sessionId; }
         }
-      } catch { /* fall through */ }
+      } catch (e) {
+        console.warn('[PulseAPI] ensureSession failed:', e);
+      }
     }
     if (!this.allowDemoFallbacks) throw new Error('embed_session_unavailable');
     this.sessionId = 'sess_demo';
@@ -224,16 +230,23 @@ export class PulseAPI {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = await this.ensureSession();
-        const r = await fetch(`${this.baseUrl}/embed/cart?session_id=${encodeURIComponent(sessionId)}`, { headers: this._headers() });
+        const r = await fetch(`${this.baseUrl}/embed/cart`, {
+          method: 'POST',
+          headers: this._headers(),
+          body: JSON.stringify({ session_id: sessionId }),
+        });
         if (r.ok) {
-          const data = await r.json() as { items?: unknown[] };
-          const items = (data.items ?? []) as Array<{ sku: string; name: string; description?: string; price_cents?: number; quantity?: number; tags?: string[] }>;
+          const data = await r.json() as { items?: unknown[]; experience?: { cart?: { items?: unknown[] } } };
+          const items = (data.items ?? data.experience?.cart?.items ?? []) as Array<{ sku: string; name: string; description?: string; price_cents?: number; price?: number; quantity?: number; tags?: string[] }>;
           if (items.length > 0) {
             const first = items[0];
-            return { product: { id: first.sku, title: first.name, subtitle: first.description ?? '', price: (first.price_cents ?? 0) / 100, tags: first.tags ?? [] }, qty: first.quantity ?? 1 };
+            const price = first.price_cents != null ? first.price_cents / 100 : (first.price ?? 0);
+            return { product: { id: first.sku, title: first.name, subtitle: first.description ?? '', price, tags: first.tags ?? [] }, qty: first.quantity ?? 1 };
           }
         }
-      } catch { /* fall through */ }
+      } catch (e) {
+        console.warn('[PulseAPI] getCart failed:', e);
+      }
     }
     if (!this.allowDemoFallbacks) throw new Error('cart_unavailable');
     return this._wait({ product: this._fallbackCatalog[0], qty: 1 });
@@ -266,8 +279,8 @@ export class PulseAPI {
             }));
           }
         }
-      } catch {
-        // fall through to local search
+      } catch (e) {
+        console.warn('[PulseAPI] searchProducts failed:', e);
       }
     }
     if (!this.allowDemoFallbacks) return [];
@@ -290,7 +303,11 @@ export class PulseAPI {
   }
 
   async getBestCoupon(productPrice: number, discount?: TenantDiscount): Promise<Coupon> {
-    if (!this.allowDemoFallbacks && !discount) {
+    // Only generate a coupon when merchant explicitly configured a discount
+    // or demo fallbacks are enabled. Without explicit config, return empty coupon
+    // so the widget doesn't show fabricated promo codes.
+    const hasExplicitDiscount = !!(discount && (discount.code || discount.initialPercent));
+    if (!this.allowDemoFallbacks && !hasExplicitDiscount) {
       return { code: '', amount: 0, displayAmount: 0, label: '', appliedPercent: 0, pendingPercent: 0 };
     }
     const d = discount ? resolveTenantDiscount({ discount }) : this.discount;
@@ -322,7 +339,9 @@ export class PulseAPI {
             }));
           }
         }
-      } catch { /* fall through */ }
+      } catch (e) {
+        console.warn('[PulseAPI] getShipping failed:', e);
+      }
     }
     if (!this.allowDemoFallbacks) return [];
     return this._wait([
@@ -365,6 +384,7 @@ export class PulseAPI {
         const errorText = await r.text().catch(() => '');
         throw new Error(errorText || `payment_intent_failed_${r.status}`);
       } catch (error) {
+        console.warn('[PulseAPI] createOrder failed:', error);
         if (!this.allowDemoFallbacks) throw error;
       }
     }
@@ -394,14 +414,17 @@ export class PulseAPI {
   async checkPaymentStatus(intentId: string): Promise<'pending' | 'paid' | 'failed'> {
     if (this.sessionToken && this.baseUrl) {
       try {
-        const r = await fetch(`${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status`, { headers: this._headers() });
+        const sessionId = await this.ensureSession();
+        const r = await fetch(`${this.baseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status?session_id=${encodeURIComponent(sessionId)}`, { headers: this._headers() });
         if (r.ok) {
           const data = await r.json() as { status?: string };
           const s = data.status;
           if (paymentStatusIsPaid(s)) return 'paid';
           if (s === 'failed' || s === 'cancelled' || s === 'expired') return 'failed';
         }
-      } catch { /* fall through */ }
+      } catch (e) {
+        console.warn('[PulseAPI] checkPaymentStatus failed:', e);
+      }
     }
     return 'pending';
   }
@@ -637,6 +660,7 @@ export class PulseAPI {
           verified: true,
         };
       } catch (error) {
+        console.warn('[PulseAPI] authenticateFace failed:', error);
         if (!this.allowDemoFallbacks) throw error;
       }
     }
