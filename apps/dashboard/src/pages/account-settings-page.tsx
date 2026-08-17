@@ -40,33 +40,30 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Nome completo</label>
+            <label>Nome completo</label>
             <input
               type="text"
               placeholder="Seu nome"
               value={vm.form.name}
               onChange={(e) => vm.setForm((f) => ({ ...f, name: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Email</label>
+            <label>Email</label>
             <input
               type="email"
               placeholder="seu@email.com"
               value={vm.form.email}
               onChange={(e) => vm.setForm((f) => ({ ...f, email: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Celular / WhatsApp</label>
+            <label>Celular / WhatsApp</label>
             <input
               type="tel"
               placeholder="(11) 99999-9999"
               value={vm.form.phone}
               onChange={(e) => vm.setForm((f) => ({ ...f, phone: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </div>
         </div>
@@ -86,33 +83,30 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Senha atual</label>
+            <label>Senha atual</label>
             <input
               type="password"
               placeholder="••••••••"
               value={vm.passwordForm.currentPassword}
               onChange={(e) => vm.setPasswordForm((f) => ({ ...f, currentPassword: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Nova senha</label>
+            <label>Nova senha</label>
             <input
               type="password"
               placeholder="Mínimo 6 caracteres"
               value={vm.passwordForm.newPassword}
               onChange={(e) => vm.setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Confirmar nova senha</label>
+            <label>Confirmar nova senha</label>
             <input
               type="password"
               placeholder="Repita a nova senha"
               value={vm.passwordForm.confirmPassword}
               onChange={(e) => vm.setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value }))}
-              style={{ width: "100%" }}
             />
           </div>
         </div>
