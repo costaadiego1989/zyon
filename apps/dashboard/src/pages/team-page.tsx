@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Users, UserPlus, Trash2, Shield, Mail } from "lucide-react";
+import { Users, UserPlus, Trash2, Shield, Mail, Crown } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
+import { StatCard } from "./overview/components/StatCard.js";
 import { Modal } from "../components/Modal.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
@@ -40,6 +41,28 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         <p className={`panel ${vm.message.kind === "ok" ? "panel-ok" : "panel-warn"}`}>{vm.message.text}</p>
       ) : null}
       {vm.error ? <p className="panel panel-warn">{vm.error}</p> : null}
+
+      {/* KPIs */}
+      {!vm.loading && vm.members.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+          <StatCard
+            label="Membros"
+            value={vm.members.length}
+            icon={<Users size={16} />}
+          />
+          <StatCard
+            label="Administradores"
+            value={vm.members.filter((m) => m.role === "OWNER" || m.role === "ADMIN").length}
+            icon={<Crown size={16} />}
+          />
+          <StatCard
+            label="Convites pendentes"
+            value={vm.invites.length}
+            icon={<Mail size={16} />}
+            accent={vm.invites.length > 0 ? "var(--warn)" : undefined}
+          />
+        </div>
+      ) : null}
 
       {/* Members list */}
       <section className="panel stacked">

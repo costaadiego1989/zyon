@@ -1,7 +1,8 @@
 import React from "react";
-import { ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide-react";
+import { Activity, ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
+import { StatCard } from "./overview/components/StatCard.js";
 import { Pagination } from "../components/Pagination.js";
 import { EmptyState } from "../components/EmptyState.js";
 import {
@@ -35,9 +36,6 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
           <p className="page-lead">Acompanhe todas as ações realizadas no painel.</p>
         </div>
         <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Button variant="outline" size="sm" disabled={vm.loading} onClick={() => void vm.load()} aria-label="Atualizar log de auditoria">
-            <RefreshCw size={14} /> Atualizar
-          </Button>
           <Button variant="primary" size="sm" arrow onClick={vm.exportCsv} aria-label="Exportar registros">
             <Download size={14} /> Exportar
           </Button>
@@ -45,6 +43,27 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
       </header>
 
       {vm.error && !vm.loading ? <p className="panel panel-warn">{vm.error}</p> : null}
+
+      {/* KPIs */}
+      {!vm.loading && vm.events.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+          <StatCard
+            label="Total de eventos"
+            value={vm.events.length}
+            icon={<ShieldCheck size={16} />}
+          />
+          <StatCard
+            label="Filtrados"
+            value={vm.totalFiltered}
+            icon={<Activity size={16} />}
+          />
+          <StatCard
+            label="Exibidos"
+            value={vm.pagedEvents.length}
+            icon={<ChevronRight size={16} />}
+          />
+        </div>
+      ) : null}
 
       <section className="panel stacked">
         <div className="panel-title">
