@@ -7,6 +7,7 @@ import {
   type MerchantProfile,
 } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
+import { Button } from "../components/Button.js";
 
 // ── Exported constants for testing ──────────────────────────────────────────
 
@@ -252,10 +253,10 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
           <h1>Conexões de Plataforma</h1>
           <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente.</p>
         </div>
-        <button type="button" disabled={isLoading || isBusy} onClick={() => void load()}>
-          <RefreshCw size={15} className={isLoading ? "spin" : undefined} />
+        <Button variant="outline" disabled={isLoading || isBusy} onClick={() => void load()}>
+          <RefreshCw size={15} className={isLoading ? "spin" : undefined} style={{ marginRight: 6 }} />
           Atualizar
-        </button>
+        </Button>
       </header>
 
       {/* Connection KPIs */}
@@ -505,10 +506,10 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                 </span>
               </div>
 
-              <button type="submit" className="btn-primary commerce-submit-btn" disabled={isBusy} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13 }}>
-                <Zap size={15} />
+              <Button type="submit" variant="primary" arrow disabled={isBusy} loading={operation === "connecting"}>
+                <Zap size={15} style={{ marginRight: 6 }} />
                 {operation === "connecting" ? "Conectando..." : "Conectar loja"}
-              </button>
+              </Button>
             </div>
           </form>
         </section>
@@ -568,51 +569,48 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                     {confirmingDelete ? (
                       <>
                         <span className="commerce-confirm-text">Tem certeza?</span>
-                        <button
-                          type="button"
-                          className="btn-danger-subtle"
+                        <Button
+                          variant="ghost"
                           disabled={operation === "deleting"}
                           onClick={() => void deleteConnection()}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={14} style={{ marginRight: 6 }} />
                           {operation === "deleting" ? "Removendo..." : "Confirmar"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-secondary"
+                        </Button>
+                        <Button
+                          variant="ghost"
                           disabled={operation === "deleting"}
                           onClick={() => setConfirmingDelete(false)}
                         >
                           Cancelar
-                        </button>
+                        </Button>
                       </>
                     ) : (
                       <>
-                        <button
-                          type="button"
+                        <Button
+                          variant="outline"
                           disabled={isBusy}
                           onClick={() => void testConnection()}
                         >
-                          <Zap size={14} />
+                          <Zap size={14} style={{ marginRight: 6 }} />
                           {operation === "testing" ? "Testando..." : "Testar"}
-                        </button>
-                        <button
-                          type="button"
+                        </Button>
+                        <Button
+                          variant="outline"
                           disabled={isBusy}
                           onClick={() => void syncConnection()}
                         >
-                          <RefreshCw size={14} />
+                          <RefreshCw size={14} style={{ marginRight: 6 }} />
                           {operation === "syncing" ? "Sincronizando..." : "Sincronizar agora"}
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-danger-subtle"
+                        </Button>
+                        <Button
+                          variant="ghost"
                           disabled={isBusy}
                           onClick={() => setConfirmingDelete(true)}
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={14} style={{ marginRight: 6 }} />
                           Remover conexão
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>
