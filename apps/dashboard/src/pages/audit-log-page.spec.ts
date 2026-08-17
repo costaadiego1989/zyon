@@ -9,7 +9,8 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 
 const SOURCE_PATH = path.resolve(import.meta.dirname ?? ".", "audit-log-page.tsx");
-const source = fs.readFileSync(SOURCE_PATH, "utf-8");
+const HOOK_PATH = path.resolve(import.meta.dirname ?? ".", "useAuditLogPage.ts");
+const source = fs.readFileSync(SOURCE_PATH, "utf-8") + "\n" + fs.readFileSync(HOOK_PATH, "utf-8");
 
 // ── Portuguese Diacritics ────────────────────────────────────────────────────
 
@@ -146,7 +147,7 @@ describe("AuditLogPage — CSV export", () => {
   });
 
   it("generates CSV with correct header columns", () => {
-    expect(source).toContain("Data,Tipo Ator,Ator,Ação,Recurso,ID Recurso,ID Correlação");
+    expect(source).toContain("Data,Tipo Ator,Ator,Ação,Recurso,ID Recurso,Resultado,IP,ID Correlação");
   });
 
   it("uses downloadCsv helper for CSV download", () => {
@@ -236,25 +237,26 @@ describe("filterEvents — pure function", () => {
   // Import and test the exported filterEvents function
   // Since it's inline, we test via dynamic import
   it("is exported for testability", async () => {
-    const mod = await import("./audit-log-page.js");
+    const mod = await import("./useAuditLogPage.js");
     expect(typeof mod.filterEvents).toBe("function");
+    expect(typeof mod.actionBadgeCategory).toBe("function");
   });
 
   it("returns all events when filters are 'all'", async () => {
-    const { filterEvents } = await import("./audit-log-page.js");
+    const { filterEvents } = await import("./useAuditLogPage.js");
     const events = [
-      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, metadata: null, occurred_at: new Date().toISOString() },
-      { id: "2", actor_type: "service" as const, actor_id: null, action: "delete_key", resource_type: "key", resource_id: null, correlation_id: null, metadata: null, occurred_at: new Date().toISOString() },
+      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: new Date().toISOString() },
+      { id: "2", actor_type: "service" as const, actor_id: null, action: "delete_key", resource_type: "key", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: new Date().toISOString() },
     ];
     const result = filterEvents(events, { dateRange: "all", actionCategory: "all", actorType: "all" });
     expect(result).toHaveLength(2);
   });
 
   it("filters by actorType=human", async () => {
-    const { filterEvents } = await import("./audit-log-page.js");
+    const { filterEvents } = await import("./useAuditLogPage.js");
     const events = [
-      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, metadata: null, occurred_at: new Date().toISOString() },
-      { id: "2", actor_type: "service" as const, actor_id: null, action: "delete_key", resource_type: "key", resource_id: null, correlation_id: null, metadata: null, occurred_at: new Date().toISOString() },
+      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: new Date().toISOString() },
+      { id: "2", actor_type: "service" as const, actor_id: null, action: "delete_key", resource_type: "key", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: new Date().toISOString() },
     ];
     const result = filterEvents(events, { dateRange: "all", actionCategory: "all", actorType: "human" });
     expect(result).toHaveLength(1);
@@ -262,27 +264,27 @@ describe("filterEvents — pure function", () => {
   });
 
   it("filters by actionCategory=destructive", async () => {
-    const { filterEvents, actionBadgeCategory } = await import("./audit-log-page.js");
+    const { filterEvents, actionBadgeCategory } = await import("./useAuditLogPage.js");
     const events = [
-      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, metadata: null, occurred_at: new Date().toISOString() },
-      { id: "2", actor_type: "service" as const, actor_id: null, action: "delete_key", resource_type: "key", resource_id: null, correlation_id: null, metadata: null, occurred_at: new Date().toISOString() },
+      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: new Date().toISOString() },
+      { id: "2", actor_type: "service" as const, actor_id: null, action: "delete_key", resource_type: "key", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: new Date().toISOString() },
     ];
     const result = filterEvents(events, { dateRange: "all", actionCategory: "destructive", actorType: "all" });
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe("2");
   });
 
-  it("filters by dateRange=7d excludes old events", async () => {
-    const { filterEvents } = await import("./audit-log-page.js");
+  it("dateRange filter is server-side — filterEvents does NOT exclude by date", async () => {
+    const { filterEvents } = await import("./useAuditLogPage.js");
     const recent = new Date().toISOString();
     const old = new Date(Date.now() - 10 * 86_400_000).toISOString();
     const events = [
-      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, metadata: null, occurred_at: recent },
-      { id: "2", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, metadata: null, occurred_at: old },
+      { id: "1", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: recent },
+      { id: "2", actor_type: "human" as const, actor_id: null, action: "create_rule", resource_type: "rule", resource_id: null, correlation_id: null, ip_address: null, user_agent: null, outcome: "success" as const, metadata: null, occurred_at: old },
     ];
+    // dateRange is now pushed to API (server-side); filterEvents only applies actionCategory + actorType
     const result = filterEvents(events, { dateRange: "7d", actionCategory: "all", actorType: "all" });
-    expect(result).toHaveLength(1);
-    expect(result[0]?.id).toBe("1");
+    expect(result).toHaveLength(2);
   });
 });
 
@@ -290,33 +292,33 @@ describe("filterEvents — pure function", () => {
 
 describe("actionBadgeCategory — pure function", () => {
   it("is exported", async () => {
-    const mod = await import("./audit-log-page.js");
+    const mod = await import("./useAuditLogPage.js");
     expect(typeof mod.actionBadgeCategory).toBe("function");
   });
 
   it("classifies delete actions as destructive", async () => {
-    const { actionBadgeCategory } = await import("./audit-log-page.js");
+    const { actionBadgeCategory } = await import("./useAuditLogPage.js");
     expect(actionBadgeCategory("delete_key")).toBe("destructive");
     expect(actionBadgeCategory("remove_user")).toBe("destructive");
     expect(actionBadgeCategory("revoke_token")).toBe("destructive");
   });
 
   it("classifies create actions as constructive", async () => {
-    const { actionBadgeCategory } = await import("./audit-log-page.js");
+    const { actionBadgeCategory } = await import("./useAuditLogPage.js");
     expect(actionBadgeCategory("create_rule")).toBe("constructive");
     expect(actionBadgeCategory("add_user")).toBe("constructive");
     expect(actionBadgeCategory("enable_feature")).toBe("constructive");
   });
 
   it("classifies update actions as update", async () => {
-    const { actionBadgeCategory } = await import("./audit-log-page.js");
+    const { actionBadgeCategory } = await import("./useAuditLogPage.js");
     expect(actionBadgeCategory("update_settings")).toBe("update");
     expect(actionBadgeCategory("edit_rule")).toBe("update");
     expect(actionBadgeCategory("modify_config")).toBe("update");
   });
 
   it("classifies unknown actions as other", async () => {
-    const { actionBadgeCategory } = await import("./audit-log-page.js");
+    const { actionBadgeCategory } = await import("./useAuditLogPage.js");
     expect(actionBadgeCategory("login")).toBe("other");
     expect(actionBadgeCategory("unknown_action")).toBe("other");
   });

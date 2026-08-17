@@ -158,6 +158,9 @@ describe("createDashboardApi — audit events", () => {
     resource_type: "merchant_rules",
     resource_id: "mrc_test",
     correlation_id: null,
+    ip_address: null,
+    user_agent: null,
+    outcome: "success",
     metadata: null,
     occurred_at: "2026-06-01T10:00:00Z",
   };

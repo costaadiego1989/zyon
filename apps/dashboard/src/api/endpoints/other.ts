@@ -302,10 +302,20 @@ export function otherEndpoints(base: string, f: typeof fetch) {
     async getAuditEvents(options?: {
       limit?: number;
       cursor?: string;
+      action?: string;
+      resource_type?: string;
+      actor_id?: string;
+      since?: string;
+      until?: string;
     }): Promise<CursorPage<AuditEvent>> {
       const params = new URLSearchParams();
       if (options?.limit) params.set("limit", String(options.limit));
       if (options?.cursor) params.set("cursor", options.cursor);
+      if (options?.action) params.set("action", options.action);
+      if (options?.resource_type) params.set("resource_type", options.resource_type);
+      if (options?.actor_id) params.set("actor_id", options.actor_id);
+      if (options?.since) params.set("since", options.since);
+      if (options?.until) params.set("until", options.until);
       const query = params.toString() ? `?${params.toString()}` : "";
       return dashboardJson<CursorPage<AuditEvent>>(
         base,

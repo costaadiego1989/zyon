@@ -202,6 +202,9 @@ export type AuditEvent = {
   resource_type: string;
   resource_id: string | null;
   correlation_id: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  outcome: "success" | "failed";
   metadata: Record<string, unknown> | null;
   occurred_at: string;
 };
