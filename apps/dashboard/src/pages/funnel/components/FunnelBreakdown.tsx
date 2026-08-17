@@ -23,16 +23,19 @@ const SEGMENT_LABELS: Record<string, string> = {
   boleto: "Boleto",
 };
 
-export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps): React.ReactElement {
-  const entries = Object.entries(breakdowns);
+const DIMENSION_DEFAULTS: Record<string, string[]> = {
+  device: ["mobile", "desktop", "tablet"],
+  buyer_type: ["new", "returning"],
+  payment_method: ["pix", "card", "boleto"],
+};
 
+export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps): React.ReactElement {
+  let entries = Object.entries(breakdowns);
+
+  // If no data, show zeroed structure so layout is visible
   if (entries.length === 0) {
-    return (
-      <div className="fnl-breakdown-card">
-        <h3 className="fnl-breakdown-title">Segmentação</h3>
-        <p style={{ color: "var(--muted)", fontSize: 13 }}>Sem dados para este período.</p>
-      </div>
-    );
+    const defaults = DIMENSION_DEFAULTS[dimension] ?? ["unknown"];
+    entries = defaults.map(key => [key, { steps: [], overallConversion: 0 }]);
   }
 
   return (
