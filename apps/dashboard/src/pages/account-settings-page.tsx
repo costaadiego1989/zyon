@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, User, Lock, Phone, Mail } from "lucide-react";
+import { Settings, Lock } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
@@ -35,14 +35,12 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
       {/* Profile section */}
       <section className="panel stacked">
         <div className="panel-title">
-          <h2><User size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Dados pessoais</h2>
+          <h2>Dados pessoais</h2>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>
-              <User size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Nome completo
-            </label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Nome completo</label>
             <input
               type="text"
               placeholder="Seu nome"
@@ -52,9 +50,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>
-              <Mail size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Email
-            </label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Email</label>
             <input
               type="email"
               placeholder="seu@email.com"
@@ -64,9 +60,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
             />
           </div>
           <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>
-              <Phone size={12} style={{ marginRight: 4, verticalAlign: "middle" }} />Celular / WhatsApp
-            </label>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Celular / WhatsApp</label>
             <input
               type="tel"
               placeholder="(11) 99999-9999"
@@ -87,10 +81,10 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
       {/* Password section */}
       <section className="panel stacked" style={{ marginTop: 16 }}>
         <div className="panel-title">
-          <h2><Lock size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Alterar senha</h2>
+          <h2>Alterar senha</h2>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
             <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Senha atual</label>
             <input
