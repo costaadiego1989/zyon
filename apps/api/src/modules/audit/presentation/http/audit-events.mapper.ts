@@ -1,9 +1,5 @@
 import type { MerchantAuditEvent } from "../../domain/ports/audit-repository.port.js";
 
-/**
- * AUD-M2: Shared camelCase-to-snake_case response mapper.
- * Single source of truth for audit event serialization.
- */
 export function toAuditEventResponse(event: MerchantAuditEvent) {
   return {
     id: event.id,
@@ -13,6 +9,9 @@ export function toAuditEventResponse(event: MerchantAuditEvent) {
     resource_type: event.resourceType,
     resource_id: event.resourceId ?? null,
     correlation_id: event.correlationId ?? null,
+    ip_address: event.ipAddress ?? null,
+    user_agent: event.userAgent ?? null,
+    outcome: event.outcome,
     metadata: event.metadata,
     occurred_at: event.occurredAt,
   };

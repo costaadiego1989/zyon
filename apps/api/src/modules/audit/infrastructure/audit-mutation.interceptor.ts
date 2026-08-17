@@ -38,7 +38,6 @@ export class AuditMutationInterceptor implements NestInterceptor {
       ? `${request.baseUrl ?? ""}${String(request.route.path)}`
       : request.path;
 
-    // AUD-H2: Use @AuditResource decorator metadata if present; fall back to URL heuristic.
     const handler = context.getHandler();
     const controllerClass = context.getClass();
     const decoratorResource = this.reflector.getAllAndOverride<string | undefined>(AUDIT_RESOURCE_KEY, [handler, controllerClass]);
@@ -48,22 +47,21 @@ export class AuditMutationInterceptor implements NestInterceptor {
         .filter(Boolean)
         .find((segment) => segment !== "v1") ?? "unknown";
 
-    // AUD-L1: Use decorator-specified param name or fall back to firstParam.
     const resourceIdParam = this.reflector.getAllAndOverride<string | undefined>(AUDIT_RESOURCE_ID_KEY, [handler, controllerClass]);
     const resourceId = resourceIdParam
       ? (request.params?.[resourceIdParam] as string | undefined)
       : firstParam(request.params);
 
-    // AUD-H4: Convert to AuditActor to decouple from TenantPrincipal.
     const actor = principalToAuditActor(principal);
+
+    const ipAddress = extractIp(request);
+    const userAgent = request.headers?.["user-agent"] ?? undefined;
 
     return next.handle().pipe(
       tap({
         next: () => {
-          // P3 fix: skip audit recording for idempotent replays.
           if (response.getHeader("Idempotency-Replayed")) return;
 
-          // AUD-H1: Log failures; operators detect broken audit trail via alerts.
           void this.recordAudit
             .execute({
               merchantId: principal.tenantId,
@@ -72,9 +70,13 @@ export class AuditMutationInterceptor implements NestInterceptor {
               resourceType,
               resourceId,
               correlationId: request.correlationId,
+              ipAddress,
+              userAgent,
+              outcome: "success",
               metadata: truncateMetadata({
                 method: request.method.toUpperCase(),
                 path,
+                statusCode: response.statusCode,
               }),
             })
             .catch((error: unknown) => {
@@ -84,9 +86,43 @@ export class AuditMutationInterceptor implements NestInterceptor {
               );
             });
         },
+        error: (err: unknown) => {
+          void this.recordAudit
+            .execute({
+              merchantId: principal.tenantId,
+              actor,
+              action: `http.${request.method.toLowerCase()}`,
+              resourceType,
+              resourceId,
+              correlationId: request.correlationId,
+              ipAddress,
+              userAgent,
+              outcome: "failed",
+              metadata: truncateMetadata({
+                method: request.method.toUpperCase(),
+                path,
+                statusCode: response.statusCode || 500,
+                error: err instanceof Error ? err.message : String(err),
+              }),
+            })
+            .catch((recordErr: unknown) => {
+              this.logger.error(
+                `Audit record (failure) failed for ${request.method} ${path}: ${recordErr instanceof Error ? recordErr.message : String(recordErr)}`,
+              );
+            });
+        },
       }),
     );
   }
+}
+
+function extractIp(request: AacpHttpRequest): string | undefined {
+  const forwarded = request.headers?.["x-forwarded-for"];
+  if (forwarded) {
+    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded.split(",")[0];
+    return first?.trim();
+  }
+  return request.ip ?? undefined;
 }
 
 function firstParam(
@@ -102,10 +138,6 @@ function firstParam(
   return undefined;
 }
 
-/**
- * AUD-M3: Limit metadata size to prevent DB bloat.
- * Truncates serialized metadata to 4KB max.
- */
 const MAX_METADATA_SIZE = 4096;
 
 function truncateMetadata(metadata: Record<string, unknown>): Record<string, unknown> {

@@ -94,6 +94,9 @@ model MerchantAuditEvent {
   resourceType  String   @map("resource_type")
   resourceId    String?  @map("resource_id")
   correlationId String?  @map("correlation_id")
+  ipAddress     String?  @map("ip_address")
+  userAgent     String?  @map("user_agent")
+  outcome       String?  @default("success")
   metadata      Json     @default("{}")
   occurredAt    DateTime @default(now()) @map("occurred_at")
 

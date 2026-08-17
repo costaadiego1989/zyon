@@ -9,6 +9,9 @@ export interface MerchantAuditEvent {
   resourceType: string;
   resourceId?: string;
   correlationId?: string;
+  ipAddress?: string;
+  userAgent?: string;
+  outcome: "success" | "failed";
   metadata: Record<string, unknown>;
   occurredAt: string;
 }

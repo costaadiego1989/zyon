@@ -22,6 +22,9 @@ export class RecordAuditEventUseCase {
     resourceType: string;
     resourceId?: string;
     correlationId?: string;
+    ipAddress?: string;
+    userAgent?: string;
+    outcome?: "success" | "failed";
     metadata?: Record<string, unknown>;
   }): Promise<MerchantAuditEvent> {
     return this.repository.record({
@@ -32,6 +35,9 @@ export class RecordAuditEventUseCase {
       resourceType: required(input.resourceType, "audit_resource_type"),
       resourceId: optional(input.resourceId),
       correlationId: optional(input.correlationId),
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      outcome: input.outcome ?? "success",
       metadata: input.metadata ?? {},
     });
   }

@@ -1,6 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type {
+  AuditCursor,
   AuditRepository,
   MerchantAuditEvent,
 } from "../domain/ports/audit-repository.port.js";
@@ -20,6 +21,9 @@ export class PrismaAuditRepository implements AuditRepository {
         resourceType: event.resourceType,
         resourceId: event.resourceId,
         correlationId: event.correlationId,
+        ipAddress: event.ipAddress,
+        userAgent: event.userAgent,
+        outcome: event.outcome,
         metadata: event.metadata as Prisma.InputJsonValue,
       },
     });
@@ -29,26 +33,45 @@ export class PrismaAuditRepository implements AuditRepository {
   async list(input: {
     merchantId: string;
     limit: number;
-    cursor?: { occurredAt: string; id: string };
+    cursor?: AuditCursor;
+    action?: string;
+    resourceType?: string;
+    actorId?: string;
+    since?: string;
+    until?: string;
   }): Promise<MerchantAuditEvent[]> {
     const cursorAt = input.cursor
       ? new Date(input.cursor.occurredAt)
       : undefined;
+
+    const where: Prisma.MerchantAuditEventWhereInput = {
+      merchantId: input.merchantId,
+      ...(input.action ? { action: input.action } : {}),
+      ...(input.resourceType ? { resourceType: input.resourceType } : {}),
+      ...(input.actorId ? { actorId: input.actorId } : {}),
+      ...(input.since || input.until
+        ? {
+            occurredAt: {
+              ...(input.since ? { gte: new Date(input.since) } : {}),
+              ...(input.until ? { lte: new Date(input.until) } : {}),
+            },
+          }
+        : {}),
+      ...(cursorAt && input.cursor
+        ? {
+            OR: [
+              { occurredAt: { lt: cursorAt } },
+              {
+                occurredAt: cursorAt,
+                id: { lt: input.cursor.id },
+              },
+            ],
+          }
+        : {}),
+    };
+
     const rows = await this.prisma.merchantAuditEvent.findMany({
-      where: {
-        merchantId: input.merchantId,
-        ...(cursorAt && input.cursor
-          ? {
-              OR: [
-                { occurredAt: { lt: cursorAt } },
-                {
-                  occurredAt: cursorAt,
-                  id: { lt: input.cursor.id },
-                },
-              ],
-            }
-          : {}),
-      },
+      where,
       orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
       take: input.limit,
     });
@@ -65,6 +88,9 @@ function toAuditEvent(row: {
   resourceType: string;
   resourceId: string | null;
   correlationId: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  outcome: string | null;
   metadata: unknown;
   occurredAt: Date;
 }): MerchantAuditEvent {
@@ -77,6 +103,9 @@ function toAuditEvent(row: {
     resourceType: row.resourceType,
     resourceId: row.resourceId ?? undefined,
     correlationId: row.correlationId ?? undefined,
+    ipAddress: row.ipAddress ?? undefined,
+    userAgent: row.userAgent ?? undefined,
+    outcome: (row.outcome as MerchantAuditEvent["outcome"]) ?? "success",
     metadata:
       row.metadata && typeof row.metadata === "object"
         ? (row.metadata as Record<string, unknown>)
