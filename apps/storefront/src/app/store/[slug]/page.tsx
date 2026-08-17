@@ -32,6 +32,10 @@ interface StoreConfig {
     surfaceColor?: string;
     surfaceElevatedColor?: string;
     borderColor?: string;
+    borderRadius?: number;
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
   };
   agentName?: string;
   agentGreeting?: string;
@@ -48,7 +52,7 @@ interface StoreConfig {
 async function fetchStoreConfig(slug: string): Promise<StoreConfig | null> {
   try {
     const res = await fetch(`${API_BASE_URL}/storefront/${slug}/config`, {
-      next: { revalidate: 60 },
+      cache: "no-store",
     });
     if (!res.ok) return null;
     return (await res.json()) as StoreConfig;
@@ -60,7 +64,7 @@ async function fetchStoreConfig(slug: string): Promise<StoreConfig | null> {
 async function fetchStoreStories(slug: string): Promise<any[]> {
   try {
     const res = await fetch(`${API_BASE_URL}/storefront/${slug}/stories`, {
-      next: { revalidate: 30 },
+      cache: "no-store",
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -150,17 +154,28 @@ export default async function StorePage({
   const gtmId = merchant?.gtmId;
 
   // Theme: merge from API config or demo merchant
+  // Mode-based color defaults (override light-mode defaults when mode is dark/grey)
+  const mode = config?.theme?.mode;
+  const modeDefaults = mode === "dark"
+    ? { bg: "#09090b", text: "#fafafa", surface: "#18181b", border: "#27272a", muted: "#71717a" }
+    : mode === "grey"
+    ? { bg: "#191919", text: "#fafafa", surface: "#262626", border: "#333333", muted: "#a1a1aa" }
+    : null; // light or undefined = use configured/default colors
+
   const themeColors = config
     ? {
         primary: config.theme.accentColor,
         secondary: config.theme.secondaryColor ?? config.theme.accentColor,
         heading: config.theme.fontDisplay ?? config.theme.fontFamily,
         body: config.theme.fontFamily,
-        backgroundColor: config.theme.backgroundColor,
-        textColor: config.theme.textColor,
-        surfaceColor: config.theme.surfaceColor,
-        surfaceElevatedColor: config.theme.surfaceElevatedColor,
-        borderColor: config.theme.borderColor,
+        backgroundColor: modeDefaults?.bg ?? config.theme.backgroundColor,
+        textColor: modeDefaults?.text ?? config.theme.textColor,
+        surfaceColor: modeDefaults?.surface ?? config.theme.surfaceColor,
+        surfaceElevatedColor: modeDefaults?.surface ?? config.theme.surfaceElevatedColor,
+        borderColor: modeDefaults?.border ?? config.theme.borderColor,
+        borderRadius: config.theme.borderRadius,
+        density: config.theme.density,
+        backgroundImageUrl: config.theme.backgroundImageUrl,
       }
     : {
         primary: merchant!.theme.primary,
@@ -190,8 +205,8 @@ export default async function StorePage({
     };
   };
 
-  const derivedColors = config?.theme.backgroundColor && config?.theme.textColor
-    ? deriveColors(config.theme.backgroundColor, config.theme.textColor)
+  const derivedColors = themeColors.backgroundColor && themeColors.textColor
+    ? deriveColors(themeColors.backgroundColor, themeColors.textColor)
     : {
         surface: undefined,
         surface2: undefined,
@@ -232,6 +247,9 @@ export default async function StorePage({
       ${config?.theme.fontDisplay ? `--aacp-font-display: ${config.theme.fontDisplay};` : config?.theme.fontFamily ? `--aacp-font-display: ${config.theme.fontFamily};` : ""}
       ${config?.theme.surfaceElevatedColor ? `--aacp-surface-elevated: ${config.theme.surfaceElevatedColor};` : ""}
       ${config?.theme.borderColor ? `--aacp-border-color: ${config.theme.borderColor};` : ""}
+      ${themeColors.borderRadius != null ? `--aacp-radius: ${themeColors.borderRadius}px;` : ""}
+      ${modeDefaults?.muted ? `--aacp-muted: ${modeDefaults.muted};` : ""}
+      ${themeColors.backgroundImageUrl ? `--aacp-chat-bg-image: url(${themeColors.backgroundImageUrl});` : ""}
     }
   `;
 
@@ -246,7 +264,28 @@ export default async function StorePage({
     <>
       <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       <style dangerouslySetInnerHTML={{ __html: `
-        .storefront-shell { display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden; background:var(--aacp-bg); color:var(--aacp-fg); font-family:var(--aacp-font); }
+        .storefront-shell {
+          display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden;
+          background: var(--aacp-bg);
+          color:var(--aacp-fg); font-family:var(--aacp-font);
+          ${themeColors.density === "compact" ? "max-width:480px; margin:0 auto;" : themeColors.density === "comfortable" ? "max-width:680px; margin:0 auto;" : ""}
+        }
+        ${themeColors.backgroundImageUrl ? `
+        body {
+          background: var(--aacp-chat-bg-image) center/cover no-repeat fixed;
+          background-color: var(--aacp-bg);
+        }
+        .storefront-shell {
+          background: transparent;
+        }
+        .storefront-shell header,
+        .storefront-shell [role="main"],
+        .storefront-shell form,
+        .storefront-shell > div:last-child {
+          background: color-mix(in srgb, var(--aacp-bg) 88%, transparent);
+          backdrop-filter: blur(8px);
+        }
+        ` : ""}
       `}} />
       <OrganizationSchema
         name={name}

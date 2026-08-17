@@ -29,8 +29,8 @@ export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
         onClick={onClick}
         aria-label={itemCount > 0 ? `Carrinho: ${itemCount} itens, ${formatPrice(total)}` : "Carrinho"}
         style={{
-          position: "fixed",
-          bottom: "80px",
+          position: "absolute",
+          bottom: "130px",
           right: "16px",
           zIndex: 9998,
           width: "48px",

@@ -26,8 +26,8 @@ export default function CartFAB({ onClick }: CartFABProps) {
   const fabColor = config?.fabColor ?? "var(--aacp-accent, #0f766e)";
 
   const positionStyles: Record<string, { bottom?: string; top?: string; left?: string; right?: string }> = {
-    bottom_right: { bottom: "16px", right: "16px" },
-    bottom_left: { bottom: "16px", left: "16px" },
+    bottom_right: { bottom: "120px", right: "16px" },
+    bottom_left: { bottom: "120px", left: "16px" },
     top_right: { top: "16px", right: "16px" },
     top_left: { top: "16px", left: "16px" },
   };
