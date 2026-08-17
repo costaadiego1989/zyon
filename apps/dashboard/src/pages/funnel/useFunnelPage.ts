@@ -79,6 +79,26 @@ export interface FunnelPageVM {
   exportCsv: () => void;
 }
 
+// ── Default empty funnel (page always renders structure) ────────────────────
+
+const EMPTY_FUNNEL: FunnelData = {
+  steps: [
+    { name: "checkout_started", label: "Iniciou checkout", count: 0, percentage: 0 },
+    { name: "shipping_calculated", label: "Calculou frete", count: 0, percentage: 0 },
+    { name: "payment_method_selected", label: "Selecionou pagamento", count: 0, percentage: 0 },
+    { name: "order_completed", label: "Pedido confirmado", count: 0, percentage: 0 },
+  ],
+  transitions: [
+    { from: "checkout_started", to: "shipping_calculated", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "shipping_calculated", to: "payment_method_selected", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "payment_method_selected", to: "order_completed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+  ],
+  bottleneck: null,
+  period: { from: new Date().toISOString().slice(0, 10), to: new Date().toISOString().slice(0, 10) },
+  totalSessions: 0,
+  overallConversion: 0,
+};
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useFunnelPage(props: {
@@ -91,7 +111,7 @@ export function useFunnelPage(props: {
   const [period, setPeriod] = useState<FunnelPeriod>("7d");
   const [breakdown, setBreakdown] = useState<FunnelBreakdownDimension>("none");
   const [compareEnabled, setCompareEnabled] = useState(false);
-  const [data, setData] = useState<FunnelData | null>(null);
+  const [data, setData] = useState<FunnelData | null>(EMPTY_FUNNEL);
   const [sessions, setSessions] = useState<FunnelSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -114,6 +134,8 @@ export function useFunnelPage(props: {
       setData(json);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      // Show empty structure even on error so page isn't blank
+      if (!data) setData(EMPTY_FUNNEL);
     } finally {
       setLoading(false);
     }

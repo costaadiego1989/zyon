@@ -87,12 +87,8 @@ export function FunnelPage({ apiBaseUrl, me }: FunnelPageProps): React.ReactElem
         </div>
       </header>
 
-      {/* ── Loading ── */}
-      {vm.loading ? (
-        <LoadingSkeleton />
-      ) : vm.error ? (
-        <ErrorState error={vm.error} onRetry={vm.refresh} />
-      ) : vm.data ? (
+      {/* ── Content (always visible — zeros show structure) ── */}
+      {vm.data && (
         <>
           {/* ── Bottleneck Banner ── */}
           {vm.data.bottleneck && (
@@ -115,7 +111,7 @@ export function FunnelPage({ apiBaseUrl, me }: FunnelPageProps): React.ReactElem
           {/* ── Active Sessions ── */}
           <ActiveSessionsList sessions={vm.sessions} loading={vm.loading} />
         </>
-      ) : null}
+      )}
     </div>
   );
 }

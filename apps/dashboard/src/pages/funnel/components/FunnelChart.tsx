@@ -30,8 +30,8 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
           <div
             className="fnl-step-bar"
             style={{
-              width: `${item.step.percentage}%`,
-              opacity: item.opacity,
+              width: `max(${item.step.percentage}%, 180px)`,
+              opacity: item.step.count === 0 ? 0.3 : item.opacity,
             }}
           >
             <span className="fnl-step-label">{item.step.label}</span>
@@ -39,8 +39,10 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
           </div>
           <div className="fnl-step-meta">
             <span className="fnl-step-pct">{item.step.percentage.toFixed(1)}%</span>
-            {item.showDropOff && (
-              <span className="fnl-step-drop">↓ {item.dropOffPct}% saiu</span>
+            {item.transition && (
+              <span className={`fnl-step-drop${item.showDropOff ? " high" : ""}`}>
+                ↓ {item.dropOffPct}% saiu
+              </span>
             )}
           </div>
         </div>
