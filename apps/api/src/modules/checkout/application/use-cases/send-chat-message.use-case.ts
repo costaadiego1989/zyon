@@ -188,13 +188,13 @@ export class SendChatMessageUseCase {
       if (merchantRules.length === 0) merchantRules = undefined;
       }
     } catch (rulesErr) {
-      console.error("[RULES LOAD ERROR]", rulesErr instanceof Error ? rulesErr.message : rulesErr);
+      this.logger.error("rules.load.failed", { error: rulesErr instanceof Error ? rulesErr.message : String(rulesErr) });
     }
 
     // Off-script detection: if user asks question/objection instead of providing data, route to LLM
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
     const isOffScript = this.detectOffScript(input.user_message, stage, missingFields);
-    console.log(`[CHECKOUT] msg="${input.user_message.slice(0,40)}" stage=${stage} missing=${missingFields?.join(",")} offScript=${isOffScript} rules=${merchantRules?.length ?? "none"}`);
+    this.logger.debug("chat.routing", { stage, missingFields, offScript: isOffScript, rulesCount: merchantRules?.length ?? 0 });
 
     if (isOffScript && merchantRules?.length) {
       // Call Llama directly for off-script with merchant rules

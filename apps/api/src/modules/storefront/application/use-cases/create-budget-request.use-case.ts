@@ -86,11 +86,11 @@ export class CreateBudgetRequestUseCase {
       const waText = encodeURIComponent(
         `Novo orçamento de ${input.customerName}!\n${input.items.length} items — ${totalText}\nEmail: ${input.customerEmail}\nTel: ${input.customerPhone}`
       );
-      console.log(`[Budget] WhatsApp: https://wa.me/${phone.replace(/\D/g, "")}?text=${waText}`);
+      this.logger.log("budget.notification.whatsapp", { merchantId: input.merchantId, itemCount: input.items.length });
     }
 
     if (email) {
-      console.log(`[Budget] Email → ${email}: Novo orçamento de ${input.customerName} — ${totalText}`);
+      this.logger.log("budget.notification.email", { merchantId: input.merchantId, itemCount: input.items.length });
     }
   }
 }

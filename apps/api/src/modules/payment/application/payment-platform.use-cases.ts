@@ -4,6 +4,7 @@ import {
   ConflictException,
   Inject,
   Injectable,
+  Logger,
   Optional,
   NotFoundException,
   ServiceUnavailableException,
@@ -599,7 +600,7 @@ async function scheduleTrialExpiration(
     if (process.env.BILLING_TRIAL_QUEUE_REQUIRED === "true") {
       throw new ServiceUnavailableException("billing_trial_queue_not_configured");
     }
-    console.warn("billing_trial_queue_fallback: using persisted trial without expiration worker");
+    Logger.warn("billing_trial_queue_fallback: using persisted trial without expiration worker", "PaymentPlatform");
     return;
   }
   await queue.scheduleTrialExpiration({

@@ -106,10 +106,11 @@ export class QuoteShippingUseCase {
       // P3 fix: log carrier failures (rejected promises) so they are visible
       // in server logs rather than silently discarded.
       if (res.status === "rejected") {
-        console.warn(
-          `[shipping] carrier_quote_failed carrier=${carrier.carrierKey} merchant=${input.merchant_id}`,
-          res.reason instanceof Error ? res.reason.message : String(res.reason)
-        );
+        this.logger.warn("carrier.quote.failed", {
+          carrier: carrier.carrierKey,
+          merchantId: input.merchant_id,
+          error: res.reason instanceof Error ? res.reason.message : String(res.reason),
+        });
       }
     }
 

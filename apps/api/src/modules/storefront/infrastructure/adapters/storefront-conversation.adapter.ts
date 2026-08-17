@@ -190,7 +190,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           imageUrl,
           quantity: args.quantity
         });
-        console.log(`[CART-DEBUG] after addItem: cartId=${cart.sessionId}, items=${cart.items.length}, names=[${cart.items.map(i => i.name).join(', ')}], total=${cart.total}`);
+        this.logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
         return {
           cartId: cart.sessionId,

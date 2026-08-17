@@ -82,6 +82,8 @@ function paymentValueAsCents(paymentSlice: NonNullable<AsaasWebhookInbound["paym
 
 @Injectable()
 export class HandleAsaasWebhookUseCase {
+  private readonly logger = new Logger(HandleAsaasWebhookUseCase.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     private readonly paymentDispatch: PaymentDispatchService,
@@ -140,7 +142,7 @@ export class HandleAsaasWebhookUseCase {
         // keep the marker consumed to avoid a poison re-delivery loop. The
         // anomaly is surfaced for dead-letter/alert review (ADR 0001 #4).
         this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "illegal_transition" });
-        console.error("[payment][asaas-webhook] illegal_transition", {
+        this.logger.error("asaas.webhook.illegal_transition", {
           intentId: ref.id,
           merchantId: ref.merchantId,
           eventId: body.id,

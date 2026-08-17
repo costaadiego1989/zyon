@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Logger, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -18,10 +18,7 @@ import { PrismaShippingQuoteRepository } from "./infrastructure/repositories/pri
       useFactory: () => {
         const token = process.env.MELHOR_ENVIO_TOKEN;
         if (!token) {
-          console.warn(
-            "[shipping] MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; " +
-            "quotes will only use flat-rate carrier"
-          );
+          Logger.warn("MelhorEnvio adapter initialized without MELHOR_ENVIO_TOKEN; quotes will only use flat-rate carrier", "ShippingModule");
         }
         return new MelhorEnvioCarrierAdapter();
       }

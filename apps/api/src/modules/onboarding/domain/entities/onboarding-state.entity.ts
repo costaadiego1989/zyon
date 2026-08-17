@@ -73,7 +73,7 @@ export class OnboardingStateEntity {
       }
     }
     if (backfilled) {
-      console.warn(`[OnboardingState] Backfilled missing steps for merchant ${snapshot.merchantId}`);
+      // Backfilled missing steps — expected for legacy merchants without all steps defined
     }
     return new OnboardingStateEntity({ ...snapshot, steps });
   }

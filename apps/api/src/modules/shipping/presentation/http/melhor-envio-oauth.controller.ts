@@ -1,4 +1,4 @@
-import { Controller, Get, Inject, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, Logger, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
@@ -11,6 +11,7 @@ function env(key: string, fallback = ""): string {
 @ApiTags("Shipping - Melhor Envio")
 @Controller("shipping/melhor-envio")
 export class MelhorEnvioOAuthController {
+  private readonly logger = new Logger(MelhorEnvioOAuthController.name);
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
   @Get("authorize")
   @UseGuards(AuthGuard)
@@ -82,7 +83,7 @@ export class MelhorEnvioOAuthController {
 
     if (!tokenRes.ok) {
       const err = await tokenRes.text();
-      console.error("[MelhorEnvio] Token exchange failed:", tokenRes.status, err);
+      this.logger.error("melhor_envio.token_exchange_failed", { status: tokenRes.status, error: err });
       res.redirect(302, "/dashboard?error=melhor_envio_token_failed");
       return;
     }
@@ -99,7 +100,7 @@ export class MelhorEnvioOAuthController {
         melhorEnvioExpiresAt: expiresAt,
       },
     });
-    console.log(`[MelhorEnvio] Connected merchant ${merchantId}, expires ${expiresAt.toISOString()}`);
+    this.logger.log("melhor_envio.connected", { merchantId, expiresAt: expiresAt.toISOString() });
 
     const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:5175";
     res.redirect(302, `${dashboardUrl}?shipping_connected=melhor_envio`);

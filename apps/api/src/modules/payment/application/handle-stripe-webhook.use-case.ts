@@ -27,6 +27,7 @@ export class StripeSignatureError extends Error {
 
 @Injectable()
 export class HandleStripeWebhookUseCase {
+  private readonly logger = new Logger(HandleStripeWebhookUseCase.name);
   private readonly stripe: Stripe;
 
   constructor(
@@ -87,7 +88,7 @@ export class HandleStripeWebhookUseCase {
         // keep the marker consumed so Stripe's re-delivery does not poison-loop
         // (ADR 0001 #5/#4).
         this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "illegal_transition" });
-        console.error("[payment][stripe-webhook] illegal_transition", {
+        this.logger.error("stripe.webhook.illegal_transition", {
           merchantId,
           eventId: event.id,
           eventType: event.type

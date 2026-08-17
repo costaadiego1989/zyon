@@ -30,7 +30,10 @@ const DEFAULT_BASE_URL = "http://localhost:11434/v1";
 const DEFAULT_MODEL = "mistral";
 const DEFAULT_TIMEOUT_MS = 5000;
 
+import { Logger } from "@nestjs/common";
+
 export class LocalLLMProvider {
+  private readonly logger = new Logger(LocalLLMProvider.name);
   readonly baseUrl: string;
   readonly model: string;
   private readonly fetchFn: typeof fetch;
@@ -101,7 +104,7 @@ export class LocalLLMProvider {
 
       if (!response.ok) {
         const text = await response.text().catch(() => "");
-        console.warn(`Local LLM HTTP ${response.status}: ${text.slice(0, 100)}`);
+        this.logger.warn("llm.http_error", { status: response.status, body: text.slice(0, 100) });
         return null;
       }
 
@@ -132,7 +135,7 @@ export class LocalLLMProvider {
       };
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      console.warn(`Local LLM call failed: ${msg}`);
+      this.logger.warn("llm.call.failed", { error: msg });
       return null;
     }
   }

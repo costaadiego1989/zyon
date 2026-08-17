@@ -11,7 +11,7 @@
  * DeterministicConversationAdapter is used as the fallback.
  */
 
-import { Injectable, Optional } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import {
   LangGraphChatAgent,
   OpenRouterProvider,
@@ -31,6 +31,7 @@ const AI_BUDGET_CENTS = parseInt(process.env.AI_BUDGET_CENTS || "500", 10);
 
 @Injectable()
 export class LangGraphConversationAdapter implements ConversationPort {
+  private readonly logger = new Logger(LangGraphConversationAdapter.name);
   private agent?: LangGraphChatAgent;
   private fallback = (input: ConversationReplyInput) => Promise.resolve(generateDeterministicReply(input));
 
@@ -94,11 +95,7 @@ export class LangGraphConversationAdapter implements ConversationPort {
 
       this.agent = new LangGraphChatAgent(deps);
     } catch (error: unknown) {
-      console.error(
-        "[LangGraphConversationAdapter] Failed to initialize agent:",
-        error instanceof Error ? error.message : String(error)
-      );
-      // Continue with fallback.
+      this.logger.error("agent.init.failed", { error: error instanceof Error ? error.message : String(error) });
     }
   }
 
@@ -128,10 +125,7 @@ export class LangGraphConversationAdapter implements ConversationPort {
       };
     } catch (error: unknown) {
       // On any agent error (budget exhausted, provider error, etc.), fall back.
-      console.error(
-        "[LangGraphConversationAdapter] Agent error, falling back:",
-        error instanceof Error ? error.message : String(error)
-      );
+      this.logger.warn("agent.error.fallback", { error: error instanceof Error ? error.message : String(error) });
       return this.fallback(input);
     }
   }

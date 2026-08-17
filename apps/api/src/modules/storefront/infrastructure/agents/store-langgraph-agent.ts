@@ -20,6 +20,7 @@ import type {
   OpenRouterChatResult
 } from "@zyon/conversation-engine";
 import { ContextManager, DEFAULT_CONTEXT_WINDOW, CostTracker } from "@zyon/conversation-engine";
+import { Logger } from "@nestjs/common";
 import type { ExecutableTool, ToolDefinition } from "../../domain/tools/store-tools.js";
 import { buildStoreTools, buildExecutableStoreTools } from "../../domain/tools/store-tools.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
@@ -98,6 +99,7 @@ function getErrorFallback(): string {
 }
 
 export class StorefrontLangGraphAgent {
+  private readonly logger = new Logger(StorefrontLangGraphAgent.name);
   private readonly provider: OpenRouterProvider;
   private readonly fallbackProvider: OpenRouterProvider | null;
   private readonly tools: ToolDefinition[];
@@ -234,7 +236,7 @@ export class StorefrontLangGraphAgent {
       // ─── Fallback: if no tool was called but intent requires one, retry with strong model ───
       const TOOL_REQUIRED_PATTERNS = /^(categorias|ver todas|por preço|por avaliação|mais vendidos|novidades|frete grátis|por desconto|faq|falar com humano|ofertas do dia|ver avaliações|status do pedido)$/i;
       if (toolsUsed.length === 0 && TOOL_REQUIRED_PATTERNS.test(input.userMessage.trim())) {
-        console.warn(`[StorefrontAgent] No tool called for "${input.userMessage}" — retrying with strong model (${this.strongModel})`);
+        this.logger.warn("agent.no_tool_called.retry", { userMessage: input.userMessage.slice(0, 50), model: this.strongModel });
         try {
           const retryResult: OpenRouterChatResult = await this.provider.chat({
             messages,
@@ -279,18 +281,18 @@ export class StorefrontLangGraphAgent {
             finalContent = retryResult.content || finalContent;
           }
         } catch (retryErr) {
-          console.error("[StorefrontAgent] Fallback retry failed:", retryErr instanceof Error ? retryErr.message : retryErr);
+          this.logger.error("agent.fallback_retry.failed", { error: retryErr instanceof Error ? retryErr.message : String(retryErr) });
           // Keep original finalContent
         }
       }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const errorStack = err instanceof Error ? err.stack?.slice(0, 300) : "";
-      console.error("[StorefrontAgent] LLM call failed:", errorMessage, errorStack);
+      this.logger.error("agent.llm.failed", { error: errorMessage });
 
       // ─── Fallback: retry with fallbackProvider (DeepSeek) if primary fails ───
       if (this.fallbackProvider) {
-        console.warn("[StorefrontAgent] Retrying with fallback provider (DeepSeek)...");
+        this.logger.warn("agent.fallback_provider.retry");
         try {
           const fbMessages: OpenRouterChatMessage[] = [
             { role: "system" as any, content: input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules) },
@@ -330,9 +332,9 @@ export class StorefrontLangGraphAgent {
             break;
           }
           finalContent = fbFinalContent;
-          console.log("[StorefrontAgent] Fallback provider succeeded.");
+          this.logger.log("agent.fallback_provider.success");
         } catch (fbErr) {
-          console.error("[StorefrontAgent] Fallback provider also failed:", fbErr instanceof Error ? fbErr.message : fbErr);
+          this.logger.error("agent.fallback_provider.failed", { error: fbErr instanceof Error ? fbErr.message : String(fbErr) });
           finalContent = "";
           return {
             message: getErrorFallback(),

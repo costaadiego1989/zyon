@@ -24,7 +24,6 @@ export class DeterministicConversationAdapter implements ConversationPort {
   private readonly logger = new Logger(DeterministicConversationAdapter.name);
 
   async reply(input: ConversationReplyInput) {
-    console.error("🔥🔥🔥 HYBRID ADAPTER CALLED 🔥🔥🔥", input.userMessage.slice(0, 50));
     const isOffScript = this.isOffScriptMessage(input);
     this.logger.log(`[HYBRID] msg="${input.userMessage.slice(0,40)}" stage=${input.stage} missing=${input.missingFields?.join(",")} offScript=${isOffScript} rules=${input.merchantRules?.length ?? 0}`);
 
