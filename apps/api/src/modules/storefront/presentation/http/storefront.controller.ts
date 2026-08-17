@@ -6,6 +6,7 @@ import { StartStoreConversationUseCase } from "../../application/use-cases/start
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "../../application/use-cases/get-store-config.use-case.js";
+import { GetStorefrontFunnelUseCase } from "../../application/use-cases/get-storefront-funnel.use-case.js";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 
@@ -28,6 +29,7 @@ export class StorefrontController {
     private readonly sendStoreMessage: SendStoreMessageUseCase,
     private readonly getConversationHistory: GetConversationHistoryUseCase,
     private readonly getStoreConfig: GetStoreConfigUseCase,
+    private readonly getStorefrontFunnel: GetStorefrontFunnelUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
   ) {}
@@ -128,6 +130,16 @@ export class StorefrontController {
       merchant_id: body.merchant_id,
       conversation_id: conversationId
     });
+  }
+
+  @Get("funnel/:merchantId")
+  async getFunnel(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: string
+  ) {
+    const validPeriods = ["today", "7d", "30d", "90d"];
+    const resolvedPeriod = validPeriods.includes(period ?? "") ? (period as "today" | "7d" | "30d" | "90d") : "7d";
+    return this.getStorefrontFunnel.execute(merchantId, resolvedPeriod);
   }
 
   @Get("cart/:cartId")

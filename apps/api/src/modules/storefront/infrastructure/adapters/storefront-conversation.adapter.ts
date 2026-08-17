@@ -17,6 +17,8 @@ import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalo
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -30,7 +32,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
     @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
     @Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort,
-    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
+    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -565,6 +568,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     this.currentMerchantId = input.merchantId;
     this.currentSessionId = input.sessionId;
 
+    // Emit checkout_started on every session (idempotent — only first call creates the event)
+    this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started").catch(() => {});
+
     // Deterministic shortcut: "Ofertas" / "Ofertas do Dia" bypass LLM and call tool directly
     const normalizedMsg = input.userMessage.trim().toLowerCase();
     if (normalizedMsg === "ofertas" || normalizedMsg === "ofertas do dia" || normalizedMsg === "promoções" || normalizedMsg === "promocoes" || normalizedMsg === "ver produtos") {
@@ -576,6 +582,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           limit: 10
         });
         if (result.products.length > 0) {
+          // Emit product_viewed for deterministic product listing (non-blocking)
+          this.emitFunnelEvent(input.merchantId, input.sessionId, "product_viewed").catch(() => {});
+
           const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
           const blocks: ConversationBlock[] = [{
             type: "product_carousel",
@@ -617,6 +626,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       merchantPolicy: input.merchantPolicy,
       advancedRules: input.advancedRules
     });
+
+    // Emit funnel events based on tools used (non-blocking)
+    this.emitToolFunnelEvents(input.merchantId, input.sessionId, result.toolsUsed).catch(() => {});
 
     // Resolve cart state for context-aware quick replies
     let cartState: StorefrontCartState | undefined;
@@ -677,6 +689,68 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       cartId: result.cartId,
       suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage)
     };
+  }
+
+  /**
+   * Ensure a CheckoutSession exists for this storefront conversation.
+   * Required because CheckoutEvent has a FK to CheckoutSession.
+   */
+  private async ensureCheckoutSession(merchantId: string, sessionId: string): Promise<void> {
+    const existing = await this.prisma.checkoutSession.findUnique({
+      where: { merchantId_sessionId: { merchantId, sessionId } },
+      select: { id: true }
+    });
+    if (!existing) {
+      await this.prisma.checkoutSession.create({
+        data: {
+          merchantId,
+          sessionId,
+          globalUserId: sessionId,
+          conversationId: sessionId,
+          cart: {},
+          abandonmentScore: 0,
+          triggerAgent: false,
+          chatHistory: [],
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+    }
+  }
+
+  /**
+   * Emit a funnel event for this storefront session.
+   * Best-effort: never throws — conversation must not fail due to analytics.
+   */
+  private async emitFunnelEvent(merchantId: string, sessionId: string, eventName: string): Promise<void> {
+    try {
+      await this.ensureCheckoutSession(merchantId, sessionId);
+      const existing = await this.prisma.checkoutEvent.findFirst({
+        where: { merchantId, sessionId, eventName }
+      });
+      if (!existing) {
+        await this.prisma.checkoutEvent.create({
+          data: { merchantId, sessionId, eventName, occurredAt: new Date() }
+        });
+      }
+    } catch {
+      // Non-blocking: funnel tracking must never break the conversation
+    }
+  }
+
+  /**
+   * Emit funnel events based on tools used during agent execution.
+   */
+  private async emitToolFunnelEvents(merchantId: string, sessionId: string, toolsUsed: string[]): Promise<void> {
+    if (toolsUsed.includes("search_products") || toolsUsed.includes("get_product_details")) {
+      await this.emitFunnelEvent(merchantId, sessionId, "product_viewed");
+    }
+    if (toolsUsed.includes("add_item_to_cart")) {
+      await this.emitFunnelEvent(merchantId, sessionId, "cart_viewed");
+    }
+    if (toolsUsed.includes("create_checkout_session")) {
+      await this.emitFunnelEvent(merchantId, sessionId, "payment_method_selected");
+    }
   }
 
   /**
