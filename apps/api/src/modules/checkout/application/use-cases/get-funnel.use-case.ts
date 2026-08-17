@@ -437,11 +437,11 @@ function buildSuggestion(step: string, dropOff: number): string {
   const pct = dropOff.toFixed(0);
   switch (step) {
     case "checkout_started":
-      return `${pct}% abandona no frete — considere oferecer frete grátis`;
-    case "shipping":
-      return `${pct}% abandona no pagamento — verifique formas de pagamento disponíveis`;
-    case "payment":
-      return `${pct}% abandona na finalização — simplifique o fluxo de confirmação`;
+      return `${pct}% sai no cadastro — simplifique campos obrigatórios ou ofereça login social`;
+    case "shipping_calculated":
+      return `${pct}% abandona no frete — considere frete grátis ou desconto no envio`;
+    case "payment_method_selected":
+      return `${pct}% desiste no pagamento — verifique métodos disponíveis (PIX, parcelamento)`;
     default:
       return `${pct}% de drop-off nesta etapa`;
   }

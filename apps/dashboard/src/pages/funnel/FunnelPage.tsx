@@ -29,6 +29,16 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
           <p className="fnl-subtitle">Métricas de progresso dos visitantes em cada etapa</p>
         </div>
         <div className="fnl-head-right">
+          <select
+            value={vm.breakdown}
+            onChange={(e) => vm.setBreakdown(e.target.value as any)}
+            className="fnl-select"
+          >
+            <option value="none">Sem segmentação</option>
+            <option value="device">Dispositivo</option>
+            <option value="buyer_type">Tipo comprador</option>
+            <option value="payment_method">Pagamento</option>
+          </select>
           <div className="fnl-period-bar">
             {PERIODS.map(({ key, label }) => (
               <button
@@ -41,40 +51,17 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
               </button>
             ))}
           </div>
+          <button
+            type="button"
+            className="fnl-export-btn"
+            onClick={vm.exportCsv}
+            disabled={!vm.data}
+            title="Exportar CSV"
+          >
+            <Download size={13} />
+          </button>
         </div>
       </header>
-
-      {/* ── Controls ── */}
-      <div className="fnl-controls">
-        <select
-          value={vm.breakdown}
-          onChange={(e) => vm.setBreakdown(e.target.value as any)}
-        >
-          <option value="none">Sem segmentação</option>
-          <option value="device">Por dispositivo</option>
-          <option value="buyer_type">Por tipo de comprador</option>
-          <option value="payment_method">Por pagamento</option>
-        </select>
-
-        <label>
-          <input
-            type="checkbox"
-            checked={vm.compareEnabled}
-            onChange={(e) => vm.setCompareEnabled(e.target.checked)}
-          />
-          Comparar período
-        </label>
-
-        <button
-          type="button"
-          className="fnl-export-btn"
-          onClick={vm.exportCsv}
-          disabled={!vm.data}
-        >
-          <Download size={12} style={{ marginRight: 4 }} />
-          Exportar CSV
-        </button>
-      </div>
 
       {/* ── Bottleneck ── */}
       {vm.data?.bottleneck && (
