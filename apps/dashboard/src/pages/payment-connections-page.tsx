@@ -69,11 +69,11 @@ export function statusBadge(status: string) {
       </span>
     );
   }
-  if (status === "pending") {
+  if (status === "pending" || status === "restricted") {
     return (
       <span role="status" aria-live="polite" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: BADGE_FONT, background: "var(--warn-soft)", color: "var(--warn)", border: "1px solid var(--warn)" }}>
         <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--warn)", flexShrink: 0 }} />
-        Pendente
+        {status === "restricted" ? "Restrito" : "Pendente"}
       </span>
     );
   }
