@@ -8,7 +8,7 @@ interface FunnelBreakdownProps {
 
 const DIMENSION_LABELS: Record<string, string> = {
   device: "Dispositivo",
-  buyer_type: "Tipo de comprador",
+  buyer_type: "Tipo de Comprador",
   payment_method: "Pagamento",
 };
 
@@ -18,22 +18,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   tablet: "Tablet",
   new: "Novo",
   returning: "Recorrente",
-  pix: "Pix",
+  pix: "PIX",
   card: "Cartão",
   boleto: "Boleto",
-  other: "Outro",
-};
-
-const SEGMENT_COLORS: Record<string, string> = {
-  mobile: "#3b82f6",
-  desktop: "#10b981",
-  tablet: "#f59e0b",
-  new: "#6366f1",
-  returning: "#ec4899",
-  pix: "#14b8a6",
-  card: "#8b5cf6",
-  boleto: "#f97316",
-  other: "#6b7280",
 };
 
 export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps): React.ReactElement {
@@ -41,49 +28,40 @@ export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps)
 
   if (entries.length === 0) {
     return (
-      <div className="funnel-breakdown-empty">
-        Sem dados de segmentação para este período.
+      <div className="fnl-breakdown-card">
+        <h3 className="fnl-breakdown-title">Segmentação</h3>
+        <p style={{ color: "var(--muted)", fontSize: 13 }}>Sem dados para este período.</p>
       </div>
     );
   }
 
   return (
-    <div className="funnel-breakdown">
-      <h3 className="funnel-breakdown-title">
-        Segmentação por {DIMENSION_LABELS[dimension] ?? dimension}
+    <div className="fnl-breakdown-card">
+      <h3 className="fnl-breakdown-title">
+        Por {DIMENSION_LABELS[dimension] ?? dimension}
       </h3>
-      <div className="funnel-breakdown-grid">
-        {entries.map(([segmentKey, segment]) => (
-          <div key={segmentKey} className="funnel-breakdown-segment">
-            <div className="funnel-breakdown-segment-header">
-              <span
-                className="funnel-breakdown-dot"
-                style={{ background: SEGMENT_COLORS[segmentKey] ?? "#6b7280" }}
-              />
-              <span className="funnel-breakdown-segment-name">
-                {SEGMENT_LABELS[segmentKey] ?? segmentKey}
+      <div className="fnl-breakdown-items">
+        {entries.map(([key, segment]) => (
+          <div key={key} className="fnl-breakdown-item">
+            <div className="fnl-breakdown-item-head">
+              <span className="fnl-breakdown-item-name">
+                {SEGMENT_LABELS[key] ?? key}
               </span>
-              <span className="funnel-breakdown-segment-conv">
+              <span className="fnl-breakdown-item-value">
                 {segment.overallConversion.toFixed(1)}%
               </span>
             </div>
-            <div className="funnel-breakdown-bars">
+            <div className="fnl-breakdown-track">
+              <div
+                className="fnl-breakdown-fill"
+                style={{ width: `${Math.max(segment.overallConversion, 3)}%` }}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
               {segment.steps.map((step) => (
-                <div key={step.name} className="funnel-breakdown-bar-row">
-                  <span className="funnel-breakdown-bar-label">{step.label}</span>
-                  <div className="funnel-breakdown-bar-track">
-                    <div
-                      className="funnel-breakdown-bar-fill"
-                      style={{
-                        width: `${step.percentage}%`,
-                        background: SEGMENT_COLORS[segmentKey] ?? "#6b7280",
-                      }}
-                    />
-                  </div>
-                  <span className="funnel-breakdown-bar-value">
-                    {step.count} ({step.percentage.toFixed(0)}%)
-                  </span>
-                </div>
+                <span key={step.name} style={{ font: "500 10px var(--font-data)", color: "var(--faint)" }}>
+                  {step.label}: {step.count}
+                </span>
               ))}
             </div>
           </div>
