@@ -365,6 +365,27 @@ export interface CheckoutExperienceSnapshot {
     focus_input?: boolean;
     expected_input_type?: "text" | "email" | "tel" | "number";
   };
+  merchant_rules?: {
+    maxDiscountPercent: number;
+    allowFreeShipping: boolean;
+    allowShippingDiscount: boolean;
+    freeShippingMinCartValue: number;
+    maxShippingSubsidy: number;
+    maxPartialShippingDiscount: number;
+    offerExpirationMinutes: number;
+    blockedRegions: string[];
+    brandVoice: string;
+    originZip?: string;
+  };
+  advanced_rules?: string[];
+  visual?: {
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
+    borderRadius?: number;
+    fontFamily?: string;
+    fontDisplay?: string;
+  };
 }
 
 export interface StartCheckoutResponse {
@@ -749,6 +770,7 @@ export interface CheckoutWidgetBehavior {
   fabClickAction?: CheckoutFabClickAction;
   fabRedirectUrl?: string;
   cartPresentationMode?: "floating" | "page" | "redirect";
+  budgetModeEnabled?: boolean;
 }
 
 export interface CheckoutInterventionPolicy {

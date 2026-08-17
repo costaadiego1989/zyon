@@ -79,6 +79,7 @@ export class CheckoutSettingsPublicController {
       fabClickAction: settings.widgetBehavior.fabClickAction,
       fabRedirectUrl: settings.widgetBehavior.fabRedirectUrl,
       cartPresentationMode: settings.widgetBehavior.cartPresentationMode ?? "floating",
+      budgetModeEnabled: settings.widgetBehavior.budgetModeEnabled ?? false,
       openWidgetOnTrigger: settings.widgetBehavior.openWidgetOnTrigger,
       enabledTriggers: settings.triggerRules
         .filter((rule) => rule.enabled)

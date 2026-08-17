@@ -12,6 +12,7 @@ export interface WidgetConfig {
   inviteText?: string;
   presentationMode?: "fab" | "banner" | "inline";
   cartPresentationMode?: "floating" | "page" | "redirect";
+  budgetModeEnabled?: boolean;
   startMinimized?: boolean;
   initialDelaySeconds?: number;
   showCartBadge?: boolean;

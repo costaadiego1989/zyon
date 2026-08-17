@@ -7,7 +7,7 @@ function formatPrice(value: number): string {
 
 export type CartSheetPosition = "bottom" | "right";
 
-export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition }) {
+export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
   if (!open) return null;
 
   const isBottom = position === "bottom";
@@ -206,7 +206,7 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
               onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px color-mix(in srgb, var(--aacp-accent) 45%, transparent)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 16px color-mix(in srgb, var(--aacp-accent) 35%, transparent)"; }}
             >
-              Finalizar pedido
+              {mode === "budget" ? "Solicitar orçamento" : "Finalizar pedido"}
             </button>
 
             {onViewCart && (

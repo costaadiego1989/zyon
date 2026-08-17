@@ -188,6 +188,93 @@ export class StorefrontController {
       total: cart.total / 100,
     };
   }
+
+  @Post("budget-requests")
+  async createBudgetRequest(@Body() body: {
+    merchant_id: string;
+    customer_name: string;
+    customer_email: string;
+    customer_phone: string;
+    items: Array<{ variantId: string; productName: string; quantity: number; price: number }>;
+    total: number;
+    note?: string;
+  }) {
+    if (!body.merchant_id || !body.customer_name || !body.customer_email || !body.customer_phone) {
+      throw new NotFoundException("missing_required_fields");
+    }
+    if (!body.items?.length) throw new NotFoundException("items_required");
+
+    const budget = await this.prisma.budgetRequest.create({
+      data: {
+        merchantId: body.merchant_id,
+        customerName: body.customer_name,
+        customerEmail: body.customer_email,
+        customerPhone: body.customer_phone.replace(/\D/g, ""),
+        items: body.items as any,
+        subtotal: body.total,
+        total: body.total,
+        note: body.note ?? null,
+        status: "pending",
+      },
+    });
+
+    // Notify merchant (non-blocking)
+    this.notifyMerchantBudget(body.merchant_id, budget.id, body).catch(() => {});
+
+    return { id: budget.id, status: budget.status, createdAt: budget.createdAt.toISOString() };
+  }
+
+  @Get("budget-requests")
+  async listBudgetRequests(@Query("merchantId") merchantId: string) {
+    if (!merchantId) throw new NotFoundException("merchantId_required");
+    const requests = await this.prisma.budgetRequest.findMany({
+      where: { merchantId },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+    return requests.map((r) => ({
+      id: r.id,
+      customerName: r.customerName,
+      customerEmail: r.customerEmail,
+      customerPhone: r.customerPhone,
+      items: r.items,
+      total: r.total,
+      note: r.note,
+      status: r.status,
+      createdAt: r.createdAt.toISOString(),
+    }));
+  }
+
+  private async notifyMerchantBudget(merchantId: string, budgetId: string, body: any) {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { name: true, budgetEmail: true, budgetWhatsapp: true, storeSettings: true },
+    });
+    if (!merchant) return;
+
+    const email = merchant.budgetEmail ?? (merchant.storeSettings as any)?.company?.email;
+    const phone = merchant.budgetWhatsapp ?? (merchant.storeSettings as any)?.company?.phone;
+    const itemsText = body.items.map((i: any) => `• ${i.productName} x${i.quantity} — R$ ${i.price.toFixed(2)}`).join("\n");
+    const totalText = `R$ ${body.total.toFixed(2)}`;
+
+    // WhatsApp notification (wa.me link logged for now)
+    if (phone) {
+      const waText = encodeURIComponent(
+        `Novo orçamento de ${body.customer_name}!\n${body.items.length} items — ${totalText}\nEmail: ${body.customer_email}\nTel: ${body.customer_phone}`
+      );
+      const waLink = `https://wa.me/${phone.replace(/\D/g, "")}?text=${waText}`;
+      console.log(`[Budget] WhatsApp link: ${waLink}`);
+    }
+
+    // Email notification (log for now — integrate nodemailer later)
+    if (email) {
+      console.log(`[Budget] Email to ${email}:`);
+      console.log(`  Subject: Novo orçamento — ${body.customer_name}`);
+      console.log(`  Items:\n${itemsText}`);
+      console.log(`  Total: ${totalText}`);
+      console.log(`  Cliente: ${body.customer_name} | ${body.customer_email} | ${body.customer_phone}`);
+    }
+  }
 }
 
 function resolveStage(eventNames: string[]): "data_collection" | "shipping" | "payment" | "completed" {

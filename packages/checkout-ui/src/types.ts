@@ -19,8 +19,10 @@ export interface CartState {
 export interface CartSheetProps {
   open: boolean;
   cart: CartState;
+  mode?: "checkout" | "budget";
   onClose: () => void;
   onCheckout: () => void;
+  onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
 }

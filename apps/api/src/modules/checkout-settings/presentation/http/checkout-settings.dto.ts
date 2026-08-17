@@ -260,6 +260,9 @@ export class WidgetConfigDto {
   @ApiPropertyOptional({ enum: ["floating", "page", "redirect"] })
   cartPresentationMode?: string;
 
+  @ApiPropertyOptional()
+  budgetModeEnabled?: boolean;
+
   @ApiProperty()
   openWidgetOnTrigger!: boolean;
 

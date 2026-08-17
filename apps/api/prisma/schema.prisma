@@ -23,6 +23,10 @@ model Merchant {
   melhorEnvioAccessToken   String?        @map("melhor_envio_access_token")
   melhorEnvioRefreshToken  String?        @map("melhor_envio_refresh_token")
   melhorEnvioExpiresAt     DateTime?      @map("melhor_envio_expires_at")
+  budgetModeEnabled        Boolean        @default(false) @map("budget_mode_enabled")
+  budgetEmail              String?        @map("budget_email")
+  budgetWhatsapp           String?        @map("budget_whatsapp")
+  checkoutReturnUrl        String?        @map("checkout_return_url")
   plan                     MerchantPlan   @default(CHECKOUT_ONLY)
   eventVersion             Int            @default(0) @map("event_version")
   shardId                  Int?           @map("shard_id")
@@ -44,6 +48,7 @@ model Merchant {
   installations          MerchantInstallation[]
   auditEvents            MerchantAuditEvent[]
   storyCategories        StoryCategory[]
+  budgetRequests         BudgetRequest[]
 
   @@map("merchants")
 }
@@ -1587,4 +1592,25 @@ model Story {
   @@index([categoryId, isArchived])
   @@index([merchantId])
   @@map("stories")
+}
+
+model BudgetRequest {
+  id            String   @id @default(cuid())
+  merchantId    String   @map("merchant_id")
+  customerName  String   @map("customer_name")
+  customerEmail String   @map("customer_email")
+  customerPhone String   @map("customer_phone")
+  items         Json
+  subtotal      Float
+  total         Float
+  note          String?
+  status        String   @default("pending")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, status])
+  @@map("budget_requests")
 }
