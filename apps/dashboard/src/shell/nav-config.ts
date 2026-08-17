@@ -13,6 +13,7 @@ import {
   Plug,
   Rocket,
   Save,
+  Settings,
   Settings2,
   ShieldCheck,
   ShoppingBag,
@@ -54,7 +55,8 @@ export type TabKey =
   | "agent-config"
   | "agent-config-checkout"
   | "stories"
-  | "team";
+  | "team"
+  | "account-settings";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -91,6 +93,7 @@ export const NAV_ITEMS: Array<{
 
   // ─── Conta ───
   { key: "team", label: "Equipe", section: "Conta", icon: Users },
+  { key: "account-settings", label: "Configurações", section: "Conta", icon: Settings },
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
   { key: "billing-plans", label: "Planos", section: "Conta", icon: Crown },
   { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },

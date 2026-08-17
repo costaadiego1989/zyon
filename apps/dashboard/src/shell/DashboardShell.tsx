@@ -47,6 +47,7 @@ const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(
 const StoriesPage = lazy(() => import("../pages/stories-page.js").then(m => ({ default: m.StoriesPage })));
 const BillingPlansPage = lazy(() => import("../pages/billing-plans/index.js").then(m => ({ default: m.BillingPlansPage })));
 const TeamPage = lazy(() => import("../pages/team-page.js").then(m => ({ default: m.TeamPage })));
+const AccountSettingsPage = lazy(() => import("../pages/account-settings-page.js").then(m => ({ default: m.AccountSettingsPage })));
 
 function LoadingFallback() {
   return (
@@ -246,6 +247,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "agent-config-checkout" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "stories" ? <StoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "team" ? <TeamPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "account-settings" ? <AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>
