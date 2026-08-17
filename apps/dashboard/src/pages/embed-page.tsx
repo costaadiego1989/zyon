@@ -1,13 +1,7 @@
 import React from "react";
 import { CheckCircle2, Code2, Copy, KeyRound, Shield, Zap } from "lucide-react";
-import { TabBar } from "../components/TabBar.js";
 import { type MerchantProfile } from "../api-client.js";
-import { useEmbedPage, formatExpiry } from "./useEmbedPage.js";
-
-const TABS = [
-  { key: "install", label: "Instalação" },
-  { key: "config", label: "Configuração" },
-];
+import { useEmbedPage } from "./useEmbedPage.js";
 
 // ── View ────────────────────────────────────────────────────────────────────
 
@@ -37,32 +31,13 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         </div>
       </header>
 
-      <TabBar tabs={TABS} activeTab={vm.tab} onTabChange={(k) => vm.actions.setTab(k as "install" | "config")} />
-
       <div style={{ marginTop: "var(--space-5)" }}>
-        {vm.tab === "install" && (
-          <InstallTab
-            snippet={vm.snippet}
-            hasToken={vm.hasToken}
-            copied={vm.copied}
-            onCopy={vm.actions.copySnippet}
-          />
-        )}
-        {vm.tab === "config" && (
-          <ConfigTab
-            allowedOrigin={vm.allowedOrigin}
-            setAllowedOrigin={vm.actions.setAllowedOrigin}
-            cartRef={vm.cartRef}
-            setCartRef={vm.actions.setCartRef}
-            ttl={vm.ttl}
-            setTtl={vm.actions.setTtl}
-            session={vm.session}
-            message={vm.message}
-            busy={vm.busy}
-            validationErrors={vm.validationErrors}
-            onGenerate={vm.actions.generateToken}
-          />
-        )}
+        <InstallTab
+          snippet={vm.snippet}
+          hasToken={vm.hasToken}
+          copied={vm.copied}
+          onCopy={vm.actions.copySnippet}
+        />
       </div>
     </div>
   );
@@ -148,56 +123,3 @@ function InstallTab(props: {
   );
 }
 
-// ── Tab: Configuração ───────────────────────────────────────────────────────
-
-function ConfigTab(props: {
-  allowedOrigin: string;
-  setAllowedOrigin: (v: string) => void;
-  cartRef: string;
-  setCartRef: (v: string) => void;
-  ttl: number;
-  setTtl: (v: number) => void;
-  session: import("../api-client.js").EmbedSessionResponse | null;
-  message: string | null;
-  busy: boolean;
-  validationErrors: Record<string, string>;
-  onGenerate: () => void;
-}) {
-  const { session, message, busy, validationErrors } = props;
-
-  return (
-    <>
-      {message && (
-        <div className={session ? "panel-info" : "panel-warn"} role="status" aria-live="polite" style={{ marginBottom: "var(--space-4)" }}>
-          {message}
-        </div>
-      )}
-
-      <div className="panel">
-        <div className="panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span>Token de produção</span>
-          {session && <span className="badge ok">Ativo</span>}
-        </div>
-        <p style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 16px", lineHeight: 1.5 }}>
-          Gere o token que autentica o widget. Necessário apenas para integração customizada (sem plugin).
-          Integrações nativas (WooCommerce, Magento, VTEX) configuram automaticamente.
-        </p>
-
-        <button type="button" className="btn-primary" disabled={busy} onClick={props.onGenerate}>
-          <KeyRound size={15} />
-          {busy ? "Gerando…" : "Gerar token"}
-        </button>
-
-        {session && (
-          <div className="embed-token-result">
-            <CheckCircle2 size={14} style={{ color: "var(--color-success)", flexShrink: 0 }} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <code className="embed-token-value">{session.embed_session_token.slice(0, 56)}…</code>
-              <span className="embed-token-expiry">{formatExpiry(session.expires_at_unix)}</span>
-            </div>
-          </div>
-        )}
-      </div>
-    </>
-  );
-}
