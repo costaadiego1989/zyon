@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   Store,
+  Users,
   UsersRound,
   Webhook,
   Zap,
@@ -52,7 +53,8 @@ export type TabKey =
   | "store-settings"
   | "agent-config"
   | "agent-config-checkout"
-  | "stories";
+  | "stories"
+  | "team";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -88,6 +90,7 @@ export const NAV_ITEMS: Array<{
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
 
   // ─── Conta ───
+  { key: "team", label: "Equipe", section: "Conta", icon: Users },
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
   { key: "billing-plans", label: "Planos", section: "Conta", icon: Crown },
   { key: "audit-log", label: "Auditoria", section: "Conta", icon: ShieldCheck },

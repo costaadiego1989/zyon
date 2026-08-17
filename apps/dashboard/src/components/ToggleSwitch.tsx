@@ -2,7 +2,7 @@ import React from "react";
 
 /**
  * Self-contained toggle switch with inline styles.
- * Does not depend on external CSS — usable in any page.
+ * Slim iOS-style toggle — 40×22px track, 18px thumb.
  */
 export function ToggleSwitch({
   checked,
@@ -25,30 +25,29 @@ export function ToggleSwitch({
       onClick={() => onChange(!checked)}
       style={{
         flexShrink: 0,
-        width: 38,
+        width: 40,
         height: 22,
-        borderRadius: 11,
+        borderRadius: 12,
         border: "none",
-        padding: 3,
-        background: checked ? "var(--accent, #0f766e)" : "var(--border, #333)",
+        padding: 2,
+        background: checked ? "var(--accent, #0f766e)" : "oklch(35% 0.01 145)",
         cursor: disabled ? "not-allowed" : "pointer",
         display: "inline-flex",
         alignItems: "center",
-        overflow: "hidden",
         transition: "background 0.2s ease",
         opacity: disabled ? 0.45 : 1,
-        position: "relative",
+        outline: "none",
       }}
     >
       <span
         style={{
-          width: 16,
-          height: 16,
+          width: 18,
+          height: 18,
           borderRadius: "50%",
           background: "#fff",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
           transition: "transform 0.2s ease",
-          transform: checked ? "translateX(16px)" : "translateX(0)",
+          transform: checked ? "translateX(18px)" : "translateX(0)",
         }}
       />
     </button>
