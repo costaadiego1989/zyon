@@ -8,11 +8,11 @@ import { RegisterDomainUseCase } from "./application/use-cases/register-domain.u
 import { VerifyDomainUseCase } from "./application/use-cases/verify-domain.use-case.js";
 import { ListDomainsUseCase } from "./application/use-cases/list-domains.use-case.js";
 import { DnsVerificationService } from "./infrastructure/dns-verification.service.js";
-import { DomainsController } from "./presentation/http/domains.controller.js";
+import { DomainsController, DomainCheckController } from "./presentation/http/domains.controller.js";
 
 @Module({
   imports: [PersistenceModule],
-  controllers: [DomainsController],
+  controllers: [DomainsController, DomainCheckController],
   providers: [
     DnsVerificationService,
     RegisterDomainUseCase,

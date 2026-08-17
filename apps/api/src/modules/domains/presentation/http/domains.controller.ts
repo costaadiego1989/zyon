@@ -7,6 +7,7 @@ import {
   Get,
   Post,
   Delete,
+  Query,
   Param,
   Body,
   NotFoundException,
@@ -66,5 +67,30 @@ export class DomainsController {
 
     await this.prisma.merchantDomain.delete({ where: { id: domainId } });
     return { success: true };
+  }
+}
+
+/**
+ * Caddy On-Demand TLS endpoint.
+ * Caddy calls this to decide if it should issue a cert for a given domain.
+ * Returns 200 = issue cert. 404 = deny.
+ */
+@Controller("domains")
+export class DomainCheckController {
+  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+
+  @Get("check")
+  async check(@Query("domain") domain: string) {
+    if (!domain?.trim()) throw new NotFoundException("missing_domain");
+
+    const record = await this.prisma.merchantDomain.findUnique({
+      where: { domain: domain.trim().toLowerCase() },
+    });
+
+    if (!record || !record.verified) {
+      throw new NotFoundException("domain_not_verified");
+    }
+
+    return { ok: true, domain: record.domain, merchantId: record.merchantId };
   }
 }
