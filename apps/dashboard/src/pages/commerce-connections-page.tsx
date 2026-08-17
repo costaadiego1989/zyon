@@ -343,6 +343,11 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                     </option>
                   ))}
                 </select>
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)", opacity: 0.6, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                    VTEX <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--border)", fontWeight: 600 }}>EM BREVE</span>
+                  </span>
+                </div>
               </label>
               {provider !== "native" ? (
                 <label>
@@ -476,19 +481,6 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             </button>
           </form>
         </section>
-      ) : null}
-
-      {/* Upcoming integrations */}
-      {!hasConnection ? (
-        <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
-          <h3 style={{ font: "600 14px var(--serif)", color: "var(--ink)", marginBottom: 12 }}>Em breve</h3>
-          <p style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)", marginBottom: 14 }}>Próximas integrações no roadmap.</p>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            {["VTEX (homologação em andamento)", "Tray Commerce (avaliando viabilidade)"].map(name => (
-              <span key={name} style={{ font: "500 11px var(--mono)", padding: "4px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)" }}>{name}</span>
-            ))}
-          </div>
-        </div>
       ) : null}
 
       {/* Active connection */}

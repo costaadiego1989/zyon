@@ -84,7 +84,6 @@ export const NAV_ITEMS: Array<{
 
   // ─── Integrações ───
   { key: "integrations", label: "Desenvolvedores", section: "Integrações", icon: Webhook },
-  { key: "embed", label: "Embed / Instalação", section: "Integrações", icon: Code2 },
   { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
 
