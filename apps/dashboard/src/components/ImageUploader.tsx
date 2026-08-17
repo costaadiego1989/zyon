@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Upload, Trash2, Loader2 } from "lucide-react";
+import { Upload, X, Loader2 } from "lucide-react";
 import { useApi } from "../hooks/useApi.js";
 
 export interface ImageUploaderProps {
@@ -8,8 +8,7 @@ export interface ImageUploaderProps {
   value?: string;
   onChange: (url: string | undefined) => void;
   folder?: string;
-  previewSize?: number;
-  previewRound?: boolean;
+  height?: number;
   accept?: string;
   deletable?: boolean;
 }
@@ -20,8 +19,7 @@ export function ImageUploader({
   value,
   onChange,
   folder,
-  previewSize = 80,
-  previewRound = false,
+  height = 120,
   accept = "image/*",
   deletable = true,
 }: ImageUploaderProps) {
@@ -38,7 +36,7 @@ export function ImageUploader({
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setError("Imagem deve ter no máximo 5MB");
+      setError("Máximo 5MB");
       return;
     }
     setError(null);
@@ -49,16 +47,16 @@ export function ImageUploader({
       const result = await api.uploadLogo(base64);
       if (result?.logoUrl) onChange(result.logoUrl);
     } catch {
-      setError("Falha no upload. Tente novamente.");
+      setError("Falha no upload");
     } finally {
       setUploading(false);
     }
   }, [api, onChange]);
 
-  const handleDelete = useCallback(async () => {
+  const handleDelete = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!value || !deletable) return;
     setDeleting(true);
-    setError(null);
     try {
       if (value.startsWith("http")) {
         await api.deleteStorageObject(value);
@@ -85,141 +83,99 @@ export function ImageUploader({
   }, [handleFile]);
 
   const hasImage = !!value;
-  const radius = previewRound ? "50%" : "10px";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 4 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{label}</span>
         {hint && <span style={{ fontSize: 11, color: "var(--faint)" }}>· {hint}</span>}
       </div>
 
+      {/* Upload area — full width, rectangular */}
       <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          padding: "10px 14px",
-          borderRadius: 12,
-          border: `1px solid ${dragOver ? "var(--accent)" : "var(--border)"}`,
-          background: dragOver ? "color-mix(in srgb, var(--accent) 4%, var(--card))" : "var(--card)",
-          transition: "border-color 0.15s, background 0.15s",
-        }}
+        onClick={() => inputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
+        style={{
+          position: "relative",
+          width: "100%",
+          height,
+          borderRadius: 10,
+          border: hasImage
+            ? "1px solid var(--border)"
+            : `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
+          background: hasImage
+            ? "var(--bg)"
+            : dragOver ? "color-mix(in srgb, var(--accent) 4%, var(--card))" : "var(--card)",
+          overflow: "hidden",
+          cursor: "pointer",
+          transition: "border-color 0.15s, background 0.15s",
+        }}
       >
-        {/* Preview / Placeholder */}
-        <div
-          onClick={() => !hasImage && inputRef.current?.click()}
-          style={{
-            position: "relative",
-            width: previewSize,
-            height: previewSize,
-            borderRadius: radius,
-            border: hasImage ? "1px solid var(--border)" : "2px dashed var(--border)",
-            background: hasImage ? "transparent" : "var(--bg)",
-            overflow: "hidden",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-            cursor: hasImage ? "default" : "pointer",
-          }}
-        >
-          {hasImage ? (
-            <img
-              src={value}
-              alt={label}
-              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          ) : (
-            <Upload size={18} color="var(--faint)" strokeWidth={1.5} />
-          )}
-          {uploading && (
-            <div style={{
+        {hasImage ? (
+          <img
+            src={value}
+            alt={label}
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+          />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 6 }}>
+            <Upload size={20} color="var(--faint)" strokeWidth={1.5} />
+            <span style={{ fontSize: 11, color: "var(--faint)" }}>
+              Arraste ou clique para selecionar
+            </span>
+          </div>
+        )}
+
+        {/* Loading overlay */}
+        {uploading && (
+          <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Loader2 size={22} color="#fff" style={{ animation: "img-spin 0.8s linear infinite" }} />
+          </div>
+        )}
+
+        {/* Delete X button — top right */}
+        {hasImage && deletable && !uploading && (
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            title="Remover"
+            style={{
               position: "absolute",
-              inset: 0,
-              background: "rgba(0,0,0,0.55)",
+              top: 8,
+              right: 8,
+              width: 26,
+              height: 26,
+              borderRadius: 7,
+              border: "none",
+              background: "rgba(0, 0, 0, 0.6)",
+              backdropFilter: "blur(4px)",
+              color: "#fff",
+              cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-            }}>
-              <Loader2 size={18} color="#fff" style={{ animation: "spin 0.8s linear infinite" }} />
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--bg)",
-              color: "var(--fg)",
-              fontSize: 11,
-              fontWeight: 500,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              width: "fit-content",
-              transition: "border-color 0.15s",
+              padding: 0,
+              opacity: deleting ? 0.5 : 1,
+              transition: "opacity 0.15s, background 0.15s",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(239, 68, 68, 0.85)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "rgba(0, 0, 0, 0.6)"; }}
           >
-            <Upload size={12} />
-            {hasImage ? "Trocar" : "Selecionar"}
+            {deleting
+              ? <Loader2 size={12} style={{ animation: "img-spin 0.8s linear infinite" }} />
+              : <X size={14} strokeWidth={2.5} />
+            }
           </button>
-
-          {hasImage && deletable && (
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              disabled={deleting}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-                padding: "6px 12px",
-                borderRadius: 8,
-                border: "1px solid color-mix(in srgb, var(--danger, #ef4444) 30%, var(--border))",
-                background: "transparent",
-                color: "var(--danger, #ef4444)",
-                fontSize: 11,
-                fontWeight: 500,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                width: "fit-content",
-                opacity: deleting ? 0.5 : 1,
-                transition: "opacity 0.15s",
-              }}
-            >
-              <Trash2 size={12} />
-              {deleting ? "Removendo..." : "Remover"}
-            </button>
-          )}
-        </div>
+        )}
       </div>
 
-      {error && (
-        <span style={{ fontSize: 11, color: "var(--danger, #ef4444)", paddingLeft: 2 }}>{error}</span>
-      )}
+      {error && <span style={{ fontSize: 11, color: "var(--danger, #ef4444)" }}>{error}</span>}
 
-      <input
-        ref={inputRef}
-        type="file"
-        accept={accept}
-        onChange={handleInputChange}
-        style={{ display: "none" }}
-      />
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <input ref={inputRef} type="file" accept={accept} onChange={handleInputChange} style={{ display: "none" }} />
+      <style>{`@keyframes img-spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }

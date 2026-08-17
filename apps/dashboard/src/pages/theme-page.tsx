@@ -420,8 +420,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 hint="Exibida no topo do widget"
                 value={theme.logoUrl}
                 onChange={(url) => patch({ logoUrl: url })}
-                previewSize={64}
-                previewRound
+                height={100}
               />
 
               <ImageUploader
@@ -429,8 +428,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 hint="Foto do agente na conversa"
                 value={theme.agentAvatarUrl}
                 onChange={(url) => patch({ agentAvatarUrl: url })}
-                previewSize={64}
-                previewRound
+                height={100}
               />
 
               <ImageUploader
@@ -438,7 +436,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 hint="Background do painel principal"
                 value={theme.backgroundImageUrl}
                 onChange={(url) => patch({ backgroundImageUrl: url })}
-                previewSize={120}
+                height={160}
               />
             </div>
 
