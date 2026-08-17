@@ -11,6 +11,9 @@ import { SendStoreMessageUseCase } from "./application/use-cases/send-store-mess
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "./application/use-cases/get-store-config.use-case.js";
 import { GetStorefrontFunnelUseCase } from "./application/use-cases/get-storefront-funnel.use-case.js";
+import { CreateBudgetRequestUseCase } from "./application/use-cases/create-budget-request.use-case.js";
+import { ListBudgetRequestsUseCase } from "./application/use-cases/list-budget-requests.use-case.js";
+import { UpdateBudgetRequestStatusUseCase } from "./application/use-cases/update-budget-request-status.use-case.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
@@ -69,7 +72,10 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     SendStoreMessageUseCase,
     GetConversationHistoryUseCase,
     GetStoreConfigUseCase,
-    GetStorefrontFunnelUseCase
+    GetStorefrontFunnelUseCase,
+    CreateBudgetRequestUseCase,
+    ListBudgetRequestsUseCase,
+    UpdateBudgetRequestStatusUseCase
   ],
   exports: [
     StartStoreConversationUseCase,

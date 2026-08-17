@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { CartSheetProps } from "./types";
 
 function formatPrice(value: number): string {
@@ -8,6 +8,14 @@ function formatPrice(value: number): string {
 export type CartSheetPosition = "bottom" | "right";
 
 export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
+  const [showBudgetForm, setShowBudgetForm] = useState(false);
+  const [budgetName, setBudgetName] = useState("");
+  const [budgetEmail, setBudgetEmail] = useState("");
+  const [budgetPhone, setBudgetPhone] = useState("");
+  const [budgetNote, setBudgetNote] = useState("");
+  const [budgetSent, setBudgetSent] = useState(false);
+  const [budgetSending, setBudgetSending] = useState(false);
+
   if (!open) return null;
 
   const isBottom = position === "bottom";
@@ -182,32 +190,65 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
           )}
         </div>
 
-        {/* Footer CTAs */}
+        {/* Footer CTAs / Success state */}
         {cart.items.length > 0 && (
           <div style={{ padding: "0 18px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
-            <button
-              type="button"
-              onClick={onCheckout}
-              style={{
-                width: "100%",
-                height: "48px",
-                borderRadius: "12px",
-                border: "none",
-                background: "var(--aacp-accent, #0f766e)",
-                color: "#fff",
-                fontSize: "14px",
-                fontWeight: 700,
-                cursor: "pointer",
-                fontFamily: "inherit",
-                letterSpacing: "0.01em",
-                boxShadow: "0 4px 16px color-mix(in srgb, var(--aacp-accent, #0f766e) 35%, transparent)",
-                transition: "transform 0.15s ease, box-shadow 0.15s ease",
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px color-mix(in srgb, var(--aacp-accent) 45%, transparent)"; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 16px color-mix(in srgb, var(--aacp-accent) 35%, transparent)"; }}
-            >
-              {mode === "budget" ? "Solicitar orçamento" : "Finalizar pedido"}
-            </button>
+            {budgetSent && (
+              <div style={{ padding: "16px 14px", borderRadius: "10px", background: "color-mix(in srgb, var(--aacp-success, #34d399) 12%, transparent)", border: "1px solid var(--aacp-success, #34d399)", textAlign: "center" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-success, #34d399)" }}>✓ Orçamento enviado!</div>
+                <div style={{ fontSize: "12px", color: "var(--aacp-muted)", marginTop: "4px" }}>Entraremos em contato em breve.</div>
+              </div>
+            )}
+            {!budgetSent && (
+            {/* Budget form (inline) */}
+            {mode === "budget" && showBudgetForm ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 0 6px", borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--aacp-fg)" }}>Seus dados para contato</span>
+                <input type="text" placeholder="Nome completo" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                <input type="email" placeholder="Email" value={budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                <input type="tel" placeholder="WhatsApp (11) 99999-9999" value={budgetPhone} onChange={(e) => setBudgetPhone(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                <textarea placeholder="Observação (opcional)" value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} rows={2} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit", resize: "none" }} />
+                <button
+                  type="button"
+                  disabled={!budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim() || budgetSending}
+                  onClick={async () => {
+                    setBudgetSending(true);
+                    try {
+                      await onBudgetSubmit?.({ customerName: budgetName.trim(), customerEmail: budgetEmail.trim(), customerPhone: budgetPhone.trim(), note: budgetNote.trim() || undefined });
+                      setBudgetSent(true);
+                    } catch { /* */ }
+                    setBudgetSending(false);
+                  }}
+                  style={{ width: "100%", height: 44, borderRadius: 10, border: "none", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: (!budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim()) ? 0.5 : 1 }}
+                >
+                  {budgetSending ? "Enviando..." : "Enviar solicitação"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={mode === "budget" ? () => setShowBudgetForm(true) : onCheckout}
+                style={{
+                  width: "100%",
+                  height: "48px",
+                  borderRadius: "12px",
+                  border: "none",
+                  background: "var(--aacp-accent, #0f766e)",
+                  color: "#fff",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                  letterSpacing: "0.01em",
+                  boxShadow: "0 4px 16px color-mix(in srgb, var(--aacp-accent, #0f766e) 35%, transparent)",
+                  transition: "transform 0.15s ease, box-shadow 0.15s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 8px 24px color-mix(in srgb, var(--aacp-accent) 45%, transparent)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 16px color-mix(in srgb, var(--aacp-accent) 35%, transparent)"; }}
+              >
+                {mode === "budget" ? "Solicitar orçamento" : "Finalizar pedido"}
+              </button>
+            )}
 
             {onViewCart && (
               <button
@@ -232,6 +273,18 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
                 Continuar comprando
               </button>
             )}
+          </div>
+        )}
+
+        {/* Budget sent confirmation */}
+        {budgetSent && (
+          <div style={{ padding: "24px 18px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 40, height: 40, borderRadius: "50%", background: "color-mix(in srgb, var(--aacp-accent) 15%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent, #0f766e)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            </div>
+            <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>Orçamento enviado!</p>
+            <p style={{ margin: 0, fontSize: 12, color: "var(--aacp-muted)" }}>Entraremos em contato em breve.</p>
+            <button type="button" onClick={onClose} style={{ marginTop: 8, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Fechar</button>
           </div>
         )}
       </div>

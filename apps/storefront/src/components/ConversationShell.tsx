@@ -799,12 +799,30 @@ export default function ConversationShell({
       {/* Native Cart — FAB + lateral drawer, no iframe */}
       {mode === "chat" && (
         <CheckoutWidgetPanel
-          onCheckout={() => {
-            // Navigate to checkout widget (separate product)
+          merchantId={merchantId}
+          onCheckout={async () => {
             const widgetBase = process.env.NEXT_PUBLIC_WIDGET_BASE_URL ?? "http://localhost:5173";
             const params = new URLSearchParams();
             if (merchantId) params.set("merchantId", merchantId);
             if (cart.cartId) params.set("cartId", cart.cartId);
+
+            // Generate real embed token via storefront API route
+            try {
+              const tokenRes = await fetch("/api/checkout-token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  merchant_id: merchantId,
+                  cart_ref: cart.cartId,
+                  allowed_origin: window.location.origin,
+                }),
+              });
+              if (tokenRes.ok) {
+                const { embed_session_token } = await tokenRes.json();
+                params.set("embedToken", embed_session_token);
+              }
+            } catch { /* proceed without token — widget will use dev bypass on localhost */ }
+
             window.location.href = `${widgetBase}?${params.toString()}`;
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}

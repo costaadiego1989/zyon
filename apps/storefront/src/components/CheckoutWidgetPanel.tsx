@@ -1,10 +1,12 @@
-"use client";
-
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { CartFAB, CartSheet } from "@zyon/checkout-ui";
+import { useWidgetConfig } from "@/lib/widget-config";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 interface NativeCartPanelProps {
+  merchantId?: string;
   onCheckout: () => void;
   onViewCart: () => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
@@ -13,16 +15,20 @@ interface NativeCartPanelProps {
 }
 
 export default function NativeCartPanel({
+  merchantId,
   onCheckout,
   onViewCart,
   onUpdateQty,
   onRemoveItem,
   forceOpen,
 }: NativeCartPanelProps) {
-  const { cart } = useCart();
+  const { cart, clearCart } = useCart();
+  const { config: widgetConfig } = useWidgetConfig();
   const [sheetOpen, setSheetOpen] = useState(false);
   const prevCountRef = useRef(cart.itemCount);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isBudgetMode = widgetConfig?.budgetModeEnabled === true;
 
   // Force open from parent (e.g., "Ver carrinho" quickReply)
   useEffect(() => {
@@ -63,6 +69,34 @@ export default function NativeCartPanel({
     }
   }, [cart]);
 
+  const handleBudgetSubmit = async (data: {
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    note?: string;
+  }) => {
+    const res = await fetch(`${API_BASE}/storefront/budget-requests`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        merchant_id: merchantId,
+        customer_name: data.customerName,
+        customer_email: data.customerEmail,
+        customer_phone: data.customerPhone,
+        items: cart.items.map((item) => ({
+          variantId: item.variantId,
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+        })),
+        total: cart.total,
+        note: data.note,
+      }),
+    });
+    if (!res.ok) throw new Error("budget_request_failed");
+    clearCart();
+  };
+
   return (
     <>
       <CartFAB
@@ -80,11 +114,13 @@ export default function NativeCartPanel({
           discount: cart.discount ?? 0,
           total: cart.total,
         }}
+        mode={isBudgetMode ? "budget" : "checkout"}
         onClose={() => setSheetOpen(false)}
         onCheckout={() => {
           setSheetOpen(false);
           onCheckout();
         }}
+        onBudgetSubmit={isBudgetMode ? handleBudgetSubmit : undefined}
         onViewCart={() => {
           setSheetOpen(false);
           onViewCart();
