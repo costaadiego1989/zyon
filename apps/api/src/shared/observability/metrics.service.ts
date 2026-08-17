@@ -106,6 +106,21 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly apiOperationTotal = new Counter({
+    name: "api_operation_total",
+    help: "Total API operations by handler and result",
+    labelNames: ["operation", "result"],
+    registers: [this.registry],
+  });
+
+  readonly apiOperationDuration = new Histogram({
+    name: "api_operation_duration_ms",
+    help: "API operation duration in milliseconds",
+    labelNames: ["operation", "result"],
+    buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    registers: [this.registry],
+  });
+
   async getMetrics(): Promise<string> {
     return this.registry.metrics();
   }
