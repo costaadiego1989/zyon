@@ -8,7 +8,6 @@ interface FunnelMetricsProps {
 export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement {
   const { totalSessions, overallConversion, transitions, steps, previous } = data;
 
-  // Find biggest drop-off
   let biggestDropOff = 0;
   let biggestDropOffStep = "";
   for (const t of transitions) {
@@ -17,48 +16,48 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
       biggestDropOffStep = t.from;
     }
   }
-  const dropOffStepLabel =
-    steps.find((s) => s.name === biggestDropOffStep)?.label ?? biggestDropOffStep;
+  const dropOffLabel = steps.find((s) => s.name === biggestDropOffStep)?.label ?? "—";
 
-  // Average time: sum avgTimeSeconds across all transitions
   const totalTimeSeconds = transitions.reduce((sum, t) => sum + t.avgTimeSeconds, 0);
-  const minutes = Math.floor(totalTimeSeconds / 60);
-  const seconds = Math.round(totalTimeSeconds % 60);
-  const avgTimeStr = totalTimeSeconds > 0 ? `${minutes}m ${seconds}s` : "—";
+  const avgTimeStr = totalTimeSeconds > 0
+    ? `${Math.floor(totalTimeSeconds / 60)}m ${Math.round(totalTimeSeconds % 60)}s`
+    : "—";
 
-  // Comparison helper
-  function renderComparison(currentVal: number, previousVal?: number) {
-    if (!previousVal || previousVal === 0) return null;
-    const diff = currentVal - previousVal;
+  function trend(current: number, prev?: number) {
+    if (prev === undefined || prev === 0) return null;
+    const diff = current - prev;
     const isUp = diff > 0;
     return (
-      <span className={`funnel-metric-comparison ${isUp ? "positive" : "negative"}`}>
-        {isUp ? "↑" : "↓"} {Math.abs(diff).toFixed(1)}pp
+      <span className={`fnl-metric-trend ${isUp ? "up" : "down"}`}>
+        {isUp ? "↑" : "↓"} {Math.abs(diff).toFixed(1)}%
       </span>
     );
   }
 
   return (
-    <div className="funnel-metrics">
-      {/* Primary: Conversion Rate (featured, larger) */}
-      <div className="funnel-metric-card">
-        <span className="funnel-metric-label">Conversão Geral</span>
-        <span className="funnel-metric-value">{overallConversion.toFixed(1)}%</span>
-        {previous && renderComparison(overallConversion, previous.overallConversion)}
+    <div className="fnl-metrics">
+      <div className="fnl-metric">
+        <span className="fnl-metric-label">Conversão</span>
+        <span className="fnl-metric-value">{overallConversion.toFixed(1)}<small style={{ fontSize: "60%", opacity: 0.7 }}>%</small></span>
+        {previous ? trend(overallConversion, previous.overallConversion) : <span className="fnl-metric-trend up">↑ 0.0%</span>}
       </div>
 
-      {/* Secondary Row 1: Total Sessions */}
-      <div className="funnel-metric-card">
-        <span className="funnel-metric-label">Total Sessões</span>
-        <span className="funnel-metric-value">{totalSessions.toLocaleString("pt-BR")}</span>
-        {previous && renderComparison(totalSessions, previous.totalSessions)}
+      <div className="fnl-metric">
+        <span className="fnl-metric-label">Sessões</span>
+        <span className="fnl-metric-value neutral">{totalSessions.toLocaleString("pt-BR")}</span>
+        {previous ? trend(totalSessions, previous.totalSessions) : <span className="fnl-metric-trend up">↑ 0.0%</span>}
       </div>
 
-      {/* Secondary Row 2: Biggest Drop-off */}
-      <div className="funnel-metric-card">
-        <span className="funnel-metric-label">Maior Drop-off</span>
-        <span className="funnel-metric-value">{biggestDropOff.toFixed(0)}%</span>
-        <span className="funnel-metric-secondary">{dropOffStepLabel}</span>
+      <div className="fnl-metric">
+        <span className="fnl-metric-label">Maior Drop-off</span>
+        <span className={`fnl-metric-value${biggestDropOff > 50 ? " danger" : ""}`}>{biggestDropOff.toFixed(0)}<small style={{ fontSize: "60%", opacity: 0.7 }}>%</small></span>
+        <span className="fnl-metric-secondary">{dropOffLabel}</span>
+      </div>
+
+      <div className="fnl-metric">
+        <span className="fnl-metric-label">Tempo Médio</span>
+        <span className="fnl-metric-value neutral">{avgTimeStr}</span>
+        <span className="fnl-metric-secondary">checkout completo</span>
       </div>
     </div>
   );
