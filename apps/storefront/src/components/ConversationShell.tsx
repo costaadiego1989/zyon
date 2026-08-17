@@ -156,7 +156,7 @@ export default function ConversationShell({
   const recognitionRef = useRef<any>(null);
   const agent = agentName || "Assistente";
   const { config: widgetConfig } = useWidgetConfig();
-  const { cart, updateFromBlocks } = useCart();
+  const { cart, updateFromBlocks, updateItemQuantity } = useCart();
 
   // The widgetConfig is now available to this component and can be used for trigger logic,
   // suppression rules, etc. SupportFAB handles presentation mode (position, color, delay) separately.
@@ -471,6 +471,22 @@ export default function ConversationShell({
       return;
     }
     void sendMessage(option);
+  };
+
+  // Local optimistic qty update + server sync — never touches LLM
+  const handleUpdateQuantity = (variantId: string, quantity: number) => {
+    updateItemQuantity(variantId, quantity);
+
+    // Fire-and-forget server sync
+    if (cart.cartId) {
+      fetch(`${API_BASE}/storefront/cart/${encodeURIComponent(cart.cartId)}/items/${encodeURIComponent(variantId)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity }),
+      }).catch((err) => {
+        console.error("[cart] server sync failed for qty update:", err);
+      });
+    }
   };
 
   const chatQuickReplies = [
@@ -829,7 +845,7 @@ export default function ConversationShell({
             window.location.href = `${widgetBase}?${params.toString()}`;
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
-          onUpdateQty={(variantId, qty) => handleQuickReply(`Atualizar quantidade do item ${variantId} para ${qty}`)}
+          onUpdateQty={handleUpdateQuantity}
           onRemoveItem={(variantId) => handleQuickReply(`Remover item ${variantId} do carrinho`)}
           forceOpen={cartDrawerForceOpen}
         />

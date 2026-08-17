@@ -21,11 +21,16 @@ export interface CartState {
 interface CartContextValue {
   cart: CartState;
   updateFromBlocks: (blocks: any[]) => void;
+  updateItemQuantity: (variantId: string, quantity: number) => void;
   clearCart: () => void;
 }
 
-const STORAGE_KEY = "zyon-cart-id";
+const STORAGE_KEY_PREFIX = "zyon-cart-id";
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+
+function getStorageKey(merchantId: string): string {
+  return `${STORAGE_KEY_PREFIX}:${merchantId}`;
+}
 
 const EMPTY_CART: CartState = {
   cartId: null,
@@ -35,23 +40,24 @@ const EMPTY_CART: CartState = {
   total: 0,
 };
 
-function getSavedCartId(): string | null {
+function getSavedCartId(merchantId: string): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return sessionStorage.getItem(STORAGE_KEY);
+    return sessionStorage.getItem(getStorageKey(merchantId));
   } catch { return null; }
 }
 
-function saveCartId(cartId: string): void {
+function saveCartId(cartId: string, merchantId: string): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(STORAGE_KEY, cartId);
+    sessionStorage.setItem(getStorageKey(merchantId), cartId);
   } catch { /* quota/privacy */ }
 }
 
 const CartContext = createContext<CartContextValue>({
   cart: EMPTY_CART,
   updateFromBlocks: () => {},
+  updateItemQuantity: () => {},
   clearCart: () => {},
 });
 
@@ -60,15 +66,16 @@ export function useCart(): CartContextValue {
 }
 
 export function CartProvider({ children, merchantId }: { children: ReactNode; merchantId?: string }) {
-  const [cart, setCart] = useState<CartState>(() => {
-    const savedId = getSavedCartId();
-    return savedId ? { ...EMPTY_CART, cartId: savedId } : EMPTY_CART;
-  });
+  const [cart, setCart] = useState<CartState>(EMPTY_CART);
 
-  // Restore cart from API on mount if cartId exists
+  // Restore cart from API on mount if cartId exists and merchantId is available
   useEffect(() => {
-    const savedId = getSavedCartId();
-    if (!savedId || !merchantId) return;
+    if (!merchantId) return;
+    const savedId = getSavedCartId(merchantId);
+    if (!savedId) return;
+
+    // Hydrate cartId optimistically while fetching full state
+    setCart((prev) => prev.cartId === savedId ? prev : { ...EMPTY_CART, cartId: savedId });
 
     fetch(`${API_BASE}/storefront/cart/${encodeURIComponent(savedId)}?merchantId=${encodeURIComponent(merchantId)}`)
       .then((res) => res.ok ? res.json() : null)
@@ -95,7 +102,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
 
     setCart((prev) => {
       const resolvedCartId = cartId ?? prev.cartId;
-      if (resolvedCartId) saveCartId(resolvedCartId);
+      if (resolvedCartId && merchantId) saveCartId(resolvedCartId, merchantId);
       return {
         cartId: resolvedCartId,
         items: items.map((i: any) => ({
@@ -110,17 +117,41 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         total,
       };
     });
-  }, []);
+  }, [merchantId]);
 
   const clearCart = useCallback(() => {
     setCart(EMPTY_CART);
+    if (!merchantId) return;
     try {
-      sessionStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(getStorageKey(merchantId));
     } catch { /* quota/privacy */ }
+  }, [merchantId]);
+
+  const updateItemQuantity = useCallback((variantId: string, quantity: number) => {
+    setCart((prev) => {
+      if (!prev.cartId) return prev;
+      const itemIndex = prev.items.findIndex((i) => i.variantId === variantId);
+      if (itemIndex === -1) return prev;
+
+      const item = prev.items[itemIndex];
+      const updatedItem = { ...item, quantity, subtotal: item.price * quantity };
+      const newItems = [...prev.items];
+      newItems[itemIndex] = updatedItem;
+
+      const newItemCount = newItems.reduce((sum, i) => sum + i.quantity, 0);
+      const newTotal = newItems.reduce((sum, i) => sum + i.subtotal, 0);
+
+      return {
+        ...prev,
+        items: newItems,
+        itemCount: newItemCount,
+        total: newTotal,
+      };
+    });
   }, []);
 
   return (
-    <CartContext.Provider value={{ cart, updateFromBlocks, clearCart }}>
+    <CartContext.Provider value={{ cart, updateFromBlocks, updateItemQuantity, clearCart }}>
       {children}
     </CartContext.Provider>
   );

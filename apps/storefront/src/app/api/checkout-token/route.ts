@@ -29,17 +29,11 @@ export async function POST(request: Request) {
     };
     const bodyStr = JSON.stringify({
       ttl_seconds: 3600,
-      allowed_origin: allowed_origin || "http://localhost:5173",
       cart_ref: cart_ref || undefined,
       scopes: [
         "checkout:start",
         "checkout:track",
         "checkout:chat",
-        "offers:apply",
-        "coupons:apply",
-        "payment:intents:create",
-        "payment:intents:confirm",
-        "payment:intents:read",
       ],
     });
     console.log("[checkout-token] fetch:", url, "headers:", JSON.stringify(Object.keys(headers)), "body length:", bodyStr.length);
