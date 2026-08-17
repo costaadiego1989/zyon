@@ -3,6 +3,7 @@ import { Users, UserPlus, Trash2, Shield, Mail, Crown } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { Modal } from "../components/Modal.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
@@ -66,9 +67,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
 
       {/* Members list */}
       <section className="panel stacked">
-        <div className="panel-title">
-          <h2><Shield size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Membros ativos</h2>
-        </div>
+        <SectionHeader icon={<Shield size={18} />} title="Membros ativos" variant="secondary" />
 
         {vm.loading ? (
           <div className="table-wrap">
@@ -146,9 +145,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       {/* Pending invites */}
       {vm.invites.length > 0 ? (
         <section className="panel stacked" style={{ marginTop: 16 }}>
-          <div className="panel-title">
-            <h2><Mail size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Convites pendentes</h2>
-          </div>
+          <SectionHeader icon={<Mail size={18} />} title="Convites pendentes" variant="secondary" />
           <div className="table-wrap">
             <table className="data-table">
               <thead>

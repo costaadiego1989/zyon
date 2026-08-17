@@ -3,6 +3,7 @@ import { Activity, ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { Pagination } from "../components/Pagination.js";
 import { EmptyState } from "../components/EmptyState.js";
 import {
@@ -66,9 +67,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
       ) : null}
 
       <section className="panel stacked">
-        <div className="panel-title">
-          <h2><ShieldCheck size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Eventos recentes</h2>
-        </div>
+        <SectionHeader icon={<ShieldCheck size={18} />} title="Eventos recentes" variant="secondary" />
 
         {/* Filters */}
         <div className="audit-filter-bar" style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>

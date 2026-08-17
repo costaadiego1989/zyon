@@ -1,6 +1,8 @@
 import React from "react";
+import { EmptyState } from "../components/EmptyState.js";
 import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import {
   Activity,
   BookOpenCheck,
@@ -144,11 +146,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
 
       <div className="ops-grid">
         <section className="panel stacked">
-          <div className="panel-title">
-            <h2>Chaves de acesso</h2>
-            <KeyRound size={18} />
-          </div>
-          <p className="section-subtitle">Autentique chamadas à API do Zyon</p>
+          <SectionHeader icon={<KeyRound size={18} />} title="Chaves de acesso" subtitle="Autentique chamadas à API do Zyon" />
           <div className="form-grid two">
             <label>
               Nome
@@ -212,11 +210,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                 ))}
                 {apiKeys.length === 0 ? (
                   <tr>
-                    <td colSpan={5} style={{ padding: "32px 22px", textAlign: "center" }}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" /></svg>
-                        <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Nenhuma chave criada. Gere uma chave para começar a integrar.</span>
-                      </div>
+                    <td colSpan={5}>
+                      <EmptyState icon={KeyRound} title="Nenhuma chave criada" description="Gere uma chave para começar a integrar." />
                     </td>
                   </tr>
                 ) : null}
@@ -226,11 +221,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </section>
 
         <section className="panel stacked">
-          <div className="panel-title">
-            <h2>Webhooks</h2>
-            <Webhook size={18} />
-          </div>
-          <p className="section-subtitle">Receba notificações em tempo real sobre eventos do checkout</p>
+          <SectionHeader icon={<Webhook size={18} />} title="Webhooks" subtitle="Receba notificações em tempo real sobre eventos do checkout" />
           <label>
             Endpoint
             <input value={webhookUrl} placeholder="https://api.sualoja.com/aacp/webhooks" onChange={(event) => setWebhookUrl(event.target.value)} />
@@ -267,23 +258,19 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
               </article>
             ))}
             {webhooks.length === 0 ? (
-              <div style={{ padding: "32px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" /><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" /><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" /><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" /></svg>
-                <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Nenhum webhook configurado. Adicione um endpoint para receber eventos.</span>
-              </div>
+              <EmptyState icon={Webhook} title="Nenhum webhook configurado" description="Adicione um endpoint para receber eventos." />
             ) : null}
           </div>
         </section>
       </div>
 
       <section className="panel stacked" style={{ marginTop: 16 }}>
-        <div className="panel-title">
-          <h2>Delivery log</h2>
+        <SectionHeader icon={<Send size={18} />} title="Delivery log" variant="secondary" trailing={
           <button type="button" disabled={busy} onClick={() => void load()}>
             <RefreshCw size={14} />
             Recarregar
           </button>
-        </div>
+        } />
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -332,13 +319,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       </section>
 
       <section className="panel stacked" style={{ marginTop: 16 }}>
-        <div className="panel-title">
-          <h2>Tokens de sessão</h2>
-          <Activity size={18} />
-        </div>
-        <p className="section-subtitle" style={{ marginBottom: 8 }}>
-          Autentique o widget no seu site
-        </p>
+        <SectionHeader icon={<Activity size={18} />} title="Tokens de sessão" subtitle="Autentique o widget no seu site" />
         <div className="table-wrap">
           <table className="data-table">
             <thead>

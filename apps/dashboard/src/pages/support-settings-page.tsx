@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import { EmptyState } from "../components/EmptyState.js";
@@ -309,30 +310,12 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
           {/* ── FAQ Section ── */}
           <section className="panel stacked">
-            <div className="panel-title">
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--color-brand-subtle)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--color-brand)",
-                    flexShrink: 0,
-                  }}
-                >
-                  <HelpCircle size={15} />
-                </div>
-                <h2>Resposta automática</h2>
-              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>Mensagem exibida fora do horário de atendimento</p>
-              </div>
-              <span className={`badge ${items.length > 0 ? "ok" : "muted"}`}>
-                {items.length}/{20} itens
-              </span>
-            </div>
+            <SectionHeader
+              icon={<HelpCircle size={18} />}
+              title="Resposta automática"
+              subtitle="Mensagem exibida fora do horário de atendimento"
+              trailing={<span className={`badge ${items.length > 0 ? "ok" : "muted"}`}>{items.length}/{20} itens</span>}
+            />
 
             {items.length === 0 ? (
               <div className="empty-state">
@@ -505,73 +488,53 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
 
           {/* ── Tickets Section ── */}
           <section className="panel stacked">
-            <div className="panel-title">
-              <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                <div
+            <SectionHeader
+              icon={<Ticket size={18} />}
+              title="Escalonamento"
+              subtitle="Encaminhe conversas para seu time quando necessário"
+              trailing={<span className="badge muted" style={{ fontFamily: "var(--font-data)", fontSize: 11 }}>{tickets.length}</span>}
+            />
+
+            {/* Status filter */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-2)",
+                marginBottom: "var(--space-3)",
+              }}
+            >
+              <Filter size={13} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
+              <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+                <select
+                  value={ticketStatusFilter}
+                  onChange={(e) => setTicketStatusFilter(e.target.value as SupportTicketStatus | "all")}
                   style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: "var(--radius-sm)",
-                    background: "var(--color-brand-subtle)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--color-brand)",
-                    flexShrink: 0,
+                    minHeight: 32,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    paddingRight: 28,
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    cursor: "pointer",
                   }}
                 >
-                  <Ticket size={15} />
-                </div>
-                <h2>Escalonamento</h2>
-              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>Encaminhe conversas para seu time quando necessário</p>
-                <span
-                  className="badge muted"
-                  style={{ fontFamily: "var(--font-data)", fontSize: 11 }}
-                >
-                  {tickets.length}
-                </span>
-              </div>
-
-              {/* Status filter */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "var(--space-2)",
-                }}
-              >
-                <Filter size={13} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
-                <div style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
-                  <select
-                    value={ticketStatusFilter}
-                    onChange={(e) => setTicketStatusFilter(e.target.value as SupportTicketStatus | "all")}
-                    style={{
-                      minHeight: 32,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      paddingRight: 28,
-                      appearance: "none",
-                      WebkitAppearance: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <option value="all">Todos os status</option>
-                    {SUPPORT_STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {SUPPORT_STATUS_LABELS[status]}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={13}
-                    style={{
-                      position: "absolute",
-                      right: 8,
-                      pointerEvents: "none",
-                      color: "var(--color-text-muted)",
-                    }}
-                  />
-                </div>
+                  <option value="all">Todos os status</option>
+                  {SUPPORT_STATUSES.map((status) => (
+                    <option key={status} value={status}>
+                      {SUPPORT_STATUS_LABELS[status]}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={13}
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    pointerEvents: "none",
+                    color: "var(--color-text-muted)",
+                  }}
+                />
               </div>
             </div>
 
