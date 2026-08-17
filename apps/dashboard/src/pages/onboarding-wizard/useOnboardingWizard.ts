@@ -492,7 +492,12 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
         setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
         window.location.href = url;
       } catch {
-        // Subaccount may already exist (409)
+        // Subaccount may already exist (409) — ensure connection is persisted
+        try {
+          await api.syncAsaasConnection();
+        } catch {
+          // sync may fail if no connection exists yet — that's OK, the env key handles it
+        }
         setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
         setMessage("Asaas já configurado para esta conta.");
       }
