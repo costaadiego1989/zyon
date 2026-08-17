@@ -152,9 +152,19 @@ export class CheckoutController {
   funnel(
     @Param("merchantId") merchantId: string,
     @Query("period") period?: string,
+    @Query("breakdown") breakdown?: string,
+    @Query("compare") compare?: string,
   ) {
     if (!this.getFunnel) throw new Error("funnel_not_configured");
-    return this.getFunnel.execute(merchantId, (period ?? "7d") as "today" | "7d" | "30d" | "90d");
+    const validBreakdowns = ["device", "buyer_type", "payment_method"];
+    const breakdownValue = breakdown && validBreakdowns.includes(breakdown)
+      ? breakdown as "device" | "buyer_type" | "payment_method"
+      : undefined;
+    return this.getFunnel.execute(
+      merchantId,
+      (period ?? "7d") as "today" | "7d" | "30d" | "90d",
+      { breakdown: breakdownValue, compare: compare === "true" },
+    );
   }
 
   @Get("funnel/:merchantId/sessions")

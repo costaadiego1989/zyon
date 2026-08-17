@@ -4,6 +4,7 @@ import { useFunnelPage } from "./useFunnelPage.js";
 import { FunnelFilters } from "./components/FunnelFilters.js";
 import { FunnelMetrics } from "./components/FunnelMetrics.js";
 import { FunnelChart } from "./components/FunnelChart.js";
+import { FunnelBreakdown } from "./components/FunnelBreakdown.js";
 import { ActiveSessionsList } from "./components/ActiveSessionsList.js";
 import { BottleneckBanner } from "./components/BottleneckBanner.js";
 import "./funnel-page.css";
@@ -54,6 +55,7 @@ export function FunnelPage({ apiBaseUrl, me }: FunnelPageProps): React.ReactElem
   const vm = useFunnelPage({
     apiBaseUrl,
     merchantId: me.id,
+    merchantName: me.name,
   });
 
   return (
@@ -64,7 +66,25 @@ export function FunnelPage({ apiBaseUrl, me }: FunnelPageProps): React.ReactElem
           <h1>Funil de Conversão</h1>
           <p className="page-lead">Acompanhe o progresso dos visitantes em cada etapa do checkout</p>
         </div>
-        <FunnelFilters period={vm.period} onPeriodChange={vm.setPeriod} />
+        <div className="funnel-header-controls">
+          <button
+            type="button"
+            className="funnel-export-btn"
+            onClick={vm.exportCsv}
+            disabled={!vm.data}
+            title="Exportar dados em CSV"
+          >
+            Exportar CSV
+          </button>
+          <FunnelFilters
+            period={vm.period}
+            onPeriodChange={vm.setPeriod}
+            breakdown={vm.breakdown}
+            onBreakdownChange={vm.setBreakdown}
+            compareEnabled={vm.compareEnabled}
+            onCompareChange={vm.setCompareEnabled}
+          />
+        </div>
       </header>
 
       {/* ── Loading ── */}
@@ -86,6 +106,11 @@ export function FunnelPage({ apiBaseUrl, me }: FunnelPageProps): React.ReactElem
           <div className="funnel-chart-container">
             <FunnelChart steps={vm.data.steps} transitions={vm.data.transitions} />
           </div>
+
+          {/* ── Breakdown ── */}
+          {vm.breakdown !== "none" && vm.data.breakdowns && (
+            <FunnelBreakdown breakdowns={vm.data.breakdowns} dimension={vm.breakdown} />
+          )}
 
           {/* ── Active Sessions ── */}
           <ActiveSessionsList sessions={vm.sessions} loading={vm.loading} />

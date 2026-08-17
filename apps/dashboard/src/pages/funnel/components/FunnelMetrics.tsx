@@ -6,7 +6,7 @@ interface FunnelMetricsProps {
 }
 
 export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement {
-  const { totalSessions, overallConversion, transitions, steps } = data;
+  const { totalSessions, overallConversion, transitions, steps, previous } = data;
 
   // Find biggest drop-off
   let biggestDropOff = 0;
@@ -26,15 +26,30 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
   const seconds = Math.round(totalTimeSeconds % 60);
   const avgTimeStr = totalTimeSeconds > 0 ? `${minutes}m ${seconds}s` : "—";
 
+  // Comparison helper
+  function renderComparison(currentVal: number, previousVal?: number) {
+    if (!previousVal || previousVal === 0) return null;
+    const diff = currentVal - previousVal;
+    const diffPercentage = Math.round(diff * 10) / 10;
+    const isUp = diff > 0;
+    return (
+      <span className={`funnel-metric-comparison ${isUp ? "positive" : "negative"}`}>
+        {isUp ? "↑" : "↓"} {Math.abs(diffPercentage).toFixed(1)}pp
+      </span>
+    );
+  }
+
   return (
     <div className="funnel-metrics">
       <div className="funnel-metric-card">
         <span className="funnel-metric-label">Total sessões</span>
         <span className="funnel-metric-value">{totalSessions.toLocaleString("pt-BR")}</span>
+        {previous && renderComparison(totalSessions, previous.totalSessions)}
       </div>
       <div className="funnel-metric-card">
         <span className="funnel-metric-label">Conversão geral</span>
         <span className="funnel-metric-value">{(overallConversion * 100).toFixed(1)}%</span>
+        {previous && renderComparison(overallConversion, previous.overallConversion)}
       </div>
       <div className="funnel-metric-card">
         <span className="funnel-metric-label">Maior drop-off</span>
