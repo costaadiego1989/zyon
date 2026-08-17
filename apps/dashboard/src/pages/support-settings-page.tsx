@@ -21,6 +21,7 @@ import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { Pagination } from "../components/Pagination.js";
 import { FormField, FormSelect, FormTextarea } from "../components/FormField.js";
+import { showToast } from "../components/Toast.js";
 import type {
   SupportFaqItem,
   SupportSettings,
@@ -40,7 +41,8 @@ function newItem(): SupportFaqItem {
 export function formatPtBrDate(iso: string): string {
   const d = new Date(iso);
   if (isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" }) +
+         " " + d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 }
 
 export function validateFaqItems(items: SupportFaqItem[]): Array<{ question: boolean; answer: boolean }> {
@@ -183,12 +185,12 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
       const saved = await api.putSupportSettings({ faqItems: items });
       setSettings(saved);
       setItems(saved.faqItems);
-      setMessage({ text: "FAQ salvo com sucesso.", kind: "ok" });
+      showToast("success", "FAQ salvo com sucesso");
     } catch (e) {
       const text = e instanceof DashboardHttpError
         ? e.responseBody.slice(0, 160)
         : e instanceof Error ? e.message : String(e);
-      setMessage({ text: `Erro ao salvar: ${text}`, kind: "error" });
+      showToast("error", `Erro ao salvar: ${text}`);
     } finally {
       setBusy(false);
     }
@@ -204,16 +206,15 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
 
   async function updateTicketStatus(ticketId: string, status: SupportTicketStatus) {
     setTicketBusy(ticketId);
-    setMessage(null);
     try {
       const updated = await api.patchSupportTicketStatus(ticketId, status);
       setTickets((prev) => prev.map((ticket) => (ticket.id === ticketId ? updated : ticket)));
-      setMessage({ text: "Chamado atualizado.", kind: "ok" });
+      showToast("success", "Chamado atualizado");
     } catch (e) {
       const text = e instanceof DashboardHttpError
         ? e.responseBody.slice(0, 160)
         : e instanceof Error ? e.message : String(e);
-      setMessage({ text: `Erro ao atualizar chamado: ${text}`, kind: "error" });
+      showToast("error", `Erro ao atualizar: ${text}`);
     } finally {
       setTicketBusy(null);
     }
@@ -568,7 +569,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                             color: "var(--color-text-faint)",
                           }}
                         >
-                          {ticket.id.slice(0, 8)}…
+                          #{ticket.id.slice(0, 12)}
                         </code>
                       </div>
 
@@ -603,7 +604,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                             {" · "}
                           </>
                         ) : null}
-                        {ticket.createdAt}
+                        {formatPtBrDate(ticket.createdAt)}
                       </div>
                     </div>
 
