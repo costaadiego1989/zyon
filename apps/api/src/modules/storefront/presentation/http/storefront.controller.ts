@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Inject, NotFoundException, Param, Patch, Post, Query, Res } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -180,6 +180,33 @@ export class StorefrontController {
   ) {
     if (!merchantId) throw new NotFoundException("merchantId query param required");
     const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
+    return {
+      cartId: cart.sessionId,
+      items: cart.items.map((i) => ({
+        variantId: i.variantId,
+        productName: i.name,
+        quantity: i.quantity,
+        price: i.unitPriceCents / 100,
+        subtotal: (i.unitPriceCents * i.quantity) / 100,
+      })),
+      itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+      discount: cart.discount ? cart.discount / 100 : 0,
+      total: cart.total / 100,
+    };
+  }
+
+  @Patch("cart/:cartId/items/:variantId")
+  async updateCartItem(
+    @Param("cartId") cartId: string,
+    @Param("variantId") variantId: string,
+    @Query("merchantId") merchantId: string,
+    @Body() body: { quantity: number }
+  ) {
+    if (!merchantId) throw new BadRequestException("merchantId query param required");
+    if (body.quantity == null || !Number.isInteger(body.quantity) || body.quantity < 0 || body.quantity > 99) {
+      throw new BadRequestException("quantity must be an integer between 0 and 99");
+    }
+    const cart = await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, body.quantity);
     return {
       cartId: cart.sessionId,
       items: cart.items.map((i) => ({
