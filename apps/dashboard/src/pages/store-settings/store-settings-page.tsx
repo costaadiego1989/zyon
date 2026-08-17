@@ -215,13 +215,13 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
                 newHours[idx] = { ...hour, endTime: e.target.value, closed: false };
                 onHoursChange(newHours);
               }} disabled={hour.closed} style={{ ...fieldStyle, opacity: hour.closed ? 0.5 : 1 }} />
-              <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <label className="toggle" style={{ whiteSpace: "nowrap" }}>
                 <input type="checkbox" checked={hour.closed} onChange={(e) => {
                   const newHours = [...businessHours];
                   newHours[idx] = { ...hour, closed: e.target.checked };
                   onHoursChange(newHours);
-                }} />
-                <span style={{ fontSize: 11, color: "var(--faint)" }}>Fechado</span>
+                }} role="switch" aria-checked={hour.closed} />
+                Fechado
               </label>
             </div>
           ))}
