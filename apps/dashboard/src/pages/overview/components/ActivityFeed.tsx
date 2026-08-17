@@ -74,7 +74,7 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
       }}
     >
       <div style={{ marginBottom: 12 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: "var(--ink)", margin: 0, fontFamily: "var(--sans)", letterSpacing: -0.3 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)", margin: 0, fontFamily: "var(--sans)", letterSpacing: "-0.01em" }}>
           Atividade Recente
         </h3>
         <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Últimos eventos</p>

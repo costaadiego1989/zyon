@@ -50,8 +50,7 @@ function SeoGeneratorModal({
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)" }} onClick={onClose}>
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, maxWidth: 560, width: "90%", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ font: "600 16px var(--serif)", marginBottom: 16, color: "var(--ink)" }}>
-          <Sparkles size={16} style={{ marginRight: 8, verticalAlign: "middle" }} />
+        <h3 style={{ font: "600 14px var(--sans)", marginBottom: 16, color: "var(--accent)" }}>
           Gerar SEO com IA
         </h3>
 
@@ -177,8 +176,8 @@ export function SeoGtmTab({
       {/* ── SEO Section ── */}
       <section style={sectionCard}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <h3 style={{ font: "600 14px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 8 }}>
-            <Globe size={16} /> SEO — Metatags
+          <h3 style={{ font: "600 14px var(--sans)", color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
+            SEO — Metatags
           </h3>
           <Button variant="primary" size="sm" onClick={onOpenModal}>
             <Sparkles size={14} /> Gerar com IA
@@ -274,8 +273,8 @@ export function SeoGtmTab({
 
       {/* ── GTM Section ── */}
       <section style={sectionCard}>
-        <h3 style={{ font: "600 14px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-          <BarChart3 size={16} /> GTM & Analytics
+        <h3 style={{ font: "600 14px var(--sans)", color: "var(--accent)", marginBottom: 18 }}>
+          GTM & Analytics
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>

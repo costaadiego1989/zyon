@@ -146,7 +146,7 @@ export function CategoryForm({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-        <h2 style={{ font: "600 15px var(--serif)", color: "var(--ink)", margin: 0 }}>
+        <h2 style={{ font: "600 14px var(--sans)", color: "var(--accent)", margin: 0 }}>
           {mode === "edit" ? `Editar: ${category?.name ?? ""}` : "Nova categoria"}
         </h2>
         <button

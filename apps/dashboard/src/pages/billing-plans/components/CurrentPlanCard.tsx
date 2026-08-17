@@ -63,7 +63,7 @@ export function CurrentPlanCard({
           >
             SEU PLANO
           </div>
-          <h3 style={{ font: "700 24px var(--serif)", color: "var(--ink)", margin: 0 }}>
+          <h3 style={{ font: "700 24px var(--serif)", color: "var(--accent)", margin: 0 }}>
             {planName}
           </h3>
         </div>

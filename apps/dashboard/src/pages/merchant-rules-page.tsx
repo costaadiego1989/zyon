@@ -3,6 +3,7 @@ import { Bot, Save } from "lucide-react";
 import type { MerchantRules } from "@zyon/shared-types";
 import type { AgentRules, MerchantProfile as MerchantMeProfile } from "../api-client.js";
 import { RulesForm } from "../components/rules-form.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { QuickRepliesSection } from "../components/quick-replies-section.js";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
@@ -228,10 +229,7 @@ export function MerchantRulesAuthenticatedPage(props: {
         <div className="split-panel">
           <div className="split-panel-controls">
             <div className="panel stacked">
-              <div className="panel-title">
-                <h2>Capacidades</h2>
-              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>O que o agente pode fazer durante a conversa</p>
-              </div>
+              <SectionHeader title="Capacidades" subtitle="O que o agente pode fazer durante a conversa" />
               <RulesForm
                 rules={rules}
                 onChange={handleRulesChange}
@@ -248,13 +246,7 @@ export function MerchantRulesAuthenticatedPage(props: {
             </div>
 
             <section className="panel stacked rules-section-gap">
-              <div className="panel-title">
-                <h2>Limites</h2>
-                <Bot size={18} className="icon-brand" />
-              </div>
-              <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>
-                Restrições que o agente deve respeitar sempre
-              </p>
+              <SectionHeader title="Limites" subtitle="Restrições que o agente deve respeitar sempre" />
               {agentMessage ? (
                 <p className="panel panel-info">{agentMessage}</p>
               ) : null}
