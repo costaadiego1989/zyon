@@ -4,10 +4,9 @@ import type { PrismaClient } from "@prisma/client";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
-const ME_BASE_URL = process.env.MELHOR_ENVIO_BASE_URL ?? "https://sandbox.melhorenvio.com.br";
-const ME_CLIENT_ID = process.env.MELHOR_ENVIO_CLIENT_ID ?? "";
-const ME_SECRET = process.env.MELHOR_ENVIO_SECRET ?? "";
-const ME_REDIRECT_URI = process.env.MELHOR_ENVIO_REDIRECT_URI ?? "";
+function env(key: string, fallback = ""): string {
+  return process.env[key] ?? fallback;
+}
 
 @ApiTags("Shipping - Melhor Envio")
 @Controller("shipping/melhor-envio")
@@ -44,14 +43,14 @@ export class MelhorEnvioOAuthController {
     ];
 
     const params = new URLSearchParams({
-      client_id: ME_CLIENT_ID,
-      redirect_uri: ME_REDIRECT_URI,
+      client_id: env("MELHOR_ENVIO_CLIENT_ID"),
+      redirect_uri: env("MELHOR_ENVIO_REDIRECT_URI"),
       response_type: "code",
       scope: scopes.join(" "),
       state: merchantId,
     });
 
-    const url = `${ME_BASE_URL}/oauth/authorize?${params.toString()}`;
+    const url = `${env("MELHOR_ENVIO_BASE_URL", "https://sandbox.melhorenvio.com.br")}/oauth/authorize?${params.toString()}`;
     res.redirect(302, url);
   }
 
@@ -69,14 +68,14 @@ export class MelhorEnvioOAuthController {
 
     const merchantId = state;
 
-    const tokenRes = await fetch(`${ME_BASE_URL}/oauth/token`, {
+    const tokenRes = await fetch(`${env("MELHOR_ENVIO_BASE_URL", "https://sandbox.melhorenvio.com.br")}/oauth/token`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
         grant_type: "authorization_code",
-        client_id: ME_CLIENT_ID,
-        client_secret: ME_SECRET,
-        redirect_uri: ME_REDIRECT_URI,
+        client_id: env("MELHOR_ENVIO_CLIENT_ID"),
+        client_secret: env("MELHOR_ENVIO_SECRET"),
+        redirect_uri: env("MELHOR_ENVIO_REDIRECT_URI"),
         code,
       }),
     });
