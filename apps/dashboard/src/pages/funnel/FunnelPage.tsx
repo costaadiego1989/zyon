@@ -25,9 +25,9 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
       {/* ── Header ── */}
       <header className="fnl-head">
         <div className="fnl-head-left">
-          <span className="fnl-eyebrow">Checkout</span>
-          <h1 className="fnl-title">Funil de Conversão</h1>
-          <p className="fnl-subtitle">Métricas de progresso dos visitantes em cada etapa</p>
+          <span className="eyebrow">Checkout</span>
+          <h1>Funil de Conversão</h1>
+          <p className="page-lead">Métricas de progresso dos visitantes em cada etapa</p>
         </div>
         <div className="fnl-head-right">
           <select

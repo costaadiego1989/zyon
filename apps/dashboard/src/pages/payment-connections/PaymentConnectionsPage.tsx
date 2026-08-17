@@ -55,9 +55,9 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     return (
       <div className="payment-connections-page__login-required">
         <div className="payment-connections-page__title-group">
-          <div className="payment-connections-page__label">PAGAMENTOS</div>
-          <h1 className="payment-connections-page__title">Conexões de pagamento</h1>
-          <div className="payment-connections-page__subtitle">Faça login para gerenciar suas conexões de pagamento.</div>
+          <span className="eyebrow">Pagamentos</span>
+          <h1>Conexões de pagamento</h1>
+          <p className="page-lead">Faça login para gerenciar suas conexões de pagamento</p>
         </div>
         <div className="payment-connections-page__login-card">
           <CreditCard size={22} aria-hidden="true" />
@@ -84,11 +84,11 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
       {/* Header */}
       <div className="payment-connections-page__header">
         <div className="payment-connections-page__title-group">
-          <div className="payment-connections-page__label">PAGAMENTOS</div>
-          <h1 className="payment-connections-page__title">Conexões de pagamento</h1>
-          <div className="payment-connections-page__subtitle">
-            Configure gateways e carteiras para receber pagamentos.
-          </div>
+          <span className="eyebrow">Pagamentos</span>
+          <h1>Conexões de pagamento</h1>
+          <p className="page-lead">
+            Configure gateways e carteiras para receber pagamentos
+          </p>
         </div>
         <button
           type="button"
