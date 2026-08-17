@@ -1,4 +1,6 @@
 import React from "react";
+import { Button } from "../components/Button.js";
+import { StatCard } from "./overview/components/StatCard.js";
 import {
   Activity,
   BookOpenCheck,
@@ -60,10 +62,6 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
             <Download size={16} />
             Postman
           </a>
-          <button type="button" disabled={busy || loading} onClick={() => void load()}>
-            <RefreshCw size={16} />
-            {loading ? "Atualizando..." : "Atualizar"}
-          </button>
         </div>
       </header>
 
@@ -85,34 +83,29 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </section>
       ) : null}
 
-      <div className="metrics">
-        <div className="metric metric-hero">
-          <Activity size={18} aria-hidden />
-          <span className="metric-value">
-            {apiReachable === null ? "—" : apiReachable ? "Online" : "Offline"}
-          </span>
-          <span className="metric-label">Status API</span>
-        </div>
-        <div className="metric">
-          <KeyRound size={18} aria-hidden />
-          <span className="metric-value">{activeKeysCount}</span>
-          <span className="metric-label">Chaves ativas</span>
-        </div>
-        <div className="metric">
-          <Webhook size={18} aria-hidden />
-          <span className="metric-value">{activeWebhooksCount}</span>
-          <span className="metric-label">Webhooks</span>
-        </div>
-        <div className="metric">
-          <Send size={18} aria-hidden />
-          <span className="metric-value">{deliveries.length}</span>
-          <span className="metric-label">Deliveries</span>
-          {deliveries.length > 0 && (
-            <span className={`metric-trend metric-trend--${deliverySuccessRate >= 90 ? "up" : "down"}`}>
-              {deliverySuccessRate}% sucesso
-            </span>
-          )}
-        </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14, marginBottom: 20 }}>
+        <StatCard
+          label="Status API"
+          value={apiReachable === null ? "—" : apiReachable ? "Online" : "Offline"}
+          icon={<Activity size={16} />}
+          accent={apiReachable ? "var(--good)" : "var(--danger)"}
+        />
+        <StatCard
+          label="Chaves ativas"
+          value={activeKeysCount}
+          icon={<KeyRound size={16} />}
+        />
+        <StatCard
+          label="Webhooks"
+          value={activeWebhooksCount}
+          icon={<Webhook size={16} />}
+        />
+        <StatCard
+          label="Deliveries"
+          value={deliveries.length}
+          icon={<Send size={16} />}
+          trend={deliveries.length > 0 ? deliverySuccessRate - 100 : undefined}
+        />
       </div>
 
       <section className="panel developer-quickstart">
