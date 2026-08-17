@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 
 export type FunnelPeriod = "today" | "7d" | "30d" | "90d";
 export type FunnelBreakdownDimension = "none" | "device" | "buyer_type" | "payment_method";
+export type FunnelSource = "storefront" | "checkout";
+export type FunnelPlan = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH";
 
 export interface FunnelStep {
   name: string;
@@ -71,6 +73,9 @@ export interface FunnelPageVM {
   setBreakdown: (b: FunnelBreakdownDimension) => void;
   compareEnabled: boolean;
   setCompareEnabled: (v: boolean) => void;
+  funnelSource: FunnelSource;
+  setFunnelSource: (s: FunnelSource) => void;
+  showSourceTabs: boolean;
   data: FunnelData | null;
   sessions: FunnelSession[];
   loading: boolean;
@@ -105,9 +110,17 @@ export function useFunnelPage(props: {
   apiBaseUrl: string;
   merchantId: string;
   merchantName?: string;
+  plan?: FunnelPlan;
 }): FunnelPageVM {
-  const { apiBaseUrl, merchantId, merchantName } = props;
+  const { apiBaseUrl, merchantId, merchantName, plan } = props;
 
+  const resolvedPlan: FunnelPlan = plan ?? "BOTH";
+  const showSourceTabs = resolvedPlan === "BOTH";
+
+  const initialSource: FunnelSource =
+    resolvedPlan === "CHECKOUT_ONLY" ? "checkout" : "storefront";
+
+  const [funnelSource, setFunnelSource] = useState<FunnelSource>(initialSource);
   const [period, setPeriod] = useState<FunnelPeriod>("7d");
   const [breakdown, setBreakdown] = useState<FunnelBreakdownDimension>("none");
   const [compareEnabled, setCompareEnabled] = useState(false);
@@ -125,8 +138,12 @@ export function useFunnelPage(props: {
       if (breakdown !== "none") params.set("breakdown", breakdown);
       if (compareEnabled) params.set("compare", "true");
 
+      const endpoint = funnelSource === "storefront"
+        ? `${apiBaseUrl}/storefront/funnel/${merchantId}`
+        : `${apiBaseUrl}/checkout/funnel/${merchantId}`;
+
       const res = await fetch(
-        `${apiBaseUrl}/checkout/funnel/${merchantId}?${params.toString()}`,
+        `${endpoint}?${params.toString()}`,
         { credentials: "include" },
       );
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -139,7 +156,7 @@ export function useFunnelPage(props: {
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, merchantId, period, breakdown, compareEnabled]);
+  }, [apiBaseUrl, merchantId, period, breakdown, compareEnabled, funnelSource]);
 
   const fetchSessions = useCallback(async () => {
     try {
@@ -201,6 +218,9 @@ export function useFunnelPage(props: {
     setBreakdown,
     compareEnabled,
     setCompareEnabled,
+    funnelSource,
+    setFunnelSource,
+    showSourceTabs,
     data,
     sessions,
     loading,

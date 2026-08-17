@@ -103,6 +103,35 @@
 
 /* ── Period Tabs ──────────────────────────────────────────────────────────── */
 
+/* ── Source Tabs (dual-channel) ─────────────────────────────────────────── */
+
+.fnl-source-tabs {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  width: fit-content;
+}
+.fnl-source-tab {
+  padding: 8px 16px;
+  border: none;
+  background: var(--card);
+  color: var(--muted);
+  font: 600 12px var(--font-sans);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease),
+              background var(--duration-fast) var(--ease);
+}
+.fnl-source-tab:not(:last-child) {
+  border-right: 1px solid var(--border);
+}
+.fnl-source-tab:hover { color: var(--ink); }
+.fnl-source-tab.active {
+  background: var(--accent);
+  color: #fff;
+}
+
 .fnl-metrics {
   display: grid;
   grid-template-columns: repeat(4, 1fr);

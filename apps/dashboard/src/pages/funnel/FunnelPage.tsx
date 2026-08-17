@@ -17,7 +17,7 @@ const PERIODS = [
 ] as const;
 
 export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: MerchantProfile }) {
-  const vm = useFunnelPage({ apiBaseUrl, merchantId: me.id, merchantName: me.name });
+  const vm = useFunnelPage({ apiBaseUrl, merchantId: me.id, merchantName: me.name, plan: me.plan });
 
   return (
     <div className="dashboard-content funnel-page">
@@ -62,6 +62,26 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
           </button>
         </div>
       </header>
+
+      {/* ── Source Tabs (for BOTH plan) ── */}
+      {vm.showSourceTabs && (
+        <div className="fnl-source-tabs">
+          <button
+            type="button"
+            className={`fnl-source-tab${vm.funnelSource === "storefront" ? " active" : ""}`}
+            onClick={() => vm.setFunnelSource("storefront")}
+          >
+            Jornada completa
+          </button>
+          <button
+            type="button"
+            className={`fnl-source-tab${vm.funnelSource === "checkout" ? " active" : ""}`}
+            onClick={() => vm.setFunnelSource("checkout")}
+          >
+            Widget Checkout
+          </button>
+        </div>
+      )}
 
       {/* ── Bottleneck ── */}
       {vm.data?.bottleneck && (
