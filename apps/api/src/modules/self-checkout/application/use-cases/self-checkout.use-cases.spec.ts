@@ -33,6 +33,7 @@ describe("RegisterBuyerUserUseCase", () => {
     const useCase = new RegisterBuyerUserUseCase(users, wallets, outbox);
 
     const result = await useCase.execute({
+      merchant_id: "test_merchant",
       email: "buyer@test.com",
       password: "hashed_password",
       marketing_opt_in: false,
@@ -57,9 +58,9 @@ describe("RegisterBuyerUserUseCase", () => {
     const { users, wallets, outbox } = makeRepos();
     const useCase = new RegisterBuyerUserUseCase(users, wallets, outbox);
 
-    await useCase.execute({ email: "dup@test.com", password: "hash", marketing_opt_in: false });
+    await useCase.execute({ merchant_id: "test_merchant", email: "dup@test.com", password: "hash", marketing_opt_in: false });
     await assert.rejects(
-      () => useCase.execute({ email: "dup@test.com", password: "hash", marketing_opt_in: false }),
+      () => useCase.execute({ merchant_id: "test_merchant", email: "dup@test.com", password: "hash", marketing_opt_in: false }),
       { message: "EMAIL_ALREADY_REGISTERED" }
     );
   });
@@ -69,11 +70,11 @@ describe("RegisterBuyerUserUseCase", () => {
     const { users, wallets, outbox } = makeRepos();
     const useCase = new RegisterBuyerUserUseCase(users, wallets, outbox);
 
-    await useCase.execute({ email: "Test@example.com", password: "hash", marketing_opt_in: false });
+    await useCase.execute({ merchant_id: "test_merchant", email: "Test@example.com", password: "hash", marketing_opt_in: false });
 
     // Same address, different case → must be rejected
     await assert.rejects(
-      () => useCase.execute({ email: "test@EXAMPLE.COM", password: "hash2", marketing_opt_in: false }),
+      () => useCase.execute({ merchant_id: "test_merchant", email: "test@EXAMPLE.COM", password: "hash2", marketing_opt_in: false }),
       { message: "EMAIL_ALREADY_REGISTERED" }
     );
   });
@@ -83,7 +84,7 @@ describe("RegisterBuyerUserUseCase", () => {
     const { users, wallets, outbox } = makeRepos();
     const useCase = new RegisterBuyerUserUseCase(users, wallets, outbox);
 
-    const { user_id } = await useCase.execute({ email: "  UPPER@Example.com  ", password: "hash", marketing_opt_in: false });
+    const { user_id } = await useCase.execute({ merchant_id: "test_merchant", email: "  UPPER@Example.com  ", password: "hash", marketing_opt_in: false });
     const stored = await users.findById(user_id);
     assert.equal(stored!.email, "upper@example.com");
   });
@@ -94,7 +95,7 @@ describe("RegisterBuyerUserUseCase", () => {
 // ---------------------------------------------------------------------------
 describe("AddSavedAddressUseCase", () => {
   async function setupUserAndWallet(repos: ReturnType<typeof makeRepos>) {
-    const user = BuyerUserEntity.create({ email: "u@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "u@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     const wallet = BuyerWalletEntity.create(user.id);
     await repos.users.save(user);
     await repos.wallets.save(wallet);
@@ -123,7 +124,7 @@ describe("AddSavedAddressUseCase", () => {
 
   it("throws 451 when buyer has no consent", async () => {
     const repos = makeRepos();
-    const user = BuyerUserEntity.create({ email: "nc@t.com", password_hash: "h", consent_version: "", marketing_opt_in: false });
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "nc@t.com", password_hash: "h", consent_version: "", marketing_opt_in: false });
     const wallet = BuyerWalletEntity.create(user.id);
     await repos.users.save(user);
     await repos.wallets.save(wallet);
@@ -142,7 +143,7 @@ describe("AddSavedAddressUseCase", () => {
 // ---------------------------------------------------------------------------
 describe("AddSavedPaymentMethodUseCase", () => {
   async function setupUserWalletAndToken(repos: ReturnType<typeof makeRepos>) {
-    const user = BuyerUserEntity.create({ email: "pm@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "pm@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     const wallet = BuyerWalletEntity.create(user.id);
     await repos.users.save(user);
     await repos.wallets.save(wallet);
@@ -237,7 +238,7 @@ describe("StubPaymentTokenizerAdapter", () => {
 // ---------------------------------------------------------------------------
 describe("CreateCheckoutTemplateUseCase", () => {
   async function setupUserWithWallet(repos: ReturnType<typeof makeRepos>) {
-    const user = BuyerUserEntity.create({ email: "tpl@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "tpl@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     let wallet = BuyerWalletEntity.create(user.id);
     await repos.users.save(user);
     wallet = wallet.addAddress({ label: "Home", zip_code: "01310-100", street: "Av. Paulista", city: "São Paulo", state: "SP", country: "BR", is_default: true });
@@ -321,7 +322,7 @@ describe("CreateCheckoutTemplateUseCase", () => {
 // ---------------------------------------------------------------------------
 describe("ExecuteCheckoutTemplateUseCase", () => {
   async function setupBuyerWithWalletAndTemplate(repos: ReturnType<typeof makeRepos>, email = "exec@t.com") {
-    const user = BuyerUserEntity.create({ email, password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant", email, password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     let wallet = BuyerWalletEntity.create(user.id);
     await repos.users.save(user);
 
@@ -399,7 +400,7 @@ describe("ExecuteCheckoutTemplateUseCase", () => {
     const { templateId } = await setupBuyerWithWalletAndTemplate(repos, "buyer-a@t.com");
 
     // Buyer B exists but has a different wallet — no access to A's template
-    const buyerB = BuyerUserEntity.create({ email: "buyer-b@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const buyerB = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "buyer-b@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     await repos.users.save(buyerB);
     await repos.wallets.save(BuyerWalletEntity.create(buyerB.id));
 

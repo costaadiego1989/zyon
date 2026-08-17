@@ -58,7 +58,7 @@ export class AddSavedPaymentMethodUseCase {
     await this.outbox.appendOutbox(
       createSelfCheckoutEventEnvelope({
         eventType: "buyer.wallet.payment-method-added",
-        merchantId: "platform",
+        merchantId: user.merchant_id,
         payload: { global_user_id: user.id, method_id: method.id, brand: token.brand, last_four: token.last_four },
       })
     );

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 
 export interface BuyerUserSnapshot {
   id: string;
+  merchant_id: string;
   email: string;
   password_hash: string;
   display_name: string | null;
@@ -15,6 +16,7 @@ export class BuyerUserEntity {
   private constructor(private readonly data: BuyerUserSnapshot) {}
 
   static create(input: {
+    merchant_id: string;
     email: string;
     password_hash: string;
     display_name?: string;
@@ -23,6 +25,7 @@ export class BuyerUserEntity {
   }): BuyerUserEntity {
     return new BuyerUserEntity({
       id: randomUUID(),
+      merchant_id: input.merchant_id,
       email: input.email,
       password_hash: input.password_hash,
       display_name: input.display_name ?? null,
@@ -38,6 +41,7 @@ export class BuyerUserEntity {
   }
 
   get id() { return this.data.id; }
+  get merchant_id() { return this.data.merchant_id; }
   get email() { return this.data.email; }
   get password_hash() { return this.data.password_hash; }
   get display_name() { return this.data.display_name; }

@@ -9,6 +9,7 @@ import { createSelfCheckoutEventEnvelope } from "../../domain/events/self-checko
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterBuyerUserInput {
+  merchant_id: string;
   email: string;
   password: string;
   display_name?: string;
@@ -33,6 +34,7 @@ export class RegisterBuyerUserUseCase {
     if (existing) throw new ConflictException("EMAIL_ALREADY_REGISTERED");
 
     const user = BuyerUserEntity.create({
+      merchant_id: input.merchant_id,
       email: normalizedEmail,
       password_hash: input.password,
       display_name: input.display_name,
@@ -47,7 +49,7 @@ export class RegisterBuyerUserUseCase {
     await this.outbox.appendOutbox(
       createSelfCheckoutEventEnvelope({
         eventType: "buyer.registered",
-        merchantId: "platform",
+        merchantId: input.merchant_id,
         payload: { global_user_id: user.id, email: user.email, created_at: user.created_at.toISOString() },
       })
     );

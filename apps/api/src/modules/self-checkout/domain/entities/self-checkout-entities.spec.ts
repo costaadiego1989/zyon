@@ -12,6 +12,7 @@ import { BuyerCheckoutTemplateEntity } from "./buyer-checkout-template.entity.js
 describe("BuyerUserEntity", () => {
   it("creates user with all fields and generates id", () => {
     const user = BuyerUserEntity.create({
+      merchant_id: "test_merchant",
       email: "buyer@test.com",
       password_hash: "scrypt:salt:hash",
       display_name: "John",
@@ -31,6 +32,7 @@ describe("BuyerUserEntity", () => {
 
   it("defaults display_name to null when omitted", () => {
     const user = BuyerUserEntity.create({
+      merchant_id: "test_merchant",
       email: "x@t.com",
       password_hash: "h",
       consent_version: "v1",
@@ -41,6 +43,7 @@ describe("BuyerUserEntity", () => {
 
   it("updateConsent returns new entity with updated fields", () => {
     const user = BuyerUserEntity.create({
+      merchant_id: "test_merchant",
       email: "x@t.com",
       password_hash: "h",
       consent_version: "v1",
@@ -57,6 +60,7 @@ describe("BuyerUserEntity", () => {
 
   it("updateProfile returns new entity with updated display_name", () => {
     const user = BuyerUserEntity.create({
+      merchant_id: "test_merchant",
       email: "x@t.com",
       password_hash: "h",
       consent_version: "v1",
@@ -70,6 +74,7 @@ describe("BuyerUserEntity", () => {
 
   it("rehydrate restores entity from snapshot", () => {
     const user = BuyerUserEntity.create({
+      merchant_id: "test_merchant",
       email: "x@t.com",
       password_hash: "h",
       consent_version: "v1",
@@ -82,6 +87,7 @@ describe("BuyerUserEntity", () => {
 
   it("snapshot returns a decoupled copy", () => {
     const user = BuyerUserEntity.create({
+      merchant_id: "test_merchant",
       email: "x@t.com",
       password_hash: "h",
       consent_version: "v1",

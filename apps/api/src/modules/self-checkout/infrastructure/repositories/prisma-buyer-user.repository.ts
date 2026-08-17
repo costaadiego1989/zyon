@@ -32,7 +32,7 @@ export class PrismaBuyerUserRepository implements BuyerUserRepository {
       },
       create: {
         id: snap.id,
-        merchantId: "platform", // TODO: wire merchant_id through BuyerUserEntity when multi-tenant buyer users are supported
+        merchantId: snap.merchant_id,
         email: snap.email.toLowerCase(),
         passwordHash: snap.password_hash,
         displayName: snap.display_name,
@@ -47,6 +47,7 @@ export class PrismaBuyerUserRepository implements BuyerUserRepository {
   private toDomain(row: any): BuyerUserEntity {
     return BuyerUserEntity.rehydrate({
       id: row.id,
+      merchant_id: row.merchantId,
       email: row.email,
       password_hash: row.passwordHash,
       display_name: row.displayName,

@@ -23,7 +23,7 @@ export class UpdateConsentUseCase {
     await this.outbox.appendOutbox(
       createSelfCheckoutEventEnvelope({
         eventType: "buyer.consent.updated",
-        merchantId: "platform",
+        merchantId: user.merchant_id,
         payload: { global_user_id: user.id, consent_version: input.consent_version, marketing_opt_in: input.marketing_opt_in },
       })
     );

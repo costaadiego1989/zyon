@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+﻿import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { BuyerAuthController } from "./buyer-auth.controller.js";
 import { RegisterBuyerUserUseCase } from "../../application/use-cases/register-buyer-user.use-case.js";
@@ -20,6 +20,7 @@ describe("BuyerAuthController", () => {
     const { controller } = makeController();
 
     const result = await controller.registerBuyer({
+      merchant_id: "test_merchant",
       email: "new@test.com",
       password: "securepassword123",
     });
@@ -34,6 +35,7 @@ describe("BuyerAuthController", () => {
     const { controller, users } = makeController();
 
     const result = await controller.registerBuyer({
+      merchant_id: "test_merchant",
       email: "hash@test.com",
       password: "mypassword",
     });
@@ -47,6 +49,7 @@ describe("BuyerAuthController", () => {
     const { controller } = makeController();
 
     await controller.registerBuyer({
+      merchant_id: "test_merchant",
       email: "login@test.com",
       password: "correcthorse",
     });
@@ -65,6 +68,7 @@ describe("BuyerAuthController", () => {
     const { controller } = makeController();
 
     await controller.registerBuyer({
+      merchant_id: "test_merchant",
       email: "wrong@test.com",
       password: "correct",
     });
@@ -87,10 +91,10 @@ describe("BuyerAuthController", () => {
   it("registerBuyer rejects duplicate email", async () => {
     const { controller } = makeController();
 
-    await controller.registerBuyer({ email: "dup@test.com", password: "p1" });
+    await controller.registerBuyer({ merchant_id: "test_merchant", email: "dup@test.com", password: "p1" });
 
     await assert.rejects(
-      () => controller.registerBuyer({ email: "dup@test.com", password: "p2" }),
+      () => controller.registerBuyer({ merchant_id: "test_merchant", email: "dup@test.com", password: "p2" }),
       { message: "EMAIL_ALREADY_REGISTERED" }
     );
   });
@@ -99,6 +103,7 @@ describe("BuyerAuthController", () => {
     const { controller } = makeController();
 
     await controller.registerBuyer({
+      merchant_id: "test_merchant",
       email: "CaseTest@Example.com",
       password: "pass",
     });

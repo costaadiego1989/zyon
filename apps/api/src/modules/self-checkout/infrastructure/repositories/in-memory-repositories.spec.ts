@@ -12,7 +12,7 @@ import { BuyerCheckoutTemplateEntity } from "../../domain/entities/buyer-checkou
 // ---------------------------------------------------------------------------
 describe("InMemoryBuyerUserRepository", () => {
   function makeUser(email = "user@test.com") {
-    return BuyerUserEntity.create({
+    return BuyerUserEntity.create({ merchant_id: "test_merchant",
       email,
       password_hash: "hash",
       consent_version: "v1",

@@ -23,7 +23,7 @@ function makeRepos() {
 }
 
 async function setupUserAndWallet(repos: ReturnType<typeof makeRepos>) {
-  const user = BuyerUserEntity.create({
+  const user = BuyerUserEntity.create({ merchant_id: "test_merchant",
     email: "u@t.com",
     password_hash: "h",
     consent_version: CURRENT_CONSENT_VERSION,
@@ -88,7 +88,7 @@ describe("RemoveSavedAddressUseCase", () => {
 // ---------------------------------------------------------------------------
 describe("DeleteSavedPaymentMethodUseCase", () => {
   async function setupWithPaymentMethod(repos: ReturnType<typeof makeRepos>) {
-    const user = BuyerUserEntity.create({
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant",
       email: "pm@t.com",
       password_hash: "h",
       consent_version: CURRENT_CONSENT_VERSION,
@@ -217,7 +217,7 @@ describe("ListTemplatesForBuyerUseCase", () => {
 describe("UpdateConsentUseCase", () => {
   it("updates consent version and marketing_opt_in, fires outbox event", async () => {
     const repos = makeRepos();
-    const user = BuyerUserEntity.create({
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant",
       email: "consent@t.com",
       password_hash: "h",
       consent_version: "v1",
@@ -256,7 +256,7 @@ describe("UpdateConsentUseCase", () => {
 
   it("preserves other user fields when updating consent", async () => {
     const repos = makeRepos();
-    const user = BuyerUserEntity.create({
+    const user = BuyerUserEntity.create({ merchant_id: "test_merchant",
       email: "keep@t.com",
       password_hash: "secret_hash",
       display_name: "John",

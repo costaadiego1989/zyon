@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+﻿import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { BuyerMeController } from "./buyer-me.controller.js";
 import { AddSavedAddressUseCase } from "../../application/use-cases/add-saved-address.use-case.js";
@@ -45,7 +45,8 @@ function makeController(repos: ReturnType<typeof makeRepos>) {
 
 async function setupBuyer(repos: ReturnType<typeof makeRepos>) {
   const user = BuyerUserEntity.create({
-    email: "me@test.com",
+      merchant_id: "test_merchant",
+      email: "me@test.com",
     password_hash: "hash",
     consent_version: CURRENT_CONSENT_VERSION,
     marketing_opt_in: false,
@@ -216,14 +217,14 @@ describe("BuyerMeController", () => {
     const controller = makeController(repos);
 
     // Setup buyer A
-    const userA = BuyerUserEntity.create({ email: "a@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const userA = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "a@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     let walletA = BuyerWalletEntity.create(userA.id);
     walletA = walletA.addAddress({ label: "A's Addr", zip_code: "0", street: "s", city: "c", state: "SP", country: "BR", is_default: true });
     await repos.users.save(userA);
     await repos.wallets.save(walletA);
 
     // Setup buyer B
-    const userB = BuyerUserEntity.create({ email: "b@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
+    const userB = BuyerUserEntity.create({ merchant_id: "test_merchant", email: "b@t.com", password_hash: "h", consent_version: CURRENT_CONSENT_VERSION, marketing_opt_in: false });
     const walletB = BuyerWalletEntity.create(userB.id);
     await repos.users.save(userB);
     await repos.wallets.save(walletB);
