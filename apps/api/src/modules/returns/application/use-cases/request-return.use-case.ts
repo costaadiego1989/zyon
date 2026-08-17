@@ -1,7 +1,9 @@
-import { Injectable, Inject, BadRequestException , Logger} from "@nestjs/common";
+import { Injectable, Inject, BadRequestException, Logger } from "@nestjs/common";
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort, CreateReturnInput } from "../../domain/ports/return-repository.port.js";
-import { ReturnEntity } from "../../domain/entities/return.entity.js";
+import { ReturnEntity, type ReturnReason } from "../../domain/entities/return.entity.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+
+const VALID_REASONS: ReturnReason[] = ["DEFECTIVE", "WRONG_ITEM", "NOT_AS_DESCRIBED", "CHANGED_MIND", "DAMAGED_IN_TRANSIT", "OTHER"];
 
 @Injectable()
 export class RequestReturnUseCase {
@@ -19,6 +21,9 @@ export class RequestReturnUseCase {
   }): Promise<ReturnEntity> {
     if (!input.orderId?.trim()) {
       throw new BadRequestException("order_id_required");
+    }
+    if (!VALID_REASONS.includes(input.reason as ReturnReason)) {
+      throw new BadRequestException("invalid_return_reason");
     }
     if (!input.items?.length) {
       throw new BadRequestException("at_least_one_item_required");
