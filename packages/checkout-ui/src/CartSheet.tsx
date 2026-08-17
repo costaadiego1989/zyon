@@ -25,10 +25,10 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
         onClick={onClose}
         role="presentation"
         style={{
-          position: "fixed",
+          position: "absolute",
           inset: 0,
           background: "rgba(0, 0, 0, 0.45)",
-          zIndex: 9995,
+          zIndex: 95,
           animation: "ckui-scrim-in 0.2s ease both",
         }}
       />
@@ -38,11 +38,11 @@ export function CartSheet({ open, cart, onClose, onCheckout, onUpdateQty, onRemo
         role="dialog"
         aria-label="Carrinho"
         style={{
-          position: "fixed",
+          position: "absolute",
           ...(isBottom
-            ? { bottom: 0, left: 0, right: 0, maxHeight: "75vh", borderRadius: "20px 20px 0 0" }
-            : { top: 0, right: 0, bottom: 0, width: "min(380px, 90vw)" }),
-          zIndex: 9996,
+            ? { bottom: 0, left: 0, right: 0, maxHeight: "70vh", borderRadius: "20px 20px 0 0" }
+            : { top: 0, right: 0, bottom: 0, width: "min(380px, 100%)" }),
+          zIndex: 96,
           background: "var(--aacp-surface, #0f0f16)",
           borderLeft: isBottom ? undefined : "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
           borderTop: isBottom ? "1px solid var(--aacp-line, rgba(255,255,255,0.1))" : undefined,
