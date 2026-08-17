@@ -23,7 +23,7 @@ export class DnsWebhookTargetPolicy implements WebhookTargetPolicy {
       url.protocol === "http:" &&
       ["localhost", "127.0.0.1", "[::1]", "::1"].includes(url.hostname);
     if (isLoopbackHttp && process.env.NODE_ENV !== "production") {
-      return { url: url.toString(), pinnedAddresses: [url.hostname] };
+      return { url: url.toString(), pinnedAddresses: ["127.0.0.1"] };
     }
 
     if (url.protocol !== "https:") {

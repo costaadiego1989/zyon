@@ -186,13 +186,15 @@ model CommercePaidEvent {
 }
 
 model MerchantUser {
-  id           String   @id @default(cuid())
-  merchantId   String   @map("merchant_id")
-  email        String
-  passwordHash String   @map("password_hash")
-  role         String
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id              String   @id @default(cuid())
+  merchantId      String   @map("merchant_id")
+  email           String
+  passwordHash    String?  @map("password_hash")
+  role            String
+  oauthProvider   String?  @map("oauth_provider")
+  oauthProviderId String?  @map("oauth_provider_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   merchant    Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
   agentRules  AgentRule[]
@@ -200,6 +202,7 @@ model MerchantUser {
 
   @@unique([email])
   @@index([merchantId])
+  @@index([oauthProvider, oauthProviderId])
   @@map("merchant_users")
 }
 
@@ -479,7 +482,7 @@ model MerchantWebhookDelivery {
   status         String
   attempts       Int       @default(0)
   envelope       Json
-  signingSecret  String    @map("signing_secret")
+  signingSecret  String?   @map("signing_secret")
   nextAttemptAt  DateTime? @map("next_attempt_at")
   responseStatus Int?      @map("response_status")
   responseBody   String?   @map("response_body")
