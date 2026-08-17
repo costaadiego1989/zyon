@@ -86,5 +86,19 @@ function assertSafeConnectionInput(
     return;
   }
 
-  // Other providers pass without validation in this use-case
+  if (input.provider === "shopify") {
+    if (!input.shopDomain?.trim()) {
+      throw new BadRequestException("shopify_shop_domain_required");
+    }
+    const domain = input.shopDomain.trim().toLowerCase();
+    if (!domain.endsWith(".myshopify.com") && !domain.includes(".")) {
+      throw new BadRequestException("invalid_shopify_domain");
+    }
+    if (!input.adminAccessToken?.trim()) {
+      throw new BadRequestException("shopify_access_token_required");
+    }
+    return;
+  }
+
+  throw new BadRequestException("unsupported_commerce_provider");
 }
