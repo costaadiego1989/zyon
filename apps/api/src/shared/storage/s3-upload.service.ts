@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { randomUUID } from "node:crypto";
 
 export interface UploadResult {
@@ -72,5 +72,33 @@ export class S3UploadService {
 
   isConfigured(): boolean {
     return this.client !== null;
+  }
+
+  async delete(url: string): Promise<void> {
+    if (!this.client) throw new Error("s3_not_configured");
+    const key = this.extractKeyFromUrl(url);
+    if (!key) throw new Error("invalid_s3_url");
+
+    await this.client.send(new DeleteObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+    }));
+    this.logger.log(`Deleted ${key}`);
+  }
+
+  private extractKeyFromUrl(url: string): string | null {
+    try {
+      const parsed = new URL(url);
+      if (this.endpoint) {
+        // LocalStack/R2: endpoint/bucket/key
+        const prefix = `/${this.bucket}/`;
+        const idx = parsed.pathname.indexOf(prefix);
+        return idx >= 0 ? parsed.pathname.slice(idx + prefix.length) : null;
+      }
+      // Standard S3: bucket.s3.region.amazonaws.com/key
+      return parsed.pathname.startsWith("/") ? parsed.pathname.slice(1) : parsed.pathname;
+    } catch {
+      return null;
+    }
   }
 }

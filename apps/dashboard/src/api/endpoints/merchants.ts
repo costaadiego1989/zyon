@@ -39,8 +39,16 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/merchants/me/store-settings", { method: "PUT", jsonBody: settings }, f);
     },
 
+    putStoreName(name: string): Promise<{ name: string }> {
+      return dashboardJson(base, "/merchants/me/name", { method: "PUT", jsonBody: { name } }, f);
+    },
+
     generatePolicy(type: string, company?: Record<string, unknown>): Promise<{ policy: string }> {
       return dashboardJson(base, "/merchants/me/generate-policy", { method: "POST", jsonBody: { type, company } }, f);
+    },
+
+    deleteStorageObject(url: string): Promise<{ deleted: boolean }> {
+      return dashboardJson(base, `/storage/object?url=${encodeURIComponent(url)}`, { method: "DELETE" }, f);
     },
   };
 }
