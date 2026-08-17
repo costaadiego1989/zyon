@@ -79,12 +79,12 @@ export const NAV_ITEMS: Array<{
   { key: "settings", label: "Configurações", section: "Checkout", icon: Settings2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "agent-config-checkout", label: "Agente IA", section: "Checkout", icon: Bot, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "theme-checkout", label: "Tema", section: "Checkout", icon: Palette, requiredPlan: ["CHECKOUT_ONLY"] },
-  { key: "embed", label: "Embed / Instalação", section: "Checkout", icon: Code2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
 
   // ─── Integrações ───
   { key: "integrations", label: "Desenvolvedores", section: "Integrações", icon: Webhook },
+  { key: "embed", label: "Embed / Instalação", section: "Integrações", icon: Code2 },
   { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
 
