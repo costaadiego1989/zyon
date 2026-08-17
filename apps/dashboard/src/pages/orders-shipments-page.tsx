@@ -13,6 +13,7 @@ import { Pagination } from "../components/Pagination.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import type { MerchantProfile, TenantOrder } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
+import { Button } from "../components/Button.js";
 import { STATUS_LABELS, formatMinor, formatDate, formatPhone, customerLabel} from "./orders-shipments/utils.js";
 
 // ── Page Component (View) ───────────────────────────────────────────────────
@@ -288,14 +289,9 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
               onChange={(e) => vm.updateTrackingDraft(order.id, e.target.value)}
               style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", color: "var(--color-text)", font: "13px var(--font-mono)" }}
             />
-            <button
-              type="button"
-              onClick={() => void vm.saveManualTracking(order)}
-              disabled={vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()}
-              style={{ padding: "10px 16px", borderRadius: 8, border: "none", background: "var(--color-brand)", color: "white", font: "600 12px var(--font-sans)", cursor: vm.busy ? "not-allowed" : "pointer", opacity: vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim() ? 0.5 : 1, whiteSpace: "nowrap" }}
-            >
+            <Button variant="primary" size="sm" arrow disabled={vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()} onClick={() => void vm.saveManualTracking(order)}>
               Salvar e enviar
-            </button>
+            </Button>
           </div>
           <button
             type="button"

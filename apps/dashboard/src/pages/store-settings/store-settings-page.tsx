@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
+import { Button } from "../../components/Button.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm, type StylesForm } from "./useStoreSettingsPage.js";
 import { maskPhone, maskCEP, maskCNPJ } from "../../utils/masks.js";
@@ -24,14 +25,9 @@ export function StoreSettingsPage() {
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Dados da empresa, endereço, horários, políticas e redes sociais.</div>
         </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={state.saving}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: state.saving ? "not-allowed" : "pointer", opacity: state.saving ? 0.6 : 1, flex: "none" }}
-        >
-          <Save size={14} /> {state.saving ? "Salvando..." : "Salvar configurações"}
-        </button>
+        <Button variant="primary" size="sm" arrow onClick={handleSave} disabled={state.saving} loading={state.saving}>
+          <Save size={14} /> Salvar configurações
+        </Button>
       </div>
 
       {/* Card container */}

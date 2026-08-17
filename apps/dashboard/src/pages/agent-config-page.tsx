@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
+import { Button } from "../components/Button.js";
 import { applyCurrencyMask } from "../utils/currency.js";
 import { PrefixInput } from "../components/PrefixInput.js";
 import { TabBar } from "../components/TabBar.js";
@@ -34,14 +35,9 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Agente da loja</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Personalize o agente que atende seus clientes.</div>
         </div>
-        <button
-          type="button"
-          onClick={() => void vm.handleSave()}
-          disabled={!vm.loaded || vm.saving || vm.hasErrors}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: !vm.loaded || vm.saving || vm.hasErrors ? "not-allowed" : "pointer", opacity: !vm.loaded || vm.saving || vm.hasErrors ? 0.6 : 1, flex: "none" }}
-        >
-          <Save size={14} /> {vm.saving ? "Salvando..." : "Salvar alterações"}
-        </button>
+        <Button variant="primary" size="sm" arrow onClick={() => void vm.handleSave()} disabled={!vm.loaded || vm.saving || vm.hasErrors} loading={vm.saving}>
+          <Save size={14} /> Salvar alterações
+        </Button>
       </div>
 
       {vm.loading ? (

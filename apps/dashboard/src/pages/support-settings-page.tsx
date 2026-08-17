@@ -13,6 +13,7 @@ import {
   Clock,
   Filter,
 } from "lucide-react";
+import { Button } from "../components/Button.js";
 import type {
   SupportFaqItem,
   SupportSettings,
@@ -241,19 +242,12 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button type="button" disabled={loading || busy} onClick={() => void load()} style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer", height: 36 }}>
-            <RefreshCw size={14} />
-            Atualizar
-          </button>
-          <button
-            type="button"
-            disabled={busy || !settings}
-            onClick={() => void save()}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: "linear-gradient(150deg, var(--accent), var(--accent-dark))", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", height: 36 }}
-          >
-            <Save size={14} />
-            {busy ? "Salvando…" : "Salvar FAQ"}
-          </button>
+          <Button variant="outline" size="sm" disabled={loading || busy} onClick={() => void load()}>
+            <RefreshCw size={14} /> Atualizar
+          </Button>
+          <Button variant="primary" size="sm" arrow disabled={busy || !settings} loading={busy} onClick={() => void save()}>
+            <Save size={14} /> Salvar FAQ
+          </Button>
         </div>
       </header>
 

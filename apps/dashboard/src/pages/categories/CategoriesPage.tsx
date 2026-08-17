@@ -8,6 +8,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { Pagination } from "../../components/Pagination.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
+import { Button } from "../../components/Button.js";
 
 const PAGE_SIZE = 20;
 
@@ -77,13 +78,9 @@ export function CategoriesPage(props: CategoriesPageProps) {
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Categorias</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Organize os produtos da sua loja em categorias.</div>
         </div>
-        <button
-          type="button"
-          onClick={() => vm.startCreate()}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", flex: "none" }}
-        >
+        <Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}>
           <Plus size={14} /> Nova categoria
-        </button>
+        </Button>
       </div>
 
       {vm.error ? (

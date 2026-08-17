@@ -6,6 +6,7 @@ import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
 import { CurrencyField } from "../components/CurrencyField.js";
 import { PrefixInput } from "../components/PrefixInput.js";
 import { centsToReais, reaisToCents, applyCurrencyMask } from "../utils/currency.js";
+import { Button } from "../components/Button.js";
 
 export type ProductType = "physical" | "digital" | "service";
 
@@ -379,14 +380,9 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA / CATÁLOGO</div>
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>{isEditing ? "Editar produto" : "Novo produto"}</h1>
         </div>
-        <button
-          type="button"
-          onClick={() => void handleSave()}
-          disabled={!canSave}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: canSave ? "pointer" : "not-allowed", opacity: canSave ? 1 : 0.6, flex: "none" }}
-        >
+        <Button variant="primary" size="sm" arrow disabled={!canSave} onClick={() => void handleSave()}>
           <Save size={14} /> {saving ? "Salvando..." : isEditing ? "Salvar alterações" : "Criar produto"}
-        </button>
+        </Button>
       </div>
 
       <SaveFeedbackBanner

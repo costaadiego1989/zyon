@@ -3,6 +3,7 @@ import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from 
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { Pagination } from "../components/Pagination.js";
+import { Button } from "../components/Button.js";
 import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
@@ -199,20 +200,12 @@ export function CatalogPage(props: CatalogPageProps) {
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Gerencie os produtos disponíveis na sua loja.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button
-            type="button"
-            onClick={() => setShowCsvModal(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer", flex: "none" }}
-          >
+          <Button variant="outline" size="sm" onClick={() => setShowCsvModal(true)}>
             <Upload size={14} /> Importar CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => props.onCreate?.()}
-            style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", flex: "none" }}
-          >
+          </Button>
+          <Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}>
             <Plus size={14} /> Novo produto
-          </button>
+          </Button>
         </div>
       </div>
 

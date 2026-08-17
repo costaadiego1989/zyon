@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { CreditCard, ExternalLink, RefreshCw, Sparkles, CheckCircle2, Receipt, Activity, Zap, BarChart3 } from "lucide-react";
+import { CreditCard, Receipt, Activity, Zap, BarChart3 } from "lucide-react";
 import {
   type BillingSubscription,
   type MerchantProfile,
@@ -60,15 +60,6 @@ function subscriptionStatusBadge(status: string | undefined) {
   );
 }
 
-function planBadge() {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: "600 11px var(--mono)", background: "var(--good-soft)", color: "var(--good)", border: "1px solid var(--good)", fontWeight: 600 }}>
-      <CheckCircle2 size={12} />
-      Seu plano atual
-    </span>
-  );
-}
-
 function formatLimit(limit: number | null | undefined): string {
   return limit === null ? "Ilimitado" : typeof limit === "number" ? new Intl.NumberFormat("pt-BR").format(limit) : "—";
 }
@@ -97,33 +88,6 @@ function UsageBar(props: { label: string; current?: number | null; limit?: numbe
   );
 }
 
-const PLANS = [
-  {
-    key: "starter",
-    name: "Starter",
-    priceId: "starter",
-    price: "R$ 89/mês",
-    fee: "1,99% por transação",
-    features: ["50 pedidos/mês", "50 sessões/mês", "100 conversas IA/mês", "1 conexão commerce", "Webhooks ilimitados", "1 cross-sell", "1 cupom ativo", "Tema e agente customizados", "Sem marca d’água"],
-  },
-  {
-    key: "growth",
-    name: "Growth",
-    priceId: "growth",
-    price: "R$ 199/mês",
-    fee: "1,49% por transação",
-    features: ["500 pedidos/mês", "1.000 sessões/mês", "5.000 conversas IA/mês", "2 conexões commerce", "Webhooks ilimitados", "10 cross-sells", "10 cupons ativos", "Tema e agente customizados", "Voice checkout", "Face biometry", "Crypto payments"],
-    highlight: true,
-  },
-  {
-    key: "scale",
-    name: "Scale",
-    priceId: "scale",
-    price: "R$ 499/mês",
-    fee: "0,99% por transação",
-    features: ["Pedidos ilimitados", "Sessões ilimitadas", "Conversas IA ilimitadas", "Conexões commerce ilimitadas", "Webhooks ilimitados", "10 membros", "Cross-sell ilimitado", "Cupons ilimitados", "Face biometry", "Crypto payments", "White-label"],
-  },
-];
 
 export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useApi();
@@ -168,23 +132,6 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
     }
   }
 
-  async function openCheckout(priceId: string) {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const { url } = await api.createBillingCheckoutSession({
-        price_id: priceId,
-        success_url: window.location.href,
-        cancel_url: window.location.href,
-      });
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
   if (!props.me) {
     return (
       <>
@@ -202,44 +149,10 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
 
   return (
     <>
-      <div style={{ marginBottom: 20, display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
-        <div>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>CONTA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Faturamento</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Gerencie sua assinatura e acompanhe o uso da plataforma.</div>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-          <button
-            type="button"
-            style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", font: "600 13px var(--mono)", cursor: loading || busy ? "not-allowed" : "pointer", opacity: loading || busy ? 0.5 : 1 }}
-            disabled={loading || busy}
-            onClick={() => void load()}
-          >
-            <RefreshCw size={16} aria-hidden="true" />
-            Atualizar
-          </button>
-          {subscription ? (
-            <button
-              type="button"
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "none", background: "linear-gradient(180deg, var(--accent), var(--accent-dark))", color: "var(--bg)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
-              disabled={busy}
-              onClick={() => void openPortal()}
-            >
-              <ExternalLink size={16} aria-hidden="true" />
-              Portal de faturamento
-            </button>
-          ) : (
-            <button
-              type="button"
-              style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "10px 16px", borderRadius: 10, border: "none", background: "linear-gradient(180deg, var(--accent), var(--accent-dark))", color: "var(--bg)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }}
-              disabled={busy}
-              onClick={() => void openCheckout("starter")}
-            >
-              <CreditCard size={16} aria-hidden="true" />
-              Assinar plano
-            </button>
-          )}
-        </div>
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>CONTA</div>
+        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Faturamento</h1>
+        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Gerencie sua assinatura e acompanhe o uso da plataforma.</div>
       </div>
 
       <div role="status" aria-live="polite">
@@ -346,78 +259,6 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         </p>
       </section>
 
-      <div style={{ margin: "8px 0 16px 0" }}>
-        <h2 style={{ font: "600 16px var(--mono)", color: "var(--ink)", margin: 0 }}>Planos disponíveis</h2>
-        <div style={{ font: "15px var(--serif)", fontStyle: "italic", color: "var(--muted)", marginTop: 4 }}>Escolha o plano ideal para seu volume de vendas</div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 20 }}>
-        {PLANS.map((plan) => {
-          const isCurrent = subscription?.plan?.toLowerCase() === plan.key;
-          return (
-            <section
-              key={plan.key}
-              aria-labelledby={`plan-${plan.key}-title`}
-              style={{
-                background: "var(--card)",
-                border: `${isCurrent ? 2 : 1}px solid ${isCurrent ? "var(--good)" : "var(--border)"}`,
-                borderRadius: 14,
-                padding: 22,
-                display: "flex",
-                flexDirection: "column",
-                gap: 14,
-                position: "relative",
-              }}
-            >
-              {plan.highlight ? (
-                <div style={{ position: "absolute", top: -10, right: 14, display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: "600 11px var(--mono)", background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }}>
-                  <Sparkles size={13} aria-hidden="true" />
-                  Recomendado
-                </div>
-              ) : null}
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                <h2 id={`plan-${plan.key}-title`} style={{ font: "700 20px var(--serif)", color: "var(--ink)", margin: 0 }}>{plan.name}</h2>
-                {isCurrent ? planBadge() : null}
-              </div>
-              <div>
-                <p style={{ margin: 0, font: "700 24px var(--serif)", color: "var(--ink)" }}>{plan.price}</p>
-                <p style={{ margin: "4px 0 0", font: "600 12px var(--mono)", color: "var(--accent)" }}>{plan.fee}</p>
-              </div>
-              <ul aria-label={`Recursos do plano ${plan.name}`} style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8, flex: 1, font: "13px var(--sans)", color: "var(--muted)" }}>
-                {plan.features.map((feat) => (
-                  <li key={feat} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <CheckCircle2 size={14} aria-hidden="true" style={{ color: "var(--accent)", flexShrink: 0 }} />
-                    <span style={{ color: "var(--ink)" }}>{feat}</span>
-                  </li>
-                ))}
-              </ul>
-              {!isCurrent ? (
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void openCheckout(plan.priceId)}
-                  aria-label={`Ativar plano ${plan.name}`}
-                  style={plan.highlight
-                    ? { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px 16px", borderRadius: 10, border: "none", background: "linear-gradient(180deg, var(--accent), var(--accent-dark))", color: "var(--bg)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }
-                    : { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1 }
-                  }
-                >
-                  {subscription ? "Fazer upgrade" : "Ativar plano"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px 16px", borderRadius: 10, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", font: "600 13px var(--mono)", opacity: 0.6 }}
-                >
-                  <CheckCircle2 size={14} aria-hidden="true" />
-                  Plano atual
-                </button>
-              )}
-            </section>
-          );
-        })}
-      </div>
     </>
   );
 }

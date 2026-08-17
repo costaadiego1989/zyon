@@ -1,154 +1,27 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React from "react";
 import { ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide-react";
-import {
-  type AuditEvent,
-  type MerchantProfile,
-} from "../api-client.js";
-import { useApi } from "../hooks/useApi.js";
-import { readError } from "../utils/read-error.js";
+import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
-import { downloadCsv } from "../hooks/useCsvExport.js";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface AuditFilters {
-  dateRange: "7d" | "30d" | "90d" | "all";
-  actionCategory: "destructive" | "constructive" | "update" | "all";
-  actorType: "human" | "service" | "all";
-}
-
-// ── Pure functions (exported for testability) ────────────────────────────────
-
-export function actionBadgeCategory(action: string): "destructive" | "constructive" | "update" | "other" {
-  if (/delete|remove|revoke|disable/i.test(action)) return "destructive";
-  if (/create|add|enable|approve/i.test(action)) return "constructive";
-  if (/update|edit|change|modify/i.test(action)) return "update";
-  return "other";
-}
-
-function actionBadgeClass(action: string): string {
-  const cat = actionBadgeCategory(action);
-  switch (cat) {
-    case "destructive": return "badge bad";
-    case "constructive": return "badge ok";
-    case "update": return "badge warn";
-    default: return "badge muted";
-  }
-}
-
-export function filterEvents(events: AuditEvent[], filters: AuditFilters): AuditEvent[] {
-  return events.filter(evt => {
-    if (filters.dateRange !== "all") {
-      const days = { "7d": 7, "30d": 30, "90d": 90 }[filters.dateRange];
-      const cutoff = Date.now() - days * 86_400_000;
-      if (new Date(evt.occurred_at).getTime() < cutoff) return false;
-    }
-    if (filters.actionCategory !== "all") {
-      if (actionBadgeCategory(evt.action) !== filters.actionCategory) return false;
-    }
-    if (filters.actorType !== "all" && evt.actor_type !== filters.actorType) return false;
-    return true;
-  });
-}
-
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "agora";
-  if (minutes < 60) return `há ${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `há ${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `há ${days}d`;
-}
-
-function formatAbsoluteTime(iso: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(
-    new Date(iso),
-  );
-}
-
-function exportCsv(events: AuditEvent[]): void {
-  const header = "Data,Tipo Ator,Ator,Ação,Recurso,ID Recurso,ID Correlação";
-  const rows = events.map(e =>
-    [e.occurred_at, e.actor_type, e.actor_id ?? "", e.action,
-     e.resource_type, e.resource_id ?? "", e.correlation_id ?? ""].join(",")
-  );
-  downloadCsv(header, rows, `auditoria-${new Date().toISOString().slice(0, 10)}.csv`);
-}
-
-// ── Component ────────────────────────────────────────────────────────────────
+import { Pagination } from "../components/Pagination.js";
+import {
+  useAuditLogPage,
+  type AuditFilters,
+  actionBadgeClass,
+  formatRelativeTime,
+  formatAbsoluteTime,
+} from "./useAuditLogPage.js";
 
 export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useApi();
-  const [events, setEvents] = useState<AuditEvent[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [filters, setFilters] = useState<AuditFilters>({
-    dateRange: "all",
-    actionCategory: "all",
-    actorType: "all",
-  });
-  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
-
-  const filteredEvents = useMemo(() => filterEvents(events, filters), [events, filters]);
-
-  useEffect(() => {
-    if (!props.me) {
-      setEvents([]);
-      return;
-    }
-    void load();
-  }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    setEvents([]);
-    setNextCursor(null);
-    setHasMore(false);
-    try {
-      const page = await api.getAuditEvents({ limit: 50 });
-      const items = Array.isArray(page?.data) ? page.data : Array.isArray(page) ? page as unknown as AuditEvent[] : [];
-      setEvents(items);
-      setNextCursor(page?.next_cursor ?? null);
-      setHasMore(page?.has_more ?? false);
-    } catch (e) {
-      setError(readError(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const page = await api.getAuditEvents({ limit: 50, cursor: nextCursor });
-      const items = Array.isArray(page?.data) ? page.data : Array.isArray(page) ? page as unknown as AuditEvent[] : [];
-      setEvents(prev => [...prev, ...items]);
-      setNextCursor(page?.next_cursor ?? null);
-      setHasMore(page?.has_more ?? false);
-    } catch (e) {
-      setError(readError(e));
-    } finally {
-      setLoadingMore(false);
-    }
-  }
+  const vm = useAuditLogPage({ me: props.me });
 
   if (!props.me) {
     return (
-      <>
-        <header className="page-head">
-          <div>
-            <h1>Auditoria</h1>
-            <p className="page-lead">Login necessário para acompanhar as ações do painel.</p>
-          </div>
-        </header>
-      </>
+      <header className="page-head">
+        <div>
+          <h1>Auditoria</h1>
+          <p className="page-lead">Login necessário para acompanhar as ações do painel.</p>
+        </div>
+      </header>
     );
   }
 
@@ -158,32 +31,30 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
         <div>
           <span className="eyebrow"><ShieldCheck size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
           <h1>Log de Auditoria</h1>
-          <p className="page-lead">
-            Acompanhe todas as ações realizadas no painel.
-          </p>
+          <p className="page-lead">Acompanhe todas as ações realizadas no painel.</p>
         </div>
         <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Button variant="outline" size="sm" disabled={loading} onClick={() => void load()}>
+          <Button variant="outline" size="sm" disabled={vm.loading} onClick={() => void vm.load()} aria-label="Atualizar log de auditoria">
             <RefreshCw size={14} /> Atualizar
           </Button>
-          <Button variant="primary" size="sm" onClick={() => exportCsv(filteredEvents)}>
+          <Button variant="primary" size="sm" arrow onClick={vm.exportCsv} aria-label="Exportar registros">
             <Download size={14} /> Exportar
           </Button>
         </div>
       </header>
 
-      {error && !loading ? <p className="panel panel-warn">{error}</p> : null}
+      {vm.error && !vm.loading ? <p className="panel panel-warn">{vm.error}</p> : null}
 
       <section className="panel stacked">
         <div className="panel-title">
-          <h2>Eventos recentes</h2>
-          <ShieldCheck size={18} />
+          <h2><ShieldCheck size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Eventos recentes</h2>
         </div>
 
+        {/* Filters */}
         <div className="audit-filter-bar" style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
           <select
-            value={filters.dateRange}
-            onChange={e => setFilters(f => ({ ...f, dateRange: e.target.value as AuditFilters["dateRange"] }))}
+            value={vm.filters.dateRange}
+            onChange={e => vm.setFilters(f => ({ ...f, dateRange: e.target.value as AuditFilters["dateRange"] }))}
             style={{ flex: 1, minWidth: 120 }}
           >
             <option value="all">Período</option>
@@ -192,8 +63,8 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
             <option value="90d">90 dias</option>
           </select>
           <select
-            value={filters.actionCategory}
-            onChange={e => setFilters(f => ({ ...f, actionCategory: e.target.value as AuditFilters["actionCategory"] }))}
+            value={vm.filters.actionCategory}
+            onChange={e => vm.setFilters(f => ({ ...f, actionCategory: e.target.value as AuditFilters["actionCategory"] }))}
             style={{ flex: 1, minWidth: 120 }}
           >
             <option value="all">Tipo de ação</option>
@@ -202,8 +73,8 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
             <option value="update">Alteração</option>
           </select>
           <select
-            value={filters.actorType}
-            onChange={e => setFilters(f => ({ ...f, actorType: e.target.value as AuditFilters["actorType"] }))}
+            value={vm.filters.actorType}
+            onChange={e => vm.setFilters(f => ({ ...f, actorType: e.target.value as AuditFilters["actorType"] }))}
             style={{ flex: 1, minWidth: 120 }}
           >
             <option value="all">Autor</option>
@@ -211,12 +82,13 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
             <option value="service">Sistema</option>
           </select>
           <span className="audit-summary" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
-            Exibindo {filteredEvents.length} de {events.length} eventos
+            Exibindo {vm.pagedEvents.length} de {vm.totalFiltered} eventos
           </span>
         </div>
 
-        <div aria-live="polite" aria-busy={loading}>
-          {loading ? (
+        {/* Table content */}
+        <div aria-live="polite" aria-busy={vm.loading}>
+          {vm.loading ? (
             <div className="table-wrap">
               <table className="data-table">
                 <thead>
@@ -225,6 +97,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                     <th>Tipo</th>
                     <th>Ação</th>
                     <th>Recurso</th>
+                    <th>Resultado</th>
                     <th>Ator</th>
                     <th></th>
                   </tr>
@@ -236,6 +109,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                       <td><div className="skeleton-cell" style={{ width: 50 }} /></td>
                       <td><div className="skeleton-cell" style={{ width: 100 }} /></td>
                       <td><div className="skeleton-cell" style={{ width: 90 }} /></td>
+                      <td><div className="skeleton-cell" style={{ width: 60 }} /></td>
                       <td><div className="skeleton-cell" style={{ width: 70 }} /></td>
                       <td><div className="skeleton-cell" style={{ width: 20 }} /></td>
                     </tr>
@@ -245,7 +119,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
             </div>
           ) : (
             <>
-              {filteredEvents.length > 0 ? (
+              {vm.pagedEvents.length > 0 ? (
                 <div className="table-wrap">
                   <table className="data-table">
                     <caption className="sr-only">Log de auditoria do merchant</caption>
@@ -255,12 +129,13 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                         <th>Tipo</th>
                         <th>Ação</th>
                         <th>Recurso</th>
+                        <th>Resultado</th>
                         <th>Ator</th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredEvents.map((evt, idx) => (
+                      {vm.pagedEvents.map((evt, idx) => (
                         <React.Fragment key={evt.id}>
                           <tr style={{ background: idx % 2 === 0 ? "var(--color-surface-raised)" : undefined, borderBottom: "1px solid var(--color-border)" }}>
                             <td>
@@ -278,15 +153,25 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                                 <code>{evt.action}</code>
                               </span>
                             </td>
-                            <td>{evt.resource_type}</td>
+                            <td>
+                              <span>{evt.resource_type}</span>
+                              {evt.resource_id ? (
+                                <code style={{ display: "block", fontSize: 10, color: "var(--color-muted)", marginTop: 2 }}>{evt.resource_id}</code>
+                              ) : null}
+                            </td>
+                            <td>
+                              <span className={evt.outcome === "failed" ? "badge bad" : "badge ok"} style={{ fontSize: 10, padding: "2px 6px" }}>
+                                {evt.outcome === "failed" ? "Falhou" : "OK"}
+                              </span>
+                            </td>
                             <td>
                               <code>{evt.actor_id ?? "sistema"}</code>
                             </td>
                             <td>
                               <button
                                 type="button"
-                                onClick={() => setExpandedRowId(prev => prev === evt.id ? null : evt.id)}
-                                aria-expanded={expandedRowId === evt.id}
+                                onClick={() => vm.toggleExpand(evt.id)}
+                                aria-expanded={vm.expandedRowId === evt.id}
                                 aria-controls={`detail-${evt.id}`}
                                 aria-label="Expandir detalhes do evento"
                                 style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
@@ -294,20 +179,30 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                                 <ChevronRight
                                   size={14}
                                   style={{
-                                    transform: expandedRowId === evt.id ? "rotate(90deg)" : "none",
+                                    transform: vm.expandedRowId === evt.id ? "rotate(90deg)" : "none",
                                     transition: "transform 0.15s",
                                   }}
                                 />
                               </button>
                             </td>
                           </tr>
-                          {expandedRowId === evt.id ? (
+                          {vm.expandedRowId === evt.id ? (
                             <tr className="audit-detail-row" id={`detail-${evt.id}`}>
-                              <td colSpan={6}>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              <td colSpan={7}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
                                   {evt.correlation_id ? (
                                     <p style={{ margin: 0, fontSize: 12 }}>
                                       <strong>ID Correlação:</strong> <code>{evt.correlation_id}</code>
+                                    </p>
+                                  ) : null}
+                                  {evt.ip_address ? (
+                                    <p style={{ margin: 0, fontSize: 12 }}>
+                                      <strong>IP:</strong> <code>{evt.ip_address}</code>
+                                    </p>
+                                  ) : null}
+                                  {evt.user_agent ? (
+                                    <p style={{ margin: 0, fontSize: 12 }}>
+                                      <strong>User-Agent:</strong> <code style={{ wordBreak: "break-all" }}>{evt.user_agent}</code>
                                     </p>
                                   ) : null}
                                   <div>
@@ -335,16 +230,14 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                 </div>
               )}
 
-              {hasMore ? (
-                <div className="load-more-row">
-                  <button
-                    type="button"
-                    disabled={loadingMore}
-                    onClick={() => void loadMore()}
-                  >
-                    {loadingMore ? "Carregando..." : "Carregar mais"}
-                  </button>
-                </div>
+              {vm.totalFiltered > vm.pageSize ? (
+                <Pagination
+                  page={vm.page}
+                  pageSize={vm.pageSize}
+                  total={vm.totalFiltered}
+                  onChange={vm.setPage}
+                  disabled={vm.loadingMore}
+                />
               ) : null}
             </>
           )}

@@ -3,6 +3,7 @@ import { Plus, Trash2, GripVertical, Image, Clock, FolderOpen, X, Upload } from 
 import type { MerchantProfile } from "../api-client.js";
 import { useStoriesPage } from "./useStoriesPage.js";
 import type { TitleConfig } from "../api/endpoints/stories.js";
+import { Button } from "../components/Button.js";
 
 export interface StoriesPageProps {
   apiBaseUrl: string;
@@ -44,12 +45,9 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Stories</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Crie stories visuais para engajar compradores — promoções, destaques, novidades.</div>
         </div>
-        <button
-          onClick={() => vm.setShowCreateCategory(true)}
-          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: "pointer", flex: "none" }}
-        >
+        <Button variant="primary" size="sm" arrow onClick={() => vm.setShowCreateCategory(true)}>
           <Plus size={14} /> Nova Categoria
-        </button>
+        </Button>
       </div>
 
       {/* Stat cards — same as CategoriesPage StatCard pattern */}
