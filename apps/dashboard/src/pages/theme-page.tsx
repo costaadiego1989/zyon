@@ -4,8 +4,10 @@ import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
 import { CheckoutPreviewWidget } from "../components/CheckoutPreviewWidget.js";
 import { ImageUploader } from "../components/ImageUploader.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { showToast } from "../components/Toast.js";
 import { Button } from "../components/Button.js";
+import { FormField, FormSelect } from "../components/FormField.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -295,49 +297,36 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 1 — Identidade */}
             <div className="panel stacked">
-              <div className="section-header"><Type size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Identidade e tipografia</h3></div>
+              <SectionHeader icon={<Type size={16} />} title="Identidade e tipografia" variant="secondary" />
 
-              <label>
-                Nome do assistente
-                <input
-                  type="text"
-                  value={theme.agentName ?? ""}
-                  onChange={(e) => patch({ agentName: e.target.value })}
-                  placeholder="Ex: Pulse, Luna, Max"
-                />
-                <span className="field-hint">Aparece no cabeçalho do widget</span>
-              </label>
+              <FormField
+                label="Nome do assistente"
+                value={theme.agentName ?? ""}
+                onChange={(v) => patch({ agentName: v })}
+                placeholder="Ex: Pulse, Luna, Max"
+                hint="Aparece no cabeçalho do widget"
+              />
 
               <div className="theme-grid-2">
-                <label>
-                  Tipografia primária
-                  <select value={theme.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })}>
-                    {FONT_OPTIONS.map((font) => (
-                      <option key={font} value={font}>{font.split(",")[0]}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Tipografia secundária
-                  <select
-                    value={theme.fontDisplay ?? theme.fontFamily}
-                    onChange={(e) => patch({ fontDisplay: e.target.value })}
-                  >
-                    {FONT_OPTIONS.map((font) => (
-                      <option key={font} value={font}>{font.split(",")[0]}</option>
-                    ))}
-                  </select>
-                </label>
+                <FormSelect
+                  label="Tipografia primária"
+                  value={theme.fontFamily}
+                  onChange={(v) => patch({ fontFamily: v })}
+                  options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0] }))}
+                />
+                <FormSelect
+                  label="Tipografia secundária"
+                  value={theme.fontDisplay ?? theme.fontFamily}
+                  onChange={(v) => patch({ fontDisplay: v })}
+                  options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0] }))}
+                />
               </div>
 
             </div>
 
             {/* Panel — Selos de confiança */}
             <div className="panel stacked">
-              <div className="section-header"><Shield size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Selos de confiança</h3></div>
-              <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
-                Exibidos como badges no rodapé do widget (ex: "Compra Segura", "Envio Rastreado"). Máximo 4.
-              </p>
+              <SectionHeader icon={<Shield size={16} />} title="Selos de confiança" subtitle="Exibidos como badges no rodapé do widget. Máximo 4." variant="primary" />
 
               {parseBadges(badgesText).length > 0 && (
                 <div className="chip-list">
@@ -370,7 +359,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 2 — Cores */}
             <div className="panel stacked">
-              <div className="section-header"><Palette size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Paleta de cores</h3></div>
+              <SectionHeader icon={<Palette size={16} />} title="Paleta de cores" variant="secondary" />
               <div className="theme-grid-2">
                 {COLOR_FIELDS.map((field) => (
                   <div key={String(field.key)} className="theme-color-field">
@@ -395,7 +384,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 3 — Imagens */}
             <div className="panel stacked">
-              <div className="section-header"><Image size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Imagens</h3></div>
+              <SectionHeader icon={<Image size={16} />} title="Imagens" subtitle="Logo, favicon, avatar e fundo do widget." variant="primary" />
 
               <ImageUploader
                 label="Logo da marca"
@@ -432,7 +421,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 4 — Layout */}
             <div className="panel stacked">
-              <div className="section-header"><Layout size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Layout e espaçamento</h3></div>
+              <SectionHeader icon={<Layout size={16} />} title="Layout e espaçamento" variant="secondary" />
 
               <label>
                 Arredondamento dos cantos
