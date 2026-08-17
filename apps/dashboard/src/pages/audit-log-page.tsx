@@ -3,6 +3,7 @@ import { ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { Pagination } from "../components/Pagination.js";
+import { EmptyState } from "../components/EmptyState.js";
 import {
   useAuditLogPage,
   type AuditFilters,
@@ -219,15 +220,11 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
                   </table>
                 </div>
               ) : (
-                <div className="empty-state" style={{ textAlign: "center", padding: "48px 16px", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}>
-                  <div className="empty-state-icon" style={{ background: "var(--color-surface-alt, rgba(0,0,0,0.04))", borderRadius: "50%", width: 64, height: 64, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <ShieldCheck size={32} style={{ color: "var(--color-muted)" }} />
-                  </div>
-                  <h3 style={{ margin: 0 }}>Nenhuma atividade registrada</h3>
-                  <p style={{ margin: 0, color: "var(--color-muted)" }}>
-                    Nenhuma atividade registrada no período selecionado.
-                  </p>
-                </div>
+                <EmptyState
+                  icon={ShieldCheck}
+                  title="Nenhuma atividade registrada"
+                  description="Nenhuma atividade registrada no período selecionado."
+                />
               )}
 
               {vm.totalFiltered > vm.pageSize ? (

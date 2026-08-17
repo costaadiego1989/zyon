@@ -4,6 +4,7 @@ import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { Pagination } from "../components/Pagination.js";
 import { Button } from "../components/Button.js";
+import { EmptyState } from "../components/EmptyState.js";
 import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
@@ -248,11 +249,12 @@ export function CatalogPage(props: CatalogPageProps) {
         {loading ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produtos...</div>
         ) : filteredItems.length === 0 ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
-            <ShoppingBag size={32} />
-            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhum produto cadastrado.</strong>
-            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Clique em "Novo produto" para começar.</p>
-          </div>
+          <EmptyState
+            icon={ShoppingBag}
+            title="Nenhum produto cadastrado"
+            description="Clique em 'Novo produto' para começar."
+            action={<Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}><Plus size={14} /> Novo produto</Button>}
+          />
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>

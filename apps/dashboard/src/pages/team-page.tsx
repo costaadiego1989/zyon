@@ -3,6 +3,7 @@ import { Users, UserPlus, Trash2, Shield, Mail } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { Modal } from "../components/Modal.js";
+import { EmptyState } from "../components/EmptyState.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
@@ -110,9 +111,12 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
             </table>
           </div>
         ) : (
-          <div style={{ textAlign: "center", padding: 32, color: "var(--color-muted)", fontSize: 13 }}>
-            Nenhum membro cadastrado além do proprietário.
-          </div>
+          <EmptyState
+            icon={Users}
+            title="Nenhum membro cadastrado"
+            description="Convide agentes e administradores para gerenciar sua loja."
+            action={<Button variant="primary" size="sm" arrow onClick={() => setShowInviteModal(true)}><UserPlus size={14} /> Convidar membro</Button>}
+          />
         )}
       </section>
 

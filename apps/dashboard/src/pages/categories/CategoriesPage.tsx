@@ -9,6 +9,7 @@ import { Pagination } from "../../components/Pagination.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
 import { Button } from "../../components/Button.js";
+import { EmptyState } from "../../components/EmptyState.js";
 
 const PAGE_SIZE = 20;
 
@@ -126,11 +127,12 @@ export function CategoriesPage(props: CategoriesPageProps) {
         {vm.loading ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando categorias...</div>
         ) : filteredTree.length === 0 ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
-            <FolderTree size={32} />
-            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhuma categoria criada.</strong>
-            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Clique em "Nova categoria" para começar.</p>
-          </div>
+          <EmptyState
+            icon={FolderTree}
+            title="Nenhuma categoria criada"
+            description="Clique em 'Nova categoria' para começar a organizar seus produtos."
+            action={<Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}><Plus size={14} /> Nova categoria</Button>}
+          />
         ) : (
           <CategoryTree
             tree={paginatedTree}
