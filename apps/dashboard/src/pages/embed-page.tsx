@@ -112,9 +112,7 @@ function InstallTab(props: {
           {[
             { name: "WooCommerce", hint: "Plugin WordPress — instale e ative", status: "disponível" },
             { name: "Magento", hint: "Módulo via Composer", status: "disponível" },
-            { name: "Nuvemshop", hint: "App na loja de aplicativos", status: "disponível" },
             { name: "VTEX", hint: "App no VTEX IO", status: "em breve" },
-            { name: "Shopify", hint: "App na Shopify App Store", status: "em breve" },
             { name: "HTML customizado", hint: "Cole o snippet acima no seu site", status: "manual" },
           ].map((p) => (
             <div key={p.name} style={{ padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 10, background: "var(--card)", display: "flex", flexDirection: "column", gap: 4 }}>
