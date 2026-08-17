@@ -3,6 +3,7 @@ import { ArrowLeft, Plus, Save, Trash2, Upload, X, Image as ImageIcon, Package, 
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { SaveFeedbackBanner } from "../components/save-feedback-banner.js";
+import { showToast } from "../components/Toast.js";
 import { CurrencyField } from "../components/CurrencyField.js";
 import { PrefixInput } from "../components/PrefixInput.js";
 import { centsToReais, reaisToCents, applyCurrencyMask } from "../utils/currency.js";
@@ -130,6 +131,12 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
   const [uploadingVariant, setUploadingVariant] = useState<string | null>(null);
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
   const [generatingDesc, setGeneratingDesc] = useState(false);
+  const [seoTitle, setSeoTitle] = useState("");
+  const [seoMetaDesc, setSeoMetaDesc] = useState("");
+  const [seoSlug, setSeoSlug] = useState("");
+  const [seoOgTitle, setSeoOgTitle] = useState("");
+  const [seoOgDesc, setSeoOgDesc] = useState("");
+  const [seoKeywords, setSeoKeywords] = useState<string[]>([]);
 
   useEffect(() => {
     if (!merchantId) return;
@@ -153,6 +160,12 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
         setMetadata((product.metadata as Record<string, unknown> as ProductMetadata) ?? {});
         setCategoryId(product.categoryId ?? "");
         setIsActive(product.isActive);
+        setSeoTitle(product.seoTitle ?? "");
+        setSeoMetaDesc(product.metaDescription ?? "");
+        setSeoSlug(product.slug ?? "");
+        setSeoOgTitle(product.ogTitle ?? "");
+        setSeoOgDesc(product.ogDescription ?? "");
+        setSeoKeywords(product.keywords ?? []);
         const mediaMap: Record<string, Array<{ id: string; url: string }>> = {};
         const isComplex = product.variants.length !== 1;
         setHasVariants(isComplex);
@@ -289,6 +302,12 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           metadata: metadata as Record<string, unknown>,
           categoryId: categoryId.trim() || undefined,
           isActive,
+          seoTitle: seoTitle.trim() || undefined,
+          metaDescription: seoMetaDesc.trim() || undefined,
+          slug: seoSlug.trim() || undefined,
+          ogTitle: seoOgTitle.trim() || undefined,
+          ogDescription: seoOgDesc.trim() || undefined,
+          keywords: seoKeywords.length > 0 ? seoKeywords : undefined,
         });
         // Update variants
         for (let i = 0; i < payloadVariants.length; i++) {
@@ -1000,6 +1019,23 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
               </div>
             </section>
           )}
+
+          {/* SEO SECTION */}
+          {isEditing && (
+            <SeoSection
+              merchantId={merchantId!}
+              productId={props.productId!}
+              product={{ seoTitle: seoTitle, metaDescription: seoMetaDesc, slug: seoSlug, ogTitle: seoOgTitle, ogDescription: seoOgDesc, keywords: seoKeywords }}
+              onUpdate={(seo) => {
+                setSeoTitle(seo.seoTitle ?? "");
+                setSeoMetaDesc(seo.metaDescription ?? "");
+                setSeoSlug(seo.slug ?? "");
+                setSeoOgTitle(seo.ogTitle ?? "");
+                setSeoOgDesc(seo.ogDescription ?? "");
+                setSeoKeywords(seo.keywords ?? []);
+              }}
+            />
+          )}
         </div>
       )}
     </div>
@@ -1020,6 +1056,138 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
         <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{props.error}</span>
       ) : null}
     </label>
+  );
+}
+
+function SeoSection(props: {
+  merchantId: string;
+  productId: string;
+  product: { seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; keywords: string[] };
+  onUpdate: (seo: { seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; keywords: string[] }) => void;
+}) {
+  const api = useApi();
+  const [generating, setGenerating] = useState(false);
+  const { product, onUpdate } = props;
+
+  async function regenerate() {
+    setGenerating(true);
+    try {
+      const seo = await api.generateProductSeo(props.merchantId, props.productId);
+      onUpdate(seo);
+      showToast("success", "SEO gerado com IA");
+    } catch {
+      showToast("error", "Falha ao gerar SEO. Verifique se o servidor LLM está ativo.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  const charCount = (val: string, max: number) => {
+    const len = val.length;
+    const color = len > max ? "var(--danger)" : len > max * 0.85 ? "var(--warn)" : "var(--faint)";
+    return <span style={{ font: "10px var(--mono)", color }}>{len}/{max}</span>;
+  };
+
+  return (
+    <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+        <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em" }}>SEO & REDES SOCIAIS</h3>
+        <Button variant="outline" size="sm" onClick={regenerate} disabled={generating} loading={generating}>
+          {generating ? "Gerando..." : product.seoTitle ? "Alterar com IA" : "Gerar com IA"}
+        </Button>
+      </div>
+
+      {!product.seoTitle && !generating && (
+        <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--muted)", fontSize: 12, background: "var(--bg)", borderRadius: 8, marginBottom: 14 }}>
+          <p style={{ margin: 0 }}>SEO será gerado automaticamente ao criar o produto.</p>
+          <p style={{ margin: "4px 0 0" }}>Ou clique "Gerar com IA" para gerar agora.</p>
+        </div>
+      )}
+
+      {(product.seoTitle || generating) && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>Título SEO</span>
+              {charCount(product.seoTitle, 60)}
+            </div>
+            <input
+              value={product.seoTitle}
+              onChange={(e) => onUpdate({ ...product, seoTitle: e.target.value })}
+              placeholder="Título otimizado para buscadores"
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
+            />
+          </div>
+
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>Meta Description</span>
+              {charCount(product.metaDescription, 160)}
+            </div>
+            <textarea
+              value={product.metaDescription}
+              onChange={(e) => onUpdate({ ...product, metaDescription: e.target.value })}
+              placeholder="Descrição que aparece no resultado do Google"
+              rows={2}
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--bg)", resize: "vertical" }}
+            />
+          </div>
+
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>Slug (URL)</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 0, background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 7, overflow: "hidden" }}>
+              <span style={{ padding: "7px 10px", font: "11px var(--mono)", color: "var(--faint)", background: "var(--card)", borderRight: "1px solid var(--border)", whiteSpace: "nowrap" }}>loja.com/produto/</span>
+              <input
+                value={product.slug}
+                onChange={(e) => onUpdate({ ...product, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
+                placeholder="slug-do-produto"
+                style={{ flex: 1, padding: "7px 10px", border: "none", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "transparent" }}
+              />
+            </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>OG Title</span>
+                {charCount(product.ogTitle, 95)}
+              </div>
+              <input
+                value={product.ogTitle}
+                onChange={(e) => onUpdate({ ...product, ogTitle: e.target.value })}
+                placeholder="Título para redes sociais"
+                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
+              />
+            </div>
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>OG Description</span>
+                {charCount(product.ogDescription, 200)}
+              </div>
+              <input
+                value={product.ogDescription}
+                onChange={(e) => onUpdate({ ...product, ogDescription: e.target.value })}
+                placeholder="Descrição para Facebook/WhatsApp"
+                style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
+              />
+            </div>
+          </div>
+
+          <div>
+            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Keywords</span>
+            <input
+              value={product.keywords.join(", ")}
+              onChange={(e) => onUpdate({ ...product, keywords: e.target.value.split(",").map((k) => k.trim()).filter(Boolean) })}
+              placeholder="palavra-chave, outra-palavra, terceira"
+              style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--bg)" }}
+            />
+            <span style={{ font: "10px var(--mono)", color: "var(--faint)", marginTop: 2, display: "block" }}>Separe por vírgula (5-10 recomendado)</span>
+          </div>
+        </div>
+      )}
+    </section>
   );
 }
 
