@@ -1,134 +1,18 @@
-import React, { useState } from "react";
-import { CheckCircle2, Code2, Copy, KeyRound, Shield, Terminal } from "lucide-react";
-import { type EmbedSessionResponse, type MerchantProfile } from "../api-client.js";
-import { useApi } from "../hooks/useApi.js";
-import { DashboardHttpError } from "../api/http/index.js";
+import React from "react";
+import { CheckCircle2, Code2, Copy, KeyRound, Shield, Zap } from "lucide-react";
+import { TabBar } from "../components/TabBar.js";
+import { type MerchantProfile } from "../api-client.js";
+import { useEmbedPage, formatExpiry } from "./useEmbedPage.js";
 
-const EMBED_SCOPES = ["checkout:start", "checkout:track", "checkout:chat", "offers:apply", "coupons:apply", "payment:intents:create"];
+const TABS = [
+  { key: "install", label: "Instalação" },
+  { key: "config", label: "Configuração" },
+];
 
-const SCOPE_META: Record<string, { group: "read" | "write"; label: string; description: string }> = {
-  "checkout:start":        { group: "write", label: "Iniciar sessão", description: "Iniciar sessão de checkout" },
-  "checkout:track":        { group: "read",  label: "Rastrear progresso", description: "Acompanhar progresso da compra" },
-  "checkout:chat":         { group: "read",  label: "Chat do agente", description: "Enviar e receber mensagens" },
-  "offers:apply":          { group: "write", label: "Aplicar ofertas", description: "Aplicar ofertas e descontos" },
-  "coupons:apply":         { group: "write", label: "Cupons", description: "Resgatar cupons" },
-  "payment:intents:create":{ group: "write", label: "Criar pagamentos", description: "Processar pagamentos" },
-};
-
-const READ_SCOPES = EMBED_SCOPES.filter((s) => SCOPE_META[s]?.group === "read");
-const WRITE_SCOPES = EMBED_SCOPES.filter((s) => SCOPE_META[s]?.group === "write");
-
-// ── Utility Functions (exported for testing) ─────────────────────────────────
-
-export function formatExpiry(unixSeconds: number): string {
-  const date = new Date(unixSeconds * 1000);
-  const formatted = date.toLocaleString('pt-BR', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
-  const diffMs = unixSeconds * 1000 - Date.now();
-  const diffMin = Math.round(diffMs / 60000);
-  if (diffMin <= 0) return `${formatted} (expirado)`;
-  if (diffMin < 60) return `${formatted} (expira em ${diffMin} min)`;
-  const diffH = Math.round(diffMin / 60);
-  return `${formatted} (expira em ${diffH}h)`;
-}
-
-export function validateEmbedForm(params: {
-  allowedOrigin: string;
-  cartRef: string;
-  ttl: number;
-  scopes: string[];
-}): Record<string, string> {
-  const errors: Record<string, string> = {};
-  try {
-    const url = new URL(params.allowedOrigin);
-    if (!['http:', 'https:'].includes(url.protocol)) {
-      errors.allowedOrigin = "Protocolo deve ser http ou https";
-    }
-  } catch {
-    errors.allowedOrigin = "URL inválida. Ex: https://minha-loja.com";
-  }
-  if (!params.cartRef.trim()) {
-    errors.cartRef = "Referência do carrinho é obrigatória";
-  }
-  if (params.ttl < 60 || params.ttl > 86400) {
-    errors.ttl = "TTL deve estar entre 60 e 86400 segundos";
-  }
-  if (params.scopes.length === 0) {
-    errors.scopes = "Selecione ao menos um escopo";
-  }
-  return errors;
-}
-
-export async function copyToClipboard(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch { /* fall through to fallback */ }
-  }
-  const textarea = document.createElement('textarea');
-  textarea.value = text;
-  textarea.style.position = 'fixed';
-  textarea.style.opacity = '0';
-  document.body.appendChild(textarea);
-  textarea.select();
-  try {
-    return document.execCommand('copy');
-  } finally {
-    document.body.removeChild(textarea);
-  }
-}
-
-// ── Component ────────────────────────────────────────────────────────────────
+// ── View ────────────────────────────────────────────────────────────────────
 
 export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useApi();
-  const [allowedOrigin, setAllowedOrigin] = useState("https://");
-  const [cartRef, setCartRef] = useState("");
-  const [ttl, setTtl] = useState(900);
-  const [session, setSession] = useState<EmbedSessionResponse | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const [selectedScopes, setSelectedScopes] = useState<string[]>(EMBED_SCOPES);
-  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-
-  async function issue() {
-    const errors = validateEmbedForm({ allowedOrigin, cartRef, ttl, scopes: selectedScopes });
-    setValidationErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setBusy(true);
-    setMessage(null);
-    try {
-      setSession(await api.createEmbedSession({
-        ttl_seconds: ttl,
-        allowed_origin: allowedOrigin,
-        cart_ref: cartRef,
-        scopes: selectedScopes
-      }));
-      setMessage("Token gerado com sucesso.");
-    } catch (e) {
-      setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function handleCopy() {
-    void copyToClipboard(snippet).then((ok) => {
-      if (ok) {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
-    });
-  }
-
-  const snippet = session
-    ? `<script src="${props.apiBaseUrl}/widget/aacp.js" async></script>\n<zyon-checkout-agent\n  embed-session-token="${session.embed_session_token}"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`
-    : `<script src="${props.apiBaseUrl}/widget/aacp.js" async></script>\n<zyon-checkout-agent\n  embed-session-token="EMBED_SESSION_TOKEN"\n  api-base-url="${props.apiBaseUrl}"\n></zyon-checkout-agent>`;
+  const vm = useEmbedPage(props.apiBaseUrl);
 
   if (!props.me) {
     return (
@@ -136,183 +20,237 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         <div className="empty-state">
           <div className="empty-state-icon"><KeyRound size={22} /></div>
           <h3>Autenticação necessária</h3>
-          <p>Faça login para gerar tokens de sessão e instalar o widget no seu site.</p>
+          <p>Faça login para instalar o widget no seu site.</p>
         </div>
       </div>
     );
   }
 
-  const hasToken = Boolean(session);
-
   return (
     <div className="dashboard-content">
       <header className="page-head">
         <div>
-          <span className="eyebrow">Embed</span>
-          <h1>Instale o checkout no seu site</h1>
+          <h1>Instalação do Widget</h1>
           <p className="page-lead">
-            Três passos: configure a sessão, escolha permissões e cole o snippet.
+            Adicione o agente de checkout ao seu site. Ele aparece como um chat flutuante e ajuda seus clientes a finalizarem compras.
           </p>
         </div>
       </header>
 
+      <TabBar tabs={TABS} activeTab={vm.tab} onTabChange={(k) => vm.actions.setTab(k as "install" | "config")} />
+
+      <div style={{ marginTop: "var(--space-5)" }}>
+        {vm.tab === "install" && (
+          <InstallTab
+            snippet={vm.snippet}
+            hasToken={vm.hasToken}
+            copied={vm.copied}
+            onCopy={vm.actions.copySnippet}
+          />
+        )}
+        {vm.tab === "config" && (
+          <ConfigTab
+            allowedOrigin={vm.allowedOrigin}
+            setAllowedOrigin={vm.actions.setAllowedOrigin}
+            cartRef={vm.cartRef}
+            setCartRef={vm.actions.setCartRef}
+            ttl={vm.ttl}
+            setTtl={vm.actions.setTtl}
+            session={vm.session}
+            message={vm.message}
+            busy={vm.busy}
+            validationErrors={vm.validationErrors}
+            onGenerate={vm.actions.generateToken}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Tab: Instalação ─────────────────────────────────────────────────────────
+
+function InstallTab(props: {
+  snippet: string;
+  hasToken: boolean;
+  copied: boolean;
+  onCopy: () => void;
+}) {
+  return (
+    <>
+      <div className="panel" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="panel-title">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Zap size={16} style={{ color: "var(--color-brand)" }} />
+            <span>Como funciona</span>
+          </div>
+        </div>
+        <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, margin: "12px 0 0" }}>
+          Cole o código abaixo no HTML do seu site, antes do <code>&lt;/body&gt;</code>.
+          O widget carrega automaticamente e aparece como um botão flutuante no canto inferior direito.
+          Seus clientes podem iniciar uma conversa com o agente, tirar dúvidas, aplicar cupons e finalizar a compra sem sair da página.
+        </p>
+      </div>
+
+      <div className="panel">
+        <div className="panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Code2 size={16} style={{ color: "var(--color-brand)" }} />
+            <span>Código de instalação</span>
+          </div>
+          <button type="button" className="btn-secondary" onClick={props.onCopy} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            {props.copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
+            {props.copied ? "Copiado!" : "Copiar código"}
+          </button>
+        </div>
+
+        <pre className="embed-code-block">
+          <code>{props.snippet}</code>
+        </pre>
+
+        {!props.hasToken && (
+          <p className="field-hint" style={{ marginTop: "var(--space-3)" }}>
+            <KeyRound size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
+            Para ativar em produção, gere um token na aba <strong>Token avançado</strong>.
+          </p>
+        )}
+
+        {props.hasToken && (
+          <div className="panel-info" style={{ marginTop: "var(--space-3)", display: "flex", alignItems: "center", gap: 8 }}>
+            <CheckCircle2 size={14} />
+            Token ativo incorporado no código — pronto para produção.
+          </div>
+        )}
+      </div>
+
+      <div className="panel" style={{ marginTop: "var(--space-4)" }}>
+        <div className="panel-title">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <Shield size={16} style={{ color: "var(--color-brand)" }} />
+            <span>Plataformas compatíveis</span>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-3)", marginTop: 12 }}>
+          {[
+            { name: "Shopify", hint: "Cole no theme.liquid, antes do </body>" },
+            { name: "Nuvemshop", hint: "Configurações → Códigos externos → Rodapé" },
+            { name: "WordPress / Woo", hint: "Aparência → Editor → footer.php" },
+            { name: "HTML customizado", hint: "Cole em qualquer página HTML" },
+          ].map((p) => (
+            <div key={p.name} style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)" }}>
+              <strong style={{ fontSize: 13, display: "block", marginBottom: 2 }}>{p.name}</strong>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>{p.hint}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Tab: Configuração ───────────────────────────────────────────────────────
+
+function ConfigTab(props: {
+  allowedOrigin: string;
+  setAllowedOrigin: (v: string) => void;
+  cartRef: string;
+  setCartRef: (v: string) => void;
+  ttl: number;
+  setTtl: (v: number) => void;
+  session: import("../api-client.js").EmbedSessionResponse | null;
+  message: string | null;
+  busy: boolean;
+  validationErrors: Record<string, string>;
+  onGenerate: () => void;
+}) {
+  const { session, message, busy, validationErrors } = props;
+
+  return (
+    <>
       {message && (
-        <div
-          className={`${session ? "panel-info" : "panel-warn"} embed-feedback`}
-          role="status"
-          aria-live="polite"
-        >
+        <div className={session ? "panel-info" : "panel-warn"} role="status" aria-live="polite" style={{ marginBottom: "var(--space-4)" }}>
           {message}
         </div>
       )}
 
-      {/* ── Step 1: Session config ── */}
-      <div className="panel" style={{ padding: 'var(--space-6)', marginBottom: 'var(--space-4)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>1</div>
-          <div>
-            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Configurar sessão</h2>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Defina origem, carrinho e validade do token</p>
-          </div>
-          {hasToken && <span className="badge ok" style={{ marginLeft: 'auto' }}><CheckCircle2 size={11} /> Token ativo</span>}
+      <div className="panel" style={{ marginBottom: "var(--space-4)" }}>
+        <div className="panel-title">
+          <span>Domínio e sessão</span>
         </div>
+        <p style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 16px", lineHeight: 1.5 }}>
+          Configure onde o widget será exibido e por quanto tempo cada sessão de checkout permanece ativa.
+        </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr', gap: 'var(--space-4)' }}>
-          <label htmlFor="embed-origin">
-            Domínio permitido
+        <div className="embed-config-grid">
+          <div className="embed-config-field">
+            <label htmlFor="cfg-origin" className="field-label">Domínio permitido</label>
             <input
-              id="embed-origin"
+              id="cfg-origin"
               type="url"
-              value={allowedOrigin}
-              placeholder="https://minha-loja.com"
-              onChange={(e) => setAllowedOrigin(e.target.value)}
+              value={props.allowedOrigin}
+              placeholder="https://minha-loja.com.br"
+              onChange={(e) => props.setAllowedOrigin(e.target.value)}
             />
+            <span className="field-hint">URL do site onde o widget vai aparecer</span>
             {validationErrors.allowedOrigin && <span className="field-error" role="alert">{validationErrors.allowedOrigin}</span>}
-          </label>
+          </div>
 
-          <label htmlFor="embed-cart-ref">
-            ID do carrinho
+          <div className="embed-config-field">
+            <label htmlFor="cfg-cart" className="field-label">Referência do carrinho</label>
             <input
-              id="embed-cart-ref"
-              value={cartRef}
+              id="cfg-cart"
+              value={props.cartRef}
               placeholder="cart_abc123"
-              onChange={(e) => setCartRef(e.target.value)}
+              onChange={(e) => props.setCartRef(e.target.value)}
             />
+            <span className="field-hint">ID único da compra no seu sistema</span>
             {validationErrors.cartRef && <span className="field-error" role="alert">{validationErrors.cartRef}</span>}
-          </label>
+          </div>
 
-          <label htmlFor="embed-ttl">
-            Validade (seg)
-            <input
-              id="embed-ttl"
-              type="number"
-              min={60}
-              max={86400}
-              value={ttl}
-              onChange={(e) => setTtl(Number(e.target.value))}
-            />
+          <div className="embed-config-field">
+            <label htmlFor="cfg-ttl" className="field-label">Validade da sessão</label>
+            <select
+              id="cfg-ttl"
+              value={props.ttl}
+              onChange={(e) => props.setTtl(Number(e.target.value))}
+            >
+              <option value={3600}>1 hora</option>
+              <option value={86400}>1 dia</option>
+              <option value={604800}>1 semana</option>
+              <option value={2592000}>1 mês</option>
+              <option value={31536000}>1 ano</option>
+              <option value={0}>Nunca expira</option>
+            </select>
+            <span className="field-hint">Quanto tempo o token fica ativo</span>
             {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
-          </label>
+          </div>
         </div>
+      </div>
 
-        <div style={{ marginTop: 'var(--space-4)' }}>
-          <button type="button" className="btn-primary" style={{ height: 40, padding: '0 var(--space-6)' }} disabled={busy} onClick={() => void issue()}>
-            <KeyRound size={15} />
-            {busy ? "Gerando…" : "Gerar token"}
-          </button>
-          <span className="field-hint" style={{ marginLeft: 'var(--space-3)', verticalAlign: 'middle' }}>{Math.round(ttl / 60)} min · máx 24h</span>
+      <div className="panel">
+        <div className="panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>Token de produção</span>
+          {session && <span className="badge ok">Ativo</span>}
         </div>
+        <p style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 16px", lineHeight: 1.5 }}>
+          Gere o token que autentica o widget no domínio configurado acima. Sem token, o widget funciona apenas em modo de preview.
+        </p>
+
+        <button type="button" className="btn-primary" disabled={busy} onClick={props.onGenerate}>
+          <KeyRound size={15} />
+          {busy ? "Gerando…" : "Gerar token"}
+        </button>
 
         {session && (
-          <div style={{ marginTop: 'var(--space-4)', padding: 'var(--space-3) var(--space-4)', background: 'var(--color-success-bg)', border: '1px solid var(--color-success-border)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', gap: 'var(--space-3)' }}>
-            <CheckCircle2 size={14} style={{ color: 'var(--color-success)', flexShrink: 0 }} />
-            <code style={{ fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.embed_session_token.slice(0, 48)}…</code>
-            <span style={{ fontSize: 11, color: 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>{formatExpiry(session.expires_at_unix)}</span>
+          <div className="embed-token-result">
+            <CheckCircle2 size={14} style={{ color: "var(--color-success)", flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <code className="embed-token-value">{session.embed_session_token.slice(0, 56)}…</code>
+              <span className="embed-token-expiry">{formatExpiry(session.expires_at_unix)}</span>
+            </div>
           </div>
         )}
       </div>
-
-      {/* ── Step 2: Permissions ── */}
-      <div className="panel" style={{ padding: 'var(--space-6)', marginBottom: 'var(--space-4)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>2</div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Permissões</h2>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Menos permissões = mais segurança para o comprador</p>
-          </div>
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-            <button type="button" className="btn-secondary btn-xs" onClick={() => setSelectedScopes([...EMBED_SCOPES])}>Todas</button>
-            <button type="button" className="btn-secondary btn-xs" onClick={() => setSelectedScopes([])}>Nenhuma</button>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-3)' }}>
-          {EMBED_SCOPES.map((scope) => {
-            const meta = SCOPE_META[scope];
-            const isSelected = selectedScopes.includes(scope);
-            return (
-              <label
-                key={scope}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 16px',
-                  border: `1px solid ${isSelected ? 'var(--accent-line)' : 'var(--border)'}`,
-                  borderRadius: 10,
-                  background: isSelected ? 'oklch(20% 0.02 149)' : 'var(--card)',
-                  cursor: 'pointer',
-                  transition: 'border-color 0.15s, background 0.15s',
-                }}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => setSelectedScopes((prev) => isSelected ? prev.filter((s) => s !== scope) : [...prev, scope])}
-                  style={{ width: 16, height: 16, accentColor: 'var(--accent-dark)' }}
-                />
-                <div style={{ flex: 1 }}>
-                  <strong style={{ fontSize: 13, display: 'block' }}>{meta.label}</strong>
-                  <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>{meta.description}</span>
-                </div>
-                <span style={{ font: "500 10px var(--mono)", padding: "3px 8px", borderRadius: 5, border: `1px solid ${meta.group === 'read' ? 'var(--accent-line)' : 'oklch(45% 0.1 80)'}`, color: meta.group === 'read' ? 'var(--accent)' : 'var(--warn)' }}>{meta.group === 'read' ? 'leitura' : 'escrita'}</span>
-              </label>
-            );
-          })}
-        </div>
-        {validationErrors.scopes && <span className="field-error" role="alert" style={{ marginTop: 'var(--space-2)' }}>{validationErrors.scopes}</span>}
-      </div>
-
-      {/* ── Step 3: Code snippet ── */}
-      <div className="panel" style={{ padding: 'var(--space-6)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3)', marginBottom: 'var(--space-4)' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--color-brand)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>3</div>
-          <div style={{ flex: 1 }}>
-            <h2 style={{ fontSize: 15, marginBottom: 2 }}>Cole no seu HTML</h2>
-            <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>Antes do &lt;/body&gt; — o widget carrega automaticamente</p>
-          </div>
-          <button type="button" onClick={handleCopy} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
-            {copied ? "Copiado!" : "Copiar"}
-          </button>
-        </div>
-
-        <pre style={{ background: '#0B0F1A', color: '#e2e8f0', padding: 'var(--space-5)', borderRadius: 'var(--radius-sm)', fontSize: 12, lineHeight: 1.7, overflow: 'auto', margin: 0 }}>
-          <code>{snippet}</code>
-        </pre>
-
-        {!hasToken && (
-          <p style={{ marginTop: 'var(--space-3)', fontSize: 12, color: 'var(--color-text-muted)' }}>
-            <KeyRound size={12} style={{ verticalAlign: '-2px', marginRight: 4 }} />
-            Gere o token acima para ativar o snippet com credenciais reais.
-          </p>
-        )}
-
-        {hasToken && (
-          <div style={{ marginTop: 'var(--space-3)', display: 'flex', alignItems: 'center', gap: 'var(--space-2)', fontSize: 12, color: 'var(--color-success)' }}>
-            <CheckCircle2 size={13} />
-            Token incorporado — pronto para produção
-          </div>
-        )}
-      </div>
-    </div>
+    </>
   );
 }

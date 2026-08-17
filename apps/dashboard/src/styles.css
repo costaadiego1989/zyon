@@ -935,17 +935,21 @@ label {
 .section-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 6px;
+  margin-bottom: 12px;
 }
 
 .section-header h2,
 .section-header h3 {
   white-space: nowrap;
-  font: 600 13px var(--mono);
-  letter-spacing: 0.02em;
+  font: 700 13px var(--sans);
+  letter-spacing: 0;
   color: var(--ink);
+  margin: 0;
+  line-height: 1;
 }
+
+.section-header svg { color: var(--accent); flex: none; }
 
 .section-header::after {
   display: none;
@@ -2758,6 +2762,196 @@ button.dash-tab.active {
   align-items: center;
 }
 
+/* ── Embed Page ──────────────────────────────────────────────── */
+.embed-code-block {
+  background: oklch(12% 0.005 250);
+  color: oklch(90% 0.01 250);
+  padding: var(--space-5);
+  border-radius: var(--radius-sm);
+  font: 12px/1.7 var(--mono);
+  overflow-x: auto;
+  margin: var(--space-4) 0 0;
+}
+
+.embed-scope-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms;
+}
+
+.embed-scope-card:hover {
+  border-color: var(--accent-line);
+}
+
+.embed-scope-card--active {
+  border-color: var(--accent-line);
+  background: oklch(20% 0.02 149);
+}
+
+.embed-scope-card input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-dark);
+  flex-shrink: 0;
+}
+
+.embed-permissions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: var(--space-4);
+}
+
+.embed-permission-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.embed-permission-row:last-child {
+  border-bottom: none;
+}
+
+.embed-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: oklch(25% 0.005 250);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms;
+  flex-shrink: 0;
+  padding: 0;
+}
+
+.embed-toggle--on {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
+}
+
+.embed-toggle__thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 150ms;
+}
+
+.embed-toggle--on .embed-toggle__thumb {
+  transform: translateX(16px);
+}
+
+.embed-token-fields {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.embed-config-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+}
+
+.embed-config-grid .embed-config-field:last-child {
+  grid-column: 1 / -1;
+}
+
+.embed-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.embed-config-ttl-wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.embed-config-ttl-wrap input[type="range"] {
+  flex: 1;
+  height: 6px;
+  appearance: none;
+  background: var(--border);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+.embed-config-ttl-wrap input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent-dark);
+  cursor: pointer;
+}
+
+.embed-config-ttl-value {
+  font: 700 14px var(--mono);
+  color: var(--ink);
+  min-width: 48px;
+  text-align: right;
+}
+
+.embed-token-result {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-success-bg, oklch(20% 0.03 149));
+  border: 1px solid var(--color-success-border, oklch(35% 0.08 149));
+  border-radius: var(--radius-sm);
+}
+
+.embed-token-value {
+  display: block;
+  font: 11px/1.4 var(--mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.embed-token-expiry {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  .embed-token-fields {
+    grid-template-columns: 1fr;
+  }
+  .embed-config-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.field-label {
+  display: block;
+  font: 600 12px var(--sans);
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
 .badge-input-row input {
   flex: 1;
   min-width: 0;
@@ -3543,4 +3737,61 @@ button.dash-tab.active {
 @keyframes toastSlideIn {
   from { transform: translateY(12px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+
+/* ── Agent Orb (shared — used in onboarding + theme preview) ──────────────── */
+.onb-widget-orb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  animation: onbOrbFloat 6s ease-in-out infinite;
+}
+.onb-widget-orb__halo {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--orb-c1), var(--orb-c2), var(--orb-c3), var(--orb-c1));
+  filter: blur(16px);
+  opacity: 0.5;
+  animation: onbOrbSpin 13s linear infinite;
+}
+.onb-widget-orb__core {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(120% 120% at 30% 25%, rgba(255,255,255,0.85), rgba(255,255,255,0) 42%),
+    conic-gradient(from 200deg, var(--orb-c1), var(--orb-c2), var(--orb-c3), var(--orb-c1));
+  box-shadow: inset 0 0 18px rgba(255,255,255,0.25);
+  animation: onbOrbSpin 19s linear infinite;
+}
+.onb-widget-orb__eyes {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  z-index: 1;
+}
+.onb-widget-orb__eyes span {
+  width: 8px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 6px rgba(0,0,0,0.2);
+  animation: onbBlink 3.5s ease-in-out infinite;
+}
+.onb-widget-orb__eyes span:nth-child(2) {
+  animation-delay: 0.1s;
+}
+@keyframes onbOrbSpin { to { transform: rotate(360deg); } }
+@keyframes onbOrbFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes onbBlink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
 }

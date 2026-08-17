@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
-import { formatExpiry, validateEmbedForm, copyToClipboard } from "./embed-page.js";
+import { formatExpiry, validateEmbedForm, copyToClipboard } from "./useEmbedPage.js";
 
 // ── formatExpiry ─────────────────────────────────────────────────────────────
 
