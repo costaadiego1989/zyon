@@ -90,24 +90,25 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     if (!cartBlock) return;
 
     const { items, itemCount, total, discount, cartId } = cartBlock.data;
-    const resolvedCartId = cartId ?? cart.cartId;
 
-    if (resolvedCartId) saveCartId(resolvedCartId);
-
-    setCart({
-      cartId: resolvedCartId,
-      items: items.map((i: any) => ({
-        variantId: i.variantId,
-        productName: i.productName,
-        quantity: i.quantity,
-        price: i.price,
-        subtotal: i.subtotal,
-      })),
-      itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + i.quantity, 0),
-      discount: discount ?? 0,
-      total,
+    setCart((prev) => {
+      const resolvedCartId = cartId ?? prev.cartId;
+      if (resolvedCartId) saveCartId(resolvedCartId);
+      return {
+        cartId: resolvedCartId,
+        items: items.map((i: any) => ({
+          variantId: i.variantId,
+          productName: i.productName,
+          quantity: i.quantity,
+          price: i.price,
+          subtotal: i.subtotal,
+        })),
+        itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + i.quantity, 0),
+        discount: discount ?? 0,
+        total,
+      };
     });
-  }, [cart.cartId]);
+  }, []);
 
   return (
     <CartContext.Provider value={{ cart, updateFromBlocks }}>
