@@ -142,6 +142,31 @@ export class StorefrontController {
     return this.getStorefrontFunnel.execute(merchantId, resolvedPeriod);
   }
 
+  @Get("funnel/:merchantId/sessions")
+  async getFunnelSessions(@Param("merchantId") merchantId: string) {
+    // Reuse checkout funnel sessions — same table, filtered by merchantId + last 30 min
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
+    const sessions = await this.prisma.checkoutSession.findMany({
+      where: { merchantId, updatedAt: { gte: thirtyMinAgo } },
+      include: { events: { select: { eventName: true }, orderBy: { occurredAt: "desc" } } },
+      orderBy: { updatedAt: "desc" },
+      take: 50,
+    });
+    return {
+      sessions: sessions.map((s: any) => ({
+        sessionId: s.sessionId,
+        buyerPhone: "",
+        buyerEmail: "",
+        buyerName: "",
+        stage: resolveStage(s.events.map((e: any) => e.eventName)),
+        lastActivityAt: s.updatedAt.toISOString(),
+        abandonmentScore: s.abandonmentScore ?? 0,
+      })),
+      total: sessions.length,
+      status: "active",
+    };
+  }
+
   @Get("cart/:cartId")
   async getCart(
     @Param("cartId") cartId: string,
@@ -163,4 +188,12 @@ export class StorefrontController {
       total: cart.total / 100,
     };
   }
+}
+
+function resolveStage(eventNames: string[]): "data_collection" | "shipping" | "payment" | "completed" {
+  if (eventNames.includes("order_completed")) return "completed";
+  if (eventNames.includes("payment_method_selected")) return "payment";
+  if (eventNames.includes("cart_viewed")) return "shipping";
+  if (eventNames.includes("product_viewed")) return "data_collection";
+  return "data_collection";
 }

@@ -160,17 +160,17 @@ export function useFunnelPage(props: {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/checkout/funnel/${merchantId}/sessions`,
-        { credentials: "include" },
-      );
+      const sessionsEndpoint = funnelSource === "storefront"
+        ? `${apiBaseUrl}/storefront/funnel/${merchantId}/sessions`
+        : `${apiBaseUrl}/checkout/funnel/${merchantId}/sessions`;
+      const res = await fetch(sessionsEndpoint, { credentials: "include" });
       if (!res.ok) return;
       const json: FunnelSessionsResponse = await res.json();
       setSessions(json.sessions);
     } catch {
       // non-blocking; sessions are supplementary
     }
-  }, [apiBaseUrl, merchantId]);
+  }, [apiBaseUrl, merchantId, funnelSource]);
 
   useEffect(() => {
     void fetchFunnel();

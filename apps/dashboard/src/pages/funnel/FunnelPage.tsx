@@ -1,6 +1,7 @@
 import React from "react";
 import { Download } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
+import { TabBar } from "../../components/TabBar.js";
 import { useFunnelPage } from "./useFunnelPage.js";
 import { FunnelChart } from "./components/FunnelChart.js";
 import { FunnelMetrics } from "./components/FunnelMetrics.js";
@@ -65,22 +66,14 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
 
       {/* ── Source Tabs (for BOTH plan) ── */}
       {vm.showSourceTabs && (
-        <div className="fnl-source-tabs">
-          <button
-            type="button"
-            className={`fnl-source-tab${vm.funnelSource === "storefront" ? " active" : ""}`}
-            onClick={() => vm.setFunnelSource("storefront")}
-          >
-            Jornada completa
-          </button>
-          <button
-            type="button"
-            className={`fnl-source-tab${vm.funnelSource === "checkout" ? " active" : ""}`}
-            onClick={() => vm.setFunnelSource("checkout")}
-          >
-            Widget Checkout
-          </button>
-        </div>
+        <TabBar
+          tabs={[
+            { key: "storefront", label: "Jornada completa" },
+            { key: "checkout", label: "Widget Checkout" },
+          ]}
+          activeTab={vm.funnelSource}
+          onTabChange={(k) => vm.setFunnelSource(k as "storefront" | "checkout")}
+        />
       )}
 
       {/* ── Bottleneck ── */}

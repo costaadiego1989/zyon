@@ -715,6 +715,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           updatedAt: new Date()
         }
       });
+    } else {
+      // Touch updatedAt so session appears as "active" in funnel dashboard
+      await this.prisma.checkoutSession.update({
+        where: { merchantId_sessionId: { merchantId, sessionId } },
+        data: { updatedAt: new Date() }
+      });
     }
   }
 
