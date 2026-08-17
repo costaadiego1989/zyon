@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { ConflictException } from "@nestjs/common";
 import { AddProductUseCase } from "./add-product.use-case.js";
+import { GenerateProductSeoUseCase } from "./generate-product-seo.use-case.js";
 import type {
   CreateProductInput,
   ProductRepositoryPort,
@@ -44,6 +45,10 @@ function makePortDouble(overrides: Partial<ProductRepositoryPort> = {}): Product
   };
 }
 
+function makeSeoDouble(): GenerateProductSeoUseCase {
+  return { execute: async () => ({ seoTitle: "t", metaDescription: "d", slug: "s", ogTitle: "o", ogDescription: "od", keywords: [] }) } as any;
+}
+
 const validInput: CreateProductInput = {
   merchantId: "mrc_1",
   name: "Widget",
@@ -59,7 +64,7 @@ describe("AddProductUseCase", () => {
         return makeProduct({ merchantId: input.merchantId, name: input.name });
       },
     });
-    const useCase = new AddProductUseCase(repo);
+    const useCase = new AddProductUseCase(repo, makeSeoDouble());
 
     const result = await useCase.execute(validInput);
 
@@ -70,7 +75,7 @@ describe("AddProductUseCase", () => {
   });
 
   it("rejects empty product name", async () => {
-    const useCase = new AddProductUseCase(makePortDouble());
+    const useCase = new AddProductUseCase(makePortDouble(), makeSeoDouble());
     await assert.rejects(
       () => useCase.execute({ ...validInput, name: "   " }),
       (err: unknown) => err instanceof ConflictException && err.message === "product_name_required",
@@ -78,7 +83,7 @@ describe("AddProductUseCase", () => {
   });
 
   it("rejects products without variants", async () => {
-    const useCase = new AddProductUseCase(makePortDouble());
+    const useCase = new AddProductUseCase(makePortDouble(), makeSeoDouble());
     await assert.rejects(
       () => useCase.execute({ ...validInput, variants: [] }),
       (err: unknown) => err instanceof ConflictException && err.message === "at_least_one_variant_required",
@@ -86,7 +91,7 @@ describe("AddProductUseCase", () => {
   });
 
   it("rejects variants missing sku", async () => {
-    const useCase = new AddProductUseCase(makePortDouble());
+    const useCase = new AddProductUseCase(makePortDouble(), makeSeoDouble());
     await assert.rejects(
       () =>
         useCase.execute({
@@ -98,7 +103,7 @@ describe("AddProductUseCase", () => {
   });
 
   it("rejects non-positive base price", async () => {
-    const useCase = new AddProductUseCase(makePortDouble());
+    const useCase = new AddProductUseCase(makePortDouble(), makeSeoDouble());
     await assert.rejects(
       () =>
         useCase.execute({

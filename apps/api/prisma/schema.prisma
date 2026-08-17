@@ -1173,6 +1173,14 @@ model Product {
   metadata    Json?
   categoryId  String?  @map("category_id")
   isActive    Boolean  @default(true) @map("is_active")
+  seoTitle    String?  @map("seo_title")
+  metaDescription String? @map("meta_description")
+  slug        String?  @unique
+  ogTitle     String?  @map("og_title")
+  ogDescription String? @map("og_description")
+  twitterCard String?  @map("twitter_card")
+  keywords    String[] @default([])
+  seoGeneratedAt DateTime? @map("seo_generated_at")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -1184,6 +1192,7 @@ model Product {
   @@index([merchantId])
   @@index([merchantId, isActive, createdAt])
   @@index([merchantId, categoryId, isActive])
+  @@index([slug])
   @@map("products")
 }
 

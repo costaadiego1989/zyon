@@ -60,6 +60,14 @@ export interface Product {
   metadata?: Record<string, unknown>;
   categoryId?: string;
   isActive: boolean;
+  seoTitle?: string;
+  metaDescription?: string;
+  slug?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  twitterCard?: string;
+  keywords?: string[];
+  seoGeneratedAt?: string;
   createdAt: string;
   updatedAt: string;
   variants: ProductVariant[];
@@ -102,6 +110,13 @@ export interface UpdateProductPayload {
   metadata?: Record<string, unknown>;
   categoryId?: string;
   isActive?: boolean;
+  seoTitle?: string;
+  metaDescription?: string;
+  slug?: string;
+  ogTitle?: string;
+  ogDescription?: string;
+  twitterCard?: string;
+  keywords?: string[];
 }
 
 export function catalogEndpoints(base: string, f: typeof fetch) {
@@ -226,6 +241,14 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         base,
         `/merchants/${encodeURIComponent(merchantId)}/products/generate-description`,
         { method: "POST", jsonBody: data },
+        f,
+      );
+    },
+    generateProductSeo(merchantId: string, productId: string, tone?: string): Promise<{ seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; keywords: string[] }> {
+      return dashboardJson(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/generate-seo`,
+        { method: "POST", jsonBody: { tone } },
         f,
       );
     },

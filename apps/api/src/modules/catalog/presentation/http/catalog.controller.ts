@@ -17,6 +17,7 @@ import { CreateCategoryUseCase } from "../../application/use-cases/create-catego
 import { UpdateCategoryUseCase } from "../../application/use-cases/update-category.use-case.js";
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 import { ReorderCategoriesUseCase } from "../../application/use-cases/reorder-categories.use-case.js";
+import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
 
 @UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -34,6 +35,7 @@ export class StoreBuilderCatalogController {
     private readonly updateCategory: UpdateCategoryUseCase,
     private readonly deleteCategory: DeleteCategoryUseCase,
     private readonly reorderCategories: ReorderCategoriesUseCase,
+    private readonly generateProductSeo: GenerateProductSeoUseCase,
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
@@ -320,6 +322,16 @@ export class StoreBuilderCatalogController {
   ) {
     await this.prisma.productMedia.delete({ where: { id: mediaId } });
     return { deleted: true };
+  }
+
+  @Post(":mid/products/:pid/generate-seo")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async generateSeo(
+    @Param("mid") merchantId: string,
+    @Param("pid") productId: string,
+    @Body() body: { tone?: "profissional" | "casual" | "luxo" | "técnico" },
+  ) {
+    return this.generateProductSeo.execute({ merchantId, productId, tone: body.tone });
   }
 
   @Post(":mid/products/generate-description")

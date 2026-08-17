@@ -24,6 +24,13 @@ export class PrismaProductRepository implements ProductRepositoryPort {
           type: input.type ?? "physical",
           metadata: input.metadata as Prisma.InputJsonValue ?? Prisma.JsonNull,
           categoryId: input.categoryId,
+          seoTitle: input.seoTitle,
+          metaDescription: input.metaDescription,
+          slug: input.slug,
+          ogTitle: input.ogTitle,
+          ogDescription: input.ogDescription,
+          twitterCard: input.twitterCard,
+          keywords: input.keywords ?? [],
           variants: {
             create: input.variants.map((v) => ({
               sku: v.sku,
@@ -139,7 +146,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   async update(
     merchantId: string,
     productId: string,
-    data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean }>,
+    data: Partial<{ name: string; description: string; type: string; metadata: Record<string, unknown>; categoryId: string; isActive: boolean; seoTitle: string; metaDescription: string; slug: string; ogTitle: string; ogDescription: string; twitterCard: string; keywords: string[] }>,
   ): Promise<ProductEntity> {
     const prismaData: Record<string, unknown> = {};
     if (data.name !== undefined) prismaData.name = data.name;
@@ -148,6 +155,13 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     if (data.metadata !== undefined) prismaData.metadata = data.metadata as Prisma.InputJsonValue;
     if (data.categoryId !== undefined) prismaData.categoryId = data.categoryId || null;
     if (data.isActive !== undefined) prismaData.isActive = data.isActive;
+    if (data.seoTitle !== undefined) prismaData.seoTitle = data.seoTitle || null;
+    if (data.metaDescription !== undefined) prismaData.metaDescription = data.metaDescription || null;
+    if (data.slug !== undefined) prismaData.slug = data.slug || null;
+    if (data.ogTitle !== undefined) prismaData.ogTitle = data.ogTitle || null;
+    if (data.ogDescription !== undefined) prismaData.ogDescription = data.ogDescription || null;
+    if (data.twitterCard !== undefined) prismaData.twitterCard = data.twitterCard || null;
+    if (data.keywords !== undefined) prismaData.keywords = data.keywords;
 
     const product = await this.prisma.product.update({
       where: { id: productId, merchantId },
@@ -229,6 +243,14 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       metadata: raw.metadata as Record<string, unknown> | undefined,
       categoryId: raw.categoryId,
       isActive: raw.isActive,
+      seoTitle: raw.seoTitle,
+      metaDescription: raw.metaDescription,
+      slug: raw.slug,
+      ogTitle: raw.ogTitle,
+      ogDescription: raw.ogDescription,
+      twitterCard: raw.twitterCard,
+      keywords: raw.keywords ?? [],
+      seoGeneratedAt: raw.seoGeneratedAt,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
       variants: raw.variants?.map((v: any) => this.mapVariant(v)) ?? [],
