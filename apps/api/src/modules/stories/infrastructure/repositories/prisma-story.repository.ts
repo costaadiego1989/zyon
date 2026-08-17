@@ -59,8 +59,8 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
   async reorderCategories(merchantId: string, items: { id: string; sortOrder: number }[]): Promise<void> {
     await this.prisma.$transaction(
       items.map((item) =>
-        this.prisma.storyCategory.update({
-          where: { id: item.id },
+        this.prisma.storyCategory.updateMany({
+          where: { id: item.id, merchantId },
           data: { sortOrder: item.sortOrder },
         }),
       ),
@@ -126,8 +126,8 @@ export class PrismaStoryRepository implements StoryRepositoryPort {
   async reorderStories(merchantId: string, items: { id: string; sortOrder: number }[]): Promise<void> {
     await this.prisma.$transaction(
       items.map((item) =>
-        this.prisma.story.update({
-          where: { id: item.id },
+        this.prisma.story.updateMany({
+          where: { id: item.id, merchantId },
           data: { sortOrder: item.sortOrder },
         }),
       ),
