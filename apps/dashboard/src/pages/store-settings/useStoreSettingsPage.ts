@@ -17,6 +17,9 @@ export interface StoreSettingsState {
   cepLoading: boolean;
   generatingPolicy: string | null;
   logoUrl: string;
+  budgetMode: boolean;
+  budgetEmail: string;
+  budgetWhatsapp: string;
 }
 
 export interface StylesForm {
@@ -100,6 +103,9 @@ export function useStoreSettingsPage() {
     cepLoading: false,
     generatingPolicy: null,
     logoUrl: "",
+    budgetMode: false,
+    budgetEmail: "",
+    budgetWhatsapp: "",
   });
 
   useEffect(() => {
@@ -265,6 +271,9 @@ export function useStoreSettingsPage() {
     setBusinessHours: (hours: BusinessHour[]) => setState((p) => ({ ...p, businessHours: hours })),
     setStyles: (styles: StylesForm) => setState((p) => ({ ...p, styles })),
     setLogoUrl: (url: string) => setState((p) => ({ ...p, logoUrl: url })),
+    setBudgetMode: (v: boolean) => setState((p) => ({ ...p, budgetMode: v })),
+    setBudgetEmail: (v: string) => setState((p) => ({ ...p, budgetEmail: v })),
+    setBudgetWhatsapp: (v: string) => setState((p) => ({ ...p, budgetWhatsapp: v })),
     setActiveTab: (tab: "company" | "policies" | "social" | "styles") => setState((p) => ({ ...p, activeTab: tab })),
     handleCepChange,
     handleSave,

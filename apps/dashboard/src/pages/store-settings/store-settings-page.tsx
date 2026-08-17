@@ -11,7 +11,8 @@ const DAY_LABELS: Record<string, string> = {
 };
 
 export function StoreSettingsPage() {
-  const { state, setCompany, setPolicies, setSocial, setBusinessHours, setStyles, setActiveTab, setLogoUrl, handleCepChange, handleSave, generatePolicy, dismiss } = useStoreSettingsPage();
+  const vm = useStoreSettingsPage();
+  const { state, setCompany, setPolicies, setSocial, setBusinessHours, setStyles, setActiveTab, setLogoUrl, setBudgetMode, setBudgetEmail, setBudgetWhatsapp, handleCepChange, handleSave, generatePolicy, dismiss } = vm;
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>Carregando...</div>;
 
@@ -54,6 +55,38 @@ export function StoreSettingsPage() {
           {state.activeTab === "social" && <SocialTab social={state.social} onChange={setSocial} />}
           {state.activeTab === "styles" && <StylesTab styles={state.styles} onChange={setStyles} />}
         </div>
+      </div>
+
+      {/* Modo Orçamento */}
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginTop: 20 }}>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Modo Orçamento</h3>
+        <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
+          Quando ativado, clientes solicitam orçamento ao invés de finalizar compra. Você recebe por email e WhatsApp.
+        </p>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+          <div>
+            <strong style={{ fontSize: 13, color: "var(--ink)" }}>Ativar modo orçamento</strong>
+            <p style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 0" }}>Substitui &quot;Finalizar pedido&quot; por &quot;Solicitar orçamento&quot;</p>
+          </div>
+          <label style={{ position: "relative", width: 42, height: 24, cursor: "pointer" }}>
+            <input type="checkbox" checked={state.budgetMode} onChange={(e) => setBudgetMode(e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
+            <span style={{ position: "absolute", inset: 0, borderRadius: 12, background: state.budgetMode ? "var(--accent, #0f766e)" : "var(--border)", transition: "background 0.2s" }}>
+              <span style={{ position: "absolute", top: 2, left: state.budgetMode ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+            </span>
+          </label>
+        </div>
+        {state.budgetMode && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Email para orçamentos</span>
+              <input type="email" value={state.budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} placeholder="contato@loja.com" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13 }} />
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>WhatsApp para orçamentos</span>
+              <input type="tel" value={state.budgetWhatsapp} onChange={(e) => setBudgetWhatsapp(e.target.value)} placeholder="(11) 99999-9999" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13 }} />
+            </label>
+          </div>
+        )}
       </div>
 
     </div>
