@@ -35,6 +35,26 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const inputRef = useRef<HTMLInputElement | null>(null);
   const socketRef = useRef<Socket | null>(null);
   const [ticketId, setTicketId] = useState<string | null>(null);
+  const embedTokenRef = useRef<string | null>(null);
+  const sessionIdRef = useRef(`support_${Date.now()}`);
+
+  // Obtain embed token on mount (needed for /support/chat auth)
+  useEffect(() => {
+    if (!merchantId || embedTokenRef.current) return;
+    void (async () => {
+      try {
+        const res = await fetch("/api/checkout-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ merchant_id: merchantId }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          embedTokenRef.current = data.embed_session_token ?? null;
+        }
+      } catch { /* non-critical */ }
+    })();
+  }, [merchantId]);
 
   // Connect to support socket when handoff ticket is created
   useEffect(() => {
@@ -114,8 +134,9 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
     setIsLoading(true);
 
     try {
-      // For FAQ clicks, use fallback. For free-form, attempt API.
-      if (isFaqClick) {
+      // For FAQ clicks EXCEPT handoff, use fallback. Handoff always goes to API.
+      const isHandoffRequest = /atendente|humano|suporte/i.test(trimmed);
+      if (isFaqClick && !isHandoffRequest) {
         const fallbackText = getFallbackResponse(trimmed);
         setTimeout(() => {
           setMessages((prev) => [...prev, {
@@ -131,13 +152,16 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
       // Attempt API call if merchantId exists
       if (merchantId) {
         try {
+          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          if (embedTokenRef.current) {
+            headers["X-Embed-Token"] = embedTokenRef.current;
+          }
           const res = await fetch(`${API_BASE}/support/chat`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({
               message: trimmed,
-              merchant_id: merchantId,
-              session_id: "web-support",
+              session_id: sessionIdRef.current,
             }),
           });
 
