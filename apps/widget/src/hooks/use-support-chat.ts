@@ -1,8 +1,9 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { embedAuthHeaders } from "../lib/embed-client.js";
+import { io, type Socket } from "socket.io-client";
 
 export interface SupportMessage {
-  role: "user" | "agent";
+  role: "user" | "agent" | "merchant";
   text: string;
 }
 
@@ -46,11 +47,42 @@ export function useSupportChat({ apiBaseUrl, sessionId, embedToken }: UseSupport
   const [error, setError] = useState<string | null>(null);
   const [latestTicketId, setLatestTicketId] = useState<string | null>(null);
   const [handoffPending, setHandoffPending] = useState(false);
+  const socketRef = useRef<Socket | null>(null);
+
+  // Connect to support socket when handoff happens to receive merchant replies
+  useEffect(() => {
+    if (!latestTicketId) return;
+    const base = apiBaseUrl.replace(/\/$/, "");
+    const socket = io(`${base}/support`, { transports: ["websocket", "polling"] });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      socket.emit("join_ticket", { ticketId: latestTicketId });
+    });
+
+    socket.on("new_message", (msg: { senderType: string; content: string }) => {
+      if (msg.senderType === "merchant") {
+        setMessages((prev) => [...prev, { role: "merchant", text: msg.content }]);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [latestTicketId, apiBaseUrl]);
 
   const send = useCallback(
     async (text: string) => {
       if (!text.trim() || loading) return;
       setMessages((prev) => [...prev, { role: "user", text: text.trim() }]);
+
+      // If handoff active, send via socket directly to merchant
+      if (handoffPending && latestTicketId && socketRef.current?.connected) {
+        socketRef.current.emit("buyer_reply", { ticketId: latestTicketId, content: text.trim() });
+        return;
+      }
+
       setLoading(true);
       setError(null);
 

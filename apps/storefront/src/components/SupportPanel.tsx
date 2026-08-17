@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { io, type Socket } from "socket.io-client";
 
 interface SupportMessage {
   id: string;
-  role: "user" | "agent";
+  role: "user" | "agent" | "merchant";
   text: string;
 }
 
@@ -32,6 +33,34 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   const [view, setView] = useState<"welcome" | "chat">("welcome");
   const threadRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const socketRef = useRef<Socket | null>(null);
+  const [ticketId, setTicketId] = useState<string | null>(null);
+
+  // Connect to support socket when handoff ticket is created
+  useEffect(() => {
+    if (!ticketId) return;
+    const socket = io(`${API_BASE}/support`, { transports: ["websocket", "polling"] });
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      socket.emit("join_ticket", { ticketId });
+    });
+
+    socket.on("new_message", (msg: { senderType: string; content: string }) => {
+      if (msg.senderType === "merchant") {
+        setMessages((prev) => [...prev, {
+          id: `m-${Date.now()}`,
+          role: "merchant",
+          text: msg.content,
+        }]);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [ticketId]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -114,10 +143,14 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
 
           if (res.ok) {
             const data = await res.json();
+            // Check for handoff
+            if (data.handoff?.ticketId) {
+              setTicketId(data.handoff.ticketId);
+            }
             setMessages((prev) => [...prev, {
               id: `a-${Date.now()}`,
               role: "agent",
-              text: data.message || data.response || "Mensagem recebida.",
+              text: data.reply || data.message || data.response || "Mensagem recebida.",
             }]);
             setIsLoading(false);
             return;
@@ -363,13 +396,13 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                     animation: "bubble-in 0.2s ease both",
                   }}
                 >
-                  {msg.role === "agent" && (
+                  {(msg.role === "agent" || msg.role === "merchant") && (
                     <div
                       style={{
                         width: "22px",
                         height: "22px",
                         borderRadius: "50%",
-                        background: "var(--aacp-accent, #0f766e)",
+                        background: msg.role === "merchant" ? "#2563eb" : "var(--aacp-accent, #0f766e)",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
@@ -377,25 +410,31 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                         fontSize: "10px",
                       }}
                     >
-                      💬
+                      {msg.role === "merchant" ? "👤" : "💬"}
                     </div>
                   )}
-                  <div
-                    style={{
-                      maxWidth: "calc(100% - 32px)",
-                      padding: "8px 12px",
-                      borderRadius: msg.role === "user" ? "10px 10px 4px 10px" : "10px 10px 10px 4px",
-                      background: msg.role === "user"
-                        ? "var(--aacp-accent, #0f766e)"
-                        : "var(--aacp-card, rgba(255,255,255,0.05))",
-                      color: msg.role === "user" ? "#fff" : "var(--aacp-fg, #f5f5f7)",
-                      fontSize: "12px",
-                      lineHeight: 1.4,
-                      wordWrap: "break-word",
-                      border: msg.role === "user" ? "none" : "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-                    }}
-                  >
-                    {msg.text}
+                  <div style={{ display: "flex", flexDirection: "column", maxWidth: "calc(100% - 32px)" }}>
+                    {msg.role === "merchant" && (
+                      <span style={{ fontSize: "9px", fontWeight: 600, color: "#60a5fa", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Atendente</span>
+                    )}
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: msg.role === "user" ? "10px 10px 4px 10px" : "10px 10px 10px 4px",
+                        background: msg.role === "user"
+                          ? "var(--aacp-accent, #0f766e)"
+                          : msg.role === "merchant"
+                            ? "rgba(37, 99, 235, 0.15)"
+                            : "var(--aacp-card, rgba(255,255,255,0.05))",
+                        color: msg.role === "user" ? "#fff" : "var(--aacp-fg, #f5f5f7)",
+                        fontSize: "12px",
+                        lineHeight: 1.4,
+                        wordWrap: "break-word",
+                        border: msg.role === "user" ? "none" : msg.role === "merchant" ? "1px solid rgba(37,99,235,0.3)" : "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
+                      }}
+                    >
+                      {msg.text}
+                    </div>
                   </div>
                 </div>
               ))}

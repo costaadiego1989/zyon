@@ -16,17 +16,18 @@
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@zyon/agentic-checkout-js": "workspace:*",
-    "@zyon/shared-types": "workspace:*",
     "@stripe/react-stripe-js": "^6.3.0",
     "@stripe/stripe-js": "^9.4.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@zyon/agentic-checkout-js": "workspace:*",
+    "@zyon/shared-types": "workspace:*",
     "lucide-react": "^0.468.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-qr-code": "^2.0.21",
-    "viem": "^2.31.0",
+    "socket.io-client": "4.8.1",
     "typescript": "^5.7.2",
+    "viem": "^2.31.0",
     "vite": "^6.0.3",
     "zod": "^4.4.3"
   },
