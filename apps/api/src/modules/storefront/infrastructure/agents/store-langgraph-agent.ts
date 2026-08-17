@@ -154,9 +154,11 @@ export class StorefrontLangGraphAgent {
     const blocks: ConversationBlock[] = [];
 
     const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules);
+    // Limit history to last 10 messages to prevent context overflow that makes LLM skip tool calls
+    const recentHistory = input.history.slice(-10);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
       { role: "system" as const, content: systemContent },
-      ...input.history.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
+      ...recentHistory.map((h) => ({ role: h.role as "user" | "assistant", content: h.content })),
       { role: "user" as const, content: input.userMessage }
     ];
 
@@ -181,7 +183,7 @@ export class StorefrontLangGraphAgent {
           messages,
           tools: openRouterTools.length > 0 ? openRouterTools : undefined,
           temperature: 0.5,
-          maxTokens: 500
+          maxTokens: 1000
         });
 
         totalPromptTokens += result.usage.promptTokens;
