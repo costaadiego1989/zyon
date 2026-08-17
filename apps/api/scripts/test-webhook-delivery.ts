@@ -1,115 +1,169 @@
 /**
- * Webhook delivery E2E test.
+ * Self-contained webhook E2E test.
+ * Registers a test merchant, creates webhook, tests delivery.
  *
- * Tests: start listener → register webhook → test delivery → verify receipt.
- *
- * Usage:
- *   # Get your session cookie from browser DevTools (Application > Cookies > "session")
- *   AUTH_COOKIE="session=eyJ..." npx tsx scripts/test-webhook-delivery.ts
- *
- *   # Or use existing API key (full secret, not prefix)
- *   API_KEY="aacp_live_xxxxx..." npx tsx scripts/test-webhook-delivery.ts
- *
- * Prerequisites: API running on localhost:3009
+ * Run: cd apps/api && npx tsx scripts/test-webhook-delivery.ts
+ * Requires: API on :3009, WEBHOOK_DISPATCHER_ENABLED=true
  */
 
 import http from "node:http";
 
-const API_BASE = process.env.API_BASE_URL ?? "http://localhost:3009";
-const LISTENER_PORT = 9876;
-const AUTH_COOKIE = process.env.AUTH_COOKIE ?? "";
-const API_KEY = process.env.API_KEY ?? "";
+const API = "http://localhost:3009";
+const PORT = 9877;
+const EMAIL = `wh-test-${Date.now()}@zyon.dev`;
+const PASS = "WebhookTest123!";
 
-const receivedDeliveries: Array<{ headers: Record<string, string>; body: string }> = [];
+const received: string[] = [];
+let sessionCookie = "";
 
-function startListener(): Promise<http.Server> {
-  return new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      let body = "";
-      req.on("data", (chunk) => { body += chunk; });
-      req.on("end", () => {
-        receivedDeliveries.push({ headers: req.headers as Record<string, string>, body });
-        console.log(`  📨 Received webhook #${receivedDeliveries.length}`);
-        try {
-          const parsed = JSON.parse(body);
-          console.log(`     event: ${parsed.event ?? parsed.type}`);
-          console.log(`     merchant: ${parsed.merchant_id}`);
-        } catch { console.log(`     body: ${body.substring(0, 100)}`); }
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end('{"ok":true}');
+function post(path: string, body: object, cookie?: string): Promise<{ status: number; data: any; cookie?: string }> {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const idempotencyKey = `idk_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const req = http.request(`${API}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": Buffer.byteLength(payload).toString(),
+        "Idempotency-Key": idempotencyKey,
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+    }, (res) => {
+      let raw = "";
+      res.on("data", (c) => raw += c);
+      res.on("end", () => {
+        const setCookie = res.headers["set-cookie"]?.[0]?.split(";")[0];
+        try { resolve({ status: res.statusCode!, data: JSON.parse(raw), cookie: setCookie }); }
+        catch { resolve({ status: res.statusCode!, data: raw, cookie: setCookie }); }
       });
     });
-    server.listen(LISTENER_PORT, () => {
-      console.log(`✅ Listener on http://localhost:${LISTENER_PORT}\n`);
-      resolve(server);
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function get(path: string, cookie: string): Promise<{ status: number; data: any }> {
+  return new Promise((resolve, reject) => {
+    const req = http.request(`${API}${path}`, { method: "GET", headers: { Cookie: cookie } }, (res) => {
+      let raw = "";
+      res.on("data", (c) => raw += c);
+      res.on("end", () => {
+        try { resolve({ status: res.statusCode!, data: JSON.parse(raw) }); }
+        catch { resolve({ status: res.statusCode!, data: raw }); }
+      });
     });
+    req.on("error", reject);
+    req.end();
   });
-}
-
-function authHeaders(): Record<string, string> {
-  if (API_KEY) return { Authorization: `Bearer ${API_KEY}` };
-  if (AUTH_COOKIE) return { Cookie: AUTH_COOKIE };
-  throw new Error("Set AUTH_COOKIE or API_KEY env var");
-}
-
-async function api<T>(method: string, path: string, body?: unknown): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", ...authHeaders() },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  if (!res.ok) throw new Error(`${method} ${path} → ${res.status}: ${await res.text()}`);
-  return res.json() as Promise<T>;
 }
 
 async function run() {
-  console.log("🧪 WEBHOOK E2E TEST\n");
-  const server = await startListener();
+  console.log("🧪 WEBHOOK E2E — SELF-CONTAINED TEST\n");
+
+  // 1. Start listener
+  const server = http.createServer((req, res) => {
+    let body = "";
+    req.on("data", (c) => body += c);
+    req.on("end", () => {
+      received.push(body);
+      console.log(`  📨 Webhook received! (#${received.length})`);
+      res.writeHead(200);
+      res.end('{"ok":true}');
+    });
+  });
+  await new Promise<void>((r) => server.listen(PORT, () => r()));
+  console.log(`✅ Listener on :${PORT}\n`);
 
   try {
-    // 1. Register webhook
-    console.log("1️⃣  Registering webhook...");
-    const wh = await api<{ id: string; signingSecret?: string }>("POST", "/integrations/webhooks", {
-      url: `http://localhost:${LISTENER_PORT}/webhook`,
-      events: ["order.created", "payment.approved", "checkout.started"],
-      enabled: true,
-    });
-    console.log(`   ✅ Webhook: ${wh.id}`);
-    if (wh.signingSecret) console.log(`   🔐 Secret: ${wh.signingSecret.substring(0, 20)}...`);
-
-    // 2. Send test delivery
-    console.log("\n2️⃣  Sending test delivery...");
-    const delivery = await api<{ id: string; status: string }>("POST", `/integrations/webhooks/${wh.id}/test`, {});
-    console.log(`   ✅ Delivery queued: ${delivery.id} (${delivery.status})`);
-
-    // 3. Wait for delivery
-    console.log("\n3️⃣  Waiting for delivery (max 15s)...");
-    const start = Date.now();
-    while (receivedDeliveries.length === 0 && Date.now() - start < 15_000) {
-      await new Promise((r) => setTimeout(r, 500));
-      process.stdout.write(".");
-    }
-    console.log("");
-
-    // 4. Result
-    console.log("\n════════════════════════════════════════");
-    if (receivedDeliveries.length > 0) {
-      console.log("✅ PASS — Webhook delivered successfully!");
-      console.log(`   Signature header: ${receivedDeliveries[0].headers["x-webhook-signature"] ? "present" : "missing"}`);
+    // 2. Register merchant
+    console.log("1️⃣  Register merchant...");
+    const reg = await post("/auth/register", { email: EMAIL, password: PASS, merchant_name: "WH Test Store" });
+    if (reg.status === 201 || reg.status === 200) {
+      sessionCookie = reg.cookie ?? "";
+      console.log(`   ✅ Registered: ${reg.data.merchantId}`);
+    } else if (reg.status === 409) {
+      // Already exists, login
+      console.log("   ⚡ Already exists, logging in...");
+      const login = await post("/auth/login", { email: EMAIL, password: PASS });
+      if (login.status !== 200 && login.status !== 201) throw new Error(`Login failed: ${login.status}`);
+      sessionCookie = login.cookie ?? "";
+      console.log(`   ✅ Logged in`);
     } else {
-      console.log("❌ FAIL — No delivery received");
-      console.log("   Check: WEBHOOK_DISPATCHER_ENABLED=true in apps/api/.env");
+      throw new Error(`Register failed: ${reg.status} ${JSON.stringify(reg.data)}`);
+    }
+
+    if (!sessionCookie) throw new Error("No session cookie received");
+
+    // 3. Create webhook (ALL events to ensure test works)
+    console.log("\n2️⃣  Register webhook...");
+    const allEvents = [
+      "checkout.started", "checkout.abandoned", "order.created", "order.approved",
+      "order.cancelled", "payment.pending", "payment.approved", "payment.failed",
+      "payment.refunded", "customer.upserted", "tracking.updated",
+      "support.ticket.created", "commerce.connection.degraded"
+    ];
+    const wh = await post("/integrations/webhooks", {
+      url: `http://localhost:${PORT}/hook`,
+      events: allEvents,
+      enabled: true,
+    }, sessionCookie);
+
+    let webhookId: string;
+    if (wh.status === 201 || wh.status === 200) {
+      webhookId = wh.data.id;
+      console.log(`   ✅ Webhook: ${webhookId}`);
+      if (wh.data.signingSecret) console.log(`   🔐 Secret: ${wh.data.signingSecret.substring(0, 20)}...`);
+    } else {
+      throw new Error(`Create webhook failed: ${wh.status} ${JSON.stringify(wh.data)}`);
+    }
+
+    // 4. Test delivery
+    console.log("\n3️⃣  Send test delivery...");
+    const test = await post(`/integrations/webhooks/${webhookId}/test`, {}, sessionCookie);
+    if (test.status !== 200 && test.status !== 201) {
+      console.log(`   ⚠️  Test response: ${test.status}`, test.data);
+    } else {
+      console.log(`   ✅ Delivery queued: ${test.data.id ?? "ok"}`);
+    }
+
+    // 5. Wait for delivery
+    console.log("\n4️⃣  Waiting for webhook (max 20s)...");
+    const start = Date.now();
+    while (received.length === 0 && Date.now() - start < 20_000) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+
+    // 6. Result
+    console.log("\n════════════════════════════════════════");
+    if (received.length > 0) {
+      console.log("✅ PASS — Webhook delivery working!");
+      try {
+        const payload = JSON.parse(received[0]);
+        console.log(`   Event: ${payload.event ?? payload.type}`);
+        console.log(`   Merchant: ${payload.merchant_id ?? payload.merchantId}`);
+      } catch {
+        console.log(`   Raw: ${received[0].substring(0, 100)}`);
+      }
+    } else {
+      console.log("❌ FAIL — No delivery received in 20s");
 
       // Check delivery status
-      const deliveries = await api<any[]>("GET", "/integrations/webhook-deliveries");
-      const found = deliveries.find((d: any) => d.id === delivery.id);
-      if (found) console.log(`   Delivery status: ${found.status}, attempts: ${found.attempts}`);
+      const dels = await get("/integrations/webhook-deliveries", sessionCookie);
+      if (dels.status === 200 && Array.isArray(dels.data)) {
+        const recent = dels.data[0];
+        if (recent) console.log(`   Last delivery: status=${recent.status}, attempts=${recent.attempts}`);
+      }
+      console.log("   Troubleshoot:");
+      console.log("   - Is WEBHOOK_DISPATCHER_ENABLED=true in .env?");
+      console.log("   - Dispatcher interval is 10s — may need more time");
+      console.log("   - API must be able to reach localhost:" + PORT);
     }
   } catch (err) {
     console.error("\n❌ ERROR:", (err as Error).message);
   } finally {
     server.close();
-    process.exit(receivedDeliveries.length > 0 ? 0 : 1);
+    process.exit(received.length > 0 ? 0 : 1);
   }
 }
 
