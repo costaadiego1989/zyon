@@ -1,6 +1,8 @@
-import { Controller, Get, Query, Req, Res, UseGuards } from "@nestjs/common";
+import { Controller, Get, Inject, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import type { PrismaClient } from "@prisma/client";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
 const ME_BASE_URL = process.env.MELHOR_ENVIO_BASE_URL ?? "https://sandbox.melhorenvio.com.br";
 const ME_CLIENT_ID = process.env.MELHOR_ENVIO_CLIENT_ID ?? "";
@@ -10,6 +12,7 @@ const ME_REDIRECT_URI = process.env.MELHOR_ENVIO_REDIRECT_URI ?? "";
 @ApiTags("Shipping - Melhor Envio")
 @Controller("shipping/melhor-envio")
 export class MelhorEnvioOAuthController {
+  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
   @Get("authorize")
   @UseGuards(AuthGuard)
   @ApiOperation({ summary: "Start Melhor Envio OAuth flow" })
@@ -87,12 +90,17 @@ export class MelhorEnvioOAuthController {
 
     const tokenData = await tokenRes.json();
 
-    // TODO: Save tokens to merchant record in DB (Prisma)
-    console.log(`[MelhorEnvio] Connected merchant ${merchantId}:`, {
-      access_token: tokenData.access_token?.substring(0, 20) + "...",
-      refresh_token: tokenData.refresh_token?.substring(0, 20) + "...",
-      expires_in: tokenData.expires_in,
+    // Persist tokens to merchant record
+    const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 2592000) * 1000);
+    await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: {
+        melhorEnvioAccessToken: tokenData.access_token,
+        melhorEnvioRefreshToken: tokenData.refresh_token,
+        melhorEnvioExpiresAt: expiresAt,
+      },
     });
+    console.log(`[MelhorEnvio] Connected merchant ${merchantId}, expires ${expiresAt.toISOString()}`);
 
     const dashboardUrl = process.env.DASHBOARD_URL ?? "http://localhost:5175";
     res.redirect(302, `${dashboardUrl}?shipping_connected=melhor_envio`);
@@ -103,7 +111,12 @@ export class MelhorEnvioOAuthController {
   @ApiOperation({ summary: "Check Melhor Envio connection status" })
   async status(@Req() request: any) {
     const merchantId = request.user?.merchantId ?? "";
-    // TODO: Check DB for saved tokens
-    return { connected: false, provider: "melhor_envio", merchantId };
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { melhorEnvioAccessToken: true, melhorEnvioExpiresAt: true },
+    });
+    const connected = !!merchant?.melhorEnvioAccessToken;
+    const expired = merchant?.melhorEnvioExpiresAt ? new Date(merchant.melhorEnvioExpiresAt) < new Date() : false;
+    return { connected, expired, provider: "melhor_envio" };
   }
 }

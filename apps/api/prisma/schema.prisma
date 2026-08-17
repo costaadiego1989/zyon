@@ -13,18 +13,21 @@ enum MerchantPlan {
 }
 
 model Merchant {
-  id                     String         @id
-  name                   String
-  theme                  Json?
-  storeCategory          String?        @map("store_category")
-  storeSettings          Json?          @map("store_settings")
-  stripeConnectAccountId String?        @map("stripe_connect_account_id")
-  cryptoPaymentsEnabled  Boolean        @default(false) @map("crypto_payments_enabled")
-  plan                   MerchantPlan   @default(CHECKOUT_ONLY)
-  eventVersion           Int            @default(0) @map("event_version")
-  shardId                Int?           @map("shard_id")
-  createdAt              DateTime       @default(now()) @map("created_at")
-  updatedAt              DateTime       @updatedAt @map("updated_at")
+  id                       String         @id
+  name                     String
+  theme                    Json?
+  storeCategory            String?        @map("store_category")
+  storeSettings            Json?          @map("store_settings")
+  stripeConnectAccountId   String?        @map("stripe_connect_account_id")
+  cryptoPaymentsEnabled    Boolean        @default(false) @map("crypto_payments_enabled")
+  melhorEnvioAccessToken   String?        @map("melhor_envio_access_token")
+  melhorEnvioRefreshToken  String?        @map("melhor_envio_refresh_token")
+  melhorEnvioExpiresAt     DateTime?      @map("melhor_envio_expires_at")
+  plan                     MerchantPlan   @default(CHECKOUT_ONLY)
+  eventVersion             Int            @default(0) @map("event_version")
+  shardId                  Int?           @map("shard_id")
+  createdAt                DateTime       @default(now()) @map("created_at")
+  updatedAt                DateTime       @updatedAt @map("updated_at")
 
   users                  MerchantUser[]
   apiKeys                MerchantApiKey[]
