@@ -86,7 +86,7 @@ function InstallTab(props: {
         {!props.hasToken && (
           <p className="field-hint" style={{ marginTop: "var(--space-3)" }}>
             <KeyRound size={12} style={{ verticalAlign: "-2px", marginRight: 4 }} />
-            Para ativar em produção, gere um token na aba <strong>Token avançado</strong>.
+            Para ativar em produção, gere uma chave API em <strong>Desenvolvedores</strong>.
           </p>
         )}
 
@@ -102,19 +102,28 @@ function InstallTab(props: {
         <div className="panel-title">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Shield size={16} style={{ color: "var(--color-brand)" }} />
-            <span>Plataformas compatíveis</span>
+            <span>Integrações nativas</span>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-3)", marginTop: 12 }}>
+        <p style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 12px" }}>
+          Use um plugin nativo — configura tudo automaticamente, sem código.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "var(--space-3)" }}>
           {[
-            { name: "Shopify", hint: "Cole no theme.liquid, antes do </body>" },
-            { name: "Nuvemshop", hint: "Configurações → Códigos externos → Rodapé" },
-            { name: "WordPress / Woo", hint: "Aparência → Editor → footer.php" },
-            { name: "HTML customizado", hint: "Cole em qualquer página HTML" },
+            { name: "WooCommerce", hint: "Plugin WordPress — instale e ative", status: "disponível" },
+            { name: "Magento", hint: "Módulo via Composer", status: "disponível" },
+            { name: "Nuvemshop", hint: "App na loja de aplicativos", status: "disponível" },
+            { name: "VTEX", hint: "App no VTEX IO", status: "em breve" },
+            { name: "Shopify", hint: "App na Shopify App Store", status: "em breve" },
+            { name: "HTML customizado", hint: "Cole o snippet acima no seu site", status: "manual" },
           ].map((p) => (
-            <div key={p.name} style={{ padding: "12px 16px", border: "1px solid var(--border)", borderRadius: "var(--radius-sm)", background: "var(--card)" }}>
-              <strong style={{ fontSize: 13, display: "block", marginBottom: 2 }}>{p.name}</strong>
-              <span style={{ fontSize: 11, color: "var(--muted)" }}>{p.hint}</span>
+            <div key={p.name} style={{ padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 10, background: "var(--card)", display: "flex", flexDirection: "column", gap: 4 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <strong style={{ fontSize: 13 }}>{p.name}</strong>
+                {p.status === "em breve" && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "var(--border)", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>Em breve</span>}
+                {p.status === "disponível" && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)", fontWeight: 600, textTransform: "uppercase" }}>Ativo</span>}
+              </div>
+              <span style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.4 }}>{p.hint}</span>
             </div>
           ))}
         </div>
