@@ -14,7 +14,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const [busy, setBusy] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "cancelled">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "cancelled" | "budgets">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -154,6 +154,33 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     setTrackingDrafts((prev) => ({ ...prev, [orderId]: value }));
   }, []);
 
+  // Budget requests
+  const [budgetRequests, setBudgetRequests] = useState<any[]>([]);
+  const [budgetLoading, setBudgetLoading] = useState(false);
+
+  const loadBudgets = useCallback(async () => {
+    if (!props.me) return;
+    setBudgetLoading(true);
+    try {
+      const res = await fetch(`${(api as any).baseUrl ?? "http://localhost:3009"}/storefront/budget-requests?merchantId=${props.me.id}`);
+      if (res.ok) setBudgetRequests(await res.json());
+    } catch { /* */ }
+    setBudgetLoading(false);
+  }, [props.me]);
+
+  useEffect(() => { void loadBudgets(); }, [loadBudgets]);
+
+  const updateBudgetStatus = useCallback(async (id: string, status: "approved" | "rejected") => {
+    try {
+      await fetch(`${(api as any).baseUrl ?? "http://localhost:3009"}/storefront/budget-requests/${id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      setBudgetRequests((prev) => prev.map((b) => b.id === id ? { ...b, status } : b));
+    } catch { /* */ }
+  }, []);
+
   return {
     orders,
     message,
@@ -181,5 +208,8 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     buyLabel,
     changeOrderStatus,
     updateTrackingDraft,
+    budgetRequests,
+    budgetLoading,
+    updateBudgetStatus,
   };
 }

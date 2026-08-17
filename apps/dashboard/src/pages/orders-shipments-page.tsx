@@ -89,16 +89,52 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
             { key: "all", label: "Todos" },
             { key: "approved", label: "Aprovados" },
             { key: "cancelled", label: "Cancelados" },
+            { key: "budgets", label: "Orçamentos" },
           ]}
           activeTab={vm.statusFilter}
-          onTabChange={(k) => vm.setStatusFilter(k as "all" | "approved" | "cancelled")}
+          onTabChange={(k) => vm.setStatusFilter(k as "all" | "approved" | "cancelled" | "budgets")}
           search={vm.searchQuery}
           onSearchChange={vm.setSearchQuery}
           searchPlaceholder="Buscar por ID ou cliente..."
           searchWidth={280}
         />
 
-        {vm.busy && !vm.hasLoaded ? (
+        {vm.statusFilter === "budgets" ? (
+          /* Budget Requests Table */
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead><tr>
+              {["CLIENTE", "ITENS", "TOTAL", "STATUS", "DATA"].map((c) => (
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {vm.budgetRequests.length === 0 && !vm.budgetLoading ? (
+                <tr><td colSpan={5} style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Nenhum orçamento recebido ainda.</td></tr>
+              ) : vm.budgetRequests.map((b: any) => (
+                <tr key={b.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <td style={{ padding: "12px 22px" }}>
+                    <strong style={{ fontSize: 13, color: "var(--ink)" }}>{b.customerName}</strong>
+                    <div style={{ fontSize: 11, color: "var(--faint)" }}>{b.customerEmail}</div>
+                  </td>
+                  <td style={{ padding: "12px 22px", fontSize: 12, color: "var(--muted)" }}>
+                    {Array.isArray(b.items) ? b.items.length : 0} itens
+                  </td>
+                  <td style={{ padding: "12px 22px", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                    R$ {(b.total ?? 0).toFixed(2)}
+                  </td>
+                  <td style={{ padding: "12px 22px" }}>
+                    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, background: b.status === "approved" ? "var(--good-soft)" : b.status === "rejected" ? "var(--danger-soft)" : "var(--accent-soft)", color: b.status === "approved" ? "var(--good)" : b.status === "rejected" ? "var(--danger)" : "var(--accent-dark)" }}>
+                      {b.status === "pending" ? "Pendente" : b.status === "approved" ? "Aprovado" : b.status === "rejected" ? "Recusado" : b.status}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 22px", fontSize: 11, color: "var(--faint)" }}>
+                    {new Date(b.createdAt).toLocaleDateString("pt-BR")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : vm.busy && !vm.hasLoaded ? (
           <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando pedidos...</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
