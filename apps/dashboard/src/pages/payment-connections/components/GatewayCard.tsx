@@ -3,7 +3,8 @@ import type { PaymentConnection } from "../../../api-client.js";
 import { formatDate } from "../usePaymentConnectionsPage.js";
 import type { Operation } from "../usePaymentConnectionsPage.js";
 import { StatusBadge } from "./StatusBadge.js";
-import { ExternalLink, RefreshCw, ArrowRight, PlugZap, Settings } from "lucide-react";
+import { ExternalLink, RefreshCw, PlugZap, Settings } from "lucide-react";
+import { Button } from "../../../components/Button.js";
 
 interface GatewayCardProps {
   provider: "stripe" | "asaas" | "crypto";
@@ -112,30 +113,32 @@ export function GatewayCard({
             Configurar
           </a>
         ) : isConnected ? (
-          <button
-            type="button"
-            className="gateway-card__button gateway-card__button--secondary"
+          <Button
+            variant="outline"
             disabled={!!disabled}
             onClick={onSync}
             aria-busy={isMySyncing}
             aria-label={`Sincronizar ${name}`}
+            loading={isMySyncing}
+            fullWidth
           >
             <RefreshCw size={14} aria-hidden="true" />
             {isMySyncing ? "Sincronizando..." : "Sincronizar"}
-          </button>
+          </Button>
         ) : (
-          <button
-            type="button"
-            className="gateway-card__button gateway-card__button--primary"
+          <Button
+            variant="primary"
+            arrow
             disabled={!!disabled}
             onClick={onConnect}
             aria-busy={isMyConnecting}
             aria-label={`Conectar ${name}`}
+            loading={isMyConnecting}
+            fullWidth
           >
             <ExternalLink size={14} aria-hidden="true" />
             {isMyConnecting ? "Conectando..." : "Conectar provedor"}
-            <ArrowRight size={14} aria-hidden="true" />
-          </button>
+          </Button>
         )}
       </div>
     </section>

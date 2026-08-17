@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "../../../components/Button.js";
 
 interface CurrentPlanCardProps {
   planName: string;
@@ -152,25 +153,15 @@ export function CurrentPlanCard({
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 12 }}>
-        <button
-          type="button"
+        <Button
+          variant="outline"
+          arrow
           onClick={onManage}
           disabled={isLoading}
-          style={{
-            flex: 1,
-            padding: "10px 16px",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            background: "var(--card)",
-            color: "var(--ink)",
-            font: "500 13px var(--sans)",
-            cursor: isLoading ? "default" : "pointer",
-            transition: "all 200ms",
-            opacity: isLoading ? 0.6 : 1,
-          }}
+          fullWidth
         >
           Gerenciar assinatura
-        </button>
+        </Button>
       </div>
     </div>
   );

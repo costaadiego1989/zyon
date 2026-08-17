@@ -1,4 +1,5 @@
 import React from "react";
+import { Button } from "../../../components/Button.js";
 
 export interface PlanDef {
   key: "starter" | "growth" | "scale";
@@ -179,41 +180,19 @@ export function PlanCard({
       {plan.features.length === 0 && <div style={{ flex: 1 }} />}
 
       {/* CTA */}
-      <button
-        type="button"
+      <Button
+        variant={isCurrent ? "outline" : isDowngrade ? "outline" : "primary"}
+        arrow={!isCurrent && !upgrading}
+        fullWidth
         onClick={onUpgrade}
         disabled={isCurrent || upgrading}
-        style={{
-          width: "100%",
-          padding: "12px 16px",
-          borderRadius: 8,
-          border: isCurrent
-            ? "1px solid var(--accent)"
-            : isDowngrade
-              ? "1px solid var(--border)"
-              : "none",
-          background: isCurrent
-            ? "transparent"
-            : isDowngrade
-              ? "var(--card)"
-              : "var(--accent)",
-          color: isCurrent
-            ? "var(--accent)"
-            : isDowngrade
-              ? "var(--muted)"
-              : "oklch(16% 0.01 145)",
-          font: "600 13px var(--sans)",
-          cursor: isCurrent || upgrading ? "default" : "pointer",
-          opacity: upgrading ? 0.6 : 1,
-          transition: "all 200ms",
-        }}
       >
         {isCurrent
           ? "Seu plano"
           : isDowngrade
             ? "Downgrade"
             : "Fazer upgrade"}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -17,6 +17,7 @@ import type {
   CheckoutWidgetPosition,
 } from "@zyon/shared-types";
 import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
+import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import { useCheckoutSettingsPage } from "./useCheckoutSettingsPage.js";
 import { SectionRail } from "./components/SectionRail.js";
@@ -106,15 +107,17 @@ export function CheckoutSettingsPage(props: {
               Mudanças pendentes
             </span>
           ) : null}
-          <button
-            type="button"
-            className="btn-primary cfg-save"
+          <Button
+            variant="primary"
+            arrow
+            className="cfg-save"
             disabled={vm.busy || !vm.draft || hasErrors || !vm.dirty}
             onClick={() => vm.save()}
+            loading={vm.busy}
           >
             <Save size={14} strokeWidth={2} />
-            {vm.busy ? "Salvando…" : "Salvar"}
-          </button>
+            Salvar
+          </Button>
         </div>
       </header>
 
@@ -506,14 +509,22 @@ export function CheckoutSettingsPage(props: {
             {/* Footer actions */}
             <div className="cfg-footer">
               <div className="cfg-footer-left">
-                <button type="button" disabled={vm.busy} onClick={() => vm.restoreDefaults()}>
+                <Button
+                  variant="ghost"
+                  disabled={vm.busy}
+                  onClick={() => vm.restoreDefaults()}
+                >
                   <RotateCcw size={14} strokeWidth={1.75} />
                   Restaurar padrão
-                </button>
+                </Button>
                 {vm.dirty ? (
-                  <button type="button" className="btn-ghost cfg-discard" disabled={vm.busy} onClick={() => vm.discardChanges()}>
+                  <Button
+                    variant="ghost"
+                    disabled={vm.busy}
+                    onClick={() => vm.discardChanges()}
+                  >
                     Descartar mudanças
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </div>

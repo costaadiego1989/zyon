@@ -1,5 +1,6 @@
 import React from "react";
 import { Wallet, Check } from "lucide-react";
+import { Button } from "../../../components/Button.js";
 import type { CryptoWalletState } from "../usePaymentConnectionsPage.js";
 
 interface WalletSectionProps {
@@ -82,14 +83,15 @@ export function WalletSection({ crypto, setCrypto, tokenAddress, saveCryptoWalle
                   <Check size={12} /> Salvo
                 </span>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                arrow
                 disabled={!config.treasuryAddress.trim() || saving}
                 onClick={() => void saveCryptoWallet()}
-                className="wallet-section__save-btn"
+                loading={saving}
               >
-                {saving ? "Salvando..." : "Salvar"}
-              </button>
+                Salvar
+              </Button>
             </div>
           </div>
         </div>

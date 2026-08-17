@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Plus, X } from "lucide-react";
+import { Button } from "../../../components/Button.js";
 import type { AdvancedRule } from "../lib/draft.js";
 
 const CONDITION_FIELDS = [
@@ -204,10 +205,10 @@ export function RuleEditor({
 
         {/* Footer */}
         <div className="cfg-side-panel-footer">
-          <button type="button" onClick={onCancel} disabled={busy}>Cancelar</button>
-          <button type="button" className="btn-primary" disabled={busy || !name.trim()} onClick={handleSave}>
+          <Button variant="ghost" onClick={onCancel} disabled={busy}>Cancelar</Button>
+          <Button variant="primary" arrow disabled={busy || !name.trim()} onClick={handleSave}>
             {rule ? "Atualizar" : "Criar regra"}
-          </button>
+          </Button>
         </div>
       </aside>
     </div>

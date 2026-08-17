@@ -1,5 +1,6 @@
 import React from "react";
 import { Plus, BookOpen } from "lucide-react";
+import { Button } from "../../../components/Button.js";
 import type { AdvancedRule } from "../lib/draft.js";
 import { RuleCard } from "./RuleCard.js";
 
@@ -27,15 +28,15 @@ export function RulesList({
           <BookOpen size={40} strokeWidth={1.25} />
         </div>
         <p className="cfg-rules-empty-text">Crie regras para o agente seguir</p>
-        <button
-          type="button"
-          className="btn-primary"
+        <Button
+          variant="primary"
+          arrow
           disabled={busy}
           onClick={onAdd}
         >
           <Plus size={14} strokeWidth={1.75} />
           Adicionar regra
-        </button>
+        </Button>
       </div>
     );
   }
@@ -56,15 +57,14 @@ export function RulesList({
           onToggle={(enabled) => onToggle(r.id, enabled)}
         />
       ))}
-      <button
-        type="button"
-        className="cfg-rules-add-btn"
+      <Button
+        variant="outline"
         disabled={busy}
         onClick={onAdd}
       >
         <Plus size={14} strokeWidth={1.75} />
         Adicionar regra
-      </button>
+      </Button>
     </div>
   );
 }
