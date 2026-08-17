@@ -15,7 +15,9 @@ export const EMAIL_SENDER_PORT = Symbol("EmailSenderPort");
 
 export interface InviteMemberInput {
   merchant_id: string;
+  name?: string;
   email: string;
+  phone?: string;
   role: "OWNER" | "ADMIN" | "STAFF";
   invited_by: string;
 }
@@ -109,7 +111,7 @@ export class InviteMemberUseCase {
 
     // Send welcome email with provisional password
     const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5173";
-    void this.sendWelcomeEmail(input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
+    void this.sendWelcomeEmail(input.email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
 
     return {
       invite_id: invite.id,
@@ -119,24 +121,68 @@ export class InviteMemberUseCase {
     };
   }
 
-  private async sendWelcomeEmail(email: string, merchantName: string, password: string, role: string, dashboardUrl: string) {
-    const roleLabel = role === "ADMIN" ? "Administrador" : "Agente";
+  private async sendWelcomeEmail(email: string, name: string, merchantName: string, password: string, role: string, dashboardUrl: string) {
+    const roleLabel = role === "ADMIN" ? "Administrador" : "Agente de Suporte";
     try {
       await this.emailSender.send({
         to: email,
-        subject: `Você foi convidado para ${merchantName} — Zyon`,
+        subject: `${name}, você foi convidado para ${merchantName}`,
         html: `
-          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px;">
-            <h2 style="color: #0f766e;">Bem-vindo à equipe!</h2>
-            <p>Você foi convidado como <strong>${roleLabel}</strong> na loja <strong>${merchantName}</strong>.</p>
-            <p>Use as credenciais abaixo para acessar o painel:</p>
-            <div style="background: #f3f4f6; border-radius: 8px; padding: 16px; margin: 16px 0;">
-              <p style="margin: 4px 0;"><strong>Email:</strong> ${email}</p>
-              <p style="margin: 4px 0;"><strong>Senha provisória:</strong> <code style="background: #e5e7eb; padding: 2px 6px; border-radius: 4px;">${password}</code></p>
-            </div>
-            <p style="color: #6b7280; font-size: 13px;">Recomendamos alterar sua senha no primeiro acesso.</p>
-            <a href="${dashboardUrl}" style="display: inline-block; margin-top: 16px; padding: 10px 20px; background: #0f766e; color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600;">Acessar Painel →</a>
-          </div>
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
+    <div style="background:#ffffff;border-radius:12px;border:1px solid #e2e8f0;overflow:hidden;">
+      <!-- Header -->
+      <div style="background:#0f766e;padding:32px 32px 24px;text-align:center;">
+        <h1 style="color:#ffffff;font-size:20px;font-weight:600;margin:0;">Bem-vindo à equipe!</h1>
+      </div>
+      <!-- Body -->
+      <div style="padding:32px;">
+        <p style="font-size:15px;color:#334155;line-height:1.6;margin:0 0 16px;">
+          Olá <strong>${name}</strong>,
+        </p>
+        <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px;">
+          Você foi convidado como <strong>${roleLabel}</strong> na loja <strong>${merchantName}</strong>.
+          Abaixo estão suas credenciais de acesso ao painel de gerenciamento.
+        </p>
+        <!-- Credentials box -->
+        <div style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:20px;margin:0 0 24px;">
+          <table style="width:100%;border-collapse:collapse;">
+            <tr>
+              <td style="padding:6px 0;font-size:13px;color:#64748b;width:100px;">Email</td>
+              <td style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:500;">${email}</td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;font-size:13px;color:#64748b;">Senha</td>
+              <td style="padding:6px 0;">
+                <code style="background:#e2e8f0;padding:3px 8px;border-radius:4px;font-size:13px;color:#0f172a;font-weight:600;">${password}</code>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:6px 0;font-size:13px;color:#64748b;">Função</td>
+              <td style="padding:6px 0;font-size:13px;color:#0f172a;">${roleLabel}</td>
+            </tr>
+          </table>
+        </div>
+        <!-- CTA -->
+        <div style="text-align:center;margin:0 0 24px;">
+          <a href="${dashboardUrl}" style="display:inline-block;padding:12px 28px;background:#0f766e;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;">Acessar Painel →</a>
+        </div>
+        <p style="font-size:12px;color:#94a3b8;line-height:1.5;margin:0;text-align:center;">
+          Recomendamos alterar sua senha no primeiro acesso.<br/>
+          Este convite expira em 7 dias.
+        </p>
+      </div>
+      <!-- Footer -->
+      <div style="border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center;">
+        <p style="font-size:11px;color:#94a3b8;margin:0;">Enviado por Zyon · Plataforma de e-commerce conversacional</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
         `,
       });
       this.logger.log(`Welcome email sent to ${email}`);

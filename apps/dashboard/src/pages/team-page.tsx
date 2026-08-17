@@ -1,11 +1,13 @@
-import React from "react";
-import { Users, UserPlus, Trash2, RefreshCw, Mail, Shield } from "lucide-react";
+import React, { useState } from "react";
+import { Users, UserPlus, Trash2, Shield, Mail } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
+import { Modal } from "../components/Modal.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useTeamPage({ me: props.me, apiBaseUrl: props.apiBaseUrl });
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   if (!props.me) {
     return (
@@ -27,8 +29,8 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
           <p className="page-lead">Gerencie os membros e agentes da sua loja.</p>
         </div>
         <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Button variant="outline" size="sm" disabled={vm.loading} onClick={() => void vm.load()}>
-            <RefreshCw size={14} /> Atualizar
+          <Button variant="primary" size="sm" arrow onClick={() => setShowInviteModal(true)}>
+            <UserPlus size={14} /> Novo membro
           </Button>
         </div>
       </header>
@@ -38,40 +40,8 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       ) : null}
       {vm.error ? <p className="panel panel-warn">{vm.error}</p> : null}
 
-      {/* Invite section */}
-      <section className="panel stacked">
-        <div className="panel-title">
-          <h2><UserPlus size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Convidar membro</h2>
-        </div>
-        <p style={{ fontSize: 13, color: "var(--color-muted)", margin: "0 0 16px" }}>
-          Envie um convite por e-mail. O novo membro receberá uma senha provisória para acessar o painel.
-        </p>
-        <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-          <div style={{ flex: 2, minWidth: 200 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-muted)", marginBottom: 4 }}>Email</label>
-            <input
-              type="email"
-              placeholder="agente@sualoija.com"
-              value={vm.inviteEmail}
-              onChange={(e) => vm.setInviteEmail(e.target.value)}
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div style={{ flex: 1, minWidth: 140 }}>
-            <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: "var(--color-muted)", marginBottom: 4 }}>Função</label>
-            <select value={vm.inviteRole} onChange={(e) => vm.setInviteRole(e.target.value as MemberRole)}>
-              <option value="STAFF">Agente</option>
-              <option value="ADMIN">Administrador</option>
-            </select>
-          </div>
-          <Button variant="primary" size="sm" arrow disabled={!vm.inviteEmail.trim() || vm.inviting} onClick={() => void vm.invite()}>
-            <Mail size={14} /> {vm.inviting ? "Enviando..." : "Convidar"}
-          </Button>
-        </div>
-      </section>
-
       {/* Members list */}
-      <section className="panel stacked" style={{ marginTop: 16 }}>
+      <section className="panel stacked">
         <div className="panel-title">
           <h2><Shield size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Membros ativos</h2>
         </div>
@@ -103,9 +73,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
               <tbody>
                 {vm.members.map((m) => (
                   <tr key={m.id}>
-                    <td>
-                      <code>{m.email}</code>
-                    </td>
+                    <td><code>{m.email}</code></td>
                     <td>
                       {m.role === "OWNER" ? (
                         <span className="badge ok">{ROLE_LABELS[m.role]}</span>
@@ -179,6 +147,70 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
           </div>
         </section>
       ) : null}
+
+      {/* Invite Modal */}
+      <Modal
+        isOpen={showInviteModal}
+        title="Novo membro"
+        onClose={() => setShowInviteModal(false)}
+        footer={
+          <Button
+            variant="primary"
+            size="sm"
+            arrow
+            disabled={!vm.inviteEmail.trim() || !vm.inviteName.trim() || vm.inviting}
+            onClick={async () => {
+              await vm.invite();
+              if (!vm.inviting) setShowInviteModal(false);
+            }}
+          >
+            <UserPlus size={14} /> {vm.inviting ? "Enviando..." : "Convidar"}
+          </Button>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Nome completo</label>
+            <input
+              type="text"
+              placeholder="Maria Silva"
+              value={vm.inviteName}
+              onChange={(e) => vm.setInviteName(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Email</label>
+            <input
+              type="email"
+              placeholder="agente@sualoja.com"
+              value={vm.inviteEmail}
+              onChange={(e) => vm.setInviteEmail(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>WhatsApp</label>
+            <input
+              type="tel"
+              placeholder="(11) 99999-9999"
+              value={vm.invitePhone}
+              onChange={(e) => vm.setInvitePhone(e.target.value)}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Função</label>
+            <select value={vm.inviteRole} onChange={(e) => vm.setInviteRole(e.target.value as MemberRole)} style={{ width: "100%" }}>
+              <option value="STAFF">Agente de suporte</option>
+              <option value="ADMIN">Administrador</option>
+            </select>
+            <p style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 6 }}>
+              {vm.inviteRole === "STAFF" ? "Agentes podem atender chats e gerenciar tickets." : "Administradores têm acesso completo ao painel."}
+            </p>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

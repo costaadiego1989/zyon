@@ -48,7 +48,9 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
+  const [inviteName, setInviteName] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
   const [inviteRole, setInviteRole] = useState<MemberRole>("STAFF");
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
@@ -79,7 +81,7 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
   }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const invite = useCallback(async () => {
-    if (!merchantId || !inviteEmail.trim()) return;
+    if (!merchantId || !inviteEmail.trim() || !inviteName.trim()) return;
     setInviting(true);
     setMessage(null);
     try {
@@ -87,14 +89,21 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+        body: JSON.stringify({
+          name: inviteName.trim(),
+          email: inviteEmail.trim(),
+          phone: invitePhone.trim() || undefined,
+          role: inviteRole,
+        }),
       });
       if (!res.ok) {
         const body = await res.text();
         throw new Error(body.slice(0, 100));
       }
       setMessage({ text: `Convite enviado para ${inviteEmail}`, kind: "ok" });
+      setInviteName("");
       setInviteEmail("");
+      setInvitePhone("");
       void load();
     } catch (e) {
       setMessage({ text: readError(e), kind: "error" });
@@ -146,11 +155,15 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
     loading,
     error,
     message,
+    inviteName,
     inviteEmail,
+    invitePhone,
     inviteRole,
     inviting,
     removingId,
+    setInviteName,
     setInviteEmail,
+    setInvitePhone,
     setInviteRole,
     setMessage,
     load,

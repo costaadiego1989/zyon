@@ -44,12 +44,14 @@ export class TeamController {
   async invite(
     @Param("merchantId") merchantId: string,
     @Req() req: Request,
-    @Body() body: { email: string; role: "OWNER" | "ADMIN" | "STAFF" },
+    @Body() body: { name?: string; email: string; phone?: string; role: "OWNER" | "ADMIN" | "STAFF" },
   ) {
     const principal = currentTenantPrincipal(req as any);
     return this.inviteMemberUseCase.execute({
       merchant_id: merchantId,
+      name: body.name,
       email: body.email,
+      phone: body.phone,
       role: body.role,
       invited_by: principal.kind === "human" ? principal.userId : "",
     });
