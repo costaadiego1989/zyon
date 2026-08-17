@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { showToast } from "../../components/Toast.js";
 import {
   DashboardHttpError,
   type PaymentConnection,
@@ -130,7 +131,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         const idx = prev.findIndex((c) => c.id === updated.id);
         return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
       });
-      setAlert({ message: "Provedor conectado com sucesso", kind: "success" });
+      showToast("success", "Provedor conectado com sucesso");
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -166,7 +167,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         const idx = prev.findIndex((c) => c.provider === "asaas");
         return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
       });
-      setAlert({ message: "Asaas configurado com sucesso", kind: "success" });
+      showToast("success", "Asaas configurado com sucesso");
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -184,7 +185,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         const idx = prev.findIndex((c) => c.id === updated.id);
         return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
       });
-      setAlert({ message: "Conexão verificada", kind: "success" });
+      showToast("success", "Conexão verificada");
     } catch (e) {
       console.error("[payment-connections]", e);
       setAlert({ message: sanitizeError(e), kind: "error" });
@@ -208,7 +209,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         },
       });
       setCrypto((prev) => ({ ...prev, saved: true }));
-      setAlert({ message: "Configuração crypto salva com sucesso.", kind: "success" });
+      showToast("success", "Wallet salva com sucesso");
       setTimeout(() => {
         setCrypto((prev) => ({ ...prev, saved: false }));
       }, 4000);
