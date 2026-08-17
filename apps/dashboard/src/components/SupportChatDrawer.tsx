@@ -29,10 +29,10 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
     return () => { onLeave(ticketId); };
   }, [ticketId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Subscribe to new messages
+  // Subscribe to new messages (ignore merchant's own — already added optimistically)
   useEffect(() => {
     const unsub = onNewMessage((msg) => {
-      if (msg.ticketId === ticketId) {
+      if (msg.ticketId === ticketId && msg.senderType !== "merchant") {
         setMessages((prev) => [...prev, msg]);
       }
     });

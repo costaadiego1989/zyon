@@ -15,7 +15,7 @@ interface NewTicketEvent {
   sessionId?: string;
 }
 
-export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefined) {
+export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefined, agentName?: string) {
   const socketRef = useRef<Socket | null>(null);
   const [connected, setConnected] = useState(false);
   const [newTickets, setNewTickets] = useState<NewTicketEvent[]>([]);
@@ -48,8 +48,8 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
   }, [apiBaseUrl, merchantId]);
 
   const joinTicket = useCallback((ticketId: string) => {
-    socketRef.current?.emit("join_ticket", { ticketId });
-  }, []);
+    socketRef.current?.emit("join_ticket", { ticketId, agentName });
+  }, [agentName]);
 
   const leaveTicket = useCallback((ticketId: string) => {
     socketRef.current?.emit("leave_ticket", { ticketId });
@@ -58,9 +58,9 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
   const sendMessage = useCallback(
     (ticketId: string, content: string) => {
       if (!merchantId) return;
-      socketRef.current?.emit("send_message", { ticketId, merchantId, content });
+      socketRef.current?.emit("send_message", { ticketId, merchantId, content, senderName: agentName });
     },
-    [merchantId],
+    [merchantId, agentName],
   );
 
   const onNewMessage = useCallback(

@@ -7,6 +7,7 @@ interface SupportMessage {
   id: string;
   role: "user" | "agent" | "merchant";
   text: string;
+  agentName?: string;
 }
 
 interface SupportPanelProps {
@@ -69,14 +70,23 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
         socket!.emit("join_ticket", { ticketId });
       });
 
-      socket.on("new_message", (msg: { senderType: string; content: string }) => {
+      socket.on("new_message", (msg: { senderType: string; content: string; senderName?: string }) => {
         if (msg.senderType === "merchant") {
           setMessages((prev) => [...prev, {
             id: `m-${Date.now()}`,
             role: "merchant",
             text: msg.content,
+            agentName: msg.senderName,
           }]);
         }
+      });
+
+      socket.on("agent_joined", (data: { agentName: string }) => {
+        setMessages((prev) => [...prev, {
+          id: `sys-${Date.now()}`,
+          role: "agent",
+          text: `${data.agentName} entrou no chat.`,
+        }]);
       });
     })();
 
@@ -458,7 +468,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
                   )}
                   <div style={{ display: "flex", flexDirection: "column", maxWidth: "calc(100% - 32px)" }}>
                     {msg.role === "merchant" && (
-                      <span style={{ fontSize: "9px", fontWeight: 600, color: "#60a5fa", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>Atendente</span>
+                      <span style={{ fontSize: "9px", fontWeight: 600, color: "#60a5fa", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>{msg.agentName || "Atendente"}</span>
                     )}
                     <div
                       style={{

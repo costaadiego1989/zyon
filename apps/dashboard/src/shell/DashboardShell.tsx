@@ -5,6 +5,8 @@ import { NAV_ITEMS, type TabKey } from "./nav-config.js";
 import { resolveDashboardApiBaseUrl, type MerchantProfile as MerchantDashboardProfile } from "../api-client.js";
 import { ToastContainer } from "../components/Toast.js";
 import { FeatureGate } from "../components/FeatureGate.js";
+import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
+import { useSupportSocket } from "../hooks/useSupportSocket.js";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
@@ -64,6 +66,24 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [tab, setTab] = useState<TabKey>(initialTab ?? "overview");
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  // Connect to support socket for real-time handoff notifications
+  const socket = useSupportSocket(API_BASE_URL, me.id, me.name || undefined);
+
+  // Convert new tickets from socket into notifications
+  React.useEffect(() => {
+    if (socket.newTickets.length === 0) return;
+    const newNotifs: NotificationItem[] = socket.newTickets.map((t) => ({
+      id: t.id,
+      type: "handoff" as const,
+      title: `Novo chamado: ${t.buyerMessage.slice(0, 50)}`,
+      ticketId: t.id,
+      createdAt: new Date().toISOString(),
+    }));
+    setNotifications((prev) => [...newNotifs, ...prev]);
+    socket.clearNewTickets();
+  }, [socket.newTickets]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const visibleNavItems = useMemo(
     () => hideOnboarding ? NAV_ITEMS.filter((item) => item.key !== "onboarding") : NAV_ITEMS,
@@ -156,6 +176,16 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 Acessar loja
               </a>
             )}
+            <NotificationBell
+              notifications={notifications}
+              onClear={() => setNotifications([])}
+              onClickNotification={(n) => {
+                if (n.ticketId) {
+                  setTab("support" as TabKey);
+                }
+                setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+              }}
+            />
             <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--card)", font: "12.5px var(--sans)", color: "var(--muted)" }}>
               <ShieldCheck size={14} />
               {me.name || me.id}

@@ -39,11 +39,20 @@ export class SupportGateway implements OnGatewayDisconnect {
   @SubscribeMessage("join_ticket")
   handleJoinTicket(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { ticketId: string },
+    @MessageBody() data: { ticketId: string; agentName?: string },
   ) {
     const room = `ticket:${data.ticketId}`;
     void client.join(room);
     this.logger.debug(`Client ${client.id} joined ${room}`);
+
+    // Notify buyer that an agent joined the chat
+    if (data.agentName) {
+      this.server.to(`buyer:${data.ticketId}`).emit("agent_joined", {
+        ticketId: data.ticketId,
+        agentName: data.agentName,
+      });
+    }
+
     return { joined: room };
   }
 
@@ -62,7 +71,7 @@ export class SupportGateway implements OnGatewayDisconnect {
   @SubscribeMessage("send_message")
   async handleSendMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { ticketId: string; merchantId: string; content: string },
+    @MessageBody() data: { ticketId: string; merchantId: string; content: string; senderName?: string },
   ) {
     try {
       const message = await this.sendMessage.execute({
@@ -72,11 +81,13 @@ export class SupportGateway implements OnGatewayDisconnect {
         content: data.content,
       });
 
-      // Emit to all clients in ticket room (including sender for confirmation)
-      this.server.to(`ticket:${data.ticketId}`).emit("new_message", message);
+      const enriched = { ...message, senderName: data.senderName };
 
-      // Emit to buyer's conversation room (storefront gateway listens)
-      this.server.to(`buyer:${data.ticketId}`).emit("merchant_reply", message);
+      // Emit to all clients in ticket room (including sender for confirmation)
+      this.server.to(`ticket:${data.ticketId}`).emit("new_message", enriched);
+
+      // Emit to buyer's conversation room
+      this.server.to(`buyer:${data.ticketId}`).emit("merchant_reply", enriched);
 
       return { success: true, message };
     } catch (error) {
