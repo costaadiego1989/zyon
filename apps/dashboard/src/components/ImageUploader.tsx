@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from "react";
-import { Upload, X, Loader2, ImageIcon } from "lucide-react";
+import { Upload, Trash2, Loader2 } from "lucide-react";
 import { useApi } from "../hooks/useApi.js";
 
 export interface ImageUploaderProps {
@@ -43,10 +43,9 @@ export function ImageUploader({
     }
     setError(null);
     setUploading(true);
-
     try {
       const base64 = await fileToBase64(file);
-      onChange(base64); // instant preview
+      onChange(base64);
       const result = await api.uploadLogo(base64);
       if (result?.logoUrl) onChange(result.logoUrl);
     } catch {
@@ -66,7 +65,7 @@ export function ImageUploader({
       }
       onChange(undefined);
     } catch {
-      onChange(undefined); // clear locally even if S3 delete fails
+      onChange(undefined);
     } finally {
       setDeleting(false);
     }
@@ -86,103 +85,130 @@ export function ImageUploader({
   }, [handleFile]);
 
   const hasImage = !!value;
-  const borderRadius = previewRound ? "50%" : "12px";
+  const radius = previewRound ? "50%" : "10px";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--fg)" }}>{label}</span>
-      {hint && <span style={{ fontSize: "11px", color: "var(--faint)", marginTop: "-2px" }}>{hint}</span>}
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{label}</span>
+        {hint && <span style={{ fontSize: 11, color: "var(--faint)" }}>· {hint}</span>}
+      </div>
 
-      {hasImage ? (
-        <div style={{ position: "relative", width: previewSize, height: previewSize }}>
-          <img
-            src={value}
-            alt={label}
-            style={{
-              width: previewSize,
-              height: previewSize,
-              objectFit: "cover",
-              borderRadius,
-              border: "1px solid var(--border)",
-            }}
-          />
-          {deletable && (
-            <button
-              type="button"
-              onClick={() => void handleDelete()}
-              disabled={deleting}
-              title="Remover imagem"
-              style={{
-                position: "absolute",
-                top: -6,
-                right: -6,
-                width: 22,
-                height: 22,
-                borderRadius: "50%",
-                border: "2px solid var(--card)",
-                background: "var(--danger, #ef4444)",
-                color: "#fff",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 0,
-              }}
-            >
-              {deleting ? <Loader2 size={10} className="animate-spin" /> : <X size={10} />}
-            </button>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          padding: "10px 14px",
+          borderRadius: 12,
+          border: `1px solid ${dragOver ? "var(--accent)" : "var(--border)"}`,
+          background: dragOver ? "color-mix(in srgb, var(--accent) 4%, var(--card))" : "var(--card)",
+          transition: "border-color 0.15s, background 0.15s",
+        }}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+      >
+        {/* Preview / Placeholder */}
+        <div
+          onClick={() => !hasImage && inputRef.current?.click()}
+          style={{
+            position: "relative",
+            width: previewSize,
+            height: previewSize,
+            borderRadius: radius,
+            border: hasImage ? "1px solid var(--border)" : "2px dashed var(--border)",
+            background: hasImage ? "transparent" : "var(--bg)",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            cursor: hasImage ? "default" : "pointer",
+          }}
+        >
+          {hasImage ? (
+            <img
+              src={value}
+              alt={label}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            <Upload size={18} color="var(--faint)" strokeWidth={1.5} />
           )}
           {uploading && (
             <div style={{
               position: "absolute",
               inset: 0,
-              borderRadius,
-              background: "rgba(0,0,0,0.5)",
+              background: "rgba(0,0,0,0.55)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
             }}>
-              <Loader2 size={20} color="#fff" className="animate-spin" />
+              <Loader2 size={18} color="#fff" style={{ animation: "spin 0.8s linear infinite" }} />
             </div>
           )}
         </div>
-      ) : (
-        <div
-          onClick={() => inputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          style={{
-            width: "100%",
-            maxWidth: 200,
-            height: previewSize,
-            borderRadius,
-            border: `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
-            background: dragOver ? "color-mix(in srgb, var(--accent) 5%, transparent)" : "var(--card)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "6px",
-            cursor: "pointer",
-            transition: "border-color 0.15s, background 0.15s",
-          }}
-        >
-          {uploading ? (
-            <Loader2 size={20} color="var(--faint)" className="animate-spin" />
-          ) : (
-            <>
-              <Upload size={18} color="var(--faint)" />
-              <span style={{ fontSize: "10px", color: "var(--faint)", textAlign: "center" }}>
-                Arraste ou clique
-              </span>
-            </>
+
+        {/* Actions */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1, minWidth: 0 }}>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={uploading}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "6px 12px",
+              borderRadius: 8,
+              border: "1px solid var(--border)",
+              background: "var(--bg)",
+              color: "var(--fg)",
+              fontSize: 11,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              width: "fit-content",
+              transition: "border-color 0.15s",
+            }}
+          >
+            <Upload size={12} />
+            {hasImage ? "Trocar" : "Selecionar"}
+          </button>
+
+          {hasImage && deletable && (
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 12px",
+                borderRadius: 8,
+                border: "1px solid color-mix(in srgb, var(--danger, #ef4444) 30%, var(--border))",
+                background: "transparent",
+                color: "var(--danger, #ef4444)",
+                fontSize: 11,
+                fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                width: "fit-content",
+                opacity: deleting ? 0.5 : 1,
+                transition: "opacity 0.15s",
+              }}
+            >
+              <Trash2 size={12} />
+              {deleting ? "Removendo..." : "Remover"}
+            </button>
           )}
         </div>
-      )}
+      </div>
 
       {error && (
-        <span style={{ fontSize: "11px", color: "var(--danger, #ef4444)" }}>{error}</span>
+        <span style={{ fontSize: 11, color: "var(--danger, #ef4444)", paddingLeft: 2 }}>{error}</span>
       )}
 
       <input
@@ -192,6 +218,8 @@ export function ImageUploader({
         onChange={handleInputChange}
         style={{ display: "none" }}
       />
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
