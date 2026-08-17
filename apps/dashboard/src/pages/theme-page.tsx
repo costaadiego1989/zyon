@@ -329,25 +329,6 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </label>
               </div>
 
-              <div className="theme-grid-2">
-                <label>
-                  Título do widget
-                  <input
-                    value={theme.headerTitle ?? ""}
-                    onChange={(e) => patch({ headerTitle: e.target.value })}
-                    placeholder="Minha Loja"
-                  />
-                </label>
-                <label>
-                  Subtítulo
-                  <input
-                    value={theme.headerSubtitle ?? ""}
-                    onChange={(e) => patch({ headerSubtitle: e.target.value })}
-                    placeholder="Finalize sua compra com o melhor preço"
-                  />
-                </label>
-              </div>
-
             </div>
 
             {/* Panel — Selos de confiança */}
