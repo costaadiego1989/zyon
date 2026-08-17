@@ -1,8 +1,9 @@
-import { ConflictException, Inject, Injectable } from "@nestjs/common";
+import { ConflictException, Inject, Injectable , Logger} from "@nestjs/common";
 import { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterBuyerRequest {
   email: string;
@@ -21,6 +22,8 @@ export interface BuyerAuthResponse {
 
 @Injectable()
 export class RegisterBuyerUseCase {
+  private readonly logger = new Logger(RegisterBuyerUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     private readonly hasher: PasswordHasher,

@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type {
   ChatMessageRequest,
   ChatMessageResponse,
@@ -18,6 +18,7 @@ import {
 } from "../../domain/services/customer-extraction.service.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { CheckoutCustomerService } from "../services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../services/checkout-offer.service.js";
@@ -36,6 +37,8 @@ function structuredCloneDeep<T>(obj: T): T {
 
 @Injectable()
 export class SendChatMessageUseCase {
+  private readonly logger = new Logger(SendChatMessageUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(CONVERSATION_PORT) private readonly conversation: ConversationPort,

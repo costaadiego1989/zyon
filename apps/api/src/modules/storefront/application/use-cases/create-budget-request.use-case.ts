@@ -1,6 +1,7 @@
-import { Inject, Injectable, BadRequestException } from "@nestjs/common";
+import { Inject, Injectable, BadRequestException , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface CreateBudgetRequestInput {
   merchantId: string;
@@ -27,6 +28,8 @@ export interface BudgetRequestDto {
 
 @Injectable()
 export class CreateBudgetRequestUseCase {
+  private readonly logger = new Logger(CreateBudgetRequestUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: CreateBudgetRequestInput): Promise<BudgetRequestDto> {

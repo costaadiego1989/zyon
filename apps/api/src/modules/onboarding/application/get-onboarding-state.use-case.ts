@@ -1,13 +1,16 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable , Logger} from "@nestjs/common";
 import type { OnboardingStateResponse } from "@zyon/shared-types";
 import {
   ONBOARDING_STATE_REPOSITORY,
   type OnboardingStateRepository
 } from "../domain/ports/onboarding-state.repository.port.js";
 import { OnboardingStateEntity } from "../domain/entities/onboarding-state.entity.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class GetOnboardingStateUseCase {
+  private readonly logger = new Logger(GetOnboardingStateUseCase.name);
+
   constructor(
     @Inject(ONBOARDING_STATE_REPOSITORY) private readonly repository: OnboardingStateRepository
   ) {}

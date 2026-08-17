@@ -1,6 +1,7 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface UpdateProductInput {
   merchantId: string;
@@ -15,6 +16,8 @@ export interface UpdateProductInput {
 
 @Injectable()
 export class UpdateProductUseCase {
+  private readonly logger = new Logger(UpdateProductUseCase.name);
+
   constructor(@Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort) {}
 
   async execute(input: UpdateProductInput): Promise<ProductEntity> {

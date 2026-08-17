@@ -4,9 +4,10 @@
  * Creates a MerchantInvite and sends notification (email placeholder).
  */
 
-import { Injectable, Inject, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, BadRequestException, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface InviteMemberInput {
   merchant_id: string;
@@ -24,6 +25,8 @@ export interface InviteMemberOutput {
 
 @Injectable()
 export class InviteMemberUseCase {
+  private readonly logger = new Logger(InviteMemberUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: InviteMemberInput): Promise<InviteMemberOutput> {

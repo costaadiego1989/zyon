@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import { isSafeGeneratedMessage } from "@zyon/conversation-engine";
 import type { SupportFaqItem, SupportTicketStatus } from "@zyon/shared-types";
 import { faqLookup } from "./support-faq.service.js";
@@ -7,6 +7,7 @@ import { SupportHandoffService } from "./support-handoff.service.js";
 import type { ChatCompletionPort } from "../domain/ports/chat-completion.port.js";
 import { CHAT_COMPLETION_PORT } from "../domain/ports/chat-completion.port.js";
 import { stripHtmlFromReply } from "../domain/services/sanitize-reply.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export interface SupportMessageInput {
   message: string;
@@ -72,6 +73,8 @@ function buildSystemPrompt(ctx?: SupportMessageContext): string {
  */
 @Injectable()
 export class SendSupportMessageUseCase {
+  private readonly logger = new Logger(SendSupportMessageUseCase.name);
+
   constructor(
     @Inject(CHAT_COMPLETION_PORT) private readonly chat: ChatCompletionPort,
     private readonly handoff: SupportHandoffService,

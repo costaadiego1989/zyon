@@ -1,6 +1,7 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 type FunnelPeriod = "today" | "7d" | "30d" | "90d";
 
@@ -37,6 +38,8 @@ const STOREFRONT_STEP_DEFINITIONS = [
 
 @Injectable()
 export class GetStorefrontFunnelUseCase {
+  private readonly logger = new Logger(GetStorefrontFunnelUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchantId: string, period: FunnelPeriod = "7d"): Promise<StorefrontFunnelResult> {

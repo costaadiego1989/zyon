@@ -1,12 +1,15 @@
-import { Injectable, Inject, NotFoundException, ConflictException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, ConflictException , Logger} from "@nestjs/common";
 import { PRICE_QUOTE_JOB_REPOSITORY, type PriceQuoteJobRepository } from "../../domain/ports/price-quote-job-repository.port.js";
 import { rankResults, NoAvailableSourcesError } from "../../domain/services/result-ranker.service.js";
 import { decidePurchaseRouting } from "../../domain/policies/purchase-routing.policy.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createScrapingEventEnvelope } from "../../domain/events/scraping-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class FinalizeQuoteJobUseCase {
+  private readonly logger = new Logger(FinalizeQuoteJobUseCase.name);
+
   constructor(
     @Inject(PRICE_QUOTE_JOB_REPOSITORY) private readonly repo: PriceQuoteJobRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository

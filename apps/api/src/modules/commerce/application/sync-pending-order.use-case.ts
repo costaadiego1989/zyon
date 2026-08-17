@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { TrustedCartSnapshot } from "@zyon/commerce-adapters";
 import { COMMERCE_ORDER_PORT, type CommerceOrderPort } from "../domain/ports/commerce-order.port.js";
 import {
@@ -6,6 +6,7 @@ import {
   type PendingCommerceOrderIndexPort
 } from "../domain/ports/pending-commerce-order-index.port.js";
 import { createCommerceEventEnvelope } from "../domain/events/commerce-domain-event.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type SyncPendingOrderInput = {
   merchantId: string;
@@ -19,6 +20,8 @@ export type SyncPendingOrderOutput = {
 
 @Injectable()
 export class SyncPendingOrderUseCase {
+  private readonly logger = new Logger(SyncPendingOrderUseCase.name);
+
   constructor(
     @Inject(COMMERCE_ORDER_PORT)
     private readonly orders: CommerceOrderPort,

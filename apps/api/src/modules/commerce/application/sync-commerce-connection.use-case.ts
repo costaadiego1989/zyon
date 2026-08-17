@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import {
   COMMERCE_CONNECTION_PORT,
   type CommerceConnectionPort,
@@ -9,9 +9,12 @@ import {
   type CommerceProviderRuntime,
 } from "../domain/ports/commerce-provider-runtime.port.js";
 import { requiredConnection, commerceGatewayError, errorCode } from "./commerce-connection.helpers.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class SyncCommerceConnectionUseCase {
+  private readonly logger = new Logger(SyncCommerceConnectionUseCase.name);
+
   constructor(
     @Inject(COMMERCE_CONNECTION_PORT)
     private readonly connections: CommerceConnectionPort,

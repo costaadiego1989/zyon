@@ -1,6 +1,7 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface ReorderCategoryItem {
   id: string;
@@ -9,6 +10,8 @@ export interface ReorderCategoryItem {
 
 @Injectable()
 export class ReorderCategoriesUseCase {
+  private readonly logger = new Logger(ReorderCategoriesUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchantId: string, items: ReorderCategoryItem[]): Promise<void> {

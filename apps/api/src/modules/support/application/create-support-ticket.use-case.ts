@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { SupportTicket } from "@zyon/shared-types";
 import { SupportTicketEntity } from "../domain/entities/support-ticket.entity.js";
 import {
@@ -6,12 +6,15 @@ import {
   type SupportTicketRepository,
 } from "../domain/ports/support-ticket-repository.port.js";
 import { SupportTicketEventPublisher } from "./support-ticket-event.publisher.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 /**
  * SUPP-M4 refactored: Uses SupportTicketEventPublisher to deduplicate webhook publish.
  */
 @Injectable()
 export class CreateSupportTicketUseCase {
+  private readonly logger = new Logger(CreateSupportTicketUseCase.name);
+
   constructor(
     @Inject(SUPPORT_TICKET_REPOSITORY)
     private readonly repository: SupportTicketRepository,

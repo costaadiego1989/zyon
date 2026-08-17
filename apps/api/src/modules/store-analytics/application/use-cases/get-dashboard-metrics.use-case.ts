@@ -1,14 +1,17 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import {
   ANALYTICS_REPOSITORY_PORT,
   AnalyticsRepositoryPort,
   DashboardResult,
 } from "../../infrastructure/repositories/prisma-analytics.repository.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export type DashboardPeriod = "today" | "week" | "month";
 
 @Injectable()
 export class GetDashboardMetricsUseCase {
+  private readonly logger = new Logger(GetDashboardMetricsUseCase.name);
+
   constructor(@Inject(ANALYTICS_REPOSITORY_PORT) private readonly analyticsRepo: AnalyticsRepositoryPort) {}
 
   async execute(merchantId: string, period: DashboardPeriod = "week"): Promise<DashboardResult> {

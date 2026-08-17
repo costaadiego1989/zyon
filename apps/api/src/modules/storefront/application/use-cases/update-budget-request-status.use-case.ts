@@ -1,11 +1,14 @@
-import { Inject, Injectable, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, BadRequestException, NotFoundException , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export type BudgetRequestStatus = "approved" | "rejected" | "responded";
 
 @Injectable()
 export class UpdateBudgetRequestStatusUseCase {
+  private readonly logger = new Logger(UpdateBudgetRequestStatusUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(id: string, status: BudgetRequestStatus): Promise<{ id: string; status: string }> {

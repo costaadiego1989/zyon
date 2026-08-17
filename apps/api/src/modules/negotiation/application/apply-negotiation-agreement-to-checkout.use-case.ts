@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
 import type { AuthorizedOffer } from "@zyon/shared-types";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
@@ -8,9 +8,12 @@ import { createAuthorizedOffer } from "../../checkout/domain/services/offer-fact
 import { checkoutCartFingerprint } from "../domain/cart-fingerprint.js";
 import { NEGOTIATION_STORE, type NegotiationStore } from "../domain/ports/negotiation-store.port.js";
 import { GetMerchantNegotiationPolicyUseCase } from "./merchant-negotiation-policy.use-cases.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ApplyNegotiationAgreementToCheckoutUseCase {
+  private readonly logger = new Logger(ApplyNegotiationAgreementToCheckoutUseCase.name);
+
   constructor(
     @Inject(NEGOTIATION_STORE) private readonly store: NegotiationStore,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,

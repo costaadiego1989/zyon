@@ -1,9 +1,10 @@
-import { Injectable, Inject, NotFoundException, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, UnprocessableEntityException , Logger} from "@nestjs/common";
 import { BUYER_WALLET_REPOSITORY, type BuyerWalletRepository } from "../../domain/ports/buyer-wallet-repository.port.js";
 import { BUYER_TEMPLATE_REPOSITORY, type BuyerTemplateRepository } from "../../domain/ports/buyer-template-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { evaluateTemplateExecution } from "../../domain/policies/template-execution.policy.js";
 import { createSelfCheckoutEventEnvelope } from "../../domain/events/self-checkout-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface ExecuteCheckoutTemplateInput {
   template_id: string;
@@ -15,6 +16,8 @@ export interface ExecuteCheckoutTemplateInput {
 
 @Injectable()
 export class ExecuteCheckoutTemplateUseCase {
+  private readonly logger = new Logger(ExecuteCheckoutTemplateUseCase.name);
+
   constructor(
     @Inject(BUYER_WALLET_REPOSITORY) private readonly wallets: BuyerWalletRepository,
     @Inject(BUYER_TEMPLATE_REPOSITORY) private readonly templates: BuyerTemplateRepository,

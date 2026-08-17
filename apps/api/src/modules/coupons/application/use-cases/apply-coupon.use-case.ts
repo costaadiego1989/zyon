@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException, UnprocessableEntityException , Logger} from "@nestjs/common";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { COUPON_REDEMPTION_REPOSITORY, type CouponRedemptionRepository } from "../../domain/ports/coupon-redemption-repository.port.js";
@@ -9,6 +9,7 @@ import { calculateCouponDiscount } from "../../domain/policies/coupon-discount-c
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCouponEventEnvelope } from "../../domain/events/coupon-domain-event.js";
 import { DISCOUNT_RULES_ENGINE, type DiscountRulesEnginePort } from "../../domain/ports/discount-rules-engine.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export type ApplyCouponInput = {
   merchant_id: string;
@@ -24,6 +25,8 @@ export type ApplyCouponInput = {
 
 @Injectable()
 export class ApplyCouponUseCase {
+  private readonly logger = new Logger(ApplyCouponUseCase.name);
+
   constructor(
     @Inject(COUPON_REPOSITORY) private readonly coupons: CouponRepository,
     @Inject(COUPON_REDEMPTION_REPOSITORY) private readonly redemptions: CouponRedemptionRepository,

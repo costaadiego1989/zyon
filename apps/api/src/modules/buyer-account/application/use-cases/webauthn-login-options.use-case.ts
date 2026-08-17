@@ -1,9 +1,10 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import type { WebAuthnCredentialStore } from "../../domain/ports/webauthn-credential.port.js";
 import { WEBAUTHN_CREDENTIAL_STORE } from "../../domain/ports/webauthn-credential.port.js";
 import type { BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface LoginOptionsRequest {
   email?: string;
@@ -32,6 +33,8 @@ export interface WebAuthnLoginOptionsDeps {
  */
 @Injectable()
 export class WebAuthnLoginOptionsUseCase {
+  private readonly logger = new Logger(WebAuthnLoginOptionsUseCase.name);
+
   private readonly challengeService: WebAuthnChallengeService;
   private readonly credentialStore: WebAuthnCredentialStore;
   private readonly rpId: string;

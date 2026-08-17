@@ -1,11 +1,14 @@
-import { Injectable, Inject, NotFoundException, Optional, ConflictException, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, Optional, ConflictException, BadRequestException , Logger} from "@nestjs/common";
 import type { ShippingQuote } from "@zyon/shared-types";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { ShippingQuoteResult, ShippingQuoteSnapshot } from "../../domain/entities/shipping-quote.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class SelectShippingMethodUseCase {
+  private readonly logger = new Logger(SelectShippingMethodUseCase.name);
+
   constructor(
     @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
     @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkoutSessions?: CheckoutSessionRepository

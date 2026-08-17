@@ -1,4 +1,4 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import type { Cart } from "@zyon/shared-types";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
@@ -6,6 +6,7 @@ import { CrossSellSuggestionEntity } from "../../domain/entities/cross-sell-sugg
 import { rankEligiblePromotions } from "../../domain/services/cross-sell-recommender.service.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export type ListEligibleCrossSellsInput = {
   session_id: string;
@@ -16,6 +17,8 @@ export type ListEligibleCrossSellsInput = {
 
 @Injectable()
 export class ListEligibleCrossSellsUseCase {
+  private readonly logger = new Logger(ListEligibleCrossSellsUseCase.name);
+
   constructor(
     @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly promotions: CrossSellPromotionRepository,
     @Inject(CROSS_SELL_SUGGESTION_REPOSITORY) private readonly suggestions: CrossSellSuggestionRepository,

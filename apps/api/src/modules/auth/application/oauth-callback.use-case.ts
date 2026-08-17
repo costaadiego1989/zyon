@@ -1,4 +1,4 @@
-import { Inject, Injectable, BadRequestException } from "@nestjs/common";
+import { Inject, Injectable, BadRequestException , Logger} from "@nestjs/common";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 import { OAUTH_PROVIDER_PORT, type OAuthProviderPort } from "../domain/ports/oauth-provider.port.js";
 import type { MerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
@@ -7,6 +7,7 @@ import { JwtService } from "../domain/services/jwt.service.js";
 import { normalizeEmail } from "../domain/validators.js";
 import type { AuthResponse } from "../domain/auth.types.js";
 import { toAuthResponse } from "./auth-response.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export interface OAuthCallbackRequest {
   provider: "github" | "google";
@@ -16,6 +17,8 @@ export interface OAuthCallbackRequest {
 
 @Injectable()
 export class OAuthCallbackUseCase {
+  private readonly logger = new Logger(OAuthCallbackUseCase.name);
+
   constructor(
     @Inject(OAUTH_PROVIDER_PORT) private readonly oauthProvider: OAuthProviderPort,
     @Inject(AUTH_REPOSITORY) private readonly repository: AuthRepository,

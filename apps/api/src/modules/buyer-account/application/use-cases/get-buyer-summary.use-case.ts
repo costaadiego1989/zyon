@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import {
   BUYER_ACCOUNT_REPOSITORY,
   type BuyerAccountRepository,
@@ -6,6 +6,7 @@ import {
 import { BUYER_ACCOUNT_PORT, type BuyerAccountPort } from "../../domain/ports/buyer-account-port.js";
 import type { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import type { BuyerAgentProfile } from "../../domain/entities/buyer-agent-profile.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import {
   BUYER_PURCHASE_HISTORY_REPOSITORY,
   type BuyerPurchaseHistoryRepository,
@@ -29,6 +30,8 @@ type PurchaseStat = Pick<PurchaseRecord, "merchantId" | "totalAmount" | "discoun
 
 @Injectable()
 export class GetBuyerSummaryUseCase {
+  private readonly logger = new Logger(GetBuyerSummaryUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     @Inject(BUYER_ACCOUNT_PORT) private readonly port: BuyerAccountPort,

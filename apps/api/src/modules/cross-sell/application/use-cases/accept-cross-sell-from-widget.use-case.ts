@@ -1,13 +1,16 @@
-import { Injectable, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
 import type { Cart, CartItem, ChatTurn, CheckoutSession } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { AcceptCrossSellSuggestionUseCase } from "./accept-cross-sell-suggestion.use-case.js";
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { resolveCrossSellCartItem } from "../services/cross-sell-product-resolver.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class AcceptCrossSellFromWidgetUseCase {
+  private readonly logger = new Logger(AcceptCrossSellFromWidgetUseCase.name);
+
   constructor(
     private readonly accept: AcceptCrossSellSuggestionUseCase,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,

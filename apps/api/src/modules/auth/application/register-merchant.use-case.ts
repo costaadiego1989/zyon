@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, InternalServerErrorException , Logger} from "@nestjs/common";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 import type { MerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
 import { MERCHANT_ID_GENERATOR } from "../domain/ports/merchant-id-generator.port.js";
@@ -8,6 +8,7 @@ import { EmailAlreadyRegisteredError, MerchantOwnerNotCreatedError, WeakPassword
 import { assertValidEmail, assertStrongPassword, normalizeEmail } from "../domain/validators.js";
 import type { AuthResponse } from "../domain/auth.types.js";
 import { toAuthResponse } from "./auth-response.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 /**
  * H6: Removed merchant_id from request — always server-generated.
@@ -35,6 +36,8 @@ export { toAuthResponse };
 
 @Injectable()
 export class RegisterMerchantUseCase {
+  private readonly logger = new Logger(RegisterMerchantUseCase.name);
+
   constructor(
     @Inject(AUTH_REPOSITORY) private readonly repository: AuthRepository,
     private readonly passwordHasher: PasswordHasher,

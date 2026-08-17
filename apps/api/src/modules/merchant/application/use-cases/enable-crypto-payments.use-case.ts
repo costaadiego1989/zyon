@@ -1,9 +1,10 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable , Logger} from "@nestjs/common";
 import { normalizeMerchantCryptoPayments } from "../../domain/services/merchant-crypto.validation.js";
 import {
   MERCHANT_RULES_REPOSITORY,
   type MerchantRulesRepository,
 } from "../../domain/ports/merchant-rules.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface EnableCryptoPaymentsInput {
   merchantId: string;
@@ -16,6 +17,8 @@ export interface EnableCryptoPaymentsInput {
 
 @Injectable()
 export class EnableCryptoPaymentsUseCase {
+  private readonly logger = new Logger(EnableCryptoPaymentsUseCase.name);
+
   constructor(
     @Inject(MERCHANT_RULES_REPOSITORY)
     private readonly rulesRepository: MerchantRulesRepository,

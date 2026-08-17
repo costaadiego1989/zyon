@@ -1,8 +1,11 @@
-import { Injectable, Inject, ConflictException, ForbiddenException } from "@nestjs/common";
+import { Injectable, Inject, ConflictException, ForbiddenException , Logger} from "@nestjs/common";
 import { StockRepositoryPort } from "../../domain/ports/product-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ConfirmStockUseCase {
+  private readonly logger = new Logger(ConfirmStockUseCase.name);
+
   constructor(@Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort) {}
 
   async execute(merchantId: string, reservationId: string): Promise<void> {

@@ -4,9 +4,10 @@
  * Validates invite token and creates MerchantTeamMember.
  */
 
-import { Injectable, Inject, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, BadRequestException, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface AcceptInviteInput {
   invite_id: string;
@@ -21,6 +22,8 @@ export interface AcceptInviteOutput {
 
 @Injectable()
 export class AcceptInviteUseCase {
+  private readonly logger = new Logger(AcceptInviteUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: AcceptInviteInput): Promise<AcceptInviteOutput> {

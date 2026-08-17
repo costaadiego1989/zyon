@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ApplyOfferResponse,
@@ -14,9 +14,12 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ApplyOfferUseCase {
+  private readonly logger = new Logger(ApplyOfferUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,

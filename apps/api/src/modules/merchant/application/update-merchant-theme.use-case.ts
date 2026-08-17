@@ -1,10 +1,11 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import {
   MERCHANT_REPOSITORY,
   type MerchantRepository
 } from "../domain/ports/merchant-repository.port.js";
 import { validateMerchantTheme } from "../domain/services/merchant-theme.validators.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 const VALID_STORE_CATEGORIES = [
   // Varejo físico
@@ -25,6 +26,8 @@ const VALID_STORE_CATEGORIES = [
 
 @Injectable()
 export class UpdateMerchantThemeUseCase {
+  private readonly logger = new Logger(UpdateMerchantThemeUseCase.name);
+
   constructor(@Inject(MERCHANT_REPOSITORY) private readonly repo: MerchantRepository) {}
 
   async execute(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme> {

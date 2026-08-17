@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, UnauthorizedException, Inject } from "@nestjs/common";
+import { Injectable, BadRequestException, UnauthorizedException, Inject , Logger} from "@nestjs/common";
 import { WebAuthnVerifierService } from "../../domain/services/webauthn-verifier.service.js";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
@@ -6,6 +6,7 @@ import type { WebAuthnCredentialStore } from "../../domain/ports/webauthn-creden
 import { WEBAUTHN_CREDENTIAL_STORE } from "../../domain/ports/webauthn-credential.port.js";
 import type { BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface LoginVerifyRequest {
   challenge: Uint8Array;
@@ -42,6 +43,8 @@ export interface WebAuthnLoginVerifyDeps {
  */
 @Injectable()
 export class WebAuthnLoginVerifyUseCase {
+  private readonly logger = new Logger(WebAuthnLoginVerifyUseCase.name);
+
   private readonly verifier: WebAuthnVerifierService;
   private readonly challengeService: WebAuthnChallengeService;
   private readonly credentialStore: WebAuthnCredentialStore;

@@ -1,13 +1,16 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import {
   BUYER_ADDRESS_REPOSITORY,
   MAX_ADDRESSES_PER_BUYER,
   type BuyerAddressRepository,
 } from "../../domain/ports/buyer-address.port.js";
 import type { BuyerAddress } from "../../domain/entities/buyer-address.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class ListBuyerAddressesUseCase {
+  private readonly logger = new Logger(ListBuyerAddressesUseCase.name);
+
   constructor(@Inject(BUYER_ADDRESS_REPOSITORY) private readonly repo: BuyerAddressRepository) {}
 
   async execute(globalUserId: string): Promise<BuyerAddress[]> {

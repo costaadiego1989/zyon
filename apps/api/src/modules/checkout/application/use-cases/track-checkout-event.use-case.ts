@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type { CheckoutSettingsContext, ProgressiveOfferResponse, TrackEventRequest, TrackEventResponse } from "@zyon/shared-types";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
@@ -16,9 +16,12 @@ import {
   selectProgressiveDiscountPercent
 } from "../../domain/services/progressive-discount-policy.service.js";
 import type { CheckoutSession } from "@zyon/shared-types";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
+  private readonly logger = new Logger(TrackCheckoutEventUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,

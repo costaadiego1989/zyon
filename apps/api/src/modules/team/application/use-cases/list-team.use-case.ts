@@ -2,9 +2,10 @@
  * List team members use-case.
  */
 
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface TeamMemberInfo {
   member_id: string;
@@ -21,6 +22,8 @@ export interface ListTeamOutput {
 
 @Injectable()
 export class ListTeamUseCase {
+  private readonly logger = new Logger(ListTeamUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchant_id: string): Promise<ListTeamOutput> {

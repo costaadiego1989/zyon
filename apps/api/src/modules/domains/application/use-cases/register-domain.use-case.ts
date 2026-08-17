@@ -2,9 +2,10 @@
  * Register a custom domain for a merchant.
  */
 
-import { Injectable, Inject, BadRequestException, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, BadRequestException, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterDomainInput {
   merchant_id: string;
@@ -20,6 +21,8 @@ export interface RegisterDomainOutput {
 
 @Injectable()
 export class RegisterDomainUseCase {
+  private readonly logger = new Logger(RegisterDomainUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: RegisterDomainInput): Promise<RegisterDomainOutput> {

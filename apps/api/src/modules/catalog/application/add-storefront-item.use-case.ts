@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
 import type { CartItem, ChatTurn, CheckoutExperienceSnapshot, CheckoutSession } from "@zyon/shared-types";
 import {
   CHECKOUT_SESSION_REPOSITORY,
@@ -10,6 +10,7 @@ import {
 } from "../../merchant/domain/ports/merchant-repository.port.js";
 import { buildExperienceFromSession } from "../../checkout/application/services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../checkout/domain/checkout-experience.config.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { STOREFRONT_CATALOG_PORT, type StorefrontCatalogPort } from "../domain/ports/storefront-catalog.port.js";
 import { CROSS_SELL_RESOLVER_PORT, type CrossSellResolverPort } from "../domain/ports/cross-sell-resolver.port.js";
 import { addOrUpdateCartItem } from "../domain/cart-item-updater.js";
@@ -17,6 +18,8 @@ import { crossSellCartItemToProduct } from "../domain/catalog.mappers.js";
 
 @Injectable()
 export class AddStorefrontItemUseCase {
+  private readonly logger = new Logger(AddStorefrontItemUseCase.name);
+
   constructor(
     @Inject(STOREFRONT_CATALOG_PORT) private readonly catalog: StorefrontCatalogPort,
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,

@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable , Logger} from "@nestjs/common";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface FunnelSessionRow {
   sessionId: string;
@@ -18,6 +19,8 @@ export interface ListFunnelSessionsResponse {
 
 @Injectable()
 export class ListFunnelSessionsUseCase {
+  private readonly logger = new Logger(ListFunnelSessionsUseCase.name);
+
   async execute(
     merchantId: string,
     options: { status?: "active" | "all"; limit?: number } = {}

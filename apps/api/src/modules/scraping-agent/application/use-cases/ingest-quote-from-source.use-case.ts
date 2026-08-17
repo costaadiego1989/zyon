@@ -1,9 +1,12 @@
-import { ConflictException, Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { ConflictException, Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import type { PriceQuoteResult } from "../../domain/entities/price-quote-job.entity.js";
 import { PRICE_QUOTE_JOB_REPOSITORY, type PriceQuoteJobRepository } from "../../domain/ports/price-quote-job-repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class IngestQuoteFromSourceUseCase {
+  private readonly logger = new Logger(IngestQuoteFromSourceUseCase.name);
+
   constructor(
     @Inject(PRICE_QUOTE_JOB_REPOSITORY) private readonly repo: PriceQuoteJobRepository
   ) {}

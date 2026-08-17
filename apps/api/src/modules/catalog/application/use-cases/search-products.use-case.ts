@@ -1,8 +1,9 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { ProductRepositoryPort, SearchProductsInput, SearchProductsResult } from "../../domain/ports/product-repository.port.js";
 import { EmbeddingService } from "../../infrastructure/services/embedding.service.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 interface VectorSearchRow {
   product_id: string;
@@ -11,6 +12,8 @@ interface VectorSearchRow {
 
 @Injectable()
 export class SearchProductsUseCase {
+  private readonly logger = new Logger(SearchProductsUseCase.name);
+
   constructor(
     @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
     private readonly embeddingService: EmbeddingService,

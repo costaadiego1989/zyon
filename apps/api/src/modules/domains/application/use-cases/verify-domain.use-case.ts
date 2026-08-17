@@ -2,10 +2,11 @@
  * Verify a registered domain via DNS CNAME check.
  */
 
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { DnsVerificationService } from "../../infrastructure/dns-verification.service.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface VerifyDomainInput {
   merchant_id: string;
@@ -20,6 +21,8 @@ export interface VerifyDomainOutput {
 
 @Injectable()
 export class VerifyDomainUseCase {
+  private readonly logger = new Logger(VerifyDomainUseCase.name);
+
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly dnsService: DnsVerificationService,

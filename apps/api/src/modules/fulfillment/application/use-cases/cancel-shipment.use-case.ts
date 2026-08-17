@@ -1,10 +1,13 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createFulfillmentEventEnvelope } from "../../domain/events/fulfillment-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class CancelShipmentUseCase {
+  private readonly logger = new Logger(CancelShipmentUseCase.name);
+
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly repo: ShipmentRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository

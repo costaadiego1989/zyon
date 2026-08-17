@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import { timingSafeEqual } from "node:crypto";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import {
@@ -8,6 +8,7 @@ import {
 } from "../domain/ports/payment-repository.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -51,6 +52,8 @@ function normalizeInbound(body: unknown): AsaasWebhookInbound {
 }
 
 export class UnauthorizedWebhookError extends Error {
+  private readonly logger = new Logger(UnauthorizedWebhookError.name);
+
   constructor() {
     super("asaas_webhook_token_invalid");
     this.name = "UnauthorizedWebhookError";

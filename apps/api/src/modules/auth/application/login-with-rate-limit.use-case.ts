@@ -1,8 +1,9 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { LoginAttemptScope, RateLimiterPort } from "../domain/ports/rate-limiter.port.js";
 import { RATE_LIMITER } from "../domain/ports/rate-limiter.port.js";
 import { LoginUseCase } from "./login.use-case.js";
 import type { AuthResponse } from "../domain/auth.types.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 /**
  * H1, H4: Application layer wraps LoginUseCase + RateLimiter.
@@ -10,6 +11,8 @@ import type { AuthResponse } from "../domain/auth.types.js";
  */
 @Injectable()
 export class LoginWithRateLimitUseCase {
+  private readonly logger = new Logger(LoginWithRateLimitUseCase.name);
+
   constructor(
     private readonly login: LoginUseCase,
     @Inject(RATE_LIMITER) private readonly rateLimiter: RateLimiterPort

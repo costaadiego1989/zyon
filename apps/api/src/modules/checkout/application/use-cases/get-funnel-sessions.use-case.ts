@@ -1,7 +1,8 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { CustomerHints } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 interface FunnelSession {
   sessionId: string;
@@ -26,6 +27,8 @@ const STEP_PRIORITY: Record<string, number> = {
 
 @Injectable()
 export class GetFunnelSessionsUseCase {
+  private readonly logger = new Logger(GetFunnelSessionsUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchantId: string): Promise<FunnelSessionsResult> {

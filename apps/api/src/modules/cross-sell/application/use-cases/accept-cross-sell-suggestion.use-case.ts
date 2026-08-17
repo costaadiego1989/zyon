@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, UnprocessableEntityException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException, UnprocessableEntityException , Logger} from "@nestjs/common";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
@@ -6,9 +6,12 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateStacking } from "../../domain/policies/stacking.policy.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class AcceptCrossSellSuggestionUseCase {
+  private readonly logger = new Logger(AcceptCrossSellSuggestionUseCase.name);
+
   constructor(
     @Inject(CROSS_SELL_SUGGESTION_REPOSITORY) private readonly suggestions: CrossSellSuggestionRepository,
     @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly promotions: CrossSellPromotionRepository,

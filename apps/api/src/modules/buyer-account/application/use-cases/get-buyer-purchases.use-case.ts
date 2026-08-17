@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
 import {
@@ -10,6 +10,7 @@ import { toNumber } from "../../../../shared/persistence/decimal.util.js";
 import type { PurchaseRecord as PurchaseHistoryRecord } from "../../../buyer-purchase-history/domain/buyer-purchase-history.types.js";
 import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface GetBuyerPurchasesRequest {
   globalUserId: string;
@@ -51,6 +52,8 @@ export interface PurchasePage {
 
 @Injectable()
 export class GetBuyerPurchasesUseCase {
+  private readonly logger = new Logger(GetBuyerPurchasesUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Optional()

@@ -193,7 +193,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const total = Math.max(0, roundMoney(subtotal + shipping - discount));
   const serviceFee = readPlatformServiceFee(deps);
   const agentIdentity = deps.agent?.agent;
-  const agentName = agentIdentity?.agentName ?? "Assistente AACP";
+  const agentName = deps.theme?.agentName || agentIdentity?.agentName || "Assistente AACP";
   const cartEmpty = input.cart.items.length === 0;
   const greeting = cartEmpty
     ? "O que você deseja comprar? Digite aqui que encontro para você."

@@ -5,7 +5,7 @@
  * returns response message + conversation blocks.
  */
 
-import { Injectable, Inject, NotFoundException, Optional } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, Optional , Logger} from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../domain/ports/conversation.port.js";
@@ -13,6 +13,7 @@ import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from 
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface SendStoreMessageInput {
   merchant_id: string;
@@ -33,6 +34,8 @@ export interface SendStoreMessageOutput {
 
 @Injectable()
 export class SendStoreMessageUseCase {
+  private readonly logger = new Logger(SendStoreMessageUseCase.name);
+
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchant: MerchantRepository,
     @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort,

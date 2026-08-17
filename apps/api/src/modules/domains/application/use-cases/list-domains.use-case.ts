@@ -2,9 +2,10 @@
  * List domains for a merchant.
  */
 
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface DomainInfo {
   id: string;
@@ -17,6 +18,8 @@ export interface DomainInfo {
 
 @Injectable()
 export class ListDomainsUseCase {
+  private readonly logger = new Logger(ListDomainsUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(merchant_id: string): Promise<DomainInfo[]> {

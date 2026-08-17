@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import {
   MERCHANT_REPOSITORY,
@@ -6,11 +6,14 @@ import {
 } from "../domain/ports/merchant-repository.port.js";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 const PLANS_WITH_STORE = new Set(["BOTH", "STORE_ONLY"]);
 
 @Injectable()
 export class GetMerchantThemeUseCase {
+  private readonly logger = new Logger(GetMerchantThemeUseCase.name);
+
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly repo: MerchantRepository,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,

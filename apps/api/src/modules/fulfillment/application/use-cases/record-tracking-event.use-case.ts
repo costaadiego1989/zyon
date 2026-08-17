@@ -1,13 +1,16 @@
-import { Injectable, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { TRACKING_EVENT_REPOSITORY, type TrackingEventRepository } from "../../domain/ports/tracking-event-repository.port.js";
 import { TrackingEventEntity } from "../../domain/entities/tracking-event.entity.js";
 import type { ShipmentStatus } from "../../domain/entities/shipment.entity.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createFulfillmentEventEnvelope } from "../../domain/events/fulfillment-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RecordTrackingEventUseCase {
+  private readonly logger = new Logger(RecordTrackingEventUseCase.name);
+
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly shipments: ShipmentRepository,
     @Inject(TRACKING_EVENT_REPOSITORY) private readonly trackingEvents: TrackingEventRepository,

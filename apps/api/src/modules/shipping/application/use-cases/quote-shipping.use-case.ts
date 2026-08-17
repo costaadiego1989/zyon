@@ -1,4 +1,4 @@
-import { Injectable, Inject, Optional } from "@nestjs/common";
+import { Injectable, Inject, Optional , Logger} from "@nestjs/common";
 import { buildQuoteKey } from "@zyon/shipping-engine";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
@@ -9,6 +9,7 @@ import {
   MERCHANT_RULES_REPOSITORY,
   type MerchantRulesRepository
 } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface QuoteShippingInput {
   session_id: string;
@@ -28,6 +29,8 @@ export interface QuoteShippingInput {
 
 @Injectable()
 export class QuoteShippingUseCase {
+  private readonly logger = new Logger(QuoteShippingUseCase.name);
+
   constructor(
     @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
     @Inject(CARRIER_ADAPTERS) private readonly carriers: CarrierPort[],

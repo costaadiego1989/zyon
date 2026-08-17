@@ -6,7 +6,7 @@ import {
   Injectable,
   NotFoundException,
   Optional
-} from "@nestjs/common";
+, Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
@@ -22,6 +22,7 @@ import type { CheckoutSession, CurrencyCode } from "@zyon/shared-types";
 import { isStripeConfigured, readPlatformFeeCents } from "../infrastructure/stripe-env.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
 import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending-order.use-case.js";
 import {
@@ -120,6 +121,8 @@ function normalizeProviderException(error: unknown): Error {
 
 @Injectable()
 export class CreatePaymentIntentUseCase {
+  private readonly logger = new Logger(CreatePaymentIntentUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout: CheckoutSessionRepository,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,

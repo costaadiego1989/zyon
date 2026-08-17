@@ -1,9 +1,12 @@
-import { Injectable, Inject, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, BadRequestException , Logger} from "@nestjs/common";
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort, CreateReturnInput } from "../../domain/ports/return-repository.port.js";
 import { ReturnEntity } from "../../domain/entities/return.entity.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class RequestReturnUseCase {
+  private readonly logger = new Logger(RequestReturnUseCase.name);
+
   constructor(@Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort) {}
 
   async execute(input: {

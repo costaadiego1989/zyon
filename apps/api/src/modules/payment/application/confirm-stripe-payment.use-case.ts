@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
@@ -9,6 +9,7 @@ import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checko
 import { readPlatformFeeCents, readStripeConnection } from "../infrastructure/stripe-env.js";
 import { isE2ePaymentStubEnabled } from "../infrastructure/e2e-payment-provider.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type ConfirmStripePaymentRequest = {
   merchant_id: string;
@@ -18,6 +19,8 @@ export type ConfirmStripePaymentRequest = {
 
 @Injectable()
 export class ConfirmStripePaymentUseCase {
+  private readonly logger = new Logger(ConfirmStripePaymentUseCase.name);
+
   private readonly stripe: Stripe;
 
   constructor(

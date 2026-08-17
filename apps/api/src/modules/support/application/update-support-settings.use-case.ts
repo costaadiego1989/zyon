@@ -1,13 +1,16 @@
-import { Inject, Injectable, UnprocessableEntityException } from "@nestjs/common";
+import { Inject, Injectable, UnprocessableEntityException , Logger} from "@nestjs/common";
 import type { SupportSettings, SupportSettingsPatch } from "@zyon/shared-types";
 import { SupportSettingsEntity } from "../domain/entities/support-settings.entity.js";
 import {
   SUPPORT_SETTINGS_REPOSITORY,
   type SupportSettingsRepository,
 } from "../domain/ports/support-settings-repository.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class UpdateSupportSettingsUseCase {
+  private readonly logger = new Logger(UpdateSupportSettingsUseCase.name);
+
   constructor(
     @Inject(SUPPORT_SETTINGS_REPOSITORY)
     private readonly repository: SupportSettingsRepository,

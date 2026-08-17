@@ -4,8 +4,9 @@
  * Retrieves message history for a storefront conversation.
  */
 
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../domain/ports/conversation.port.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface GetConversationHistoryInput {
   merchant_id: string;
@@ -23,6 +24,8 @@ export interface GetConversationHistoryOutput {
 
 @Injectable()
 export class GetConversationHistoryUseCase {
+  private readonly logger = new Logger(GetConversationHistoryUseCase.name);
+
   constructor(
     @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort
   ) {}

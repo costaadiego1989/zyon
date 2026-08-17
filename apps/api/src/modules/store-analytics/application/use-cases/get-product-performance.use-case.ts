@@ -1,12 +1,15 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import {
   ANALYTICS_REPOSITORY_PORT,
   AnalyticsRepositoryPort,
   ProductMetricRow,
 } from "../../infrastructure/repositories/prisma-analytics.repository.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class GetProductPerformanceUseCase {
+  private readonly logger = new Logger(GetProductPerformanceUseCase.name);
+
   constructor(@Inject(ANALYTICS_REPOSITORY_PORT) private readonly analyticsRepo: AnalyticsRepositoryPort) {}
 
   async execute(merchantId: string, monthStr?: string): Promise<{ products: ProductMetricRow[] }> {

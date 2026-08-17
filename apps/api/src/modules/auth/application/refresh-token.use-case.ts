@@ -1,8 +1,9 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable , Logger} from "@nestjs/common";
 import { JwtService } from "../domain/services/jwt.service.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import type { AuthResponse } from "../domain/auth.types.js";
 import { toAuthResponse } from "./auth-response.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 /**
  * H2, M13: Dedicated RefreshTokenUseCase.
@@ -11,6 +12,8 @@ import { toAuthResponse } from "./auth-response.js";
  */
 @Injectable()
 export class RefreshTokenUseCase {
+  private readonly logger = new Logger(RefreshTokenUseCase.name);
+
   constructor(
     private readonly jwt: JwtService
   ) {}

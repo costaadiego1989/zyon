@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
@@ -7,6 +7,7 @@ import { CRYPTO_VERIFIER, type CryptoVerifierPort } from "../domain/ports/crypto
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../shared/messaging/ports/outbox.repository.port.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import type { CryptoBuyerFacing } from "../domain/entities/crypto-buyer-facing.type.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type ConfirmCryptoPaymentRequest = {
   merchant_id: string;
@@ -36,6 +37,8 @@ function asCryptoBuyerFacing(raw: unknown): CryptoBuyerFacing | null {
 
 @Injectable()
 export class ConfirmCryptoPaymentUseCase {
+  private readonly logger = new Logger(ConfirmCryptoPaymentUseCase.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Optional() @Inject(CRYPTO_VERIFIER) private readonly cryptoVerifier?: CryptoVerifierPort,

@@ -1,7 +1,8 @@
-import { Injectable, Inject, HttpException, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, HttpException, NotFoundException , Logger} from "@nestjs/common";
 import { BUYER_USER_REPOSITORY, type BuyerUserRepository } from "../../domain/ports/buyer-user-repository.port.js";
 import { BUYER_WALLET_REPOSITORY, type BuyerWalletRepository } from "../../domain/ports/buyer-wallet-repository.port.js";
 import { checkConsent } from "../../domain/policies/consent.policy.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface AddSavedAddressInput {
   buyer_user_id: string;
@@ -16,6 +17,8 @@ export interface AddSavedAddressInput {
 
 @Injectable()
 export class AddSavedAddressUseCase {
+  private readonly logger = new Logger(AddSavedAddressUseCase.name);
+
   constructor(
     @Inject(BUYER_USER_REPOSITORY) private readonly users: BuyerUserRepository,
     @Inject(BUYER_WALLET_REPOSITORY) private readonly wallets: BuyerWalletRepository

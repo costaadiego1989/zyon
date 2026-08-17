@@ -1,10 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
 import { toBuyerAuthResponse, type BuyerAuthResponse } from "./register-buyer.use-case.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface LoginBuyerFromSessionRequest {
   session_id: string;
@@ -13,6 +14,8 @@ export interface LoginBuyerFromSessionRequest {
 
 @Injectable()
 export class LoginBuyerFromSessionUseCase {
+  private readonly logger = new Logger(LoginBuyerFromSessionUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout: CheckoutSessionRepository,
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyers: BuyerAccountRepository,

@@ -1,10 +1,11 @@
-import { Injectable, Inject, HttpException, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, HttpException, NotFoundException , Logger} from "@nestjs/common";
 import { BUYER_USER_REPOSITORY, type BuyerUserRepository } from "../../domain/ports/buyer-user-repository.port.js";
 import { BUYER_WALLET_REPOSITORY, type BuyerWalletRepository } from "../../domain/ports/buyer-wallet-repository.port.js";
 import type { TokenizeCardResult } from "../../domain/ports/payment-tokenizer.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { checkConsent } from "../../domain/policies/consent.policy.js";
 import { createSelfCheckoutEventEnvelope } from "../../domain/events/self-checkout-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 /**
  * P2 PCI fix: use-case no longer accepts raw card data (PAN/CVV).
@@ -20,6 +21,8 @@ export interface AddSavedPaymentMethodInput {
 
 @Injectable()
 export class AddSavedPaymentMethodUseCase {
+  private readonly logger = new Logger(AddSavedPaymentMethodUseCase.name);
+
   constructor(
     @Inject(BUYER_USER_REPOSITORY) private readonly users: BuyerUserRepository,
     @Inject(BUYER_WALLET_REPOSITORY) private readonly wallets: BuyerWalletRepository,

@@ -2,9 +2,10 @@
  * Update team member role use-case.
  */
 
-import { Injectable, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface UpdateRoleInput {
   merchant_id: string;
@@ -19,6 +20,8 @@ export interface UpdateRoleOutput {
 
 @Injectable()
 export class UpdateRoleUseCase {
+  private readonly logger = new Logger(UpdateRoleUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: UpdateRoleInput): Promise<UpdateRoleOutput> {

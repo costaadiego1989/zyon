@@ -5,10 +5,11 @@
  * the public storefront configuration (theme, name, logo).
  */
 
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface StoreConfigOutput {
   merchantId: string;
@@ -51,6 +52,8 @@ function slugify(text: string): string {
 
 @Injectable()
 export class GetStoreConfigUseCase {
+  private readonly logger = new Logger(GetStoreConfigUseCase.name);
+
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient
   ) {}

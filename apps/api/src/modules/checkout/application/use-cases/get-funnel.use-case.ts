@@ -1,6 +1,7 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 type FunnelPeriod = "today" | "7d" | "30d" | "90d";
 type FunnelBreakdown = "device" | "buyer_type" | "payment_method";
@@ -57,6 +58,8 @@ const STEP_DEFINITIONS = [
 
 @Injectable()
 export class GetFunnelUseCase {
+  private readonly logger = new Logger(GetFunnelUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(

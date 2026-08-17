@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import type { CurrencyCode } from "@zyon/shared-types";
 import { PaymentIntentEntity, type PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../domain/ports/payment-provider.port.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 
 export type ReconcilePaymentIntentsInput = {
@@ -35,6 +36,8 @@ function majorUnitsFromCents(amountCents: number): number {
 
 @Injectable()
 export class ReconcilePaymentIntentsUseCase {
+  private readonly logger = new Logger(ReconcilePaymentIntentsUseCase.name);
+
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,

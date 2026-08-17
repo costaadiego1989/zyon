@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
 import type { ShippingEvaluateRequest, ShippingEvaluateResponse } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
@@ -6,9 +6,12 @@ import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../
 import { OFFER_REPOSITORY, type OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { createAuthorizedOffer } from "./offer-factory.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class EvaluateShippingUseCase {
+  private readonly logger = new Logger(EvaluateShippingUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OFFER_REPOSITORY) private readonly offers: OfferRepository,

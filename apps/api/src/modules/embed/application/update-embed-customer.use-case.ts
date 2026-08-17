@@ -1,11 +1,14 @@
-import { Injectable, Inject } from "@nestjs/common";
+import { Injectable, Inject , Logger} from "@nestjs/common";
 import type { CustomerHints, CheckoutSession } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { TenantWebhookPublisher } from "../../integrations/application/integrations.use-cases.js";
 import { WebhookDeliveryDispatcher } from "../../integrations/application/webhook-delivery-dispatcher.service.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class UpdateEmbedCustomerUseCase {
+  private readonly logger = new Logger(UpdateEmbedCustomerUseCase.name);
+
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     private readonly webhookPublisher: TenantWebhookPublisher,

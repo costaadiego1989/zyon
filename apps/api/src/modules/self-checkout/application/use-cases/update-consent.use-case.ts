@@ -1,10 +1,13 @@
-import { Injectable, Inject, NotFoundException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { BUYER_USER_REPOSITORY, type BuyerUserRepository } from "../../domain/ports/buyer-user-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { createSelfCheckoutEventEnvelope } from "../../domain/events/self-checkout-domain-event.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
 export class UpdateConsentUseCase {
+  private readonly logger = new Logger(UpdateConsentUseCase.name);
+
   constructor(
     @Inject(BUYER_USER_REPOSITORY) private readonly users: BuyerUserRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository

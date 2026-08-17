@@ -2,9 +2,10 @@
  * Remove team member use-case.
  */
 
-import { Injectable, Inject, NotFoundException, BadRequestException } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RemoveMemberInput {
   merchant_id: string;
@@ -13,6 +14,8 @@ export interface RemoveMemberInput {
 
 @Injectable()
 export class RemoveMemberUseCase {
+  private readonly logger = new Logger(RemoveMemberUseCase.name);
+
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: RemoveMemberInput): Promise<void> {

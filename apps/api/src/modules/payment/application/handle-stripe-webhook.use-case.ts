@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import Stripe from "stripe";
 import {
   PAYMENT_REPOSITORY,
@@ -9,6 +9,7 @@ import { MetricsService } from "../../../shared/observability/metrics.service.js
 import { readStripeConnection } from "../infrastructure/stripe-env.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
 import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -16,6 +17,8 @@ export type HandleStripeWebhookResult =
   | { outcome: "processed"; effect: string };
 
 export class StripeSignatureError extends Error {
+  private readonly logger = new Logger(StripeSignatureError.name);
+
   constructor() {
     super("stripe_webhook_signature_invalid");
     this.name = "StripeSignatureError";

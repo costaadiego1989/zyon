@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
 import type { DomainEventEnvelope, OnboardingDomainEventType, OnboardingStateResponse, OnboardingStepId } from "@zyon/shared-types";
 import {
   ONBOARDING_STATE_REPOSITORY,
@@ -9,6 +9,7 @@ import {
   MERCHANT_REPOSITORY,
   type MerchantRepository
 } from "../../merchant/domain/ports/merchant-repository.port.js";
+import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import {
   OnboardingStateEntity,
   ONBOARDING_STEP_ORDER,
@@ -48,6 +49,8 @@ function onboardingEvent(input: {
 
 @Injectable()
 export class CompleteOnboardingStepUseCase {
+  private readonly logger = new Logger(CompleteOnboardingStepUseCase.name);
+
   constructor(
     @Inject(ONBOARDING_STATE_REPOSITORY) private readonly repository: OnboardingStateRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,

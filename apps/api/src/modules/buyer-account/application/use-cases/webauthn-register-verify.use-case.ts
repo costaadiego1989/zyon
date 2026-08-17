@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, Inject, Optional } from "@nestjs/common";
+import { Injectable, BadRequestException, NotFoundException, Inject, Optional , Logger} from "@nestjs/common";
 import { WebAuthnVerifierService } from "../../domain/services/webauthn-verifier.service.js";
 import { WebAuthnChallengeService } from "../../domain/services/webauthn-challenge.service.js";
 import type { WebAuthnCredentialStore } from "../../domain/ports/webauthn-credential.port.js";
@@ -7,6 +7,7 @@ import type { BuyerAccountRepository } from "../../domain/ports/buyer-account-re
 import { BUYER_ACCOUNT_REPOSITORY } from "../../domain/ports/buyer-account-repository.port.js";
 import { WebAuthnCredential } from "../../domain/entities/webauthn-credential.entity.js";
 import { randomUUID } from "node:crypto";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterVerifyRequest {
   buyer_id: string;
@@ -35,6 +36,8 @@ export interface WebAuthnRegisterVerifyDeps {
 
 @Injectable()
 export class WebAuthnRegisterVerifyUseCase {
+  private readonly logger = new Logger(WebAuthnRegisterVerifyUseCase.name);
+
   private readonly verifier: WebAuthnVerifierService;
   private readonly challengeService: WebAuthnChallengeService;
   private readonly credentialStore: WebAuthnCredentialStore;

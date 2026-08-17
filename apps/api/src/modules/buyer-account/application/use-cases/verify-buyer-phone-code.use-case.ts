@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
-import { Inject, Injectable, UnauthorizedException } from "@nestjs/common";
+import { Inject, Injectable, UnauthorizedException , Logger} from "@nestjs/common";
 import { BuyerAccount } from "../../domain/entities/buyer-account.entity.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../domain/ports/buyer-account-repository.port.js";
 import { BuyerJwtService } from "../../domain/services/buyer-jwt.service.js";
 import { OTP_STORE, type OtpStore } from "../../domain/ports/otp-store.port.js";
 import { toBuyerAuthResponse, type BuyerAuthResponse } from "./register-buyer.use-case.js";
+import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface VerifyBuyerPhoneCodeRequest {
   phone: string;
@@ -14,6 +15,8 @@ export interface VerifyBuyerPhoneCodeRequest {
 
 @Injectable()
 export class VerifyBuyerPhoneCodeUseCase {
+  private readonly logger = new Logger(VerifyBuyerPhoneCodeUseCase.name);
+
   constructor(
     @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly repo: BuyerAccountRepository,
     @Inject(OTP_STORE) private readonly otpStore: OtpStore,
