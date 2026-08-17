@@ -17,6 +17,8 @@ import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
+import { EmptyState } from "../components/EmptyState.js";
+import { Pagination } from "../components/Pagination.js";
 import type {
   SupportFaqItem,
   SupportSettings,
@@ -135,6 +137,8 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
   const [ticketBusy, setTicketBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+  const [ticketPage, setTicketPage] = useState(1);
+  const ticketPageSize = 10;
 
   const socket = useSupportSocket(props.apiBaseUrl, props.me?.id);
 
@@ -572,22 +576,19 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
             </div>
 
             {tickets.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon">
-                  <Ticket size={20} />
-                </div>
-                <h3>Nenhum chamado</h3>
-                <p>
-                  {ticketStatusFilter === "all"
-                    ? "Nenhum chamado de suporte criado por handoff até o momento."
-                    : `Nenhum chamado com status "${SUPPORT_STATUS_LABELS[ticketStatusFilter as SupportTicketStatus]}".`}
-                </p>
-              </div>
+              <EmptyState
+                icon={Ticket}
+                title="Nenhum chamado"
+                description={ticketStatusFilter === "all"
+                  ? "Nenhum chamado de suporte criado por handoff até o momento."
+                  : `Nenhum chamado com status "${SUPPORT_STATUS_LABELS[ticketStatusFilter as SupportTicketStatus]}".`}
+              />
             ) : null}
 
             {tickets.length > 0 ? (
+              <>
               <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
-                {tickets.map((ticket) => (
+                {tickets.slice((ticketPage - 1) * ticketPageSize, ticketPage * ticketPageSize).map((ticket) => (
                   <article
                     key={ticket.id}
                     onClick={() => setOpenTicketId(ticket.id)}
@@ -693,6 +694,15 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                   </article>
                 ))}
               </div>
+              {tickets.length > ticketPageSize ? (
+                <Pagination
+                  page={ticketPage}
+                  pageSize={ticketPageSize}
+                  total={tickets.length}
+                  onChange={setTicketPage}
+                />
+              ) : null}
+            </>
             ) : null}
           </section>
         </div>
