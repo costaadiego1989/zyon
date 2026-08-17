@@ -33,27 +33,73 @@ export type StoreStage =
  * Detect conversation stage from the last tool that was executed.
  * Maps tool names to semantic stages for better UX flows.
  */
-export function detectStoreStage(lastToolUsed: string | null | undefined, context?: { cartItemCount?: number }): StoreStage {
+export function detectStoreStage(lastToolUsed: string | null | undefined, context?: { cartItemCount?: number; userMessage?: string }): StoreStage {
+  // If no tool was called, try to infer stage from user message
+  if (!lastToolUsed && context?.userMessage) {
+    const msg = context.userMessage.toLowerCase().trim();
+    if (/adicionar|add.*carrin|comprar/i.test(msg)) return "added_to_cart";
+    if (/filtrar|filtro|ordenar|por pre[cç]o|avalia[cç][aã]o|mais vendidos|novidades|frete gr[aá]tis|desconto|limpar filtro/i.test(msg)) return "filter";
+    if (/categorias?|segmento/i.test(msg)) return "categories";
+    if (/rastrear|tracking|nota fiscal|cancelar pedido/i.test(msg)) return "post_purchase";
+    if (/suporte|ajuda|falar com|humano|problema|reportar/i.test(msg)) return "support";
+    if (/troca|devolu[cç][aã]o|garantia|pol[ií]tica/i.test(msg)) return "support";
+    if (/detalh|saber mais|informa[cç]|especifica/i.test(msg)) return "product_detail";
+    if (/avalia[cç]|review/i.test(msg)) return "reviews";
+    if (/d[uú]vida|pergunt/i.test(msg)) return "questions";
+    if (/compar/i.test(msg)) return "compare";
+    if (/desejo|wishlist/i.test(msg)) return "wishlist";
+    if (/prazo|entrega|frete|cep|envio/i.test(msg)) return "browsing";
+    if (/ver produto|buscar|encontrar|produto|oferta|promo/i.test(msg)) return "browsing";
+    if (/meus dados|perfil|conta/i.test(msg)) return "support";
+    return "welcome";
+  }
   if (!lastToolUsed) return "welcome";
 
   const toolToStage: Record<string, StoreStage> = {
+    // Browsing / catalog
     search_products: "browsing",
     list_products: "browsing",
+    get_daily_deals: "browsing",
+    get_similar_products: "browsing",
+    // Product detail
     get_product: "product_detail",
     get_product_details: "product_detail",
+    get_product_availability: "product_detail",
+    // Reviews
+    get_reviews: "reviews",
+    create_review: "reviews",
+    // Questions
+    get_product_questions: "questions",
+    create_question: "questions",
+    // Comparison
+    compare_products: "compare",
+    // Wishlist
+    get_wishlist: "wishlist",
+    add_to_wishlist: "wishlist",
+    remove_from_wishlist: "wishlist",
+    // Cart & checkout
     add_item_to_cart: "added_to_cart",
     remove_cart_item: "added_to_cart",
     update_cart_item: "added_to_cart",
+    clear_cart: "added_to_cart",
     get_cart: context?.cartItemCount ? "added_to_cart" : "welcome",
     quote_shipping: "added_to_cart",
+    apply_coupon: "added_to_cart",
+    remove_coupon: "added_to_cart",
+    list_promotions: "added_to_cart",
+    create_checkout_session: "added_to_cart",
+    // Categories
     list_categories: "categories",
-    get_reviews: "reviews",
-    create_review: "reviews",
-    get_wishlist: "wishlist",
-    add_to_wishlist: "wishlist",
-    compare_products: "compare",
+    // Post-purchase
     track_order: "post_purchase",
     get_order_status: "post_purchase",
+    get_invoice: "post_purchase",
+    cancel_order: "post_purchase",
+    // Support
+    get_store_policies: "support",
+    get_buyer_profile: "support",
+    get_faq: "support",
+    escalate_to_human: "support",
   };
 
   return toolToStage[lastToolUsed] ?? "welcome";
@@ -72,10 +118,11 @@ export function storefrontQuickReplies(
   lastToolUsed: string | null | undefined,
   config?: StoreQuickRepliesConfig | null,
   cartState?: StorefrontCartState,
-  shippingOptions?: StorefrontShippingOption[]
+  shippingOptions?: StorefrontShippingOption[],
+  userMessage?: string
 ): string[] {
   const cfg = config ?? DEFAULT_STORE_QUICK_REPLIES;
-  const stage = detectStoreStage(lastToolUsed, { cartItemCount: cartState?.itemCount });
+  const stage = detectStoreStage(lastToolUsed, { cartItemCount: cartState?.itemCount, userMessage });
 
   // Find stage configuration
   const stageConfig = cfg.stages.find(s => s.stage === stage);

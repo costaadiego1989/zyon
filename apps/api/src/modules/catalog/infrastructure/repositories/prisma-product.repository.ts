@@ -91,8 +91,8 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     }
 
     // Skip filter for generic/browse queries — return all products
-    const BROWSE_TERMS = ["produtos", "produto", "tudo", "catálogo", "catalogo", "ver tudo", "todos", "listar", "mostrar"];
-    const isGenericQuery = input.query && BROWSE_TERMS.some(t => input.query!.toLowerCase().trim() === t);
+    const BROWSE_TERMS = ["produtos", "produto", "tudo", "catálogo", "catalogo", "ver tudo", "todos", "listar", "mostrar", "*", "all", "ver produtos"];
+    const isGenericQuery = input.query && (input.query.trim() === "*" || BROWSE_TERMS.some(t => input.query!.toLowerCase().trim() === t));
 
     if (input.query && !isGenericQuery) {
       where.OR = [
@@ -115,7 +115,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       take: limit,
       orderBy: { createdAt: "desc" },
       include: {
-        variants: { include: { price: true, stock: true, media: { take: 1 } } },
+        variants: { include: { price: true, stock: true, media: { orderBy: { order: "asc" } } } },
       },
     };
     if (input.offset != null) {

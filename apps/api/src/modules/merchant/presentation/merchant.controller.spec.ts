@@ -18,9 +18,10 @@ function buildController(repository: InMemoryMerchantRepository) {
     new GetMerchantProfileUseCase(repository),
     new GetMerchantRulesUseCase(repository),
     new UpdateMerchantRulesUseCase(repository),
-    new GetMerchantThemeUseCase(repository),
+    new GetMerchantThemeUseCase(repository, {} as any),
     new UpdateMerchantThemeUseCase(repository),
-    s3Mock
+    s3Mock,
+    { merchant: { update: async () => ({}) } } as any
   );
 }
 

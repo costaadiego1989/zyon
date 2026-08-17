@@ -29,6 +29,7 @@ export interface StylesForm {
 }
 
 export interface CompanyForm {
+  storeName: string;
   cnpj: string;
   razaoSocial: string;
   inscricaoEstadual: string;
@@ -66,7 +67,7 @@ export interface SocialForm {
 }
 
 const EMPTY_COMPANY: CompanyForm = {
-  cnpj: "", razaoSocial: "", inscricaoEstadual: "", email: "",
+  storeName: "", cnpj: "", razaoSocial: "", inscricaoEstadual: "", email: "",
   phone: "", street: "", number: "", complement: "", neighborhood: "",
   city: "", state: "", zip: "",
 };
@@ -105,7 +106,10 @@ export function useStoreSettingsPage() {
     let cancelled = false;
     (async () => {
       try {
-        const settings = await api.getStoreSettings() as Record<string, any>;
+        const [settings, profile] = await Promise.all([
+          api.getStoreSettings() as Promise<Record<string, any>>,
+          api.merchantProfile(),
+        ]);
         if (cancelled) return;
 
         const loadedLogoUrl = settings?.logoUrl ?? "";
@@ -117,6 +121,7 @@ export function useStoreSettingsPage() {
         setState((prev) => ({
           ...prev,
           company: settings?.company ? {
+            storeName: profile.name ?? "",
             cnpj: settings.company.cnpj ?? "",
             razaoSocial: settings.company.razaoSocial ?? "",
             inscricaoEstadual: settings.company.inscricaoEstadual ?? "",
@@ -129,7 +134,7 @@ export function useStoreSettingsPage() {
             city: settings.company.address?.city ?? "",
             state: settings.company.address?.state ?? "",
             zip: settings.company.address?.zip ?? "",
-          } : EMPTY_COMPANY,
+          } : { ...EMPTY_COMPANY, storeName: profile.name ?? "" },
           policies: settings?.policies ? { ...EMPTY_POLICIES, ...settings.policies } : EMPTY_POLICIES,
           social: settings?.social ? { ...EMPTY_SOCIAL, ...settings.social } : EMPTY_SOCIAL,
           businessHours: settings?.businessHours ?? EMPTY_BUSINESS_HOURS,
@@ -217,6 +222,9 @@ export function useStoreSettingsPage() {
           ...(state.logoUrl && { logoUrl: state.logoUrl }),
         };
         await api.putStoreSettings(payload);
+        if (state.company.storeName) {
+          await api.putStoreName(state.company.storeName);
+        }
       }
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
       showToast("success", "Configurações salvas com sucesso");

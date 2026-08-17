@@ -27,6 +27,10 @@ export interface StoreConfigOutput {
     surfaceColor?: string;
     surfaceElevatedColor?: string;
     borderColor?: string;
+    borderRadius?: number;
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
   };
   agentName?: string;
   agentGreeting?: string;
@@ -134,6 +138,10 @@ export class GetStoreConfigUseCase {
         surfaceColor: theme?.surfaceColor,
         surfaceElevatedColor: theme?.surfaceElevatedColor,
         borderColor: theme?.borderColor,
+        borderRadius: (theme as any)?.borderRadius,
+        mode: (theme as any)?.mode,
+        density: (theme as any)?.density,
+        backgroundImageUrl: (theme as any)?.backgroundImageUrl,
       },
       agentName,
       agentGreeting,

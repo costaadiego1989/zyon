@@ -33,6 +33,7 @@ import { DomainsModule } from "./modules/domains/domains.module.js";
 import { NotificationsModule } from "./modules/notifications/notifications.module.js";
 import { StorefrontModule } from "./modules/storefront/storefront.module.js";
 import { StorageModule } from "./shared/storage/storage.module.js";
+import { StoriesModule } from "./modules/stories/stories.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -105,6 +106,7 @@ const REDACTED_LOG_PATHS = [
     InstallationsModule,
     AuditModule,
     OperationsModule,
+    StoriesModule,
     CatalogModule,
     StoreSettingsModule,
     ReturnsModule,

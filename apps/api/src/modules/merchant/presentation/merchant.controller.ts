@@ -1,5 +1,7 @@
-import { Body, Controller, Get, Post, Put, UseGuards, ValidationPipe, BadRequestException } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { S3UploadService } from "../../../shared/storage/s3-upload.service.js";
 import {
   ApiOperation,
@@ -31,7 +33,8 @@ export class MerchantController {
     private readonly updateRules: UpdateMerchantRulesUseCase,
     private readonly getTheme: GetMerchantThemeUseCase,
     private readonly updateTheme: UpdateMerchantThemeUseCase,
-    private readonly s3: S3UploadService
+    private readonly s3: S3UploadService,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   @ApiOperation({
@@ -178,6 +181,18 @@ export class MerchantController {
   @Get("store-settings")
   async getStoreSettings(@CurrentTenant() merchantId: string) {
     return this.updateTheme.getStoreSettings(merchantId);
+  }
+
+  @Put("name")
+  async updateName(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { name: string },
+  ) {
+    const name = body.name?.trim();
+    if (!name || name.length < 2) throw new BadRequestException("name_too_short");
+    if (name.length > 80) throw new BadRequestException("name_too_long");
+    await this.prisma.merchant.update({ where: { id: merchantId }, data: { name } });
+    return { name };
   }
 
   @Put("store-settings")

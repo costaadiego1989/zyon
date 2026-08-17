@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { RotateCcw, Save, X } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { RotateCcw, Save, X, Type, Shield, Palette, Image, Layout } from "lucide-react";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
-import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
+import { CheckoutPreviewWidget } from "../components/CheckoutPreviewWidget.js";
+import { ImageUploader } from "../components/ImageUploader.js";
+import { showToast } from "../components/Toast.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -38,10 +40,10 @@ export const COLOR_FIELDS: Array<{ key: keyof MerchantTheme; label: string }> = 
   { key: "warningColor", label: "Alertas e avisos" },
 ];
 
-export const DENSITY_OPTIONS: Array<{ value: NonNullable<MerchantTheme["density"]>; label: string }> = [
-  { value: "compact", label: "Compacto" },
-  { value: "comfortable", label: "Normal" },
-  { value: "spacious", label: "Amplo" },
+export const DENSITY_OPTIONS: Array<{ value: NonNullable<MerchantTheme["density"]>; label: string; desc: string }> = [
+  { value: "compact", label: "Estreito", desc: "Widget fino, ideal para sidebar" },
+  { value: "comfortable", label: "Médio", desc: "Tamanho padrão equilibrado" },
+  { value: "spacious", label: "Full", desc: "Ocupa toda largura disponível" },
 ];
 
 export function isValidUrl(value: string): boolean {
@@ -120,12 +122,10 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
   const [theme, setTheme] = useState<MerchantTheme>(mergeTheme());
   const [badgesText, setBadgesText] = useState((DEFAULT_MERCHANT_THEME.trustBadges ?? []).join(", "));
   const [badgeInput, setBadgeInput] = useState("");
-  const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [initialTheme, setInitialTheme] = useState<MerchantTheme>(mergeTheme());
   const [initialBadges, setInitialBadges] = useState((DEFAULT_MERCHANT_THEME.trustBadges ?? []).join(", "));
-  const previewRef = useRef<LivePreviewPanelRef>(null);
 
   const dirty = useMemo(
     () => computeDirty(theme, badgesText, initialTheme, initialBadges),
@@ -141,7 +141,6 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         return;
       }
       setBusy(true);
-      setMessage(null);
       try {
         const next = mergeTheme(await api.getMerchantTheme());
         setTheme(next);
@@ -150,10 +149,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         setInitialTheme(next);
         setInitialBadges(badges);
       } catch (e) {
-        setMessage({
-          text: e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e),
-          kind: "error",
-        });
+        const text = e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e);
+        showToast("error", text);
       } finally {
         setBusy(false);
         setLoaded(true);
@@ -162,18 +159,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     void load();
   }, [api, props.me]);
 
-  // ── Preview sync ──
-  useEffect(() => {
-    previewRef.current?.postThemeUpdate(normalizedTheme());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme, badgesText]);
-
-  // ── Auto-dismiss success messages ──
-  useEffect(() => {
-    if (message?.kind !== "info") return;
-    const timer = setTimeout(() => setMessage(null), 4000);
-    return () => clearTimeout(timer);
-  }, [message]);
+  // Preview updates reactively via ThemeInlinePreview props
 
   // ── beforeunload guard ──
   useEffect(() => {
@@ -198,7 +184,6 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
   async function save() {
     setBusy(true);
-    setMessage(null);
     try {
       const payload = normalizedTheme();
       // Upload logo to S3 if it's a base64 data URI
@@ -216,12 +201,10 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       setBadgesText(badges);
       setInitialTheme(saved);
       setInitialBadges(badges);
-      setMessage({ text: LABELS.saveSuccess, kind: "info" });
+      showToast("success", LABELS.saveSuccess);
     } catch (e) {
-      setMessage({
-        text: e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : String(e),
-        kind: "error",
-      });
+      const text = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : String(e);
+      showToast("error", text);
     } finally {
       setBusy(false);
     }
@@ -270,7 +253,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <>
       <header className="page-head">
         <div>
-          <span className="eyebrow">Personalização</span>
+          <span className="eyebrow">CHECKOUT</span>
           <h1>Aparência do checkout</h1>
           <p className="page-lead">Adapte cores, fontes e imagens para combinar com sua marca.</p>
         </div>
@@ -284,16 +267,6 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           </button>
         </div>
       </header>
-
-      {message ? (
-        <div
-          role="alert"
-          aria-live="polite"
-          className={`panel ${message.kind === "error" ? "panel-error" : "panel-info"}`}
-        >
-          {message.text}
-        </div>
-      ) : null}
 
       {!loaded && busy ? (
         <div className="split-panel" data-testid="theme-skeleton">
@@ -321,7 +294,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 1 — Identidade */}
             <div className="panel stacked">
-              <div className="section-header"><h3>Identidade e tipografia</h3></div>
+              <div className="section-header"><Type size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Identidade e tipografia</h3></div>
 
               <label>
                 Nome do assistente
@@ -336,7 +309,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <div className="theme-grid-2">
                 <label>
-                  Fonte principal
+                  Tipografia primária
                   <select value={theme.fontFamily} onChange={(e) => patch({ fontFamily: e.target.value })}>
                     {FONT_OPTIONS.map((font) => (
                       <option key={font} value={font}>{font.split(",")[0]}</option>
@@ -344,7 +317,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   </select>
                 </label>
                 <label>
-                  Fonte de destaque
+                  Tipografia secundária
                   <select
                     value={theme.fontDisplay ?? theme.fontFamily}
                     onChange={(e) => patch({ fontDisplay: e.target.value })}
@@ -379,7 +352,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel — Selos de confiança */}
             <div className="panel stacked">
-              <div className="section-header"><h3>Selos de confiança</h3></div>
+              <div className="section-header"><Shield size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Selos de confiança</h3></div>
               <p style={{ fontSize: 12, color: 'var(--color-text-muted)', margin: 0 }}>
                 Exibidos como badges no rodapé do widget (ex: "Compra Segura", "Envio Rastreado"). Máximo 4.
               </p>
@@ -415,7 +388,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 2 — Cores */}
             <div className="panel stacked">
-              <div className="section-header"><h3>Paleta de cores</h3></div>
+              <div className="section-header"><Palette size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Paleta de cores</h3></div>
               <div className="theme-grid-2">
                 {COLOR_FIELDS.map((field) => (
                   <div key={String(field.key)} className="theme-color-field">
@@ -440,50 +413,38 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 3 — Imagens */}
             <div className="panel stacked">
-              <div className="section-header"><h3>Imagens</h3></div>
+              <div className="section-header"><Image size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Imagens</h3></div>
 
-              {[
-                { label: "Logo da marca", key: "logoUrl" as const, hint: "Exibida no topo do widget" },
-                { label: "Avatar do assistente", key: "agentAvatarUrl" as const, hint: "Foto do agente na conversa" },
-                { label: "Imagem de fundo", key: "backgroundImageUrl" as const, hint: "Background do painel principal" },
-              ].map((img) => (
-                <div key={img.key} style={{ marginBottom: 'var(--space-4)' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: 'var(--space-1)' }}>{img.label}</span>
-                  <span className="field-hint" style={{ marginBottom: 'var(--space-2)', display: 'block' }}>{img.hint}</span>
-                  <label
-                    style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      gap: 'var(--space-2)', padding: 'var(--space-5)',
-                      border: '2px dashed var(--color-border)', borderRadius: 'var(--radius-md)',
-                      background: 'var(--color-surface-raised)', cursor: 'pointer',
-                      transition: 'border-color 0.15s, background 0.15s',
-                    }}
-                    onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-brand)'; e.currentTarget.style.background = 'var(--color-brand-subtle)'; }}
-                    onDragLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-surface-raised)'; }}
-                    onDrop={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.background = 'var(--color-surface-raised)'; const file = e.dataTransfer.files?.[0]; if (file && file.type.startsWith('image/')) handleImageUpload(file, (url) => patch({ [img.key]: url } as Partial<MerchantTheme>)); }}
-                  >
-                    {theme[img.key] ? (
-                      <img src={String(theme[img.key])} alt={img.label} style={{ maxHeight: 48, maxWidth: 120, objectFit: 'contain', borderRadius: 'var(--radius-sm)' }} />
-                    ) : (
-                      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Arraste uma imagem ou clique para enviar</span>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      style={{ display: "none" }}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleImageUpload(file, (url) => patch({ [img.key]: url } as Partial<MerchantTheme>));
-                      }}
-                    />
-                  </label>
-                </div>
-              ))}
+              <ImageUploader
+                label="Logo da marca"
+                hint="Exibida no topo do widget"
+                value={theme.logoUrl}
+                onChange={(url) => patch({ logoUrl: url })}
+                previewSize={64}
+                previewRound
+              />
+
+              <ImageUploader
+                label="Avatar do assistente"
+                hint="Foto do agente na conversa"
+                value={theme.agentAvatarUrl}
+                onChange={(url) => patch({ agentAvatarUrl: url })}
+                previewSize={64}
+                previewRound
+              />
+
+              <ImageUploader
+                label="Imagem de fundo"
+                hint="Background do painel principal"
+                value={theme.backgroundImageUrl}
+                onChange={(url) => patch({ backgroundImageUrl: url })}
+                previewSize={120}
+              />
             </div>
 
             {/* Panel 4 — Layout */}
             <div className="panel stacked">
-              <div className="section-header"><h3>Layout e espaçamento</h3></div>
+              <div className="section-header"><Layout size={15} strokeWidth={1.75} style={{ color: "var(--accent)" }} /><h3>Layout e espaçamento</h3></div>
 
               <label>
                 Arredondamento dos cantos
@@ -495,12 +456,13 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   step={1}
                   value={theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}
                   onChange={(e) => patch({ borderRadius: Number(e.target.value) })}
+                  style={{ accentColor: "var(--accent)" }}
                 />
               </label>
 
               <label>
-                Espaçamento
-                <span className="field-hint">Distância entre elementos no widget</span>
+                Layout do widget
+                <span className="field-hint">Largura do checkout na página</span>
               </label>
               <div className="filter-tabs">
                 {DENSITY_OPTIONS.map((opt) => (
@@ -509,6 +471,28 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                     key={opt.value}
                     className={`filter-tab${theme.density === opt.value ? " active" : ""}`}
                     onClick={() => patch({ density: opt.value })}
+                    title={opt.desc}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <label>
+                Modo de cor
+                <span className="field-hint">Aparência geral do checkout</span>
+              </label>
+              <div className="filter-tabs">
+                {([
+                  { value: "dark", label: "Dark" },
+                  { value: "grey", label: "Grey" },
+                  { value: "light", label: "Light" },
+                ] as const).map((opt) => (
+                  <button
+                    type="button"
+                    key={opt.value}
+                    className={`filter-tab${(theme.mode ?? "dark") === opt.value ? " active" : ""}`}
+                    onClick={() => patch({ mode: opt.value })}
                   >
                     {opt.label}
                   </button>
@@ -520,25 +504,14 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
           {/* ── Preview ── */}
           <div className="split-panel-preview">
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--bg)", borderRadius: "14px 14px 0 0", borderBottom: "1px solid var(--border)" }}>
-              <div style={{ display: "flex", gap: 5 }}>
-                {["oklch(60% 0.2 25)", "oklch(76% 0.15 80)", "oklch(70% 0.17 149)"].map(c => <span key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />)}
-              </div>
-              <div style={{ flex: 1, textAlign: "center", font: "11px var(--mono)", color: "var(--faint)" }}>
-                Preview — {props.me?.name || "Widget"}
-              </div>
-            </div>
-            <div style={{ overflow: "hidden", height: 600 }}>
-              <LivePreviewPanel
-                ref={previewRef}
-                apiBaseUrl={props.apiBaseUrl}
-                me={props.me}
-                hideControls
-              />
-            </div>
+            <CheckoutPreviewWidget
+              theme={{ ...theme, trustBadges: parseBadges(badgesText) }}
+              merchantName={props.me?.name}
+            />
           </div>
         </div>
       )}
     </>
   );
 }
+

@@ -36,6 +36,14 @@ export interface MerchantStoreSettings {
     terms?: string;
     shipping?: string;
   };
+  styles?: {
+    logoUrl?: string;
+    faviconUrl?: string;
+    accentColor?: string;
+    secondaryColor?: string;
+    fontDisplay?: string;
+    fontFamily?: string;
+  };
 }
 
 export interface MerchantProfile {

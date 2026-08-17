@@ -23,6 +23,14 @@ export function StoreSettingsPage() {
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Dados da empresa, endereço, horários, políticas e redes sociais.</div>
         </div>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={state.saving}
+          style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--accent-dark)", background: "var(--accent-dark)", font: "600 12.5px var(--sans)", color: "white", cursor: state.saving ? "not-allowed" : "pointer", opacity: state.saving ? 0.6 : 1, flex: "none" }}
+        >
+          <Save size={14} /> {state.saving ? "Salvando..." : "Salvar configurações"}
+        </button>
       </div>
 
       {/* Card container */}
@@ -48,32 +56,6 @@ export function StoreSettingsPage() {
         </div>
       </div>
 
-      {/* Save */}
-      <button
-        onClick={handleSave}
-        disabled={state.saving}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 8,
-          width: "100%",
-          padding: "12px 20px",
-          borderRadius: 10,
-          border: "none",
-          background: state.saving ? "var(--good-soft)" : "var(--good)",
-          color: "#fff",
-          fontSize: 14,
-          fontWeight: 600,
-          cursor: state.saving ? "not-allowed" : "pointer",
-          opacity: state.saving ? 0.7 : 1,
-          marginTop: 16,
-          transition: "background 0.15s",
-        }}
-      >
-        <Save size={16} />
-        {state.saving ? "Salvando..." : "Salvar configurações"}
-      </button>
     </div>
   );
 }
@@ -95,8 +77,8 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
         <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Informações Principais</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CNPJ</span>
-            <input style={fieldStyle} placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(e) => onCompanyChange({ ...company, cnpj: e.target.value.replace(/\D/g, "") })} />
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Nome da loja</span>
+            <input style={fieldStyle} placeholder="Minha Loja" value={company.storeName} onChange={(e) => onCompanyChange({ ...company, storeName: e.target.value })} />
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Razão Social</span>
@@ -105,6 +87,10 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CNPJ</span>
+            <input style={fieldStyle} placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(e) => onCompanyChange({ ...company, cnpj: e.target.value.replace(/\D/g, "") })} />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Inscrição Estadual</span>
             <input style={fieldStyle} placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(e) => onCompanyChange({ ...company, inscricaoEstadual: e.target.value })} />
           </label>
@@ -112,8 +98,6 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Email de contato</span>
             <input style={fieldStyle} type="email" placeholder="contato@empresa.com" value={company.email} onChange={(e) => onCompanyChange({ ...company, email: e.target.value })} />
           </label>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Telefone</span>
             <input style={fieldStyle} placeholder="(11) 99999-9999" value={maskPhone(company.phone)} onChange={(e) => onCompanyChange({ ...company, phone: e.target.value.replace(/\D/g, "") })} />

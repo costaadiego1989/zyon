@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { StageQuickReplies } from "@zyon/shared-types";
-import type { MerchantProfile, MerchantRules, MerchantTheme } from "../domain/merchant.types.js";
+import type { MerchantProfile, MerchantRules, MerchantStoreSettings, MerchantTheme } from "../domain/merchant.types.js";
 import type { MerchantRepository } from "../domain/ports/merchant-repository.port.js";
 import type { MerchantRulesRepository } from "../domain/ports/merchant-rules.repository.port.js";
 import { DEFAULT_RULES } from "../domain/merchant-rules.defaults.js";
@@ -19,6 +19,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       theme: decodePersistedTheme(row.theme),
       storeCategory: row.storeCategory ?? undefined,
       plan: row.plan,
+      storeSettings: (row.storeSettings as MerchantStoreSettings) ?? undefined,
       stripeConnectAccountId: row.stripeConnectAccountId ?? undefined
     };
   }

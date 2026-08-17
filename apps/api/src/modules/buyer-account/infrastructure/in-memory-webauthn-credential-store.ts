@@ -1,14 +1,6 @@
 import type { WebAuthnCredential } from "../domain/entities/webauthn-credential.entity.js";
 import type { WebAuthnCredentialStore } from "../domain/ports/webauthn-credential.port.js";
 
-/**
- * In-memory WebAuthn credential store for unit tests.
- * Implements the WebAuthnCredentialStore port without Prisma.
- *
- * Note: per CLAUDE.md, in-memory repos are test doubles only; the runtime
- * uses Prisma. This class enforces a max-credentials-per-user cap (10) to
- * defend against accumulated-credential attacks.
- */
 export class InMemoryWebAuthnCredentialStore implements WebAuthnCredentialStore {
   private readonly records = new Map<string, WebAuthnCredential>();
   private readonly userCredentials = new Map<string, string[]>();

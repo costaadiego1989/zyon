@@ -31,9 +31,10 @@ test(
       new GetMerchantProfileUseCase(merchantRepository),
       new GetMerchantRulesUseCase(merchantRepository),
       new UpdateMerchantRulesUseCase(merchantRepository),
-      new GetMerchantThemeUseCase(merchantRepository),
+      new GetMerchantThemeUseCase(merchantRepository, prisma as any),
       new UpdateMerchantThemeUseCase(merchantRepository),
-      { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any
+      { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any,
+      { merchant: { update: async () => ({}) } } as any
     );
     const email = `mrc_auth_${crypto.randomUUID()}@example.com`;
     let merchantId = "";
