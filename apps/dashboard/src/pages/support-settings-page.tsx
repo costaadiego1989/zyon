@@ -14,6 +14,8 @@ import {
   Filter,
 } from "lucide-react";
 import { Button } from "../components/Button.js";
+import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
+import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import type {
   SupportFaqItem,
   SupportSettings,
@@ -131,6 +133,9 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
   const [loading, setLoading] = useState(false);
   const [ticketBusy, setTicketBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
+  const [openTicketId, setOpenTicketId] = useState<string | null>(null);
+
+  const socket = useSupportSocket(props.apiBaseUrl, props.me?.id);
 
   useEffect(() => {
     if (!props.me) {
@@ -232,13 +237,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
           <h1>Atendimento ao Comprador</h1>
           <p className="page-lead">
             Configure o atendimento ao comprador durante o checkout.
-            {settings?.updatedAt ? (
-              <> · FAQ atualizado em{" "}
-                <span style={{ fontFamily: "var(--font-data)", fontSize: 12 }}>
-                  {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(settings.updatedAt))}
-                </span>
-              </>
-            ) : null}
+            
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -600,6 +599,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                 {tickets.map((ticket) => (
                   <article
                     key={ticket.id}
+                    onClick={() => setOpenTicketId(ticket.id)}
                     style={{
                       display: "grid",
                       gridTemplateColumns: "minmax(0, 1fr) auto",
@@ -610,6 +610,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                       borderRadius: "var(--radius-sm)",
                       background: "var(--color-surface)",
                       transition: "border-color 150ms",
+                      cursor: "pointer",
                     }}
                   >
                     {/* Ticket info */}
@@ -704,6 +705,21 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
             ) : null}
           </section>
         </div>
+      ) : null}
+
+      {/* Support Chat Drawer */}
+      {openTicketId ? (
+        <SupportChatDrawer
+          ticketId={openTicketId}
+          buyerMessage={tickets.find((t) => t.id === openTicketId)?.buyerMessage ?? ""}
+          status={tickets.find((t) => t.id === openTicketId)?.status ?? "open"}
+          apiBaseUrl={props.apiBaseUrl}
+          onClose={() => setOpenTicketId(null)}
+          onSend={socket.sendMessage}
+          onJoin={socket.joinTicket}
+          onLeave={socket.leaveTicket}
+          onNewMessage={socket.onNewMessage}
+        />
       ) : null}
     </div>
   );

@@ -6,6 +6,7 @@ import { ShippingModule } from "../shipping/shipping.module.js";
 import { CouponsModule } from "../coupons/coupons.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { SupportModule } from "../support/support.module.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
@@ -33,7 +34,8 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     ShippingModule,
     CouponsModule,
     MerchantModule,
-    BuyerAccountRepositoryModule
+    BuyerAccountRepositoryModule,
+    SupportModule,
   ],
   controllers: [StorefrontController],
   providers: [

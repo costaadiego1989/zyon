@@ -354,9 +354,24 @@ model SupportTicket {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   resolvedAt   DateTime? @map("resolved_at")
 
+  messages SupportTicketMessage[]
+
   @@index([merchantId, status, createdAt])
   @@index([merchantId, sessionId])
   @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id         String   @id @default(cuid())
+  ticketId   String   @map("ticket_id")
+  senderType String   @map("sender_type")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_messages")
 }
 
 model AuthorizedOffer {

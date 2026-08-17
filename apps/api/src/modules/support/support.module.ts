@@ -10,6 +10,8 @@ import { ListSupportTicketsUseCase } from "./application/list-support-tickets.us
 import { UpdateSupportSettingsUseCase } from "./application/update-support-settings.use-case.js";
 import { UpdateSupportTicketStatusUseCase } from "./application/update-support-ticket-status.use-case.js";
 import { CreateSupportTicketUseCase } from "./application/create-support-ticket.use-case.js";
+import { SendTicketMessageUseCase } from "./application/send-ticket-message.use-case.js";
+import { ListTicketMessagesUseCase } from "./application/list-ticket-messages.use-case.js";
 import { SupportTicketEventPublisher } from "./application/support-ticket-event.publisher.js";
 import { SupportHandoffService } from "./application/support-handoff.service.js";
 import { SUPPORT_SETTINGS_REPOSITORY } from "./domain/ports/support-settings-repository.port.js";
@@ -19,6 +21,8 @@ import { PrismaSupportSettingsRepository } from "./infrastructure/prisma-support
 import { PrismaSupportTicketRepository } from "./infrastructure/prisma-support-ticket.repository.js";
 import { OpenAIChatAdapter } from "./infrastructure/openai-chat.adapter.js";
 import { SupportController } from "./presentation/http/support.controller.js";
+import { SupportMessagesController } from "./presentation/http/support-messages.controller.js";
+import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
 
 /**
  * SUPP-H1/H2: SendSupportMessageUseCase split across cohesive files.
@@ -27,7 +31,7 @@ import { SupportController } from "./presentation/http/support.controller.js";
 @Module({
   // EmbedModule provides EmbedAuthGuard used by chat/faq endpoints (P0 fix)
   imports: [EmbedModule, IntegrationsModule, HttpModule],
-  controllers: [SupportController],
+  controllers: [SupportController, SupportMessagesController],
   providers: [
     SendSupportMessageUseCase,
     GetSupportSettingsUseCase,
@@ -35,8 +39,11 @@ import { SupportController } from "./presentation/http/support.controller.js";
     ListSupportTicketsUseCase,
     UpdateSupportTicketStatusUseCase,
     CreateSupportTicketUseCase,
+    SendTicketMessageUseCase,
+    ListTicketMessagesUseCase,
     SupportTicketEventPublisher,
     SupportHandoffService,
+    SupportGateway,
     {
       provide: SUPPORT_SETTINGS_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaSupportSettingsRepository(prisma),
@@ -52,6 +59,6 @@ import { SupportController } from "./presentation/http/support.controller.js";
       useClass: OpenAIChatAdapter,
     },
   ],
-  exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase],
+  exports: [GetSupportSettingsUseCase, ListSupportTicketsUseCase, SupportHandoffService, SupportGateway],
 })
 export class SupportModule {}

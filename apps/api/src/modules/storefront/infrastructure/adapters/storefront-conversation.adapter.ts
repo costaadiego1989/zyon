@@ -6,7 +6,7 @@
  * Coupon operations use the coupons module ApplyCouponUseCase.
  */
 
-import { Injectable, Inject, Optional } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
@@ -19,11 +19,13 @@ import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippi
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
 @Injectable()
 export class StorefrontConversationAdapter implements StorefrontConversationPort {
+  private readonly logger = new Logger(StorefrontConversationAdapter.name);
   private readonly agent: StorefrontLangGraphAgent;
   private currentMerchantId = "";
   private currentSessionId = "";
@@ -33,7 +35,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
     @Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
-    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly supportHandoff: SupportHandoffService,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -129,7 +132,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         const merchantId = this.currentMerchantId;
         // ALWAYS use conversation sessionId as cart key — stable across multiple adds in same session
         const sessionId = this.currentSessionId || `cart_${Date.now()}`;
-        console.log(`[CART-DEBUG] addItemToCart: merchantId=${merchantId}, sessionId=${sessionId}, variantId=${args.variantId}, qty=${args.quantity}`);
+        this.logger.debug("cart.addItem", { merchantId, sessionId, variantId: args.variantId, qty: args.quantity });
 
         // Resolve product + real variantId (LLM may pass productId or variantId)
         let productName = "Produto";
@@ -172,7 +175,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         try {
           const stock = await this.stockRepo.getAvailableStock(resolvedVariantId);
           if (stock.quantity <= 0) {
-            console.warn(`[CART] Stock check: ${resolvedVariantId} shows 0 qty — proceeding anyway (digital/service products or dev mode)`);
+            this.logger.warn("cart.stock.zero_qty", { variantId: resolvedVariantId });
           }
         } catch {
           // Non-critical: proceed without stock validation
@@ -501,11 +504,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       },
 
       escalateToHuman: async (args: any) => {
+        const result = await this.supportHandoff.createHandoff({
+          merchantId: this.currentMerchantId,
+          sessionId: this.currentSessionId,
+          buyerMessage: args.reason || "Solicitação de atendimento humano",
+        });
         return {
           escalated: true,
-          ticketId: `ticket_${Date.now()}`,
-          message: "Sua solicitação foi encaminhada para nossa equipe de suporte. Um atendente entrará em contato em breve.",
-          reason: args.reason
+          ticketId: result.ticketId,
+          message: result.reply,
+          reason: args.reason,
         };
       },
 
