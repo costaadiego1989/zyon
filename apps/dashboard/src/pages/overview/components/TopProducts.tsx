@@ -58,7 +58,7 @@ export function TopProducts({ products }: TopProductsProps) {
             fontSize: 12,
           }}
         >
-          Sem vendas no periodo
+          Sem vendas no período
         </div>
       ) : (
         <div

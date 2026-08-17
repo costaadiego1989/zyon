@@ -47,7 +47,7 @@ describe("BillingPage Portuguese copy", () => {
     { wrong: /\bnecessario\b/i, correct: "necessário" },
     { wrong: /\bhistorico\b/i, correct: "histórico" },
     { wrong: /\bRenovacao\b/, correct: "Renovação" },
-    { wrong: /\bperiodo\b/i, correct: "período" },
+    { wrong: /\bperíodo\b/i, correct: "período" },
     { wrong: /\bcomecar\b/i, correct: "começar" },
     { wrong: /\binstalacao\b/i, correct: "instalação" },
     { wrong: /\binstalacoes\b/i, correct: "instalações" },

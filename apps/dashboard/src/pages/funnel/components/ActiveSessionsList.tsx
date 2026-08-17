@@ -1,4 +1,6 @@
 import React, { useState } from "react";
+import { Activity } from "lucide-react";
+import { EmptyState } from "../../../components/EmptyState.js";
 import type { FunnelSession } from "../useFunnelPage.js";
 
 interface ActiveSessionsListProps {
@@ -31,9 +33,11 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
       </div>
 
       {sessions.length === 0 ? (
-        <div className="fnl-sessions-empty">
-          {loading ? "Carregando sessões..." : "Nenhuma sessão ativa no momento"}
-        </div>
+        loading ? (
+          <div className="fnl-sessions-empty">Carregando sessões...</div>
+        ) : (
+          <EmptyState icon={Activity} title="Nenhuma sessão ativa no momento" description="Sessões aparecerão aqui quando compradores estiverem no checkout." />
+        )
       ) : (
         <>
           <table className="fnl-sessions-table">

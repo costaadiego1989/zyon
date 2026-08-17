@@ -29,6 +29,7 @@ import { ActivationFlow } from "./components/ActivationFlow.js";
 import { TriggerCard } from "./components/TriggerCard.js";
 import { RulesList } from "./components/RulesList.js";
 import { RuleEditor } from "./components/RuleEditor.js";
+import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
 import { ALL_TRIGGERS, MODE_OPTIONS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
 import type { Draft } from "./lib/draft.js";
 import "./checkout-settings-page.css";
@@ -289,19 +290,15 @@ export function CheckoutSettingsPage(props: {
               desc="Configure o comportamento de retorno do checkout."
             >
               <div className="cfg-field">
-                <label htmlFor="checkout-return-url">URL de retorno</label>
-                <input
-                  id="checkout-return-url"
+                <FormField
+                  label="URL de retorno"
                   type="url"
+                  placeholder="https://seusite.com"
                   value={vm.draft!.checkoutReturnUrl ?? ""}
                   disabled={vm.busy}
-                  placeholder="https://seusite.com"
-                  onChange={(e) => vm.patchDraft({ checkoutReturnUrl: e.target.value })}
-                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--color-border)", fontSize: "14px" }}
+                  onChange={(v) => vm.patchDraft({ checkoutReturnUrl: v })}
+                  hint='Quando o comprador clicar em "voltar" no checkout, será redirecionado para esta URL.'
                 />
-                <span style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "block" }}>
-                  Quando o comprador clicar em "voltar" no checkout, será redirecionado para esta URL.
-                </span>
               </div>
             </SectionRail>
             </>}

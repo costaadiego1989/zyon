@@ -30,7 +30,7 @@ export function RevenueChart({
           border: "1px solid var(--border)",
         }}
       >
-        Sem dados no periodo
+        Sem dados no período
       </div>
     );
   }
@@ -134,7 +134,7 @@ export function RevenueChart({
               fontFamily: "var(--sans)",
             }}
           >
-            {data.length} pontos · periodo atual
+            {data.length} pontos · período atual
           </div>
         </div>
         <div

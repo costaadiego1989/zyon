@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Check } from "lucide-react";
 import type { ThemeDraft } from "../useOnboardingWizard.js";
+import { FormField, FormSelect } from "../../../components/FormField.js";
 
 type StepIdentityProps = {
   themeDraft: ThemeDraft;
@@ -152,18 +153,18 @@ export function StepIdentity({ themeDraft, setThemeDraft, fieldErrors, FONT_OPTI
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <div className="onb-field">
-          <label className="onb-field-label" htmlFor="onb-hfont">Tipografia títulos</label>
-          <select id="onb-hfont" value={themeDraft.headingFont} onChange={(e) => setThemeDraft((d) => ({ ...d, headingFont: e.target.value }))} style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "12px" }}>
-            {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
-          </select>
-        </div>
-        <div className="onb-field">
-          <label className="onb-field-label" htmlFor="onb-bfont">Tipografia corpo</label>
-          <select id="onb-bfont" value={themeDraft.bodyFont} onChange={(e) => setThemeDraft((d) => ({ ...d, bodyFont: e.target.value }))} style={{ width: "100%", height: 36, padding: "0 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "12px" }}>
-            {FONT_OPTIONS.map((f) => <option key={f} value={f}>{f.split(",")[0]}</option>)}
-          </select>
-        </div>
+        <FormSelect
+          label="Tipografia títulos"
+          value={themeDraft.headingFont}
+          onChange={(value) => setThemeDraft((d) => ({ ...d, headingFont: value }))}
+          options={FONT_OPTIONS.map((f) => ({ value: f, label: f.split(",")[0] }))}
+        />
+        <FormSelect
+          label="Tipografia corpo"
+          value={themeDraft.bodyFont}
+          onChange={(value) => setThemeDraft((d) => ({ ...d, bodyFont: value }))}
+          options={FONT_OPTIONS.map((f) => ({ value: f, label: f.split(",")[0] }))}
+        />
       </div>
 
       <div className="onb-field">
@@ -222,15 +223,14 @@ export function StepIdentity({ themeDraft, setThemeDraft, fieldErrors, FONT_OPTI
       </div>
 
       <div className="onb-field">
-        <label className="onb-field-label" htmlFor="onb-header">Nome exibido no widget</label>
-        <input
-          id="onb-header"
+        <FormField
+          label="Nome exibido no widget"
           type="text"
           placeholder="Ex: Minha Loja Official"
           value={themeDraft.headerTitle ?? ""}
-          onChange={(e) => setThemeDraft((d) => ({ ...d, headerTitle: e.target.value }))}
+          onChange={(value) => setThemeDraft((d) => ({ ...d, headerTitle: value }))}
+          error={fieldErrors.headerTitle}
         />
-        {fieldErrors.headerTitle && <span className="onb-field-error">{fieldErrors.headerTitle}</span>}
       </div>
 
       <div className="onb-field">
@@ -245,15 +245,14 @@ export function StepIdentity({ themeDraft, setThemeDraft, fieldErrors, FONT_OPTI
       </div>
 
       <div className="onb-field">
-        <label className="onb-field-label" htmlFor="onb-agent">Nome do assistente de vendas</label>
-        <input
-          id="onb-agent"
+        <FormField
+          label="Nome do assistente de vendas"
           type="text"
           placeholder="Ex: Luna, Max, Sofia"
           value={themeDraft.agentName ?? ""}
-          onChange={(e) => setThemeDraft((d) => ({ ...d, agentName: e.target.value }))}
+          onChange={(value) => setThemeDraft((d) => ({ ...d, agentName: value }))}
+          error={fieldErrors.agentName}
         />
-        {fieldErrors.agentName && <span className="onb-field-error">{fieldErrors.agentName}</span>}
       </div>
     </div>
   );

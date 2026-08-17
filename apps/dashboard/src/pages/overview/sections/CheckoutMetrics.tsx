@@ -96,7 +96,7 @@ export function CheckoutMetrics({
             <RevenueChart
               data={timeseries.conversion_daily}
               type="line"
-              label="Conversao diaria"
+              label="Conversao diária"
               color="var(--accent)"
               valueFormat="percent"
             />
@@ -122,7 +122,7 @@ export function CheckoutMetrics({
             <RevenueChart
               data={timeseries.revenue_daily}
               type="bar"
-              label="Receita diaria"
+              label="Receita diária"
               color="var(--accent)"
               valueFormat="currency"
             />
@@ -130,7 +130,7 @@ export function CheckoutMetrics({
         </div>
 
         <ConversionFunnel steps={[
-          { label: "Sessoes", value: overview.conversations_started ?? 0, color: "var(--accent)" },
+          { label: "Sessões", value: overview.conversations_started ?? 0, color: "var(--accent)" },
           { label: "Ofertas vistas", value: overview.offers_viewed ?? 0, color: "oklch(70% 0.14 250)" },
           { label: "Ofertas aceitas", value: overview.offers_accepted ?? 0, color: "var(--warn)" },
           { label: "Pedidos", value: overview.orders_completed ?? 0, color: "var(--good)" },

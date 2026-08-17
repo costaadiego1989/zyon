@@ -9,9 +9,12 @@ export interface FormFieldProps {
   disabled?: boolean;
   hint?: string;
   error?: string;
+  autoFocus?: boolean;
+  maxLength?: number;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
 }
 
-export function FormField({ label, type = "text", placeholder, value, onChange, disabled, hint, error }: FormFieldProps) {
+export function FormField({ label, type = "text", placeholder, value, onChange, disabled, hint, error, autoFocus, maxLength, onKeyDown }: FormFieldProps) {
   return (
     <div className="form-field">
       <label>{label}</label>
@@ -21,7 +24,10 @@ export function FormField({ label, type = "text", placeholder, value, onChange, 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
+        maxLength={maxLength}
         aria-invalid={!!error}
+        autoFocus={autoFocus}
+        onKeyDown={onKeyDown}
       />
       {hint && !error ? <span className="form-field-hint">{hint}</span> : null}
       {error ? <span className="form-field-error">{error}</span> : null}
@@ -60,9 +66,10 @@ export interface FormTextareaProps {
   disabled?: boolean;
   rows?: number;
   hint?: string;
+  maxLength?: number;
 }
 
-export function FormTextarea({ label, placeholder, value, onChange, disabled, rows = 3, hint }: FormTextareaProps) {
+export function FormTextarea({ label, placeholder, value, onChange, disabled, rows = 3, hint, maxLength }: FormTextareaProps) {
   return (
     <div className="form-field">
       <label>{label}</label>
@@ -72,6 +79,7 @@ export function FormTextarea({ label, placeholder, value, onChange, disabled, ro
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
         rows={rows}
+        maxLength={maxLength}
       />
       {hint ? <span className="form-field-hint">{hint}</span> : null}
     </div>

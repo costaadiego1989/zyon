@@ -99,7 +99,7 @@ export function StoreMetrics({
             <RevenueChart
               data={timeseries.revenue_daily}
               type="bar"
-              label="Receita diaria"
+              label="Receita diária"
               color="var(--accent)"
               valueFormat="currency"
             />
@@ -125,7 +125,7 @@ export function StoreMetrics({
             <RevenueChart
               data={timeseries.conversion_daily}
               type="line"
-              label="Conversao diaria"
+              label="Conversao diária"
               color="var(--accent)"
               valueFormat="percent"
             />

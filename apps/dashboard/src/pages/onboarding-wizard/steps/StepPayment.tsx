@@ -2,6 +2,7 @@ import React from "react";
 import type { PaymentDraft } from "../useOnboardingWizard.js";
 import { isValidEvmAddress } from "../useOnboardingWizard.js";
 import { Button } from "../../../components/Button.js";
+import { FormField } from "../../../components/FormField.js";
 
 type StepPaymentProps = {
   paymentDraft: PaymentDraft;
@@ -72,14 +73,13 @@ export function StepPayment({
 
       {paymentDraft.cryptoEnabled && (
         <div className="onb-field">
-          <label className="onb-field-label" htmlFor="onb-wallet">Endereço da Wallet (EVM)</label>
-          <input
-            id="onb-wallet"
+          <FormField
+            label="Endereço da Wallet (EVM)"
             type="text"
             placeholder="0x..."
             value={paymentDraft.walletAddress}
-            onChange={(e) => {
-              const sanitized = e.target.value.trim();
+            onChange={(value) => {
+              const sanitized = value.trim();
               setPaymentDraft((d) => ({ ...d, walletAddress: sanitized }));
               if (fieldErrors.walletAddress) setFieldErrors((prev: Record<string, string>) => {
                 const next = { ...prev };
@@ -87,10 +87,9 @@ export function StepPayment({
                 return next;
               });
             }}
-            style={{ padding: "8px 12px", borderRadius: "6px", border: fieldErrors.walletAddress ? "1px solid var(--color-error)" : "1px solid var(--color-border)", background: "var(--color-surface-raised)", fontSize: "13px", width: "100%" }}
+            error={fieldErrors.walletAddress}
+            hint="Carteira EVM válida (42 caracteres, começando com 0x)"
           />
-          <p className="onb-field-help">Carteira EVM válida (42 caracteres, começando com 0x)</p>
-          {fieldErrors.walletAddress && <span className="onb-field-error">{fieldErrors.walletAddress}</span>}
           {paymentDraft.walletAddress && !isValidEvmAddress(paymentDraft.walletAddress) && <span style={{ fontSize: "12px", color: "var(--color-error)", marginTop: "4px", display: "block" }}>Endereço inválido</span>}
         </div>
       )}

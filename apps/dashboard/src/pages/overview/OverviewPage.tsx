@@ -25,7 +25,7 @@ function buildActivityItems(vm: ReturnType<typeof useOverviewPage>): ActivityIte
       items.push({
         id: s.sessionId ?? `session-${items.length}`,
         type: "session",
-        description: `Sessao iniciada`,
+        description: `Sessão iniciada`,
         timestamp: s.createdAt ?? new Date().toISOString(),
       });
     }
@@ -361,7 +361,7 @@ export function OverviewPage(props: OverviewPageProps) {
                 <RevenueChart
                   data={vm.timeseries.revenue_daily}
                   type="bar"
-                  label="Receita diaria"
+                  label="Receita diária"
                   color="var(--accent)"
                   valueFormat="currency"
                 />
@@ -372,7 +372,7 @@ export function OverviewPage(props: OverviewPageProps) {
                 <RevenueChart
                   data={vm.timeseries.conversion_daily}
                   type="line"
-                  label="Conversao diaria"
+                  label="Conversao diária"
                   color="var(--accent)"
                   valueFormat="percent"
                 />

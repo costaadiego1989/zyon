@@ -5,6 +5,7 @@ import type { MerchantProfile } from "../api-client.js";
 import { useStoriesPage } from "./useStoriesPage.js";
 import type { TitleConfig } from "../api/endpoints/stories.js";
 import { Button } from "../components/Button.js";
+import { FormField, FormSelect, FormTextarea } from "../components/FormField.js";
 
 export interface StoriesPageProps {
   apiBaseUrl: string;
@@ -175,17 +176,14 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
       {vm.showCreateCategory && (
         <SidePanel title="Nova Categoria" onClose={() => vm.setShowCreateCategory(false)}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
-            <div>
-              <label>Nome da Categoria</label>
-              <input
-                value={vm.newCategoryName}
-                onChange={(e) => vm.setNewCategoryName(e.target.value)}
-                placeholder="Ex: Promoções, Novidades, Destaques"
-                style={{ width: "100%", padding: "12px 14px", borderRadius: "8px", border: "1px solid var(--rule)", fontSize: "14px", background: "var(--bg)", color: "var(--ink)", boxSizing: "border-box" }}
-                autoFocus
-                onKeyDown={(e) => e.key === "Enter" && vm.handleCreateCategory()}
-              />
-            </div>
+            <FormField
+              label="Nome da Categoria"
+              value={vm.newCategoryName}
+              onChange={vm.setNewCategoryName}
+              placeholder="Ex: Promoções, Novidades, Destaques"
+              autoFocus
+              onKeyDown={(e) => e.key === "Enter" && vm.handleCreateCategory()}
+            />
           </div>
           <PanelFooter onCancel={() => vm.setShowCreateCategory(false)} onSubmit={vm.handleCreateCategory} disabled={!vm.newCategoryName.trim()} label="Criar Categoria" />
         </SidePanel>
@@ -288,15 +286,12 @@ function StoryEditorContent({ vm }: { vm: ReturnType<typeof useStoriesPage> }) {
       </div>
 
       {/* Title */}
-      <div>
-        <label>Título (opcional)</label>
-        <input
-          value={editor.title}
-          onChange={(e) => updateEditorField("title", e.target.value)}
-          placeholder="Texto sobre a imagem"
-          style={{ width: "100%", padding: "10px 12px", borderRadius: "8px", border: "1px solid var(--rule)", fontSize: "13px", background: "var(--bg)", color: "var(--ink)", boxSizing: "border-box" }}
-        />
-      </div>
+      <FormField
+        label="Título (opcional)"
+        value={editor.title}
+        onChange={(val) => updateEditorField("title", val)}
+        placeholder="Texto sobre a imagem"
+      />
 
       {/* Title Config */}
       {editor.title && (

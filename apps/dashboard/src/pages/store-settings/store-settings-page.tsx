@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
 import { Button } from "../../components/Button.js";
+import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm, type StylesForm } from "./useStoreSettingsPage.js";
@@ -94,14 +95,8 @@ export function StoreSettingsPage() {
               </div>
               {state.budgetMode && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>Email para orçamentos</span>
-                    <input type="email" value={state.budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} placeholder="contato@loja.com" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13 }} />
-                  </label>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--ink)" }}>WhatsApp para orçamentos</span>
-                    <input type="tel" value={state.budgetWhatsapp} onChange={(e) => setBudgetWhatsapp(e.target.value)} placeholder="(11) 99999-9999" style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", fontSize: 13 }} />
-                  </label>
+                  <FormField label="Email para orçamentos" type="email" placeholder="contato@loja.com" value={state.budgetEmail} onChange={(v) => setBudgetEmail(v)} />
+                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="(11) 99999-9999" value={state.budgetWhatsapp} onChange={(v) => setBudgetWhatsapp(v)} />
                 </div>
               )}
             </div>
@@ -129,32 +124,14 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
       <div>
         <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Informações Principais</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Nome da loja</span>
-            <input style={fieldStyle} placeholder="Minha Loja" value={company.storeName} onChange={(e) => onCompanyChange({ ...company, storeName: e.target.value })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Razão Social</span>
-            <input style={fieldStyle} placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(e) => onCompanyChange({ ...company, razaoSocial: e.target.value })} />
-          </label>
+          <FormField label="Nome da loja" placeholder="Minha Loja" value={company.storeName} onChange={(v) => onCompanyChange({ ...company, storeName: v })} />
+          <FormField label="Razão Social" placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(v) => onCompanyChange({ ...company, razaoSocial: v })} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CNPJ</span>
-            <input style={fieldStyle} placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(e) => onCompanyChange({ ...company, cnpj: e.target.value.replace(/\D/g, "") })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Inscrição Estadual</span>
-            <input style={fieldStyle} placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(e) => onCompanyChange({ ...company, inscricaoEstadual: e.target.value })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Email de contato</span>
-            <input style={fieldStyle} type="email" placeholder="contato@empresa.com" value={company.email} onChange={(e) => onCompanyChange({ ...company, email: e.target.value })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Telefone</span>
-            <input style={fieldStyle} placeholder="(11) 99999-9999" value={maskPhone(company.phone)} onChange={(e) => onCompanyChange({ ...company, phone: e.target.value.replace(/\D/g, "") })} />
-          </label>
+          <FormField label="CNPJ" placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(v) => onCompanyChange({ ...company, cnpj: v.replace(/\D/g, "") })} />
+          <FormField label="Inscrição Estadual" placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(v) => onCompanyChange({ ...company, inscricaoEstadual: v })} />
+          <FormField label="Email de contato" type="email" placeholder="contato@empresa.com" value={company.email} onChange={(v) => onCompanyChange({ ...company, email: v })} />
+          <FormField label="Telefone" type="tel" placeholder="(11) 99999-9999" value={maskPhone(company.phone)} onChange={(v) => onCompanyChange({ ...company, phone: v.replace(/\D/g, "") })} />
         </div>
       </div>
 
@@ -162,40 +139,19 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
         <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--accent)" }}>Endereço</h3>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CEP</span>
-            <input style={{ ...fieldStyle, opacity: cepLoading ? 0.6 : 1 }} placeholder="01311-100" value={maskCEP(company.zip)} onChange={(e) => { const digits = e.target.value.replace(/\D/g, ""); onCepChange(digits); }} disabled={cepLoading} />
-          </label>
+          <FormField label="CEP" placeholder="01311-100" value={maskCEP(company.zip)} onChange={(v) => { const digits = v.replace(/\D/g, ""); onCepChange(digits); }} disabled={cepLoading} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Rua</span>
-            <input style={fieldStyle} placeholder="Av. Paulista" value={company.street} onChange={(e) => onCompanyChange({ ...company, street: e.target.value })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Nº</span>
-            <input style={fieldStyle} placeholder="1000" value={company.number} onChange={(e) => onCompanyChange({ ...company, number: e.target.value })} />
-          </label>
+          <FormField label="Rua" placeholder="Av. Paulista" value={company.street} onChange={(v) => onCompanyChange({ ...company, street: v })} />
+          <FormField label="Nº" placeholder="1000" value={company.number} onChange={(v) => onCompanyChange({ ...company, number: v })} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Bairro</span>
-            <input style={fieldStyle} placeholder="Centro" value={company.neighborhood} onChange={(e) => onCompanyChange({ ...company, neighborhood: e.target.value })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Cidade</span>
-            <input style={fieldStyle} placeholder="São Paulo" value={company.city} onChange={(e) => onCompanyChange({ ...company, city: e.target.value })} />
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Estado</span>
-            <input style={fieldStyle} placeholder="SP" maxLength={2} value={company.state} onChange={(e) => onCompanyChange({ ...company, state: e.target.value.toUpperCase() })} />
-          </label>
+          <FormField label="Bairro" placeholder="Centro" value={company.neighborhood} onChange={(v) => onCompanyChange({ ...company, neighborhood: v })} />
+          <FormField label="Cidade" placeholder="São Paulo" value={company.city} onChange={(v) => onCompanyChange({ ...company, city: v })} />
+          <FormField label="Estado" placeholder="SP" value={company.state} onChange={(v) => onCompanyChange({ ...company, state: v.toUpperCase() })} />
         </div>
         <div style={{ marginTop: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Complemento</span>
-            <input style={fieldStyle} placeholder="Sala 101" value={company.complement} onChange={(e) => onCompanyChange({ ...company, complement: e.target.value })} />
-          </label>
+          <FormField label="Complemento" placeholder="Sala 101" value={company.complement} onChange={(v) => onCompanyChange({ ...company, complement: v })} />
         </div>
       </div>
 
@@ -469,26 +425,8 @@ function StylesTab({ styles, onChange }: {
       <div>
         <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Tipografia</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Fonte de Títulos</span>
-            <select style={{ ...fieldStyle, cursor: "pointer" }} value={styles.fontDisplay} onChange={(e) => onChange({ ...styles, fontDisplay: e.target.value })}>
-              {FONT_OPTIONS.map((font) => (
-                <option key={font} value={font}>
-                  {font.split(",")[0].trim()}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Fonte de Corpo</span>
-            <select style={{ ...fieldStyle, cursor: "pointer" }} value={styles.fontFamily} onChange={(e) => onChange({ ...styles, fontFamily: e.target.value })}>
-              {FONT_OPTIONS.map((font) => (
-                <option key={font} value={font}>
-                  {font.split(",")[0].trim()}
-                </option>
-              ))}
-            </select>
-          </label>
+          <FormSelect label="Fonte de Títulos" value={styles.fontDisplay} onChange={(v) => onChange({ ...styles, fontDisplay: v })} options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0].trim() }))} />
+          <FormSelect label="Fonte de Corpo" value={styles.fontFamily} onChange={(v) => onChange({ ...styles, fontFamily: v })} options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0].trim() }))} />
         </div>
       </div>
     </div>

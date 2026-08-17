@@ -30,7 +30,7 @@ const TYPE_ICON: Record<ActivityType, string> = {
 
 const TYPE_LABEL: Record<ActivityType, string> = {
   order: "Pedido",
-  session: "Sessao",
+  session: "Sessão",
   offer: "Oferta",
   payment: "Pagamento",
 };
