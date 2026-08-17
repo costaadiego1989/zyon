@@ -77,12 +77,15 @@ export class TeamController {
   async updateRole(
     @Param("merchantId") merchantId: string,
     @Param("userId") userId: string,
+    @Req() req: Request,
     @Body() body: { role: "OWNER" | "ADMIN" | "STAFF" },
   ) {
+    const principal = currentTenantPrincipal(req as any);
     return this.updateRoleUseCase.execute({
       merchant_id: merchantId,
       user_id: userId,
       new_role: body.role,
+      requester_role: (principal.kind === "human" ? principal.role?.toUpperCase() : "STAFF") as "OWNER" | "ADMIN" | "STAFF",
     });
   }
 
