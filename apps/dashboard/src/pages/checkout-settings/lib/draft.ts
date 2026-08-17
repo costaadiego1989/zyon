@@ -39,6 +39,7 @@ export interface Draft {
   fabColor: string;
   inviteText: string;
   showCartBadge: boolean;
+  checkoutReturnUrl: string;
   advancedRules: AdvancedRule[];
 }
 
@@ -70,6 +71,7 @@ export const DEFAULT_DRAFT: Draft = {
   fabColor: "#3b82f6",
   inviteText: "Posso ajudar?",
   showCartBadge: true,
+  checkoutReturnUrl: "",
   advancedRules: [],
 };
 
@@ -135,6 +137,7 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     fabColor: s.widgetBehavior.fabColor ?? "#3b82f6",
     inviteText: s.widgetBehavior.inviteText ?? "Posso ajudar?",
     showCartBadge: s.widgetBehavior.showCartBadge !== false,
+    checkoutReturnUrl: (s.widgetBehavior as any).checkoutReturnUrl ?? "",
     advancedRules: (s as any).advancedRules ?? [],
   };
 }

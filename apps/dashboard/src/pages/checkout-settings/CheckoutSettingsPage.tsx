@@ -280,10 +280,34 @@ export function CheckoutSettingsPage(props: {
                 />
               </div>
             </SectionRail>
+
+            {/* 3 — URL de retorno */}
+            <SectionRail
+              icon={<Activity size={16} strokeWidth={1.75} />}
+              index="03"
+              title="Navegação"
+              desc="Configure o comportamento de retorno do checkout."
+            >
+              <div className="cfg-field">
+                <label htmlFor="checkout-return-url">URL de retorno</label>
+                <input
+                  id="checkout-return-url"
+                  type="url"
+                  value={vm.draft!.checkoutReturnUrl ?? ""}
+                  disabled={vm.busy}
+                  placeholder="https://seusite.com"
+                  onChange={(e) => vm.patchDraft({ checkoutReturnUrl: e.target.value })}
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--color-border)", fontSize: "14px" }}
+                />
+                <span style={{ fontSize: 11, color: "var(--muted)", marginTop: 4, display: "block" }}>
+                  Quando o comprador clicar em "voltar" no checkout, será redirecionado para esta URL.
+                </span>
+              </div>
+            </SectionRail>
             </>}
 
             {vm.activeTab === "triggers" && <>
-            {/* 3 — Triggers */}
+            {/* 4 — Triggers */}
             <SectionRail
               icon={<Bell size={16} strokeWidth={1.75} />}
               index="03"
