@@ -62,13 +62,7 @@ const ALL_SCOPES = [
   "audit:read",
 ];
 
-const DEFAULT_SCOPES = [
-  "catalog:read",
-  "embed:sessions:create",
-  "orders:read",
-  "tracking:write",
-  "webhooks:read",
-];
+const DEFAULT_SCOPES = [...ALL_SCOPES];
 
 export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useApi();
@@ -305,27 +299,32 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       ) : null}
 
       <div className="metrics">
-        <div className="metric">
-          <span><Activity size={14} /> API</span>
-          <strong>
-            {apiReachable === null
-              ? "—"
-              : apiReachable
-                ? "Online"
-                : "Offline"}
-          </strong>
+        <div className="metric metric-hero">
+          <Activity size={18} aria-hidden />
+          <span className="metric-value">
+            {apiReachable === null ? "—" : apiReachable ? "Online" : "Offline"}
+          </span>
+          <span className="metric-label">Status API</span>
         </div>
         <div className="metric">
-          <span><KeyRound size={14} /> Chaves</span>
-          <strong>{apiKeys.filter((key) => !key.revokedAt).length}</strong>
+          <KeyRound size={18} aria-hidden />
+          <span className="metric-value">{apiKeys.filter((key) => !key.revokedAt).length}</span>
+          <span className="metric-label">Chaves ativas</span>
         </div>
         <div className="metric">
-          <span><Webhook size={14} /> Webhooks</span>
-          <strong>{webhooks.filter((endpoint) => endpoint.enabled).length}</strong>
+          <Webhook size={18} aria-hidden />
+          <span className="metric-value">{webhooks.filter((endpoint) => endpoint.enabled).length}</span>
+          <span className="metric-label">Webhooks</span>
         </div>
         <div className="metric">
-          <span><RotateCcw size={14} /> Falhas</span>
-          <strong>{deliveries.filter((delivery) => delivery.status === "failed").length}</strong>
+          <Send size={18} aria-hidden />
+          <span className="metric-value">{deliveries.length}</span>
+          <span className="metric-label">Deliveries</span>
+          {deliveries.length > 0 && (
+            <span className={`metric-trend metric-trend--${deliveries.filter(d => d.status === "delivered").length / deliveries.length >= 0.9 ? "up" : "down"}`}>
+              {Math.round((deliveries.filter(d => d.status === "delivered").length / deliveries.length) * 100)}% sucesso
+            </span>
+          )}
         </div>
       </div>
 
