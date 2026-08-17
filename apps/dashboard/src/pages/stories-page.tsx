@@ -81,7 +81,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, minHeight: "400px" }}>
         {/* Categories sidebar */}
         <div style={{ background: "var(--card)", border: "1px solid var(--rule)", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <h3 style={{ font: "600 10px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textTransform: "uppercase", margin: "0 0 8px" }}>
+          <h3 style={{ font: "600 14px var(--sans)", color: "var(--accent)", margin: "0 0 8px" }}>
             Categorias ({vm.categories.length})
           </h3>
           {vm.categories.map((cat) => (
@@ -121,7 +121,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
           {vm.selectedCategory ? (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                <h3 style={{ font: "600 16px var(--sans)", margin: 0, color: "var(--ink)" }}>{vm.selectedCategory.name}</h3>
+                <h3 style={{ font: "600 14px var(--sans)", margin: 0, color: "var(--accent)" }}>{vm.selectedCategory.name}</h3>
                 <button onClick={() => vm.openCreateStory()} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                   <Plus size={14} /> Adicionar Story
                 </button>
@@ -221,7 +221,7 @@ function SidePanel({ title, subtitle, onClose, children, width = 420 }: {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <h2 style={{ fontSize: "18px", fontWeight: 600, color: "var(--ink)", margin: 0 }}>{title}</h2>
+            <h2 style={{ fontSize: "14px", fontWeight: 600, color: "var(--accent)", margin: 0 }}>{title}</h2>
             {subtitle && <p style={{ fontSize: "12px", color: "var(--muted)", margin: "4px 0 0" }}>{subtitle}</p>}
           </div>
           <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid var(--rule)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}>

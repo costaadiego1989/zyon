@@ -6,6 +6,7 @@ import {
   type MerchantProfile,
 } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { readError } from "../utils/read-error.js";
 
 function formatDate(iso: string | null): string {
@@ -194,10 +195,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
 
       {subscription ? (
         <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Assinatura atual">
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <CreditCard size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
-            <h2 style={{ font: "600 14px var(--mono)", color: "var(--accent)", margin: 0 }}>Assinatura atual</h2>
-          </div>
+          <SectionHeader title="Assinatura atual" variant="secondary" />
           <dl style={{ display: "grid", gridTemplateColumns: "160px 1fr", rowGap: 10, columnGap: 16, margin: 0 }}>
             <dt style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase" }}>Plano</dt>
             <dd style={{ margin: 0, font: "600 13px var(--mono)", color: "var(--ink)" }}>{subscription.plan_name ?? subscription.plan}</dd>
@@ -240,18 +238,12 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
       ) : null}
 
       <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Histórico de faturas">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Receipt size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
-          <h2 style={{ font: "600 14px var(--mono)", color: "var(--accent)", margin: 0 }}>Histórico de faturas</h2>
-        </div>
+        <SectionHeader title="Histórico de faturas" variant="secondary" />
         <EmptyState icon={Receipt} title="Nenhuma fatura encontrada" description="O histórico estará disponível em breve." />
       </section>
 
       <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Método de pagamento">
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <CreditCard size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
-          <h2 style={{ font: "600 14px var(--mono)", color: "var(--accent)", margin: 0 }}>Método de pagamento</h2>
-        </div>
+        <SectionHeader title="Método de pagamento" variant="secondary" />
         <EmptyState
           icon={CreditCard}
           title="Nenhum método cadastrado"
