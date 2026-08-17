@@ -200,14 +200,14 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
               </div>
             )}
             {!budgetSent && (
-            {/* Budget form (inline) */}
-            {mode === "budget" && showBudgetForm ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 0 6px", borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--aacp-fg)" }}>Seus dados para contato</span>
-                <input type="text" placeholder="Nome completo" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
-                <input type="email" placeholder="Email" value={budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
-                <input type="tel" placeholder="WhatsApp (11) 99999-9999" value={budgetPhone} onChange={(e) => setBudgetPhone(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
-                <textarea placeholder="Observação (opcional)" value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} rows={2} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit", resize: "none" }} />
+              <>
+                {mode === "budget" && showBudgetForm ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 0 6px", borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--aacp-fg)" }}>Seus dados para contato</span>
+                    <input type="text" placeholder="Nome completo" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                    <input type="email" placeholder="Email" value={budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                    <input type="tel" placeholder="WhatsApp (11) 99999-9999" value={budgetPhone} onChange={(e) => setBudgetPhone(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                    <textarea placeholder="Observação (opcional)" value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} rows={2} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit", resize: "none" }} />
                 <button
                   type="button"
                   disabled={!budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim() || budgetSending}
@@ -248,6 +248,8 @@ export function CartSheet({ open, cart, mode = "checkout", onClose, onCheckout, 
               >
                 {mode === "budget" ? "Solicitar orçamento" : "Finalizar pedido"}
               </button>
+            )}
+              </>
             )}
 
             {onViewCart && (
