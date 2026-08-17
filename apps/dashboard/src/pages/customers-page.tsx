@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { UsersRound, UserPlus, Repeat, Download, ArrowUpDown, X } from "lucide-react";
+import { EmptyState } from "../components/EmptyState.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import {
   type CursorPage,
@@ -332,11 +333,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         )}
 
         {filteredRows.length === 0 && !loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
-            <UsersRound size={32} />
-            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhum comprador registrado ainda.</strong>
-            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Clientes aparecerão aqui após a primeira interação no checkout.</p>
-          </div>
+          <EmptyState icon={UsersRound} title="Nenhum comprador registrado ainda" description="Clientes aparecerão aqui após a primeira interação no checkout." />
         ) : null}
 
         {filteredRows.length > 0 ? (
@@ -390,7 +387,7 @@ function CustomerDetailModal({
       <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--card)", borderLeft: "1px solid var(--border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>{displayName}</h2>
+          <h2 style={{ font: "600 18px var(--serif)", color: "var(--accent)", margin: 0 }}>{displayName}</h2>
           <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}>
             <X size={20} />
           </button>

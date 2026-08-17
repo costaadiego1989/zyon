@@ -2,12 +2,14 @@ import React from "react";
 import {
   CheckCircle,
   DollarSign,
+  Package,
   PackageSearch,
   Receipt,
   ShoppingCart,
   Truck,
   X,
 } from "lucide-react";
+import { EmptyState } from "../components/EmptyState.js";
 import { FilterToolbar } from "../components/FilterToolbar.js";
 import { Pagination } from "../components/Pagination.js";
 import { StatCard } from "./overview/components/StatCard.js";
@@ -179,11 +181,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         )}
 
         {vm.hasLoaded && vm.orders.length === 0 && !vm.message && !vm.busy ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
-            <PackageSearch size={32} />
-            <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhum pedido registrado</strong>
-            <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Pedidos aparecerão aqui quando compradores concluírem o checkout.</p>
-          </div>
+          <EmptyState icon={Package} title="Nenhum pedido registrado" description="Pedidos aparecerão aqui quando compradores concluírem o checkout." />
         ) : null}
 
         {vm.hasLoaded && vm.orders.length > 0 && vm.filteredOrders.length === 0 && !vm.busy ? (
@@ -227,7 +225,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
       <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--color-text)", margin: 0 }}>Pedido {order.external_order_id}</h2>
+          <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--accent)", margin: 0 }}>Pedido {order.external_order_id}</h2>
           <button type="button" onClick={() => vm.setExpandedOrderId(null)} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}><X size={20} /></button>
         </div>
 

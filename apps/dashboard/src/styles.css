@@ -145,14 +145,14 @@ h1, h2, h3, p { margin: 0; }
 h1 {
   font: 700 22px var(--font-serif);
   letter-spacing: -0.025em;
-  color: var(--color-text);
+  color: var(--accent);
   line-height: 1.25;
 }
 
 h2 {
   font: 600 15px var(--font-serif);
   letter-spacing: -0.005em;
-  color: var(--color-text);
+  color: var(--accent);
 }
 
 h3 {

@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock, Link2, PlugZap, RefreshCw, ShoppingBag, Trash2, X, Zap } from "lucide-react";
+import { AlertCircle, CheckCircle2, Clock, Link2, PlugZap, RefreshCw, ShoppingBag, Store, Trash2, X, Zap } from "lucide-react";
+import { EmptyState } from "../components/EmptyState.js";
 import {
   DashboardHttpError,
   type CommerceConnection,
@@ -517,16 +518,12 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
 
       {/* Active connection */}
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
-        <h2 style={{ font: "600 14px var(--serif)", color: "var(--ink)", marginBottom: 16 }}>Conexão Ativa</h2>
+        <h2 style={{ font: "600 14px var(--serif)", color: "var(--accent)", marginBottom: 16 }}>Conexão Ativa</h2>
 
         {isLoading ? (
           <div style={{ height: 88, borderRadius: 8, background: "var(--bg)" }} />
         ) : !hasConnection ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center" }}><Link2 size={22} color="var(--faint)" /></div>
-            <strong style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>Nenhuma conexão configurada</strong>
-            <p style={{ font: "13px var(--sans)", color: "var(--faint)", maxWidth: 360 }}>Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos.</p>
-          </div>
+          <EmptyState icon={Store} title="Nenhuma conexão configurada" description="Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos." />
         ) : (
           <div className="commerce-connection-list">
             {connections.map((conn) => (

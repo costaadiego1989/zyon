@@ -56,7 +56,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
 
           {vm.activeTab === "identity" && (
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IDENTIDADE DO AGENTE</h3>
+              <h3 style={{ font: "600 12px var(--mono)", color: "var(--accent)", letterSpacing: "0.05em", marginBottom: 14 }}>IDENTIDADE DO AGENTE</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Nome do Agente</span>
@@ -107,7 +107,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
           {vm.activeTab === "negotiation" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>DESCONTO</h3>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--accent)", letterSpacing: "0.05em", marginBottom: 2 }}>DESCONTO</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Limite máximo de desconto que o agente pode conceder ao comprador.</p>
                 <div style={{ maxWidth: 280 }}>
                   <PrefixInput prefix="%" label="Desconto máximo" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} placeholder="10" error={vm.errors.maxDiscountPercent} />
@@ -115,7 +115,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               </section>
 
               <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", margin: 0 }}>FRETE</h3>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--accent)", letterSpacing: "0.05em", margin: 0 }}>FRETE</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 10px" }}>Opções de frete grátis e desconto parcial no envio.</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
@@ -147,7 +147,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               </section>
 
               <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 2 }}>OFERTAS</h3>
+                <h3 style={{ font: "600 12px var(--mono)", color: "var(--accent)", letterSpacing: "0.05em", marginBottom: 2 }}>OFERTAS</h3>
                 <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Após expirar, o agente pode gerar uma nova proposta.</p>
                 <div style={{ maxWidth: 280 }}>
                   <NumberField label="Expiração da oferta (minutos)" value={vm.form.offerExpirationMinutes} onChange={(v) => vm.patch({ offerExpirationMinutes: v })} error={vm.errors.offerExpirationMinutes} />
@@ -201,7 +201,7 @@ function StageQuickRepliesEditor({ config, onChange }: { config: StageQrConfig; 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ marginBottom: 8 }}>
-        <h3 style={{ font: "600 13px var(--sans)", color: "var(--ink)", margin: 0 }}>Quick Replies por Estágio</h3>
+        <h3 style={{ font: "600 13px var(--sans)", color: "var(--accent)", margin: 0 }}>Quick Replies por Estágio</h3>
         <p style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 4, margin: 0 }}>Configure as sugestões em cada etapa da jornada de compra</p>
       </div>
       {config.stages.map((stage, stageIdx) => {

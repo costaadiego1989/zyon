@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { CreditCard, Receipt, Activity, Zap, BarChart3 } from "lucide-react";
+import { EmptyState } from "../components/EmptyState.js";
 import {
   type BillingSubscription,
   type MerchantProfile,
@@ -195,7 +196,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
         <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Assinatura atual">
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <CreditCard size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
-            <h2 style={{ font: "600 14px var(--mono)", color: "var(--ink)", margin: 0 }}>Assinatura atual</h2>
+            <h2 style={{ font: "600 14px var(--mono)", color: "var(--accent)", margin: 0 }}>Assinatura atual</h2>
           </div>
           <dl style={{ display: "grid", gridTemplateColumns: "160px 1fr", rowGap: 10, columnGap: 16, margin: 0 }}>
             <dt style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase" }}>Plano</dt>
@@ -241,22 +242,25 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
       <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Histórico de faturas">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Receipt size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
-          <h2 style={{ font: "600 14px var(--mono)", color: "var(--ink)", margin: 0 }}>Histórico de faturas</h2>
+          <h2 style={{ font: "600 14px var(--mono)", color: "var(--accent)", margin: 0 }}>Histórico de faturas</h2>
         </div>
-        <p style={{ margin: 0, font: "13px var(--sans)", color: "var(--muted)" }}>Nenhuma fatura encontrada. O histórico estará disponível em breve.</p>
+        <EmptyState icon={Receipt} title="Nenhuma fatura encontrada" description="O histórico estará disponível em breve." />
       </section>
 
       <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Método de pagamento">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <CreditCard size={18} aria-hidden="true" style={{ color: "var(--accent)" }} />
-          <h2 style={{ font: "600 14px var(--mono)", color: "var(--ink)", margin: 0 }}>Método de pagamento</h2>
+          <h2 style={{ font: "600 14px var(--mono)", color: "var(--accent)", margin: 0 }}>Método de pagamento</h2>
         </div>
-        <p style={{ margin: 0, font: "13px var(--sans)", color: "var(--muted)" }}>
-          Nenhum método cadastrado.{" "}
-          <button type="button" style={{ background: "transparent", border: "none", padding: 0, color: "var(--accent)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1, textDecoration: "underline" }} disabled={busy} onClick={() => void openPortal()}>
-            Gerenciar assinatura
-          </button>
-        </p>
+        <EmptyState
+          icon={CreditCard}
+          title="Nenhum método cadastrado"
+          action={
+            <button type="button" style={{ background: "transparent", border: "none", padding: 0, color: "var(--accent)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1, textDecoration: "underline" }} disabled={busy} onClick={() => void openPortal()}>
+              Gerenciar assinatura
+            </button>
+          }
+        />
       </section>
 
     </>

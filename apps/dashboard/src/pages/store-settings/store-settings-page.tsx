@@ -27,7 +27,7 @@ export function StoreSettingsPage() {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
           <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações</h1>
+          <h1 style={{ font: "700 22px var(--serif)", color: "var(--accent)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações</h1>
           <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Dados da empresa, endereço, horários, políticas, redes sociais, SEO e GTM.</div>
         </div>
         <Button variant="primary" size="sm" arrow onClick={state.activeTab === "seo-gtm" ? handleSeoSave : handleSave} disabled={state.saving || seoState.saving} loading={state.saving || seoState.saving}>
@@ -127,7 +127,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Company Info */}
       <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Informações Principais</h3>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Informações Principais</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Nome da loja</span>
@@ -160,7 +160,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
 
       {/* Address */}
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--ink)" }}>Endereço</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--accent)" }}>Endereço</h3>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>CEP</span>
@@ -201,7 +201,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
 
       {/* Business Hours */}
       <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--ink)" }}>Horário de Atendimento</h3>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--accent)" }}>Horário de Atendimento</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {businessHours.map((hour, idx) => (
             <div key={hour.day} style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr 80px", gap: 12, alignItems: "center" }}>
@@ -375,7 +375,7 @@ function StylesTab({ styles, onChange }: {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Logo */}
         <div>
-          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Logotipo</h3>
+          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Logotipo</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {logoPreview ? (
@@ -410,7 +410,7 @@ function StylesTab({ styles, onChange }: {
 
         {/* Favicon */}
         <div>
-          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Favicon</h3>
+          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Favicon</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {faviconPreview ? (
@@ -446,7 +446,7 @@ function StylesTab({ styles, onChange }: {
 
       {/* Colors */}
       <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Cores</h3>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Cores</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Cor Primária</span>
@@ -467,7 +467,7 @@ function StylesTab({ styles, onChange }: {
 
       {/* Fonts */}
       <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--ink)" }}>Tipografia</h3>
+        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Tipografia</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Fonte de Títulos</span>
