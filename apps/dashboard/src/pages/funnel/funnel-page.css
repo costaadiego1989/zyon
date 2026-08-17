@@ -1,14 +1,11 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Funnel Page
+   Funnel Page — Enterprise Dark Design System
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .funnel-page {
-  --funnel-brand: var(--accent, #3b82f6);
-  --funnel-radius: 12px;
-  --funnel-surface: var(--color-surface, #111827);
-  --funnel-surface-raised: var(--color-surface-raised, #1a2332);
+  --funnel-radius: var(--radius-md);
   --funnel-pad: clamp(1rem, 3vw, 2rem);
-  --funnel-hair: color-mix(in srgb, var(--color-border) 60%, transparent);
+  --funnel-hair: color-mix(in srgb, var(--color-border) 40%, transparent);
 }
 
 .funnel-head {
@@ -56,44 +53,48 @@
 }
 
 .funnel-period-group {
-  display: flex;
-  gap: 8px;
+  display: inline-flex;
+  gap: 2px;
   align-items: center;
+  padding: 3px;
+  border-radius: var(--radius-full);
+  background: var(--color-bg);
 }
 
 .funnel-period-btn {
-  padding: 8px 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
+  padding: 7px 14px;
+  border: none;
+  border-radius: var(--radius-full);
   background: transparent;
-  color: var(--muted);
+  color: var(--color-text-muted);
   font-size: 12px;
-  font-weight: 500;
-  font-family: var(--sans);
+  font-weight: 600;
+  font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: background var(--duration-fast) var(--ease),
+              color var(--duration-fast) var(--ease);
 }
 
 .funnel-period-btn:hover {
-  border-color: var(--accent);
-  color: var(--ink);
+  color: var(--color-text);
+  background: var(--color-surface-raised);
 }
 
 .funnel-period-btn.active {
-  background: var(--funnel-brand);
-  border-color: var(--funnel-brand);
-  color: white;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-xs);
 }
 
 .funnel-breakdown-select {
   padding: 8px 12px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-size: 12px;
-  font-weight: 500;
-  font-family: var(--sans);
+  font-weight: 600;
+  font-family: var(--font-sans);
   cursor: pointer;
   appearance: auto;
 }
@@ -118,21 +119,22 @@
 
 .funnel-export-btn {
   padding: 8px 16px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
-  background: var(--card);
-  color: var(--ink);
+  background: var(--color-surface);
+  color: var(--color-text);
   font-size: 12px;
   font-weight: 600;
-  font-family: var(--sans);
+  font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 150ms ease;
+  transition: all var(--duration-fast) var(--ease);
   white-space: nowrap;
 }
 
 .funnel-export-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--color-brand);
+  color: var(--color-brand);
+  background: color-mix(in srgb, var(--color-brand) 6%, var(--color-surface));
 }
 
 .funnel-export-btn:disabled {
@@ -143,17 +145,18 @@
 /* ── Metric Comparison ───────────────────────────────────────────────────── */
 
 .funnel-metric-comparison {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  margin-top: 2px;
+  font-family: var(--font-data);
+  margin-top: 4px;
 }
 
 .funnel-metric-comparison.positive {
-  color: var(--good, #10b981);
+  color: var(--color-success);
 }
 
 .funnel-metric-comparison.negative {
-  color: var(--danger, #ef4444);
+  color: var(--color-error);
 }
 
 /* ── Bottleneck Banner ────────────────────────────────────────────────────── */
@@ -162,18 +165,17 @@
   display: flex;
   gap: 12px;
   padding: 14px 16px;
-  border: 1px solid var(--warning-border, #d97706);
-  border-left: 4px solid var(--warning, #f59e0b);
+  border: 1px solid var(--color-warning-border);
   border-radius: var(--funnel-radius);
-  background: var(--warning-bg, rgba(245, 158, 11, 0.08));
+  background: color-mix(in srgb, var(--color-warning) 6%, var(--color-surface));
   margin-bottom: 2rem;
   align-items: flex-start;
 }
 
 .funnel-bottleneck-icon {
-  color: var(--warning, #f59e0b);
+  color: var(--color-warning);
   flex-shrink: 0;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
 .funnel-bottleneck-content {
@@ -199,79 +201,156 @@
 
 .funnel-metrics {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 1.5rem;
   margin-bottom: 2rem;
+  align-items: start;
 }
 
 .funnel-metric-card {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--funnel-radius);
-  padding: 16px;
+  padding: 1.5rem;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
+}
+
+.funnel-metric-card:first-child {
+  grid-row: 1 / 3;
+  min-height: 180px;
+  justify-content: center;
 }
 
 .funnel-metric-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
-  color: var(--muted);
+  color: var(--color-text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
+  font-family: var(--font-mono);
 }
 
 .funnel-metric-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--accent);
+  font-size: 40px;
+  font-weight: 500;
+  color: var(--color-brand);
+  font-family: var(--font-data);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+
+.funnel-metric-card:first-child .funnel-metric-value {
+  font-size: 56px;
 }
 
 .funnel-metric-secondary {
-  font-size: 12px;
-  color: var(--muted);
-  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 4px;
 }
 
 /* ── Chart Container ──────────────────────────────────────────────────────── */
 
 .funnel-chart-container {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--funnel-radius);
-  padding: 2rem;
+  padding: 3rem 2rem;
   margin-bottom: 2rem;
   overflow-x: auto;
+  min-height: 360px;
+  display: flex;
+  align-items: center;
 }
 
-.funnel-chart-svg {
-  min-width: 100%;
-  height: auto;
-  display: block;
+.fnl-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  min-width: 600px;
+}
+
+.fnl-step {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fnl-step-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  min-height: 44px;
+  border-radius: 6px;
+  background: var(--color-brand);
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  min-width: 120px;
+  transition: all 0.2s ease;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fnl-step-label {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fnl-step-value {
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.fnl-step-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  font-size: 11px;
+}
+
+.fnl-step-pct {
+  color: var(--color-text-muted);
+  font-family: var(--font-data);
+  font-weight: 600;
+}
+
+.fnl-step-drop {
+  color: var(--color-error);
+  font-weight: 600;
+  font-family: var(--font-data);
 }
 
 /* ── Active Sessions List ─────────────────────────────────────────────────── */
 
 .funnel-sessions {
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: var(--funnel-radius);
   overflow: hidden;
 }
 
 .funnel-sessions-header {
   padding: 16px 20px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 
 .funnel-sessions-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--ink);
+  font: 600 14px var(--font-serif);
+  color: var(--color-text);
   margin: 0;
 }
 
@@ -282,22 +361,26 @@
 }
 
 .funnel-sessions-table thead tr {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .funnel-sessions-table th {
   text-align: left;
   padding: 12px 16px;
   font-weight: 600;
-  color: var(--muted);
-  font-size: 11px;
+  color: var(--color-text-faint);
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   background: transparent;
 }
 
 .funnel-sessions-table td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--funnel-hair);
-  color: var(--ink);
+  color: var(--color-text);
+  font-size: 13px;
 }
 
 .funnel-sessions-table tr:last-child td {
@@ -305,41 +388,75 @@
 }
 
 .funnel-sessions-table tbody tr:hover {
-  background: var(--funnel-surface-raised);
+  background: var(--color-surface-raised);
+}
+
+.funnel-sessions-id {
+  font-family: var(--font-data);
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.funnel-sessions-score {
+  font-family: var(--font-data);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .funnel-sessions-stage {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: var(--accent-soft, rgba(59, 130, 246, 0.1));
-  color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  background: var(--color-brand-subtle);
+  color: var(--color-brand);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .funnel-sessions-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
   font-weight: 600;
 }
 
+.funnel-sessions-risk::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 .funnel-sessions-risk.risk-low {
-  color: var(--good, #10b981);
+  color: var(--color-success);
+}
+.funnel-sessions-risk.risk-low::before {
+  background: var(--color-success);
 }
 
 .funnel-sessions-risk.risk-med {
-  color: var(--warn, #f59e0b);
+  color: var(--color-warning);
+}
+.funnel-sessions-risk.risk-med::before {
+  background: var(--color-warning);
 }
 
 .funnel-sessions-risk.risk-high {
-  color: var(--danger, #ef4444);
+  color: var(--color-error);
+}
+.funnel-sessions-risk.risk-high::before {
+  background: var(--color-error);
 }
 
 .funnel-sessions-empty {
   padding: 32px;
   text-align: center;
-  color: var(--muted);
+  color: var(--color-text-muted);
   font-size: 13px;
 }
 

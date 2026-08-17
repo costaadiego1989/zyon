@@ -69,13 +69,13 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
             <tbody>
               {sessions.slice(0, 20).map((s) => (
                 <tr key={s.sessionId}>
-                  <td>{s.buyerPhone || "—"}</td>
-                  <td style={{ fontSize: "12px" }}>{maskEmail(s.buyerEmail)}</td>
+                  <td className="funnel-sessions-id">{s.buyerPhone || "—"}</td>
+                  <td className="funnel-sessions-id">{maskEmail(s.buyerEmail)}</td>
                   <td>{s.buyerName || "—"}</td>
                   <td>
                     <span className="funnel-sessions-stage">{STAGE_LABELS[s.stage] ?? s.stage}</span>
                   </td>
-                  <td style={{ color: "var(--muted)", fontSize: "12px" }}>{formatTime(s.lastActivityAt)}</td>
+                  <td style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>{formatTime(s.lastActivityAt)}</td>
                   <td style={{ textAlign: "center" }}>
                     <span className={`funnel-sessions-risk ${riskClass(s.abandonmentScore)}`}>
                       {riskLabel(s.abandonmentScore)}
