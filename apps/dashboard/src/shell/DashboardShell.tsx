@@ -43,7 +43,7 @@ const CategoriesPage = lazy(() => import("../pages/categories/index.js").then(m 
 const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
 const StoriesPage = lazy(() => import("../pages/stories-page.js").then(m => ({ default: m.StoriesPage })));
-const BillingPlansPage = lazy(() => import("../pages/billing-plans-page.js").then(m => ({ default: m.BillingPlansPage })));
+const BillingPlansPage = lazy(() => import("../pages/billing-plans/index.js").then(m => ({ default: m.BillingPlansPage })));
 
 function LoadingFallback() {
   return (
@@ -188,7 +188,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "theme" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "theme-checkout" ? <ThemePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "billing" ? <BillingPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "billing-plans" ? <BillingPlansPage currentPlan={me.plan ?? null} renewalDate={null} /> : null}
+            {tab === "billing-plans" ? <BillingPlansPage /> : null}
             {tab === "payment-connections" ? <PaymentConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "audit-log" ? <AuditLogPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "commerce-connections" ? <CommerceConnectionsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
