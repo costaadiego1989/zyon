@@ -19,7 +19,7 @@ export function StoreSettingsPage() {
   const vm = useStoreSettingsPage();
   const { state, setCompany, setPolicies, setSocial, setBusinessHours, setStyles, setActiveTab, setLogoUrl, setBudgetMode, setBudgetEmail, setBudgetWhatsapp, handleCepChange, handleSave, generatePolicy, dismiss } = vm;
   const seoVm = useSeoSettingsTab();
-  const { state: seoState, setSeo, setGtm, handleSave: handleSeoSave, handleGenerate, handleApplySuggestion, openGeneratorModal, closeGeneratorModal, toggleSection } = seoVm;
+  const { state: seoState, setSeo, setGtm, setSlug, handleSave: handleSeoSave, handleGenerate, handleApplySuggestion, openGeneratorModal, closeGeneratorModal, toggleSection } = seoVm;
 
   if (state.loading || seoState.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>Carregando...</div>;
 
@@ -60,6 +60,7 @@ export function StoreSettingsPage() {
             <SeoGtmTab
               seo={seoState.seo}
               gtm={seoState.gtm}
+              slug={seoState.slug}
               errors={seoState.errors}
               saving={seoState.saving}
               generatingAi={seoState.generatingAi}
@@ -68,6 +69,7 @@ export function StoreSettingsPage() {
               expandedSections={seoState.expandedSections}
               onSeoChange={setSeo}
               onGtmChange={setGtm}
+              onSlugChange={setSlug}
               onSave={handleSeoSave}
               onGenerate={handleGenerate}
               onApplySuggestion={handleApplySuggestion}

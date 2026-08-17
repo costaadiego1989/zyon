@@ -6,6 +6,7 @@ import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsResponse, SeoTone 
 export interface SeoGtmTabState {
   seo: SeoSettings;
   gtm: GtmSettings;
+  slug: string;
   loading: boolean;
   saving: boolean;
   generatingAi: boolean;
@@ -24,6 +25,7 @@ export function useSeoSettingsTab() {
   const [state, setState] = useState<SeoGtmTabState>({
     seo: EMPTY_SEO,
     gtm: EMPTY_GTM,
+    slug: "",
     loading: true,
     saving: false,
     generatingAi: false,
@@ -37,12 +39,16 @@ export function useSeoSettingsTab() {
     let cancelled = false;
     (async () => {
       try {
-        const result = await api.getSeoSettings();
+        const [seoResult, storeResult] = await Promise.all([
+          api.getSeoSettings(),
+          api.getStoreSettings(),
+        ]);
         if (cancelled) return;
         setState((p) => ({
           ...p,
-          seo: result.seo ?? EMPTY_SEO,
-          gtm: result.gtm ?? EMPTY_GTM,
+          seo: seoResult.seo ?? EMPTY_SEO,
+          gtm: seoResult.gtm ?? EMPTY_GTM,
+          slug: (storeResult as any)?.slug ?? "",
           loading: false,
         }));
       } catch {
@@ -68,6 +74,10 @@ export function useSeoSettingsTab() {
     });
   }, []);
 
+  const setSlug = useCallback((slug: string) => {
+    setState((p) => ({ ...p, slug }));
+  }, []);
+
   const handleSave = useCallback(async () => {
     const seoErrors = validateSeo(state.seo);
     const gtmErrors = validateGtm(state.gtm);
@@ -80,14 +90,17 @@ export function useSeoSettingsTab() {
 
     setState((p) => ({ ...p, saving: true }));
     try {
-      await api.putSeoSettings({ seo: state.seo, gtm: state.gtm });
+      await Promise.all([
+        api.putSeoSettings({ seo: state.seo, gtm: state.gtm }),
+        api.putStoreSettings({ slug: state.slug }),
+      ]);
       setState((p) => ({ ...p, saving: false }));
       showToast("success", "Configurações de SEO salvas com sucesso");
     } catch (e) {
       setState((p) => ({ ...p, saving: false }));
       showToast("error", e instanceof Error ? e.message : "Erro ao salvar SEO");
     }
-  }, [state.seo, state.gtm, api]);
+  }, [state.seo, state.gtm, state.slug, api]);
 
   const handleGenerate = useCallback(async (prompt: string, tone: SeoTone, storeCategory?: string) => {
     setState((p) => ({ ...p, generatingAi: true }));
@@ -121,6 +134,7 @@ export function useSeoSettingsTab() {
     state,
     setSeo,
     setGtm,
+    setSlug,
     handleSave,
     handleGenerate,
     handleApplySuggestion,

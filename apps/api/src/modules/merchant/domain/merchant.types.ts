@@ -46,6 +46,7 @@ export interface MerchantStoreSettings {
   };
   seo?: SeoSettings;
   gtm?: GtmSettings;
+  slug?: string;
 }
 
 export interface MerchantProfile {

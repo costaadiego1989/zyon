@@ -134,6 +134,7 @@ function SeoGeneratorModal({
 export interface SeoGtmTabProps {
   seo: SeoSettings;
   gtm: GtmSettings;
+  slug: string;
   errors: Record<string, string>;
   saving: boolean;
   generatingAi: boolean;
@@ -142,6 +143,7 @@ export interface SeoGtmTabProps {
   expandedSections?: { og: boolean; pixels: boolean };
   onSeoChange: (partial: Partial<SeoSettings>) => void;
   onGtmChange: (partial: Partial<GtmSettings>) => void;
+  onSlugChange: (slug: string) => void;
   onSave: () => void;
   onGenerate: (prompt: string, tone: SeoTone, category?: string) => void;
   onApplySuggestion: (titleIdx: number, descIdx: number, keywords: string[]) => void;
@@ -151,8 +153,8 @@ export interface SeoGtmTabProps {
 }
 
 export function SeoGtmTab({
-  seo, gtm, errors, saving, generatingAi, showGeneratorModal, suggestions, expandedSections,
-  onSeoChange, onGtmChange, onSave, onGenerate, onApplySuggestion, onOpenModal, onCloseModal, onToggleSection,
+  seo, gtm, slug, errors, saving, generatingAi, showGeneratorModal, suggestions, expandedSections,
+  onSeoChange, onGtmChange, onSlugChange, onSave, onGenerate, onApplySuggestion, onOpenModal, onCloseModal, onToggleSection,
 }: SeoGtmTabProps) {
   const [keywordInput, setKeywordInput] = useState("");
   const showOgSection = expandedSections?.og ?? false;
@@ -182,6 +184,25 @@ export function SeoGtmTab({
           <Button variant="primary" size="sm" onClick={onOpenModal}>
             <Sparkles size={14} /> Gerar com IA
           </Button>
+        </div>
+
+        {/* Slug */}
+        <div style={{ marginBottom: 16 }}>
+          <label style={labelStyle}>
+            Slug da loja (endereço)
+          </label>
+          <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1px solid ${errors.slug ? "var(--danger)" : "var(--border)"}`, borderRadius: 8, overflow: "hidden", background: "var(--bg)" }}>
+            <span style={{ padding: "10px 12px", font: "12px var(--mono)", color: "var(--faint)", background: "var(--surface, var(--card))", borderRight: "1px solid var(--border)", whiteSpace: "nowrap" }}>stores.zyon.com/store/</span>
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => onSlugChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+              placeholder="minha-loja"
+              style={{ flex: 1, padding: "10px 12px", font: "13px var(--mono)", color: "var(--ink)", border: "none", outline: "none", background: "transparent" }}
+            />
+          </div>
+          {slug && <span style={{ font: "11px var(--mono)", color: "var(--faint)", marginTop: 4, display: "block" }}>URL: https://stores.zyon.com/store/{slug}</span>}
+          <FieldError error={errors.slug} />
         </div>
 
         {/* Title */}
