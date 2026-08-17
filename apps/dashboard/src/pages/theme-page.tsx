@@ -406,6 +406,14 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               />
 
               <ImageUploader
+                label="Favicon"
+                hint="Ícone da aba do navegador (32×32px recomendado)"
+                value={theme.faviconUrl}
+                onChange={(url) => patch({ faviconUrl: url })}
+                height={64}
+              />
+
+              <ImageUploader
                 label="Avatar do assistente"
                 hint="Foto do agente na conversa"
                 value={theme.agentAvatarUrl}

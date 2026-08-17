@@ -40,7 +40,6 @@ export function StoreSettingsPage() {
           { key: "company", label: "Empresa" },
           { key: "policies", label: "Políticas" },
           { key: "social", label: "Redes Sociais" },
-          { key: "styles", label: "Estilos" },
           { key: "seo-gtm", label: "SEO & GTM" },
           { key: "budget", label: "Orçamento" },
         ]}
@@ -55,7 +54,6 @@ export function StoreSettingsPage() {
           {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} />}
           {state.activeTab === "policies" && <PoliciesTab policies={state.policies} onChange={setPolicies} onGenerate={generatePolicy} generatingPolicy={state.generatingPolicy} />}
           {state.activeTab === "social" && <SocialTab social={state.social} onChange={setSocial} />}
-          {state.activeTab === "styles" && <StylesTab styles={state.styles} onChange={setStyles} />}
           {state.activeTab === "seo-gtm" && (
             <SeoGtmTab
               seo={seoState.seo}

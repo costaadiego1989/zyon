@@ -257,6 +257,7 @@ export interface MerchantTheme {
   backgroundColor: string;
   fontFamily: string;
   logoUrl?: string;
+  faviconUrl?: string;
   agentAvatarUrl?: string;
   surfaceColor?: string;
   surfaceElevatedColor?: string;
