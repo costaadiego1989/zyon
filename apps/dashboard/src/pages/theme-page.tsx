@@ -5,6 +5,7 @@ import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "..
 import { CheckoutPreviewWidget } from "../components/CheckoutPreviewWidget.js";
 import { ImageUploader } from "../components/ImageUploader.js";
 import { showToast } from "../components/Toast.js";
+import { Button } from "../components/Button.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -259,12 +260,12 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         </div>
         <div className="button-row">
           {dirty && <span className="badge warn">Alterações não salvas</span>}
-          <button type="button" onClick={reset} disabled={busy} style={{ minHeight: 36 }}>
-            <RotateCcw size={14} /> Resetar
-          </button>
-          <button type="button" className="btn-primary" onClick={() => void save()} disabled={busy} style={{ minHeight: 36 }}>
-            <Save size={14} /> Salvar
-          </button>
+          <Button variant="ghost" onClick={reset} disabled={busy}>
+            <RotateCcw size={14} style={{ marginRight: 6 }} /> Resetar
+          </Button>
+          <Button variant="primary" arrow onClick={() => void save()} disabled={busy} loading={busy}>
+            <Save size={14} style={{ marginRight: 6 }} /> Salvar
+          </Button>
         </div>
       </header>
 
@@ -360,9 +361,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   placeholder="Ex: Compra Segura, Frete Grátis..."
                   disabled={!canAddBadge(badgesText)}
                 />
-                <button type="button" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)} style={{ minHeight: 40, whiteSpace: 'nowrap' }}>
+                <Button variant="outline" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)}>
                   Adicionar selo
-                </button>
+                </Button>
               </div>
               <span className="field-hint">{parseBadges(badgesText).length}/4 selos</span>
             </div>
