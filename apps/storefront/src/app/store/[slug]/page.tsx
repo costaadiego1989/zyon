@@ -275,8 +275,21 @@ export default async function StorePage({
     config?.storeSettings?.social?.linkedin,
   ].filter(Boolean) as string[];
 
+  // Build Google Fonts URL from merchant font config
+  const fontFamilies = [config?.theme.fontFamily, config?.theme.fontDisplay]
+    .filter(Boolean)
+    .map((f) => f!.split(",")[0].trim().replace(/'/g, ""))
+    .filter((f) => f && !f.includes("system-ui") && !f.includes("ui-sans-serif") && !f.includes("sans-serif") && !f.includes("serif") && !f.includes("monospace"));
+  const uniqueFonts = [...new Set(fontFamilies)];
+  const googleFontsUrl = uniqueFonts.length > 0
+    ? `https://fonts.googleapis.com/css2?${uniqueFonts.map((f) => `family=${encodeURIComponent(f)}:wght@400;500;600;700`).join("&")}&display=swap`
+    : null;
+
   return (
     <>
+      {googleFontsUrl && (
+        <link rel="stylesheet" href={googleFontsUrl} />
+      )}
       <style dangerouslySetInnerHTML={{ __html: themeCss }} />
       <style dangerouslySetInnerHTML={{ __html: `
         .storefront-shell {
