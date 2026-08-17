@@ -88,8 +88,11 @@ export function FunnelPage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Merchan
       <div className={`fnl-body${vm.breakdown === "none" ? " no-breakdown" : ""}`}>
         {vm.data && <FunnelChart steps={vm.data.steps} transitions={vm.data.transitions} />}
 
-        {vm.breakdown !== "none" && vm.data?.breakdowns && (
-          <FunnelBreakdown breakdowns={vm.data.breakdowns} dimension={vm.breakdown} />
+        {vm.breakdown !== "none" && (
+          <FunnelBreakdown
+            breakdowns={vm.data?.breakdowns ?? {}}
+            dimension={vm.breakdown}
+          />
         )}
       </div>
 
