@@ -22,7 +22,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
       <header className="page-head">
         <div>
           <h1>Auditoria</h1>
-          <p className="page-lead">Login necessário para acompanhar as ações do painel.</p>
+          <p className="page-lead">Login necessário para acompanhar as ações do painel</p>
         </div>
       </header>
     );
@@ -34,7 +34,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
         <div>
           <span className="eyebrow"><ShieldCheck size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
           <h1>Log de Auditoria</h1>
-          <p className="page-lead">Acompanhe todas as ações realizadas no painel.</p>
+          <p className="page-lead">Acompanhe todas as ações realizadas no painel</p>
         </div>
         <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <Button variant="primary" size="sm" arrow onClick={vm.exportCsv} aria-label="Exportar registros">

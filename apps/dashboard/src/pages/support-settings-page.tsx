@@ -225,7 +225,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
         <header className="page-head">
           <div>
             <h1>Atendimento ao Comprador</h1>
-            <p className="page-lead">Login necessário para configurar o atendimento.</p>
+            <p className="page-lead">Login necessário para configurar o atendimento</p>
           </div>
         </header>
       </div>

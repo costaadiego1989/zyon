@@ -43,9 +43,9 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
       {/* Header — same pattern as CategoriesPage */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Stories</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Crie stories visuais para engajar compradores com promoções, destaques e novidades.</div>
+          <span className="eyebrow">LOJA</span>
+          <h1 >Stories</h1>
+          <p className="page-lead">Crie stories visuais para engajar compradores com promoções, destaques e novidades</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={() => vm.setShowCreateCategory(true)}>
           <Plus size={14} /> Nova Categoria

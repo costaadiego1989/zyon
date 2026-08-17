@@ -256,7 +256,7 @@ export function OverviewPage(props: OverviewPageProps) {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>INÍCIO</div>
+          <span className="eyebrow">INÍCIO</span>
           <h2
             style={{
               font: "700 22px var(--serif)",

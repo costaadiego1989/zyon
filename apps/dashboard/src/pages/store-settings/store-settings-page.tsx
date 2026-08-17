@@ -27,9 +27,9 @@ export function StoreSettingsPage() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--accent)", letterSpacing: "-0.02em", marginBottom: 6 }}>Configurações</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Dados da empresa, endereço, horários, políticas, redes sociais, SEO e GTM.</div>
+          <span className="eyebrow">LOJA</span>
+          <h1 >Configurações</h1>
+          <p className="page-lead">Dados da empresa, endereço, horários, políticas, redes sociais, SEO e GTM</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={state.activeTab === "seo-gtm" ? handleSeoSave : handleSave} disabled={state.saving || seoState.saving} loading={state.saving || seoState.saving}>
           <Save size={14} /> Salvar configurações

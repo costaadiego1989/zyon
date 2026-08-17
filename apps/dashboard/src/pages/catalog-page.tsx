@@ -185,7 +185,7 @@ export function CatalogPage(props: CatalogPageProps) {
         <header className="page-head">
           <div>
             <h1>Catálogo</h1>
-            <p className="page-lead">Login necessário.</p>
+            <p className="page-lead">Login necessário</p>
           </div>
         </header>
       </>
@@ -196,9 +196,9 @@ export function CatalogPage(props: CatalogPageProps) {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Catálogo</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Gerencie os produtos disponíveis na sua loja.</div>
+          <span className="eyebrow">LOJA</span>
+          <h1 >Catálogo</h1>
+          <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Button variant="outline" size="sm" onClick={() => setShowCsvModal(true)}>

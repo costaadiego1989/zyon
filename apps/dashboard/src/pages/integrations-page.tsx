@@ -40,7 +40,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
     return (
       <>
         <h1>Desenvolvedores</h1>
-        <p className="page-lead">Login necessário.</p>
+        <p className="page-lead">Login necessário</p>
       </>
     );
   }

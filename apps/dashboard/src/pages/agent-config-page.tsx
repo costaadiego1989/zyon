@@ -22,7 +22,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
       <header className="page-head">
         <div>
           <h1>Agente da loja</h1>
-          <p className="page-lead">Login necessário.</p>
+          <p className="page-lead">Login necessário</p>
         </div>
       </header>
     );
@@ -32,9 +32,9 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Agente da loja</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Personalize o agente que atende seus clientes.</div>
+          <span className="eyebrow">LOJA</span>
+          <h1 >Agente da loja</h1>
+          <p className="page-lead">Personalize o agente que atende seus clientes</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={() => void vm.handleSave()} disabled={!vm.loaded || vm.saving || vm.hasErrors} loading={vm.saving}>
           <Save size={14} /> Salvar alterações

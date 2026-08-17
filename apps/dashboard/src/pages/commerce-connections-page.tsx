@@ -231,7 +231,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
         <header className="page-head">
           <div>
             <h1>Conexões de Commerce</h1>
-            <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente.</p>
+            <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente</p>
           </div>
         </header>
         <div className="panel stacked">
@@ -254,7 +254,7 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
         <div>
           <span className="eyebrow">Commerce</span>
           <h1>Conexões de Plataforma</h1>
-          <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente.</p>
+          <p className="page-lead">Conecte sua loja para sincronizar produtos e pedidos automaticamente</p>
         </div>
         <Button variant="outline" disabled={isLoading || isBusy} onClick={() => void load()}>
           <RefreshCw size={15} className={isLoading ? "spin" : undefined} style={{ marginRight: 6 }} />

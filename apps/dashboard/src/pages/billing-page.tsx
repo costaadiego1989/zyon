@@ -138,9 +138,9 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
     return (
       <>
         <div style={{ marginBottom: 20 }}>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>CONTA</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Faturamento</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Login necessário para ver assinatura e faturas.</div>
+          <span className="eyebrow">CONTA</span>
+          <h1 >Faturamento</h1>
+          <p className="page-lead">Login necessário para ver assinatura e faturas</p>
         </div>
         <div style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-line)", borderRadius: 14, padding: "14px 18px", color: "var(--accent)", font: "13px var(--sans)" }}>
           <p style={{ margin: 0 }}>Faça login para acessar informações de faturamento.</p>
@@ -152,9 +152,9 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
   return (
     <>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>CONTA</div>
-        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Faturamento</h1>
-        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Gerencie sua assinatura e acompanhe o uso da plataforma.</div>
+        <span className="eyebrow">CONTA</span>
+        <h1 >Faturamento</h1>
+        <p className="page-lead">Gerencie sua assinatura e acompanhe o uso da plataforma</p>
       </div>
 
       <div role="status" aria-live="polite">

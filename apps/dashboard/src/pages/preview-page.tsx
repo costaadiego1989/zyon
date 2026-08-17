@@ -212,9 +212,9 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
     <div>
       {/* ── Title ── */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PREVIEW AO VIVO</div>
-        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>{title}</h1>
-        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>{subtitle}</div>
+        <span className="eyebrow">PREVIEW AO VIVO</span>
+        <h1 >{title}</h1>
+        <p className="page-lead">{subtitle}</p>
       </div>
 
       {/* ── Product tab toggle (only when BOTH) ── */}

@@ -30,7 +30,7 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
           <div>
             <span className="eyebrow">Pedidos</span>
             <h1>Pedidos e Envios</h1>
-            <p className="page-lead">Login necessário.</p>
+            <p className="page-lead">Login necessário</p>
           </div>
         </header>
       </div>
@@ -46,9 +46,9 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   return (
     <div>
       <div style={{ marginBottom: 20 }}>
-        <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>COMÉRCIO</div>
-        <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Pedidos e Envios</h1>
-        <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Acompanhe pedidos e envios gerados pelo checkout agêntico.</div>
+        <span className="eyebrow">COMÉRCIO</span>
+        <h1 >Pedidos e Envios</h1>
+        <p className="page-lead">Acompanhe pedidos e envios gerados pelo checkout agêntico</p>
       </div>
 
       {/* Stats — StatCard pattern (matches visão geral) */}

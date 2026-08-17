@@ -18,7 +18,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       <header className="page-head">
         <div>
           <h1>Equipe</h1>
-          <p className="page-lead">Login necessário para gerenciar a equipe.</p>
+          <p className="page-lead">Login necessário para gerenciar a equipe</p>
         </div>
       </header>
     );
@@ -30,7 +30,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         <div>
           <span className="eyebrow"><Users size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
           <h1>Equipe</h1>
-          <p className="page-lead">Gerencie os membros e agentes da sua loja.</p>
+          <p className="page-lead">Gerencie os membros e agentes da sua loja</p>
         </div>
         <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
           <Button variant="primary" size="sm" arrow onClick={() => setShowInviteModal(true)}>

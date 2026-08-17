@@ -2,6 +2,7 @@ import React from "react";
 import { Settings, Lock } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
+import { SectionHeader } from "../components/SectionHeader.js";
 import { FormField } from "../components/FormField.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
 
@@ -13,7 +14,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
       <header className="page-head">
         <div>
           <h1>Configurações</h1>
-          <p className="page-lead">Login necessário para acessar configurações da conta.</p>
+          <p className="page-lead">Login necessário para acessar configurações da conta</p>
         </div>
       </header>
     );
@@ -23,9 +24,9 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
     <>
       <header className="page-head">
         <div>
-          <span className="eyebrow"><Settings size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
+          <span className="eyebrow">Conta</span>
           <h1>Configurações</h1>
-          <p className="page-lead">Gerencie seus dados pessoais e credenciais de acesso.</p>
+          <p className="page-lead">Gerencie seus dados pessoais e credenciais de acesso</p>
         </div>
       </header>
 
@@ -35,9 +36,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
 
       {/* Profile section */}
       <section className="panel stacked">
-        <div className="panel-title">
-          <h2>Dados pessoais</h2>
-        </div>
+        <SectionHeader title="Dados pessoais" variant="secondary" />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <FormField label="Nome completo" placeholder="Seu nome" value={vm.form.name} onChange={(v) => vm.setForm((f) => ({ ...f, name: v }))} />
@@ -54,9 +53,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
 
       {/* Password section */}
       <section className="panel stacked" style={{ marginTop: 16 }}>
-        <div className="panel-title">
-          <h2>Alterar senha</h2>
-        </div>
+        <SectionHeader title="Alterar senha" variant="secondary" />
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <FormField label="Senha atual" type="password" placeholder="••••••••" value={vm.passwordForm.currentPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, currentPassword: v }))} />

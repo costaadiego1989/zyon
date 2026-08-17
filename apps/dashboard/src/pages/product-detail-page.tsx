@@ -360,7 +360,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
       <header className="page-head">
         <div>
           <h1>Produto</h1>
-          <p className="page-lead">Login necessário.</p>
+          <p className="page-lead">Login necessário</p>
         </div>
       </header>
     );
@@ -377,8 +377,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           >
             <ArrowLeft size={12} /> Voltar para o catálogo
           </button>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA / CATÁLOGO</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>{isEditing ? "Editar produto" : "Novo produto"}</h1>
+          <span className="eyebrow">LOJA / CATÁLOGO</span>
+          <h1 >{isEditing ? "Editar produto" : "Novo produto"}</h1>
         </div>
         <Button variant="primary" size="sm" arrow disabled={!canSave} onClick={() => void handleSave()}>
           <Save size={14} /> {saving ? "Salvando..." : isEditing ? "Salvar alterações" : "Criar produto"}

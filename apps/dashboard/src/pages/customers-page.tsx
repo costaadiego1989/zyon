@@ -243,7 +243,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         <header className="page-head">
           <div>
             <h1>Clientes</h1>
-            <p className="page-lead">Login necessário.</p>
+            <p className="page-lead">Login necessário</p>
           </div>
         </header>
       </>
@@ -254,9 +254,9 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
-          <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>COMPRADORES</div>
-          <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Clientes</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Visualize e gerencie os compradores que interagiram com seu checkout.</div>
+          <span className="eyebrow">COMPRADORES</span>
+          <h1 >Clientes</h1>
+          <p className="page-lead">Visualize e gerencie os compradores que interagiram com seu checkout</p>
         </div>
         <button onClick={exportCsv} disabled={filteredRows.length === 0} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer", flex: "none" }}>
           <Download size={14} /> Exportar CSV
@@ -412,15 +412,15 @@ function CustomerDetailModal({
             {/* Metrics */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
               <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
-                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PEDIDOS</div>
+                <span className="eyebrow">PEDIDOS</span>
                 <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>{totalOrders}</div>
               </div>
               <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
-                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>RECEITA</div>
+                <span className="eyebrow">RECEITA</span>
                 <div style={{ font: "600 16px var(--mono)", color: "var(--accent)" }}>R$ {totalRevenue.toFixed(2)}</div>
               </div>
               <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
-                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>TICKET MÉDIO</div>
+                <span className="eyebrow">TICKET MÉDIO</span>
                 <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>R$ {avgTicket.toFixed(2)}</div>
               </div>
             </div>
@@ -429,11 +429,11 @@ function CustomerDetailModal({
             {row && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                 <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>PRIMEIRA VISITA</div>
+                  <span className="eyebrow">PRIMEIRA VISITA</span>
                   <div style={{ font: "13px var(--mono)", color: "var(--ink)" }}>{formatDate(row.firstSeen)}</div>
                 </div>
                 <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
-                  <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>ÚLTIMA ATIVIDADE</div>
+                  <span className="eyebrow">ÚLTIMA ATIVIDADE</span>
                   <div style={{ font: "13px var(--mono)", color: "var(--ink)" }}>{formatDate(row.lastSeen)}</div>
                 </div>
               </div>

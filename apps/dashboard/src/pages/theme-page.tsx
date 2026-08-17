@@ -258,7 +258,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         <div>
           <span className="eyebrow">CHECKOUT</span>
           <h1>Aparência do checkout</h1>
-          <p className="page-lead">Adapte cores, fontes e imagens para combinar com sua marca.</p>
+          <p className="page-lead">Adapte cores, fontes e imagens para combinar com sua marca</p>
         </div>
         <div className="button-row">
           {dirty && <span className="badge warn">Alterações não salvas</span>}
