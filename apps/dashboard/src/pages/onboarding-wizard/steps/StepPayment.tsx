@@ -1,6 +1,7 @@
 import React from "react";
 import type { PaymentDraft } from "../useOnboardingWizard.js";
 import { isValidEvmAddress } from "../useOnboardingWizard.js";
+import { Button } from "../../../components/Button.js";
 
 type StepPaymentProps = {
   paymentDraft: PaymentDraft;
@@ -34,9 +35,9 @@ export function StepPayment({
             </span>
             <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>Cartão de crédito e débito internacionais</p>
           </div>
-          <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.stripeStatus === "active"} style={{ height: 36, padding: "0 16px", fontSize: "12px" }} onClick={() => void initiateStripeOnboarding()}>
+          <Button variant="outline" size="sm" disabled={busy || paymentDraft.stripeStatus === "active"} onClick={() => void initiateStripeOnboarding()}>
             {paymentDraft.stripeStatus === "active" ? "Ativo" : "Configurar"}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -49,9 +50,9 @@ export function StepPayment({
             </span>
             <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>PIX e boleto para clientes brasileiros. Subconta criada automaticamente.</p>
           </div>
-          <button type="button" className="onb-cta onb-cta-inline" disabled={busy || paymentDraft.asaasStatus === "active"} style={{ height: 36, padding: "0 16px", fontSize: "12px" }} onClick={() => void initiateAsaasOnboarding()}>
+          <Button variant="outline" size="sm" disabled={busy || paymentDraft.asaasStatus === "active"} onClick={() => void initiateAsaasOnboarding()}>
             {paymentDraft.asaasStatus === "testing" ? "Conectando..." : paymentDraft.asaasStatus === "active" ? "Ativo" : "Conectar"}
-          </button>
+          </Button>
         </div>
         {paymentDraft.asaasStatus === "active" && <span style={{ fontSize: "12px", color: "var(--color-success)", marginTop: "4px", display: "block" }}>✓ Subconta Asaas ativa</span>}
       </div>

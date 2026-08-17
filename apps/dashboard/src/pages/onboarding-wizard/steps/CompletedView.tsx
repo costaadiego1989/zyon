@@ -1,5 +1,6 @@
 import React from "react";
 import { Rocket } from "lucide-react";
+import { Button } from "../../../components/Button.js";
 
 type CompletedViewProps = {
   name: string;
@@ -27,12 +28,10 @@ export function CompletedView({ name, onFinished }: CompletedViewProps) {
         <p className="onb-complete-lead">
           Seu agente de vendas está pronto para converter. Compradores já podem interagir com o checkout assistido na sua loja.
         </p>
-        <button type="button" className="onb-cta" onClick={onFinished}>
-          <span className="onb-cta-face">
-            <Rocket size={15} />
-            Ir para o painel
-          </span>
-        </button>
+        <Button variant="primary" arrow onClick={onFinished}>
+          <Rocket size={15} style={{ marginRight: 8 }} />
+          Ir para o painel
+        </Button>
       </div>
     </div>
   );
