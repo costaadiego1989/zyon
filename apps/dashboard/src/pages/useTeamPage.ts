@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import type { MerchantProfile } from "../api-client.js";
 
@@ -42,8 +41,8 @@ const ROLE_LABELS: Record<MemberRole, string> = {
 
 export { ROLE_LABELS };
 
-export function useTeamPage(props: { me: MerchantProfile | null }) {
-  const api = useApi();
+export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: string }) {
+  const baseUrl = props.apiBaseUrl.replace(/\/+$/, "");
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -61,7 +60,7 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${(api as any).baseUrl ?? ""}/merchants/${merchantId}/team`, {
+      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -84,7 +83,7 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
     setInviting(true);
     setMessage(null);
     try {
-      const res = await fetch(`${(api as any).baseUrl ?? ""}/merchants/${merchantId}/team/invite`, {
+      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team/invite`, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -108,7 +107,7 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
     if (!merchantId) return;
     setMessage(null);
     try {
-      const res = await fetch(`${(api as any).baseUrl ?? ""}/merchants/${merchantId}/team/${userId}/role`, {
+      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team/${userId}/role`, {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -127,7 +126,7 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
     setRemovingId(userId);
     setMessage(null);
     try {
-      const res = await fetch(`${(api as any).baseUrl ?? ""}/merchants/${merchantId}/team/${userId}`, {
+      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team/${userId}`, {
         method: "DELETE",
         credentials: "include",
       });

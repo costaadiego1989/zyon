@@ -5,7 +5,7 @@ import { Button } from "../components/Button.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const vm = useTeamPage({ me: props.me });
+  const vm = useTeamPage({ me: props.me, apiBaseUrl: props.apiBaseUrl });
 
   if (!props.me) {
     return (
@@ -41,8 +41,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       {/* Invite section */}
       <section className="panel stacked">
         <div className="panel-title">
-          <UserPlus size={18} />
-          <h2>Convidar membro</h2>
+          <h2><UserPlus size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Convidar membro</h2>
         </div>
         <p style={{ fontSize: 13, color: "var(--color-muted)", margin: "0 0 16px" }}>
           Envie um convite por e-mail. O novo membro receberá uma senha provisória para acessar o painel.
@@ -74,8 +73,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       {/* Members list */}
       <section className="panel stacked" style={{ marginTop: 16 }}>
         <div className="panel-title">
-          <Shield size={18} />
-          <h2>Membros ativos</h2>
+          <h2><Shield size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Membros ativos</h2>
         </div>
 
         {vm.loading ? (
@@ -154,8 +152,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       {vm.invites.length > 0 ? (
         <section className="panel stacked" style={{ marginTop: 16 }}>
           <div className="panel-title">
-            <Mail size={18} />
-            <h2>Convites pendentes</h2>
+            <h2><Mail size={18} style={{ verticalAlign: "middle", marginRight: 8 }} />Convites pendentes</h2>
           </div>
           <div className="table-wrap">
             <table className="data-table">
