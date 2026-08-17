@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { io, type Socket } from "socket.io-client";
+import type { Socket } from "socket.io-client";
 
 interface SupportMessage {
   id: string;
@@ -59,25 +59,29 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
   // Connect to support socket when handoff ticket is created
   useEffect(() => {
     if (!ticketId) return;
-    const socket = io(`${API_BASE}/support`, { transports: ["websocket", "polling"] });
-    socketRef.current = socket;
+    let socket: Socket | null = null;
+    void (async () => {
+      const { io } = await import("socket.io-client");
+      socket = io(`${API_BASE}/support`, { transports: ["websocket", "polling"] });
+      socketRef.current = socket;
 
-    socket.on("connect", () => {
-      socket.emit("join_ticket", { ticketId });
-    });
+      socket.on("connect", () => {
+        socket!.emit("join_ticket", { ticketId });
+      });
 
-    socket.on("new_message", (msg: { senderType: string; content: string }) => {
-      if (msg.senderType === "merchant") {
-        setMessages((prev) => [...prev, {
-          id: `m-${Date.now()}`,
-          role: "merchant",
-          text: msg.content,
-        }]);
-      }
-    });
+      socket.on("new_message", (msg: { senderType: string; content: string }) => {
+        if (msg.senderType === "merchant") {
+          setMessages((prev) => [...prev, {
+            id: `m-${Date.now()}`,
+            role: "merchant",
+            text: msg.content,
+          }]);
+        }
+      });
+    })();
 
     return () => {
-      socket.disconnect();
+      socket?.disconnect();
       socketRef.current = null;
     };
   }, [ticketId]);
@@ -152,9 +156,24 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
       // Attempt API call if merchantId exists
       if (merchantId) {
         try {
+          // Ensure embed token is available (fetch inline if not cached)
+          if (!embedTokenRef.current) {
+            try {
+              const tokenRes = await fetch("/api/checkout-token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ merchant_id: merchantId }),
+              });
+              if (tokenRes.ok) {
+                const tokenData = await tokenRes.json();
+                embedTokenRef.current = tokenData.embed_session_token ?? null;
+              }
+            } catch { /* proceed without token */ }
+          }
+
           const headers: Record<string, string> = { "Content-Type": "application/json" };
           if (embedTokenRef.current) {
-            headers["X-Embed-Token"] = embedTokenRef.current;
+            headers["x-aacp-embed-token"] = embedTokenRef.current;
           }
           const res = await fetch(`${API_BASE}/support/chat`, {
             method: "POST",
