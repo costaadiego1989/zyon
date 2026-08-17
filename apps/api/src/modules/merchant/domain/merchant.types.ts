@@ -1,4 +1,4 @@
-import type { MerchantRules, MerchantTheme } from "@zyon/shared-types";
+import type { MerchantRules, MerchantTheme, SeoSettings, GtmSettings } from "@zyon/shared-types";
 
 export interface MerchantStoreSettings {
   social?: {
@@ -44,6 +44,8 @@ export interface MerchantStoreSettings {
     fontDisplay?: string;
     fontFamily?: string;
   };
+  seo?: SeoSettings;
+  gtm?: GtmSettings;
 }
 
 export interface MerchantProfile {

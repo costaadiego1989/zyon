@@ -5,6 +5,7 @@ import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
 import { CartProvider } from "@/lib/cart-store";
 import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema } from "@/components/StructuredData";
 import { GoogleTagManager } from "@/components/GoogleTagManager";
+import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
@@ -46,6 +47,8 @@ interface StoreConfig {
     social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
     policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
+    seo?: { title?: string; description?: string; keywords?: string[]; ogTitle?: string; ogDescription?: string; ogImage?: string; twitterCard?: string; canonicalUrl?: string };
+    gtm?: { gtmId?: string; gaTrackingId?: string; pixelIds?: { facebook?: string; tiktok?: string; custom?: Record<string, string> }; dataLayerEnabled?: boolean };
   };
 }
 
@@ -83,32 +86,40 @@ export async function generateMetadata({
   const config = await fetchStoreConfig(slug);
   const merchant = config ? null : getDemoMerchant(slug);
   const name = config?.name ?? merchant?.name ?? "Zyon Store";
+  const seo = config?.storeSettings?.seo;
   const description =
+    seo?.description ??
     config?.description ??
     merchant?.description ??
     "Loja conversacional com atendimento por IA e checkout integrado.";
-  const logo = config?.logo ?? merchant?.logo;
+  const title = seo?.title ?? name;
+  const keywords = seo?.keywords?.join(", ");
+  const logo = seo?.ogImage ?? config?.logo ?? merchant?.logo;
+  const canonicalUrl = seo?.canonicalUrl ?? `${SITE_URL}/store/${slug}`;
+  const twitterCard = (seo?.twitterCard ?? "summary_large_image") as any;
+
   return {
     title: {
-      default: name,
+      default: title,
       template: `%s | ${name}`,
     },
     description,
+    keywords,
     themeColor: config?.theme.accentColor,
     category: config?.storeCategory,
     openGraph: {
-      title: name,
-      description,
+      title: seo?.ogTitle ?? title,
+      description: seo?.ogDescription ?? description,
       type: "website",
       siteName: name,
-      url: `${SITE_URL}/store/${slug}`,
+      url: canonicalUrl,
       locale: "pt_BR",
       images: logo ? [{ url: logo, width: 1200, height: 630, alt: name }] : [],
     },
     twitter: {
-      card: "summary_large_image",
-      title: name,
-      description,
+      card: twitterCard,
+      title: seo?.ogTitle ?? title,
+      description: seo?.ogDescription ?? description,
       images: logo ? [logo] : [],
     },
     robots: {
@@ -121,7 +132,7 @@ export async function generateMetadata({
       },
     },
     alternates: {
-      canonical: `${SITE_URL}/store/${slug}`,
+      canonical: canonicalUrl,
     },
     icons: config?.favicon ? { icon: config.favicon, apple: config.favicon } : undefined,
   };
@@ -148,10 +159,14 @@ export default async function StorePage({
 
   const name = config?.name ?? merchant!.name;
   const logo = config?.logo ?? merchant?.logo;
+  const seoConfig = config?.storeSettings?.seo;
   const description =
+    seoConfig?.description ??
     merchant?.description ??
     "Loja conversacional com atendimento por IA e checkout integrado.";
-  const gtmId = merchant?.gtmId;
+  const gtmId = config?.storeSettings?.gtm?.gtmId ?? merchant?.gtmId;
+  const fbPixelId = config?.storeSettings?.gtm?.pixelIds?.facebook;
+  const tiktokPixelId = config?.storeSettings?.gtm?.pixelIds?.tiktok;
 
   // Theme: merge from API config or demo merchant
   // Mode-based color defaults (override light-mode defaults when mode is dark/grey)
@@ -302,6 +317,8 @@ export default async function StorePage({
         ]}
       />
       {gtmId && <GoogleTagManager gtmId={gtmId} />}
+      {fbPixelId && <FacebookPixel pixelId={fbPixelId} />}
+      {tiktokPixelId && <TiktokPixel pixelId={tiktokPixelId} />}
       <div className="storefront-shell">
         <WidgetConfigProvider merchantId={config?.merchantId}>
           <CartProvider merchantId={config?.merchantId}>

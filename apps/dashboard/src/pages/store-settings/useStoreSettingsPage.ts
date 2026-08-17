@@ -9,7 +9,7 @@ export interface StoreSettingsState {
   social: SocialForm;
   businessHours: BusinessHour[];
   styles: StylesForm;
-  activeTab: "company" | "policies" | "social" | "styles";
+  activeTab: "company" | "policies" | "social" | "styles" | "seo-gtm" | "budget";
   loading: boolean;
   saving: boolean;
   saveResult: "success" | "error" | null;
@@ -274,7 +274,7 @@ export function useStoreSettingsPage() {
     setBudgetMode: (v: boolean) => setState((p) => ({ ...p, budgetMode: v })),
     setBudgetEmail: (v: string) => setState((p) => ({ ...p, budgetEmail: v })),
     setBudgetWhatsapp: (v: string) => setState((p) => ({ ...p, budgetWhatsapp: v })),
-    setActiveTab: (tab: "company" | "policies" | "social" | "styles") => setState((p) => ({ ...p, activeTab: tab })),
+    setActiveTab: (tab: "company" | "policies" | "social" | "styles" | "seo-gtm" | "budget") => setState((p) => ({ ...p, activeTab: tab })),
     handleCepChange,
     handleSave,
     generatePolicy,

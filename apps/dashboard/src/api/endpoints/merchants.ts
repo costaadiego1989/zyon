@@ -1,5 +1,23 @@
 import { dashboardJson } from "../http/client.js";
 import type { MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
+import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse } from "@zyon/shared-types";
+
+export interface SeoGtmConfig {
+  seo: SeoSettings;
+  gtm: GtmSettings;
+  lastUpdatedAt: string | null;
+}
+
+export interface UpdateSeoInput {
+  seo?: Partial<SeoSettings>;
+  gtm?: Partial<GtmSettings>;
+}
+
+export interface UpdateSeoOutput {
+  seo: SeoSettings;
+  gtm: GtmSettings;
+  updatedAt: string;
+}
 
 export function merchantEndpoints(base: string, f: typeof fetch) {
   return {
@@ -45,6 +63,18 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
 
     generatePolicy(type: string, company?: Record<string, unknown>): Promise<{ policy: string }> {
       return dashboardJson(base, "/merchants/me/generate-policy", { method: "POST", jsonBody: { type, company } }, f);
+    },
+
+    getSeoSettings(): Promise<SeoGtmConfig> {
+      return dashboardJson(base, "/merchants/me/store-settings/seo", { method: "GET" }, f);
+    },
+
+    putSeoSettings(body: UpdateSeoInput): Promise<UpdateSeoOutput> {
+      return dashboardJson(base, "/merchants/me/store-settings/seo", { method: "PUT", jsonBody: body }, f);
+    },
+
+    generateSeoSuggestions(body: GenerateSeoSuggestionsRequest): Promise<GenerateSeoSuggestionsResponse> {
+      return dashboardJson(base, "/merchants/me/store-settings/seo/generate", { method: "POST", jsonBody: body }, f);
     },
 
     deleteStorageObject(url: string): Promise<{ deleted: boolean }> {

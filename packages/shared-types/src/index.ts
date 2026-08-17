@@ -244,6 +244,7 @@ export interface CheckoutSession {
 export interface StartCheckoutRequest {
   merchant_id: string;
   session_id?: string;
+  cart_ref?: string;
   customer?: CustomerHints;
   cart: Cart;
   shipping?: ShippingQuote;
@@ -1096,6 +1097,51 @@ export interface AdvancedRule {
   action: RuleAction;
   enabled: boolean;
   priority: number;
+}
+
+// ── SEO & GTM ───────────────────────────────────────────────────────────────
+
+export type TwitterCardType = "summary" | "summary_large_image";
+
+export type SeoTone = "profissional" | "casual" | "luxo" | "técnico";
+
+export interface SeoSettings {
+  title?: string;
+  description?: string;
+  keywords?: string[];
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  twitterCard?: TwitterCardType;
+  canonicalUrl?: string;
+  generatedAt?: string;
+  generatedBy?: string;
+}
+
+export interface PixelIds {
+  facebook?: string;
+  tiktok?: string;
+  custom?: Record<string, string>;
+}
+
+export interface GtmSettings {
+  gtmId?: string;
+  gaTrackingId?: string;
+  pixelIds?: PixelIds;
+  dataLayerEnabled?: boolean;
+  eventsTracked?: string[];
+}
+
+export interface GenerateSeoSuggestionsRequest {
+  prompt: string;
+  tone: SeoTone;
+  storeCategory?: string;
+}
+
+export interface GenerateSeoSuggestionsResponse {
+  titles: [string, string, string];
+  descriptions: [string, string, string];
+  keywords: string[];
 }
 
 // ── OAuth ───────────────────────────────────────────────────────────────────
