@@ -506,7 +506,10 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
-    if (toolResults["list_categories"]) {
+    // Skip category carousel when search_products was called in the same turn
+    // (list_categories was used to get categoryId, then search filtered by it — don't show categories again)
+    const skipCategoryCarousel = !!toolResults["search_products"];
+    if (toolResults["list_categories"] && !skipCategoryCarousel) {
       const catData = toolResults["list_categories"] as any;
       if (catData?.categories?.length > 0) {
         blocks.push({
@@ -716,6 +719,7 @@ export class StorefrontLangGraphAgent {
       "- 'Ver Produtos' → use search_products com query '*' para listar produtos disponíveis. NÃO use list_categories.",
       "- 'Encontrar Produto' → peça ao cliente o nome/tipo do produto, depois use search_products com a query informada.",
       "- 'Categorias' → use list_categories. Responda 'Aqui estão nossas categorias:'.",
+      "- Quando o cliente CLICA numa categoria (ex: 'Acessórios', 'Roupas', nome de categoria) → use APENAS search_products com categoryId. NÃO chame list_categories novamente.",
       "- 'Ver produtos de [Categoria]' → use search_products com categoryId da categoria mencionada. NÃO liste categorias novamente.",
       "- 'Prazo de Entrega' → peça o CEP ao cliente. Depois use quote_shipping.",
       "- 'Trocas e Devoluções' → use get_store_policies com policyType 'returns'. Responda com a política da loja.",
@@ -740,13 +744,14 @@ export class StorefrontLangGraphAgent {
       "- 'Garantia' → use get_store_policies com policyType 'warranty'.",
       "",
       "ADICIONAR AO CARRINHO — REGRA OBRIGATÓRIA (NUNCA IGNORE):",
-      "- SEMPRE que o cliente menciona 'Adicionar', 'adicionar', 'carrinho' na mensagem: OBRIGATÓRIO chamar add_item_to_cart.",
+      "- SEMPRE que o cliente menciona 'Adicionar', 'adicionar', 'carrinho', 'quero', 'comprar' na mensagem: OBRIGATÓRIO chamar add_item_to_cart.",
       "- Passo 1: use search_products com o nome do produto para obter o ID.",
       "- Passo 2: use add_item_to_cart com variantId = campo 'id' do primeiro resultado de search_products, quantity = 1.",
       "- NUNCA responda sem chamar add_item_to_cart quando o cliente pede para adicionar.",
       "- NUNCA diga que adicionou sem ter chamado a tool add_item_to_cart.",
       "- Se o produto já apareceu no resultado de search_products anterior na MESMA conversa, pode usar o ID direto sem buscar novamente.",
       "- NÃO peça confirmação — adicione direto.",
+      "- SEGUNDA, TERCEIRA ou QUALQUER adição subsequente: DEVE chamar add_item_to_cart novamente. Cada adição é uma nova chamada. Não reutilize resultado anterior de add_item_to_cart.",
       "- Após add_item_to_cart retornar sucesso: responda EXATAMENTE '{nome_do_produto} adicionado ao carrinho!'",
       "- Se retornar error: responda 'Não consegui adicionar. Tente novamente.'",
       "",
