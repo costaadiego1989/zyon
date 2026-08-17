@@ -392,7 +392,10 @@ export class StorefrontLangGraphAgent {
         });
       }
     }
-    if (toolResults["get_product_details"]) {
+    // Skip product_card when get_similar_products was called in the same turn
+    // (get_product_details was used only to resolve the product ID for similar lookup)
+    const skipProductCard = !!toolResults["get_similar_products"] || !!toolResults["compare_products"];
+    if (toolResults["get_product_details"] && !skipProductCard) {
       const detailData = toolResults["get_product_details"] as any;
       if (detailData?.product) {
         const p = detailData.product;
