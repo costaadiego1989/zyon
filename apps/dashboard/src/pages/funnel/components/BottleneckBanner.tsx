@@ -29,7 +29,7 @@ export function BottleneckBanner({ bottleneck, steps }: BottleneckBannerProps): 
       </svg>
       <div className="funnel-bottleneck-content">
         <p className="funnel-bottleneck-title">
-          Gargalo detectado: {stepLabel} ({(bottleneck.dropOff * 100).toFixed(0)}% de perda)
+          Gargalo detectado: {stepLabel} ({bottleneck.dropOff.toFixed(0)}% de perda)
         </p>
         <p className="funnel-bottleneck-text">{bottleneck.suggestion}</p>
       </div>

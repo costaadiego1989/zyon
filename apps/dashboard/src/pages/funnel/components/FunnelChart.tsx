@@ -17,8 +17,8 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
         step,
         transition,
         opacity,
-        dropOffPct: transition ? (transition.dropOff * 100).toFixed(0) : "0",
-        showDropOff: transition && transition.dropOff > 0.4,
+        dropOffPct: transition ? transition.dropOff.toFixed(0) : "0",
+        showDropOff: transition && transition.dropOff > 40,
       };
     });
   }, [steps, transitions]);

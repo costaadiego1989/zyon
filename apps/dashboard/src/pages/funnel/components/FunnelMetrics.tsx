@@ -43,8 +43,8 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
       {/* Primary: Conversion Rate (featured, larger) */}
       <div className="funnel-metric-card">
         <span className="funnel-metric-label">Conversão Geral</span>
-        <span className="funnel-metric-value">{(overallConversion * 100).toFixed(1)}%</span>
-        {previous && renderComparison(overallConversion * 100, previous.overallConversion * 100)}
+        <span className="funnel-metric-value">{overallConversion.toFixed(1)}%</span>
+        {previous && renderComparison(overallConversion, previous.overallConversion)}
       </div>
 
       {/* Secondary Row 1: Total Sessions */}
@@ -57,7 +57,7 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
       {/* Secondary Row 2: Biggest Drop-off */}
       <div className="funnel-metric-card">
         <span className="funnel-metric-label">Maior Drop-off</span>
-        <span className="funnel-metric-value">{(biggestDropOff * 100).toFixed(0)}%</span>
+        <span className="funnel-metric-value">{biggestDropOff.toFixed(0)}%</span>
         <span className="funnel-metric-secondary">{dropOffStepLabel}</span>
       </div>
     </div>
