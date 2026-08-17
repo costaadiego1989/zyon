@@ -6,6 +6,7 @@ import {
 } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
+import { Button } from "../components/Button.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -161,25 +162,13 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
             Acompanhe todas as ações realizadas no painel.
           </p>
         </div>
-        <div className="button-row" style={{ marginLeft: "auto" }}>
-          <button
-            type="button"
-            disabled={loading}
-            onClick={() => void load()}
-            aria-label="Atualizar log de auditoria"
-          >
-            <RefreshCw size={16} />
-            Atualizar
-          </button>
-          <button
-            type="button"
-            className="primary-action"
-            onClick={() => exportCsv(filteredEvents)}
-            aria-label="Exportar registros"
-          >
-            <Download size={16} />
-            Exportar
-          </button>
+        <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+          <Button variant="outline" size="sm" disabled={loading} onClick={() => void load()}>
+            <RefreshCw size={14} /> Atualizar
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => exportCsv(filteredEvents)}>
+            <Download size={14} /> Exportar
+          </Button>
         </div>
       </header>
 
