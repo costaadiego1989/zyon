@@ -22,7 +22,7 @@ export class RequestPasswordResetUseCase {
     const user = await this.repo.findUserByEmail(normalized);
 
     if (!user) {
-      this.logger.debug(`Password reset requested for unknown email: ${normalized}`);
+      this.logger.debug("Password reset requested for unknown email");
       return { sent: true };
     }
 
@@ -31,9 +31,8 @@ export class RequestPasswordResetUseCase {
 
     await this.repo.storePasswordResetToken(user.id, token, expiresAt);
 
-    // Send email (fire-and-forget; token is stored regardless)
     await this.sendResetEmail(normalized, token).catch((err) => {
-      this.logger.error(`Failed to send reset email to ${normalized}: ${(err as Error).message}`);
+      this.logger.error("Failed to send reset email", { userId: user.id, error: (err as Error).message });
     });
 
     return { sent: true };
