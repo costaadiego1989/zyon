@@ -38,6 +38,27 @@ export interface ExperienceDeps {
   serviceFee?: number;
   suggestedProducts?: SuggestedProduct[];
   showBranding?: boolean;
+  merchantRulesForWidget?: {
+    maxDiscountPercent: number;
+    allowFreeShipping: boolean;
+    allowShippingDiscount: boolean;
+    freeShippingMinCartValue: number;
+    maxShippingSubsidy: number;
+    maxPartialShippingDiscount: number;
+    offerExpirationMinutes: number;
+    blockedRegions: string[];
+    brandVoice: string;
+    originZip?: string;
+  };
+  advancedRules?: string[];
+  visual?: {
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
+    borderRadius?: number;
+    fontFamily?: string;
+    fontDisplay?: string;
+  };
 }
 
 export interface CartSnapshot {
@@ -266,7 +287,10 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     shippingOptions: readyForFrete ? session.shippingOptions : undefined,
     copy: shippingOptionReplies
       ? { ...experience.copy, quick_replies: shippingOptionReplies }
-      : experience.copy
+      : experience.copy,
+    merchant_rules: deps.merchantRulesForWidget,
+    advanced_rules: deps.advancedRules,
+    visual: deps.visual,
   };
 }
 
