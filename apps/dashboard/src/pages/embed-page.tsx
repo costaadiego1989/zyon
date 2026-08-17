@@ -173,67 +173,14 @@ function ConfigTab(props: {
         </div>
       )}
 
-      <div className="panel" style={{ marginBottom: "var(--space-4)" }}>
-        <div className="panel-title">
-          <span>Domínio e sessão</span>
-        </div>
-        <p style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 16px", lineHeight: 1.5 }}>
-          Configure onde o widget será exibido e por quanto tempo cada sessão de checkout permanece ativa.
-        </p>
-
-        <div className="embed-config-grid">
-          <div className="embed-config-field">
-            <label htmlFor="cfg-origin" className="field-label">Domínio permitido</label>
-            <input
-              id="cfg-origin"
-              type="url"
-              value={props.allowedOrigin}
-              placeholder="https://minha-loja.com.br"
-              onChange={(e) => props.setAllowedOrigin(e.target.value)}
-            />
-            <span className="field-hint">URL do site onde o widget vai aparecer</span>
-            {validationErrors.allowedOrigin && <span className="field-error" role="alert">{validationErrors.allowedOrigin}</span>}
-          </div>
-
-          <div className="embed-config-field">
-            <label htmlFor="cfg-cart" className="field-label">Referência do carrinho</label>
-            <input
-              id="cfg-cart"
-              value={props.cartRef}
-              placeholder="cart_abc123"
-              onChange={(e) => props.setCartRef(e.target.value)}
-            />
-            <span className="field-hint">ID único da compra no seu sistema</span>
-            {validationErrors.cartRef && <span className="field-error" role="alert">{validationErrors.cartRef}</span>}
-          </div>
-
-          <div className="embed-config-field">
-            <label htmlFor="cfg-ttl" className="field-label">Validade da sessão</label>
-            <select
-              id="cfg-ttl"
-              value={props.ttl}
-              onChange={(e) => props.setTtl(Number(e.target.value))}
-            >
-              <option value={3600}>1 hora</option>
-              <option value={86400}>1 dia</option>
-              <option value={604800}>1 semana</option>
-              <option value={2592000}>1 mês</option>
-              <option value={31536000}>1 ano</option>
-              <option value={0}>Nunca expira</option>
-            </select>
-            <span className="field-hint">Quanto tempo o token fica ativo</span>
-            {validationErrors.ttl && <span className="field-error" role="alert">{validationErrors.ttl}</span>}
-          </div>
-        </div>
-      </div>
-
       <div className="panel">
         <div className="panel-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <span>Token de produção</span>
           {session && <span className="badge ok">Ativo</span>}
         </div>
         <p style={{ fontSize: 12, color: "var(--muted)", margin: "4px 0 16px", lineHeight: 1.5 }}>
-          Gere o token que autentica o widget no domínio configurado acima. Sem token, o widget funciona apenas em modo de preview.
+          Gere o token que autentica o widget. Necessário apenas para integração customizada (sem plugin).
+          Integrações nativas (WooCommerce, Magento, VTEX) configuram automaticamente.
         </p>
 
         <button type="button" className="btn-primary" disabled={busy} onClick={props.onGenerate}>
