@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
 
@@ -7,6 +7,7 @@ const DAYS = (days: number): number => days * 24 * 60 * 60 * 1_000;
 
 @Injectable()
 export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DataRetentionService.name);
   private timer: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
@@ -14,11 +15,11 @@ export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit(): void {
     if (process.env.DATA_RETENTION_ENABLED !== "true") {
-      console.log("[DataRetention] Disabled. Set DATA_RETENTION_ENABLED=true to enable.");
+      this.logger.log("Disabled. Set DATA_RETENTION_ENABLED=true to enable.");
       return;
     }
 
-    console.log("[DataRetention] Enabled. Running every 6h.");
+    this.logger.log("Enabled. Running every 6h.");
     void this.run();
     this.timer = setInterval(() => void this.run(), RETENTION_INTERVAL_MS);
   }
@@ -39,7 +40,7 @@ export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
       await this.purgeOldCheckoutSessions(now);
       await this.purgeOldWebhookDeliveries(now);
     } catch (error) {
-      console.error("[DataRetention] Error:", error instanceof Error ? error.message : error);
+      this.logger.error("retention.run.failed", { error: error instanceof Error ? error.message : String(error) });
     } finally {
       this.running = false;
     }
@@ -49,14 +50,14 @@ export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
     const result = await this.prisma.buyerPhoneOtp.deleteMany({
       where: { expiresAt: { lt: now } },
     });
-    if (result.count > 0) console.log(`[DataRetention] Purged ${result.count} expired OTPs`);
+    if (result.count > 0) this.logger.log("purged.otps", { count: result.count });
   }
 
   private async purgeExpiredIdempotency(now: Date): Promise<void> {
     const result = await this.prisma.httpIdempotencyRecord.deleteMany({
       where: { expiresAt: { lt: now } },
     });
-    if (result.count > 0) console.log(`[DataRetention] Purged ${result.count} expired idempotency records`);
+    if (result.count > 0) this.logger.log("purged.idempotency", { count: result.count });
   }
 
   private async purgeExpiredShippingQuotes(now: Date): Promise<void> {
@@ -65,7 +66,7 @@ export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
       const result = await this.prisma.shippingQuote.deleteMany({
         where: { createdAt: { lt: cutoff } },
       });
-      if (result.count > 0) console.log(`[DataRetention] Purged ${result.count} old shipping quotes`);
+      if (result.count > 0) this.logger.log("purged.shippingQuotes", { count: result.count });
     } catch {
       // table may not exist
     }
@@ -78,7 +79,7 @@ export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
       const result = await deleteMany({
         where: { createdAt: { lt: cutoff }, status: { not: "completed" } },
       });
-      if (result.count > 0) console.log(`[DataRetention] Purged ${result.count} old checkout sessions`);
+      if (result.count > 0) this.logger.log("purged.checkoutSessions", { count: result.count });
     } catch {
       // table may not exist or no status column
     }
@@ -93,7 +94,7 @@ export class DataRetentionService implements OnModuleInit, OnModuleDestroy {
           status: { in: ["delivered", "failed"] },
         },
       });
-      if (result.count > 0) console.log(`[DataRetention] Purged ${result.count} old webhook deliveries`);
+      if (result.count > 0) this.logger.log("purged.webhookDeliveries", { count: result.count });
     } catch {
       // table may not exist
     }
