@@ -37,6 +37,7 @@ export interface StorefrontAgentCallbacks {
 
 export interface StorefrontAgentDeps {
   provider: OpenRouterProvider;
+  fallbackProvider?: OpenRouterProvider;
   toolHandlers: StoreToolHandlers;
   model?: string;
   fastModel?: string;
@@ -98,6 +99,7 @@ function getErrorFallback(): string {
 
 export class StorefrontLangGraphAgent {
   private readonly provider: OpenRouterProvider;
+  private readonly fallbackProvider: OpenRouterProvider | null;
   private readonly tools: ToolDefinition[];
   private readonly executableTools: ExecutableTool[];
   private readonly costTracker: CostTracker;
@@ -109,6 +111,7 @@ export class StorefrontLangGraphAgent {
 
   constructor(deps: StorefrontAgentDeps) {
     this.provider = deps.provider;
+    this.fallbackProvider = deps.fallbackProvider ?? null;
     this.tools = buildStoreTools();
     this.maxTurns = deps.maxTurns ?? DEFAULT_MAX_TURNS;
     this.baseSystemPrompt = deps.systemPrompt ?? "";
@@ -225,29 +228,132 @@ export class StorefrontLangGraphAgent {
         finalContent = result.content;
         break;
       }
+
+      // ─── Fallback: if no tool was called but intent requires one, retry with strong model ───
+      const TOOL_REQUIRED_PATTERNS = /^(categorias|ver todas|por preço|por avaliação|mais vendidos|novidades|frete grátis|por desconto|faq|falar com humano|ofertas do dia|ver avaliações|status do pedido)$/i;
+      if (toolsUsed.length === 0 && TOOL_REQUIRED_PATTERNS.test(input.userMessage.trim())) {
+        console.warn(`[StorefrontAgent] No tool called for "${input.userMessage}" — retrying with strong model (${this.strongModel})`);
+        try {
+          const retryResult: OpenRouterChatResult = await this.provider.chat({
+            messages,
+            tools: openRouterTools.length > 0 ? openRouterTools : undefined,
+            temperature: 0.3,
+            maxTokens: 500,
+            model: this.strongModel
+          });
+          totalPromptTokens += retryResult.usage.promptTokens;
+          totalCompletionTokens += retryResult.usage.completionTokens;
+          totalTokens += retryResult.usage.totalTokens;
+
+          if (retryResult.toolCalls && retryResult.toolCalls.length > 0) {
+            for (const tc of retryResult.toolCalls) {
+              toolsUsed.push(tc.name);
+              const execTool = this.executableTools.find((t) => t.name === tc.name);
+              if (execTool) {
+                const toolResult = await execTool.execute(tc.args);
+                toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
+              }
+            }
+            // Get final text after tool execution
+            messages.push({
+              role: "assistant",
+              content: retryResult.content || "",
+              tool_calls: retryResult.toolCalls.map((tc) => ({
+                id: tc.id,
+                type: "function",
+                function: { name: tc.name, arguments: JSON.stringify(tc.args) }
+              }))
+            } as any);
+            for (const tc of retryResult.toolCalls) {
+              const result = toolResults[tc.name];
+              messages.push({ role: "tool", content: JSON.stringify(result), name: tc.name, tool_call_id: tc.id });
+            }
+            const finalResult = await this.provider.chat({ messages, temperature: 0.3, maxTokens: 200, model: this.strongModel });
+            finalContent = finalResult.content;
+            totalPromptTokens += finalResult.usage.promptTokens;
+            totalCompletionTokens += finalResult.usage.completionTokens;
+            totalTokens += finalResult.usage.totalTokens;
+          } else {
+            finalContent = retryResult.content || finalContent;
+          }
+        } catch (retryErr) {
+          console.error("[StorefrontAgent] Fallback retry failed:", retryErr instanceof Error ? retryErr.message : retryErr);
+          // Keep original finalContent
+        }
+      }
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const errorStack = err instanceof Error ? err.stack?.slice(0, 300) : "";
       console.error("[StorefrontAgent] LLM call failed:", errorMessage, errorStack);
-      finalContent = "";
 
-      return {
-        message: getErrorFallback(),
-        blocks,
-        cartId: input.cartId,
-        usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
-        toolsUsed,
-        routing: {
-          intent: intentResult.intent,
-          confidence: intentResult.confidence,
-          modelTier,
-          modelUsed
-        },
-        safetyValidation: {
-          safe: true,
-          reason: `llm_error: ${errorMessage}`
+      // ─── Fallback: retry with fallbackProvider (DeepSeek) if primary fails ───
+      if (this.fallbackProvider) {
+        console.warn("[StorefrontAgent] Retrying with fallback provider (DeepSeek)...");
+        try {
+          const fbMessages: OpenRouterChatMessage[] = [
+            { role: "system" as any, content: input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules) },
+            ...input.history.map((h) => ({ role: h.role as any, content: h.content })),
+            { role: "user" as any, content: input.userMessage }
+          ];
+          const openRouterTools = this.tools.map((t) => ({
+            type: "function" as const,
+            function: { name: t.name, description: t.description, parameters: t.parameters }
+          }));
+
+          let fbLoops = 0;
+          let fbFinalContent = "";
+          while (fbLoops < 3) {
+            fbLoops++;
+            const fbResult = await this.fallbackProvider.chat({
+              messages: fbMessages,
+              tools: openRouterTools.length > 0 ? openRouterTools : undefined,
+              temperature: 0.4,
+              maxTokens: 500
+            });
+
+            if (fbResult.toolCalls && fbResult.toolCalls.length > 0) {
+              fbMessages.push({ role: "assistant", content: fbResult.content || "", tool_calls: fbResult.toolCalls.map((tc) => ({ id: tc.id, type: "function", function: { name: tc.name, arguments: JSON.stringify(tc.args) } })) } as any);
+              for (const tc of fbResult.toolCalls) {
+                toolsUsed.push(tc.name);
+                const execTool = this.executableTools.find((t) => t.name === tc.name);
+                if (execTool) {
+                  const toolResult = await execTool.execute(tc.args);
+                  toolResults[tc.name] = toolResult.ok ? toolResult.data : { error: toolResult.error };
+                  fbMessages.push({ role: "tool", content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }), name: tc.name, tool_call_id: tc.id });
+                }
+              }
+              continue;
+            }
+            fbFinalContent = fbResult.content;
+            break;
+          }
+          finalContent = fbFinalContent;
+          console.log("[StorefrontAgent] Fallback provider succeeded.");
+        } catch (fbErr) {
+          console.error("[StorefrontAgent] Fallback provider also failed:", fbErr instanceof Error ? fbErr.message : fbErr);
+          finalContent = "";
+          return {
+            message: getErrorFallback(),
+            blocks,
+            cartId: input.cartId,
+            usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+            toolsUsed,
+            routing: { intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+            safetyValidation: { safe: true, reason: `both_providers_failed: ${errorMessage}` }
+          };
         }
-      };
+      } else {
+        finalContent = "";
+        return {
+          message: getErrorFallback(),
+          blocks,
+          cartId: input.cartId,
+          usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
+          toolsUsed,
+          routing: { intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
+          safetyValidation: { safe: true, reason: `llm_error: ${errorMessage}` }
+        };
+      }
     }
 
     // ─── Build blocks from tool results ─────────────────────────────────
@@ -637,6 +743,12 @@ export class StorefrontLangGraphAgent {
       "- Responda: 'Redirecionando para o pagamento...' (a UI redireciona automaticamente).",
       "",
       "NUNCA peça confirmação de cor/tamanho/variante a não ser que o cliente pergunte explicitamente. Use a variante padrão (primeira disponível).",
+      "",
+      "REGRA ABSOLUTA DE TOOL-CALLING:",
+      "- Quando o cliente pede uma AÇÃO (ver produtos, categorias, ofertas, FAQ, avaliações, comparar, etc), você DEVE chamar a ferramenta correspondente NA MESMA RESPOSTA.",
+      "- NUNCA responda 'Deixa eu verificar', 'Vou buscar', 'Um momento' SEM chamar a ferramenta. Isso é proibido.",
+      "- Se não tem contexto suficiente (ex: qual produto?), PERGUNTE em uma frase curta. Não diga que vai verificar.",
+      "- Se o quick reply é uma ação direta (Categorias, FAQ, Ofertas do Dia, Por Preço, Mais Vendidos, Falar com Humano), EXECUTE a tool imediatamente sem perguntar nada.",
       "",
       "IMPORTANTE: Quando o cliente diz 'Ver produtos' ou pede para listar produtos, SEMPRE use search_products (com query '*' se necessário). NUNCA responda com categorias quando o pedido é por PRODUTOS.",
       "",

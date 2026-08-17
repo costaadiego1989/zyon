@@ -42,6 +42,14 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       model: localModel
     });
 
+    // Fallback provider: DeepSeek cloud (used when primary LLM fails)
+    const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
+    const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+    const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
+    const fallbackProvider = fallbackApiKey
+      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel })
+      : undefined;
+
     const handlers: StoreToolHandlers = {
       searchProducts: async (args) => {
         const result = await this.productRepo.search({
@@ -544,6 +552,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
     this.agent = new StorefrontLangGraphAgent({
       provider,
+      fallbackProvider,
       toolHandlers: handlers,
       model: localModel,
       fastModel: localModel,

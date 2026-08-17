@@ -35,6 +35,7 @@ export interface OpenRouterChatRequest {
   maxTokens?: number;
   temperature?: number;
   stop?: string[];
+  model?: string;
 }
 
 export interface OpenRouterToolCall {
@@ -100,7 +101,7 @@ export class OpenRouterProvider {
     }
 
     const body: Record<string, unknown> = {
-      model: this.model,
+      model: request.model || this.model,
       messages: request.messages.map((m) => {
         const msg: Record<string, unknown> = {
           role: m.role,
