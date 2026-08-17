@@ -4,17 +4,20 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { LoginUseCase } from "./application/login.use-case.js";
 import { LoginWithRateLimitUseCase } from "./application/login-with-rate-limit.use-case.js";
+import { OAuthCallbackUseCase } from "./application/oauth-callback.use-case.js";
 import { RegisterMerchantUseCase } from "./application/register-merchant.use-case.js";
 import { RefreshTokenUseCase } from "./application/refresh-token.use-case.js";
 import { RequestPasswordResetUseCase } from "./application/request-password-reset.use-case.js";
 import { ResetPasswordUseCase } from "./application/reset-password.use-case.js";
 import { AUTH_REPOSITORY } from "./domain/ports/auth-repository.port.js";
 import { MERCHANT_ID_GENERATOR, DefaultMerchantIdGenerator } from "./domain/ports/merchant-id-generator.port.js";
+import { OAUTH_PROVIDER_PORT } from "./domain/ports/oauth-provider.port.js";
 import { RATE_LIMITER } from "./domain/ports/rate-limiter.port.js";
 import { AuthCookieService } from "./domain/services/auth-cookie.service.js";
 import { JwtService } from "./domain/services/jwt.service.js";
 import { LoginRateLimiter } from "./domain/services/login-rate-limiter.service.js";
 import { PasswordHasher } from "./domain/services/password-hasher.service.js";
+import { OAuthProviderAdapter } from "./infrastructure/oauth-provider.adapter.js";
 import { PrismaAuthRepository } from "./infrastructure/prisma-auth.repository.js";
 import { AuthController } from "./presentation/auth.controller.js";
 import { AuthGuard } from "./presentation/auth.guard.js";
@@ -35,6 +38,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     RefreshTokenUseCase,
     RequestPasswordResetUseCase,
     ResetPasswordUseCase,
+    OAuthCallbackUseCase,
     // Domain services
     PasswordHasher,
     JwtService,
@@ -51,6 +55,10 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     {
       provide: MERCHANT_ID_GENERATOR,
       useClass: DefaultMerchantIdGenerator
+    },
+    {
+      provide: OAUTH_PROVIDER_PORT,
+      useClass: OAuthProviderAdapter,
     },
     {
       provide: RATE_LIMITER,

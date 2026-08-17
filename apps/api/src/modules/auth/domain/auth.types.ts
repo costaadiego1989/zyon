@@ -15,8 +15,10 @@ export interface AuthUser {
   id: string;
   merchantId: string;
   email: string;
-  passwordHash: string;
+  passwordHash?: string;
   role: TenantRole;
+  oauthProvider?: string;
+  oauthProviderId?: string;
 }
 
 export interface AuthenticatedPrincipal {

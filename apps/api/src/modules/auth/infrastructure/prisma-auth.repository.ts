@@ -7,13 +7,23 @@ import { EmailAlreadyRegisteredError, MerchantOwnerNotCreatedError } from "../do
 /**
  * L9: Mapper functions extracted from inline use.
  */
-function toAuthUser(row: { id: string; merchantId: string; email: string; passwordHash: string; role: string }): AuthUser {
+function toAuthUser(row: {
+  id: string;
+  merchantId: string;
+  email: string;
+  passwordHash: string | null;
+  role: string;
+  oauthProvider?: string | null;
+  oauthProviderId?: string | null;
+}): AuthUser {
   return {
     id: row.id,
     merchantId: row.merchantId,
     email: row.email,
-    passwordHash: row.passwordHash,
-    role: row.role as AuthUser["role"]
+    passwordHash: row.passwordHash ?? undefined,
+    role: row.role as AuthUser["role"],
+    oauthProvider: row.oauthProvider ?? undefined,
+    oauthProviderId: row.oauthProviderId ?? undefined,
   };
 }
 
@@ -83,9 +93,75 @@ export class PrismaAuthRepository implements AuthRepository {
     }
   }
 
+  async createMerchantWithOAuthOwner(input: {
+    merchantId: string;
+    merchantName: string;
+    email: string;
+    oauthProvider: string;
+    oauthProviderId: string;
+  }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
+    try {
+      const created = await this.prisma.merchant.create({
+        data: {
+          id: input.merchantId,
+          name: input.merchantName,
+          billingSubscription: {
+            create: {
+              status: "trialing",
+              trialEndsAt: new Date(Date.now() + 14 * 86_400_000)
+            }
+          },
+          users: {
+            create: {
+              email: input.email,
+              role: "owner",
+              oauthProvider: input.oauthProvider,
+              oauthProviderId: input.oauthProviderId,
+            }
+          }
+        },
+        include: { users: true }
+      });
+
+      if (created.users.length !== 1) {
+        throw new MerchantOwnerNotCreatedError(input.merchantId);
+      }
+
+      return {
+        merchant: toAuthMerchant(created),
+        user: toAuthUser(created.users[0]!)
+      };
+    } catch (err: unknown) {
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === "P2002"
+      ) {
+        const target = err.meta?.target as string[] | undefined;
+        if (target?.includes("email")) {
+          throw new EmailAlreadyRegisteredError(input.email);
+        }
+      }
+      throw err;
+    }
+  }
+
   async findUserByEmail(email: string): Promise<AuthUser | undefined> {
     const row = await this.prisma.merchantUser.findUnique({ where: { email } });
     return row ? toAuthUser(row) : undefined;
+  }
+
+  async findUserByOAuth(provider: string, providerId: string): Promise<AuthUser | undefined> {
+    const row = await this.prisma.merchantUser.findFirst({
+      where: { oauthProvider: provider, oauthProviderId: providerId },
+    });
+    return row ? toAuthUser(row) : undefined;
+  }
+
+  async linkOAuthToUser(userId: string, provider: string, providerId: string): Promise<void> {
+    await this.prisma.merchantUser.update({
+      where: { id: userId },
+      data: { oauthProvider: provider, oauthProviderId: providerId },
+    });
   }
 
   async findMerchantById(merchantId: string): Promise<AuthMerchant | undefined> {
@@ -114,3 +190,4 @@ export class PrismaAuthRepository implements AuthRepository {
     });
   }
 }
+

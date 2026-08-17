@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, User, Building2, KeyRound, Github } from "lucide-react";
 import { friendlyAuthError } from "./auth-error.js";
 import { maskCNPJ, maskPhone, validateCNPJ } from "../utils/masks.js";
 
@@ -12,9 +12,11 @@ export interface SignupWizardProps {
   hint: string | null;
   onRegister: (payload: { merchant_name: string; email: string; password: string }) => Promise<void>;
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
-  onSaveCompanyData?: (data: { company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
+  onSaveCompanyData?: (data: { slug?: string; company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
   onComplete: () => Promise<void>;
   onSwitchToLogin: () => void;
+  onGithubClick?: () => void;
+  onGoogleClick?: () => void;
 }
 
 interface PersonDraft {
@@ -98,7 +100,9 @@ export function SignupWizard(props: SignupWizardProps) {
         agentName: "Assistente Zyon",
       });
       if (props.onSaveCompanyData) {
+        const storeSlug = business.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
         await props.onSaveCompanyData({
+          slug: storeSlug,
           company: {
             razaoSocial: business.name.trim(),
             cnpj: business.taxId.replace(/\D/g, ""),
@@ -128,6 +132,26 @@ export function SignupWizard(props: SignupWizardProps) {
           {step === 3 && "Suas credenciais de acesso ao painel."}
         </p>
       </div>
+
+      {step === 1 && (props.onGithubClick || props.onGoogleClick) && (
+        <>
+          <div className="auth-social">
+            {props.onGoogleClick && (
+              <button type="button" className="auth-social__btn" onClick={props.onGoogleClick}>
+                <GoogleIcon />
+                <span>Google</span>
+              </button>
+            )}
+            {props.onGithubClick && (
+              <button type="button" className="auth-social__btn" onClick={props.onGithubClick}>
+                <Github size={16} />
+                <span>GitHub</span>
+              </button>
+            )}
+          </div>
+          <div className="auth-divider"><span>ou preencha manualmente</span></div>
+        </>
+      )}
 
       {step === 1 && <PersonFields draft={person} onChange={setPerson} />}
       {step === 2 && <BusinessFields draft={business} onChange={setBusiness} />}
@@ -268,5 +292,16 @@ function AccountFields({ draft, onChange }: { draft: AccountDraft; onChange: (d:
         <input type="tel" value={draft.phone} onChange={(e) => onChange({ ...draft, phone: maskPhone(e.target.value) })} placeholder="(11) 99999-9999" maxLength={15} className="auth-field__input" />
       </div>
     </>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z" fill="#4285F4" />
+      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" fill="#34A853" />
+      <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84Z" fill="#FBBC05" />
+      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" fill="#EB4335" />
+    </svg>
   );
 }

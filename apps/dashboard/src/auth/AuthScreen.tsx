@@ -24,22 +24,36 @@ export interface AuthScreenProps {
   apiBaseUrl?: string;
 }
 
+function generateOAuthState(): string {
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function startOAuthFlow(provider: "github" | "google") {
+  const state = generateOAuthState();
+  sessionStorage.setItem("oauth_state", state);
+  sessionStorage.setItem("oauth_provider", provider);
+
+  const redirectUri = (import.meta as { env?: Record<string, string> }).env?.VITE_OAUTH_REDIRECT_URI
+    || `${window.location.origin}/auth/oauth/callback`;
+
+  if (provider === "github") {
+    const clientId = (import.meta as { env?: Record<string, string> }).env?.VITE_GITHUB_CLIENT_ID || "";
+    const url = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
+    window.location.href = url;
+  } else {
+    const clientId = (import.meta as { env?: Record<string, string> }).env?.VITE_GOOGLE_CLIENT_ID || "";
+    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile&state=${state}&access_type=offline&prompt=consent`;
+    window.location.href = url;
+  }
+}
+
 export function AuthScreen(props: AuthScreenProps) {
   const mode: AuthMode = props.mode;
   const isSignup = mode === "signup";
-  const [showComingSoon, setShowComingSoon] = useState(false);
   return (
     <main className="auth-shell">
-      {showComingSoon && (
-        <div className="auth-modal-backdrop" onClick={() => setShowComingSoon(false)}>
-          <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="auth-modal__icon"><Code2 size={22} /></div>
-            <h3 className="auth-modal__title">Em breve</h3>
-            <p className="auth-modal__text">Login com GitHub está sendo implementado. Por enquanto, use email e senha para acessar.</p>
-            <button type="button" className="auth-modal__close" onClick={() => setShowComingSoon(false)}>Entendido</button>
-          </div>
-        </div>
-      )}
       {/* Left: Form */}
       <section className="auth-form-panel">
         <header className="auth-header">
@@ -72,9 +86,11 @@ export function AuthScreen(props: AuthScreenProps) {
                 onSaveCompanyData={props.onSaveCompanyData}
                 onComplete={props.onComplete}
                 onSwitchToLogin={() => props.setMode("login")}
+                onGithubClick={() => startOAuthFlow("github")}
+                onGoogleClick={() => startOAuthFlow("google")}
               />
             ) : (
-              <LoginForm {...props} onGithubClick={() => setShowComingSoon(true)} />
+              <LoginForm {...props} onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")} />
             )}
           </div>
         </div>
@@ -112,7 +128,7 @@ export function AuthScreen(props: AuthScreenProps) {
   );
 }
 
-function LoginForm(props: AuthScreenProps & { onGithubClick: () => void }) {
+function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogleClick: () => void }) {
   const [showPass, setShowPass] = useState(false);
   return (
     <form onSubmit={props.onSubmit} className="auth-form">
@@ -122,7 +138,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void }) {
       </div>
 
       <div className="auth-social">
-        <button type="button" className="auth-social__btn">
+        <button type="button" className="auth-social__btn" onClick={props.onGoogleClick}>
           <GoogleIcon />
           <span>Google</span>
         </button>

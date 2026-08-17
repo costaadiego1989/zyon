@@ -21,6 +21,15 @@ export function authEndpoints(base: string, f: typeof fetch) {
       );
     },
 
+    oauthCallback(payload: { provider: string; code: string; state: string }): Promise<DashboardLoginAuth> {
+      return dashboardJson<DashboardLoginAuth>(
+        base,
+        "/auth/oauth/callback",
+        { method: "POST", jsonBody: payload },
+        f
+      );
+    },
+
     logout(): Promise<Record<string, never>> {
       return dashboardJson<Record<string, never>>(base, "/auth/logout", { method: "POST" }, f);
     },

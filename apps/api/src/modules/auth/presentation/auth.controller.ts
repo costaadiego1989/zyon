@@ -6,6 +6,7 @@ import {
   ApiBody,
 } from "@nestjs/swagger";
 import { LoginWithRateLimitUseCase } from "../application/login-with-rate-limit.use-case.js";
+import { OAuthCallbackUseCase, type OAuthCallbackRequest } from "../application/oauth-callback.use-case.js";
 import { RefreshTokenUseCase } from "../application/refresh-token.use-case.js";
 import { RegisterMerchantUseCase, type RegisterMerchantRequest } from "../application/register-merchant.use-case.js";
 import { RequestPasswordResetUseCase } from "../application/request-password-reset.use-case.js";
@@ -30,6 +31,7 @@ export class AuthController {
     private readonly refreshToken: RefreshTokenUseCase,
     private readonly requestPasswordReset: RequestPasswordResetUseCase,
     private readonly resetPassword: ResetPasswordUseCase,
+    private readonly oauthCallback: OAuthCallbackUseCase,
     private readonly cookies: AuthCookieService
   ) {}
 
@@ -266,5 +268,32 @@ export class AuthController {
   })
   async resetPasswordAction(@Body() body: { token: string; password: string }) {
     return this.resetPassword.execute(body.token ?? "", body.password ?? "");
+  }
+
+  @Post("oauth/callback")
+  @ApiOperation({
+    summary: "OAuth callback",
+    description: "Exchange OAuth authorization code for JWT. Creates merchant if new user.",
+  })
+  @ApiBody({
+    schema: {
+      type: "object",
+      required: ["provider", "code", "state"],
+      properties: {
+        provider: { type: "string", enum: ["github", "google"] },
+        code: { type: "string" },
+        state: { type: "string" },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: "OAuth login/signup successful. Auth cookie set." })
+  @ApiResponse({ status: 400, description: "Invalid provider or code" })
+  async oauthCallbackAction(
+    @Body() body: OAuthCallbackRequest,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
+  ) {
+    const auth = await this.oauthCallback.execute(body);
+    response.setHeader("Set-Cookie", this.cookies.create(auth));
+    return auth;
   }
 }

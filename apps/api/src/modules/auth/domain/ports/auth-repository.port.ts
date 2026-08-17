@@ -21,4 +21,16 @@ export interface AuthRepository {
   findPasswordResetToken(token: string): Promise<PasswordResetRecord | undefined>;
   deletePasswordResetToken(token: string): Promise<void>;
   updatePassword(userId: string, passwordHash: string): Promise<void>;
+
+  // OAuth methods
+  findUserByOAuth(provider: string, providerId: string): Promise<AuthUser | undefined>;
+  createMerchantWithOAuthOwner(input: {
+    merchantId: string;
+    merchantName: string;
+    email: string;
+    oauthProvider: string;
+    oauthProviderId: string;
+  }): Promise<{ merchant: AuthMerchant; user: AuthUser }>;
+  linkOAuthToUser(userId: string, provider: string, providerId: string): Promise<void>;
 }
+

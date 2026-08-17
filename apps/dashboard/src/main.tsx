@@ -8,6 +8,7 @@ import {
   resolveDashboardApiBaseUrl
 } from "./api-client.js";
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
+import { OAuthCallback } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import type { TabKey } from "./shell/nav-config.js";
@@ -143,6 +144,20 @@ function App({ api }: AppProps) {
       setBusy(false);
       setAuthMode("login");
     }
+  }
+
+  // Check if we're on OAuth callback route
+  if (window.location.pathname.includes("/oauth/callback")) {
+    return (
+      <OAuthCallback
+        apiBaseUrl={API_BASE_URL}
+        onSuccess={() => void refreshSession()}
+        onError={(msg) => {
+          setAuthHint(msg);
+          setCheckingSession(false);
+        }}
+      />
+    );
   }
 
   if (!me) {

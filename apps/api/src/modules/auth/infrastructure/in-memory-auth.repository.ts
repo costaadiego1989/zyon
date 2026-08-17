@@ -8,6 +8,7 @@ import type { AuthRepository } from "../domain/ports/auth-repository.port.js";
 export class InMemoryAuthRepository implements AuthRepository {
   private merchants = new Map<string, AuthMerchant>();
   private users = new Map<string, AuthUser>();
+  private oauthUsers = new Map<string, AuthUser>(); // provider:id -> user
 
   async createMerchantWithOwner(input: {
     merchantId: string;
@@ -28,8 +29,45 @@ export class InMemoryAuthRepository implements AuthRepository {
     return { merchant, user };
   }
 
+  async createMerchantWithOAuthOwner(input: {
+    merchantId: string;
+    merchantName: string;
+    email: string;
+    oauthProvider: string;
+    oauthProviderId: string;
+  }): Promise<{ merchant: AuthMerchant; user: AuthUser }> {
+    const merchant = { id: input.merchantId, name: input.merchantName };
+    const user = {
+      id: `usr_${crypto.randomUUID()}`,
+      merchantId: input.merchantId,
+      email: input.email,
+      role: "owner" as const,
+      oauthProvider: input.oauthProvider,
+      oauthProviderId: input.oauthProviderId,
+    };
+    this.merchants.set(merchant.id, merchant);
+    this.users.set(user.email, user);
+    this.oauthUsers.set(`${input.oauthProvider}:${input.oauthProviderId}`, user);
+    return { merchant, user };
+  }
+
   async findUserByEmail(email: string): Promise<AuthUser | undefined> {
     return this.users.get(email);
+  }
+
+  async findUserByOAuth(provider: string, providerId: string): Promise<AuthUser | undefined> {
+    return this.oauthUsers.get(`${provider}:${providerId}`);
+  }
+
+  async linkOAuthToUser(userId: string, provider: string, providerId: string): Promise<void> {
+    for (const user of this.users.values()) {
+      if (user.id === userId) {
+        user.oauthProvider = provider;
+        user.oauthProviderId = providerId;
+        this.oauthUsers.set(`${provider}:${providerId}`, user);
+        return;
+      }
+    }
   }
 
   async findMerchantById(merchantId: string): Promise<AuthMerchant | undefined> {
