@@ -6,6 +6,7 @@ import { StatCard } from "./overview/components/StatCard.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { Modal } from "../components/Modal.js";
 import { EmptyState } from "../components/EmptyState.js";
+import { FormField, FormSelect } from "../components/FormField.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
@@ -193,46 +194,19 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Nome completo</label>
-            <input
-              type="text"
-              placeholder="Maria Silva"
-              value={vm.inviteName}
-              onChange={(e) => vm.setInviteName(e.target.value)}
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Email</label>
-            <input
-              type="email"
-              placeholder="agente@sualoja.com"
-              value={vm.inviteEmail}
-              onChange={(e) => vm.setInviteEmail(e.target.value)}
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>WhatsApp</label>
-            <input
-              type="tel"
-              placeholder="(11) 99999-9999"
-              value={vm.invitePhone}
-              onChange={(e) => vm.setInvitePhone(e.target.value)}
-              style={{ width: "100%" }}
-            />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--color-muted)", marginBottom: 6 }}>Função</label>
-            <select value={vm.inviteRole} onChange={(e) => vm.setInviteRole(e.target.value as MemberRole)} style={{ width: "100%" }}>
-              <option value="STAFF">Agente de suporte</option>
-              <option value="ADMIN">Administrador</option>
-            </select>
-            <p style={{ fontSize: 11, color: "var(--color-muted)", marginTop: 6 }}>
-              {vm.inviteRole === "STAFF" ? "Agentes podem atender chats e gerenciar tickets." : "Administradores têm acesso completo ao painel."}
-            </p>
-          </div>
+          <FormField label="Nome completo" placeholder="Maria Silva" value={vm.inviteName} onChange={vm.setInviteName} />
+          <FormField label="Email" type="email" placeholder="agente@sualoja.com" value={vm.inviteEmail} onChange={vm.setInviteEmail} />
+          <FormField label="WhatsApp" type="tel" placeholder="(11) 99999-9999" value={vm.invitePhone} onChange={vm.setInvitePhone} />
+          <FormSelect
+            label="Função"
+            value={vm.inviteRole}
+            onChange={(v) => vm.setInviteRole(v as MemberRole)}
+            options={[
+              { value: "STAFF", label: "Agente de suporte" },
+              { value: "ADMIN", label: "Administrador" },
+            ]}
+            hint={vm.inviteRole === "STAFF" ? "Agentes podem atender chats e gerenciar tickets." : "Administradores têm acesso completo ao painel."}
+          />
         </div>
       </Modal>
     </>

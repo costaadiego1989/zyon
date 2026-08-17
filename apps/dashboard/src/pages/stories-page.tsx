@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
-import { Plus, Trash2, GripVertical, Image, Clock, FolderOpen, X, Upload } from "lucide-react";
+import { Plus, Trash2, GripVertical, Image, Clock, FolderOpen, X, Upload, CircleDashed } from "lucide-react";
+import { EmptyState } from "../components/EmptyState.js";
 import type { MerchantProfile } from "../api-client.js";
 import { useStoriesPage } from "./useStoriesPage.js";
 import type { TitleConfig } from "../api/endpoints/stories.js";
@@ -43,7 +44,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
         <div>
           <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", marginBottom: 4 }}>LOJA</div>
           <h1 style={{ font: "700 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.02em", marginBottom: 6 }}>Stories</h1>
-          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Crie stories visuais para engajar compradores — promoções, destaques, novidades.</div>
+          <div style={{ font: "17px var(--serif)", fontStyle: "italic", color: "var(--muted)" }}>Crie stories visuais para engajar compradores com promoções, destaques e novidades.</div>
         </div>
         <Button variant="primary" size="sm" arrow onClick={() => vm.setShowCreateCategory(true)}>
           <Plus size={14} /> Nova Categoria
@@ -110,7 +111,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
             </div>
           ))}
           {vm.categories.length === 0 && (
-            <div style={{ fontSize: "13px", color: "var(--faint)", textAlign: "center", padding: "20px" }}>Nenhuma categoria criada</div>
+            <EmptyState icon={CircleDashed} title="Nenhuma categoria criada" description="Crie uma categoria para organizar seus stories." />
           )}
         </div>
 
@@ -175,7 +176,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
         <SidePanel title="Nova Categoria" onClose={() => vm.setShowCreateCategory(false)}>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
             <div>
-              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Nome da Categoria</label>
+              <label>Nome da Categoria</label>
               <input
                 value={vm.newCategoryName}
                 onChange={(e) => vm.setNewCategoryName(e.target.value)}
@@ -254,7 +255,7 @@ function StoryEditorContent({ vm }: { vm: ReturnType<typeof useStoriesPage> }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "20px" }}>
       {/* Image Upload */}
       <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "8px" }}>Imagem do Story</label>
+        <label>Imagem do Story</label>
         <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} style={{ display: "none" }} />
 
         {!editor.imagePreview ? (
@@ -288,7 +289,7 @@ function StoryEditorContent({ vm }: { vm: ReturnType<typeof useStoriesPage> }) {
 
       {/* Title */}
       <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Título (opcional)</label>
+        <label>Título (opcional)</label>
         <input
           value={editor.title}
           onChange={(e) => updateEditorField("title", e.target.value)}

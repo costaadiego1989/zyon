@@ -2,6 +2,7 @@ import React from "react";
 import { Settings, Lock } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
+import { FormField } from "../components/FormField.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
 
 export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
@@ -39,33 +40,9 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label>Nome completo</label>
-            <input
-              type="text"
-              placeholder="Seu nome"
-              value={vm.form.name}
-              onChange={(e) => vm.setForm((f) => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label>Email</label>
-            <input
-              type="email"
-              placeholder="seu@email.com"
-              value={vm.form.email}
-              onChange={(e) => vm.setForm((f) => ({ ...f, email: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label>Celular / WhatsApp</label>
-            <input
-              type="tel"
-              placeholder="(11) 99999-9999"
-              value={vm.form.phone}
-              onChange={(e) => vm.setForm((f) => ({ ...f, phone: e.target.value }))}
-            />
-          </div>
+          <FormField label="Nome completo" placeholder="Seu nome" value={vm.form.name} onChange={(v) => vm.setForm((f) => ({ ...f, name: v }))} />
+          <FormField label="Email" type="email" placeholder="seu@email.com" value={vm.form.email} onChange={(v) => vm.setForm((f) => ({ ...f, email: v }))} />
+          <FormField label="Celular / WhatsApp" type="tel" placeholder="(11) 99999-9999" value={vm.form.phone} onChange={(v) => vm.setForm((f) => ({ ...f, phone: v }))} />
         </div>
 
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
@@ -82,33 +59,9 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label>Senha atual</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={vm.passwordForm.currentPassword}
-              onChange={(e) => vm.setPasswordForm((f) => ({ ...f, currentPassword: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label>Nova senha</label>
-            <input
-              type="password"
-              placeholder="Mínimo 6 caracteres"
-              value={vm.passwordForm.newPassword}
-              onChange={(e) => vm.setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label>Confirmar nova senha</label>
-            <input
-              type="password"
-              placeholder="Repita a nova senha"
-              value={vm.passwordForm.confirmPassword}
-              onChange={(e) => vm.setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value }))}
-            />
-          </div>
+          <FormField label="Senha atual" type="password" placeholder="••••••••" value={vm.passwordForm.currentPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, currentPassword: v }))} />
+          <FormField label="Nova senha" type="password" placeholder="Mínimo 6 caracteres" value={vm.passwordForm.newPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, newPassword: v }))} />
+          <FormField label="Confirmar nova senha" type="password" placeholder="Repita a nova senha" value={vm.passwordForm.confirmPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, confirmPassword: v }))} />
         </div>
 
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
