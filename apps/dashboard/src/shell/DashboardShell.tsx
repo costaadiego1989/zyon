@@ -34,7 +34,7 @@ const ThemePage = lazy(() => import("../pages/theme-page.js").then(m => ({ defau
 const OnboardingWizard = lazy(() => import("../pages/onboarding-wizard/index.js").then(m => ({ default: m.OnboardingWizard })));
 const CheckoutPreviewPage = lazy(() => import("../pages/preview-page.js").then(m => ({ default: m.CheckoutPreviewPage })));
 const BillingPage = lazy(() => import("../pages/billing-page.js").then(m => ({ default: m.BillingPage })));
-const PaymentConnectionsPage = lazy(() => import("../pages/payment-connections-page.js").then(m => ({ default: m.PaymentConnectionsPage })));
+const PaymentConnectionsPage = lazy(() => import("../pages/payment-connections/index.js").then(m => ({ default: m.PaymentConnectionsPage })));
 const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => ({ default: m.AuditLogPage })));
 const CommerceConnectionsPage = lazy(() => import("../pages/commerce-connections-page.js").then(m => ({ default: m.CommerceConnectionsPage })));
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));

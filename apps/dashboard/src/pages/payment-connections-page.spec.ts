@@ -4,7 +4,7 @@ import {
   DashboardHttpError,
   type PaymentConnection,
 } from "../api-client.js";
-import { sanitizeError, formatDate } from "./payment-connections-page.js";
+import { sanitizeError, formatDate } from "./payment-connections/usePaymentConnectionsPage.js";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
