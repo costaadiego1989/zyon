@@ -1,6 +1,7 @@
 import { Controller, Get, Inject, Logger, Query, Req, Res, UseGuards } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
+import { createHmac, randomBytes } from "node:crypto";
 import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
@@ -48,7 +49,7 @@ export class MelhorEnvioOAuthController {
       redirect_uri: env("MELHOR_ENVIO_REDIRECT_URI"),
       response_type: "code",
       scope: scopes.join(" "),
-      state: merchantId,
+      state: this.signState(merchantId),
     });
 
     const url = `${env("MELHOR_ENVIO_BASE_URL", "https://sandbox.melhorenvio.com.br")}/oauth/authorize?${params.toString()}`;
@@ -62,12 +63,17 @@ export class MelhorEnvioOAuthController {
     @Query("state") state: string,
     @Res() res: any
   ) {
-    if (!code) {
+    if (!code || !state) {
       res.redirect(302, "/dashboard?error=melhor_envio_denied");
       return;
     }
 
-    const merchantId = state;
+    const merchantId = this.verifyState(state);
+    if (!merchantId) {
+      this.logger.warn("melhor_envio.callback.invalid_state", { state });
+      res.redirect(302, "/dashboard?error=melhor_envio_csrf");
+      return;
+    }
 
     const tokenRes = await fetch(`${env("MELHOR_ENVIO_BASE_URL", "https://sandbox.melhorenvio.com.br")}/oauth/token`, {
       method: "POST",
@@ -118,5 +124,25 @@ export class MelhorEnvioOAuthController {
     const connected = !!merchant?.melhorEnvioAccessToken;
     const expired = merchant?.melhorEnvioExpiresAt ? new Date(merchant.melhorEnvioExpiresAt) < new Date() : false;
     return { connected, expired, provider: "melhor_envio" };
+  }
+
+  private get stateSecret(): string {
+    return process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || "dev-fallback-secret";
+  }
+
+  private signState(merchantId: string): string {
+    const nonce = randomBytes(16).toString("hex");
+    const payload = `${merchantId}:${nonce}`;
+    const signature = createHmac("sha256", this.stateSecret).update(payload).digest("hex").slice(0, 16);
+    return `${payload}:${signature}`;
+  }
+
+  private verifyState(state: string): string | null {
+    const parts = state.split(":");
+    if (parts.length !== 3) return null;
+    const [merchantId, nonce, signature] = parts;
+    const expected = createHmac("sha256", this.stateSecret).update(`${merchantId}:${nonce}`).digest("hex").slice(0, 16);
+    if (signature !== expected) return null;
+    return merchantId;
   }
 }
