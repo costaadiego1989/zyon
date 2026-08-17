@@ -11,7 +11,7 @@ import {
   friendlyError,
 } from "./validation/schemas.js";
 import type { LucideIcon } from "lucide-react";
-import { Palette, MapPin, CreditCard, Key, Plug } from "lucide-react";
+import { Palette, MapPin, Truck, CreditCard, Key, Plug } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -59,9 +59,10 @@ export type StepMeta = {
 export const STEPS: StepMeta[] = [
   { id: 1, label: "Identidade", caption: "Logo, cores, tipografia e agente", icon: Palette },
   { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
-  { id: 3, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
-  { id: 4, label: "API Key", caption: "Credenciais de integração", icon: Key },
-  { id: 5, label: "Integração", caption: "Conectar com sua plataforma", icon: Plug },
+  { id: 3, label: "Frete", caption: "Conecte sua conta de envios", icon: Truck },
+  { id: 4, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
+  { id: 5, label: "API Key", caption: "Credenciais de integração", icon: Key },
+  { id: 6, label: "Integração", caption: "Conectar com sua plataforma", icon: Plug },
 ];
 
 export const TOTAL_STEPS = STEPS.length;

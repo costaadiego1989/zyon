@@ -3,6 +3,7 @@ import { SelectShippingMethodUseCase } from "./application/use-cases/select-ship
 import { WidgetShippingController } from "./presentation/http/widget-shipping.controller.js";
 import { EmbedShippingController } from "./presentation/http/embed-shipping.controller.js";
 import { ShippingLabelController } from "./presentation/http/shipping-label.controller.js";
+import { MelhorEnvioOAuthController } from "./presentation/http/melhor-envio-oauth.controller.js";
 import { EmbedAuthGuard } from "../embed/presentation/http/embed-auth.guard.js";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -18,7 +19,7 @@ import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envi
 
 @Module({
   imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule],
-  controllers: [WidgetShippingController, EmbedShippingController, ShippingLabelController],
+  controllers: [WidgetShippingController, EmbedShippingController, ShippingLabelController, MelhorEnvioOAuthController],
   providers: [
     EmbedTokenService,
     EmbedAuthGuard,
