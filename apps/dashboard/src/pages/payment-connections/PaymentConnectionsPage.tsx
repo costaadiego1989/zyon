@@ -149,15 +149,14 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
         </div>
       ) : null}
 
-      {/* Asaas Config Card */}
-      {!isLoading ? (
+      {/* Asaas Config Card — only show when NOT connected */}
+      {!isLoading && !asaasConn ? (
         <div className="asaas-config">
           <div className="asaas-config__header">
             <div className="asaas-config__title-group">
-              <h3 className="asaas-config__title">Asaas</h3>
-              <p className="asaas-config__subtitle">Configure API Key, webhook token e ambiente.</p>
+              <h3 className="asaas-config__title">Conectar Asaas</h3>
+              <p className="asaas-config__subtitle">Insira sua API Key para ativar PIX, boleto e cartão.</p>
             </div>
-            <StatusBadge status={asaasConn?.status ?? "disconnected"} />
           </div>
           <div className="asaas-config__grid">
             <div className="asaas-config__form-group">
@@ -194,7 +193,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
               onClick={() => void saveAsaasConfig()}
               className="asaas-config__button"
             >
-              {asaas.saving ? "Testando..." : "Testar conexão"}
+              {asaas.saving ? "Conectando..." : "Conectar"}
             </button>
           </div>
         </div>
