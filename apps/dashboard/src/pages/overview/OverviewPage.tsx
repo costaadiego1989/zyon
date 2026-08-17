@@ -256,28 +256,9 @@ export function OverviewPage(props: OverviewPageProps) {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <span className="eyebrow">INÍCIO</span>
-          <h2
-            style={{
-              font: "700 22px var(--serif)",
-              color: "var(--ink)",
-              letterSpacing: "-0.02em",
-              margin: 0,
-              marginBottom: 6,
-            }}
-          >
-            Visão Geral
-          </h2>
-          <p
-            style={{
-              font: "17px var(--serif)",
-              fontStyle: "italic",
-              color: "var(--muted)",
-              margin: 0,
-            }}
-          >
-            Métricas consolidadas do seu negócio
-          </p>
+          <span className="eyebrow">Início</span>
+          <h1>Visão Geral</h1>
+          <p className="page-lead">Métricas consolidadas do seu negócio</p>
         </div>
 
         <div

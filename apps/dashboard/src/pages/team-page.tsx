@@ -28,7 +28,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
     <>
       <header className="page-head">
         <div>
-          <span className="eyebrow"><Users size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
+          <span className="eyebrow">Conta</span>
           <h1>Equipe</h1>
           <p className="page-lead">Gerencie os membros e agentes da sua loja</p>
         </div>

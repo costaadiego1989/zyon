@@ -32,7 +32,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
     <>
       <header className="page-head">
         <div>
-          <span className="eyebrow"><ShieldCheck size={14} aria-hidden="true" style={{ marginRight: 6, verticalAlign: "middle" }} />Conta</span>
+          <span className="eyebrow">Conta</span>
           <h1>Log de Auditoria</h1>
           <p className="page-lead">Acompanhe todas as ações realizadas no painel</p>
         </div>
