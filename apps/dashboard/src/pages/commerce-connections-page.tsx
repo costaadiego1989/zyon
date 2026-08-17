@@ -443,42 +443,52 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             ) : null}
 
             {provider === "native" ? (
-              <div style={{ padding: '16px', background: 'var(--bg)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                <p style={{ font: '13px var(--sans)', color: 'var(--muted)', margin: 0 }}>
-                  Integração nativa via embed — sem dependência de plataforma. O widget Zyon é o checkout completo. Configure apenas o domínio onde o widget será embedado.
-                </p>
-                <label style={{ marginTop: 12, display: 'block' }}>
-                  Domínio autorizado (opcional)
+              <div style={{ padding: '20px 24px', background: 'var(--bg)', borderRadius: 12, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <p style={{ fontSize: 13, color: 'var(--fg)', margin: 0, fontWeight: 500, lineHeight: 1.5 }}>
+                    Integração nativa via embed
+                  </p>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', margin: '4px 0 0', lineHeight: 1.5 }}>
+                    O widget Zyon é o checkout completo. Sem dependência de plataforma externa.
+                    Gere uma API key em Desenvolvedores e use o snippet abaixo no seu site.
+                  </p>
+                </div>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)' }}>Domínio autorizado (opcional)</span>
                   <input
                     type="url"
                     placeholder="https://minhaloja.com.br"
                     value={storeUrl}
                     onChange={(e) => setStoreUrl(e.target.value)}
                     disabled={isBusy}
+                    style={{ padding: '10px 14px', borderRadius: 8 }}
                   />
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Restringe o widget a funcionar apenas neste domínio</span>
                 </label>
               </div>
             ) : null}
 
-            {/* Documentation link */}
-            <div style={{ marginTop: 'var(--space-3)', marginBottom: 'var(--space-3)' }}>
-              <a
-                href={PROVIDER_DOCS[provider]}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: '12px', color: 'var(--color-brand)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-              >
-                Documentação {PROVIDER_LABELS[provider]} ↗
-              </a>
-              <span style={{ display: 'block', fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
-                {PROVIDER_HELP[provider]}
-              </span>
-            </div>
+            {/* Documentation + Submit */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+              <div>
+                <a
+                  href={PROVIDER_DOCS[provider]}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500 }}
+                >
+                  Documentação {PROVIDER_LABELS[provider]} ↗
+                </a>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                  {PROVIDER_HELP[provider]}
+                </span>
+              </div>
 
-            <button type="submit" className="btn-primary commerce-submit-btn" disabled={isBusy}>
-              <Zap size={15} />
-              {operation === "connecting" ? "Conectando..." : "Conectar loja"}
-            </button>
+              <button type="submit" className="btn-primary commerce-submit-btn" disabled={isBusy} style={{ padding: '10px 20px', borderRadius: 10, fontSize: 13 }}>
+                <Zap size={15} />
+                {operation === "connecting" ? "Conectando..." : "Conectar loja"}
+              </button>
+            </div>
           </form>
         </section>
       ) : null}
