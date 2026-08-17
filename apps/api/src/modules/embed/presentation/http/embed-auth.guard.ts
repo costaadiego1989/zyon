@@ -68,6 +68,41 @@ export class EmbedAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<EmbedRequest>();
     const headers = (request.headers ?? {}) as Record<string, string | string[] | undefined>;
 
+    // Dev bypass: allow requests with the __dev_bypass__ token when EMBED_DEV_BYPASS=true.
+    // Uses x-dev-merchant-id header or falls back to MERCHANT_ID env var.
+    if (process.env.EMBED_DEV_BYPASS === "true" && this.isDevBypassToken(headers)) {
+      const devMerchantId =
+        firstHeader(headers["x-dev-merchant-id"]) ||
+        process.env.MERCHANT_ID ||
+        "mrc_dev_seed";
+      request.embedClaims = {
+        typ: "aacp_embed_v1",
+        merchantId: devMerchantId,
+        issuedAtUnix: Math.floor(Date.now() / 1000),
+        expiresAtUnix: Math.floor(Date.now() / 1000) + 86400,
+        nonce: "dev_bypass",
+        environment: "test",
+        scopes: [
+          "checkout:start",
+          "checkout:track",
+          "checkout:chat",
+          "offers:apply",
+          "coupons:apply",
+          "payment:intents:create",
+          "payment:intents:confirm",
+          "payment:intents:read",
+        ],
+      };
+      setTenantPrincipal(request as Parameters<typeof setTenantPrincipal>[0], {
+        kind: "service",
+        tenantId: devMerchantId,
+        credentialId: "dev_bypass",
+        environment: "test",
+        scopes: request.embedClaims.scopes ?? [],
+      });
+      return true;
+    }
+
     const token = readEmbedToken(headers);
     if (!token) {
       throw new UnauthorizedException("missing_embed_session_token");
@@ -97,6 +132,12 @@ export class EmbedAuthGuard implements CanActivate {
     });
 
     return true;
+  }
+
+  private isDevBypassToken(headers: Record<string, string | string[] | undefined>): boolean {
+    const token = readEmbedToken(headers);
+    if (!token) return true; // No token at all in dev → bypass
+    return token === "__dev_bypass__";
   }
 
   private enforceOrigin(claims: EmbedTokenClaims, headers: Record<string, string | string[] | undefined>): void {

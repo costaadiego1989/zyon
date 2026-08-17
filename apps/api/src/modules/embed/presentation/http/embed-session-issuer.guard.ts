@@ -50,6 +50,30 @@ export class EmbedSessionIssuerGuard implements CanActivate {
       }
     }
 
+    // Internal service token (storefront → API, service-to-service)
+    const internalToken = readInternalServiceToken(headers);
+    if (internalToken) {
+      const expectedToken = process.env.INTERNAL_SERVICE_TOKEN;
+      if (expectedToken && internalToken === expectedToken) {
+        const merchantId = readFirstHeader(headers, "x-merchant-id");
+        if (!merchantId) throw new UnauthorizedException("internal_service_missing_merchant_id");
+        setTenantPrincipal(request, {
+          kind: "service",
+          tenantId: merchantId,
+          credentialId: "internal-storefront",
+          environment: "live",
+          scopes: ["embed:sessions:create"],
+        });
+        request.apiKey = {
+          id: "internal-storefront",
+          merchantId,
+          environment: "live",
+          scopes: ["embed:sessions:create"],
+        } as MerchantApiKeyContext;
+        return true;
+      }
+    }
+
     const rawApiKey = readExplicitApiKey(headers) ?? bearer;
     if (!rawApiKey) throw new UnauthorizedException("missing_embed_issuer_credentials");
     const apiKey = await this.authenticateApiKey.execute(rawApiKey, request.ip);
@@ -70,14 +94,14 @@ export class EmbedSessionIssuerGuard implements CanActivate {
 
 export function currentEmbedIssuer(request: IssuerRequest): {
   merchantId: string;
-  type: "dashboard" | "api_key";
+  type: "dashboard" | "api_key" | "internal_service";
   environment?: "test" | "live";
 } {
   if (request.user) return { merchantId: request.user.merchantId, type: "dashboard" };
   if (request.apiKey) {
     return {
       merchantId: request.apiKey.merchantId,
-      type: "api_key",
+      type: request.apiKey.id === "internal-storefront" ? "internal_service" : "api_key",
       environment: request.apiKey.environment,
     };
   }
@@ -99,4 +123,16 @@ function readExplicitApiKey(headers: Record<string, string | string[] | undefine
 function readCookie(headers: Record<string, string | string[] | undefined>): string | undefined {
   const raw = headers.cookie ?? headers.Cookie;
   return Array.isArray(raw) ? raw[0] : raw;
+}
+
+function readInternalServiceToken(headers: Record<string, string | string[] | undefined>): string | undefined {
+  const raw = headers["x-internal-service-token"] ?? headers["X-Internal-Service-Token"];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value?.trim() || undefined;
+}
+
+function readFirstHeader(headers: Record<string, string | string[] | undefined>, name: string): string | undefined {
+  const raw = headers[name] ?? headers[name.split('-').map((s, i) => i === 0 ? s : s[0].toUpperCase() + s.slice(1)).join('-')];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return value?.trim() || undefined;
 }
