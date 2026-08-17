@@ -397,6 +397,7 @@ export default function ConversationShell({
           body: JSON.stringify({
             merchant_id: merchantId,
             user_message: trimmed,
+            cart_id: cart.cartId || undefined,
             history: newHistory,
           }),
         });

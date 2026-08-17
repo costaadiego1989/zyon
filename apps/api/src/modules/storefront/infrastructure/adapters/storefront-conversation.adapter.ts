@@ -566,7 +566,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     this.currentMerchantId = input.merchantId;
-    this.currentSessionId = input.sessionId;
+    this.currentSessionId = input.cartId || input.sessionId;
 
     // Emit checkout_started on every session (idempotent — only first call creates the event)
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started").catch(() => {});
