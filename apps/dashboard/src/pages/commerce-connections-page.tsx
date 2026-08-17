@@ -9,6 +9,8 @@ import {
 } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { Button } from "../components/Button.js";
+import { SectionHeader } from "../components/SectionHeader.js";
+import { FormSelect } from "../components/FormField.js";
 
 // ── Exported constants for testing ──────────────────────────────────────────
 
@@ -315,42 +317,25 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
       {/* Add connection form — one active connection per merchant */}
       {!hasConnection && !isLoading ? (
         <section className="panel stacked commerce-form-section">
-          <div className="panel-title">
-            <div className="commerce-form-header">
-              <div className="commerce-form-icon">
-                <PlugZap size={18} />
-              </div>
-              <div>
-                <h2>Conectar plataforma</h2>
-                <p>Informe as credenciais da sua loja. Dados criptografados em repouso.</p>
-              </div>
-            </div>
-          </div>
+          <SectionHeader title="Conectar plataforma" subtitle="Informe as credenciais da sua loja. Dados criptografados em repouso." />
 
           <form
             onSubmit={(e) => void createConnection(e)}
             className="commerce-form-grid"
           >
             <div className="commerce-credential-row">
-              <label>
-                Plataforma
-                <select
-                  value={provider}
-                  onChange={(e) => setProvider(e.target.value as Provider)}
-                  disabled={isBusy}
-                >
-                  {PROVIDERS.map((p) => (
-                    <option key={p} value={p}>
-                      {PROVIDER_LABELS[p]}
-                    </option>
-                  ))}
-                </select>
-                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                  <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)", opacity: 0.6, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                    VTEX <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--border)", fontWeight: 600 }}>EM BREVE</span>
-                  </span>
-                </div>
-              </label>
+              <FormSelect
+                label="Plataforma"
+                value={provider}
+                onChange={(v) => setProvider(v as Provider)}
+                options={PROVIDERS.map((p) => ({ value: p, label: PROVIDER_LABELS[p] }))}
+                disabled={isBusy}
+              />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)", opacity: 0.6, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  VTEX <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--border)", fontWeight: 600 }}>EM BREVE</span>
+                </span>
+              </div>
               {provider !== "native" ? (
                 <label>
                   URL da loja

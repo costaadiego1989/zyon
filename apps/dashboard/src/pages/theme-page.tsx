@@ -297,7 +297,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 1 — Identidade */}
             <div className="panel stacked">
-              <SectionHeader icon={<Type size={16} />} title="Identidade e tipografia" variant="secondary" />
+              <SectionHeader title="Identidade e tipografia" variant="secondary" />
 
               <FormField
                 label="Nome do assistente"
@@ -326,7 +326,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel — Selos de confiança */}
             <div className="panel stacked">
-              <SectionHeader icon={<Shield size={16} />} title="Selos de confiança" subtitle="Exibidos como badges no rodapé do widget. Máximo 4." variant="primary" />
+              <SectionHeader title="Selos de confiança" subtitle="Exibidos como badges no rodapé do widget. Máximo 4." />
 
               {parseBadges(badgesText).length > 0 && (
                 <div className="chip-list">
@@ -359,7 +359,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 2 — Cores */}
             <div className="panel stacked">
-              <SectionHeader icon={<Palette size={16} />} title="Paleta de cores" variant="secondary" />
+              <SectionHeader title="Paleta de cores" variant="secondary" />
               <div className="theme-grid-2">
                 {COLOR_FIELDS.map((field) => (
                   <div key={String(field.key)} className="theme-color-field">
@@ -384,7 +384,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 3 — Imagens */}
             <div className="panel stacked">
-              <SectionHeader icon={<Image size={16} />} title="Imagens" subtitle="Logo, favicon, avatar e fundo do widget." variant="primary" />
+              <SectionHeader title="Imagens" subtitle="Logo, favicon, avatar e fundo do widget." />
 
               <ImageUploader
                 label="Logo da marca"
@@ -421,7 +421,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel 4 — Layout */}
             <div className="panel stacked">
-              <SectionHeader icon={<Layout size={16} />} title="Layout e espaçamento" variant="secondary" />
+              <SectionHeader title="Layout e espaçamento" variant="secondary" />
 
               <label>
                 Arredondamento dos cantos

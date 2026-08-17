@@ -3,6 +3,7 @@ import { EmptyState } from "../components/EmptyState.js";
 import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { SectionHeader } from "../components/SectionHeader.js";
+import { FormField, FormSelect, FormTextarea } from "../components/FormField.js";
 import {
   Activity,
   BookOpenCheck,
@@ -146,12 +147,9 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
 
       <div className="ops-grid">
         <section className="panel stacked">
-          <SectionHeader icon={<KeyRound size={18} />} title="Chaves de acesso" subtitle="Autentique chamadas à API do Zyon" />
+          <SectionHeader title="Chaves de acesso" subtitle="Autentique chamadas à API do Zyon" />
           <div className="form-grid two">
-            <label>
-              Nome
-              <input value={newKeyName} onChange={(event) => setNewKeyName(event.target.value)} />
-            </label>
+            <FormField label="Nome" value={newKeyName} onChange={setNewKeyName} />
             <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()}>
               <KeyRound size={16} />
               Gerar nova chave
@@ -221,11 +219,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </section>
 
         <section className="panel stacked">
-          <SectionHeader icon={<Webhook size={18} />} title="Webhooks" subtitle="Receba notificações em tempo real sobre eventos do checkout" />
-          <label>
-            Endpoint
-            <input value={webhookUrl} placeholder="https://api.sualoja.com/aacp/webhooks" onChange={(event) => setWebhookUrl(event.target.value)} />
-          </label>
+          <SectionHeader title="Webhooks" subtitle="Receba notificações em tempo real sobre eventos do checkout" />
+          <FormField label="Endpoint" value={webhookUrl} placeholder="https://api.sualoja.com/aacp/webhooks" onChange={setWebhookUrl} />
           <div className="chip-row">
             {ALL_EVENTS.map((eventName) => (
               <button
@@ -265,7 +260,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       </div>
 
       <section className="panel stacked" style={{ marginTop: 16 }}>
-        <SectionHeader icon={<Send size={18} />} title="Delivery log" variant="secondary" trailing={
+        <SectionHeader title="Delivery log" variant="secondary" trailing={
           <button type="button" disabled={busy} onClick={() => void load()}>
             <RefreshCw size={14} />
             Recarregar
@@ -319,7 +314,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       </section>
 
       <section className="panel stacked" style={{ marginTop: 16 }}>
-        <SectionHeader icon={<Activity size={18} />} title="Tokens de sessão" subtitle="Autentique o widget no seu site" />
+        <SectionHeader title="Tokens de sessão" subtitle="Autentique o widget no seu site" />
         <div className="table-wrap">
           <table className="data-table">
             <thead>

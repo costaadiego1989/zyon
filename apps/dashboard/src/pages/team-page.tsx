@@ -68,7 +68,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
 
       {/* Members list */}
       <section className="panel stacked">
-        <SectionHeader icon={<Shield size={18} />} title="Membros ativos" variant="secondary" />
+        <SectionHeader title="Membros ativos" variant="secondary" />
 
         {vm.loading ? (
           <div className="table-wrap">
@@ -146,7 +146,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       {/* Pending invites */}
       {vm.invites.length > 0 ? (
         <section className="panel stacked" style={{ marginTop: 16 }}>
-          <SectionHeader icon={<Mail size={18} />} title="Convites pendentes" variant="secondary" />
+          <SectionHeader title="Convites pendentes" variant="secondary" />
           <div className="table-wrap">
             <table className="data-table">
               <thead>

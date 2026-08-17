@@ -20,6 +20,7 @@ import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { Pagination } from "../components/Pagination.js";
+import { FormField, FormSelect, FormTextarea } from "../components/FormField.js";
 import type {
   SupportFaqItem,
   SupportSettings,
@@ -311,7 +312,6 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
           {/* ── FAQ Section ── */}
           <section className="panel stacked">
             <SectionHeader
-              icon={<HelpCircle size={18} />}
               title="Resposta automática"
               subtitle="Mensagem exibida fora do horário de atendimento"
               trailing={<span className={`badge ${items.length > 0 ? "ok" : "muted"}`}>{items.length}/{20} itens</span>}
@@ -421,41 +421,25 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                     padding: "var(--space-4)",
                   }}
                 >
-                  <label>
-                    Pergunta do comprador
-                    <input
-                      type="text"
-                      value={item.question}
-                      maxLength={200}
-                      disabled={busy}
-                      placeholder="Ex: Qual o prazo de entrega?"
-                      onChange={(e) => updateItem(item.id, "question", e.target.value)}
-                    />
-                  </label>
+                  <FormField
+                    label="Pergunta do comprador"
+                    type="text"
+                    value={item.question}
+                    maxLength={200}
+                    disabled={busy}
+                    placeholder="Ex: Qual o prazo de entrega?"
+                    onChange={(val) => updateItem(item.id, "question", val)}
+                  />
 
-                  <label>
-                    Resposta sugerida
-                    <textarea
-                      value={item.answer}
-                      maxLength={1000}
-                      rows={3}
-                      disabled={busy}
-                      placeholder="Ex: Entregamos em 5-10 dias úteis para todo Brasil."
-                      onChange={(e) => updateItem(item.id, "answer", e.target.value)}
-                      style={{
-                        width: "100%",
-                        fontFamily: "var(--font-sans)",
-                        fontSize: 13,
-                        padding: "8px 12px",
-                        border: "1px solid var(--color-border-strong)",
-                        borderRadius: "var(--radius-sm)",
-                        background: "var(--color-surface)",
-                        color: "var(--color-text)",
-                        resize: "vertical",
-                        lineHeight: 1.5,
-                      }}
-                    />
-                  </label>
+                  <FormTextarea
+                    label="Resposta sugerida"
+                    value={item.answer}
+                    maxLength={1000}
+                    rows={3}
+                    disabled={busy}
+                    placeholder="Ex: Entregamos em 5-10 dias úteis para todo Brasil."
+                    onChange={(val) => updateItem(item.id, "answer", val)}
+                  />
                 </div>
               </div>
             ))}
@@ -489,7 +473,6 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
           {/* ── Tickets Section ── */}
           <section className="panel stacked">
             <SectionHeader
-              icon={<Ticket size={18} />}
               title="Escalonamento"
               subtitle="Encaminhe conversas para seu time quando necessário"
               trailing={<span className="badge muted" style={{ fontFamily: "var(--font-data)", fontSize: 11 }}>{tickets.length}</span>}

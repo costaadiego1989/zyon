@@ -67,7 +67,7 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
       ) : null}
 
       <section className="panel stacked">
-        <SectionHeader icon={<ShieldCheck size={18} />} title="Eventos recentes" variant="secondary" />
+        <SectionHeader title="Eventos recentes" variant="secondary" />
 
         {/* Filters */}
         <div className="audit-filter-bar" style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
