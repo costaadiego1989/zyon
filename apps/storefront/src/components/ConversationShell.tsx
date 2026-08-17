@@ -814,15 +814,18 @@ export default function ConversationShell({
                 body: JSON.stringify({
                   merchant_id: merchantId,
                   cart_ref: cart.cartId,
-                  allowed_origin: window.location.origin,
+                  allowed_origin: widgetBase,
                 }),
               });
+              console.log("[checkout] tokenRes status:", tokenRes.status);
               if (tokenRes.ok) {
-                const { embed_session_token } = await tokenRes.json();
-                params.set("embedToken", embed_session_token);
+                const data = await tokenRes.json();
+                console.log("[checkout] token received:", data.embed_session_token?.slice(0, 20));
+                params.set("embedToken", data.embed_session_token);
               }
-            } catch { /* proceed without token — widget will use dev bypass on localhost */ }
+            } catch (e) { console.error("[checkout] token fetch error:", e); }
 
+            console.log("[checkout] redirecting to:", `${widgetBase}?${params.toString().slice(0, 80)}...`);
             window.location.href = `${widgetBase}?${params.toString()}`;
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}

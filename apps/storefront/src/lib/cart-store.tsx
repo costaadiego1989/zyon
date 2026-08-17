@@ -21,6 +21,7 @@ export interface CartState {
 interface CartContextValue {
   cart: CartState;
   updateFromBlocks: (blocks: any[]) => void;
+  clearCart: () => void;
 }
 
 const STORAGE_KEY = "zyon-cart-id";
@@ -51,6 +52,7 @@ function saveCartId(cartId: string): void {
 const CartContext = createContext<CartContextValue>({
   cart: EMPTY_CART,
   updateFromBlocks: () => {},
+  clearCart: () => {},
 });
 
 export function useCart(): CartContextValue {
@@ -110,8 +112,15 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     });
   }, []);
 
+  const clearCart = useCallback(() => {
+    setCart(EMPTY_CART);
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch { /* quota/privacy */ }
+  }, []);
+
   return (
-    <CartContext.Provider value={{ cart, updateFromBlocks }}>
+    <CartContext.Provider value={{ cart, updateFromBlocks, clearCart }}>
       {children}
     </CartContext.Provider>
   );

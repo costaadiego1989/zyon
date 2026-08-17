@@ -7,7 +7,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009"
 
 interface NativeCartPanelProps {
   merchantId?: string;
-  onCheckout: () => void;
+  onCheckout: () => void | Promise<void>;
   onViewCart: () => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
@@ -117,8 +117,10 @@ export default function NativeCartPanel({
         mode={isBudgetMode ? "budget" : "checkout"}
         onClose={() => setSheetOpen(false)}
         onCheckout={() => {
-          setSheetOpen(false);
-          onCheckout();
+          void (async () => {
+            await onCheckout();
+            setSheetOpen(false);
+          })();
         }}
         onBudgetSubmit={isBudgetMode ? handleBudgetSubmit : undefined}
         onViewCart={() => {
