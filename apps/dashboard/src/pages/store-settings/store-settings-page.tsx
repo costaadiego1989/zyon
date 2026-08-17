@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
 import { Button } from "../../components/Button.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm, type StylesForm } from "./useStoreSettingsPage.js";
 import { useSeoSettingsTab } from "./useSeoSettingsTab.js";
@@ -215,14 +216,19 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
                 newHours[idx] = { ...hour, endTime: e.target.value, closed: false };
                 onHoursChange(newHours);
               }} disabled={hour.closed} style={{ ...fieldStyle, opacity: hour.closed ? 0.5 : 1 }} />
-              <label className="toggle" style={{ whiteSpace: "nowrap" }}>
-                <input type="checkbox" checked={hour.closed} onChange={(e) => {
-                  const newHours = [...businessHours];
-                  newHours[idx] = { ...hour, closed: e.target.checked };
-                  onHoursChange(newHours);
-                }} role="switch" aria-checked={hour.closed} />
-                Fechado
-              </label>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <ToggleSwitch
+                  id={`closed-${hour.day}`}
+                  checked={hour.closed}
+                  disabled={false}
+                  onChange={(v) => {
+                    const newHours = [...businessHours];
+                    newHours[idx] = { ...hour, closed: v };
+                    onHoursChange(newHours);
+                  }}
+                />
+                <span id={`closed-${hour.day}`} style={{ fontSize: 11, color: "var(--faint)" }}>Fechado</span>
+              </div>
             </div>
           ))}
         </div>

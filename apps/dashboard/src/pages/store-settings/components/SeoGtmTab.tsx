@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Globe, Hash, Sparkles, Tag, Monitor, BarChart3 } from "lucide-react";
 import { Button } from "../../../components/Button.js";
+import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import type { SeoSettings, GtmSettings, SeoTone, GenerateSeoSuggestionsResponse } from "@zyon/shared-types";
 
 // ── Inline components ──────────────────────────────────────────────────────────
@@ -310,17 +311,14 @@ export function SeoGtmTab({
         </div>
 
         {/* Data Layer Toggle */}
-        <div style={{ marginTop: 16 }}>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={gtm.dataLayerEnabled !== false}
-              onChange={(e) => onGtmChange({ dataLayerEnabled: e.target.checked })}
-              role="switch"
-              aria-checked={gtm.dataLayerEnabled !== false}
-            />
-            Ativar GTM Data Layer (eventos: pageview, purchase, add_to_cart)
-          </label>
+        <div style={{ marginTop: 16, display: "flex", alignItems: "center", gap: 10 }}>
+          <ToggleSwitch
+            id="gtm-datalayer"
+            checked={gtm.dataLayerEnabled !== false}
+            disabled={false}
+            onChange={(v) => onGtmChange({ dataLayerEnabled: v })}
+          />
+          <span id="gtm-datalayer" style={{ font: "12px var(--sans)", color: "var(--muted)" }}>Ativar GTM Data Layer (eventos: pageview, purchase, add_to_cart)</span>
         </div>
       </section>
 
