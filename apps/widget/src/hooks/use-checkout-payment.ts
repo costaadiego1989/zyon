@@ -11,23 +11,13 @@ import {
 import { paymentIntentSnapshotSchema } from "../lib/widget-schemas.js";
 import type { CheckoutSessionState } from "./use-checkout-session.js";
 import type { CheckoutChatState } from "./use-checkout-chat.js";
-
-import { usePixPayment, PIX_WAIT_WINDOW_MS } from "./use-pix-payment.js";
+import { usePixPayment } from "./use-pix-payment.js";
 import { useStripePayment } from "./use-stripe-payment.js";
 import { useCryptoPayment } from "./use-crypto-payment.js";
 
-// Re-export sub-hook types so consumers importing from this module keep working.
 export type { StripeIntent } from "./use-stripe-payment.js";
 export type { PixWaitingStatus, PixWaitingState } from "./use-pix-payment.js";
 
-/**
- * Derives a stable idempotency key per payment attempt from immutable inputs
- * (session, method, offer) rather than generating a new UUID on every call.
- * This prevents duplicate charges when the user taps the payment button twice.
- *
- * The key is stable for the lifetime of a session+method+offer combination, so
- * a re-submission sends the same key and the backend treats it as idempotent.
- */
 function stableIdempotencyKey(sessionId: string, method: string, offerId?: string): string {
   return `${sessionId}::${method}::${offerId ?? "none"}`;
 }
@@ -38,7 +28,7 @@ function paymentIntentErrorMessage(error: unknown, method: "pix" | "card" | "cry
     case "shipping_method_required_before_payment":
       return "Antes do pagamento, escolha uma opcao de entrega. Vou te mostrar as alternativas de frete para continuar.";
     case "checkout_session_not_found":
-      return "Sua sessao expirou. Recarregue o checkout e tente novamente.";
+      return "Sua sessão expirou. Recarregue o checkout e tente novamente.";
     case "payment_intent_amount_invalid":
       return "O valor do pedido ficou invalido. Revise o carrinho antes de pagar.";
     case "asaas_customer_data_incomplete":
@@ -124,16 +114,11 @@ export function useCheckoutPayment(
   const { session, apiOrigin, embedOpts } = sessionState;
   const { appendAgentTurn, lastChat } = chatState;
 
-  // P1: in-flight lock prevents duplicate intent creation from rapid re-taps.
   const intentInFlightRef = useRef(false);
-  // P3: ref always reflects the latest activeExperience so the long-running
-  // PIX poll closure never spreads a stale snapshot into syncExperience.
   const activeExperienceRef = useRef(sessionState.activeExperience);
   useEffect(() => {
     activeExperienceRef.current = sessionState.activeExperience;
   }, [sessionState.activeExperience]);
-
-  // --- shared completion callback ----------------------------------------
 
   function markPaymentCompleted(
     amountCents?: number,
@@ -156,8 +141,6 @@ export function useCheckoutPayment(
         `${orderLine}${receiptLine} Separei o resumo e o link de retorno logo abaixo.`,
       { stream: true }
     );
-    // P3: read the freshest activeExperience from the ref rather than the
-    // closure snapshot, avoiding overwrites of updates made during a long poll.
     const freshExperience = activeExperienceRef.current;
     sessionState.syncExperience({
       ...freshExperience,
@@ -195,8 +178,6 @@ export function useCheckoutPayment(
     }
   }
 
-  // --- sub-hooks ---------------------------------------------------------
-
   const pix = usePixPayment({
     config,
     sessionState,
@@ -221,11 +202,8 @@ export function useCheckoutPayment(
       finalizeConfirmation(intentId, amountCents, currency),
   });
 
-  // --- intent creation ---------------------------------------------------
-
   async function createPaymentIntent(method: "pix" | "card" | "crypto"): Promise<void> {
     if (!session) return;
-    // P1: ignore re-entrant calls while a request is in flight.
     if (intentInFlightRef.current) return;
     intentInFlightRef.current = true;
     const offerNow = lastChat?.authorized_offer;
@@ -319,7 +297,6 @@ export function useCheckoutPayment(
           : "";
       appendAgentTurn(total ? `Cobranca gerada (${total}).${pixLine}` : `Cobranca criada.${pixLine}`, { stream: true });
 
-      // Async charge (PIX/boleto): poll authoritative status; confirmation is webhook-driven.
       pix.cancelPoll();
       if (snap.id) {
         if (method === "pix") {
@@ -388,8 +365,6 @@ export function useCheckoutPayment(
       );
     }
   }
-
-  // --- public API (unchanged from original) ------------------------------
 
   return {
     createPaymentIntent,

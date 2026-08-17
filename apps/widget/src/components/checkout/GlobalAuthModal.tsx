@@ -319,7 +319,7 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
               </div>
               <span className="zyon-hub-secure-label">
                 <ShieldCheck size={15} />
-                Sessao protegida
+                Sessão protegida
               </span>
             </div>
 
@@ -384,7 +384,7 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
                     emphasis
                   />
                   <MetricCard
-                    label="Sessoes iniciadas"
+                    label="Sessões iniciadas"
                     value={overview?.conversations_started ?? 0}
                   />
                 </div>
@@ -412,12 +412,12 @@ function AccountHub({ auth, hub }: GlobalAuthModalProps) {
               <div className="zyon-hub-section">
                 <SectionIntro
                   title="Dados da conta"
-                  description="Informacoes usadas para identificar sua sessao de compra."
+                  description="Informacoes usadas para identificar sua sessão de compra."
                 />
                 <dl className="zyon-hub-details">
                   <Detail label="E-mail" value={auth.session?.email ?? "Nao informado"} />
                   <Detail label="Status" value="Conta verificada" />
-                  <Detail label="Protecao" value="Sessao autenticada" />
+                  <Detail label="Protecao" value="Sessão autenticada" />
                 </dl>
               </div>
             ) : null}

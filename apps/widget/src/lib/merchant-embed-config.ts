@@ -107,6 +107,18 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
     isReturning: true
   };
 
+  // When cartRef comes from URL (storefront redirect), the real cart lives on
+  // the server — ignore static data-cart-json so PulseAPI.getCart() fetches from API.
+  const cartRef = firstQueryValue(params, ["cartRef", "cartId", "cart_ref", "cart_id"]);
+  const hasLiveCartRef = !!cartRef;
+  const embedToken = firstQueryValue(params, ["embedToken", "embedSessionToken", "embed_session_token"]) || ds.embedSessionToken?.trim() || undefined;
+
+  // If we have an embed token AND a cartRef, this is a live storefront session.
+  // Do NOT use the static demo cart from data-cart-json — let PulseAPI fetch it.
+  const cart: Cart = hasLiveCartRef && embedToken
+    ? optionalQueryJson<Cart>(params, ["cartJson", "cart_json"]) ?? { currency: "BRL", source: "storefront", total: 0, items: [] }
+    : optionalQueryJson<Cart>(params, ["cartJson", "cart_json"]) ?? parseJsonAttr<Cart>(ds.cartJson, DEFAULT_CART);
+
   const options: HybridCheckoutOptions = {
     brandTitle: ds.brandTitle?.trim() || "Athom Tech",
     brandSubtitle: ds.brandSubtitle?.trim() || "Checkout inteligente com IA para sua loja",
@@ -118,14 +130,14 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
     productApiBaseUrl:
       firstQueryValue(params, ["productApiBaseUrl", "product_api_base_url"]) || ds.productApiBaseUrl?.trim() || undefined,
     productSelection: productSelectionFromQuery(params),
-    cart: optionalQueryJson<Cart>(params, ["cartJson", "cart_json"]) ?? parseJsonAttr<Cart>(ds.cartJson, DEFAULT_CART),
+    cart,
     customer:
       optionalQueryJson<CustomerHints>(params, ["customerJson", "customer_json"]) ??
       parseJsonAttr<CustomerHints>(ds.customerJson, fallbackCustomer),
     shipping: parseOptionalJsonAttr<ShippingQuote>(ds.shippingJson),
     // P3: prefer dataset for embedSessionToken (not in URL at all is best;
     // query-string fallback is supported but stripped from URL after read).
-    embedSessionToken: firstQueryValue(params, ["embedToken", "embedSessionToken", "embed_session_token"]) || ds.embedSessionToken?.trim() || undefined,
+    embedSessionToken: embedToken,
     storeUrl:
       firstQueryValue(params, ["storeUrl", "store_url"]) ||
       ds.storeUrl?.trim() ||
