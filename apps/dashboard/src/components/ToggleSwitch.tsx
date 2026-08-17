@@ -1,8 +1,8 @@
 import React from "react";
 
 /**
- * Self-contained toggle switch with inline styles.
- * Slim iOS-style toggle — 40×22px track, 18px thumb.
+ * Self-contained toggle switch — slim pill shape.
+ * 36×20 track, 16px thumb. iOS-style.
  */
 export function ToggleSwitch({
   checked,
@@ -25,29 +25,32 @@ export function ToggleSwitch({
       onClick={() => onChange(!checked)}
       style={{
         flexShrink: 0,
-        width: 40,
-        height: 22,
-        borderRadius: 12,
+        width: 36,
+        height: 20,
+        minHeight: 20,
+        maxHeight: 20,
+        borderRadius: 10,
         border: "none",
         padding: 2,
-        background: checked ? "var(--accent, #0f766e)" : "oklch(35% 0.01 145)",
+        background: checked ? "var(--accent, #0f766e)" : "oklch(30% 0.005 145)",
         cursor: disabled ? "not-allowed" : "pointer",
         display: "inline-flex",
         alignItems: "center",
         transition: "background 0.2s ease",
         opacity: disabled ? 0.45 : 1,
         outline: "none",
+        boxSizing: "border-box",
       }}
     >
       <span
         style={{
-          width: 18,
-          height: 18,
+          width: 16,
+          height: 16,
           borderRadius: "50%",
           background: "#fff",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
-          transition: "transform 0.2s ease",
-          transform: checked ? "translateX(18px)" : "translateX(0)",
+          boxShadow: "0 0.5px 2px rgba(0,0,0,0.3)",
+          transition: "transform 0.15s ease",
+          transform: checked ? "translateX(16px)" : "translateX(0)",
         }}
       />
     </button>
