@@ -48,6 +48,7 @@ const StoriesPage = lazy(() => import("../pages/stories-page.js").then(m => ({ d
 const BillingPlansPage = lazy(() => import("../pages/billing-plans/index.js").then(m => ({ default: m.BillingPlansPage })));
 const TeamPage = lazy(() => import("../pages/team-page.js").then(m => ({ default: m.TeamPage })));
 const AccountSettingsPage = lazy(() => import("../pages/account-settings-page.js").then(m => ({ default: m.AccountSettingsPage })));
+const CustomDomainPage = lazy(() => import("../pages/custom-domains/index.js").then(m => ({ default: m.CustomDomainPage })));
 
 function LoadingFallback() {
   return (
@@ -243,6 +244,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             ) : null}
             {tab === "categories" ? <CategoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "store-settings" ? <StoreSettingsPage /> : null}
+            {tab === "custom-domain" ? <CustomDomainPage /> : null}
             {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "agent-config-checkout" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "stories" ? <StoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}

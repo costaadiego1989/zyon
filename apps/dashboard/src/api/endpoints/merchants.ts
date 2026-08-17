@@ -19,6 +19,27 @@ export interface UpdateSeoOutput {
   updatedAt: string;
 }
 
+export interface DomainEntry {
+  id: string;
+  domain: string;
+  verified: boolean;
+  verified_at?: string;
+  cname_target: string;
+}
+
+export interface RegisterDomainOutput {
+  domain_id: string;
+  domain: string;
+  cname_target: string;
+  instructions: string;
+}
+
+export interface VerifyDomainOutput {
+  domain: string;
+  verified: boolean;
+  verified_at?: string;
+}
+
 export function merchantEndpoints(base: string, f: typeof fetch) {
   return {
     merchantProfile(): Promise<MerchantProfile> {
@@ -79,6 +100,22 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
 
     deleteStorageObject(url: string): Promise<{ deleted: boolean }> {
       return dashboardJson(base, `/storage/object?url=${encodeURIComponent(url)}`, { method: "DELETE" }, f);
+    },
+
+    listDomains(): Promise<DomainEntry[]> {
+      return dashboardJson(base, "/merchants/me/domains", { method: "GET" }, f);
+    },
+
+    addDomain(domain: string): Promise<RegisterDomainOutput> {
+      return dashboardJson(base, "/merchants/me/domains", { method: "POST", jsonBody: { domain } }, f);
+    },
+
+    verifyDomain(domainId: string): Promise<VerifyDomainOutput> {
+      return dashboardJson(base, `/merchants/me/domains/${domainId}/verify`, { method: "POST", jsonBody: {} }, f);
+    },
+
+    removeDomain(domainId: string): Promise<{ success: boolean }> {
+      return dashboardJson(base, `/merchants/me/domains/${domainId}`, { method: "DELETE" }, f);
     },
   };
 }

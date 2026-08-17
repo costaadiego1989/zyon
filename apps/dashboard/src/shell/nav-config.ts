@@ -7,6 +7,7 @@ import {
   KeyRound,
   Eye,
   FolderTree,
+  Globe,
   MessageSquare,
   PackageSearch,
   Palette,
@@ -52,6 +53,7 @@ export type TabKey =
   | "product-detail"
   | "categories"
   | "store-settings"
+  | "custom-domain"
   | "agent-config"
   | "agent-config-checkout"
   | "stories"
@@ -78,6 +80,7 @@ export const NAV_ITEMS: Array<{
   { key: "agent-config", label: "Agente IA", section: "Loja", icon: Bot, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "theme", label: "Tema", section: "Loja", icon: Palette, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "store-settings", label: "Configurações", section: "Loja", icon: Save, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "custom-domain", label: "Domínio", section: "Loja", icon: Globe, requiredPlan: ["STORE_ONLY", "BOTH"] },
 
   // ─── Checkout (Widget) ───
   { key: "settings", label: "Configurações", section: "Checkout", icon: Settings2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
