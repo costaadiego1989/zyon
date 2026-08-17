@@ -97,8 +97,7 @@ export function CheckoutSettingsPage(props: {
           <span className="eyebrow">Atendimento</span>
           <h1>Configurações do Checkout</h1>
           <p className="page-lead">
-            Defina quando e como o agente entra em ação durante a compra. As
-            mudanças só valem depois de salvar.
+            Defina quando e como o agente entra em ação durante a compra.
           </p>
         </div>
         <div className="cfg-head-actions">
