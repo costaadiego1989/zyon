@@ -21,6 +21,7 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Load existing messages
   useEffect(() => {
@@ -121,20 +122,33 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
 
         {/* Input */}
         {status !== "closed" && status !== "resolved" ? (
-          <footer className="support-drawer-footer">
+          <footer className="support-drawer-footer" style={{ display: "flex", alignItems: "flex-end", gap: 8, padding: "12px 16px", borderTop: "1px solid var(--color-border)" }}>
             <textarea
+              ref={textareaRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-grow
+                const el = textareaRef.current;
+                if (el) {
+                  el.style.height = "auto";
+                  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+                }
+              }}
               placeholder="Digite sua resposta..."
-              rows={2}
+              rows={1}
+              style={{ resize: "none", minHeight: 36, maxHeight: 120, lineHeight: "20px", padding: "8px 12px" }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSend();
+                  // Reset height
+                  const el = textareaRef.current;
+                  if (el) el.style.height = "auto";
                 }
               }}
             />
-            <Button variant="primary" size="sm" onClick={handleSend} disabled={!input.trim()}>
+            <Button variant="primary" size="sm" onClick={() => { handleSend(); const el = textareaRef.current; if (el) el.style.height = "auto"; }} disabled={!input.trim()} style={{ height: 36 }}>
               <Send size={14} /> Enviar
             </Button>
           </footer>

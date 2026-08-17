@@ -625,6 +625,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
                       <select
                         value={ticket.status}
                         disabled={ticketBusy === ticket.id}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={(e) =>
                           void updateTicketStatus(ticket.id, e.target.value as SupportTicketStatus)
                         }
