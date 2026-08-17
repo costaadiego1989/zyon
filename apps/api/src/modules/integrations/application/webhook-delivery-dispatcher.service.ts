@@ -6,6 +6,7 @@ import {
   OnModuleInit,
   Optional,
 } from "@nestjs/common";
+import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../domain/ports/integrations.repository.port.js";
 import { WebhookSignatureService } from "../domain/webhook-signature.service.js";
@@ -133,7 +134,8 @@ export class WebhookDeliveryDispatcher implements OnModuleInit, OnModuleDestroy 
         signal: AbortSignal.timeout(5000),
       };
       if (pinnedAddresses) {
-        fetchOptions.dispatcher = createPinnedAgent(pinnedAddresses);
+        const protocol = endpointUrl.startsWith("https") ? "https:" : "http:";
+        fetchOptions.dispatcher = createPinnedAgent(pinnedAddresses, protocol);
       }
       const response = await fetch(endpointUrl, fetchOptions);
       const responseBody = await response.text().catch(() => "");
@@ -222,19 +224,20 @@ function errorStack(error: unknown): string | undefined {
 }
 
 /**
- * Creates an HTTP(S) Agent that locks DNS resolution to the pre-validated
+ * Creates an HTTP/HTTPS Agent that locks DNS resolution to pre-validated
  * addresses, preventing SSRF via DNS rebinding (INT-C1).
  */
-function createPinnedAgent(pinnedAddresses: string[]): HttpsAgent {
-  // Use the first pinned address; in production, consider round-robin or randomization.
+function createPinnedAgent(pinnedAddresses: string[], protocol: "http:" | "https:" = "https:"): HttpAgent | HttpsAgent {
   const primaryAddress = pinnedAddresses[0];
   if (!primaryAddress) throw new Error("no_pinned_addresses");
 
-  // Custom lookup that returns only the pinned address, ignoring DNS.
-  const customLookup = (hostname: string, options: unknown, callback: (err: Error | null, address: string, family: number) => void): void => {
+  const customLookup = (_hostname: string, _options: unknown, callback: (err: Error | null, address: string, family: number) => void): void => {
     const isIpv6 = primaryAddress.includes(":");
     callback(null, primaryAddress, isIpv6 ? 6 : 4);
   };
 
+  if (protocol === "http:") {
+    return new HttpAgent({ lookup: customLookup as any });
+  }
   return new HttpsAgent({ lookup: customLookup as any });
 }
