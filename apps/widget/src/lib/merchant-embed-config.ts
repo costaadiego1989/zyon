@@ -130,7 +130,9 @@ export function readMerchantEmbedOptions(el: HTMLElement): HybridCheckoutOptions
       firstQueryValue(params, ["storeUrl", "store_url"]) ||
       ds.storeUrl?.trim() ||
       ds.store_url?.trim() ||
-      undefined
+      undefined,
+    logoUrl: ds.logoUrl?.trim() || ds.logo_url?.trim() || undefined,
+    accentColor: ds.accentColor?.trim() || ds.accent_color?.trim() || undefined,
   };
 
   // P3: remove sensitive tokens from the URL after they have been read.

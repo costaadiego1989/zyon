@@ -137,6 +137,7 @@ export interface CheckoutProps {
   initialCustomer?: Partial<Customer>;
   privacyUrl?: string;
   allowDemoFallbacks?: boolean;
+  cartRef?: string;
 }
 
 export interface PulseAPIConfig {
@@ -152,6 +153,7 @@ export interface PulseAPIConfig {
   initialCart?: { product: Product; qty: number };
   initialCustomer?: Partial<Customer>;
   allowDemoFallbacks?: boolean;
+  cartRef?: string;
 }
 
 export interface FaceUser {

@@ -81,6 +81,10 @@ export class PulseAPI {
   private _buyerToken: string | null = null;
   private _initialCart: { product: Product; qty: number } | undefined;
   private _initialCustomer: Partial<Customer> | undefined;
+  private _cartRef: string | null;
+  private _experience: any | null = null;
+
+  get experience(): any | null { return this._experience; }
 
   private _fallbackCatalog: Product[] = [
     { id: 'sd8', title: 'Smart Display 8', subtitle: 'Controla seu speaker por voz e vídeo.', price: 649, tags: ['display', 'tela', 'casa', 'smart'] },
@@ -103,6 +107,7 @@ export class PulseAPI {
     this.allowDemoFallbacks = config.allowDemoFallbacks ?? defaultAllowDemoFallbacks();
     this._initialCart = config.initialCart;
     this._initialCustomer = config.initialCustomer;
+    this._cartRef = config.cartRef ?? null;
   }
 
   private _wait<T>(value: T, ms = 460): Promise<T> {
@@ -210,11 +215,28 @@ export class PulseAPI {
         const r = await fetch(`${this.baseUrl}/embed/start`, {
           method: 'POST',
           headers: this._headers(),
-          body: JSON.stringify({ merchant_id: this.merchantId, cart: { items: [] }, customer_hints: {} }),
+          body: JSON.stringify({
+            merchant_id: this.merchantId,
+            cart_ref: this._cartRef || undefined,
+            cart: this._initialCart
+              ? { items: [{ sku: this._initialCart.product.id, name: this._initialCart.product.title, price: Math.round(this._initialCart.product.price * 100), quantity: this._initialCart.qty }] }
+              : { items: [] },
+            customer_hints: this._initialCustomer ?? {},
+          }),
         });
         if (r.ok) {
-          const data = await r.json() as { session_id?: string };
-          if (data.session_id) { this.sessionId = data.session_id; return this.sessionId; }
+          const data = await r.json() as any;
+          if (data.session_id) {
+            this.sessionId = data.session_id;
+            // Store full experience for ViewModel consumption
+            if (data.experience) {
+              this._experience = data.experience;
+              // Update PulseAPI identity from merchant config
+              if (data.experience.brand?.name) this.storeName = data.experience.brand.name;
+              if (data.experience.agent?.name) this.agentName = data.experience.agent.name;
+            }
+            return this.sessionId!;
+          }
         }
       } catch (e) {
         console.warn('[PulseAPI] ensureSession failed:', e);

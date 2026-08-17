@@ -41,12 +41,9 @@ interface WidgetServerConfig {
 }
 
 // Route logic: embeds with real session token use PulseCheckoutView.
-// Legacy demo flows route through ConversationalCheckoutAgent.
-function shouldUseLegacyPath(config: WidgetConfig): boolean {
-  // Legacy demo: no embed token, or explicitly demo mode
-  if (config.mode !== "embed" || !config.embedSessionToken) return true;
-  // Conversational UI takes the legacy path for now (can be migrated to Pulse later)
-  if (config.uiPresentation === "conversational") return true;
+// Legacy demo flows route through ConversationalCheckoutAgent only if explicitly requested.
+function shouldUseLegacyPath(_config: WidgetConfig): boolean {
+  // Always use Pulse (new layout) — legacy path deprecated
   return false;
 }
 
@@ -150,10 +147,11 @@ export function CheckoutAgent({ config }: { config: WidgetConfig }) {
       merchantLogoUrl: config.brand?.logoUrl,
       apiBaseUrl: config.apiBaseUrl,
       merchantId: config.merchantId,
-      sessionToken: config.embedSessionToken,
+      sessionToken: config.embedSessionToken || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '__dev_bypass__' : undefined),
       initialCart,
       privacyUrl,
       allowDemoFallbacks: config.allowDemoFallbacks ?? false,
+      cartRef: config.cartRef || config.cartId,
     }),
     [config, initialCart, privacyUrl]
   );
@@ -267,6 +265,8 @@ function readConfig(element: HTMLElement): WidgetConfig {
     uiPresentation,
     emptyCartRedirectUrl: element.getAttribute("empty-cart-redirect-url")?.trim() || undefined,
     storeUrl: element.getAttribute("store-url")?.trim() || undefined,
+    cartRef: element.getAttribute("cart-ref")?.trim() || new URLSearchParams(window.location.search).get("cartRef") || new URLSearchParams(window.location.search).get("cartId") || undefined,
+    cartId: element.getAttribute("cart-id")?.trim() || new URLSearchParams(window.location.search).get("cartId") || undefined,
     successRedirectUrl,
     successRedirectLabel: element.getAttribute("success-redirect-label")?.trim() || undefined,
     brand: parseJson(element.getAttribute("brand-json")) ?? {

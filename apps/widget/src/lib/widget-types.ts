@@ -18,6 +18,8 @@ export interface WidgetConfig {
   uiPresentation: "floating" | "conversational";
   emptyCartRedirectUrl?: string;
   storeUrl?: string;
+  cartRef?: string;
+  cartId?: string;
   successRedirectUrl?: string;
   successRedirectLabel?: string;
   brand?: {

@@ -14,6 +14,8 @@ export interface HybridCheckoutOptions {
   brandTitle: string;
   brandSubtitle: string;
   storeUrl?: string;
+  logoUrl?: string;
+  accentColor?: string;
 }
 
 export function emitCheckoutEvent(event: CheckoutEventName): void {

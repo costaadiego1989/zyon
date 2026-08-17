@@ -409,6 +409,8 @@ export function parseWidgetConfig(input: {
   uiPresentation?: "floating" | "conversational";
   emptyCartRedirectUrl?: string;
   storeUrl?: string;
+  cartRef?: string;
+  cartId?: string;
   successRedirectUrl?: string;
   successRedirectLabel?: string;
   brand?: WidgetConfig["brand"];
@@ -429,6 +431,8 @@ export function parseWidgetConfig(input: {
     uiPresentation: input.uiPresentation ?? "floating",
     emptyCartRedirectUrl: input.emptyCartRedirectUrl,
     storeUrl: input.storeUrl,
+    cartRef: input.cartRef,
+    cartId: input.cartId,
     successRedirectUrl: input.successRedirectUrl,
     successRedirectLabel: input.successRedirectLabel,
     brand: input.brand,
@@ -437,7 +441,7 @@ export function parseWidgetConfig(input: {
     copy: input.copy
   });
 
-  if (parsed.success) return parsed.data;
+  if (parsed.success) return { ...parsed.data, cartRef: input.cartRef, cartId: input.cartId };
 
   return {
     mode: input.embedSessionToken ? "embed" : "legacy",
@@ -452,6 +456,8 @@ export function parseWidgetConfig(input: {
     uiPresentation: input.uiPresentation ?? "floating",
     emptyCartRedirectUrl: input.emptyCartRedirectUrl,
     storeUrl: input.storeUrl,
+    cartRef: input.cartRef,
+    cartId: input.cartId,
     successRedirectUrl: input.successRedirectUrl,
     successRedirectLabel: input.successRedirectLabel,
     brand: input.brand,

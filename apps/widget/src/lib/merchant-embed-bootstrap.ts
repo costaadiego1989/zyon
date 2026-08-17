@@ -6,7 +6,7 @@ import "../main.js";
 
 const WIDGET_CE = "zyon-checkout-agent";
 
-function attachWidget(opts: HybridCheckoutOptions): void {
+function attachWidget(opts: HybridCheckoutOptions, mountTarget?: HTMLElement): void {
   document.querySelectorAll(WIDGET_CE).forEach((n) => n.remove());
 
   const el = document.createElement(WIDGET_CE);
@@ -28,10 +28,15 @@ function attachWidget(opts: HybridCheckoutOptions): void {
   if (opts.brandTitle) {
     el.setAttribute("store-name", opts.brandTitle);
   }
+  if (opts.logoUrl) {
+    el.setAttribute("logo-url", opts.logoUrl);
+  }
+  if (opts.accentColor) {
+    el.setAttribute("accent-color", opts.accentColor);
+  }
 
-  const chatMount = document.getElementById("aacp-chat-mount");
-  if (chatMount) {
-    chatMount.appendChild(el);
+  if (mountTarget) {
+    mountTarget.appendChild(el);
   } else {
     document.body.appendChild(el);
   }
@@ -98,9 +103,15 @@ async function bootstrap(): Promise<void> {
 
   const opts = readMerchantEmbedOptions(mount);
   await acquireDevEmbedToken(opts);
-  renderConversationalCheckoutChrome(mount, opts);
+  // Mount widget directly (no external chrome/header)
+  mount.innerHTML = '';
+  mount.classList.add('aacp-chat-mount');
+  mount.style.height = '100dvh';
+  mount.style.display = 'flex';
+  mount.style.flexDirection = 'column';
+  mount.style.overflow = 'hidden';
   exposeGlobal(opts);
-  attachWidget(opts);
+  attachWidget(opts, mount);
 }
 
 if (document.readyState === "loading") {

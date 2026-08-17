@@ -298,6 +298,15 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       .then((orders) => this.setState({ orders }));
     void this.ensureApi()
       .then((api) => api.ensureSession())
+      .then(() => {
+        // Force full re-render with updated brand/agent data from experience
+        const exp = this.api?.experience;
+        if (exp) {
+          this.setState({
+            // Trigger re-render so computed() picks up new agentName/storeName
+          } as any);
+        }
+      })
       .catch(() => { /* fire-and-forget */ });
   }
 
@@ -336,15 +345,18 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   get theme(): 'dark' | 'light' {
+    const mode = this.api?.experience?.visual?.mode;
+    if (mode === 'dark' || mode === 'grey') return 'dark';
+    if (mode === 'light') return 'light';
     return this.state.theme || this.props.theme || 'dark';
   }
 
   get agentName(): string {
-    return this.props.agentName || 'Pulse';
+    return this.api?.experience?.agent?.name || this.props.agentName || 'Pulse';
   }
 
   get storeName(): string {
-    return this.props.storeName || '';
+    return this.api?.experience?.brand?.name || this.props.storeName || '';
   }
 
   get merchantInitial(): string {
@@ -357,7 +369,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   get merchantLogoUrl(): string | undefined {
-    return this.props.merchantLogoUrl;
+    return this.api?.experience?.brand?.logo_url || this.props.merchantLogoUrl;
   }
 
   teardownMedia(): void {
@@ -432,7 +444,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       sessionId: this.props.sessionId,
       initialCart: this.props.initialCart,
       initialCustomer: this.props.initialCustomer,
-      allowDemoFallbacks: this.props.allowDemoFallbacks,
+      allowDemoFallbacks: this.props.allowDemoFallbacks ?? true,
+      cartRef: this.props.cartRef,
     });
     return this.api;
   }
@@ -694,21 +707,43 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       authed: true,
     }));
     const api = await this.ensureApi();
-    const [{ product, qty }, rec] = await Promise.all([api.getCart(), api.getRecommendation()]);
-    const coupon = await api.getBestCoupon(product.price, this.tenantDiscount());
+    const exp = api.experience;
+
+    let product: Product;
+    let qty: number;
+    if (exp?.items?.length > 0) {
+      const first = exp.items[0];
+      product = {
+        id: first.sku || first.product_id || '',
+        title: first.name,
+        subtitle: first.variant || first.category || '',
+        price: first.unit_price / 100,
+        tags: [],
+      };
+      qty = first.quantity ?? 1;
+    } else {
+      const cartResult = await api.getCart();
+      product = cartResult.product;
+      qty = cartResult.qty;
+    }
+
+    const rec = exp?.suggestedProducts?.length
+      ? { id: exp.suggestedProducts[0].sku, title: exp.suggestedProducts[0].name, subtitle: '', price: exp.suggestedProducts[0].unit_price / 100, was: 0 }
+      : null;
+
+    const coupon = null; // Real coupons applied on user action, not auto-generated
+
     this.setState({
       chatMode: 'flow',
       cart: { product, qty, bundle: null, coupon, shipping: null, payMethod: null },
       recommendation: rec,
-      couponShownAt: Date.now(),
+      couponShownAt: null,
       biometricEnrollment: 'done',
     });
-    this.startUrgencyTicker();
     this.push(
       { role: 'agent', kind: 'text', text: `Bem-vindo de volta, ${user.name}. Pulei o cadastro e já deixei seu carrinho pronto.` },
       { role: 'agent', kind: 'product' },
     );
-    if (coupon) this.push({ role: 'agent', kind: 'coupon' });
     await this.showShippingSelection();
   };
 
@@ -1198,15 +1233,38 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       searchResults: [],
     });
     const api = await this.ensureApi();
-    const [{ product, qty }, rec] = await Promise.all([api.getCart(), api.getRecommendation()]);
-    const coupon = await api.getBestCoupon(product.price, this.tenantDiscount());
+    const exp = api.experience;
+
+    let product: Product;
+    let qty: number;
+    if (exp?.items?.length > 0) {
+      const first = exp.items[0];
+      product = {
+        id: first.sku || first.product_id || '',
+        title: first.name,
+        subtitle: first.variant || first.category || '',
+        price: first.unit_price / 100,
+        tags: [],
+      };
+      qty = first.quantity ?? 1;
+    } else {
+      const cartResult = await api.getCart();
+      product = cartResult.product;
+      qty = cartResult.qty;
+    }
+
+    const rec = exp?.suggestedProducts?.length
+      ? { id: exp.suggestedProducts[0].sku, title: exp.suggestedProducts[0].name, subtitle: '', price: exp.suggestedProducts[0].unit_price / 100, was: 0 }
+      : null;
+
+    const coupon = null; // Real coupons applied on user action, not auto-generated
+
     this.setState({
       chatMode: 'flow',
       cart: { product, qty, bundle: null, coupon, shipping: null, payMethod: null },
       recommendation: rec,
-      couponShownAt: Date.now(),
+      couponShownAt: null,
     });
-    this.startUrgencyTicker();
     this.greetBody(product);
   };
 
@@ -1310,16 +1368,18 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   }
 
   greetBody(product: Product): void {
+    const exp = this.api?.experience;
+    const greeting = exp?.agent?.greeting
+      || `Oi! Eu sou a ${this.agentName}, gerente de vendas da ${this.storeName}. Vi que você está levando o ${product.title} — já garanti a melhor promoção e apliquei no seu carrinho.`;
+    const msgs: ChatMessage[] = [
+      { role: 'agent', kind: 'text', text: greeting },
+      { role: 'agent', kind: 'product' },
+    ];
+    if (this.state.cart.coupon) {
+      msgs.push({ role: 'agent', kind: 'coupon' });
+    }
     this.agentSay(
-      [
-        {
-          role: 'agent',
-          kind: 'text',
-          text: `Oi! Eu sou a ${this.agentName}, gerente de vendas da ${this.storeName}. Vi que você está levando o ${product.title} — já garanti a melhor promoção e apliquei no seu carrinho.`,
-        },
-        { role: 'agent', kind: 'product' },
-        { role: 'agent', kind: 'coupon' },
-      ],
+      msgs,
       [this.A('Continuar', this.onAfterPromo, true)],
       280,
     );
@@ -1768,10 +1828,14 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     this.stopUrgencyTicker();
     this.setState({ chatMode: 'loading', searchResults: [], searchQuery: '' });
     const api = await this.ensureApi();
-    const [coupon, rec] = await Promise.all([
-      api.getBestCoupon(product.price, this.tenantDiscount()),
-      api.getRecommendation(),
-    ]);
+    const exp = api.experience;
+
+    const rec = exp?.suggestedProducts?.length
+      ? { id: exp.suggestedProducts[0].sku, title: exp.suggestedProducts[0].name, subtitle: '', price: exp.suggestedProducts[0].unit_price / 100, was: 0 }
+      : null;
+
+    const coupon = null; // Real coupons applied on user action, not auto-generated
+
     this.setState({
       chatMode: 'flow',
       log: [],
@@ -1781,9 +1845,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
       customer: { name: '', email: '', cpf: '', cep: '', number: '', complement: '', phone: '' },
       cart: { product, qty: 1, bundle: null, coupon, shipping: null, payMethod: null },
       recommendation: rec,
-      couponShownAt: Date.now(),
+      couponShownAt: null,
     });
-    this.startUrgencyTicker();
     this.greetBody(product);
   }
 
@@ -1830,7 +1893,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   };
 
   tokens(): ThemeTokens {
-    const accent = this.props.accentColor || 'var(--aacp-accent, #0f766e)';
+    const accent = this.api?.experience?.brand?.accent_color || this.props.accentColor || 'var(--aacp-accent, #0f766e)';
     const T: Record<'dark' | 'light', ThemeTokens> = {
       dark: {
         bg: '#08080c',

@@ -20,7 +20,9 @@ export function useCheckoutSessionVM(config: WidgetConfig) {
 
   const sessionState = useCheckoutSession(config);
   const { activeExperience, session, networkError, track, apiOrigin } = sessionState;
-  const panels = useCheckoutPanels(activeExperience.brand.theme?.mode);
+  const mode = activeExperience.brand.theme?.mode;
+  const normalizedMode = mode === 'grey' ? 'dark' : (mode as 'light' | 'dark' | undefined);
+  const panels = useCheckoutPanels(normalizedMode);
 
   // --- auth --------------------------------------------------------------
 
