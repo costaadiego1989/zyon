@@ -14,6 +14,7 @@ import {
   Filter,
 } from "lucide-react";
 import { Button } from "../components/Button.js";
+import { StatCard } from "./overview/components/StatCard.js";
 import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import type {
@@ -241,9 +242,6 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
           </p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Button variant="outline" size="sm" disabled={loading || busy} onClick={() => void load()}>
-            <RefreshCw size={14} /> Atualizar
-          </Button>
           <Button variant="primary" size="sm" arrow disabled={busy || !settings} loading={busy} onClick={() => void save()}>
             <Save size={14} /> Salvar FAQ
           </Button>
@@ -278,40 +276,33 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-            gap: "var(--space-3)",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 14,
             marginBottom: "var(--space-5)",
           }}
         >
-          <div className="metric">
-            <span>Total de chamados</span>
-            <strong>{tickets.length}</strong>
-          </div>
-          <div className="metric">
-            <span>Em aberto</span>
-            <strong style={{ color: openCount > 0 ? "var(--color-warning)" : undefined }}>
-              {openCount}
-            </strong>
-          </div>
-          <div className="metric">
-            <span>Em atendimento</span>
-            <strong style={{ color: inProgressCount > 0 ? "var(--color-info)" : undefined }}>
-              {inProgressCount}
-            </strong>
-          </div>
+          <StatCard
+            label="Total de chamados"
+            value={tickets.length}
+            icon={<Ticket size={16} />}
+          />
+          <StatCard
+            label="Em aberto"
+            value={openCount}
+            icon={<Clock size={16} />}
+            accent={openCount > 0 ? "var(--warn)" : undefined}
+          />
+          <StatCard
+            label="Em atendimento"
+            value={inProgressCount}
+            icon={<MessageSquare size={16} />}
+            accent={inProgressCount > 0 ? "var(--accent)" : undefined}
+          />
         </div>
       ) : null}
 
       {settings ? (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-          {/* ── Hours Section ── */}
-          <section className="panel stacked">
-            <div className="panel-title">
-              <h2>Horário de atendimento</h2>
-            </div>
-            <p className="page-lead" style={{ margin: 0, fontSize: 12 }}>Quando o suporte humano está disponível</p>
-          </section>
-
           {/* ── FAQ Section ── */}
           <section className="panel stacked">
             <div className="panel-title">
