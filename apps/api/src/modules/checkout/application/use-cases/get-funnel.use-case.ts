@@ -92,11 +92,12 @@ export class GetFunnelUseCase {
   }
 
   private async computeFunnel(merchantId: string, from: Date, to: Date) {
-    // Get all events in period for this merchant
+    // Get all events in period for this merchant (only checkout widget sessions)
     const events = await this.prisma.checkoutEvent.findMany({
       where: {
         merchantId,
         occurredAt: { gte: from, lte: to },
+        sessionId: { startsWith: "chk_" },
       },
       select: { sessionId: true, eventName: true, occurredAt: true },
       orderBy: { occurredAt: "asc" },

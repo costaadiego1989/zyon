@@ -147,7 +147,7 @@ export class StorefrontController {
     // Reuse checkout funnel sessions — same table, filtered by merchantId + last 30 min
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
     const sessions = await this.prisma.checkoutSession.findMany({
-      where: { merchantId, updatedAt: { gte: thirtyMinAgo } },
+      where: { merchantId, updatedAt: { gte: thirtyMinAgo }, NOT: { sessionId: { startsWith: "chk_" } } },
       include: { events: { select: { eventName: true }, orderBy: { occurredAt: "desc" } } },
       orderBy: { updatedAt: "desc" },
       take: 50,

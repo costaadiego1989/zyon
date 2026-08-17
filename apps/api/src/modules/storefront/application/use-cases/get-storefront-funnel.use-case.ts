@@ -30,7 +30,8 @@ const STOREFRONT_STEP_DEFINITIONS = [
   { name: "checkout_started", label: "Visitou a loja", events: ["checkout_started"] },
   { name: "product_viewed", label: "Viu produto", events: ["product_viewed"] },
   { name: "cart_viewed", label: "Adicionou ao carrinho", events: ["cart_viewed"] },
-  { name: "payment_method_selected", label: "Iniciou checkout", events: ["payment_method_selected"] },
+  { name: "shipping_calculated", label: "Calculou frete", events: ["shipping_calculated", "shipping_option_selected"] },
+  { name: "payment_method_selected", label: "Selecionou pagamento", events: ["payment_method_selected"] },
   { name: "order_completed", label: "Pedido confirmado", events: ["order_completed"] },
 ] as const;
 
@@ -45,6 +46,8 @@ export class GetStorefrontFunnelUseCase {
       where: {
         merchantId,
         occurredAt: { gte: from, lte: to },
+        // Only storefront sessions (exclude widget checkout sessions starting with "chk_")
+        NOT: { sessionId: { startsWith: "chk_" } },
       },
       select: { sessionId: true, eventName: true, occurredAt: true },
       orderBy: { occurredAt: "asc" },
