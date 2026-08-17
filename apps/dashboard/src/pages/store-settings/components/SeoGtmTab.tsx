@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Globe, Hash, Sparkles, Tag, Monitor, BarChart3 } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import { Button } from "../../../components/Button.js";
+import { FormField, FormTextarea } from "../../../components/FormField.js";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import type { SeoSettings, GtmSettings, SeoTone, GenerateSeoSuggestionsResponse } from "@zyon/shared-types";
 
@@ -187,10 +188,8 @@ export function SeoGtmTab({
         </div>
 
         {/* Slug */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>
-            Slug da loja (endereço)
-          </label>
+        <div className="form-field">
+          <label>Slug da loja (endereço)</label>
           <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1px solid ${errors.slug ? "var(--danger)" : "var(--border)"}`, borderRadius: 8, overflow: "hidden", background: "var(--bg)" }}>
             <span style={{ padding: "10px 12px", font: "12px var(--mono)", color: "var(--faint)", background: "var(--surface, var(--card))", borderRight: "1px solid var(--border)", whiteSpace: "nowrap" }}>stores.zyon.com/store/</span>
             <input
@@ -201,92 +200,95 @@ export function SeoGtmTab({
               style={{ flex: 1, padding: "10px 12px", font: "13px var(--mono)", color: "var(--ink)", border: "none", outline: "none", background: "transparent" }}
             />
           </div>
-          {slug && <span style={{ font: "11px var(--mono)", color: "var(--faint)", marginTop: 4, display: "block" }}>URL: https://stores.zyon.com/store/{slug}</span>}
-          <FieldError error={errors.slug} />
+          {slug && <span className="form-field-hint">URL: https://stores.zyon.com/store/{slug}</span>}
+          {errors.slug && <span className="form-field-error">{errors.slug}</span>}
         </div>
 
         {/* Title */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>
-            <Tag size={12} /> Título SEO <CharCounter value={seo.title ?? ""} max={70} />
-          </label>
-          <input
-            type="text"
-            value={seo.title ?? ""}
-            onChange={(e) => onSeoChange({ title: e.target.value })}
-            placeholder="Ex: Loja de Moda Sustentável | Entrega Rápida"
-            style={inputStyle(!!errors.seoTitle)}
-          />
-          <FieldError error={errors.seoTitle} />
-        </div>
+        <FormField
+          label={`Título SEO (${(seo.title ?? "").length}/70)`}
+          value={seo.title ?? ""}
+          onChange={(v) => onSeoChange({ title: v })}
+          placeholder="Ex: Loja de Moda Sustentável | Entrega Rápida"
+          maxLength={70}
+          error={errors.seoTitle}
+        />
 
         {/* Description */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>
-            Descrição SEO <CharCounter value={seo.description ?? ""} max={160} />
-          </label>
-          <textarea
-            value={seo.description ?? ""}
-            onChange={(e) => onSeoChange({ description: e.target.value })}
-            placeholder="Descrição que aparece nos resultados do Google..."
-            style={{ ...inputStyle(!!errors.seoDescription), minHeight: 60, resize: "vertical" }}
-          />
-          <FieldError error={errors.seoDescription} />
-        </div>
+        <FormTextarea
+          label={`Descrição SEO (${(seo.description ?? "").length}/160)`}
+          value={seo.description ?? ""}
+          onChange={(v) => onSeoChange({ description: v })}
+          placeholder="Descrição que aparece nos resultados do Google..."
+          maxLength={160}
+          rows={2}
+          hint={errors.seoDescription}
+        />
 
         {/* Keywords */}
-        <div style={{ marginBottom: 16 }}>
-          <label style={labelStyle}>
-            <Hash size={12} /> Palavras-chave ({(seo.keywords ?? []).length}/10)
-          </label>
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+        <div className="form-field">
+          <label>Palavras-chave ({(seo.keywords ?? []).length}/10)</label>
+          <div style={{ display: "flex", gap: 8 }}>
             <input
               type="text"
               value={keywordInput}
               onChange={(e) => setKeywordInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addKeyword())}
               placeholder="Digite e pressione Enter"
-              style={{ ...inputStyle(), flex: 1 }}
             />
             <Button variant="outline" size="sm" onClick={addKeyword} disabled={(seo.keywords ?? []).length >= 10}>+</Button>
           </div>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {(seo.keywords ?? []).map((kw, i) => (
-              <span key={i} style={{ padding: "4px 10px", borderRadius: 20, font: "11px var(--sans)", background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)", display: "flex", alignItems: "center", gap: 4 }}>
-                {kw}
-                <button onClick={() => removeKeyword(i)} style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: 0, font: "inherit", lineHeight: 1 }}>×</button>
-              </span>
-            ))}
-          </div>
-          <FieldError error={errors.keywords} />
+          {(seo.keywords ?? []).length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {(seo.keywords ?? []).map((kw, i) => (
+                <span key={i} style={{ padding: "4px 10px", borderRadius: 20, font: "11px var(--sans)", background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)", display: "flex", alignItems: "center", gap: 4 }}>
+                  {kw}
+                  <button onClick={() => removeKeyword(i)} style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: 0, font: "inherit", lineHeight: 1 }}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+          {errors.keywords && <span className="form-field-error">{errors.keywords}</span>}
         </div>
 
         {/* Open Graph */}
         <div style={{ marginTop: 16, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-          <div style={{ padding: "12px 14px", background: "var(--bg)", font: "600 12px var(--sans)", color: "var(--muted)", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }} onClick={() => onToggleSection?.("og")}>
+          <div style={{ padding: "12px 14px", background: "var(--bg)", font: "600 12px var(--sans)", color: "var(--muted)", cursor: "pointer" }} onClick={() => onToggleSection?.("og")}>
             Open Graph (compartilhamento social)
           </div>
           {showOgSection && (
             <div style={{ display: "grid", gap: 14, padding: "14px 14px", borderTop: "1px solid var(--border)" }}>
-              <div>
-                <label style={labelStyle}>OG Título <CharCounter value={seo.ogTitle ?? ""} max={70} /></label>
-                <input type="text" value={seo.ogTitle ?? ""} onChange={(e) => onSeoChange({ ogTitle: e.target.value })} placeholder="Título para redes sociais" style={inputStyle(!!errors.ogTitle)} />
-                <FieldError error={errors.ogTitle} />
-              </div>
-              <div>
-                <label style={labelStyle}>OG Descrição <CharCounter value={seo.ogDescription ?? ""} max={160} /></label>
-                <textarea value={seo.ogDescription ?? ""} onChange={(e) => onSeoChange({ ogDescription: e.target.value })} placeholder="Descrição para redes sociais" style={{ ...inputStyle(!!errors.ogDescription), minHeight: 50, resize: "vertical" }} />
-                <FieldError error={errors.ogDescription} />
-              </div>
-              <div>
-                <label style={labelStyle}>OG Imagem (URL)</label>
-                <input type="url" value={seo.ogImage ?? ""} onChange={(e) => onSeoChange({ ogImage: e.target.value })} placeholder="https://..." style={inputStyle()} />
-                {seo.ogImage && <img src={seo.ogImage} alt="OG preview" style={{ marginTop: 8, maxWidth: 200, maxHeight: 105, borderRadius: 6, border: "1px solid var(--border)", objectFit: "cover" }} />}
-              </div>
-              <div>
-                <label style={labelStyle}>URL Canônica</label>
-                <input type="url" value={seo.canonicalUrl ?? ""} onChange={(e) => onSeoChange({ canonicalUrl: e.target.value })} placeholder="https://sualoja.com (auto-preenchido se vazio)" style={inputStyle()} />
-              </div>
+              <FormField
+                label={`OG Título (${(seo.ogTitle ?? "").length}/70)`}
+                value={seo.ogTitle ?? ""}
+                onChange={(v) => onSeoChange({ ogTitle: v })}
+                placeholder="Título para redes sociais"
+                maxLength={70}
+                error={errors.ogTitle}
+              />
+              <FormTextarea
+                label={`OG Descrição (${(seo.ogDescription ?? "").length}/160)`}
+                value={seo.ogDescription ?? ""}
+                onChange={(v) => onSeoChange({ ogDescription: v })}
+                placeholder="Descrição para redes sociais"
+                maxLength={160}
+                rows={2}
+              />
+              <FormField
+                label="OG Imagem (URL)"
+                type="url"
+                value={seo.ogImage ?? ""}
+                onChange={(v) => onSeoChange({ ogImage: v })}
+                placeholder="https://..."
+              />
+              {seo.ogImage && <img src={seo.ogImage} alt="OG preview" style={{ maxWidth: 200, maxHeight: 105, borderRadius: 6, border: "1px solid var(--border)", objectFit: "cover" }} />}
+              <FormField
+                label="URL Canônica"
+                type="url"
+                value={seo.canonicalUrl ?? ""}
+                onChange={(v) => onSeoChange({ canonicalUrl: v })}
+                placeholder="https://sualoja.com (auto-preenchido se vazio)"
+              />
             </div>
           )}
         </div>
@@ -299,16 +301,20 @@ export function SeoGtmTab({
         </h3>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <div>
-            <label style={labelStyle}><Monitor size={12} /> Google Tag Manager ID</label>
-            <input type="text" value={gtm.gtmId ?? ""} onChange={(e) => onGtmChange({ gtmId: e.target.value })} placeholder="GTM-XXXXXX" style={inputStyle(!!errors.gtmId)} />
-            <FieldError error={errors.gtmId} />
-          </div>
-          <div>
-            <label style={labelStyle}>Google Analytics 4 ID</label>
-            <input type="text" value={gtm.gaTrackingId ?? ""} onChange={(e) => onGtmChange({ gaTrackingId: e.target.value })} placeholder="G-XXXXXX" style={inputStyle(!!errors.gaTrackingId)} />
-            <FieldError error={errors.gaTrackingId} />
-          </div>
+          <FormField
+            label="Google Tag Manager ID"
+            value={gtm.gtmId ?? ""}
+            onChange={(v) => onGtmChange({ gtmId: v })}
+            placeholder="GTM-XXXXXX"
+            error={errors.gtmId}
+          />
+          <FormField
+            label="Google Analytics 4 ID"
+            value={gtm.gaTrackingId ?? ""}
+            onChange={(v) => onGtmChange({ gaTrackingId: v })}
+            placeholder="G-XXXXXX"
+            error={errors.gaTrackingId}
+          />
         </div>
 
         {/* Pixels */}
@@ -318,14 +324,18 @@ export function SeoGtmTab({
           </div>
           {showPixelsSection && (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, padding: "14px 14px", borderTop: "1px solid var(--border)" }}>
-              <div>
-                <label style={labelStyle}>Facebook Pixel ID</label>
-                <input type="text" value={gtm.pixelIds?.facebook ?? ""} onChange={(e) => onGtmChange({ pixelIds: { ...gtm.pixelIds, facebook: e.target.value } })} placeholder="123456789012345" style={inputStyle()} />
-              </div>
-              <div>
-                <label style={labelStyle}>TikTok Pixel ID</label>
-                <input type="text" value={gtm.pixelIds?.tiktok ?? ""} onChange={(e) => onGtmChange({ pixelIds: { ...gtm.pixelIds, tiktok: e.target.value } })} placeholder="CXXXXXXXXXXXXXXX" style={inputStyle()} />
-              </div>
+              <FormField
+                label="Facebook Pixel ID"
+                value={gtm.pixelIds?.facebook ?? ""}
+                onChange={(v) => onGtmChange({ pixelIds: { ...gtm.pixelIds, facebook: v } })}
+                placeholder="123456789012345"
+              />
+              <FormField
+                label="TikTok Pixel ID"
+                value={gtm.pixelIds?.tiktok ?? ""}
+                onChange={(v) => onGtmChange({ pixelIds: { ...gtm.pixelIds, tiktok: v } })}
+                placeholder="CXXXXXXXXXXXXXXX"
+              />
             </div>
           )}
         </div>
