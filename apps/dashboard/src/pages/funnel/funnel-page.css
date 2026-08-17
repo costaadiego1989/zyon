@@ -427,6 +427,37 @@
   font: 400 13px var(--font-sans);
   color: var(--muted);
 }
+.fnl-sessions-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border);
+}
+.fnl-sessions-pagination button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card);
+  color: var(--muted);
+  font: 500 11px var(--font-sans);
+  cursor: pointer;
+  min-height: 28px;
+  transition: all var(--duration-fast) var(--ease);
+}
+.fnl-sessions-pagination button:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--accent);
+}
+.fnl-sessions-pagination button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.fnl-sessions-pagination span {
+  font: 600 11px var(--font-data);
+  color: var(--faint);
+}
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
