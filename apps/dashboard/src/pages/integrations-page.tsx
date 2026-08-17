@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React from "react";
 import {
   Activity,
   BookOpenCheck,
@@ -13,236 +13,23 @@ import {
   Trash2,
   Webhook,
 } from "lucide-react";
-import {
-  DashboardHttpError,
-  type Installation,
-  type MerchantApiKey,
-  type MerchantProfile,
-  type WebhookDelivery,
-  type WebhookEndpoint
-} from "../api-client.js";
-import { useApi } from "../hooks/useApi.js";
-import { readError } from "../utils/read-error.js";
+import type { MerchantProfile } from "../api-client.js";
+import { useIntegrationsPage, ALL_EVENTS, ALL_SCOPES } from "./useIntegrationsPage.js";
 
-const ALL_EVENTS = [
-  "checkout.started",
-  "checkout.abandoned",
-  "order.created",
-  "order.approved",
-  "order.cancelled",
-  "payment.pending",
-  "payment.approved",
-  "payment.failed",
-  "payment.refunded",
-  "customer.upserted",
-  "tracking.updated",
-  "support.ticket.created",
-  "commerce.connection.degraded",
-];
-
-const ALL_SCOPES = [
-  "checkout:read",
-  "checkout:write",
-  "configuration:read",
-  "configuration:write",
-  "orders:read",
-  "orders:write",
-  "customers:read",
-  "catalog:read",
-  "embed:sessions:create",
-  "tracking:read",
-  "tracking:write",
-  "commerce:read",
-  "commerce:write",
-  "payments:read",
-  "support:read",
-  "support:write",
-  "webhooks:read",
-  "webhooks:write",
-  "audit:read",
-];
-
-const DEFAULT_SCOPES = [...ALL_SCOPES];
+export { relativeTime } from "./useIntegrationsPage.js";
 
 export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useApi();
-  const [apiKeys, setApiKeys] = useState<MerchantApiKey[]>([]);
-  const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([]);
-  const [deliveries, setDeliveries] = useState<WebhookDelivery[]>([]);
-  const [newKeyName, setNewKeyName] = useState("Backend principal");
-  const [newSecret, setNewSecret] = useState<string | null>(null);
-  const [selectedScopes, setSelectedScopes] = useState<string[]>(DEFAULT_SCOPES);
-  const [webhookUrl, setWebhookUrl] = useState("");
-  const [selectedEvents, setSelectedEvents] = useState<string[]>([
-    "order.approved",
-    "customer.upserted",
-    "tracking.updated",
-  ]);
-  const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
-
-  // installations state
-  const [installations, setInstallations] = useState<Installation[]>([]);
-  const [installationHealth, setInstallationHealth] = useState<Record<string, string>>({});
-  const documentationRoot = useMemo(
-    () => apiDocumentationRoot(props.apiBaseUrl),
-    [props.apiBaseUrl],
-  );
-  const quickstart = useMemo(
-    () => embedSessionQuickstart(documentationRoot),
-    [documentationRoot],
-  );
-
-  useEffect(() => {
-    if (!props.me) {
-      setApiKeys([]);
-      setWebhooks([]);
-      setDeliveries([]);
-      setInstallations([]);
-      return;
-    }
-    void load();
-  }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
-    setLoading(true);
-    setApiReachable(null);
-    setMessage(null);
-    try {
-      const [keys, endpoints, logs, installs] = await Promise.all([
-        api.getIntegrationApiKeys(),
-        api.getWebhookEndpoints(),
-        api.getWebhookDeliveries(20),
-        api.getInstallations().catch(() => [] as Installation[]),
-      ]);
-      setApiKeys(keys);
-      setWebhooks(endpoints);
-      setDeliveries(logs);
-      setInstallations(installs);
-      setApiReachable(true);
-    } catch (e) {
-      setApiReachable(false);
-      setMessage(readError(e));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function createKey() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const created = await api.createIntegrationApiKey({
-        name: newKeyName,
-        scopes: selectedScopes,
-      });
-      setNewSecret(created.secret_key);
-      setApiKeys((prev) => [created.api_key, ...prev]);
-      setMessage("Chave criada.");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function revokeKey(apiKeyId: string) {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const revoked = await api.revokeIntegrationApiKey(apiKeyId);
-      setApiKeys((prev) => prev.map((key) => (key.id === apiKeyId ? revoked : key)));
-      setMessage("Chave revogada.");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function createWebhook() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const created = await api.createWebhookEndpoint({ url: webhookUrl, events: selectedEvents, enabled: true });
-      setWebhookUrl("");
-      setWebhooks((prev) => [created, ...prev]);
-      setMessage(created.signingSecret ? `Webhook criado. Segredo ${created.signingSecret}` : "Webhook criado.");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function testWebhook(endpointId: string) {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const delivery = await api.testWebhookEndpoint(endpointId);
-      setDeliveries((prev) => [delivery, ...prev]);
-      setMessage("Teste enfileirado.");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function replay(deliveryId: string) {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const current = deliveries.find((item) => item.id === deliveryId);
-      if (!current) return;
-      const delivery = await api.replayWebhookDelivery(current.endpointId, deliveryId);
-      setDeliveries((prev) => prev.map((item) => (item.id === deliveryId ? delivery : item)));
-      setMessage("Replay enfileirado.");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function checkHealth(installationId: string) {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const result = await api.checkInstallationHealth(installationId);
-      setInstallationHealth((prev) => ({ ...prev, [installationId]: result.status }));
-      setMessage(`Health: ${result.status}`);
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggleEvent(eventName: string) {
-    setSelectedEvents((prev) =>
-      prev.includes(eventName) ? prev.filter((item) => item !== eventName) : [...prev, eventName]
-    );
-  }
-
-  function toggleScope(scope: string) {
-    setSelectedScopes((prev) =>
-      prev.includes(scope)
-        ? prev.filter((item) => item !== scope)
-        : [...prev, scope],
-    );
-  }
-
-  async function copySecret() {
-    if (!newSecret) return;
-    await copyText(
-      newSecret,
-      "Guarde esta chave em local seguro. Ela não será exibida novamente.",
-      setMessage,
-    );
-  }
+  const { state, actions, computed } = useIntegrationsPage(props.apiBaseUrl, props.me);
+  const {
+    apiKeys, webhooks, deliveries, installations, installationHealth,
+    newKeyName, newSecret, selectedScopes, webhookUrl, selectedEvents,
+    message, busy, loading, apiReachable,
+  } = state;
+  const {
+    load, createKey, revokeKey, createWebhook, testWebhook, replay, checkHealth,
+    toggleEvent, toggleScope, copySecret, setNewKeyName, setWebhookUrl, dismissSecret,
+  } = actions;
+  const { activeKeysCount, activeWebhooksCount, deliverySuccessRate, documentationRoot, quickstart } = computed;
 
   if (!props.me) {
     return (
@@ -308,12 +95,12 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </div>
         <div className="metric">
           <KeyRound size={18} aria-hidden />
-          <span className="metric-value">{apiKeys.filter((key) => !key.revokedAt).length}</span>
+          <span className="metric-value">{activeKeysCount}</span>
           <span className="metric-label">Chaves ativas</span>
         </div>
         <div className="metric">
           <Webhook size={18} aria-hidden />
-          <span className="metric-value">{webhooks.filter((endpoint) => endpoint.enabled).length}</span>
+          <span className="metric-value">{activeWebhooksCount}</span>
           <span className="metric-label">Webhooks</span>
         </div>
         <div className="metric">
@@ -321,8 +108,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           <span className="metric-value">{deliveries.length}</span>
           <span className="metric-label">Deliveries</span>
           {deliveries.length > 0 && (
-            <span className={`metric-trend metric-trend--${deliveries.filter(d => d.status === "delivered").length / deliveries.length >= 0.9 ? "up" : "down"}`}>
-              {Math.round((deliveries.filter(d => d.status === "delivered").length / deliveries.length) * 100)}% sucesso
+            <span className={`metric-trend metric-trend--${deliverySuccessRate >= 90 ? "up" : "down"}`}>
+              {deliverySuccessRate}% sucesso
             </span>
           )}
         </div>
@@ -352,13 +139,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
             <span><TerminalSquare size={15} /> cURL</span>
             <button
               type="button"
-              onClick={() =>
-                void copyText(
-                  quickstart,
-                  "Quickstart copiado.",
-                  setMessage,
-                )
-              }
+              onClick={() => void navigator.clipboard.writeText(quickstart).catch(() => {})}
             >
               <Copy size={14} />
               Copiar
@@ -626,47 +407,4 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       </section>
     </>
   );
-}
-
-export function relativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
-  const minutes = Math.floor(diff / 60_000);
-  if (minutes < 1) return "agora";
-  if (minutes < 60) return `há ${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `há ${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `há ${days}d`;
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
-}
-
-
-function apiDocumentationRoot(apiBaseUrl: string): string {
-  return apiBaseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "");
-}
-
-function embedSessionQuickstart(apiRoot: string): string {
-  return `curl --request POST '${apiRoot}/v1/embed/sessions' \\
-  --header 'Authorization: Bearer aacp_test_REPLACE_ME' \\
-  --header 'Content-Type: application/json' \\
-  --header 'Idempotency-Key: checkout-{{customer_cart_id}}' \\
-  --data '{
-    "allowed_origin": "https://checkout.sualoja.com",
-    "installation_id": "ins_REPLACE_ME",
-    "cart_ref": "cart_REPLACE_ME",
-    "scopes": ["checkout:start", "checkout:chat"]
-  }'`;
-}
-
-async function copyText(
-  value: string,
-  successMessage: string,
-  setMessage: (message: string) => void,
-): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(value);
-    setMessage(successMessage);
-  } catch {
-    setMessage("Não foi possível copiar automaticamente neste navegador.");
-  }
 }
