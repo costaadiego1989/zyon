@@ -465,6 +465,27 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                   />
                   <span style={{ fontSize: 11, color: 'var(--muted)' }}>Restringe o widget a funcionar apenas neste domínio</span>
                 </label>
+
+                {/* Embed snippet */}
+                <div style={{ marginTop: 16 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg)', display: 'block', marginBottom: 8 }}>Snippet de instalação</span>
+                  <pre style={{ margin: 0, padding: '14px 16px', borderRadius: 8, background: 'var(--card)', border: '1px solid var(--border)', fontSize: 11, lineHeight: 1.6, color: 'var(--fg)', overflowX: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+{`<!-- 1. Carregue o widget -->
+<script src="${props.apiBaseUrl}/widget/aacp.js" async></script>
+
+<!-- 2. Cole onde o checkout deve aparecer -->
+<zyon-checkout-agent
+  merchant-id="${props.me?.id ?? 'SEU_MERCHANT_ID'}"
+  api-base-url="${props.apiBaseUrl}"
+  embed-session-token="TOKEN_DO_SEU_BACKEND"
+></zyon-checkout-agent>`}
+                  </pre>
+                  <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 8, background: 'color-mix(in srgb, var(--accent) 6%, transparent)', border: '1px solid color-mix(in srgb, var(--accent) 20%, transparent)' }}>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      <strong style={{ color: 'var(--fg)' }}>Como gerar o token:</strong> No seu backend, chame <code style={{ fontSize: 10, padding: '1px 4px', borderRadius: 3, background: 'var(--bg)' }}>POST /embed-sessions</code> com sua API key (criada em Desenvolvedores). O token retornado é temporário e deve ser gerado por sessão.
+                    </p>
+                  </div>
+                </div>
               </div>
             ) : null}
 
