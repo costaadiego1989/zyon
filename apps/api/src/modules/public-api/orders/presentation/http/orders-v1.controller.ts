@@ -37,6 +37,7 @@ import {
   UpdateOrderStatusUseCase,
 } from '../../../../operations/application/order-command.use-cases.js';
 import { OrderEntityMapper } from '../../application/mappers/order-entity.mapper.js';
+import { CancelOrderDto, UpdateOrderTrackingDto } from './dtos/order.dtos.js';
 
 /**
  * Public API v1 — Orders
@@ -122,7 +123,7 @@ export class OrdersV1Controller {
   @RequireTenantAccess({ serviceScopes: ['orders:write'] })
   @ApiOperation({ summary: 'Cancel an order' })
   @ApiOkResponse({ description: 'Order cancelled' })
-  async cancel(@Req() req: any, @Param('orderId') orderId: string, @Body() body: any) {
+  async cancel(@Req() req: any, @Param('orderId') orderId: string, @Body() body: CancelOrderDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     // CancelOrderUseCase.execute(input: { merchantId, orderId, reason, ... })
     const result = await this.cancelOrderUseCase.execute({
@@ -161,7 +162,7 @@ export class OrdersV1Controller {
   async updateTracking(
     @Req() req: any,
     @Param('orderId') orderId: string,
-    @Body() body: any,
+    @Body() body: UpdateOrderTrackingDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
     // UpdateOrderStatusUseCase.execute(input: { merchantId, orderId, status })

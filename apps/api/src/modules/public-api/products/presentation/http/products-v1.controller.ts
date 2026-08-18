@@ -35,6 +35,7 @@ import { GetProductUseCase } from '../../../../catalog/application/use-cases/get
 import { UpdateProductUseCase } from '../../../../catalog/application/use-cases/update-product.use-case.js';
 import { DeleteProductUseCase } from '../../../../catalog/application/use-cases/delete-product.use-case.js';
 import { ProductEntityMapper } from '../../application/mappers/product-entity.mapper.js';
+import { CreateProductDto, UpdateProductDto } from './dtos/product.dtos.js';
 
 /**
  * Public API v1 — Products
@@ -126,11 +127,37 @@ export class ProductsV1Controller {
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Create a product' })
   @ApiCreatedResponse({ description: 'Product created' })
-  async create(@Req() req: any, @Body() body: any) {
+  async create(@Req() req: any, @Body() body: CreateProductDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.addProductUseCase.execute({
-      ...body,
       merchantId,
+      name: body.name,
+      description: body.description,
+      type: body.type,
+      categoryId: body.category_id,
+      metadata: body.metadata,
+      seoTitle: body.seo_title,
+      metaDescription: body.meta_description,
+      slug: body.slug,
+      ogTitle: body.og_title,
+      ogDescription: body.og_description,
+      twitterCard: body.twitter_card,
+      keywords: body.keywords,
+      variants: body.variants.map((v) => ({
+        sku: v.sku,
+        attributes: v.attributes ?? {},
+        barcode: v.barcode,
+        weightGrams: v.weight_grams,
+        lengthCm: v.length_cm,
+        widthCm: v.width_cm,
+        heightCm: v.height_cm,
+        basePriceInCents: v.base_price_in_cents,
+        costInCents: v.cost_in_cents,
+        taxPercent: v.tax_percent,
+        currency: v.currency,
+        stockQuantity: v.stock_quantity,
+        media: v.media,
+      })),
     });
     return ProductEntityMapper.toProductDetailResponse(result);
   }
@@ -147,13 +174,25 @@ export class ProductsV1Controller {
   async update(
     @Req() req: any,
     @Param('productId') productId: string,
-    @Body() body: any,
+    @Body() body: UpdateProductDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.updateProductUseCase.execute({
-      ...body,
       merchantId,
       productId,
+      name: body.name,
+      description: body.description,
+      type: body.type,
+      categoryId: body.category_id,
+      metadata: body.metadata,
+      isActive: body.is_active,
+      seoTitle: body.seo_title,
+      metaDescription: body.meta_description,
+      slug: body.slug,
+      ogTitle: body.og_title,
+      ogDescription: body.og_description,
+      twitterCard: body.twitter_card,
+      keywords: body.keywords,
     });
     return ProductEntityMapper.toProductDetailResponse(result);
   }

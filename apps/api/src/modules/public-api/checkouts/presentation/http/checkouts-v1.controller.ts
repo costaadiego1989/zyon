@@ -40,6 +40,15 @@ import { ApplyOfferUseCase } from '../../../../checkout/application/use-cases/ap
 import { CompleteOrderUseCase } from '../../../../checkout/application/use-cases/complete-order.use-case.js';
 import { UpdateCartUseCase } from '../../../../checkout/application/use-cases/update-cart.use-case.js';
 import { CheckoutEntityMapper } from '../../application/mappers/checkout-entity.mapper.js';
+import {
+  ApplyOfferDto,
+  CompleteCheckoutDto,
+  EvaluateShippingDto,
+  SendCheckoutMessageDto,
+  StartCheckoutDto,
+  TrackCheckoutEventDto,
+  UpdateCheckoutCartDto,
+} from './dtos/checkout.dtos.js';
 
 /**
  * Public API v1 — Checkouts
@@ -76,15 +85,30 @@ export class CheckoutsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Start a new checkout session' })
   @ApiCreatedResponse({ description: 'Checkout session created' })
-  async start(@Req() req: any, @Body() body: any) {
-    const merchantId = req.tenantPrincipal?.tenantId ?? body.merchant_id;
+  async start(@Req() req: any, @Body() body: StartCheckoutDto) {
+    const merchantId = req.tenantPrincipal?.tenantId;
+
+    const cartTotal = (body.cart ?? []).reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
 
     const input: StartCheckoutRequest = {
-      merchant_id: merchantId,
+      merchant_id: merchantId as string,
       session_id: body.session_id,
-      cart: body.cart,
-      customer: body.customer,
-      shipping: body.shipping,
+      cart: {
+        items: body.cart,
+        currency: 'BRL',
+        total: cartTotal,
+      },
+      customer: body.customer
+        ? {
+            email: body.customer.email,
+            fullName: body.customer.full_name,
+            phone: body.customer.phone,
+            cpf: body.customer.cpf,
+          }
+        : undefined,
       cart_ref: body.cart_ref,
     };
 
@@ -116,7 +140,7 @@ export class CheckoutsV1Controller {
   async trackEvent(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
-    @Body() body: any,
+    @Body() body: TrackCheckoutEventDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -142,7 +166,7 @@ export class CheckoutsV1Controller {
   async sendMessage(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
-    @Body() body: any,
+    @Body() body: SendCheckoutMessageDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -169,7 +193,7 @@ export class CheckoutsV1Controller {
   async evaluateShipping(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
-    @Body() body: any,
+    @Body() body: EvaluateShippingDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -198,7 +222,7 @@ export class CheckoutsV1Controller {
   async applyOffer(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
-    @Body() body: any,
+    @Body() body: ApplyOfferDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -224,7 +248,7 @@ export class CheckoutsV1Controller {
   async complete(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
-    @Body() body: any,
+    @Body() body: CompleteCheckoutDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -253,7 +277,7 @@ export class CheckoutsV1Controller {
   async updateCart(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
-    @Body() body: any,
+    @Body() body: UpdateCheckoutCartDto,
   ) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
