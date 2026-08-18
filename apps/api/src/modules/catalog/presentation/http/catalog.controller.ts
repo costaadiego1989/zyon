@@ -124,6 +124,13 @@ export class StoreBuilderCatalogController {
       metadata?: Record<string, unknown>;
       categoryId?: string;
       isActive?: boolean;
+      seoTitle?: string;
+      metaDescription?: string;
+      slug?: string;
+      ogTitle?: string;
+      ogDescription?: string;
+      twitterCard?: string;
+      keywords?: string[];
     },
   ) {
     return this.updateProduct.execute({
@@ -135,6 +142,13 @@ export class StoreBuilderCatalogController {
       metadata: body.metadata,
       categoryId: body.categoryId,
       isActive: body.isActive,
+      seoTitle: body.seoTitle,
+      metaDescription: body.metaDescription,
+      slug: body.slug,
+      ogTitle: body.ogTitle,
+      ogDescription: body.ogDescription,
+      twitterCard: body.twitterCard,
+      keywords: body.keywords,
     });
   }
 
