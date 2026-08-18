@@ -410,14 +410,13 @@ export class StorefrontLangGraphAgent {
             price,
             priceFormatted: formatPrice(price),
             image: p.media?.[0]?.url ?? p.image,
-            inStock: (p.stock ?? 0) > 0,
+            inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
             rating: p.rating ?? 4.3,
             reviewCount: p.reviewCount ?? 0,
             variants: p.variants?.map((v: any) => ({ id: v.id ?? v.sku, name: Object.keys(v.attributes ?? {})[0] ?? "SKU", value: Object.values(v.attributes ?? {})[0] ?? v.sku })),
           }
         });
       } else {
-        // Product not found or empty — override agent message to avoid empty UI with dangling quick replies
         finalContent = detailData?.error === "product_not_found"
           ? "Desculpe, não encontrei esse produto no catálogo. Posso ajudar com outra coisa?"
           : "Não consegui carregar os detalhes do produto. Tente novamente ou escolha outro produto.";
@@ -499,7 +498,7 @@ export class StorefrontLangGraphAgent {
               price: p.price,
               priceFormatted: formatPrice(p.price),
               rating: p.rating,
-              inStock: (p.stock ?? 0) > 0,
+              inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
               attributes: p.attributes ?? {},
             }))
           }

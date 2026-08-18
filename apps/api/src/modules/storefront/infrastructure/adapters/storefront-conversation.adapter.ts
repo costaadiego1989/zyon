@@ -121,10 +121,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
 
       getProductAvailability: async (args) => {
         const stock = await this.stockRepo.getAvailableStock(args.variantId);
+        const variant = await this.prisma.productVariant.findUnique({ where: { id: args.variantId }, select: { product: { select: { type: true } } } });
+        const isDigitalOrService = variant?.product?.type === "digital" || variant?.product?.type === "service";
         return {
-          inStock: stock.quantity > 0,
-          quantity: stock.quantity,
-          estimatedShipping: "3-5 dias úteis"
+          inStock: isDigitalOrService || stock.quantity > 0,
+          quantity: isDigitalOrService ? 999 : stock.quantity,
+          estimatedShipping: isDigitalOrService ? "Entrega imediata" : "3-5 dias úteis"
         };
       },
 
