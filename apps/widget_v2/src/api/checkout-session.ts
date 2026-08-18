@@ -146,7 +146,7 @@ export class CheckoutSession {
     );
     if (!res.ok) return { items: [], total: 0 };
     const data = (await res.json()) as {
-      items?: Array<{ variantId: string; productName: string; quantity: number; price: number; subtotal: number }>;
+      items?: Array<{ variantId: string; productName: string; quantity: number; price: number; subtotal: number; imageUrl?: string }>;
       total?: number;
     };
     const items: CartItem[] = (data.items ?? []).map((i) => ({
@@ -154,6 +154,7 @@ export class CheckoutSession {
       name: i.productName,
       price: i.price,
       quantity: i.quantity,
+      imageUrl: i.imageUrl,
     }));
     return { items, total: data.total ?? 0 };
   }
@@ -235,12 +236,23 @@ export class CheckoutSession {
     installments?: number
   ): Promise<PaymentIntent> {
     this.assertSession();
+    // API expects: method = "pix" | "card" | "boleto" | "crypto"
+    const apiMethod = method === "credito" || method === "debito" ? "card" : method;
+    const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${Date.now()}`;
     const res = await fetch(`${this.baseUrl}/embed/payment/intents`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId, method, installments }),
+      body: JSON.stringify({
+        session_id: this.sessionId,
+        idempotency_key: idempotencyKey,
+        method: apiMethod,
+        installments,
+      }),
     });
-    if (!res.ok) throw new Error(`embed_payment_failed: ${res.status}`);
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`embed_payment_failed: ${res.status} ${text.slice(0, 200)}`);
+    }
     return res.json() as Promise<PaymentIntent>;
   }
 
