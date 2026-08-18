@@ -388,6 +388,10 @@ export interface CheckoutExperienceSnapshot {
     fontFamily?: string;
     fontDisplay?: string;
   };
+  /** Payment methods available for this merchant */
+  stripeConnectAccountId?: string | null;
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
 }
 
 export interface StartCheckoutResponse {
@@ -666,6 +670,7 @@ export interface AgentIdentity {
   tone: AgentTone;
   language: string;
   greeting: string;
+  emptyCartGreeting?: string;
 }
 
 export interface AgentCapabilities {
