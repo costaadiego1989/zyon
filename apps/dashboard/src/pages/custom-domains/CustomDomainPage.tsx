@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Copy, Check } from "lucide-react";
 import { Button } from "../../components/Button.js";
-import { FormField } from "../../components/FormField.js";
 import { useDomainsPage } from "./useDomainsPage.js";
 import { showToast } from "../../components/Toast.js";
 
@@ -37,7 +36,7 @@ export function CustomDomainPage() {
       </div>
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
-        <div style={{ padding: "24px 22px" }}>
+        <div style={{ padding: "20px 22px" }}>
           {state.error && (
             <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: 12, marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
               <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#dc2626", flexShrink: 0, marginTop: 2 }} />
@@ -49,28 +48,27 @@ export function CustomDomainPage() {
           )}
 
           <div style={{ marginBottom: 28 }}>
-            <h3 style={{ font: "600 13px var(--sans)", letterSpacing: "0.08em", marginBottom: 12, color: "var(--muted)", textTransform: "uppercase" }}>Adicionar domínio</h3>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12 }}>
-              <FormField
-                label="Domínio"
+            <h3 style={{ font: "600 11px var(--mono)", letterSpacing: "0.06em", marginBottom: 14, color: "var(--faint)", textTransform: "uppercase" }}>Adicionar domínio</h3>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input
+                type="text"
                 placeholder="athom.com.br ou www.athom.com.br"
                 value={state.newDomain}
-                onChange={setNewDomain}
+                onChange={(e) => setNewDomain(e.target.value)}
                 disabled={state.adding}
+                style={{ flex: 1, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }}
               />
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={addDomain}
-                  disabled={state.adding || !state.newDomain.trim()}
-                  loading={state.adding}
-                >
-                  {state.adding ? "Adicionando..." : "Adicionar"}
-                </Button>
-              </div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={addDomain}
+                disabled={state.adding || !state.newDomain.trim()}
+                loading={state.adding}
+              >
+                {state.adding ? "Adicionando..." : "Adicionar"}
+              </Button>
             </div>
-            <p style={{ fontSize: 11, color: "var(--muted)", margin: "8px 0 0" }}>
+            <p style={{ fontSize: 11, color: "var(--faint)", margin: "10px 0 0" }}>
               Suporte para CNAME (recomendado) e ANAME. Apex domains funcionam com ANAME no seu provedor.
             </p>
           </div>
