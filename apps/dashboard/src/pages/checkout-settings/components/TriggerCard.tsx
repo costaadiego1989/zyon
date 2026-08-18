@@ -58,9 +58,9 @@ export function TriggerCard({
       </div>
 
       {enabled && !isSoon && expanded && (
-        <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 16, background: "var(--bg)" }}>
+        <div style={{ padding: "16px 18px", borderTop: "1px solid var(--border)", display: "flex", flexDirection: "column", gap: 16, background: "var(--bg)", borderRadius: "0 0 12px 12px" }}>
           <div>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Mensagem do agente</span>
+            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Mensagem do agente</span>
             <textarea
               value={message ?? ""}
               onChange={(e) => onMessageChange?.(e.target.value)}
@@ -74,7 +74,7 @@ export function TriggerCard({
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
             <div>
-              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Tempo (segundos)</span>
+              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Tempo (segundos)</span>
               <input
                 type="number"
                 min={5}
@@ -120,7 +120,7 @@ function CouponDropdown({ value, onChange }: { value: string; onChange: (v: stri
 
   return (
     <div style={{ position: "relative" }}>
-      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Cupom (opcional)</span>
+      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Cupom (opcional)</span>
       <button
         type="button"
         onClick={() => setOpen(!open)}
