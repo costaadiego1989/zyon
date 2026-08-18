@@ -26,6 +26,7 @@ import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
+import BuyerAuthGate from "./BuyerAuthGate";
 
 type Message = {
   id: string;
@@ -461,6 +462,7 @@ export default function ConversationShell({
   };
 
   const [cartDrawerForceOpen, setCartDrawerForceOpen] = useState(false);
+  const [showBuyerAuth, setShowBuyerAuth] = useState(false);
 
   const handleQuickReply = (option: string) => {
     // Intercept cart-related actions — open drawer directly instead of sending to LLM
@@ -817,6 +819,12 @@ export default function ConversationShell({
         <CheckoutWidgetPanel
           merchantId={merchantId}
           onCheckout={async () => {
+            const buyerToken = localStorage.getItem("zyon_buyer_token");
+            if (!buyerToken) {
+              setShowBuyerAuth(true);
+              return;
+            }
+
             const widgetBase = process.env.NEXT_PUBLIC_WIDGET_BASE_URL ?? "http://localhost:5173";
             const params = new URLSearchParams();
             if (merchantId) params.set("merchantId", merchantId);
@@ -853,6 +861,40 @@ export default function ConversationShell({
 
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} />
+
+      {/* Buyer Auth Gate */}
+      {showBuyerAuth && (
+        <BuyerAuthGate
+          merchantId={merchantId}
+          onComplete={async () => {
+            setShowBuyerAuth(false);
+            // Now proceed with checkout redirect (same logic as existing onCheckout)
+            const widgetBase = process.env.NEXT_PUBLIC_WIDGET_BASE_URL ?? "http://localhost:5173";
+            const params = new URLSearchParams();
+            if (merchantId) params.set("merchantId", merchantId);
+            if (cart.cartId) params.set("cartId", cart.cartId);
+
+            try {
+              const tokenRes = await fetch("/api/checkout-token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  merchant_id: merchantId,
+                  cart_ref: cart.cartId,
+                  allowed_origin: widgetBase,
+                }),
+              });
+              if (tokenRes.ok) {
+                const data = await tokenRes.json();
+                params.set("embedToken", data.embed_session_token);
+              }
+            } catch (e) { console.error("[checkout] token fetch error:", e); }
+
+            window.location.href = `${widgetBase}?${params.toString()}`;
+          }}
+          onCancel={() => setShowBuyerAuth(false)}
+        />
+      )}
     </div>
   );
 }

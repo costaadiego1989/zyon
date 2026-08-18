@@ -30,10 +30,15 @@ export async function POST(request: Request) {
     const bodyStr = JSON.stringify({
       ttl_seconds: 3600,
       cart_ref: cart_ref || undefined,
+      allowed_origin: allowed_origin || undefined,
       scopes: [
         "checkout:start",
         "checkout:track",
         "checkout:chat",
+        "payment:intents:create",
+        "payment:intents:confirm",
+        "payment:intents:read",
+        "offers:apply",
       ],
     });
     console.log("[checkout-token] fetch:", url, "headers:", JSON.stringify(Object.keys(headers)), "body length:", bodyStr.length);
