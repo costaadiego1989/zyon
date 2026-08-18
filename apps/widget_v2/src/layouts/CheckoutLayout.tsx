@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -47,6 +47,12 @@ export function CheckoutLayout() {
   }, [theme]);
 
   const themeAttr = theme;
+
+  // Sync body background with theme
+  useEffect(() => {
+    const bodyBg = theme === "dark" ? "#0d1117" : "#e7e5df";
+    document.body.style.background = bodyBg;
+  }, [theme]);
 
   // Widget style from brand theme
   const widgetStyle: React.CSSProperties = {
