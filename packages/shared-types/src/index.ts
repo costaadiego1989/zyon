@@ -418,8 +418,8 @@ export interface CheckoutExperienceSnapshot {
     fontFamily?: string;
     fontDisplay?: string;
   };
-  /** Payment methods available for this merchant */
-  stripeConnectAccountId?: string | null;
+  /** Payment methods available for this merchant — flags only, never credentials */
+  stripeEnabled?: boolean;
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
 }
@@ -776,13 +776,19 @@ export type ProgressiveDiscountStage =
   | "abandoned_cart"
   | "payment_nudge";
 
+export type ProgressiveDiscountMode = "progressive_only" | "coupon_only" | "both";
+
 export interface ProgressiveDiscountPolicy {
   enabled: boolean;
+  mode?: ProgressiveDiscountMode;
+  maxProgressivePercent?: number;
   stages: Record<ProgressiveDiscountStage, number>;
 }
 
 export interface ProgressiveDiscountPolicyPatch {
   enabled?: boolean;
+  mode?: ProgressiveDiscountMode;
+  maxProgressivePercent?: number;
   stages?: Partial<Record<ProgressiveDiscountStage, number>>;
 }
 
