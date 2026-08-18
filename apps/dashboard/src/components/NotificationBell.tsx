@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Bell } from "lucide-react";
+import { EmptyState } from "./EmptyState.js";
 
 // Base64 encoded short notification chime (tiny PCM beep)
 const NOTIFICATION_SOUND = "data:audio/wav;base64,UklGRlQBAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YTABAACAf4B/gH+Af4J8h3eMcpJslGaYX5xYoFGkSqhDrDywNbQutie6ILwZvhLAC8IEwv2/9r/uv+a/3r/Wv86/xr++v7a/rr+mv56/lr+Ov4a/fr92v2+/Z79fv1e/T79Hv0K/Pb85vzS/ML8rvye/Ir8evxm/Fb8Qvwy/B78Dvv++/L74v/S/8L/sv+i/5L/gv9y/2L/Uv9C/zL/Iv8S/wL+8v7i/tL+wv6y/qL+kv6C/nL+Yv5S/kL+Mv4i/hL+Av3y/eL90v3C/bL9ov2S/YL9cv1S/UL9Mv0i/RL9Av0C/PL88vzy/OL84vza/NL80vzC/ML8svyy/Kr8qvym/Kb8ovyi/J78nvya/Jr8lvyW/Jb8kvyS/I78jvyO/Ir8ivyK/Ib8hvw==";
@@ -115,9 +116,11 @@ export function NotificationBell({ notifications, onClear, onClickNotification }
           </div>
 
           {count === 0 ? (
-            <div style={{ padding: "24px 12px", textAlign: "center", color: "var(--faint)", fontSize: 12 }}>
-              Nenhuma notificação
-            </div>
+            <EmptyState
+              icon={Bell}
+              title="Nenhuma notificação"
+              description="Novas notificações aparecerão aqui"
+            />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 4 }}>
               {notifications.map((n) => (
