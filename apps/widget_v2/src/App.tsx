@@ -3,19 +3,40 @@ import { useCheckoutStore } from "@/store/checkout-store";
 import { CheckoutLayout } from "@/layouts/CheckoutLayout";
 import { setupAbandonmentTracking, trackEvent } from "@/lib/tracking";
 import { onOrderCompleted } from "@/lib/lifecycle";
+import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
 
 const DEFAULT_API_BASE = "http://localhost:3009";
+const SESSION_KEY = "aacp_checkout_session";
 
 function readUrlParams() {
   const params = new URLSearchParams(window.location.search);
-  const embedToken =
+  let embedToken =
     params.get("embedToken") ||
     params.get("embedSessionToken") ||
     params.get("embed_session_token") ||
     "";
-  const merchantId = params.get("merchantId") || params.get("merchant_id") || "";
-  const cartRef = params.get("cartId") || params.get("cartRef") || params.get("cart_ref") || undefined;
-  const apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
+  let merchantId = params.get("merchantId") || params.get("merchant_id") || "";
+  let cartRef = params.get("cartId") || params.get("cartRef") || params.get("cart_ref") || undefined;
+  let apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
+
+  // If URL has params, persist to sessionStorage for refresh resilience
+  if (embedToken && merchantId) {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl }));
+    } catch { /* quota */ }
+  } else {
+    // No URL params — try to recover from sessionStorage (page refresh)
+    try {
+      const saved = sessionStorage.getItem(SESSION_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        embedToken = parsed.embedToken || "";
+        merchantId = parsed.merchantId || "";
+        cartRef = parsed.cartRef || undefined;
+        apiBaseUrl = parsed.apiBaseUrl || DEFAULT_API_BASE;
+      }
+    } catch { /* corrupted */ }
+  }
 
   // Strip sensitive params from URL (security: avoid leaking token in Referer/history)
   const sensitive = ["embedToken", "embedSessionToken", "embed_session_token", "merchantId", "merchant_id"];
@@ -56,6 +77,32 @@ export function App() {
     }
   }, [status, sessionId]);
 
+  // Setup behavioral triggers (idle, exit intent)
+  useEffect(() => {
+    const triggerConfig = useCheckoutStore.getState().triggerConfig;
+    if (!triggerConfig) return;
+
+    const stageMap: Record<string, string> = {
+      idle_30_seconds: "initial_coupon",
+      exit_intent_detected: "exit_intent",
+    };
+
+    const onTrigger = (trigger: TriggerName) => {
+      const stage = stageMap[trigger];
+      if (stage) {
+        useCheckoutStore.getState().setActiveDiscount(stage, 5);
+      }
+    };
+
+    const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
+    const cleanupExit = setupExitIntentTrigger(triggerConfig, onTrigger);
+
+    return () => {
+      cleanupIdle();
+      cleanupExit();
+    };
+  }, [status]);
+
   useEffect(() => {
     const { embedToken, merchantId, cartRef, apiBaseUrl } = readUrlParams();
     if (!embedToken || !merchantId) {
@@ -77,6 +124,11 @@ export function App() {
     void init({ embedToken, merchantId, cartRef, apiBaseUrl });
   }, [init]);
 
+  // Issue #1: Set page title with store name
+  useEffect(() => {
+    if (brand.name) document.title = `Checkout · ${brand.name}`;
+  }, [brand.name]);
+
   // Apply brand theme as CSS variables
   useEffect(() => {
     const root = document.documentElement;
@@ -93,6 +145,13 @@ export function App() {
     if (brand.mutedTextColor) root.style.setProperty("--aacp-muted", brand.mutedTextColor);
     if (brand.successColor) root.style.setProperty("--aacp-success", brand.successColor);
     if (brand.warningColor) root.style.setProperty("--aacp-warning", brand.warningColor);
+    // Short-form aliases used by inline styles in V2 components
+    if (brand.backgroundColor) root.style.setProperty("--bg", brand.backgroundColor);
+    if (brand.textColor) root.style.setProperty("--tx", brand.textColor);
+    if (brand.mutedTextColor) root.style.setProperty("--mut", brand.mutedTextColor);
+    if (brand.borderColor) root.style.setProperty("--bd", brand.borderColor);
+    if (brand.surfaceColor) root.style.setProperty("--card", brand.surfaceColor);
+    if (brand.successColor) root.style.setProperty("--dot", brand.successColor);
     // Mode: light/dark
     if (brand.mode === "dark") {
       document.body.classList.add("theme-dark");
@@ -103,6 +162,27 @@ export function App() {
     }
     // Density
     if (brand.density) root.dataset.density = brand.density;
+    // Background image
+    if ((brand as any).backgroundImageUrl) {
+      document.body.style.background = `url(${(brand as any).backgroundImageUrl}) center/cover no-repeat fixed`;
+      document.body.style.backgroundColor = brand.backgroundColor || "";
+    }
+    // Favicon
+    const favicon = (brand as any).favicon || brand.logoUrl;
+    if (favicon) {
+      let link = document.querySelector("link[rel='icon']") as HTMLLinkElement;
+      if (!link) {
+        link = document.createElement("link");
+        link.rel = "icon";
+        document.head.appendChild(link);
+      }
+      link.href = favicon;
+    }
+    // Density → max-width shell
+    const density = (brand as any).density;
+    if (density === "compact") root.style.setProperty("--aacp-shell-max-width", "480px");
+    else if (density === "comfortable") root.style.setProperty("--aacp-shell-max-width", "680px");
+    else root.style.setProperty("--aacp-shell-max-width", "100%");
     // Font loading
     if (brand.fontFamily && !document.querySelector(`link[data-font-loaded]`)) {
       const stripQuotes = (s: string) => s.trim().replace(/^['"]|['"]$/g, "");
