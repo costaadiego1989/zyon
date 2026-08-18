@@ -3,8 +3,6 @@ import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
 import { Button } from "../components/Button.js";
 import { SectionHeader } from "../components/SectionHeader.js";
-import { applyCurrencyMask } from "../utils/currency.js";
-import { PrefixInput } from "../components/PrefixInput.js";
 import { TabBar } from "../components/TabBar.js";
 import { useAgentConfigPage, TONE_PT_TO_EN, DEFAULT_STAGE_QR, type StageQrConfig } from "./useAgentConfigPage.js";
 import type { AgentTone } from "@zyon/shared-types";
@@ -48,7 +46,6 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
           <TabBar
             tabs={[
               { key: "identity", label: "Identidade" },
-              { key: "negotiation", label: "Negociação" },
               { key: "quick-replies", label: "Quick Replies" },
             ]}
             activeTab={vm.activeTab}
@@ -114,58 +111,6 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                 </label>
               </div>
             </section>
-          )}
-
-          {vm.activeTab === "negotiation" && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <SectionHeader title="DESCONTO" variant="secondary" />
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Limite máximo de desconto que o agente pode conceder ao comprador.</p>
-                <div style={{ maxWidth: 280 }}>
-                  <PrefixInput prefix="%" label="Desconto máximo" value={vm.form.maxDiscountPercent} onChange={(v) => vm.patch({ maxDiscountPercent: v })} placeholder="10" error={vm.errors.maxDiscountPercent} />
-                </div>
-              </section>
-
-              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <SectionHeader title="FRETE" variant="secondary" />
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 10px" }}>Opções de frete grátis e desconto parcial no envio.</p>
-                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                    <span onClick={() => vm.patch({ allowFreeShipping: !vm.form.allowFreeShipping })} style={{ width: 36, height: 20, borderRadius: 10, background: vm.form.allowFreeShipping ? "var(--accent)" : "oklch(30% 0.006 145)", position: "relative", cursor: "pointer", transition: "background 150ms", flexShrink: 0 }}>
-                      <span style={{ position: "absolute", top: 2, left: vm.form.allowFreeShipping ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 150ms", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
-                    </span>
-                    <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir frete grátis</span>
-                  </label>
-                  {vm.form.allowFreeShipping && (
-                    <div style={{ paddingLeft: 46, maxWidth: 280 }}>
-                      <PrefixInput prefix="R$" label="Valor mínimo carrinho para frete grátis" value={vm.form.freeShippingMinCartValue} onChange={(v) => vm.patch({ freeShippingMinCartValue: applyCurrencyMask(v) })} placeholder="250,00" error={vm.errors.freeShippingMinCartValue} />
-                    </div>
-                  )}
-                  <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-                    <span onClick={() => vm.patch({ allowShippingDiscount: !vm.form.allowShippingDiscount })} style={{ width: 36, height: 20, borderRadius: 10, background: vm.form.allowShippingDiscount ? "var(--accent)" : "oklch(30% 0.006 145)", position: "relative", cursor: "pointer", transition: "background 150ms", flexShrink: 0 }}>
-                      <span style={{ position: "absolute", top: 2, left: vm.form.allowShippingDiscount ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: "#fff", transition: "left 150ms", boxShadow: "0 1px 3px rgba(0,0,0,0.3)" }} />
-                    </span>
-                    <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>Permitir desconto parcial no frete</span>
-                  </label>
-                  {vm.form.allowShippingDiscount && (
-                    <div style={{ paddingLeft: 46, marginTop: 2 }}>
-                      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
-                        Desconto parcial máximo no frete: <span style={{ color: "var(--accent)", fontFamily: "var(--mono)", fontWeight: 600 }}>{vm.form.maxPartialShippingDiscount}%</span>
-                      </span>
-                      <input type="range" min="0" max="100" value={vm.form.maxPartialShippingDiscount} onChange={(e) => vm.patch({ maxPartialShippingDiscount: e.target.value })} style={{ width: "100%", maxWidth: 280, accentColor: "var(--accent)", cursor: "pointer", height: 4 }} />
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px" }}>
-                <SectionHeader title="OFERTAS" variant="secondary" />
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "2px 0 12px" }}>Após expirar, o agente pode gerar uma nova proposta.</p>
-                <div style={{ maxWidth: 280 }}>
-                  <NumberField label="Expiração da oferta (minutos)" value={vm.form.offerExpirationMinutes} onChange={(v) => vm.patch({ offerExpirationMinutes: v })} error={vm.errors.offerExpirationMinutes} />
-                </div>
-              </section>
-            </div>
           )}
 
           {vm.activeTab === "quick-replies" && (

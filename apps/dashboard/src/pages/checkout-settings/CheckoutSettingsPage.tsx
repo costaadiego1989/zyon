@@ -396,6 +396,37 @@ export function CheckoutSettingsPage(props: {
                 />
               </div>
 
+              <div className="cfg-grid-2">
+                <div className="cfg-field">
+                  <label htmlFor="cfg-discount-mode">Modo de desconto</label>
+                  <div className="cfg-select">
+                    <select
+                      id="cfg-discount-mode"
+                      value={vm.draft!.progressiveMode}
+                      disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
+                      onChange={(e) =>
+                        vm.patchDraft({ progressiveMode: e.target.value as "progressive_only" | "coupon_only" | "both" })
+                      }
+                    >
+                      <option value="progressive_only">Desconto progressivo apenas</option>
+                      <option value="coupon_only">Cupom manual apenas</option>
+                      <option value="both">Ambos (cumulativo)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <NumberField
+                  label="Desconto máximo para progressivo"
+                  help="Teto geral para todas as etapas de desconto."
+                  value={vm.draft!.progressiveMaxPercent}
+                  min={5}
+                  max={100}
+                  disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
+                  suffix="%"
+                  onChange={(v) => vm.patchDraft({ progressiveMaxPercent: v })}
+                />
+              </div>
+
               <div className="cfg-preset-buttons">
                 <span className="cfg-preset-label">Presets:</span>
                 <button

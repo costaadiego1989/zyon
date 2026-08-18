@@ -32,6 +32,8 @@ export interface Draft {
   minimumCartValue: number;
   progressiveDiscountEnabled: boolean;
   progressiveLevel: ProgressiveLevel;
+  progressiveMode: "progressive_only" | "coupon_only" | "both";
+  progressiveMaxPercent: number;
   progressiveInitialCouponPercent: number;
   progressiveExitIntentPercent: number;
   progressiveAbandonedCartPercent: number;
@@ -64,6 +66,8 @@ export const DEFAULT_DRAFT: Draft = {
   minimumCartValue: 0,
   progressiveDiscountEnabled: false,
   progressiveLevel: "moderate",
+  progressiveMode: "progressive_only",
+  progressiveMaxPercent: 20,
   progressiveInitialCouponPercent: 7,
   progressiveExitIntentPercent: 10,
   progressiveAbandonedCartPercent: 15,
@@ -130,6 +134,8 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     minimumCartValue: s.suppressionRules.minimumCartValue ?? 0,
     progressiveDiscountEnabled: s.interventionPolicy.progressiveDiscount?.enabled ?? false,
     progressiveLevel: inferProgressiveLevel(stages),
+    progressiveMode: s.interventionPolicy.progressiveDiscount?.mode ?? "progressive_only",
+    progressiveMaxPercent: s.interventionPolicy.progressiveDiscount?.maxProgressivePercent ?? 20,
     progressiveInitialCouponPercent: stages.initial_coupon,
     progressiveExitIntentPercent: stages.exit_intent,
     progressiveAbandonedCartPercent: stages.abandoned_cart,
@@ -157,6 +163,8 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
       maxInterventionsPerSession: d.maxInterventionsPerSession,
       progressiveDiscount: {
         enabled: d.progressiveDiscountEnabled,
+        mode: d.progressiveMode,
+        maxProgressivePercent: d.progressiveMaxPercent,
         stages,
       },
     },
