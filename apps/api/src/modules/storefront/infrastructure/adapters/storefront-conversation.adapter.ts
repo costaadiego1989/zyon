@@ -194,6 +194,26 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         });
         this.logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total });
 
+        // Cross-sell: suggest complementary products after add-to-cart
+        let crossSellSuggestions: Array<{ name: string; sku: string; price: number; imageUrl?: string; discountPercent?: number }> = [];
+        try {
+          const crossSellConfig = await this.loadCrossSellConfig(merchantId);
+          if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
+            const products = await this.productRepo.search({ merchantId, limit: 5, isActiveOnly: true });
+            const cartSkus = new Set(cart.items.map((i) => i.sku));
+            crossSellSuggestions = products.products
+              .filter((p) => !cartSkus.has(p.variants[0]?.sku ?? ""))
+              .slice(0, 2)
+              .map((p) => ({
+                name: p.name,
+                sku: p.variants[0]?.sku ?? p.id,
+                price: (p.variants[0]?.basePriceInCents ?? 0) / 100,
+                imageUrl: p.variants[0]?.media?.[0]?.url,
+                discountPercent: crossSellConfig.discount.enabled ? crossSellConfig.discount.percent : undefined,
+              }));
+          }
+        } catch { /* non-critical */ }
+
         return {
           cartId: cart.sessionId,
           items: cart.items.map((i) => ({
@@ -204,7 +224,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             lineTotal: (i.unitPriceCents * i.quantity) / 100
           })),
           total: cart.total / 100,
-          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0)
+          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
+          crossSellSuggestions: crossSellSuggestions.length > 0 ? crossSellSuggestions : undefined,
         };
       },
 
@@ -797,6 +818,22 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         return cartId
           ? ["Ver meu carrinho", "Buscar produtos", "Promoções disponíveis"]
           : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
+    }
+  }
+
+  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; percent: number }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number } }> {
+    try {
+      const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+      const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
+      const cs = settings.crossSell ?? {};
+      return {
+        enabled: cs.enabled ?? false,
+        touchpoints: { browsing: cs.touchpoints?.browsing ?? true, pre_cart: cs.touchpoints?.pre_cart ?? false, pre_payment: cs.touchpoints?.pre_payment ?? true, post_purchase: cs.touchpoints?.post_purchase ?? false },
+        discount: { enabled: cs.discount?.enabled ?? false, percent: cs.discount?.percent ?? 10 },
+        limits: { maxSuggestionsPerSession: cs.limits?.maxSuggestionsPerSession ?? 2, cooldownSeconds: cs.limits?.cooldownSeconds ?? 120 },
+      };
+    } catch {
+      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 } };
     }
   }
 }

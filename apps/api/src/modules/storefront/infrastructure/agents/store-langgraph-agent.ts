@@ -466,6 +466,24 @@ export class StorefrontLangGraphAgent {
           }
         });
       }
+      if (cartData?.crossSellSuggestions?.length > 0) {
+        const formatPrice = (v: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
+        blocks.push({
+          type: "cross_sell",
+          data: {
+            trigger: "Combina com sua compra ✨ Outros clientes também levaram:",
+            products: cartData.crossSellSuggestions.map((p: any) => ({
+              id: p.sku,
+              name: p.name,
+              price: p.price,
+              priceFormatted: formatPrice(p.price),
+              image: p.imageUrl,
+              inStock: true,
+              discountPercent: p.discountPercent,
+            })),
+          }
+        } as any);
+      }
     }
     if (toolResults["quote_shipping"]) {
       const shippingData = toolResults["quote_shipping"] as any;

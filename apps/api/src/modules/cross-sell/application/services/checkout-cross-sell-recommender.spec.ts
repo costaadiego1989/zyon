@@ -12,7 +12,7 @@ function setup() {
   const suggestions = new InMemoryCrossSellSuggestionRepository();
   const outbox = new InMemoryOutboxRepository();
   const listEligible = new ListEligibleCrossSellsUseCase(promotions, suggestions, outbox);
-  const recommender = new CheckoutCrossSellRecommender(listEligible);
+  const recommender = new CheckoutCrossSellRecommender(listEligible, { merchant: { findUnique: async () => null } } as any);
   return { promotions, suggestions, outbox, recommender };
 }
 
