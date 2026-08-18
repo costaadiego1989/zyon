@@ -425,7 +425,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <label>
                 Arredondamento dos cantos
-                <span className="field-hint">{theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}px</span>
+                <span className="field-hint" style={{ marginLeft: 8 }}>{theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}px</span>
                 <input
                   type="range"
                   min={0}
@@ -439,7 +439,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <label>
                 Layout do widget
-                <span className="field-hint">Largura do checkout na página</span>
+                <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Largura do checkout na página</span>
               </label>
               <div className="filter-tabs">
                 {DENSITY_OPTIONS.map((opt) => (
@@ -457,7 +457,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <label>
                 Modo de cor
-                <span className="field-hint">Aparência geral do checkout</span>
+                <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Aparência geral do checkout</span>
               </label>
               <div className="filter-tabs">
                 {([
