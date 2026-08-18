@@ -129,6 +129,35 @@ class WidgetBehaviorDto {
   @IsOptional()
   @IsIn(["floating", "page", "redirect"])
   cartPresentationMode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  fabColor?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  inviteText?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  showCartBadge?: boolean;
+
+  @ApiPropertyOptional({ enum: ["open_widget", "redirect"] })
+  @IsOptional()
+  @IsString()
+  @IsIn(["open_widget", "redirect"])
+  fabClickAction?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  fabRedirectUrl?: string;
 }
 
 class TriggerRuleDto {
