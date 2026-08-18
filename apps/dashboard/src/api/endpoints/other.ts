@@ -404,5 +404,9 @@ export function otherEndpoints(base: string, f: typeof fetch) {
     seedTestData(): Promise<{ merchantId: string; embedToken: string; accessToken: string; productId: string }> {
       return dashboardJson(base, "/__test__/seed", { method: "POST" }, f);
     },
+    // Coupons
+    listCoupons(): Promise<Array<{ id: string; code: string; type: string; value: number; isActive: boolean }>> {
+      return dashboardJson(base, "/merchant/coupons", { method: "GET" }, f);
+    },
   };
 }
