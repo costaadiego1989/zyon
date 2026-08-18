@@ -18,6 +18,7 @@ import {
   Settings2,
   ShieldCheck,
   ShoppingBag,
+  Sparkles,
   Store,
   Users,
   UsersRound,
@@ -54,6 +55,8 @@ export type TabKey =
   | "categories"
   | "store-settings"
   | "custom-domain"
+  | "cross-sell"
+  | "cross-sell-checkout"
   | "agent-config"
   | "agent-config-checkout"
   | "stories"
@@ -81,10 +84,12 @@ export const NAV_ITEMS: Array<{
   { key: "theme", label: "Tema", section: "Loja", icon: Palette, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "store-settings", label: "Configurações", section: "Loja", icon: Save, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "custom-domain", label: "Domínio", section: "Loja", icon: Globe, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "cross-sell", label: "Cross Sell", section: "Loja", icon: Sparkles, requiredPlan: ["STORE_ONLY", "BOTH"] },
 
   // ─── Checkout (Widget) ───
   { key: "settings", label: "Configurações", section: "Checkout", icon: Settings2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "agent-config-checkout", label: "Agente IA", section: "Checkout", icon: Bot, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "cross-sell-checkout", label: "Cross Sell", section: "Checkout", icon: Sparkles, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "theme-checkout", label: "Tema", section: "Checkout", icon: Palette, requiredPlan: ["CHECKOUT_ONLY"] },
   { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },

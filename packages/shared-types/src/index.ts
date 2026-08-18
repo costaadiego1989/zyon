@@ -211,6 +211,36 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   couponBoxEnabled: true
 };
 
+export type CrossSellTouchpoint = "browsing" | "pre_cart" | "pre_payment" | "post_purchase";
+export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
+export type CrossSellDisplayMode = "inline" | "modal" | "banner";
+
+export interface CrossSellConfig {
+  enabled: boolean;
+  touchpoints: Record<CrossSellTouchpoint, boolean>;
+  strategies: CrossSellStrategy[];
+  limits: {
+    maxSuggestionsPerSession: number;
+    cooldownSeconds: number;
+  };
+  discount: {
+    enabled: boolean;
+    percent: number;
+  };
+  display: {
+    mode: CrossSellDisplayMode;
+  };
+}
+
+export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
+  enabled: false,
+  touchpoints: { browsing: true, pre_cart: false, pre_payment: true, post_purchase: false },
+  strategies: ["same_category", "ai_personalized"],
+  limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
+  discount: { enabled: false, percent: 10 },
+  display: { mode: "inline" },
+};
+
 export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
 
 export type PaymentMethod = "pix" | "credit_card" | "crypto";

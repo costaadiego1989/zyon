@@ -102,6 +102,14 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `/storage/object?url=${encodeURIComponent(url)}`, { method: "DELETE" }, f);
     },
 
+    getCrossSellConfig(): Promise<any> {
+      return dashboardJson(base, "/merchants/me/cross-sell-config", { method: "GET" }, f);
+    },
+
+    putCrossSellConfig(config: any): Promise<any> {
+      return dashboardJson(base, "/merchants/me/cross-sell-config", { method: "PUT", jsonBody: config }, f);
+    },
+
     listDomains(): Promise<DomainEntry[]> {
       return dashboardJson(base, "/merchants/me/domains", { method: "GET" }, f);
     },

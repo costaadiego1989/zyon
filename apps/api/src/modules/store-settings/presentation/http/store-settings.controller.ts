@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Put, Post, Param, Body, UseGuards, Req } from "@nestjs/common";
+import { Controller, ForbiddenException, Get, Put, Post, Param, Body, UseGuards, Req, Inject } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
@@ -7,7 +7,10 @@ import { UpdateStoreSettingsUseCase } from "../../application/use-cases/update-s
 import { GetSeoSettingsUseCase, type SeoGtmConfig } from "../../application/use-cases/get-seo-settings.use-case.js";
 import { UpdateSeoSettingsUseCase, type UpdateSeoInput, type UpdateSeoOutput } from "../../application/use-cases/update-seo-settings.use-case.js";
 import { GenerateSeoSuggestionsUseCase } from "../../application/use-cases/generate-seo-suggestions.use-case.js";
-import type { GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse } from "@zyon/shared-types";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
+import type { GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
+import { DEFAULT_CROSS_SELL_CONFIG } from "@zyon/shared-types";
 
 @UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -18,6 +21,7 @@ export class StoreSettingsController {
     private readonly getSeoSettings: GetSeoSettingsUseCase,
     private readonly updateSeoSettings: UpdateSeoSettingsUseCase,
     private readonly generateSeoSuggestions: GenerateSeoSuggestionsUseCase,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   @Get(":mid/store-settings")
@@ -92,6 +96,37 @@ export class StoreSettingsController {
   ): Promise<GenerateSeoSuggestionsResponse> {
     this.assertOwnership(req, merchantId);
     return this.generateSeoSuggestions.execute(merchantId, body);
+  }
+
+  @Get("me/cross-sell-config")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async getCrossSellConfig(@Req() req: any): Promise<CrossSellConfig> {
+    const user = currentUser(req);
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
+    const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
+    return { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell };
+  }
+
+  @Put("me/cross-sell-config")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async updateCrossSellConfig(@Req() req: any, @Body() body: Partial<CrossSellConfig>): Promise<CrossSellConfig> {
+    const user = currentUser(req);
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
+    const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
+    const current = { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell };
+    const updated: CrossSellConfig = {
+      ...current,
+      ...body,
+      touchpoints: { ...current.touchpoints, ...body.touchpoints },
+      limits: { ...current.limits, ...body.limits },
+      discount: { ...current.discount, ...body.discount },
+      display: { ...current.display, ...body.display },
+    };
+    await this.prisma.merchant.update({
+      where: { id: user.merchantId },
+      data: { storeSettings: { ...settings, crossSell: updated } as any },
+    });
+    return updated;
   }
 
   private assertOwnership(req: any, merchantId: string): void {
