@@ -421,12 +421,13 @@ export function CheckoutSettingsPage(props: {
                   value={vm.draft!.progressiveMaxPercent}
                   min={5}
                   max={100}
-                  disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled}
+                  disabled={vm.busy || !vm.draft!.progressiveDiscountEnabled || vm.draft!.progressiveMode === "coupon_only"}
                   suffix="%"
                   onChange={(v) => vm.patchDraft({ progressiveMaxPercent: v })}
                 />
               </div>
 
+              {vm.draft!.progressiveMode !== "coupon_only" && (<>
               <div className="cfg-preset-buttons">
                 <span className="cfg-preset-label">Presets:</span>
                 <button
@@ -518,6 +519,7 @@ export function CheckoutSettingsPage(props: {
               <p className="cfg-help">
                 Cada valor é o desconto total daquela etapa, não a soma. O motor de regras aplica o teto e a margem mínima.
               </p>
+              </>)}
             </SectionRail>
             </>}
 
