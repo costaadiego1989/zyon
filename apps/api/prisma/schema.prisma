@@ -13,25 +13,25 @@ enum MerchantPlan {
 }
 
 model Merchant {
-  id                       String         @id
-  name                     String
-  theme                    Json?
-  storeCategory            String?        @map("store_category")
-  storeSettings            Json?          @map("store_settings")
-  stripeConnectAccountId   String?        @map("stripe_connect_account_id")
-  cryptoPaymentsEnabled    Boolean        @default(false) @map("crypto_payments_enabled")
-  melhorEnvioAccessToken   String?        @map("melhor_envio_access_token")
-  melhorEnvioRefreshToken  String?        @map("melhor_envio_refresh_token")
-  melhorEnvioExpiresAt     DateTime?      @map("melhor_envio_expires_at")
-  budgetModeEnabled        Boolean        @default(false) @map("budget_mode_enabled")
-  budgetEmail              String?        @map("budget_email")
-  budgetWhatsapp           String?        @map("budget_whatsapp")
-  checkoutReturnUrl        String?        @map("checkout_return_url")
-  plan                     MerchantPlan   @default(CHECKOUT_ONLY)
-  eventVersion             Int            @default(0) @map("event_version")
-  shardId                  Int?           @map("shard_id")
-  createdAt                DateTime       @default(now()) @map("created_at")
-  updatedAt                DateTime       @updatedAt @map("updated_at")
+  id                      String       @id
+  name                    String
+  theme                   Json?
+  storeCategory           String?      @map("store_category")
+  storeSettings           Json?        @map("store_settings")
+  stripeConnectAccountId  String?      @map("stripe_connect_account_id")
+  cryptoPaymentsEnabled   Boolean      @default(false) @map("crypto_payments_enabled")
+  melhorEnvioAccessToken  String?      @map("melhor_envio_access_token")
+  melhorEnvioRefreshToken String?      @map("melhor_envio_refresh_token")
+  melhorEnvioExpiresAt    DateTime?    @map("melhor_envio_expires_at")
+  budgetModeEnabled       Boolean      @default(false) @map("budget_mode_enabled")
+  budgetEmail             String?      @map("budget_email")
+  budgetWhatsapp          String?      @map("budget_whatsapp")
+  checkoutReturnUrl       String?      @map("checkout_return_url")
+  plan                    MerchantPlan @default(CHECKOUT_ONLY)
+  eventVersion            Int          @default(0) @map("event_version")
+  shardId                 Int?         @map("shard_id")
+  createdAt               DateTime     @default(now()) @map("created_at")
+  updatedAt               DateTime     @updatedAt @map("updated_at")
 
   users                  MerchantUser[]
   apiKeys                MerchantApiKey[]
@@ -268,6 +268,7 @@ model CheckoutSession {
   abandonmentScore Float    @default(0) @map("abandonment_score")
   triggerAgent     Boolean  @default(false) @map("trigger_agent")
   chatHistory      Json     @default("[]") @map("chat_history")
+  promptVariantId  String?  @map("prompt_variant_id")
   version          Int      @default(0)
   createdAt        DateTime @map("created_at")
   updatedAt        DateTime @map("updated_at")
@@ -768,10 +769,10 @@ model BuyerAccount {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  agentProfile       BuyerAgentProfile?
-  addresses          BuyerAddress[]
-  conversations      BuyerConversation[]
-  buyerPreferences   BuyerPreference[]
+  agentProfile        BuyerAgentProfile?
+  addresses           BuyerAddress[]
+  conversations       BuyerConversation[]
+  buyerPreferences    BuyerPreference[]
   webauthnCredentials WebAuthnCredential[]
 
   @@map("buyer_accounts")
@@ -781,18 +782,18 @@ model BuyerAccount {
 /// address per buyer (is_default=true). Hard cap of 5 enforced at the
 /// use-case layer.
 model BuyerAddress {
-  id            String   @id @default(cuid())
-  globalUserId  String   @map("global_user_id")
-  zip           String
-  street        String
-  number        String
-  complement    String?
-  neighborhood  String
-  city          String
-  state         String
-  isDefault     Boolean  @default(false) @map("is_default")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  globalUserId String   @map("global_user_id")
+  zip          String
+  street       String
+  number       String
+  complement   String?
+  neighborhood String
+  city         String
+  state        String
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   account BuyerAccount @relation(fields: [globalUserId], references: [globalUserId], onDelete: Cascade)
 
@@ -907,11 +908,11 @@ model WebAuthnCredential {
 /// buyer-account ADR B3). Keyed by a trusted identifier (resolved client IP
 /// and/or normalized email), never by a client-controlled header.
 model LoginAttemptCounter {
-  id          String   @id @default(cuid())
-  scopeKey    String   @unique @map("scope_key")
-  count       Int      @default(0)
+  id           String   @id @default(cuid())
+  scopeKey     String   @unique @map("scope_key")
+  count        Int      @default(0)
   windowEndsAt DateTime @map("window_ends_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([windowEndsAt])
   @@map("login_attempt_counters")
@@ -920,26 +921,26 @@ model LoginAttemptCounter {
 // --- Growth context: coupons (coupons ADR) ---
 
 model Coupon {
-  id             String    @id
-  merchantId     String    @map("merchant_id")
-  code           String
-  discountType   String    @map("discount_type")
-  discountValue  Decimal   @map("discount_value") @db.Decimal(12, 4)
-  minCartTotal   Decimal?  @map("min_cart_total") @db.Decimal(12, 4)
-  freeShippingMinCartTotal Decimal? @map("free_shipping_min_cart_total") @db.Decimal(12, 4)
-  maxUsages      Int?      @map("max_usages")
-  minPerBuyer    Int?      @map("min_per_buyer")
-  maxPerBuyer    Int?      @map("max_per_buyer")
-  usagesCount    Int       @default(0) @map("usages_count")
-  allowedSkus    String[]  @default([]) @map("allowed_skus")
-  blockedSkus    String[]  @default([]) @map("blocked_skus")
-  allowedRegions String[]  @default([]) @map("allowed_regions")
-  blockedRegions String[]  @default([]) @map("blocked_regions")
-  status         String    @default("active")
-  startsAt       DateTime  @map("starts_at")
-  endsAt         DateTime? @map("ends_at")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  id                       String    @id
+  merchantId               String    @map("merchant_id")
+  code                     String
+  discountType             String    @map("discount_type")
+  discountValue            Decimal   @map("discount_value") @db.Decimal(12, 4)
+  minCartTotal             Decimal?  @map("min_cart_total") @db.Decimal(12, 4)
+  freeShippingMinCartTotal Decimal?  @map("free_shipping_min_cart_total") @db.Decimal(12, 4)
+  maxUsages                Int?      @map("max_usages")
+  minPerBuyer              Int?      @map("min_per_buyer")
+  maxPerBuyer              Int?      @map("max_per_buyer")
+  usagesCount              Int       @default(0) @map("usages_count")
+  allowedSkus              String[]  @default([]) @map("allowed_skus")
+  blockedSkus              String[]  @default([]) @map("blocked_skus")
+  allowedRegions           String[]  @default([]) @map("allowed_regions")
+  blockedRegions           String[]  @default([]) @map("blocked_regions")
+  status                   String    @default("active")
+  startsAt                 DateTime  @map("starts_at")
+  endsAt                   DateTime? @map("ends_at")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
 
   redemptions CouponRedemption[]
 
@@ -950,17 +951,17 @@ model Coupon {
 }
 
 model CouponRedemption {
-  id                 String    @id
-  couponId           String    @map("coupon_id")
-  merchantId         String    @map("merchant_id")
-  sessionId          String    @map("session_id")
-  buyerGlobalUserId  String?   @map("buyer_global_user_id")
-  discountApplied    Decimal   @map("discount_applied") @db.Decimal(12, 4)
-  source             String
-  status             String    @default("applied")
-  orderId            String?   @map("order_id")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @updatedAt @map("updated_at")
+  id                String   @id
+  couponId          String   @map("coupon_id")
+  merchantId        String   @map("merchant_id")
+  sessionId         String   @map("session_id")
+  buyerGlobalUserId String?  @map("buyer_global_user_id")
+  discountApplied   Decimal  @map("discount_applied") @db.Decimal(12, 4)
+  source            String
+  status            String   @default("applied")
+  orderId           String?  @map("order_id")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   coupon Coupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
 
@@ -1067,7 +1068,7 @@ model SelfCheckoutWallet {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  buyerUser      SelfCheckoutBuyerUser         @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
+  buyerUser      SelfCheckoutBuyerUser            @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
   addresses      SelfCheckoutSavedAddress[]
   paymentMethods SelfCheckoutSavedPaymentMethod[]
 
@@ -1109,15 +1110,15 @@ model SelfCheckoutSavedPaymentMethod {
 }
 
 model SelfCheckoutTemplate {
-  id                       String   @id
-  buyerUserId              String   @map("buyer_user_id")
-  merchantId               String   @map("merchant_id")
-  name                     String
-  savedAddressId           String   @map("saved_address_id")
-  savedPaymentMethodId     String   @map("saved_payment_method_id")
-  preferredShippingMethodId String? @map("preferred_shipping_method_id")
-  isActive                 Boolean  @default(true) @map("is_active")
-  createdAt                DateTime @default(now()) @map("created_at")
+  id                        String   @id
+  buyerUserId               String   @map("buyer_user_id")
+  merchantId                String   @map("merchant_id")
+  name                      String
+  savedAddressId            String   @map("saved_address_id")
+  savedPaymentMethodId      String   @map("saved_payment_method_id")
+  preferredShippingMethodId String?  @map("preferred_shipping_method_id")
+  isActive                  Boolean  @default(true) @map("is_active")
+  createdAt                 DateTime @default(now()) @map("created_at")
 
   buyerUser SelfCheckoutBuyerUser @relation(fields: [buyerUserId], references: [id], onDelete: Cascade)
 
@@ -1143,17 +1144,17 @@ enum StockReservationStatus {
 }
 
 model ProductCategory {
-  id         String    @id @default(cuid())
-  merchantId String    @map("merchant_id")
-  name       String
-  slug       String
-  parentId   String?   @map("parent_id")
+  id          String   @id @default(cuid())
+  merchantId  String   @map("merchant_id")
+  name        String
+  slug        String
+  parentId    String?  @map("parent_id")
   description String?
-  imageUrl    String?   @map("image_url")
-  isActive    Boolean   @default(true) @map("is_active")
-  sortOrder   Int       @default(0) @map("sort_order")
-  createdAt  DateTime  @default(now()) @map("created_at")
-  updatedAt  DateTime  @updatedAt @map("updated_at")
+  imageUrl    String?  @map("image_url")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   parent   ProductCategory?  @relation("CategoryTree", fields: [parentId], references: [id])
   children ProductCategory[] @relation("CategoryTree")
@@ -1165,24 +1166,24 @@ model ProductCategory {
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  merchantId  String   @map("merchant_id")
-  name        String
-  description String?
-  type        String   @default("physical")
-  metadata    Json?
-  categoryId  String?  @map("category_id")
-  isActive    Boolean  @default(true) @map("is_active")
-  seoTitle    String?  @map("seo_title")
-  metaDescription String? @map("meta_description")
-  slug        String?  @unique
-  ogTitle     String?  @map("og_title")
-  ogDescription String? @map("og_description")
-  twitterCard String?  @map("twitter_card")
-  keywords    String[] @default([])
-  seoGeneratedAt DateTime? @map("seo_generated_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  name            String
+  description     String?
+  type            String    @default("physical")
+  metadata        Json?
+  categoryId      String?   @map("category_id")
+  isActive        Boolean   @default(true) @map("is_active")
+  seoTitle        String?   @map("seo_title")
+  metaDescription String?   @map("meta_description")
+  slug            String?   @unique
+  ogTitle         String?   @map("og_title")
+  ogDescription   String?   @map("og_description")
+  twitterCard     String?   @map("twitter_card")
+  keywords        String[]  @default([])
+  seoGeneratedAt  DateTime? @map("seo_generated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   category    ProductCategory?    @relation(fields: [categoryId], references: [id])
   variants    ProductVariant[]
@@ -1197,20 +1198,20 @@ model Product {
 }
 
 model ProductVariant {
-  id             String   @id @default(cuid())
-  productId      String   @map("product_id")
-  sku            String
-  attributes     Json     @default("{}")
-  barcode        String?
-  weightGrams    Int?     @map("weight_grams")
-  lengthCm       Float?   @map("length_cm")
-  widthCm        Float?   @map("width_cm")
-  heightCm       Float?   @map("height_cm")
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  id          String   @id @default(cuid())
+  productId   String   @map("product_id")
+  sku         String
+  attributes  Json     @default("{}")
+  barcode     String?
+  weightGrams Int?     @map("weight_grams")
+  lengthCm    Float?   @map("length_cm")
+  widthCm     Float?   @map("width_cm")
+  heightCm    Float?   @map("height_cm")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  product      Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   media        ProductMedia[]
   price        ProductPrice?
   stock        ProductStock[]
@@ -1237,14 +1238,14 @@ model ProductMedia {
 }
 
 model ProductPrice {
-  id              String   @id @default(cuid())
-  variantId       String   @unique @map("variant_id")
-  basePriceInCents Int     @map("base_price_in_cents")
-  costInCents     Int?     @map("cost_in_cents")
-  taxPercent      Float    @default(0) @map("tax_percent")
-  currency        String   @default("BRL")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  variantId        String   @unique @map("variant_id")
+  basePriceInCents Int      @map("base_price_in_cents")
+  costInCents      Int?     @map("cost_in_cents")
+  taxPercent       Float    @default(0) @map("tax_percent")
+  currency         String   @default("BRL")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   variant ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
@@ -1321,7 +1322,7 @@ model CollectionProduct {
   order        Int    @default(0)
 
   collection ProductCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  product    Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([collectionId, productId])
   @@map("collection_products")
@@ -1564,18 +1565,18 @@ model StorefrontCart {
 // ─── Product Promotions (scheduled discounts per variant or category) ─────────
 
 model ProductPromotion {
-  id                String    @id @default(cuid())
-  merchantId        String    @map("merchant_id")
-  variantId         String?   @map("variant_id")
-  categoryId        String?   @map("category_id")
-  discountType      String    @map("discount_type")       // "percent" | "fixed"
-  discountValue     Int       @map("discount_value")      // percent (0-100) or cents
-  promoPriceInCents Int?      @map("promo_price_in_cents")
-  isActive          Boolean   @default(true) @map("is_active")
-  startsAt          DateTime  @map("starts_at")
-  endsAt            DateTime  @map("ends_at")
-  createdAt         DateTime  @default(now()) @map("created_at")
-  updatedAt         DateTime  @updatedAt @map("updated_at")
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  variantId         String?  @map("variant_id")
+  categoryId        String?  @map("category_id")
+  discountType      String   @map("discount_type") // "percent" | "fixed"
+  discountValue     Int      @map("discount_value") // percent (0-100) or cents
+  promoPriceInCents Int?     @map("promo_price_in_cents")
+  isActive          Boolean  @default(true) @map("is_active")
+  startsAt          DateTime @map("starts_at")
+  endsAt            DateTime @map("ends_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@index([merchantId, isActive, endsAt])
   @@index([variantId, isActive])
@@ -1586,35 +1587,35 @@ model ProductPromotion {
 // ─── Stories (Merchant-managed story categories and story content) ─────────────
 
 model StoryCategory {
-  id           String   @id @default(cuid())
-  merchantId   String   @map("merchant_id")
-  name         String
-  coverImage   String?  @map("cover_image")
-  sortOrder    Int      @default(0) @map("sort_order")
-  isArchived   Boolean  @default(false) @map("is_archived")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  name       String
+  coverImage String?  @map("cover_image")
+  sortOrder  Int      @default(0) @map("sort_order")
+  isArchived Boolean  @default(false) @map("is_archived")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
-  merchant     Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
-  stories      Story[]
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  stories  Story[]
 
   @@index([merchantId, isArchived])
   @@map("story_categories")
 }
 
 model Story {
-  id           String   @id @default(cuid())
-  categoryId   String   @map("category_id")
-  merchantId   String   @map("merchant_id")
-  imageUrl     String   @map("image_url")
-  title        String?
-  titleConfig  Json?    @map("title_config")
-  duration     Int      @default(7)
-  sortOrder    Int      @default(0) @map("sort_order")
-  isArchived   Boolean  @default(false) @map("is_archived")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  categoryId  String   @map("category_id")
+  merchantId  String   @map("merchant_id")
+  imageUrl    String   @map("image_url")
+  title       String?
+  titleConfig Json?    @map("title_config")
+  duration    Int      @default(7)
+  sortOrder   Int      @default(0) @map("sort_order")
+  isArchived  Boolean  @default(false) @map("is_archived")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  category     StoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category StoryCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@index([categoryId, isArchived])
   @@index([merchantId])
@@ -1640,4 +1641,76 @@ model BudgetRequest {
   @@index([merchantId, createdAt])
   @@index([merchantId, status])
   @@map("budget_requests")
+}
+
+// ─── A/B Testing: Prompt Experiments (ab-testing-prompts spec) ────────────────
+
+model PromptExperiment {
+  id              String    @id @default(cuid())
+  merchantId      String    @map("merchant_id")
+  name            String
+  description     String?
+  status          String    @default("draft") // draft, running, completed, archived
+  startedAt       DateTime? @map("started_at")
+  completedAt     DateTime? @map("completed_at")
+  winnerVariantId String?   @map("winner_variant_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  variants PromptVariant[]
+
+  @@unique([merchantId, name])
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@map("prompt_experiments")
+}
+
+model PromptVariant {
+  id           String   @id @default(cuid())
+  experimentId String   @map("experiment_id")
+  name         String
+  weight       Int      @default(1)
+  isControl    Boolean  @default(false) @map("is_control")
+  systemPrompt String   @map("system_prompt") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  experiment PromptExperiment      @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  results    PromptVariantResult[]
+
+  @@unique([experimentId, name])
+  @@index([experimentId])
+  @@map("prompt_variants")
+}
+
+model PromptVariantResult {
+  id              String   @id @default(cuid())
+  variantId       String   @map("variant_id")
+  sessionId       String   @map("session_id")
+  converted       Boolean
+  revenue         Decimal? @db.Decimal(12, 4)
+  offersShown     Int      @default(0) @map("offers_shown")
+  offersAccepted  Int      @default(0) @map("offers_accepted")
+  durationSeconds Int?     @map("duration_seconds")
+
+  // Funnel stages
+  conversationStarted  Boolean   @default(true) @map("conversation_started")
+  cartViewed           Boolean   @default(false) @map("cart_viewed")
+  cartItemsAdded       Int       @default(0) @map("cart_items_added")
+  checkoutStarted      Boolean   @default(false) @map("checkout_started")
+  checkoutCompleted    Boolean   @default(false) @map("checkout_completed")
+
+  // Stage timing (seconds from session start)
+  timeToCart           Int?      @map("time_to_cart")
+  timeToCheckout       Int?      @map("time_to_checkout")
+  timeToConversion     Int?      @map("time_to_conversion")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  variant PromptVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([variantId, sessionId])
+  @@index([variantId, createdAt])
+  @@index([variantId, checkoutCompleted, createdAt], name: "idx_prompt_variant_results_funnel")
+  @@map("prompt_variant_results")
 }

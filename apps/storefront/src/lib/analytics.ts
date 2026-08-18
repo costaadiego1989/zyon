@@ -79,8 +79,13 @@ export function trackPurchase(orderId: string, value: number): void {
   });
 }
 
-export function trackConversationStart(storeId: string): void {
-  safeGtag("conversation_start", {
+export function trackConversationStart(storeId: string, variantId?: string | null): void {
+  const params: Record<string, unknown> = {
     store_id: storeId,
-  });
+  };
+  // Attach variantId if experiment is active (for A/B testing analysis)
+  if (variantId) {
+    params.experiment_variant_id = variantId;
+  }
+  safeGtag("conversation_start", params);
 }

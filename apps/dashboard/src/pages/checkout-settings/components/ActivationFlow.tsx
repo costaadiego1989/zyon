@@ -31,7 +31,7 @@ export function ActivationFlow({ draft }: { draft: Draft }) {
       key: "act",
       icon: <MessageSquare size={15} strokeWidth={1.75} />,
       label: "Agente age",
-      detail: draft.openWidgetOnTrigger ? "abre o chat" : "avisa em silêncio",
+      detail: draft.openWidgetOnTrigger ? "Incia a conversa" : "avisa em silêncio",
       accent: true,
     },
   ];

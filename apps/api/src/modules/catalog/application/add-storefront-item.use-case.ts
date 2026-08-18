@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException , Logger} from "@nestjs/common";
+import { Inject, Injectable, NotFoundException , Logger, Optional} from "@nestjs/common";
 import type { CartItem, ChatTurn, CheckoutExperienceSnapshot, CheckoutSession } from "@zyon/shared-types";
 import {
   CHECKOUT_SESSION_REPOSITORY,
@@ -15,6 +15,7 @@ import { STOREFRONT_CATALOG_PORT, type StorefrontCatalogPort } from "../domain/p
 import { CROSS_SELL_RESOLVER_PORT, type CrossSellResolverPort } from "../domain/ports/cross-sell-resolver.port.js";
 import { addOrUpdateCartItem } from "../domain/cart-item-updater.js";
 import { crossSellCartItemToProduct } from "../domain/catalog.mappers.js";
+import { RecordFunnelEventUseCase } from "../../experiments/application/use-cases/record-funnel-event.use-case.js";
 
 @Injectable()
 export class AddStorefrontItemUseCase {
@@ -25,7 +26,8 @@ export class AddStorefrontItemUseCase {
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(CROSS_SELL_RESOLVER_PORT) private readonly crossSell: CrossSellResolverPort,
-    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 }
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
   ) {}
 
   async execute(input: {
@@ -51,6 +53,19 @@ export class AddStorefrontItemUseCase {
     // CAT-H5: Use extracted CartItemUpdater — immutable, no in-place mutations.
     const next = addOrUpdateCartItem(session, product, quantity);
     await this.sessions.saveSession(next);
+
+    // Track funnel event for experiment
+    if (session.promptVariantId && this.recordFunnelEvent) {
+      const timeFromStart = session.createdAt
+        ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+        : undefined;
+      await this.recordFunnelEvent.execute({
+        merchantId: input.merchant_id,
+        sessionId: input.session_id,
+        stage: 'cart_item_added',
+        metadata: { cartItemsAdded: quantity, timeFromStart },
+      }).catch((err) => this.logger.warn(`Funnel event failed: ${err}`));
+    }
 
     const agentTurn: ChatTurn = {
       role: "agent",

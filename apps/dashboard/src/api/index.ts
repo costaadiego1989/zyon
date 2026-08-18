@@ -10,6 +10,7 @@ import { checkoutSettingsEndpoints } from "./endpoints/checkout-settings.js";
 import { supportEndpoints } from "./endpoints/support.js";
 import { otherEndpoints } from "./endpoints/other.js";
 import { catalogEndpoints } from "./endpoints/catalog.js";
+import { experimentsEndpoints } from "./endpoints/experiments.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -39,5 +40,6 @@ export function createDashboardApi(options: {
     ...supportEndpoints(base, f),
     ...otherEndpoints(base, f),
     ...catalogEndpoints(base, f),
+    ...experimentsEndpoints(base, f),
   };
 }

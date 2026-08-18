@@ -34,6 +34,8 @@ import { NotificationsModule } from "./modules/notifications/notifications.modul
 import { StorefrontModule } from "./modules/storefront/storefront.module.js";
 import { StorageModule } from "./shared/storage/storage.module.js";
 import { StoriesModule } from "./modules/stories/stories.module.js";
+import { ExperimentsModule } from "./modules/experiments/experiments.module.js";
+import { PublicApiModule } from "./modules/public-api/public-api.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -116,6 +118,8 @@ const REDACTED_LOG_PATHS = [
     NotificationsModule,
     StorefrontModule,
     StorageModule,
+    ExperimentsModule,
+    PublicApiModule,
   ]
 })
 export class AppModule {}

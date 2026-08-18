@@ -20,6 +20,7 @@ import { useCart } from "@/lib/cart-store";
 import { initTriggerDetection } from "@/lib/triggers";
 import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
+import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
 import BlockRenderer from "./blocks/BlockRenderer";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
@@ -158,6 +159,7 @@ export default function ConversationShell({
   const agent = agentName || "Assistente";
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity } = useCart();
+  const experimentVM = useCheckoutExperiment();
 
   // The widgetConfig is now available to this component and can be used for trigger logic,
   // suppression rules, etc. SupportFAB handles presentation mode (position, color, delay) separately.
@@ -193,7 +195,7 @@ export default function ConversationShell({
     try { localStorage.setItem("pulse-theme-pref", next); } catch { /* */ }
   }
 
-  useEffect(() => { trackConversationStart(storeName); }, [storeName]);
+  useEffect(() => { trackConversationStart(storeName, experimentVM.getTrackingVariantId()); }, [storeName, experimentVM.experiment]);
 
   useEffect(() => {
     const cleanup = initTriggerDetection(
@@ -315,6 +317,11 @@ export default function ConversationShell({
       if (res.ok) {
         const data = await res.json();
         setConversationId(data.conversation_id);
+        // Capture experiment assignment from API (transparent to UI)
+        experimentVM.captureFromConversationStart({
+          conversation_id: data.conversation_id,
+          experiment: data.experiment || null
+        });
       }
     } catch { /* fallback mode */ }
   }
@@ -388,6 +395,11 @@ export default function ConversationShell({
           const startData = await startRes.json();
           convId = startData.conversation_id;
           setConversationId(convId);
+          // Capture experiment on lazy init too
+          experimentVM.captureFromConversationStart({
+            conversation_id: startData.conversation_id,
+            experiment: startData.experiment || null
+          });
         }
       }
 
@@ -400,6 +412,7 @@ export default function ConversationShell({
             user_message: trimmed,
             cart_id: cart.cartId || undefined,
             history: newHistory,
+            variant_id: experimentVM.getTrackingVariantId() || undefined,
           }),
         });
 

@@ -27,6 +27,8 @@ import {
   type PurchaseHistoryPort
 } from "../../domain/ports/purchase-history.port.js";
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
+import { RecordExperimentResultUseCase } from "../../../experiments/application/use-cases/record-experiment-result.use-case.js";
+import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 
 @Injectable()
 export class CompleteOrderUseCase {
@@ -38,7 +40,9 @@ export class CompleteOrderUseCase {
     @Optional() @Inject(PURCHASE_HISTORY_PORT) private readonly purchaseHistory?: PurchaseHistoryPort,
     @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccounts?: BuyerAccountRepository,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner
+    @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner,
+    @Optional() private readonly recordExperimentResult?: RecordExperimentResultUseCase,
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
@@ -130,6 +134,36 @@ export class CompleteOrderUseCase {
 
     if (!idempotent) {
       this.metrics?.orderCompleted.inc({ merchant_id: input.merchant_id });
+
+      // Record experiment result if session has a variant
+      if (session.promptVariantId && this.recordExperimentResult) {
+        const durationSeconds = session.createdAt
+          ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+          : undefined;
+        await this.recordExperimentResult.execute({
+          sessionId: input.session_id,
+          merchantId: input.merchant_id,
+          converted: true,
+          revenue: input.order_total,
+          offersShown: session.chatHistory?.filter(m => m.authorizedOfferId)?.length ?? 0,
+          offersAccepted: input.accepted_offer_id ? 1 : 0,
+          durationSeconds,
+        });
+      }
+
+      // Record checkout completion as final funnel stage
+      if (session.promptVariantId && this.recordFunnelEvent) {
+        const timeFromStart = session.createdAt
+          ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+          : undefined;
+        await this.recordFunnelEvent.execute({
+          merchantId: input.merchant_id,
+          sessionId: input.session_id,
+          stage: 'checkout_completed',
+          metadata: { timeFromStart },
+        });
+      }
+
       // Side effects outside the transaction: external calls and cross-aggregate writes.
       if (whatsappMessage && session.customer?.phone) {
         const bubbleUrl = process.env.BUBBLEWHATS_API_URL;

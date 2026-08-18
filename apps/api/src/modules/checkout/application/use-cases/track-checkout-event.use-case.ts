@@ -17,6 +17,7 @@ import {
 } from "../../domain/services/progressive-discount-policy.service.js";
 import type { CheckoutSession } from "@zyon/shared-types";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
@@ -28,7 +29,8 @@ export class TrackCheckoutEventUseCase {
     @Optional() @Inject(CHECKOUT_SETTINGS_PORT) private readonly checkoutSettings?: CheckoutSettingsPort,
     @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRepository?: MerchantRulesRepository,
     @Optional() @Inject(CHECKOUT_INTERVENTION_LEDGER)
-    private readonly interventionLedger?: CheckoutInterventionLedgerPort
+    private readonly interventionLedger?: CheckoutInterventionLedgerPort,
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
   ) {}
 
   async execute(input: TrackEventRequest): Promise<TrackEventResponse> {
@@ -37,6 +39,20 @@ export class TrackCheckoutEventUseCase {
       throw new NotFoundException("checkout_session_not_found");
     }
     await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event);
+
+    // Track funnel event for experiment if checkout_started
+    if (input.event === 'checkout_started' && session.promptVariantId && this.recordFunnelEvent) {
+      const timeFromStart = session.createdAt
+        ? Math.round((Date.now() - new Date(session.createdAt).getTime()) / 1000)
+        : undefined;
+      await this.recordFunnelEvent.execute({
+        merchantId: input.merchant_id,
+        sessionId: input.session_id,
+        stage: 'checkout_started',
+        metadata: { timeFromStart },
+      }).catch((err) => this.logger.warn(`Funnel event failed: ${err}`));
+    }
+
     // Fetch the updated session once after recordEvent (which mutates abandonmentScore/triggerAgent).
     // Reuse that single fetch throughout this handler — avoids redundant round-trips on the hot path.
     const afterRecord = await this.sessions.getSession(input.merchant_id, input.session_id) ?? session;

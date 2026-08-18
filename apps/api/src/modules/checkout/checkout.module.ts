@@ -60,6 +60,7 @@ import { PaymentApprovedHandler } from "./application/handlers/payment-approved.
 import { OtpService } from "./application/services/otp.service.js";
 import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
+import { ExperimentsModule } from "../experiments/experiments.module.js";
 
 @Module({
   imports: [
@@ -68,7 +69,8 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     BuyerPurchaseHistoryModule,
     MerchantModule,
     forwardRef(() => ShippingModule),
-    BuyerAccountRepositoryModule
+    BuyerAccountRepositoryModule,
+    ExperimentsModule
   ],
   controllers: [CheckoutController],
   providers: [
@@ -154,7 +156,9 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     TrackCheckoutEventUseCase,
     SendChatMessageUseCase,
     ApplyOfferUseCase,
-    AcceptCheckoutOfferUseCase
+    AcceptCheckoutOfferUseCase,
+    GetCheckoutSessionUseCase,
+    EvaluateShippingUseCase,
   ]
 })
 export class CheckoutModule {}

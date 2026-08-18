@@ -4,6 +4,7 @@ import { CommerceModule } from "../commerce/commerce.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
+import { ExperimentsModule } from "../experiments/experiments.module.js";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { RedisModule } from "../../shared/cache/redis.module.js";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
@@ -46,6 +47,7 @@ import { StoreBuilderCatalogController } from "./presentation/http/catalog.contr
     MerchantModule,
     PersistenceModule,
     RedisModule,
+    ExperimentsModule,
   ],
   controllers: [WidgetCatalogController, StoreBuilderCatalogController],
   providers: [

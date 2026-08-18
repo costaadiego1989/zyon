@@ -267,6 +267,7 @@ export interface CheckoutSession {
   triggerAgent: boolean;
   chatHistory: ChatTurn[];
   paymentMethod?: PaymentMethod;
+  promptVariantId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -625,6 +626,12 @@ export type OnboardingDomainEventType =
   | "merchant.onboarding.step.completed"
   | "merchant.onboarding.completed";
 
+export type ExperimentDomainEventType =
+  | "experiment.created"
+  | "experiment.started"
+  | "experiment.completed"
+  | "winner.promoted";
+
 export type DomainEventType =
   | CheckoutDomainEventType
   | CrossSellDomainEventType
@@ -634,7 +641,8 @@ export type DomainEventType =
   | ShippingDomainEventType
   | FulfillmentDomainEventType
   | CommerceDomainEventType
-  | OnboardingDomainEventType;
+  | OnboardingDomainEventType
+  | ExperimentDomainEventType;
 
 export type DomainEventProducer =
   | "checkout"
@@ -645,7 +653,8 @@ export type DomainEventProducer =
   | "shipping"
   | "fulfillment"
   | "commerce"
-  | "onboarding";
+  | "onboarding"
+  | "experiments";
 
 /**
  * Self-serve tenant onboarding (ADR 0015/0024). Resumable provisioning steps,
