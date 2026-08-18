@@ -7,6 +7,7 @@ import type {
   PaymentProviderPort,
 } from "../domain/ports/payment-provider.port.js";
 import type { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
+import type { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
 import type { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import type { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
 import { RoutingPaymentAdapter } from "./routing-payment.adapter.js";
@@ -106,9 +107,11 @@ export function isE2ePaymentStubEnabled(): boolean {
 export function resolvePaymentProvider(deps: {
   stripe: StripePaymentAdapter | null;
   asaas: AsaasPaymentAdapter | null;
+  mercadopago: MercadoPagoPaymentAdapter | null;
   evmCrypto: EvmCryptoPaymentAdapter;
   platformConnections: PaymentPlatformRepository;
   asaasBaseUrl: string;
+  mercadopagoBaseUrl: string;
   fetchImpl: typeof fetch;
 }): PaymentProviderPort {
   if (isE2ePaymentStubEnabled()) {
@@ -117,9 +120,11 @@ export function resolvePaymentProvider(deps: {
   return new RoutingPaymentAdapter(
     deps.stripe,
     deps.asaas,
+    deps.mercadopago,
     deps.evmCrypto,
     deps.platformConnections,
     deps.asaasBaseUrl,
+    deps.mercadopagoBaseUrl,
     deps.fetchImpl,
   );
 }

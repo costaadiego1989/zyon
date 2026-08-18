@@ -12,6 +12,7 @@ import type {
 import type { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
 import type { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import type { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
+import type { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
 
 class FakeStripe implements Pick<PaymentProviderPort, "createPayment" | "fetchPaymentStatus"> {
   calls: CreateProviderPaymentInput[] = [];
@@ -86,7 +87,7 @@ function baseInput(overrides?: Partial<CreateProviderPaymentInput>): CreateProvi
 test("RoutingPaymentAdapter: routes crypto to EvmCryptoPaymentAdapter", async () => {
   const crypto = new FakeCrypto();
   const adapter = new RoutingPaymentAdapter(
-    null, null,
+    null, null, null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter
   );
 
@@ -100,7 +101,7 @@ test("RoutingPaymentAdapter: routes card to Stripe when configured", async () =>
   const crypto = new FakeCrypto();
   const adapter = new RoutingPaymentAdapter(
     stripe as unknown as StripePaymentAdapter,
-    null,
+    null, null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter
   );
 
@@ -115,6 +116,7 @@ test("RoutingPaymentAdapter: routes pix/boleto to Asaas fallback when no platfor
   const adapter = new RoutingPaymentAdapter(
     null,
     asaas as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter
   );
 
@@ -127,7 +129,7 @@ test("RoutingPaymentAdapter: throws when no provider is configured for pix", asy
   const crypto = new FakeCrypto();
   const platformRepo = new InMemoryPaymentPlatformRepository();
   const adapter = new RoutingPaymentAdapter(
-    null, null,
+    null, null, null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter,
     platformRepo,
     "https://asaas.test"
@@ -144,7 +146,7 @@ test("RoutingPaymentAdapter: fetchPaymentStatus routes pi_ ids to Stripe", async
   const crypto = new FakeCrypto();
   const adapter = new RoutingPaymentAdapter(
     stripe as unknown as StripePaymentAdapter,
-    null,
+    null, null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter
   );
 
@@ -159,6 +161,7 @@ test("RoutingPaymentAdapter: fetchPaymentStatus routes non-pi_ ids to Asaas fall
   const adapter = new RoutingPaymentAdapter(
     null,
     asaas as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter
   );
 
@@ -196,10 +199,11 @@ test("RoutingPaymentAdapter: uses tenant-specific Asaas key from platform connec
   };
 
   const adapter = new RoutingPaymentAdapter(
-    null, null,
+    null, null, null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter,
     platformRepo,
     "https://asaas-api.test",
+    undefined,
     fakeFetch as unknown as typeof fetch
   );
 
@@ -214,6 +218,7 @@ test("RoutingPaymentAdapter: createCustomer delegates to Asaas", async () => {
   const adapter = new RoutingPaymentAdapter(
     null,
     asaas as unknown as AsaasPaymentAdapter,
+    null as unknown as MercadoPagoPaymentAdapter,
     crypto as unknown as EvmCryptoPaymentAdapter
   );
 

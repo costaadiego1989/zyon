@@ -1,4 +1,4 @@
-export type PaymentConnectionProvider = "stripe" | "asaas";
+export type PaymentConnectionProvider = "stripe" | "asaas" | "mercadopago";
 export type BillingPlan = "starter" | "growth" | "scale";
 export type PaymentConnectionEnvironment = "test" | "live";
 export type PaymentConnectionStatus =

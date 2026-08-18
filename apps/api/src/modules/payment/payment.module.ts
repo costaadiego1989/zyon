@@ -11,6 +11,7 @@ import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-paymen
 import { GetPaymentIntentStatusUseCase } from "./application/get-payment-intent-status.use-case.js";
 import { HandleAsaasWebhookUseCase } from "./application/handle-asaas-webhook.use-case.js";
 import { HandleStripeWebhookUseCase } from "./application/handle-stripe-webhook.use-case.js";
+import { HandleMercadoPagoWebhookUseCase } from "./application/handle-mercadopago-webhook.use-case.js";
 import { ReconcilePaymentIntentsUseCase } from "./application/reconcile-payment-intents.use-case.js";
 import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
@@ -18,6 +19,7 @@ import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "./infrastructure/stripe-payment.adapter.js";
+import { MercadoPagoPaymentAdapter } from "./infrastructure/mercadopago-payment.adapter.js";
 import { resolvePaymentProvider } from "./infrastructure/e2e-payment-provider.js";
 import { EvmCryptoPaymentAdapter } from "./infrastructure/evm-crypto-payment.adapter.js";
 import { CheckoutPaymentAdapter } from "./infrastructure/checkout-payment.adapter.js";
@@ -26,11 +28,14 @@ import { CryptoPaymentController } from "./presentation/http/crypto-payment.cont
 import { StripePaymentController } from "./presentation/http/stripe-payment.controller.js";
 import { AsaasWebhookController } from "./presentation/http/asaas-webhook.controller.js";
 import { StripeWebhookController } from "./presentation/http/stripe-webhook.controller.js";
+import { MercadoPagoWebhookController } from "./presentation/http/mercadopago-webhook.controller.js";
 import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
 import { EvmCryptoVerifier } from "./infrastructure/evm-crypto-verifier.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
 import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
+import { ReconcilePaymentIntentsScheduler, ReconcilePaymentIntentsWorker } from "./infrastructure/reconciliation-payment-intents.job.js";
+import { readMercadoPagoConnection, isMercadoPagoConfigured } from "./infrastructure/mercadopago-env.js";
 import {
   ASAAS_PLATFORM_PORT,
   BILLING_CONFIG_PORT,
@@ -78,6 +83,7 @@ import {
     StripePaymentController,
     AsaasWebhookController,
     StripeWebhookController,
+    MercadoPagoWebhookController,
     PaymentPlatformController,
     MerchantPaymentConnectionsController,
     BillingController,
@@ -89,6 +95,7 @@ import {
     GetPaymentIntentStatusUseCase,
     HandleAsaasWebhookUseCase,
     HandleStripeWebhookUseCase,
+    HandleMercadoPagoWebhookUseCase,
     ReconcilePaymentIntentsUseCase,
     PaymentDispatchService,
     BillingPlanMeteringService,
@@ -106,6 +113,9 @@ import {
     HandleStripePlatformEventUseCase,
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
+    // Background job: reconcile stale payment intents (every 15 minutes)
+    ReconcilePaymentIntentsScheduler,
+    ReconcilePaymentIntentsWorker,
     { provide: CHECKOUT_PAYMENT_PORT, useExisting: CheckoutPaymentAdapter },
     { provide: CRYPTO_VERIFIER, useClass: EvmCryptoVerifier },
     {
@@ -124,27 +134,45 @@ import {
       }
     },
     {
+      provide: MercadoPagoPaymentAdapter,
+      useFactory: (http: HttpClientService) => {
+        const { accessToken, publicKey, baseUrl } = readMercadoPagoConnection();
+        return new MercadoPagoPaymentAdapter(
+          baseUrl,
+          accessToken ?? "__missing_access_token__",
+          publicKey ?? undefined,
+          http.toFetch()
+        );
+      },
+      inject: [HttpClientService]
+    },
+    {
       provide: PAYMENT_PROVIDER_PORT,
       useFactory: (
         asaas: AsaasPaymentAdapter,
         stripe: StripePaymentAdapter,
+        mercadopago: MercadoPagoPaymentAdapter,
         evmCrypto: EvmCryptoPaymentAdapter,
         platformConnections: import("./domain/ports/payment-platform-repository.port.js").PaymentPlatformRepository,
         http: HttpClientService,
       ) => {
-        const { baseUrl } = readAsaasConnection();
+        const { baseUrl: asaasBaseUrl } = readAsaasConnection();
+        const { baseUrl: mercadopagoBaseUrl } = readMercadoPagoConnection();
         return resolvePaymentProvider({
           stripe: isStripeConfigured() ? stripe : null,
           asaas: isAsaasConfigured() ? asaas : null,
+          mercadopago: isMercadoPagoConfigured() ? mercadopago : null,
           evmCrypto,
           platformConnections,
-          asaasBaseUrl: baseUrl,
+          asaasBaseUrl,
+          mercadopagoBaseUrl,
           fetchImpl: http.toFetch(),
         });
       },
       inject: [
         AsaasPaymentAdapter,
         StripePaymentAdapter,
+        MercadoPagoPaymentAdapter,
         EvmCryptoPaymentAdapter,
         PAYMENT_PLATFORM_REPOSITORY,
         HttpClientService,

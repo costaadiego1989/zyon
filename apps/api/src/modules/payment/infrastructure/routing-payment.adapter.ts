@@ -8,6 +8,7 @@ import type {
 } from "../domain/ports/payment-provider.port.js";
 import { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
+import { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
 import { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
 import type {
   PaymentPlatformRepository,
@@ -18,9 +19,11 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   constructor(
     private readonly stripe: StripePaymentAdapter | null,
     private readonly asaas: AsaasPaymentAdapter | null,
+    private readonly mercadopago: MercadoPagoPaymentAdapter | null,
     private readonly evmCrypto: EvmCryptoPaymentAdapter,
     private readonly platformConnections?: PaymentPlatformRepository,
     private readonly asaasBaseUrl?: string,
+    private readonly mercadopagoBaseUrl?: string,
     private readonly fetchImpl: typeof fetch = globalThis.fetch,
   ) {}
 
@@ -33,10 +36,18 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (input.method === "card" && this.stripe) {
       return this.stripe.createPayment(input);
     }
+
+    // Priority: mercadopago > asaas for PIX/boleto (if configured)
+    const mercadopago = await this.resolveMercadoPago(input.merchantId);
+    if (mercadopago && (input.method === "pix" || input.method === "boleto")) {
+      return mercadopago.createPayment(input);
+    }
+
     const asaas = await this.resolveAsaas(input.merchantId);
     if (asaas) {
       return asaas.createPayment(input);
     }
+
     throw new Error("payment_provider_not_configured");
   }
 
@@ -47,10 +58,22 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (isStripeId && this.stripe) {
       return this.stripe.fetchPaymentStatus(input);
     }
+
+    const mercadopago = await this.resolveMercadoPago(input.merchantId);
+    if (mercadopago) {
+      // Try mercadopago first — if it fails, try asaas
+      try {
+        return await mercadopago.fetchPaymentStatus(input);
+      } catch {
+        // Fall through to asaas
+      }
+    }
+
     const asaas = await this.resolveAsaas(input.merchantId);
     if (asaas) {
       return asaas.fetchPaymentStatus(input);
     }
+
     throw new Error("payment_provider_not_configured");
   }
 
@@ -92,5 +115,32 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
       );
     }
     return this.asaas;
+  }
+
+  private async resolveMercadoPago(
+    merchantId: string,
+  ): Promise<MercadoPagoPaymentAdapter | null> {
+    const connection =
+      await this.platformConnections?.getConnection(
+        merchantId,
+        "mercadopago",
+      );
+    if (this.platformConnections && connection?.status !== "active") {
+      return null;
+    }
+    const tenantKey =
+      await this.platformConnections?.getConnectionSecret(
+        merchantId,
+        "mercadopago",
+      );
+    if (tenantKey && this.mercadopagoBaseUrl) {
+      return new MercadoPagoPaymentAdapter(
+        this.mercadopagoBaseUrl,
+        tenantKey,
+        "",
+        this.fetchImpl,
+      );
+    }
+    return this.mercadopago;
   }
 }

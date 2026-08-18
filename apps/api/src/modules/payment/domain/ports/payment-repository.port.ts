@@ -7,7 +7,7 @@ export type SavePaymentIntentInput = {
   intent: PaymentIntentEntity;
 };
 
-export type PaymentProviderName = "asaas" | "stripe";
+export type PaymentProviderName = "asaas" | "stripe" | "mercadopago";
 
 /** Identifies a provider webhook event for idempotent processing, scoped by tenant. */
 export type ProviderEventKey = {

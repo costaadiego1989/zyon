@@ -26,6 +26,6 @@ import { CheckoutSettingsController, CheckoutSettingsPublicController } from "./
       inject: [PRISMA_CLIENT]
     }
   ],
-  exports: [GetCheckoutSettingsContextUseCase]
+  exports: [GetCheckoutSettingsUseCase, UpdateCheckoutSettingsUseCase, GetCheckoutSettingsContextUseCase]
 })
 export class CheckoutSettingsModule {}
