@@ -38,6 +38,10 @@ export interface ExperienceDeps {
   serviceFee?: number;
   suggestedProducts?: SuggestedProduct[];
   showBranding?: boolean;
+  /** Payment configuration — which methods the merchant accepts */
+  stripeConnectAccountId?: string | null;
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: Record<string, unknown> | null;
   merchantRulesForWidget?: {
     maxDiscountPercent: number;
     allowFreeShipping: boolean;
@@ -196,7 +200,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
   const agentName = deps.theme?.agentName || agentIdentity?.agentName || "Assistente AACP";
   const cartEmpty = input.cart.items.length === 0;
   const greeting = cartEmpty
-    ? "O que você deseja comprar? Digite aqui que encontro para você."
+    ? (agentIdentity?.emptyCartGreeting ?? "O que você deseja comprar? Digite aqui que encontro para você.")
     : (agentIdentity?.greeting ?? "Ola, tudo bem? Sou o seu assistente virtual e vou guiar seu checkout com seguranca.");
 
   let expected_input_type: "text" | "email" | "tel" | "number" = "text";
@@ -291,6 +295,10 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     merchant_rules: deps.merchantRulesForWidget,
     advanced_rules: deps.advancedRules,
     visual: deps.visual,
+    // Payment methods available for this merchant
+    stripeConnectAccountId: deps.stripeConnectAccountId ?? null,
+    cryptoPaymentsEnabled: deps.cryptoPaymentsEnabled ?? false,
+    cryptoPayments: deps.cryptoPayments ?? null,
   };
 }
 

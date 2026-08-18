@@ -10,6 +10,7 @@ export interface AgentConfigForm {
   tone: AgentTone;
   language: string;
   greeting: string;
+  emptyCartGreeting: string;
   maxDiscountPercent: string;
   minimumMarginPercent: string;
   allowFreeShipping: boolean;
@@ -26,6 +27,7 @@ const DEFAULT_FORM: AgentConfigForm = {
   tone: "consultative",
   language: "pt-BR",
   greeting: "Olá! Como posso ajudá-lo?",
+  emptyCartGreeting: "O que você deseja comprar? Digite aqui que encontro para você.",
   maxDiscountPercent: "10",
   minimumMarginPercent: "15",
   allowFreeShipping: false,
@@ -41,6 +43,7 @@ export function validateAgentConfig(form: AgentConfigForm): Record<string, strin
   if (form.agentName.trim().length > 100) errors.agentName = "Máximo 100 caracteres";
   if (form.persona.length > 200) errors.persona = "Máximo 200 caracteres";
   if (form.greeting.length > 500) errors.greeting = "Máximo 500 caracteres";
+  if (form.emptyCartGreeting.length > 500) errors.emptyCartGreeting = "Máximo 500 caracteres";
   const maxDiscount = Number(form.maxDiscountPercent);
   if (Number.isNaN(maxDiscount) || maxDiscount < 0 || maxDiscount > 50) errors.maxDiscountPercent = "Informe um valor entre 0 e 50";
   const minMargin = Number(form.minimumMarginPercent);
@@ -123,6 +126,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           tone: isValidTone(identity.tone) ? identity.tone : "consultative",
           language: String(identity.language ?? "pt-BR"),
           greeting: String(identity.greeting ?? ""),
+          emptyCartGreeting: String(identity.emptyCartGreeting ?? ""),
           maxDiscountPercent: String(rulesUnknown.maxDiscountPercent ?? 10),
           minimumMarginPercent: String(rulesUnknown.minimumMarginPercent ?? 15),
           allowFreeShipping: Boolean(rulesUnknown.allowFreeShipping ?? false),
@@ -171,6 +175,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           tone: form.tone,
           language: form.language,
           greeting: form.greeting,
+          emptyCartGreeting: form.emptyCartGreeting,
         },
       } as never);
 

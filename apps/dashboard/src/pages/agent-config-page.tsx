@@ -94,12 +94,23 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               </div>
               <div style={{ marginTop: 12 }}>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                    Texto de Apresentação
-                    <span title="Primeiro texto que o cliente vê ao abrir o chat. Apresente o agente e diga como ele pode ajudar." style={{ color: "var(--faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+                    Texto de Apresentação (Storefront)
+                    <span title="Primeiro texto que o cliente vê ao abrir o chat na loja. Apresente o agente e diga como ele pode ajudar." style={{ color: "var(--faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                   </span>
-                  <textarea value={vm.form.greeting} onChange={(e) => vm.patch({ greeting: e.target.value })} placeholder={"Olá! Sou a Micha 👋\nA partir de agora serei sua vendedora particular..."} rows={4} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)", resize: "vertical", lineHeight: 1.5 }} />
+                  <textarea value={vm.form.greeting} onChange={(e) => vm.patch({ greeting: e.target.value })} placeholder={"Olá! Sou a Micha 👋\nA partir de agora serei sua vendedora particular..."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.greeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)", resize: "vertical", lineHeight: 1.5 }} />
                   {vm.errors.greeting && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{vm.errors.greeting}</span>}
+                </label>
+              </div>
+
+              <div style={{ marginTop: 12 }}>
+                <label>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
+                    Texto de Apresentação (Checkout — carrinho vazio)
+                    <span title="Texto exibido quando o cliente abre o checkout sem produtos no carrinho. Convide-o a buscar produtos." style={{ color: "var(--faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
+                  </span>
+                  <textarea value={vm.form.emptyCartGreeting} onChange={(e) => vm.patch({ emptyCartGreeting: e.target.value })} placeholder={"O que você deseja comprar? Digite aqui que encontro para você."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.emptyCartGreeting ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)", resize: "vertical", lineHeight: 1.5 }} />
+                  {vm.errors.emptyCartGreeting && <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{vm.errors.emptyCartGreeting}</span>}
                 </label>
               </div>
             </section>

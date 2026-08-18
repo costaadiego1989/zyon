@@ -43,6 +43,11 @@ export class AgentIdentityPatchDto {
   @ValidateIf((o: AgentIdentityPatchDto) => Boolean(o.persona) || Boolean(o.tone))
   @IsOptional()
   greeting?: string;
+
+  @IsString()
+  @MaxLength(500)
+  @IsOptional()
+  emptyCartGreeting?: string;
 }
 
 export class AgentCapabilitiesPatchDto {
