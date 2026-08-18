@@ -1,6 +1,7 @@
 import React, { useRef, useState } from "react";
 import { Plus, Trash2, GripVertical, Image, Clock, FolderOpen, X, Upload, CircleDashed } from "lucide-react";
 import { EmptyState } from "../components/EmptyState.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import type { MerchantProfile } from "../api-client.js";
 import { useStoriesPage } from "./useStoriesPage.js";
 import type { TitleConfig } from "../api/endpoints/stories.js";
@@ -33,6 +34,25 @@ const GOOGLE_FONTS_URL = "https://fonts.googleapis.com/css2?family=Inter:wght@60
 
 export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
   const vm = useStoriesPage(apiBaseUrl);
+  const [confirmDelete, setConfirmDelete] = useState<{ type: "category" | "story"; id: string; name: string } | null>(null);
+
+  function requestDeleteCategory(id: string, name: string) {
+    setConfirmDelete({ type: "category", id, name });
+  }
+
+  function requestDeleteStory(id: string) {
+    setConfirmDelete({ type: "story", id, name: "este story" });
+  }
+
+  async function executeDelete() {
+    if (!confirmDelete) return;
+    if (confirmDelete.type === "category") {
+      await vm.handleDeleteCategory(confirmDelete.id);
+    } else {
+      await vm.handleDeleteStory(confirmDelete.id);
+    }
+    setConfirmDelete(null);
+  }
 
   if (vm.loading) {
     return <div style={{ padding: "40px", color: "var(--muted)" }}>Carregando stories...</div>;
@@ -40,6 +60,17 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
 
   return (
     <div>
+      <ConfirmDialog
+        open={!!confirmDelete}
+        title={confirmDelete?.type === "category" ? "Excluir categoria" : "Excluir story"}
+        description={confirmDelete?.type === "category"
+          ? `Tem certeza que deseja excluir "${confirmDelete.name}"? Todos os stories desta categoria serão removidos.`
+          : "Tem certeza que deseja excluir este story? Essa ação não pode ser desfeita."}
+        confirmLabel="Excluir"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setConfirmDelete(null)}
+      />
       {/* Header — same pattern as CategoriesPage */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
@@ -106,7 +137,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</div>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); vm.handleDeleteCategory(cat.id); }} style={{ padding: "4px", borderRadius: "4px", border: "none", background: "transparent", color: "var(--faint)", cursor: "pointer" }}>
+              <button onClick={(e) => { e.stopPropagation(); requestDeleteCategory(cat.id, cat.name); }} style={{ padding: "4px", borderRadius: "4px", border: "none", background: "transparent", color: "var(--faint)", cursor: "pointer" }}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -149,7 +180,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
                     <div style={{ position: "absolute", top: "8px", right: "8px", display: "flex", alignItems: "center", gap: "3px", padding: "3px 6px", borderRadius: "4px", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px" }}>
                       <Clock size={10} /> {story.duration}s
                     </div>
-                    <button onClick={() => vm.handleDeleteStory(story.id)} style={{ position: "absolute", top: "8px", left: "8px", padding: "4px", borderRadius: "4px", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer" }}>
+                    <button onClick={() => requestDeleteStory(story.id)} style={{ position: "absolute", top: "8px", left: "8px", padding: "4px", borderRadius: "4px", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer" }}>
                       <Trash2 size={12} />
                     </button>
                   </div>

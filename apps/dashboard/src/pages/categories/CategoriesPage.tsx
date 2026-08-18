@@ -7,6 +7,7 @@ import { CategoryForm } from "./components/CategoryForm.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { Pagination } from "../../components/Pagination.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
+import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -32,6 +33,8 @@ export function CategoriesPage(props: CategoriesPageProps) {
   }
 
   const vm = useCategoriesPage({ merchantId: props.me.id });
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const confirmCatName = vm.tree.find((c) => c.id === confirmDeleteId)?.name ?? "esta categoria";
 
   const filteredTree = useMemo(() => {
     if (!search && !activeOnly) return vm.tree;
@@ -73,6 +76,15 @@ export function CategoriesPage(props: CategoriesPageProps) {
 
   return (
     <div>
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        title="Excluir categoria"
+        description={`Tem certeza que deseja excluir "${confirmCatName}"? Produtos vinculados ficarão sem categoria.`}
+        confirmLabel="Excluir"
+        variant="danger"
+        onConfirm={() => { vm.deleteCategory(confirmDeleteId!); setConfirmDeleteId(null); }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
         <div>
           <span className="eyebrow">LOJA</span>
@@ -137,7 +149,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
           <CategoryTree
             tree={paginatedTree}
             onEdit={vm.startEdit}
-            onDelete={vm.deleteCategory}
+            onDelete={(id) => setConfirmDeleteId(id)}
             onToggleActive={vm.toggleActive}
             onAddChild={(parentId) => vm.startCreate(parentId)}
             onReparent={vm.reparentCategory}
