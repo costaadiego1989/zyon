@@ -295,10 +295,10 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
     merchant_rules: deps.merchantRulesForWidget,
     advanced_rules: deps.advancedRules,
     visual: deps.visual,
-    // Payment methods available for this merchant
-    stripeConnectAccountId: deps.stripeConnectAccountId ?? null,
+    // Payment methods flags — ONLY booleans, never credentials/IDs
+    stripeEnabled: !!deps.stripeConnectAccountId,
     cryptoPaymentsEnabled: deps.cryptoPaymentsEnabled ?? false,
-    cryptoPayments: deps.cryptoPayments ?? null,
+    cryptoPayments: deps.cryptoPayments ? { chain: (deps.cryptoPayments as any).chain, token: (deps.cryptoPayments as any).token, enabled: (deps.cryptoPayments as any).enabled } : null,
   };
 }
 

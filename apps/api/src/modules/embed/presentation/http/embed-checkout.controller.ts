@@ -48,7 +48,15 @@ export class EmbedCheckoutGuardHelper {
   constructor(@Inject(CHECKOUT_REPOSITORY) private readonly checkout: CheckoutRepository) {}
 
   async assertSessionBelongsToEmbedMerchant(embed: EmbedTokenClaims, sessionId: string): Promise<void> {
-    const session = await this.checkout.getSession(embed.merchantId, sessionId);
+    // Retry once on transient DB connection failures (pg-pool timeout)
+    let session: any;
+    try {
+      session = await this.checkout.getSession(embed.merchantId, sessionId);
+    } catch {
+      // Wait 500ms and retry once (connection pool recovery)
+      await new Promise(r => setTimeout(r, 500));
+      session = await this.checkout.getSession(embed.merchantId, sessionId);
+    }
     if (!session) throw new UnauthorizedException("embed_unknown_checkout_session");
     if (session.merchantId !== embed.merchantId) {
       throw new UnauthorizedException("embed_merchant_mismatch_for_checkout_session");

@@ -5,6 +5,7 @@ import type {
   CheckoutSettingsPatch,
   CheckoutTriggerName,
   CheckoutTriggerRule,
+  ProgressiveDiscountMode,
   ProgressiveDiscountStage,
   RuleAction,
   RuleCondition
@@ -274,6 +275,8 @@ function mergeInterventionPolicy(
     progressiveDiscount: progressivePatch
       ? {
           enabled: progressivePatch.enabled ?? current.progressiveDiscount?.enabled ?? false,
+          mode: progressivePatch.mode ?? current.progressiveDiscount?.mode,
+          maxProgressivePercent: progressivePatch.maxProgressivePercent ?? current.progressiveDiscount?.maxProgressivePercent,
           stages: {
             ...DEFAULT_PROGRESSIVE_DISCOUNT.stages,
             ...current.progressiveDiscount?.stages,
@@ -292,13 +295,24 @@ function validateProgressiveDiscount(policy: CheckoutSettings["interventionPolic
       throw new CheckoutSettingsValidationError("progressive_discount_percent_out_of_range");
     }
   }
+  if (policy.mode && !["progressive_only", "coupon_only", "both"].includes(policy.mode)) {
+    throw new CheckoutSettingsValidationError("progressive_discount_mode_invalid");
+  }
+  if (policy.maxProgressivePercent !== undefined && (typeof policy.maxProgressivePercent !== "number" || policy.maxProgressivePercent < 0 || policy.maxProgressivePercent > 100)) {
+    throw new CheckoutSettingsValidationError("progressive_discount_max_percent_out_of_range");
+  }
 }
 
 function assertNoCommercialKeys(value: unknown, path: string[] = []): void {
   if (!value || typeof value !== "object") return;
   for (const [key, nested] of Object.entries(value)) {
     const nextPath = [...path, key];
+    // Allow entire progressiveDiscount subtree
     if (nextPath.join(".") === "interventionPolicy.progressiveDiscount") {
+      continue;
+    }
+    // Allow advancedRules subtree (contains actions that reference commercial concepts)
+    if (nextPath.join(".") === "advancedRules") {
       continue;
     }
     if (COMMERCIAL_KEYS.some((commercialKey) => key.toLowerCase().includes(commercialKey.toLowerCase()))) {

@@ -19,6 +19,8 @@ import { GetBuyerPurchasesUseCase } from "../../application/use-cases/get-buyer-
 import { GetBuyerSummaryUseCase } from "../../application/use-cases/get-buyer-summary.use-case.js";
 import { SendBuyerPhoneCodeUseCase } from "../../application/use-cases/send-buyer-phone-code.use-case.js";
 import { VerifyBuyerPhoneCodeUseCase } from "../../application/use-cases/verify-buyer-phone-code.use-case.js";
+import { SendBuyerEmailCodeUseCase } from "../../application/use-cases/send-buyer-email-code.use-case.js";
+import { VerifyBuyerEmailCodeUseCase } from "../../application/use-cases/verify-buyer-email-code.use-case.js";
 import { BuyerJwtAuthGuard, currentBuyer } from "./buyer-jwt-auth.guard.js";
 import { purchaseItems } from "./purchase.transformer.js";
 
@@ -34,7 +36,9 @@ export class BuyerAccountController {
     private readonly getPurchases: GetBuyerPurchasesUseCase,
     private readonly getSummary: GetBuyerSummaryUseCase,
     private readonly sendPhoneCode: SendBuyerPhoneCodeUseCase,
-    private readonly verifyPhoneCode: VerifyBuyerPhoneCodeUseCase
+    private readonly verifyPhoneCode: VerifyBuyerPhoneCodeUseCase,
+    private readonly sendEmailCode: SendBuyerEmailCodeUseCase,
+    private readonly verifyEmailCode: VerifyBuyerEmailCodeUseCase,
   ) {}
 
   @Post("register")
@@ -182,6 +186,16 @@ export class BuyerAccountController {
   @Post("phone/verify")
   async verifyCode(@Body() body: { phone: string; code: string }) {
     return this.verifyPhoneCode.execute(body);
+  }
+
+  @Post("email/send")
+  async handleSendEmailCode(@Body() body: { email: string }) {
+    return this.sendEmailCode.execute(body);
+  }
+
+  @Post("email/verify")
+  async handleVerifyEmailCode(@Body() body: { email: string; code: string }) {
+    return this.verifyEmailCode.execute(body);
   }
 }
 

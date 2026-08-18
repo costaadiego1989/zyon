@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import {
   WooCommerceCommerceAdapter,
   MagentoCommerceAdapter,
@@ -19,6 +19,34 @@ import {
   type CommerceConnectionPort
 } from "../domain/ports/commerce-connection.port.js";
 import { retryWithBackoff } from "./commerce-retry.js";
+
+/**
+ * Noop adapter for merchants without external commerce (Shopify/WooCommerce/Magento).
+ * Returns empty results instead of throwing. The internal catalog (Prisma Product table)
+ * is handled directly by SearchStorefrontProductsUseCase as a separate code path.
+ */
+class NoopCommerceAdapter {
+  async searchCatalog() {
+    return { products: [] } as unknown as CommerceCatalogPage;
+  }
+  async findCatalogProductBySku() {
+    return null as unknown as CommerceCatalogProduct | null;
+  }
+  async validateCart(input: { merchantId: string; commerceCartRef: string }) {
+    return { merchantId: input.merchantId, items: [], total: 0, currency: "BRL", validatedAt: new Date().toISOString() } as unknown as TrustedCartSnapshot;
+  }
+  async createPendingOrder() {
+    return { commerceOrderId: `internal_${Date.now()}` };
+  }
+  async markOrderPaid() {}
+  async cancelOrder() {}
+  async getConnectionHealth() {
+    return { connected: true, provider: "woocommerce", lastSyncAt: null } as unknown as CommerceConnectionHealth;
+  }
+  async testConnection() {
+    return true;
+  }
+}
 
 /** Simple TTL cache entry for resolved adapters. */
 interface CachedAdapter {
@@ -85,7 +113,9 @@ export class TenantCommerceAdapterFactory
         this.http.toFetch(),
       );
     }
-    throw new BadRequestException("commerce_adapter_not_configured");
+    // No external commerce provider configured — return noop adapter.
+    // Product search will use the internal catalog module (Prisma) as fallback.
+    return new NoopCommerceAdapter() as unknown as CommerceProviderPort;
   }
 
   async validateCart(input: { merchantId: string; commerceCartRef: string }): Promise<TrustedCartSnapshot> {

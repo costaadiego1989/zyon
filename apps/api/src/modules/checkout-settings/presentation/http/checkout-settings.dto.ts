@@ -55,6 +55,19 @@ class ProgressiveDiscountDto {
   @IsBoolean()
   enabled?: boolean;
 
+  @ApiPropertyOptional({ enum: ["progressive_only", "coupon_only", "both"] })
+  @IsOptional()
+  @IsString()
+  @IsIn(["progressive_only", "coupon_only", "both"])
+  mode?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 100 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(100)
+  maxProgressivePercent?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @ValidateNested()
@@ -132,6 +145,24 @@ class TriggerRuleDto {
   @Min(0)
   @Max(100)
   priority!: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  message?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  cooldownSeconds?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  couponCode?: string;
 }
 
 class SuppressionRulesDto {

@@ -150,6 +150,9 @@ export class StartCheckoutUseCase {
         rules: merchantRules,
         serviceFee: this.experienceConfig.platformFeeBrl,
         suggestedProducts,
+        stripeConnectAccountId: merchant?.stripeConnectAccountId,
+        cryptoPaymentsEnabled: !!(merchantRules as any)?.cryptoPayments?.enabled,
+        cryptoPayments: (merchantRules as any)?.cryptoPayments ?? null,
         merchantRulesForWidget: merchantRules ? {
           maxDiscountPercent: merchantRules.maxDiscountPercent,
           allowFreeShipping: merchantRules.allowFreeShipping,

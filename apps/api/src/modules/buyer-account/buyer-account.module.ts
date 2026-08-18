@@ -1,6 +1,9 @@
-import { Module, forwardRef } from "@nestjs/common";
+import { Module, forwardRef, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PasswordHasher } from "../auth/domain/services/password-hasher.service.js";
+import { SMS_PROVIDER } from "./domain/ports/sms.port.js";
+import { SendBuyerEmailCodeUseCase } from "./application/use-cases/send-buyer-email-code.use-case.js";
+import { VerifyBuyerEmailCodeUseCase } from "./application/use-cases/verify-buyer-email-code.use-case.js";
 import { RegisterBuyerUseCase } from "./application/use-cases/register-buyer.use-case.js";
 import { LoginBuyerUseCase } from "./application/use-cases/login-buyer.use-case.js";
 import { LoginBuyerFromSessionUseCase } from "./application/use-cases/login-buyer-from-session.use-case.js";
@@ -64,6 +67,31 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
     ExportBuyerDataUseCase,
     SendBuyerPhoneCodeUseCase,
     VerifyBuyerPhoneCodeUseCase,
+    SendBuyerEmailCodeUseCase,
+    VerifyBuyerEmailCodeUseCase,
+    // WhatsApp OTP delivery via BubbleWhats
+    {
+      provide: SMS_PROVIDER,
+      useFactory: () => ({
+        async send(phone: string, message: string) {
+          const baseUrl = process.env.BUBBLEWHATS_API_URL;
+          const token = process.env.BUBBLEWHATS_TOKEN;
+          if (!baseUrl || !token) {
+            const logger = new Logger("WhatsAppOTP");
+            logger.warn(`[OTP] WhatsApp not configured; message for ${phone.slice(-4)}: ${message}`);
+            return;
+          }
+          const cleanDigits = phone.replace(/\D/g, "");
+          const number = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
+          const jid = `${number}@s.whatsapp.net`;
+          await fetch(`${baseUrl}/send-message`, {
+            method: "POST",
+            headers: { Authorization: token, "Content-Type": "application/json" },
+            body: JSON.stringify({ jid, message }),
+          });
+        },
+      }),
+    },
     // WebAuthn dependencies
     WebAuthnChallengeService,
     {

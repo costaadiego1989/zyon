@@ -51,6 +51,8 @@ import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.noti
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
+import { PRODUCT_SEARCH_PORT } from "./domain/ports/product-search.port.js";
+import { LocalCatalogFallbackAdapter } from "../catalog/infrastructure/local-catalog-fallback.adapter.js";
 import { PrismaStoreOverviewRepository } from "./infrastructure/prisma/prisma-store-overview.repository.js";
 import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
 import { CheckoutController } from "./presentation/http/checkout.controller.js";
@@ -120,6 +122,11 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
     {
       provide: STORE_OVERVIEW_READ_MODEL,
       useFactory: (prisma: PrismaClient) => new PrismaStoreOverviewRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: PRODUCT_SEARCH_PORT,
+      useFactory: (prisma: PrismaClient) => new LocalCatalogFallbackAdapter(prisma),
       inject: [PRISMA_CLIENT]
     },
     { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
