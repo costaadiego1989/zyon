@@ -36,7 +36,7 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get", "post", "put"], path: /^\/checkout-settings(?:\/.*)?$/, security: "tenant" },
   { methods: ["post"], path: /^\/embed\/sessions$/, security: "tenant" },
   { methods: ["get", "post", "put"], path: /^\/installations(?:\/.*)?$/, security: "tenant" },
-  { methods: ["get", "post", "put"], path: /^\/orders(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post", "put", "patch"], path: /^\/orders(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/customers(?:\/.*)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/payments(?:\/(?!connections(?:\/|$))[^/]+)?$/, security: "tenant" },
   { methods: ["get"], path: /^\/audit-events$/, security: "tenant" },
@@ -53,6 +53,18 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["get", "put"], path: /^\/support\/settings$/, security: "tenant" },
   { methods: ["get", "post", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/onboarding(?:\/.*)?$/, security: "session" },
+  // Public API v1 — Checkouts
+  { methods: ["post"], path: /^\/checkouts$/, security: "tenant" },
+  { methods: ["get"], path: /^\/checkouts\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/events$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/messages$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/shipping\/evaluate$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/offers$/, security: "tenant" },
+  { methods: ["post"], path: /^\/checkouts\/[^/]+\/complete$/, security: "tenant" },
+  { methods: ["patch"], path: /^\/checkouts\/[^/]+\/cart$/, security: "tenant" },
+  // Public API v1 — Products
+  { methods: ["get", "post"], path: /^\/products$/, security: "tenant" },
+  { methods: ["get", "patch", "delete"], path: /^\/products\/[^/]+$/, security: "tenant" },
 ];
 
 const SCALAR_CSS = `

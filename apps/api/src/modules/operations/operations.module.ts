@@ -56,5 +56,11 @@ import {
       useExisting: UpdateTenantOrderTrackingUseCase,
     },
   ],
+  exports: [
+    ListOrdersUseCase,
+    GetOrderUseCase,
+    CancelOrderUseCase,
+    UpdateOrderStatusUseCase,
+  ],
 })
 export class OperationsModule {}
