@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -29,8 +29,24 @@ export function CheckoutLayout() {
     }
   }
 
-  // Determine theme based on brand.mode (light/dark)
-  const themeAttr = brand.mode === "dark" ? "dark" : "light";
+  // Determine theme: user preference (localStorage) > merchant default (brand.mode)
+  const THEME_KEY = "zyon-checkout-theme";
+  const merchantDefault = brand.mode === "dark" ? "dark" : "light";
+  const [theme, setTheme] = useState<"dark" | "light">(() => {
+    try {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "dark" || saved === "light") return saved;
+    } catch {}
+    return merchantDefault;
+  });
+
+  const toggleTheme = useCallback(() => {
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    try { localStorage.setItem(THEME_KEY, next); } catch {}
+  }, [theme]);
+
+  const themeAttr = theme;
 
   // Widget style from brand theme
   const widgetStyle: React.CSSProperties = {
@@ -132,12 +148,7 @@ export function CheckoutLayout() {
 
         <button
           type="button"
-          onClick={() => {
-            const root = document.documentElement;
-            const currentTheme = root.getAttribute("data-theme");
-            const newTheme = currentTheme === "dark" ? "light" : "dark";
-            root.setAttribute("data-theme", newTheme);
-          }}
+          onClick={toggleTheme}
           title="Alternar tema"
           style={{
             width: "30px",
