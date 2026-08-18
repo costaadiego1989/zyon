@@ -65,6 +65,13 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   // Public API v1 — Products
   { methods: ["get", "post"], path: /^\/products$/, security: "tenant" },
   { methods: ["get", "patch", "delete"], path: /^\/products\/[^/]+$/, security: "tenant" },
+  // Public API v1 — Settings
+  { methods: ["get", "put"], path: /^\/settings\/checkout$/, security: "tenant" },
+  { methods: ["get", "put"], path: /^\/settings\/agent-rules$/, security: "tenant" },
+  // Public API v1 — Payments
+  { methods: ["post"], path: /^\/payments\/intents$/, security: "tenant" },
+  { methods: ["get"], path: /^\/payments\/intents\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/payments\/intents\/[^/]+\/confirm$/, security: "tenant" },
 ];
 
 const SCALAR_CSS = `
