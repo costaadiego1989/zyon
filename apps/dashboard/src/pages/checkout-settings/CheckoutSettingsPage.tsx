@@ -280,26 +280,6 @@ export function CheckoutSettingsPage(props: {
                 />
               </div>
             </SectionRail>
-
-            {/* 3 — URL de retorno */}
-            <SectionRail
-              icon={<Activity size={16} strokeWidth={1.75} />}
-              index="03"
-              title="Navegação"
-              desc="Configure o comportamento de retorno do checkout."
-            >
-              <div className="cfg-field">
-                <FormField
-                  label="URL de retorno"
-                  type="url"
-                  placeholder="https://seusite.com"
-                  value={vm.draft!.checkoutReturnUrl ?? ""}
-                  disabled={vm.busy}
-                  onChange={(v) => vm.patchDraft({ checkoutReturnUrl: v })}
-                  hint='Quando o comprador clicar em "voltar" no checkout, será redirecionado para esta URL.'
-                />
-              </div>
-            </SectionRail>
             </>}
 
             {vm.activeTab === "triggers" && <>
