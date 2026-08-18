@@ -29,7 +29,7 @@ export interface CheckoutSettingsViewModel {
   restoreDefaults: () => void;
   discardChanges: () => void;
   patchDraft: (partial: Partial<Draft>) => void;
-  patchTrigger: (trigger: CheckoutTriggerName, partial: Partial<{ enabled: boolean }>) => void;
+  patchTrigger: (trigger: CheckoutTriggerName, partial: Partial<{ enabled: boolean; message: string; cooldownSeconds: number; couponCode: string }>) => void;
   setActiveTab: (tab: "behavior" | "triggers" | "discounts" | "rules") => void;
   openRuleEditor: (rule: AdvancedRule | null) => void;
   closeRuleEditor: () => void;
@@ -131,7 +131,7 @@ export function useCheckoutSettingsPage(props: {
 
   function patchTrigger(
     trigger: CheckoutTriggerName,
-    partial: Partial<{ enabled: boolean }>
+    partial: Partial<{ enabled: boolean; message: string; cooldownSeconds: number; couponCode: string }>
   ) {
     setDraft((prev) => {
       if (!prev) return prev;

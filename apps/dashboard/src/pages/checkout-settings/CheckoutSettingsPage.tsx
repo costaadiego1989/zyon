@@ -322,7 +322,13 @@ export function CheckoutSettingsPage(props: {
                     trigger={t}
                     enabled={vm.draft!.triggers[t].enabled}
                     busy={vm.busy}
+                    message={vm.draft!.triggers[t].message}
+                    cooldownSeconds={vm.draft!.triggers[t].cooldownSeconds}
+                    couponCode={vm.draft!.triggers[t].couponCode}
                     onChange={(v) => vm.patchTrigger(t, { enabled: v })}
+                    onMessageChange={(v) => vm.patchTrigger(t, { message: v })}
+                    onCooldownChange={(v) => vm.patchTrigger(t, { cooldownSeconds: v })}
+                    onCouponChange={(v) => vm.patchTrigger(t, { couponCode: v })}
                   />
                 ))}
               </div>

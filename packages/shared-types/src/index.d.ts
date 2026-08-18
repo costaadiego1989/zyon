@@ -212,6 +212,9 @@ export interface CheckoutTriggerRule {
     trigger: CheckoutTriggerName;
     enabled: boolean;
     priority: number;
+    message?: string;
+    cooldownSeconds?: number;
+    couponCode?: string;
 }
 export interface CheckoutSuppressionRules {
     suppressedSteps: string[];
