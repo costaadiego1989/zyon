@@ -29,6 +29,7 @@ import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -52,6 +53,7 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
+    @Optional() private readonly searchMarketplace?: SearchFederatedProductsUseCase,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -377,6 +379,14 @@ export class SendChatMessageUseCase {
           description: "Aplica um cupom de desconto no carrinho",
           parameters: { type: "object", properties: { code: { type: "string", description: "Código do cupom" } }, required: ["code"] }
         }
+      },
+      {
+        type: "function" as const,
+        function: {
+          name: "search_marketplace",
+          description: "Busca produto no marketplace de lojas parceiras",
+          parameters: { type: "object", properties: { query: { type: "string", description: "Nome ou descrição do produto" } }, required: ["query"] }
+        }
       }
     ];
 
@@ -388,6 +398,7 @@ export class SendChatMessageUseCase {
       ...merchantRules.map((r, i) => `${i + 1}. ${r}`),
       "",
       "IMPORTANTE: Quando uma regra diz 'ofereça X% desconto', CHAME apply_discount. Quando diz 'frete grátis', CHAME apply_free_shipping. Quando diz 'cupom CODIGO', CHAME apply_coupon.",
+      "Se local_search não encontrar o produto, CHAME search_marketplace para parceiros.",
       "Após chamar a ferramenta, confirme ao cliente o que foi aplicado.",
       "Responda em português. Sem markdown.",
     ].join("\n");

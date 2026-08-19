@@ -254,6 +254,17 @@ export interface ChatTurn {
   authorizedOfferId?: string;
 }
 
+export interface CrossStoreLineItem {
+  lineItemId: string;
+  federatedProductId: string;
+  sourceMerchantId: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
+  commissionCents: number;
+  sellerNetCents: number;
+}
+
 export interface CheckoutSession {
   merchantId: string;
   sessionId: string;
@@ -268,6 +279,7 @@ export interface CheckoutSession {
   chatHistory: ChatTurn[];
   paymentMethod?: PaymentMethod;
   promptVariantId?: string;
+  crossStoreItems?: CrossStoreLineItem[];
   createdAt: string;
   updatedAt: string;
 }

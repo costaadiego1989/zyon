@@ -10,6 +10,7 @@ import { ORDER_REPOSITORY, type OrderRepository } from "../../domain/ports/order
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
 import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@zyon/shared-types";
+import { PlaceCrossStoreOrderUseCase } from "../../../marketplace/application/use-cases/place-cross-store-order.use-case.js";
 
 /** Persistence surface required to commit an order atomically with its events. */
 interface OrderCommitRepository {
@@ -42,7 +43,8 @@ export class CompleteOrderUseCase {
     @Optional() private readonly metrics?: MetricsService,
     @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner,
     @Optional() private readonly recordExperimentResult?: RecordExperimentResultUseCase,
-    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
+    @Optional() private readonly placeCrossStoreOrder?: PlaceCrossStoreOrderUseCase
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
@@ -215,6 +217,18 @@ export class CompleteOrderUseCase {
             discountAmount: 0
           }))
         });
+      }
+    }
+
+    if (this.placeCrossStoreOrder) {
+      try {
+        await this.placeCrossStoreOrder.execute({
+          checkoutSessionId: input.session_id,
+          orderId: input.external_order_id,
+          hostMerchantId: input.merchant_id
+        });
+      } catch (err) {
+        this.logger.error("cross-store-order.failed", { error: err instanceof Error ? err.message : String(err) });
       }
     }
 

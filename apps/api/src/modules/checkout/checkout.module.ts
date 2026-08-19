@@ -6,6 +6,7 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
@@ -25,6 +26,7 @@ import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
 import { UpdateCartUseCase } from "./application/use-cases/update-cart.use-case.js";
+import { UpdateCrossStoreCartUseCase } from "./application/use-cases/update-cross-store-cart.use-case.js";
 import { GetFunnelUseCase } from "./application/use-cases/get-funnel.use-case.js";
 import { GetFunnelSessionsUseCase } from "./application/use-cases/get-funnel-sessions.use-case.js";
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
@@ -69,6 +71,7 @@ import { ExperimentsModule } from "../experiments/experiments.module.js";
     BuyerPurchaseHistoryModule,
     MerchantModule,
     forwardRef(() => ShippingModule),
+    forwardRef(() => MarketplaceModule),
     BuyerAccountRepositoryModule,
     ExperimentsModule
   ],
@@ -98,6 +101,7 @@ import { ExperimentsModule } from "../experiments/experiments.module.js";
     CompleteOrderUseCase,
     UpdateOrderTrackingUseCase,
     UpdateCartUseCase,
+    UpdateCrossStoreCartUseCase,
     GetDashboardOverviewUseCase,
     GetStoreOverviewUseCase,
     GetTimeseriesUseCase,
