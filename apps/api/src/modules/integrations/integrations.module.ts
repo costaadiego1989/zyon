@@ -84,6 +84,12 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     TenantWebhookPublisher,
     WebhookDeliveryDispatcher,
     UpdateTenantOrderTrackingUseCase,
+    ListWebhookEndpointsUseCase,
+    GetWebhookEndpointUseCase,
+    DeleteWebhookEndpointUseCase,
+    UpsertWebhookEndpointUseCase,
+    TestWebhookEndpointUseCase,
+    ListWebhookDeliveriesUseCase,
   ]
 })
 export class IntegrationsModule {}

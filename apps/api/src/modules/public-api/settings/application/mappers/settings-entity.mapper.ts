@@ -53,6 +53,100 @@ export class SettingsEntityMapper {
   }
 
   /**
+   * Map store settings entity to API response DTO.
+   * Normalizes field names to snake_case.
+   */
+  static toStoreSettingsResponse(settings: any, updatedAt?: Date | null): any {
+    return {
+      company: settings.company
+        ? {
+            cnpj: settings.company.cnpj ?? null,
+            razao_social: settings.company.razaoSocial ?? null,
+            inscricao_estadual: settings.company.inscricaoEstadual ?? null,
+            email: settings.company.email ?? null,
+            phone: settings.company.phone ?? null,
+            address: settings.company.address
+              ? {
+                  street: settings.company.address.street ?? null,
+                  number: settings.company.address.number ?? null,
+                  complement: settings.company.address.complement ?? null,
+                  neighborhood: settings.company.address.neighborhood ?? null,
+                  city: settings.company.address.city ?? null,
+                  state: settings.company.address.state ?? null,
+                  zip: settings.company.address.zip ?? null,
+                }
+              : null,
+          }
+        : null,
+      social: settings.social
+        ? {
+            instagram: settings.social.instagram ?? null,
+            facebook: settings.social.facebook ?? null,
+            linkedin: settings.social.linkedin ?? null,
+            youtube: settings.social.youtube ?? null,
+            google_maps: settings.social.googleMaps ?? null,
+          }
+        : null,
+      policies: settings.policies
+        ? {
+            privacy: settings.policies.privacy ?? null,
+            returns: settings.policies.returns ?? null,
+            terms: settings.policies.terms ?? null,
+            shipping: settings.policies.shipping ?? null,
+          }
+        : null,
+      styles: settings.styles
+        ? {
+            logo_url: settings.styles.logoUrl ?? null,
+            favicon_url: settings.styles.faviconUrl ?? null,
+            accent_color: settings.styles.accentColor ?? null,
+            secondary_color: settings.styles.secondaryColor ?? null,
+            font_display: settings.styles.fontDisplay ?? null,
+            font_family: settings.styles.fontFamily ?? null,
+          }
+        : null,
+      business_hours: settings.businessHours ?? [],
+      slug: settings.slug ?? null,
+      updated_at: updatedAt ?? null,
+    };
+  }
+
+  /**
+   * Map SEO/GTM settings entity to API response DTO.
+   * Normalizes field names to snake_case.
+   */
+  static toSeoSettingsResponse(config: any): any {
+    const seo = config.seo ?? {};
+    const gtm = config.gtm ?? {};
+    return {
+      seo: {
+        title: seo.title ?? null,
+        description: seo.description ?? null,
+        og_title: seo.ogTitle ?? null,
+        og_description: seo.ogDescription ?? null,
+        og_image: seo.ogImage ?? null,
+        keywords: seo.keywords ?? [],
+        twitter_card: seo.twitterCard ?? null,
+        robots: seo.robots ?? null,
+        canonical: seo.canonical ?? null,
+      },
+      gtm: {
+        gtm_id: gtm.gtmId ?? null,
+        ga_tracking_id: gtm.gaTrackingId ?? null,
+        pixel_ids: gtm.pixelIds
+          ? {
+              facebook: gtm.pixelIds.facebook ?? null,
+              tiktok: gtm.pixelIds.tiktok ?? null,
+              snapchat: gtm.pixelIds.snapchat ?? null,
+              pinterest: gtm.pixelIds.pinterest ?? null,
+            }
+          : null,
+      },
+      updated_at: config.lastUpdatedAt ?? config.updatedAt ?? null,
+    };
+  }
+
+  /**
    * Map agent rules entity to API response DTO.
    * Normalizes field names to snake_case.
    */

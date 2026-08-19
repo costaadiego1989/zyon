@@ -68,10 +68,46 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   // Public API v1 — Settings
   { methods: ["get", "put"], path: /^\/settings\/checkout$/, security: "tenant" },
   { methods: ["get", "put"], path: /^\/settings\/agent-rules$/, security: "tenant" },
+  { methods: ["get", "put"], path: /^\/settings\/store$/, security: "tenant" },
+  { methods: ["get", "put"], path: /^\/settings\/seo$/, security: "tenant" },
   // Public API v1 — Payments
   { methods: ["post"], path: /^\/payments\/intents$/, security: "tenant" },
   { methods: ["get"], path: /^\/payments\/intents\/[^/]+$/, security: "tenant" },
   { methods: ["post"], path: /^\/payments\/intents\/[^/]+\/confirm$/, security: "tenant" },
+  // Public API v1 — Categories
+  { methods: ["get", "post"], path: /^\/categories$/, security: "tenant" },
+  { methods: ["get", "patch", "delete"], path: /^\/categories\/[^/]+$/, security: "tenant" },
+  { methods: ["put"], path: /^\/categories\/reorder$/, security: "tenant" },
+  // Public API v1 — Webhooks
+  { methods: ["get", "post"], path: /^\/webhooks$/, security: "tenant" },
+  { methods: ["get", "put", "delete"], path: /^\/webhooks\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/webhooks\/[^/]+\/test$/, security: "tenant" },
+  // Public API v1 — Coupons
+  { methods: ["get", "post"], path: /^\/coupons$/, security: "tenant" },
+  { methods: ["patch", "delete"], path: /^\/coupons\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/coupons\/[^/]+\/validate$/, security: "tenant" },
+  // Public API v1 — Analytics
+  { methods: ["get"], path: /^\/analytics\/dashboard$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/products(?:\/[^/]+)?$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/offers\/roi$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/payments$/, security: "tenant" },
+  { methods: ["get"], path: /^\/analytics\/customers$/, security: "tenant" },
+  // Public API v1 — Team
+  { methods: ["get"], path: /^\/team\/members$/, security: "tenant" },
+  { methods: ["post"], path: /^\/team\/invitations$/, security: "tenant" },
+  { methods: ["post"], path: /^\/team\/invitations\/[^/]+\/accept$/, security: "tenant" },
+  { methods: ["patch"], path: /^\/team\/members\/[^/]+\/role$/, security: "tenant" },
+  { methods: ["delete"], path: /^\/team\/members\/[^/]+$/, security: "tenant" },
+  // Public API v1 — Returns
+  { methods: ["get", "post"], path: /^\/returns$/, security: "tenant" },
+  // Public API v1 — Experiments
+  { methods: ["get", "post"], path: /^\/experiments$/, security: "tenant" },
+  { methods: ["get", "patch"], path: /^\/experiments\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/start$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/stop$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/archive$/, security: "tenant" },
+  { methods: ["get"], path: /^\/experiments\/[^/]+\/results$/, security: "tenant" },
+  { methods: ["post"], path: /^\/experiments\/[^/]+\/promote$/, security: "tenant" },
 ];
 
 const SCALAR_CSS = `
@@ -361,7 +397,8 @@ function withPublicHttpContract(
 
   if (
     path.startsWith("/checkout-settings") ||
-    path.startsWith("/webhook-endpoints")
+    path.startsWith("/webhook-endpoints") ||
+    path.startsWith("/settings")
   ) {
     for (const response of Object.values(responses)) {
       if (!response || "$ref" in response) continue;
@@ -423,6 +460,8 @@ function requiresIfMatch(method: HttpMethod, path: string): boolean {
   return (
     (method === "put" && path === "/checkout-settings") ||
     (method === "post" && path === "/checkout-settings/reset") ||
+    (method === "put" && path === "/settings/store") ||
+    (method === "put" && path === "/settings/seo") ||
     (method === "put" && /^\/installations\/[^/]+$/.test(path)) ||
     (method === "put" && /^\/webhook-endpoints\/[^/]+$/.test(path))
   );

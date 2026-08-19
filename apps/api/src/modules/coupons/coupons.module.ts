@@ -47,7 +47,13 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     BillingPlanMeteringService,
     PlanLimitGuard
   ],
-  exports: [ApplyCouponUseCase, RedeemCouponUseCase]
+  exports: [
+    COUPON_REPOSITORY,
+    CreateCouponUseCase,
+    ArchiveCouponUseCase,
+    ApplyCouponUseCase,
+    RedeemCouponUseCase,
+  ]
 })
 export class CouponsModule {}
 

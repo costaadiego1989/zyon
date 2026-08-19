@@ -61,6 +61,10 @@ import {
     GetOrderUseCase,
     CancelOrderUseCase,
     UpdateOrderStatusUseCase,
+    ListCustomersUseCase,
+    GetCustomerUseCase,
+    ListPaymentsUseCase,
+    GetPaymentUseCase,
   ],
 })
 export class OperationsModule {}

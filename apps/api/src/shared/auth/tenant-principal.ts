@@ -20,6 +20,15 @@ export const TENANT_API_SCOPES = [
   "webhooks:read",
   "webhooks:write",
   "audit:read",
+  "analytics:read",
+  "coupons:read",
+  "coupons:write",
+  "experiments:read",
+  "experiments:write",
+  "team:read",
+  "team:write",
+  "returns:read",
+  "returns:write",
 ] as const;
 
 export type TenantApiScope = (typeof TENANT_API_SCOPES)[number];
