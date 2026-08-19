@@ -47,7 +47,6 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
             tabs={[
               { key: "identity", label: "Identidade" },
               { key: "quick-replies", label: "Quick Replies" },
-              { key: "ab-tests", label: "Testes A/B" },
             ]}
             activeTab={vm.activeTab}
             onTabChange={(k) => vm.setActiveTab(k as typeof vm.activeTab)}
@@ -116,91 +115,6 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
 
           {vm.activeTab === "quick-replies" && (
             <StageQuickRepliesEditor config={vm.stageQrConfig} onChange={vm.setStageQrConfig} />
-          )}
-
-          {vm.activeTab === "ab-tests" && (
-            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <SectionHeader title="TESTES A/B DE NEGOCIAÇÃO" variant="secondary" />
-              <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: "8px 0 20px" }}>
-                Configure variantes de estratégia de negociação do agente. O sistema divide tráfego entre variantes e mede taxa de conversão.
-              </p>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {/* Variante A */}
-                <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Variante A — Conservadora</span>
-                    <span style={{ font: "11px var(--mono)", color: "var(--success)", background: "var(--success-soft)", padding: "2px 8px", borderRadius: 4 }}>50% tráfego</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <span style={{ font: "600 10px var(--mono)", color: "var(--faint)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Desconto Máx</span>
-                      <input
-                        type="number"
-                        value={vm.form.maxDiscountPercent}
-                        onChange={(e) => vm.patch({ maxDiscountPercent: e.target.value })}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }}
-                      />
-                    </div>
-                    <div>
-                      <span style={{ font: "600 10px var(--mono)", color: "var(--faint)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Margem Mín</span>
-                      <input
-                        type="number"
-                        value={vm.form.minimumMarginPercent}
-                        onChange={(e) => vm.patch({ minimumMarginPercent: e.target.value })}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 12, display: "flex", gap: 16, font: "12px var(--sans)", color: "var(--muted)" }}>
-                    <span>Frete grátis: {vm.form.allowFreeShipping ? "Sim" : "Não"}</span>
-                    <span>Desc. frete: {vm.form.allowShippingDiscount ? "Sim" : "Não"}</span>
-                    <span>Expiração: {vm.form.offerExpirationMinutes}min</span>
-                  </div>
-                </div>
-
-                {/* Variante B */}
-                <div style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-                    <span style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Variante B — Agressiva</span>
-                    <span style={{ font: "11px var(--mono)", color: "var(--warning)", background: "var(--warning-soft, oklch(80% 0.1 80 / 0.2))", padding: "2px 8px", borderRadius: 4 }}>50% tráfego</span>
-                  </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                    <div>
-                      <span style={{ font: "600 10px var(--mono)", color: "var(--faint)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Desconto Máx</span>
-                      <input
-                        type="number"
-                        defaultValue={Math.min(50, Number(vm.form.maxDiscountPercent) + 5)}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }}
-                      />
-                    </div>
-                    <div>
-                      <span style={{ font: "600 10px var(--mono)", color: "var(--faint)", textTransform: "uppercase", display: "block", marginBottom: 4 }}>Margem Mín</span>
-                      <input
-                        type="number"
-                        defaultValue={Math.max(5, Number(vm.form.minimumMarginPercent) - 5)}
-                        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--mono)" }}
-                      />
-                    </div>
-                  </div>
-                  <div style={{ marginTop: 12, display: "flex", gap: 16, font: "12px var(--sans)", color: "var(--muted)" }}>
-                    <span>Frete grátis: Sim</span>
-                    <span>Desc. frete: Sim</span>
-                    <span>Expiração: {Math.max(5, Number(vm.form.offerExpirationMinutes) - 5)}min</span>
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: 12, background: "oklch(50% 0.05 240 / 0.1)", borderRadius: 8 }}>
-                  <Info size={16} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
-                  <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.5 }}>
-                    <strong style={{ color: "var(--ink)" }}>Como funciona:</strong> O tráfego de sessões de checkout é dividido 50/50 entre variantes.
-                    Após período de teste (mínimo 100 sessões por variante), os resultados são exibidos com taxa de conversão,
-                    ticket médio e margem realizada. A variante vencedora pode ser promovida como configuração principal.
-                  </div>
-                </div>
-              </div>
-            </section>
           )}
         </div>
       )}

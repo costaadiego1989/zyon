@@ -59,6 +59,7 @@ export type TabKey =
   | "cross-sell-checkout"
   | "agent-config"
   | "agent-config-checkout"
+  | "experiments"
   | "stories"
   | "team"
   | "account-settings"
@@ -94,6 +95,7 @@ export const NAV_ITEMS: Array<{
   { key: "theme-checkout", label: "Tema", section: "Checkout", icon: Palette, requiredPlan: ["CHECKOUT_ONLY"] },
   { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "experiments", label: "Testes A/B", section: "Checkout", icon: Zap, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
 
   // ─── Integrações ───
   { key: "integrations", label: "Desenvolvedores", section: "Integrações", icon: Webhook },
