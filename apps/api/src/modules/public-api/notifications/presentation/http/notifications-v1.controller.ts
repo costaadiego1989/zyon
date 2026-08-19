@@ -10,6 +10,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiResponse,
@@ -31,6 +32,7 @@ import {
   SendOrderShippedDto,
   SendOrderDeliveredDto,
   SendReturnApprovedDto,
+  NotificationSentResponse,
 } from "./dtos/notification.dtos.js";
 
 @ApiTags("Notifications")
@@ -52,7 +54,8 @@ export class NotificationsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["orders:read"] })
   @ApiOperation({ summary: "Send order confirmation notification" })
-  @ApiResponse({ status: 200, description: "Notification sent" })
+  @ApiBody({ type: SendOrderConfirmationDto })
+  @ApiResponse({ status: 200, description: "Notification sent", type: NotificationSentResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
@@ -71,7 +74,8 @@ export class NotificationsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["orders:read"] })
   @ApiOperation({ summary: "Send order shipped notification" })
-  @ApiResponse({ status: 200, description: "Notification sent" })
+  @ApiBody({ type: SendOrderShippedDto })
+  @ApiResponse({ status: 200, description: "Notification sent", type: NotificationSentResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
@@ -90,7 +94,8 @@ export class NotificationsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["orders:read"] })
   @ApiOperation({ summary: "Send order delivered notification" })
-  @ApiResponse({ status: 200, description: "Notification sent" })
+  @ApiBody({ type: SendOrderDeliveredDto })
+  @ApiResponse({ status: 200, description: "Notification sent", type: NotificationSentResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
@@ -109,7 +114,8 @@ export class NotificationsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ["orders:read"] })
   @ApiOperation({ summary: "Send return approved notification" })
-  @ApiResponse({ status: 200, description: "Notification sent" })
+  @ApiBody({ type: SendReturnApprovedDto })
+  @ApiResponse({ status: 200, description: "Notification sent", type: NotificationSentResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })

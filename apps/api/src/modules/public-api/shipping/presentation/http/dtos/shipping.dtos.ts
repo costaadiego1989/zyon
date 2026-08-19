@@ -86,3 +86,46 @@ export class GetShippingQuotesDto {
   @Type(() => ShippingQuoteItemDto)
   items?: ShippingQuoteItemDto[];
 }
+
+export class ShippingQuoteOptionResponse {
+  @ApiProperty({ example: 'correios' })
+  carrier_key!: string;
+
+  @ApiProperty({ example: 'Correios PAC' })
+  label!: string;
+
+  @ApiProperty({ example: 2990, description: 'Price in minor currency units (e.g. cents)' })
+  price_minor!: number;
+
+  @ApiProperty({ example: 3, description: 'Estimated delivery time in business days' })
+  eta_days!: number;
+
+  @ApiProperty({ example: false })
+  is_free!: boolean;
+}
+
+export class ShippingQuoteResponse {
+  @ApiProperty({ example: 'quote_abc123' })
+  id!: string;
+
+  @ApiProperty({ example: 'sess_abc123' })
+  session_id!: string;
+
+  @ApiProperty({ example: 'mch_xyz789' })
+  merchant_id!: string;
+
+  @ApiProperty({ example: '01310-100' })
+  destination_zip!: string;
+
+  @ApiProperty({ example: 'quote_key_12345' })
+  quote_key!: string;
+
+  @ApiProperty({ type: [ShippingQuoteOptionResponse] })
+  options!: ShippingQuoteOptionResponse[];
+
+  @ApiProperty({ example: '2024-08-15T10:30:00Z' })
+  created_at!: string;
+
+  @ApiProperty({ example: '2024-08-15T11:30:00Z' })
+  expires_at!: string;
+}

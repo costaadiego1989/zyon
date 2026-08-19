@@ -17,6 +17,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -29,7 +30,7 @@ import { RegisterDomainUseCase } from '../../../../domains/application/use-cases
 import { VerifyDomainUseCase } from '../../../../domains/application/use-cases/verify-domain.use-case.js';
 import { ListDomainsUseCase } from '../../../../domains/application/use-cases/list-domains.use-case.js';
 import { DomainEntityMapper } from '../../application/mappers/domain-entity.mapper.js';
-import { RegisterDomainDto } from './dtos/domain.dtos.js';
+import { RegisterDomainDto, DomainResponse, RegisterDomainResponse, VerifyDomainResponse } from './dtos/domain.dtos.js';
 
 /**
  * Public API v1 — Domains
@@ -60,7 +61,7 @@ export class DomainsV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   @ApiOperation({ summary: 'List registered domains' })
-  @ApiOkResponse({ description: 'Domains list' })
+  @ApiOkResponse({ description: 'Domains list', type: DomainResponse, isArray: true })
   async list(@Req() req: any) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const domains = await this.listDomainsUseCase.execute(merchantId);
@@ -79,7 +80,8 @@ export class DomainsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   @ApiOperation({ summary: 'Register a custom domain' })
-  @ApiCreatedResponse({ description: 'Domain registered' })
+  @ApiBody({ type: RegisterDomainDto })
+  @ApiCreatedResponse({ description: 'Domain registered', type: RegisterDomainResponse })
   async register(@Req() req: any, @Body() body: RegisterDomainDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.registerDomainUseCase.execute({
@@ -98,7 +100,7 @@ export class DomainsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   @ApiOperation({ summary: 'Verify a registered domain' })
-  @ApiOkResponse({ description: 'Domain verified' })
+  @ApiOkResponse({ description: 'Domain verified', type: VerifyDomainResponse })
   async verify(@Req() req: any, @Param('domainId') domainId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.verifyDomainUseCase.execute({

@@ -166,29 +166,77 @@ export class ValidateCouponDto {
 }
 
 export class CouponResponse {
+  @ApiProperty({ example: 'cpn_abc123', description: 'Coupon ID' })
   id!: string;
+
+  @ApiProperty({ example: 'SUMMER20', description: 'Coupon code' })
   code!: string;
+
+  @ApiProperty({ example: 'mch_xyz789', description: 'Owner merchant ID' })
   merchant_id!: string;
+
+  @ApiProperty({
+    enum: ['percent', 'fixed', 'shipping_free', 'shipping_percent', 'shipping_fixed'],
+    example: 'percent',
+  })
   discount_type!: string;
+
+  @ApiProperty({ example: 20, description: 'Discount amount (percent or cents)' })
   discount_value!: number;
+
+  @ApiPropertyOptional({ example: 10000, description: 'Minimum cart total in cents' })
   min_cart_total!: number | null;
+
+  @ApiPropertyOptional({ example: 100, description: 'Maximum total usages allowed' })
   max_usages!: number | null;
+
+  @ApiPropertyOptional({ example: 5, description: 'Maximum usages per buyer' })
   max_per_buyer!: number | null;
+
+  @ApiProperty({ example: 42, description: 'Current total usage count' })
   usages_count!: number;
+
+  @ApiProperty({ example: ['SKU-001', 'SKU-002'], description: 'SKUs this coupon applies to' })
   allowed_skus!: string[];
+
+  @ApiProperty({ example: ['SKU-EXCLUDED'], description: 'SKUs excluded from this coupon' })
   blocked_skus!: string[];
+
+  @ApiProperty({ example: ['BR', 'US'], description: 'Regions where coupon is valid' })
   allowed_regions!: string[];
+
+  @ApiProperty({ example: ['AR'], description: 'Regions where coupon is blocked' })
   blocked_regions!: string[];
+
+  @ApiProperty({ enum: ['active', 'archived', 'expired'], example: 'active' })
   status!: string;
+
+  @ApiProperty({ example: '2024-06-01T00:00:00Z' })
   starts_at!: string;
+
+  @ApiPropertyOptional({ example: '2024-08-31T23:59:59Z' })
   ends_at!: string | null;
+
+  @ApiProperty({ example: '2024-01-15T10:30:00Z' })
   created_at!: string;
+
+  @ApiProperty({ example: '2024-02-20T14:45:30Z' })
   updated_at!: string;
 }
 
 export class CouponValidationResponse {
+  @ApiProperty({ example: true, description: 'Whether the coupon is valid for the given cart' })
   valid!: boolean;
+
+  @ApiPropertyOptional({ example: 'coupon_expired', description: 'Reason if invalid' })
   reason?: string;
+
+  @ApiPropertyOptional({ example: 2000, description: 'Calculated discount amount in cents' })
   discount_value?: number;
+
+  @ApiPropertyOptional({
+    enum: ['percent', 'fixed', 'shipping_free', 'shipping_percent', 'shipping_fixed'],
+    example: 'percent',
+  })
   discount_type?: string;
 }

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { InstallationsModule } from '../../../installations/installations.module.js';
+import { InstallationsModule } from '../../installations/installations.module.js';
 import { InstallationsV1Controller } from './presentation/http/installations-v1.controller.js';
 
 @Module({

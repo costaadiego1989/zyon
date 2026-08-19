@@ -48,3 +48,46 @@ export class CreateShipmentDto {
   @Type(() => ShipmentItemDto)
   items?: ShipmentItemDto[];
 }
+
+export class ShipmentSummaryResponse {
+  @ApiProperty({ example: 'shp_abc123' })
+  id!: string;
+
+  @ApiProperty({ example: 'order_xyz789' })
+  order_id!: string;
+
+  @ApiProperty({ example: 'correios' })
+  carrier!: string;
+
+  @ApiPropertyOptional({ example: 'BR123456789' })
+  tracking_code?: string;
+
+  @ApiProperty({ example: 'in_transit', enum: ['pending', 'in_transit', 'delivered', 'returned'] })
+  status!: string;
+
+  @ApiPropertyOptional({ example: 'https://carrier.example.com/label/abc' })
+  label_url?: string;
+
+  @ApiProperty({ example: '2024-08-15T10:30:00Z' })
+  created_at!: string;
+
+  @ApiProperty({ example: '2024-08-16T14:00:00Z' })
+  updated_at!: string;
+}
+
+export class CreateShipmentResponse {
+  @ApiProperty({ example: 'shp_abc123' })
+  shipment_id!: string;
+
+  @ApiProperty({ example: 'order_xyz789' })
+  order_id!: string;
+
+  @ApiProperty({ example: 'correios' })
+  carrier!: string;
+
+  @ApiProperty({ example: 'pending' })
+  status!: string;
+
+  @ApiProperty({ example: '2024-08-15T10:30:00Z' })
+  created_at!: string;
+}

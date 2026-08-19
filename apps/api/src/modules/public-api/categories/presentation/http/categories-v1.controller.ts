@@ -20,6 +20,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -36,6 +37,7 @@ import { ReorderCategoriesUseCase } from '../../../../catalog/application/use-ca
 
 import { CategoryEntityMapper } from '../../application/mappers/category-entity.mapper.js';
 import { CreateCategoryDto, UpdateCategoryDto, ReorderCategoryDto } from './dtos/category.dtos.js';
+import { CategoryResponse } from './dtos/category-response.dto.js';
 
 @ApiTags('Categories')
 @ApiBearerAuth('service_api_key')
@@ -55,7 +57,7 @@ export class CategoriesV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'List all categories' })
-  @ApiOkResponse({ description: 'Categories list' })
+  @ApiOkResponse({ description: 'Categories list', type: [CategoryResponse] })
   async list(@Req() req: any) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const categories = await this.listCategoriesUseCase.execute(merchantId);
@@ -67,7 +69,7 @@ export class CategoriesV1Controller {
   @Get(':categoryId')
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Get category details' })
-  @ApiOkResponse({ description: 'Category details' })
+  @ApiOkResponse({ description: 'Category details', type: CategoryResponse })
   async get(@Req() req: any, @Param('categoryId') categoryId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const categories = await this.listCategoriesUseCase.execute(merchantId);
@@ -83,7 +85,8 @@ export class CategoriesV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Create a category' })
-  @ApiCreatedResponse({ description: 'Category created' })
+  @ApiBody({ type: CreateCategoryDto })
+  @ApiCreatedResponse({ description: 'Category created', type: CategoryResponse })
   async create(@Req() req: any, @Body() body: CreateCategoryDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.createCategoryUseCase.execute(merchantId, {
@@ -100,7 +103,8 @@ export class CategoriesV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Update a category' })
-  @ApiOkResponse({ description: 'Category updated' })
+  @ApiBody({ type: UpdateCategoryDto })
+  @ApiOkResponse({ description: 'Category updated', type: CategoryResponse })
   async update(
     @Req() req: any,
     @Param('categoryId') categoryId: string,
@@ -133,6 +137,7 @@ export class CategoriesV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Reorder categories' })
+  @ApiBody({ type: ReorderCategoryDto })
   @ApiOkResponse({ description: 'Categories reordered' })
   async reorder(@Req() req: any, @Body() body: ReorderCategoryDto) {
     const merchantId = req.tenantPrincipal?.tenantId;

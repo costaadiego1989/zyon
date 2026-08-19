@@ -27,7 +27,7 @@ import {
   ListOrdersUseCase,
 } from '../../../../operations/application/operations-read.use-cases.js';
 import { CustomerEntityMapper } from '../../application/mappers/customer-entity.mapper.js';
-import type {
+import {
   CustomerDetailResponse,
   CustomerOrderResponse,
   CustomerSummaryResponse,
@@ -49,7 +49,7 @@ export class CustomersV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['customers:read'] })
   @ApiOperation({ summary: 'List customers' })
-  @ApiOkResponse({ description: 'Customers list' })
+  @ApiOkResponse({ description: 'Customers list', type: CustomerSummaryResponse, isArray: true })
   async list(
     @Req() req: any,
     @Query('limit') limit?: number,
@@ -80,7 +80,7 @@ export class CustomersV1Controller {
   @Get(':customerId')
   @RequireTenantAccess({ serviceScopes: ['customers:read'] })
   @ApiOperation({ summary: 'Get customer details' })
-  @ApiOkResponse({ description: 'Customer detail' })
+  @ApiOkResponse({ description: 'Customer detail', type: CustomerDetailResponse })
   async detail(
     @Req() req: any,
     @Param('customerId') customerId: string,
@@ -96,7 +96,7 @@ export class CustomersV1Controller {
   @Get(':customerId/orders')
   @RequireTenantAccess({ serviceScopes: ['customers:read', 'orders:read'] })
   @ApiOperation({ summary: 'Get customer order history' })
-  @ApiOkResponse({ description: 'Customer orders list' })
+  @ApiOkResponse({ description: 'Customer orders list', type: CustomerOrderResponse, isArray: true })
   async listCustomerOrders(
     @Req() req: any,
     @Param('customerId') customerId: string,

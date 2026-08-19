@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { BILLING_PLANS } from '../../../../payment/domain/billing-plans.js';
-import type { PlanResponse } from '../../presentation/http/dtos/billing.dtos.js';
+import { BILLING_PLANS } from '../../../payment/domain/billing-plans.js';
+import type { PlanResponse } from '../presentation/http/dtos/billing.dtos.js';
 import { BillingEntityMapper } from './mappers/billing-entity.mapper.js';
 
 @Injectable()

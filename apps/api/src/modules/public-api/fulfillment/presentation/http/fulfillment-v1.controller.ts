@@ -13,6 +13,7 @@ import {
 import {
   ApiTags,
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiOkResponse,
@@ -30,7 +31,7 @@ import { RequireTenantAccess } from '../../../../integrations/presentation/http/
 import { CreateShipmentUseCase } from '../../../../fulfillment/application/use-cases/create-shipment.use-case.js';
 import { ListShipmentsUseCase } from '../../../../fulfillment/application/use-cases/list-shipments.use-case.js';
 import { FulfillmentEntityMapper } from '../../application/mappers/fulfillment-entity.mapper.js';
-import { CreateShipmentDto } from './dtos/fulfillment.dtos.js';
+import { CreateShipmentDto, ShipmentSummaryResponse, CreateShipmentResponse } from './dtos/fulfillment.dtos.js';
 
 /**
  * Public API v1 — Fulfillment
@@ -64,7 +65,7 @@ export class FulfillmentV1Controller {
   @ApiQuery({ name: 'cursor', type: 'string', required: false })
   @ApiQuery({ name: 'order_id', type: 'string', required: false })
   @ApiQuery({ name: 'status', type: 'string', required: false })
-  @ApiOkResponse({ description: 'Shipments list' })
+  @ApiOkResponse({ description: 'Shipments list', type: [ShipmentSummaryResponse] })
   async list(
     @Req() req: any,
     @Query('limit') limit?: number,
@@ -104,7 +105,8 @@ export class FulfillmentV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['tracking:write'] })
   @ApiOperation({ summary: 'Create a shipment for an order' })
-  @ApiCreatedResponse({ description: 'Shipment created' })
+  @ApiBody({ type: CreateShipmentDto })
+  @ApiCreatedResponse({ description: 'Shipment created', type: CreateShipmentResponse })
   async create(@Req() req: any, @Body() body: CreateShipmentDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
 

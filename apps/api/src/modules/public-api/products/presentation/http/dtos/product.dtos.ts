@@ -267,3 +267,152 @@ export class UpdateProductDto {
   @IsString({ each: true })
   keywords?: string[];
 }
+
+// Response DTOs
+
+export class ProductVariantResponseDto {
+  @ApiProperty({ example: 'SKU-001' })
+  id!: string;
+
+  @ApiProperty({ example: 'SKU-001' })
+  sku!: string;
+
+  @ApiPropertyOptional({ example: { color: 'blue', size: 'M' } })
+  attributes?: Record<string, string>;
+
+  @ApiProperty({ example: 4990 })
+  base_price_minor!: number;
+
+  @ApiPropertyOptional({ example: 2000 })
+  cost_minor?: number;
+
+  @ApiProperty({ example: 'BRL' })
+  currency!: string;
+
+  @ApiProperty({ example: 50 })
+  stock_quantity!: number;
+
+  @ApiProperty({ example: 5 })
+  stock_reserved!: number;
+
+  @ApiProperty({ example: true })
+  is_active!: boolean;
+}
+
+export class ProductSeoResponse {
+  @ApiPropertyOptional({ example: 'Premium Cotton Tee' })
+  title?: string;
+
+  @ApiPropertyOptional({ example: 'Soft, breathable cotton t-shirt.' })
+  meta_description?: string;
+
+  @ApiPropertyOptional({ example: 'premium-cotton-tee' })
+  slug?: string;
+
+  @ApiPropertyOptional({ example: 'Premium Tee — Acme' })
+  og_title?: string;
+
+  @ApiPropertyOptional({ example: 'Soft cotton tee for everyday wear.' })
+  og_description?: string;
+
+  @ApiPropertyOptional({ example: 'summary_large_image' })
+  og_image?: string;
+
+  @ApiPropertyOptional({ example: ['cotton', 't-shirt', 'premium'] })
+  keywords?: string[];
+}
+
+export class ProductSummaryResponse {
+  @ApiProperty({ example: 'prod_abc123' })
+  id!: string;
+
+  @ApiProperty({ example: 'merchant_xyz' })
+  merchant_id!: string;
+
+  @ApiProperty({ example: 'Premium T-Shirt' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'premium-cotton-tee' })
+  slug?: string;
+
+  @ApiPropertyOptional({ example: 'physical' })
+  type?: string;
+
+  @ApiPropertyOptional({ example: 'cat_abc123' })
+  category_id?: string;
+
+  @ApiProperty({ example: true })
+  is_active!: boolean;
+
+  @ApiProperty({ example: 3 })
+  variants_count!: number;
+
+  @ApiProperty({ example: '2026-08-18T12:00:00.000Z' })
+  created_at!: string;
+
+  @ApiProperty({ example: '2026-08-18T13:00:00.000Z' })
+  updated_at!: string;
+}
+
+export class ProductDetailResponse {
+  @ApiProperty({ example: 'prod_abc123' })
+  id!: string;
+
+  @ApiProperty({ example: 'merchant_xyz' })
+  merchant_id!: string;
+
+  @ApiProperty({ example: 'Premium T-Shirt' })
+  name!: string;
+
+  @ApiPropertyOptional({ example: 'premium-cotton-tee' })
+  slug?: string;
+
+  @ApiPropertyOptional({ example: 'physical' })
+  type?: string;
+
+  @ApiPropertyOptional({ example: 'cat_abc123' })
+  category_id?: string;
+
+  @ApiProperty({ example: true })
+  is_active!: boolean;
+
+  @ApiProperty({ example: 3 })
+  variants_count!: number;
+
+  @ApiPropertyOptional({ example: 'High quality cotton t-shirt' })
+  description?: string;
+
+  @ApiPropertyOptional({ example: { brand: 'Acme', collection: 'summer-2026' } })
+  metadata?: Record<string, unknown>;
+
+  @ApiProperty({ type: ProductSeoResponse })
+  seo!: ProductSeoResponse;
+
+  @ApiProperty({ type: [ProductVariantResponseDto] })
+  variants!: ProductVariantResponseDto[];
+
+  @ApiProperty({ example: '2026-08-18T12:00:00.000Z' })
+  created_at!: string;
+
+  @ApiProperty({ example: '2026-08-18T13:00:00.000Z' })
+  updated_at!: string;
+}
+
+export class ProductListResponse {
+  @ApiProperty({ type: [ProductSummaryResponse] })
+  data!: ProductSummaryResponse[];
+
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  pagination!: {
+    next_cursor: string | null;
+    has_more: boolean;
+  };
+}
+
+export class DeleteProductResponse {
+  @ApiProperty({ example: true })
+  deleted!: boolean;
+
+  @ApiProperty({ example: 'prod_abc123' })
+  product_id!: string;
+}

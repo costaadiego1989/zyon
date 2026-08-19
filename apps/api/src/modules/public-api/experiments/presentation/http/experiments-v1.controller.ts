@@ -19,6 +19,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -38,6 +39,11 @@ import { GetExperimentResultsUseCase } from '../../../../experiments/application
 import { PromoteWinnerUseCase } from '../../../../experiments/application/use-cases/promote-winner.use-case.js';
 import { ExperimentEntityMapper } from '../../application/mappers/experiment-entity.mapper.js';
 import { CreateExperimentDto, UpdateExperimentDto, PromoteWinnerDto } from './dtos/experiment.dtos.js';
+import {
+  ExperimentSummaryResponse,
+  ExperimentDetailResponse,
+  ExperimentResultsResponse,
+} from './dtos/experiment-response.dto.js';
 
 @ApiTags('Experiments')
 @ApiBearerAuth('service_api_key')
@@ -61,7 +67,7 @@ export class ExperimentsV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['experiments:read'] })
   @ApiOperation({ summary: 'List experiments' })
-  @ApiOkResponse({ description: 'Experiments list' })
+  @ApiOkResponse({ description: 'Experiments list', type: [ExperimentSummaryResponse] })
   async list(@Req() req: any) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const experiments = await this.listExperimentsUseCase.execute(merchantId);
@@ -78,7 +84,8 @@ export class ExperimentsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['experiments:write'] })
   @ApiOperation({ summary: 'Create an experiment' })
-  @ApiCreatedResponse({ description: 'Experiment created' })
+  @ApiBody({ type: CreateExperimentDto })
+  @ApiCreatedResponse({ description: 'Experiment created', type: ExperimentDetailResponse })
   async create(@Req() req: any, @Body() body: CreateExperimentDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.createExperimentUseCase.execute({
@@ -103,7 +110,7 @@ export class ExperimentsV1Controller {
   @Get(':experimentId')
   @RequireTenantAccess({ serviceScopes: ['experiments:read'] })
   @ApiOperation({ summary: 'Get experiment details' })
-  @ApiOkResponse({ description: 'Experiment details' })
+  @ApiOkResponse({ description: 'Experiment details', type: ExperimentDetailResponse })
   async get(@Req() req: any, @Param('experimentId') experimentId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const snapshot = await this.getExperimentUseCase.execute(experimentId, merchantId);
@@ -117,7 +124,8 @@ export class ExperimentsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['experiments:write'] })
   @ApiOperation({ summary: 'Update an experiment' })
-  @ApiOkResponse({ description: 'Experiment updated' })
+  @ApiBody({ type: UpdateExperimentDto })
+  @ApiOkResponse({ description: 'Experiment updated', type: ExperimentDetailResponse })
   async update(
     @Req() req: any,
     @Param('experimentId') experimentId: string,
@@ -150,7 +158,7 @@ export class ExperimentsV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['experiments:write'] })
   @ApiOperation({ summary: 'Start an experiment' })
-  @ApiOkResponse({ description: 'Experiment started' })
+  @ApiOkResponse({ description: 'Experiment started', type: ExperimentDetailResponse })
   async start(@Req() req: any, @Param('experimentId') experimentId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     await this.startExperimentUseCase.execute({
@@ -170,7 +178,7 @@ export class ExperimentsV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['experiments:write'] })
   @ApiOperation({ summary: 'Stop an experiment' })
-  @ApiOkResponse({ description: 'Experiment stopped' })
+  @ApiOkResponse({ description: 'Experiment stopped', type: ExperimentDetailResponse })
   async stop(@Req() req: any, @Param('experimentId') experimentId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     await this.stopExperimentUseCase.execute({
@@ -190,7 +198,7 @@ export class ExperimentsV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['experiments:write'] })
   @ApiOperation({ summary: 'Archive an experiment' })
-  @ApiOkResponse({ description: 'Experiment archived' })
+  @ApiOkResponse({ description: 'Experiment archived', type: ExperimentDetailResponse })
   async archive(@Req() req: any, @Param('experimentId') experimentId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     await this.archiveExperimentUseCase.execute({
@@ -208,7 +216,7 @@ export class ExperimentsV1Controller {
   @Get(':experimentId/results')
   @RequireTenantAccess({ serviceScopes: ['experiments:read'] })
   @ApiOperation({ summary: 'Get experiment results with significance metrics' })
-  @ApiOkResponse({ description: 'Experiment results' })
+  @ApiOkResponse({ description: 'Experiment results', type: ExperimentResultsResponse })
   async results(@Req() req: any, @Param('experimentId') experimentId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const results = await this.getExperimentResultsUseCase.execute(experimentId, merchantId);
@@ -223,7 +231,8 @@ export class ExperimentsV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['experiments:write'] })
   @ApiOperation({ summary: 'Promote a winning variant' })
-  @ApiOkResponse({ description: 'Winner promoted' })
+  @ApiBody({ type: PromoteWinnerDto })
+  @ApiOkResponse({ description: 'Winner promoted', type: ExperimentDetailResponse })
   async promote(
     @Req() req: any,
     @Param('experimentId') experimentId: string,

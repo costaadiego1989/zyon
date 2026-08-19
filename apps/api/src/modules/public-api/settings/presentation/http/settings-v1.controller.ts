@@ -17,6 +17,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 import type { CheckoutSettingsPatch } from '@zyon/shared-types';
 import type { AgentRulesPatch } from '../../../../agent-rules/domain/agent-rules.types.js';
@@ -39,6 +40,12 @@ import { CheckoutSettingsPatchDto } from '../../../../checkout-settings/presenta
 import { AgentRulesPatchDto } from '../../../../agent-rules/presentation/http/dto/agent-rules-patch.dto.js';
 import { UpdateStoreSettingsDto } from '../../dtos/update-store-settings.dto.js';
 import { UpdateSeoSettingsDto } from '../../dtos/update-seo-settings.dto.js';
+import {
+  CheckoutSettingsResponse,
+  StoreSettingsResponse,
+  SeoSettingsResponse,
+  AgentRulesResponse,
+} from '../../dtos/settings-response.dto.js';
 
 /**
  * Public API v1 — Settings
@@ -74,7 +81,7 @@ export class SettingsV1Controller {
    */
   @Get('checkout')
   @ApiOperation({ summary: 'Get checkout configuration' })
-  @ApiOkResponse({ description: 'Checkout configuration retrieved with ETag header' })
+  @ApiOkResponse({ description: 'Checkout configuration retrieved with ETag header', type: CheckoutSettingsResponse })
   @ApiResponse({ status: 403, description: 'Missing configuration:read scope' })
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   async getCheckout(
@@ -97,7 +104,8 @@ export class SettingsV1Controller {
   @Put('checkout')
   @Idempotent()
   @ApiOperation({ summary: 'Update checkout configuration' })
-  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header' })
+  @ApiBody({ type: CheckoutSettingsPatchDto })
+  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header', type: CheckoutSettingsResponse })
   @ApiResponse({ status: 400, description: 'Invalid settings fields' })
   @ApiResponse({ status: 403, description: 'Missing configuration:write scope' })
   @ApiResponse({ status: 412, description: 'ETag mismatch — concurrent modification detected' })
@@ -131,7 +139,7 @@ export class SettingsV1Controller {
    */
   @Get('agent-rules')
   @ApiOperation({ summary: 'Get agent rules configuration' })
-  @ApiOkResponse({ description: 'Agent rules configuration retrieved with ETag header' })
+  @ApiOkResponse({ description: 'Agent rules configuration retrieved with ETag header', type: AgentRulesResponse })
   @ApiResponse({ status: 403, description: 'Missing configuration:read scope' })
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   async getAgentRulesConfig(
@@ -154,7 +162,8 @@ export class SettingsV1Controller {
   @Put('agent-rules')
   @Idempotent()
   @ApiOperation({ summary: 'Update agent rules configuration' })
-  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header' })
+  @ApiBody({ type: AgentRulesPatchDto })
+  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header', type: AgentRulesResponse })
   @ApiResponse({ status: 400, description: 'Invalid agent rules fields' })
   @ApiResponse({ status: 403, description: 'Missing configuration:write scope' })
   @ApiResponse({ status: 412, description: 'ETag mismatch — concurrent modification detected' })
@@ -187,7 +196,7 @@ export class SettingsV1Controller {
    */
   @Get('store')
   @ApiOperation({ summary: 'Get store configuration' })
-  @ApiOkResponse({ description: 'Store configuration retrieved with ETag header' })
+  @ApiOkResponse({ description: 'Store configuration retrieved with ETag header', type: StoreSettingsResponse })
   @ApiResponse({ status: 403, description: 'Missing configuration:read scope' })
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   async getStore(
@@ -210,7 +219,8 @@ export class SettingsV1Controller {
   @Put('store')
   @Idempotent()
   @ApiOperation({ summary: 'Update store configuration' })
-  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header' })
+  @ApiBody({ type: UpdateStoreSettingsDto })
+  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header', type: StoreSettingsResponse })
   @ApiResponse({ status: 400, description: 'Invalid store settings fields' })
   @ApiResponse({ status: 403, description: 'Missing configuration:write scope' })
   @ApiResponse({ status: 412, description: 'ETag mismatch — concurrent modification detected' })
@@ -243,7 +253,7 @@ export class SettingsV1Controller {
    */
   @Get('seo')
   @ApiOperation({ summary: 'Get SEO configuration' })
-  @ApiOkResponse({ description: 'SEO configuration retrieved with ETag header' })
+  @ApiOkResponse({ description: 'SEO configuration retrieved with ETag header', type: SeoSettingsResponse })
   @ApiResponse({ status: 403, description: 'Missing configuration:read scope' })
   @RequireTenantAccess({ serviceScopes: ['configuration:read'] })
   async getSeo(
@@ -266,7 +276,8 @@ export class SettingsV1Controller {
   @Put('seo')
   @Idempotent()
   @ApiOperation({ summary: 'Update SEO configuration' })
-  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header' })
+  @ApiBody({ type: UpdateSeoSettingsDto })
+  @ApiOkResponse({ description: 'Configuration updated; new ETag in response header', type: SeoSettingsResponse })
   @ApiResponse({ status: 400, description: 'Invalid SEO settings fields' })
   @ApiResponse({ status: 403, description: 'Missing configuration:write scope' })
   @ApiResponse({ status: 412, description: 'ETag mismatch — concurrent modification detected' })

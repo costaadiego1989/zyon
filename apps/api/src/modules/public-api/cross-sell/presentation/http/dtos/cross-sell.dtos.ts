@@ -1,7 +1,4 @@
-import {
-  ApiProperty,
-  ApiPropertyOptional,
-} from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsNotEmpty,
@@ -105,4 +102,68 @@ export class CreateCrossSellDto {
   @IsOptional()
   @IsString()
   ends_at?: string;
+}
+
+export class CrossSellPromotionResponse {
+  @ApiProperty({ example: 'promo_abc123' })
+  id!: string;
+
+  @ApiProperty({ example: 'mch_xyz789' })
+  merchant_id!: string;
+
+  @ApiProperty({ example: 'Summer Cross-Sell Bundle' })
+  name!: string;
+
+  @ApiProperty({
+    example: {
+      sku_in_cart: ['SKU-123', 'SKU-456'],
+      category_in_cart: ['cat_001', 'cat_002'],
+      cart_total_above: 50.0,
+    },
+  })
+  trigger!: Record<string, unknown>;
+
+  @ApiProperty({ example: ['SKU-789', 'SKU-999'] })
+  recommended_skus!: string[];
+
+  @ApiProperty({ example: 15 })
+  discount_percent!: number;
+
+  @ApiProperty({ example: 20 })
+  max_discount_percent!: number;
+
+  @ApiProperty({ example: 'active', enum: ['active', 'inactive', 'expired'] })
+  status!: string;
+
+  @ApiProperty({ example: '2026-09-01T00:00:00Z' })
+  starts_at!: string;
+
+  @ApiPropertyOptional({ example: '2026-09-30T23:59:59Z' })
+  ends_at?: string;
+
+  @ApiProperty({ example: '2024-08-15T10:30:00Z' })
+  created_at!: string;
+
+  @ApiProperty({ example: '2024-08-16T14:00:00Z' })
+  updated_at!: string;
+}
+
+export class CrossSellEligibleResponse {
+  @ApiProperty({ example: 'sugg_abc123' })
+  suggestion_id!: string;
+
+  @ApiProperty({ example: 'promo_abc123' })
+  promotion_id!: string;
+
+  @ApiProperty({ example: ['SKU-789', 'SKU-999'] })
+  recommended_skus!: string[];
+
+  @ApiProperty({ example: 15 })
+  discount_percent!: number;
+
+  @ApiProperty({ example: 'eligible', enum: ['eligible', 'ineligible', 'expired'] })
+  status!: string;
+
+  @ApiProperty({ example: '2024-08-15T10:30:00Z' })
+  suggested_at!: string;
 }

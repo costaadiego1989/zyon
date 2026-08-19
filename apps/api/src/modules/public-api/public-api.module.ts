@@ -19,7 +19,10 @@ import { PublicApiNotificationsModule } from './notifications/public-api-notific
 import { PublicApiCrossSellModule } from './cross-sell/public-api-cross-sell.module.js';
 import { PublicApiFulfillmentModule } from './fulfillment/public-api-fulfillment.module.js';
 import { PublicApiInstallationsModule } from './installations/public-api-installations.module.js';
+import { PublicApiBillingModule } from './billing/public-api-billing.module.js';
+import { PublicApiCommerceModule } from './commerce/public-api-commerce.module.js';
 import { PublicApiAuditModule } from './audit/public-api-audit.module.js';
+import { PublicApiMarketplaceModule } from './marketplace/public-api-marketplace.module.js';
 
 @Module({
   imports: [
@@ -43,7 +46,10 @@ import { PublicApiAuditModule } from './audit/public-api-audit.module.js';
     PublicApiCrossSellModule,
     PublicApiFulfillmentModule,
     PublicApiInstallationsModule,
+    PublicApiBillingModule,
+    PublicApiCommerceModule,
     PublicApiAuditModule,
+    PublicApiMarketplaceModule,
   ],
 })
 export class PublicApiModule {}

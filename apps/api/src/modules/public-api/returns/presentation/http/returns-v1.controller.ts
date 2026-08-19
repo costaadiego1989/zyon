@@ -18,6 +18,7 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
   ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -30,7 +31,7 @@ import { RequireTenantAccess } from '../../../../integrations/presentation/http/
 import { RequestReturnUseCase } from '../../../../returns/application/use-cases/request-return.use-case.js';
 import { ListReturnsUseCase } from '../../../../returns/application/use-cases/list-returns.use-case.js';
 import { ReturnEntityMapper } from '../../application/mappers/return-entity.mapper.js';
-import { RequestReturnDto } from './dtos/return.dtos.js';
+import { RequestReturnDto, ReturnRequestResponse } from './dtos/return.dtos.js';
 
 @ApiTags('Returns')
 @ApiBearerAuth('service_api_key')
@@ -50,7 +51,7 @@ export class ReturnsV1Controller {
   @ApiQuery({ name: 'limit', type: 'number', required: false, example: 20 })
   @ApiQuery({ name: 'cursor', type: 'string', required: false })
   @ApiQuery({ name: 'status', type: 'string', required: false })
-  @ApiOkResponse({ description: 'Returns list' })
+  @ApiOkResponse({ description: 'Returns list', type: ReturnRequestResponse, isArray: true })
   async list(
     @Req() req: any,
     @Query('limit') limit?: number,
@@ -85,7 +86,8 @@ export class ReturnsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['returns:write'] })
   @ApiOperation({ summary: 'Request a return for an order' })
-  @ApiCreatedResponse({ description: 'Return request created' })
+  @ApiBody({ type: RequestReturnDto })
+  @ApiCreatedResponse({ description: 'Return request created', type: ReturnRequestResponse })
   async requestReturn(@Req() req: any, @Body() body: RequestReturnDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const buyerId = req.tenantPrincipal?.buyerId ?? req.user?.id;

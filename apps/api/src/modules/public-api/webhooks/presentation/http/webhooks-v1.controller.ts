@@ -18,6 +18,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiHeader,
   ApiOperation,
@@ -25,6 +26,8 @@ import {
   ApiQuery,
   ApiResponse,
   ApiTags,
+  ApiOkResponse,
+  ApiCreatedResponse,
 } from "@nestjs/swagger";
 import type { Response } from "express";
 import { currentTenantPrincipal } from "../../../../../shared/auth/tenant-principal.js";
@@ -43,7 +46,7 @@ import { RequireTenantAccess } from "../../../../integrations/presentation/http/
 import { TenantAccessGuard } from "../../../../integrations/presentation/http/tenant-access.guard.js";
 import { TenantCredentialGuard } from "../../../../integrations/presentation/http/tenant-credential.guard.js";
 import { WebhookEntityMapper } from "../../application/mappers/webhook-entity.mapper.js";
-import { CreateWebhookDto, UpdateWebhookDto, TestWebhookDto } from "./dtos/webhook.dtos.js";
+import { CreateWebhookDto, UpdateWebhookDto, TestWebhookDto, WebhookResponse, WebhookDeliveryResponse } from "./dtos/webhook.dtos.js";
 
 /**
  * Public API v1 — Webhooks
@@ -80,7 +83,7 @@ export class WebhooksV1Controller {
   @ApiOperation({ summary: "List webhook endpoints" })
   @ApiQuery({ name: "limit", type: "number", required: false, example: 20 })
   @ApiQuery({ name: "cursor", type: "string", required: false })
-  @ApiResponse({ status: 200, description: "Webhook endpoints list" })
+  @ApiOkResponse({ description: "Webhook endpoints list", type: [WebhookResponse] })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
   async list(
@@ -108,7 +111,7 @@ export class WebhooksV1Controller {
   @RequireTenantAccess({ serviceScopes: ["webhooks:read"] })
   @ApiOperation({ summary: "Get webhook endpoint" })
   @ApiParam({ name: "id", type: "string", description: "Webhook endpoint ID" })
-  @ApiResponse({ status: 200, description: "Webhook endpoint details" })
+  @ApiOkResponse({ description: "Webhook endpoint details", type: WebhookResponse })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
   @ApiResponse({ status: 404, description: "Webhook not found" })
@@ -132,7 +135,8 @@ export class WebhooksV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   @ApiOperation({ summary: "Create webhook endpoint" })
-  @ApiResponse({ status: 201, description: "Webhook endpoint created" })
+  @ApiBody({ type: CreateWebhookDto })
+  @ApiCreatedResponse({ description: "Webhook endpoint created", type: WebhookResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
@@ -161,7 +165,8 @@ export class WebhooksV1Controller {
   @ApiOperation({ summary: "Update webhook endpoint" })
   @ApiParam({ name: "id", type: "string", description: "Webhook endpoint ID" })
   @ApiHeader({ name: "If-Match", required: false, description: "ETag for optimistic concurrency control" })
-  @ApiResponse({ status: 200, description: "Webhook endpoint updated" })
+  @ApiBody({ type: UpdateWebhookDto })
+  @ApiOkResponse({ description: "Webhook endpoint updated", type: WebhookResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
@@ -220,7 +225,8 @@ export class WebhooksV1Controller {
   @RequireTenantAccess({ serviceScopes: ["webhooks:write"] })
   @ApiOperation({ summary: "Send test webhook" })
   @ApiParam({ name: "id", type: "string", description: "Webhook endpoint ID" })
-  @ApiResponse({ status: 200, description: "Test webhook sent" })
+  @ApiBody({ type: TestWebhookDto })
+  @ApiOkResponse({ description: "Test webhook sent", type: WebhookDeliveryResponse })
   @ApiResponse({ status: 400, description: "Test failed" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })

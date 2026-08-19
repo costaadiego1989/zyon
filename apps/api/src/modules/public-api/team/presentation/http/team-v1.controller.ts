@@ -19,6 +19,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -33,7 +34,15 @@ import { ListTeamUseCase } from '../../../../team/application/use-cases/list-tea
 import { UpdateRoleUseCase } from '../../../../team/application/use-cases/update-role.use-case.js';
 import { RemoveMemberUseCase } from '../../../../team/application/use-cases/remove-member.use-case.js';
 import { TeamEntityMapper } from '../../application/mappers/team-entity.mapper.js';
-import { InviteMemberDto, UpdateRoleDto } from './dtos/team.dtos.js';
+import {
+  InviteMemberDto,
+  UpdateRoleDto,
+  ListTeamResponse,
+  InvitationResponse,
+  AcceptInviteResponse,
+  UpdateRoleResponse,
+  RemoveMemberResponse,
+} from './dtos/team.dtos.js';
 
 @ApiTags('Team')
 @ApiBearerAuth('service_api_key')
@@ -53,7 +62,7 @@ export class TeamV1Controller {
   @Get('members')
   @RequireTenantAccess({ serviceScopes: ['team:read'] })
   @ApiOperation({ summary: 'List team members' })
-  @ApiOkResponse({ description: 'Team members list' })
+  @ApiOkResponse({ description: 'Team members list', type: ListTeamResponse })
   async listMembers(@Req() req: any) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.listTeamUseCase.execute(merchantId);
@@ -65,7 +74,8 @@ export class TeamV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['team:write'] })
   @ApiOperation({ summary: 'Invite a team member' })
-  @ApiCreatedResponse({ description: 'Invitation created' })
+  @ApiBody({ type: InviteMemberDto })
+  @ApiCreatedResponse({ description: 'Invitation created', type: InvitationResponse })
   async inviteMember(@Req() req: any, @Body() body: InviteMemberDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const requesterId = req.tenantPrincipal?.userId ?? req.user?.id;
@@ -83,7 +93,7 @@ export class TeamV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['team:write'] })
   @ApiOperation({ summary: 'Accept an invitation' })
-  @ApiOkResponse({ description: 'Invitation accepted' })
+  @ApiOkResponse({ description: 'Invitation accepted', type: AcceptInviteResponse })
   async acceptInvite(@Req() req: any, @Param('inviteId') inviteId: string) {
     const userId = req.tenantPrincipal?.userId ?? req.user?.id;
     const result = await this.acceptInviteUseCase.execute({
@@ -97,7 +107,8 @@ export class TeamV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['team:write'] })
   @ApiOperation({ summary: 'Update a member role' })
-  @ApiOkResponse({ description: 'Role updated' })
+  @ApiBody({ type: UpdateRoleDto })
+  @ApiOkResponse({ description: 'Role updated', type: UpdateRoleResponse })
   async updateRole(
     @Req() req: any,
     @Param('userId') userId: string,
@@ -119,7 +130,7 @@ export class TeamV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['team:write'] })
   @ApiOperation({ summary: 'Remove a team member' })
-  @ApiOkResponse({ description: 'Member removed' })
+  @ApiOkResponse({ description: 'Member removed', type: RemoveMemberResponse })
   async removeMember(@Req() req: any, @Param('userId') userId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     await this.removeMemberUseCase.execute({

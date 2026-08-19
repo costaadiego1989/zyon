@@ -18,6 +18,7 @@ import {
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiHeader,
   ApiOperation,
@@ -45,6 +46,8 @@ import { InstallationEntityMapper } from "../../application/mappers/installation
 import {
   CreateInstallationDto,
   UpdateInstallationDto,
+  InstallationResponse,
+  InstallationListResponse,
 } from "./dtos/installation.dtos.js";
 
 /**
@@ -85,7 +88,7 @@ export class InstallationsV1Controller {
     example: 20,
   })
   @ApiQuery({ name: "cursor", type: "string", required: false })
-  @ApiResponse({ status: 200, description: "Installations list" })
+  @ApiResponse({ status: 200, description: "Installations list", type: InstallationListResponse })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
   async list(
@@ -118,7 +121,7 @@ export class InstallationsV1Controller {
     type: "string",
     description: "Installation ID",
   })
-  @ApiResponse({ status: 200, description: "Installation details" })
+  @ApiResponse({ status: 200, description: "Installation details", type: InstallationResponse })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
   @ApiResponse({ status: 404, description: "Installation not found" })
@@ -145,7 +148,8 @@ export class InstallationsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ["installations:write"] })
   @ApiOperation({ summary: "Create installation" })
-  @ApiResponse({ status: 201, description: "Installation created" })
+  @ApiBody({ type: CreateInstallationDto })
+  @ApiResponse({ status: 201, description: "Installation created", type: InstallationResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
@@ -182,7 +186,7 @@ export class InstallationsV1Controller {
     required: false,
     description: "ETag for optimistic concurrency control",
   })
-  @ApiResponse({ status: 200, description: "Installation updated" })
+  @ApiResponse({ status: 200, description: "Installation updated", type: InstallationResponse })
   @ApiResponse({ status: 400, description: "Invalid request" })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })

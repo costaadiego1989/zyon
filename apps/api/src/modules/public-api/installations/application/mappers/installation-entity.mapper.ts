@@ -1,4 +1,4 @@
-import type { MerchantInstallation } from "../../../domain/ports/installation-repository.port.js";
+import type { MerchantInstallation } from "../../../../installations/domain/ports/installation-repository.port.js";
 import type { InstallationResponse, InstallationListResponse } from "../../presentation/http/dtos/installation.dtos.js";
 
 export class InstallationEntityMapper {

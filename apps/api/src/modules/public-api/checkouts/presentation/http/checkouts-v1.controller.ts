@@ -18,6 +18,7 @@ import {
   ApiOperation,
   ApiCreatedResponse,
   ApiOkResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 import type {
   StartCheckoutRequest,
@@ -48,6 +49,14 @@ import {
   StartCheckoutDto,
   TrackCheckoutEventDto,
   UpdateCheckoutCartDto,
+  StartCheckoutResponse,
+  CheckoutSessionResponse,
+  TrackEventResponse,
+  ChatMessageResponse,
+  ShippingEvaluateResponse,
+  ApplyOfferResponse,
+  CompleteOrderResponse,
+  UpdateCartResponse,
 } from './dtos/checkout.dtos.js';
 
 /**
@@ -84,7 +93,8 @@ export class CheckoutsV1Controller {
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Start a new checkout session' })
-  @ApiCreatedResponse({ description: 'Checkout session created' })
+  @ApiBody({ type: StartCheckoutDto })
+  @ApiCreatedResponse({ type: StartCheckoutResponse, description: 'Checkout session created' })
   async start(@Req() req: any, @Body() body: StartCheckoutDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -122,7 +132,7 @@ export class CheckoutsV1Controller {
    */
   @Get(':checkoutId')
   @ApiOperation({ summary: 'Get checkout session details' })
-  @ApiOkResponse({ description: 'Checkout session details' })
+  @ApiOkResponse({ type: CheckoutSessionResponse, description: 'Checkout session details' })
   async get(@Req() req: any, @Param('checkoutId') checkoutId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const session = await this.getCheckoutUseCase.execute(merchantId, checkoutId);
@@ -136,7 +146,8 @@ export class CheckoutsV1Controller {
   @Post(':checkoutId/events')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Track a checkout event' })
-  @ApiOkResponse({ description: 'Event tracked' })
+  @ApiBody({ type: TrackCheckoutEventDto })
+  @ApiOkResponse({ type: TrackEventResponse, description: 'Event tracked' })
   async trackEvent(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
@@ -162,7 +173,8 @@ export class CheckoutsV1Controller {
   @Post(':checkoutId/messages')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Send a chat message to AI agent' })
-  @ApiOkResponse({ description: 'Agent response' })
+  @ApiBody({ type: SendCheckoutMessageDto })
+  @ApiOkResponse({ type: ChatMessageResponse, description: 'Agent response' })
   async sendMessage(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
@@ -189,7 +201,8 @@ export class CheckoutsV1Controller {
   @Post(':checkoutId/shipping/evaluate')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Evaluate shipping options' })
-  @ApiOkResponse({ description: 'Shipping evaluation result' })
+  @ApiBody({ type: EvaluateShippingDto })
+  @ApiOkResponse({ type: ShippingEvaluateResponse, description: 'Shipping evaluation result' })
   async evaluateShipping(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
@@ -218,7 +231,8 @@ export class CheckoutsV1Controller {
   @Idempotent()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Apply an offer to checkout' })
-  @ApiOkResponse({ description: 'Offer applied' })
+  @ApiBody({ type: ApplyOfferDto })
+  @ApiOkResponse({ type: ApplyOfferResponse, description: 'Offer applied' })
   async applyOffer(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
@@ -244,7 +258,8 @@ export class CheckoutsV1Controller {
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Complete checkout and create order' })
-  @ApiCreatedResponse({ description: 'Order created' })
+  @ApiBody({ type: CompleteCheckoutDto })
+  @ApiCreatedResponse({ type: CompleteOrderResponse, description: 'Order created' })
   async complete(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,
@@ -273,7 +288,8 @@ export class CheckoutsV1Controller {
   @Patch(':checkoutId/cart')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update checkout cart' })
-  @ApiOkResponse({ description: 'Cart updated' })
+  @ApiBody({ type: UpdateCheckoutCartDto })
+  @ApiOkResponse({ type: UpdateCartResponse, description: 'Cart updated' })
   async updateCart(
     @Req() req: any,
     @Param('checkoutId') checkoutId: string,

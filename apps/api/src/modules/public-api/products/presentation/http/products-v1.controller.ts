@@ -21,6 +21,7 @@ import {
   ApiOkResponse,
   ApiCreatedResponse,
   ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -35,7 +36,14 @@ import { GetProductUseCase } from '../../../../catalog/application/use-cases/get
 import { UpdateProductUseCase } from '../../../../catalog/application/use-cases/update-product.use-case.js';
 import { DeleteProductUseCase } from '../../../../catalog/application/use-cases/delete-product.use-case.js';
 import { ProductEntityMapper } from '../../application/mappers/product-entity.mapper.js';
-import { CreateProductDto, UpdateProductDto } from './dtos/product.dtos.js';
+import {
+  CreateProductDto,
+  UpdateProductDto,
+  ProductListResponse,
+  ProductDetailResponse,
+  ProductSummaryResponse,
+  DeleteProductResponse,
+} from './dtos/product.dtos.js';
 
 /**
  * Public API v1 — Products
@@ -75,7 +83,7 @@ export class ProductsV1Controller {
   @ApiQuery({ name: 'cursor', type: 'string', required: false })
   @ApiQuery({ name: 'query', type: 'string', required: false })
   @ApiQuery({ name: 'category_id', type: 'string', required: false })
-  @ApiOkResponse({ description: 'Products list' })
+  @ApiOkResponse({ type: ProductListResponse, description: 'Products list' })
   async list(
     @Req() req: any,
     @Query('limit') limit?: number,
@@ -110,7 +118,7 @@ export class ProductsV1Controller {
   @Get(':productId')
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Get product details' })
-  @ApiOkResponse({ description: 'Product details' })
+  @ApiOkResponse({ type: ProductDetailResponse, description: 'Product details' })
   async get(@Req() req: any, @Param('productId') productId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const product = await this.getProductUseCase.execute(merchantId, productId);
@@ -126,7 +134,8 @@ export class ProductsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Create a product' })
-  @ApiCreatedResponse({ description: 'Product created' })
+  @ApiBody({ type: CreateProductDto })
+  @ApiCreatedResponse({ type: ProductDetailResponse, description: 'Product created' })
   async create(@Req() req: any, @Body() body: CreateProductDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const result = await this.addProductUseCase.execute({
@@ -170,7 +179,8 @@ export class ProductsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Update a product' })
-  @ApiOkResponse({ description: 'Product updated' })
+  @ApiBody({ type: UpdateProductDto })
+  @ApiOkResponse({ type: ProductDetailResponse, description: 'Product updated' })
   async update(
     @Req() req: any,
     @Param('productId') productId: string,
@@ -205,7 +215,7 @@ export class ProductsV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['catalog:read'] })
   @ApiOperation({ summary: 'Delete a product' })
-  @ApiOkResponse({ description: 'Product deleted' })
+  @ApiOkResponse({ type: DeleteProductResponse, description: 'Product deleted' })
   async remove(@Req() req: any, @Param('productId') productId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     await this.deleteProductUseCase.execute(merchantId, productId);

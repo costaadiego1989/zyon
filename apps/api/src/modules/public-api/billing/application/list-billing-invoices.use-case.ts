@@ -1,6 +1,6 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
-import { PRISMA_CLIENT } from '../../../../../shared/persistence/persistence.module.js';
+import { Inject, Injectable } from '@nestjs/common';
+import type { PrismaClient } from '@prisma/client';
+import { PRISMA_CLIENT } from '../../../../shared/persistence/persistence.module.js';
 
 export interface BillingInvoice {
   id: string;
@@ -27,7 +27,6 @@ export class ListBillingInvoicesUseCase {
 
     // Placeholder: In production, this would query Stripe API for invoices.
     // For now, return empty array — future integrations will populate via Stripe webhooks.
-    // The data structure is defined in the BillingInvoice interface for consistency.
     return [];
   }
 }

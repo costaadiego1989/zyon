@@ -19,6 +19,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiQuery,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -37,7 +38,16 @@ import {
   UpdateOrderStatusUseCase,
 } from '../../../../operations/application/order-command.use-cases.js';
 import { OrderEntityMapper } from '../../application/mappers/order-entity.mapper.js';
-import { CancelOrderDto, UpdateOrderTrackingDto } from './dtos/order.dtos.js';
+import {
+  CancelOrderDto,
+  UpdateOrderTrackingDto,
+  OrderSummaryResponse,
+  OrderDetailResponse,
+  CancelOrderResponse,
+  TrackingDetailsResponse,
+  UpdateTrackingResponse,
+  OrderListResponse,
+} from './dtos/order.dtos.js';
 
 /**
  * Public API v1 — Orders
@@ -71,7 +81,7 @@ export class OrdersV1Controller {
   @ApiOperation({ summary: 'List orders for merchant' })
   @ApiQuery({ name: 'limit', type: 'number', required: false, example: 20 })
   @ApiQuery({ name: 'cursor', type: 'string', required: false })
-  @ApiOkResponse({ description: 'Orders list' })
+  @ApiOkResponse({ type: OrderListResponse, description: 'Orders list with pagination' })
   async list(
     @Req() req: any,
     @Query('limit') limit?: number,
@@ -106,7 +116,7 @@ export class OrdersV1Controller {
   @Get(':orderId')
   @RequireTenantAccess({ serviceScopes: ['orders:read'] })
   @ApiOperation({ summary: 'Get order details' })
-  @ApiOkResponse({ description: 'Order details' })
+  @ApiOkResponse({ type: OrderDetailResponse, description: 'Order details' })
   async get(@Req() req: any, @Param('orderId') orderId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const order = await this.getOrderUseCase.execute(merchantId, orderId);
@@ -122,7 +132,8 @@ export class OrdersV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['orders:write'] })
   @ApiOperation({ summary: 'Cancel an order' })
-  @ApiOkResponse({ description: 'Order cancelled' })
+  @ApiBody({ type: CancelOrderDto })
+  @ApiOkResponse({ type: CancelOrderResponse, description: 'Order cancelled' })
   async cancel(@Req() req: any, @Param('orderId') orderId: string, @Body() body: CancelOrderDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
     // CancelOrderUseCase.execute(input: { merchantId, orderId, reason, ... })
@@ -143,7 +154,7 @@ export class OrdersV1Controller {
   @Get(':orderId/tracking')
   @RequireTenantAccess({ serviceScopes: ['tracking:read'] })
   @ApiOperation({ summary: 'Get order tracking' })
-  @ApiOkResponse({ description: 'Tracking information' })
+  @ApiOkResponse({ type: TrackingDetailsResponse, description: 'Tracking information' })
   async getTracking(@Req() req: any, @Param('orderId') orderId: string) {
     const merchantId = req.tenantPrincipal?.tenantId;
     const order = await this.getOrderUseCase.execute(merchantId, orderId);
@@ -158,7 +169,8 @@ export class OrdersV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['tracking:write'] })
   @ApiOperation({ summary: 'Update order tracking' })
-  @ApiOkResponse({ description: 'Tracking updated' })
+  @ApiBody({ type: UpdateOrderTrackingDto })
+  @ApiOkResponse({ type: UpdateTrackingResponse, description: 'Tracking updated' })
   async updateTracking(
     @Req() req: any,
     @Param('orderId') orderId: string,

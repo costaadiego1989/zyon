@@ -22,7 +22,7 @@ import { TenantCredentialGuard } from '../../../../integrations/presentation/htt
 import { GetSupportSettingsUseCase } from '../../../../support/application/get-support-settings.use-case.js';
 import { ListSupportTicketsUseCase } from '../../../../support/application/list-support-tickets.use-case.js';
 import { SupportEntityMapper } from '../../application/mappers/support-entity.mapper.js';
-import type { SupportSettingsResponseDto, ListSupportTicketsResponseDto } from './dtos/support.dtos.js';
+import { SupportSettingsResponseDto, ListSupportTicketsResponseDto } from './dtos/support.dtos.js';
 
 @ApiTags('Support')
 @ApiBearerAuth('service_api_key')
@@ -38,7 +38,7 @@ export class SupportV1Controller {
 
   @Get('settings')
   @ApiOperation({ summary: 'Get support settings' })
-  @ApiOkResponse({ description: 'Support settings retrieved' })
+  @ApiOkResponse({ description: 'Support settings retrieved', type: SupportSettingsResponseDto })
   @ApiResponse({ status: 403, description: 'Missing support:read scope' })
   @RequireTenantAccess({ serviceScopes: ['support:read'] })
   async getSettings(@Req() req: any): Promise<SupportSettingsResponseDto> {
@@ -49,7 +49,7 @@ export class SupportV1Controller {
 
   @Get('tickets')
   @ApiOperation({ summary: 'List support tickets' })
-  @ApiOkResponse({ description: 'Paginated list of support tickets' })
+  @ApiOkResponse({ description: 'Paginated list of support tickets', type: ListSupportTicketsResponseDto })
   @ApiQuery({ name: 'status', required: false, enum: ['open', 'in_progress', 'resolved', 'closed'] })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Page size (1-200, default 50)' })
   @ApiQuery({ name: 'cursor', required: false, type: String, description: 'Cursor for pagination' })

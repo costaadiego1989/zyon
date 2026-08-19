@@ -1,57 +1,124 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsString, IsEnum, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class ChangePlanDto {
+  @ApiProperty({ example: 'pro', description: 'Target plan ID' })
   @IsString()
   @IsNotEmpty()
-  plan_id: string;
+  plan_id!: string;
 
+  @ApiPropertyOptional({ enum: ['immediate', 'next_cycle'], example: 'immediate' })
   @IsEnum(['immediate', 'next_cycle'])
   @IsOptional()
   effective?: 'immediate' | 'next_cycle';
 }
 
 export class PlanResponse {
-  plan_id: string;
-  name: string;
-  monthly_price_brl: number;
-  transaction_fee_percent: number;
-  limits: Record<string, number | null>;
-  features: Record<string, boolean>;
+  @ApiProperty({ example: 'pro' })
+  plan_id!: string;
+
+  @ApiProperty({ example: 'Pro' })
+  name!: string;
+
+  @ApiProperty({ example: 199.9 })
+  monthly_price_brl!: number;
+
+  @ApiProperty({ example: 2.5 })
+  transaction_fee_percent!: number;
+
+  @ApiProperty({ example: { orders_per_month: 5000, sessions_per_month: 50000 } })
+  limits!: Record<string, number | null>;
+
+  @ApiProperty({ example: { cross_sell: true, ab_testing: true } })
+  features!: Record<string, boolean>;
 }
 
 export class SubscriptionResponse {
-  merchant_id: string;
-  plan_id: string;
-  plan_name: string;
-  status: string;
+  @ApiProperty({ example: 'mch_abc123' })
+  merchant_id!: string;
+
+  @ApiProperty({ example: 'pro' })
+  plan_id!: string;
+
+  @ApiProperty({ example: 'Pro' })
+  plan_name!: string;
+
+  @ApiProperty({ example: 'active', enum: ['active', 'trialing', 'past_due', 'canceled'] })
+  status!: string;
+
+  @ApiPropertyOptional({ example: '2024-09-15T00:00:00Z' })
   trial_ends_at?: string;
+
+  @ApiPropertyOptional({ example: '2024-10-01T00:00:00Z' })
   current_period_end?: string;
-  cancel_at_period_end: boolean;
-  monthly_price_brl: number;
-  transaction_fee_percent: number;
-  created_at: string;
-  updated_at: string;
+
+  @ApiProperty({ example: false })
+  cancel_at_period_end!: boolean;
+
+  @ApiProperty({ example: 199.9 })
+  monthly_price_brl!: number;
+
+  @ApiProperty({ example: 2.5 })
+  transaction_fee_percent!: number;
+
+  @ApiProperty({ example: '2024-01-15T10:30:00Z' })
+  created_at!: string;
+
+  @ApiProperty({ example: '2024-08-01T14:00:00Z' })
+  updated_at!: string;
 }
 
 export class UsageResponse {
-  period_start: string;
-  orders_per_month: number;
-  sessions_per_month: number;
-  ai_conversations_per_month: number;
-  commerce_connections: number;
-  webhook_endpoints: number;
-  team_members: number;
-  cross_sell_promotions: number;
-  active_coupons: number;
-  limits: Record<string, number | null>;
+  @ApiProperty({ example: '2024-08-01T00:00:00Z' })
+  period_start!: string;
+
+  @ApiProperty({ example: 1234 })
+  orders_per_month!: number;
+
+  @ApiProperty({ example: 15000 })
+  sessions_per_month!: number;
+
+  @ApiProperty({ example: 800 })
+  ai_conversations_per_month!: number;
+
+  @ApiProperty({ example: 2 })
+  commerce_connections!: number;
+
+  @ApiProperty({ example: 3 })
+  webhook_endpoints!: number;
+
+  @ApiProperty({ example: 5 })
+  team_members!: number;
+
+  @ApiProperty({ example: 4 })
+  cross_sell_promotions!: number;
+
+  @ApiProperty({ example: 10 })
+  active_coupons!: number;
+
+  @ApiProperty({ example: { orders_per_month: 5000, sessions_per_month: 50000 } })
+  limits!: Record<string, number | null>;
 }
 
 export class InvoiceResponse {
-  invoice_id: string;
-  amount_brl: number;
-  period_start: string;
-  period_end: string;
-  status: string;
-  created_at: string;
+  @ApiProperty({ example: 'inv_abc123' })
+  invoice_id!: string;
+
+  @ApiProperty({ example: 199.9 })
+  amount_brl!: number;
+
+  @ApiProperty({ example: '2024-07-01T00:00:00Z' })
+  period_start!: string;
+
+  @ApiProperty({ example: '2024-07-31T23:59:59Z' })
+  period_end!: string;
+
+  @ApiProperty({ example: 'paid', enum: ['paid', 'pending', 'overdue', 'void'] })
+  status!: string;
+
+  @ApiProperty({ example: '2024-08-01T10:00:00Z' })
+  created_at!: string;
+
+  @ApiPropertyOptional({ example: 'https://billing.example.com/inv/abc123' })
   invoice_url?: string;
 }

@@ -18,6 +18,7 @@ import {
   ApiOperation,
   ApiOkResponse,
   ApiCreatedResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -30,6 +31,13 @@ import { CreatePaymentIntentUseCase } from '../../../../payment/application/crea
 import { GetPaymentIntentStatusUseCase } from '../../../../payment/application/get-payment-intent-status.use-case.js';
 import { ConfirmStripePaymentUseCase } from '../../../../payment/application/confirm-stripe-payment.use-case.js';
 import { PaymentEntityMapper } from '../../application/mappers/payment-entity.mapper.js';
+import {
+  CreatePaymentIntentDto,
+  ConfirmPaymentDto,
+  PaymentIntentResponse,
+  PaymentStatusResponse,
+  PaymentConfirmResponse,
+} from './dtos/payment.dtos.js';
 
 /**
  * Public API v1 — Payments
@@ -59,7 +67,8 @@ export class PaymentsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['checkout:write'] })
   @ApiOperation({ summary: 'Create a payment intent' })
-  @ApiCreatedResponse({ description: 'Payment intent created' })
+  @ApiBody({ type: CreatePaymentIntentDto })
+  @ApiCreatedResponse({ type: PaymentIntentResponse, description: 'Payment intent created' })
   async createIntent(@Req() req: any, @Body() body: any) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
@@ -83,7 +92,7 @@ export class PaymentsV1Controller {
   @Get('intents/:intentId')
   @RequireTenantAccess({ serviceScopes: ['payments:read'] })
   @ApiOperation({ summary: 'Get payment intent status' })
-  @ApiOkResponse({ description: 'Payment status' })
+  @ApiOkResponse({ type: PaymentStatusResponse, description: 'Payment status' })
   async getIntent(
     @Req() req: any,
     @Param('intentId') intentId: string,
@@ -109,7 +118,8 @@ export class PaymentsV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['checkout:write'] })
   @ApiOperation({ summary: 'Confirm payment intent' })
-  @ApiOkResponse({ description: 'Payment confirmed' })
+  @ApiBody({ type: ConfirmPaymentDto })
+  @ApiOkResponse({ type: PaymentConfirmResponse, description: 'Payment confirmed' })
   async confirmIntent(
     @Req() req: any,
     @Param('intentId') intentId: string,

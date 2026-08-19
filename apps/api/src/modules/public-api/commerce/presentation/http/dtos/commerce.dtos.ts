@@ -3,10 +3,9 @@ import {
   IsEnum,
   IsOptional,
   IsNotEmpty,
-  ValidateIf,
   ValidateNested,
-  Type,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum CommerceProvider {
@@ -19,17 +18,17 @@ export class WooCommerceCredentialsDto {
   @ApiProperty({ example: 'https://mystore.com' })
   @IsString()
   @IsNotEmpty()
-  store_url: string;
+  store_url!: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  consumer_key: string;
+  consumer_key!: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  consumer_secret: string;
+  consumer_secret!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -41,40 +40,40 @@ export class MagentoCredentialsDto {
   @ApiProperty({ example: 'https://mystore.magento.com' })
   @IsString()
   @IsNotEmpty()
-  base_url: string;
+  base_url!: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  access_token: string;
+  access_token!: string;
 
   @ApiProperty({ example: 'default' })
   @IsString()
   @IsNotEmpty()
-  store_code: string;
+  store_code!: string;
 }
 
 export class VtexCredentialsDto {
   @ApiProperty({ example: 'mystore' })
   @IsString()
   @IsNotEmpty()
-  account_name: string;
+  account_name!: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  app_key: string;
+  app_key!: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  app_token: string;
+  app_token!: string;
 }
 
 export class ConnectCommerceDto {
   @ApiProperty({ enum: CommerceProvider })
   @IsEnum(CommerceProvider)
-  platform: CommerceProvider;
+  platform!: CommerceProvider;
 
   @ApiProperty({ description: 'Platform-specific credentials' })
   @ValidateNested()
@@ -89,7 +88,7 @@ export class ConnectCommerceDto {
       ],
     },
   })
-  credentials:
+  credentials!:
     | WooCommerceCredentialsDto
     | MagentoCredentialsDto
     | VtexCredentialsDto;
@@ -109,16 +108,16 @@ export class UpdateCommerceDto {
 
 export class CommerceConnectionResponse {
   @ApiProperty()
-  id: string;
+  id!: string;
 
   @ApiProperty({ enum: CommerceProvider })
-  platform: CommerceProvider;
+  platform!: CommerceProvider;
 
   @ApiProperty()
-  store_url: string;
+  store_url!: string;
 
   @ApiProperty({ enum: ['pending', 'healthy', 'degraded'] })
-  status: 'pending' | 'healthy' | 'degraded';
+  status!: 'pending' | 'healthy' | 'degraded';
 
   @ApiPropertyOptional()
   last_sync_at?: string;
@@ -130,10 +129,10 @@ export class CommerceConnectionResponse {
   last_error_code?: string;
 
   @ApiProperty()
-  created_at: string;
+  created_at!: string;
 
   @ApiProperty()
-  updated_at: string;
+  updated_at!: string;
 
   @ApiPropertyOptional()
   sync_settings?: Record<string, any>;
@@ -141,8 +140,8 @@ export class CommerceConnectionResponse {
 
 export class CommerceConnectionListResponse {
   @ApiProperty({ type: [CommerceConnectionResponse] })
-  connections: CommerceConnectionResponse[];
+  connections!: CommerceConnectionResponse[];
 
   @ApiProperty()
-  total: number;
+  total!: number;
 }

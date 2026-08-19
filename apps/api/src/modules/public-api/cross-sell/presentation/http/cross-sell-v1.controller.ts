@@ -14,6 +14,7 @@ import {
 import {
   ApiTags,
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiOkResponse,
@@ -32,7 +33,7 @@ import { CreateCrossSellPromotionUseCase } from '../../../../cross-sell/applicat
 import { ListEligibleCrossSellsUseCase } from '../../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js';
 import { ListCrossSellPromotionsUseCase } from '../../../../cross-sell/application/use-cases/list-cross-sell-promotions.use-case.js';
 import { CrossSellEntityMapper } from '../../application/mappers/cross-sell-entity.mapper.js';
-import { CreateCrossSellDto } from './dtos/cross-sell.dtos.js';
+import { CreateCrossSellDto, CrossSellPromotionResponse, CrossSellEligibleResponse } from './dtos/cross-sell.dtos.js';
 
 @ApiTags('Cross-Sell')
 @ApiBearerAuth('service_api_key')
@@ -50,7 +51,7 @@ export class CrossSellV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['checkout:read'] })
   @ApiOperation({ summary: 'List cross-sell promotions' })
-  @ApiOkResponse({ description: 'List of promotions' })
+  @ApiOkResponse({ description: 'List of promotions', type: [CrossSellPromotionResponse] })
   async list(@Req() req: any) {
     const merchantId = req.tenantPrincipal?.tenantId as string;
     const promotions = await this.listPromotionsUseCase.execute(merchantId);
@@ -64,7 +65,8 @@ export class CrossSellV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['checkout:read'] })
   @ApiOperation({ summary: 'Create a cross-sell promotion' })
-  @ApiCreatedResponse({ description: 'Promotion created' })
+  @ApiBody({ type: CreateCrossSellDto })
+  @ApiCreatedResponse({ description: 'Promotion created', type: CrossSellPromotionResponse })
   async create(@Req() req: any, @Body() body: CreateCrossSellDto) {
     const merchantId = req.tenantPrincipal?.tenantId as string;
 
@@ -87,7 +89,7 @@ export class CrossSellV1Controller {
   @ApiOperation({ summary: 'List eligible cross-sells for a checkout session' })
   @ApiQuery({ name: 'session_id', type: 'string', required: true })
   @ApiQuery({ name: 'cart', type: 'string', required: false, description: 'JSON-encoded cart object' })
-  @ApiOkResponse({ description: 'Eligible cross-sell suggestions' })
+  @ApiOkResponse({ description: 'Eligible cross-sell suggestions', type: [CrossSellEligibleResponse] })
   async listEligible(
     @Req() req: any,
     @Query('session_id') sessionId?: string,

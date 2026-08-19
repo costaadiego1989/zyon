@@ -23,6 +23,7 @@ import {
   ApiCreatedResponse,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
+  ApiBody,
 } from '@nestjs/swagger';
 
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
@@ -66,7 +67,7 @@ export class CouponsV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['coupons:read'] })
   @ApiOperation({ summary: 'List coupons' })
-  @ApiOkResponse({ description: 'Coupons retrieved' })
+  @ApiOkResponse({ description: 'Coupons retrieved', type: [CouponResponse] })
   async list(@Req() req: any): Promise<CouponResponse[]> {
     const merchantId = req.tenantPrincipal?.tenantId;
     const coupons = await this.couponRepo.findAllByMerchant(merchantId);
@@ -82,7 +83,8 @@ export class CouponsV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['coupons:write'] })
   @ApiOperation({ summary: 'Create a coupon' })
-  @ApiCreatedResponse({ description: 'Coupon created' })
+  @ApiBody({ type: CreateCouponDto })
+  @ApiCreatedResponse({ description: 'Coupon created', type: CouponResponse })
   @ApiBadRequestResponse({ description: 'Invalid coupon data' })
   async create(@Req() req: any, @Body() body: CreateCouponDto): Promise<CouponResponse> {
     const merchantId = req.tenantPrincipal?.tenantId;
@@ -112,7 +114,8 @@ export class CouponsV1Controller {
   @Idempotent()
   @RequireTenantAccess({ serviceScopes: ['coupons:write'] })
   @ApiOperation({ summary: 'Archive or update a coupon' })
-  @ApiOkResponse({ description: 'Coupon updated' })
+  @ApiBody({ type: UpdateCouponDto })
+  @ApiOkResponse({ description: 'Coupon updated', type: CouponResponse })
   @ApiNotFoundResponse({ description: 'Coupon not found' })
   async update(
     @Req() req: any,
@@ -166,7 +169,8 @@ export class CouponsV1Controller {
   @Post(':id/validate')
   @RequireTenantAccess({ serviceScopes: ['coupons:read'] })
   @ApiOperation({ summary: 'Validate a coupon' })
-  @ApiOkResponse({ description: 'Validation result' })
+  @ApiBody({ type: ValidateCouponDto })
+  @ApiOkResponse({ description: 'Validation result', type: CouponValidationResponse })
   async validate(
     @Req() req: any,
     @Param('id') couponId: string,

@@ -160,8 +160,13 @@ export class SendReturnApprovedDto {
   currency?: string;
 }
 
-export interface NotificationSentResponse {
-  status: "sent" | "queued";
-  notification_type: string;
-  order_id: string;
+export class NotificationSentResponse {
+  @ApiProperty({ example: 'sent', enum: ['sent', 'queued'] })
+  status!: 'sent' | 'queued';
+
+  @ApiProperty({ example: 'order_confirmation' })
+  notification_type!: string;
+
+  @ApiProperty({ example: 'ord_abc123' })
+  order_id!: string;
 }

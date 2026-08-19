@@ -28,6 +28,14 @@ import { GetOfferRoiUseCase } from '../../../../store-analytics/application/use-
 import { GetPaymentMetricsUseCase } from '../../../../store-analytics/application/use-cases/get-payment-metrics.use-case.js';
 import { GetCustomerMetricsUseCase } from '../../../../store-analytics/application/use-cases/get-customer-metrics.use-case.js';
 import { AnalyticsEntityMapper } from '../../application/mappers/analytics-entity.mapper.js';
+import {
+  DashboardMetricsResponse,
+  ProductPerformanceResponse,
+  ProductPerformanceDto,
+  OfferRoiDto,
+  PaymentMetricsResponse,
+  CustomerMetricsResponse,
+} from './dtos/analytics.dtos.js';
 
 @ApiTags('Analytics')
 @ApiBearerAuth('service_api_key')
@@ -49,7 +57,7 @@ export class AnalyticsV1Controller {
   @RequireTenantAccess({ serviceScopes: ['analytics:read'] })
   @ApiOperation({ summary: 'Get dashboard metrics' })
   @ApiQuery({ name: 'period', required: false, enum: ['today', 'week', 'month'], example: 'week' })
-  @ApiOkResponse({ description: 'Dashboard metrics with daily breakdown and trend' })
+  @ApiOkResponse({ description: 'Dashboard metrics with daily breakdown and trend', type: DashboardMetricsResponse })
   async dashboard(
     @Req() req: any,
     @Query('period') period?: DashboardPeriod,
@@ -65,7 +73,7 @@ export class AnalyticsV1Controller {
   @ApiQuery({ name: 'date_from', required: false, example: '2024-08-01' })
   @ApiQuery({ name: 'date_to', required: false, example: '2024-08-31' })
   @ApiQuery({ name: 'month', required: false, example: '2024-08', description: 'Fallback when date_from/date_to not provided' })
-  @ApiOkResponse({ description: 'Product performance metrics' })
+  @ApiOkResponse({ description: 'Product performance metrics', type: ProductPerformanceResponse })
   async products(
     @Req() req: any,
     @Query('date_from') dateFrom?: string,
@@ -95,7 +103,7 @@ export class AnalyticsV1Controller {
   @ApiOperation({ summary: 'Get analytics for a specific product' })
   @ApiQuery({ name: 'date_from', required: false, example: '2024-08-01' })
   @ApiQuery({ name: 'date_to', required: false, example: '2024-08-31' })
-  @ApiOkResponse({ description: 'Single product analytics' })
+  @ApiOkResponse({ description: 'Single product analytics', type: ProductPerformanceDto })
   async productDetail(
     @Req() req: any,
     @Param('productId') productId: string,
@@ -139,7 +147,7 @@ export class AnalyticsV1Controller {
   @ApiOperation({ summary: 'Get offer ROI metrics' })
   @ApiQuery({ name: 'date_from', required: false, example: '2024-08-01' })
   @ApiQuery({ name: 'date_to', required: false, example: '2024-08-31' })
-  @ApiOkResponse({ description: 'Offer ROI metrics' })
+  @ApiOkResponse({ description: 'Offer ROI metrics', type: OfferRoiDto })
   async offersRoi(
     @Req() req: any,
     @Query('date_from') dateFrom?: string,
@@ -156,7 +164,7 @@ export class AnalyticsV1Controller {
   @ApiOperation({ summary: 'Get payment metrics' })
   @ApiQuery({ name: 'date_from', required: false, example: '2024-08-01' })
   @ApiQuery({ name: 'date_to', required: false, example: '2024-08-31' })
-  @ApiOkResponse({ description: 'Payment success/failure metrics by provider' })
+  @ApiOkResponse({ description: 'Payment success/failure metrics by provider', type: PaymentMetricsResponse })
   async payments(
     @Req() req: any,
     @Query('date_from') dateFrom?: string,
@@ -173,7 +181,7 @@ export class AnalyticsV1Controller {
   @ApiOperation({ summary: 'Get customer metrics' })
   @ApiQuery({ name: 'date_from', required: false, example: '2024-08-01' })
   @ApiQuery({ name: 'date_to', required: false, example: '2024-08-31' })
-  @ApiOkResponse({ description: 'Customer count and retention metrics' })
+  @ApiOkResponse({ description: 'Customer count and retention metrics', type: CustomerMetricsResponse })
   async customers(
     @Req() req: any,
     @Query('date_from') dateFrom?: string,

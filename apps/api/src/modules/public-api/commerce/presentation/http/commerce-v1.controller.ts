@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiParam,
@@ -40,6 +41,7 @@ import {
   ConnectCommerceDto,
   CommerceProvider,
   UpdateCommerceDto,
+  CommerceConnectionResponse,
 } from './dtos/commerce.dtos.js';
 
 @ApiTags('Commerce Connections')
@@ -59,7 +61,7 @@ export class CommerceV1Controller {
   @Get()
   @RequireTenantAccess({ serviceScopes: ['commerce:read'] })
   @ApiOperation({ summary: 'List commerce connections' })
-  @ApiResponse({ status: 200, description: 'Commerce connections list' })
+  @ApiResponse({ status: 200, description: 'Commerce connections list', type: [CommerceConnectionResponse] })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   async list(@Req() request: any) {
@@ -76,7 +78,8 @@ export class CommerceV1Controller {
   @HttpCode(HttpStatus.CREATED)
   @RequireTenantAccess({ serviceScopes: ['commerce:write'] })
   @ApiOperation({ summary: 'Connect a new commerce store' })
-  @ApiResponse({ status: 201, description: 'Commerce connection created' })
+  @ApiBody({ type: ConnectCommerceDto })
+  @ApiResponse({ status: 201, description: 'Commerce connection created', type: CommerceConnectionResponse })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
@@ -95,7 +98,7 @@ export class CommerceV1Controller {
   @RequireTenantAccess({ serviceScopes: ['commerce:read'] })
   @ApiOperation({ summary: 'Get commerce connection details' })
   @ApiParam({ name: 'id', type: 'string', description: 'Connection ID' })
-  @ApiResponse({ status: 200, description: 'Commerce connection details' })
+  @ApiResponse({ status: 200, description: 'Commerce connection details', type: CommerceConnectionResponse })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Connection not found' })
@@ -116,7 +119,8 @@ export class CommerceV1Controller {
   @RequireTenantAccess({ serviceScopes: ['commerce:write'] })
   @ApiOperation({ summary: 'Update commerce connection' })
   @ApiParam({ name: 'id', type: 'string', description: 'Connection ID' })
-  @ApiResponse({ status: 200, description: 'Commerce connection updated' })
+  @ApiBody({ type: UpdateCommerceDto })
+  @ApiResponse({ status: 200, description: 'Commerce connection updated', type: CommerceConnectionResponse })
   @ApiResponse({ status: 400, description: 'Invalid request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
@@ -164,7 +168,7 @@ export class CommerceV1Controller {
   @RequireTenantAccess({ serviceScopes: ['commerce:write'] })
   @ApiOperation({ summary: 'Trigger manual sync for commerce connection' })
   @ApiParam({ name: 'id', type: 'string', description: 'Connection ID' })
-  @ApiResponse({ status: 200, description: 'Sync triggered successfully' })
+  @ApiResponse({ status: 200, description: 'Sync triggered successfully', type: CommerceConnectionResponse })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Connection not found' })

@@ -261,3 +261,193 @@ export class UpdateCheckoutCartDto {
   @Type(() => UpdateCartItemDto)
   items!: UpdateCartItemDto[];
 }
+
+// Response DTOs
+
+export class CheckoutCartItemResponse {
+  @ApiProperty({ example: 'SKU-001' })
+  sku!: string;
+
+  @ApiProperty({ example: 'Product Name' })
+  name!: string;
+
+  @ApiProperty({ example: 2 })
+  quantity!: number;
+
+  @ApiProperty({ example: 4990 })
+  price!: number;
+
+  @ApiPropertyOptional({ example: 'https://cdn.example.com/p/SKU-001.jpg' })
+  image_url?: string;
+}
+
+export class CheckoutCustomerResponse {
+  @ApiPropertyOptional({ example: 'john@example.com' })
+  email?: string;
+
+  @ApiPropertyOptional({ example: 'John Doe' })
+  full_name?: string;
+
+  @ApiPropertyOptional({ example: '+5511999999999' })
+  phone?: string;
+
+  @ApiPropertyOptional({ example: '123.456.789-00' })
+  cpf?: string;
+}
+
+export class StartCheckoutResponse {
+  @ApiProperty({ example: 'sess_abc123' })
+  session_id!: string;
+
+  @ApiProperty({ example: 'conv_xyz789' })
+  conversation_id!: string;
+
+  @ApiProperty({ example: 'user_global_123' })
+  global_user_id!: string;
+
+  @ApiProperty({ example: true })
+  agent_enabled!: boolean;
+
+  @ApiProperty({ example: 'agentic', enum: ['agentic', 'non_agentic'] })
+  initial_mode!: string;
+
+  @ApiProperty({ example: 'track_token_123' })
+  tracking_token!: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  experience?: Record<string, any>;
+
+  @ApiPropertyOptional({ type: [Object] })
+  turns?: any[];
+}
+
+export class CheckoutSessionResponse {
+  @ApiProperty({ example: 'sess_abc123' })
+  session_id!: string;
+
+  @ApiProperty({ example: 'merchant_xyz' })
+  merchant_id!: string;
+
+  @ApiProperty({ example: 'conv_xyz789' })
+  conversation_id!: string;
+
+  @ApiProperty({ example: 'user_global_123' })
+  global_user_id!: string;
+
+  @ApiProperty({ type: [CheckoutCartItemResponse] })
+  cart!: CheckoutCartItemResponse[];
+
+  @ApiPropertyOptional({ type: CheckoutCustomerResponse })
+  customer?: CheckoutCustomerResponse;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  shipping?: Record<string, any>;
+
+  @ApiProperty({ example: 0.5 })
+  abandonment_score!: number;
+
+  @ApiProperty({ example: true })
+  agent_enabled!: boolean;
+
+  @ApiProperty({ example: '2026-08-18T12:00:00.000Z' })
+  created_at!: string;
+}
+
+export class TrackEventResponse {
+  @ApiProperty({ example: true })
+  received!: boolean;
+
+  @ApiProperty({ example: 0.6 })
+  abandonment_score!: number;
+
+  @ApiProperty({ example: false })
+  trigger_agent!: boolean;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  progressive_offer?: Record<string, any>;
+}
+
+export class ChatMessageResponse {
+  @ApiProperty({ example: 'assistant', enum: ['user', 'assistant'] })
+  role!: string;
+
+  @ApiProperty({ example: 'I can help you with a discount!' })
+  content!: string;
+
+  @ApiProperty({ example: 'conv_xyz789' })
+  conversation_id!: string;
+
+  @ApiProperty({ example: 'sess_abc123' })
+  session_id!: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  experience?: Record<string, any>;
+
+  @ApiPropertyOptional({ type: [Object] })
+  offers?: any[];
+
+  @ApiPropertyOptional({ type: [Object] })
+  turns?: any[];
+}
+
+export class ShippingEvaluateResponse {
+  @ApiProperty({ example: true })
+  approved!: boolean;
+
+  @ApiProperty({ example: 'approve', enum: ['approve', 'deny', 'offer_subsidy'] })
+  action!: string;
+
+  @ApiProperty({ example: 'Low margin' })
+  reason!: string;
+
+  @ApiProperty({ example: 500 })
+  shipping_subsidy!: number;
+
+  @ApiProperty({ example: 0.18 })
+  margin_after_offer!: number;
+
+  @ApiProperty({ example: 'We can offer free shipping!' })
+  message!: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  offer?: Record<string, any>;
+}
+
+export class ApplyOfferResponse {
+  @ApiProperty({ example: true })
+  success!: boolean;
+
+  @ApiPropertyOptional({ example: 'SAVE10' })
+  discount_code?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/apply' })
+  apply_url?: string;
+
+  @ApiPropertyOptional({ example: 14490 })
+  new_total?: number;
+
+  @ApiPropertyOptional({ example: '2026-08-20T23:59:59.000Z' })
+  expires_at?: string;
+
+  @ApiPropertyOptional({ example: 'Offer applied successfully' })
+  reason?: string;
+}
+
+export class CompleteOrderResponse {
+  @ApiProperty({ example: true })
+  recorded!: boolean;
+
+  @ApiProperty({ example: false })
+  idempotent!: boolean;
+
+  @ApiProperty({ example: 'order_completed' })
+  event_type!: string;
+}
+
+export class UpdateCartResponse {
+  @ApiProperty({ example: 'sess_abc123' })
+  session_id!: string;
+
+  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
+  experience?: Record<string, any>;
+}

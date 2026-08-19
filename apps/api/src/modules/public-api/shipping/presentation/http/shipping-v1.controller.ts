@@ -11,6 +11,7 @@ import {
 import {
   ApiTags,
   ApiBearerAuth,
+  ApiBody,
   ApiCookieAuth,
   ApiOperation,
   ApiCreatedResponse,
@@ -23,7 +24,7 @@ import { RequireTenantAccess } from '../../../../integrations/presentation/http/
 
 import { QuoteShippingUseCase } from '../../../../shipping/application/use-cases/quote-shipping.use-case.js';
 import { ShippingEntityMapper } from '../../application/mappers/shipping-entity.mapper.js';
-import { GetShippingQuotesDto } from './dtos/shipping.dtos.js';
+import { GetShippingQuotesDto, ShippingQuoteResponse } from './dtos/shipping.dtos.js';
 
 /**
  * Public API v1 — Shipping
@@ -51,7 +52,8 @@ export class ShippingV1Controller {
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ serviceScopes: ['checkout:read'] })
   @ApiOperation({ summary: 'Get shipping quotes' })
-  @ApiCreatedResponse({ description: 'Shipping quotes' })
+  @ApiBody({ type: GetShippingQuotesDto })
+  @ApiCreatedResponse({ description: 'Shipping quotes', type: ShippingQuoteResponse })
   async getQuotes(@Req() req: any, @Body() body: GetShippingQuotesDto) {
     const merchantId = req.tenantPrincipal?.tenantId;
 
