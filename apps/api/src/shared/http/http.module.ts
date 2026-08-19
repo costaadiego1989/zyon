@@ -20,6 +20,7 @@ import {
 import { PrismaIdempotencyRepository } from "./idempotency/prisma-idempotency.repository.js";
 import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 import { ProblemDetailsFilter } from "./problem-details.filter.js";
+import { RateLimitGuard } from "./rate-limit.guard.js";
 import { WidgetAssetsController } from "./widget-assets.controller.js";
 
 @Global()
@@ -32,6 +33,7 @@ import { WidgetAssetsController } from "./widget-assets.controller.js";
       useValue: new HttpClientService({ timeout: 15_000, retries: 3 }),
     },
     { provide: APP_GUARD, useClass: NonProductionRouteGuard },
+    { provide: APP_GUARD, useClass: RateLimitGuard },
     EntityTagService,
     {
       provide: IDEMPOTENCY_REPOSITORY,
