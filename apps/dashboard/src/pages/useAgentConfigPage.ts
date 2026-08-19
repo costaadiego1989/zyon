@@ -100,7 +100,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [activeTab, setActiveTab] = useState<"identity" | "quick-replies">("identity");
+  const [activeTab, setActiveTab] = useState<"identity" | "quick-replies" | "ab-tests">("identity");
   const [stageQrConfig, setStageQrConfig] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
 
   const errors = useMemo(() => validateAgentConfig(form), [form]);
