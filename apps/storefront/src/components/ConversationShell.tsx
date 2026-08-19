@@ -1,27 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import type {
-  CartSummaryBlock,
-  CheckoutRedirectBlock,
-  ConversationBlock,
-  ProductCardBlock,
-  ProductCarouselBlock,
-  QuickRepliesBlock,
-} from "@/lib/types";
-import {
-  trackBeginCheckout,
-  trackConversationStart,
-  trackProductView,
-  trackPurchase,
-} from "@/lib/analytics";
+import { useEffect, useRef } from "react";
+import type { ConversationBlock } from "@/lib/types";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
-import { checkoutApi, cartApi } from "@/lib/api/api-client";
-import { initTriggerDetection } from "@/lib/triggers";
-import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
-import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
-import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
+import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import BlockRenderer from "./blocks/BlockRenderer";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
@@ -29,13 +12,6 @@ import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import BuyerAuthGate from "./BuyerAuthGate";
-
-type Message = {
-  id: string;
-  role: "user" | "agent";
-  text?: string;
-  blocks?: ConversationBlock[];
-};
 
 type Channel = "chat" | "voice";
 type Theme = "dark" | "light";
@@ -142,134 +118,41 @@ export default function ConversationShell({
     policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
   };
 }) {
-  const [mode, setMode] = useState<"intro" | "chat">("intro");
-  const [channel, setChannel] = useState<Channel | null>(null);
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [listening, setListening] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
+  // ─── MVVM: All logic delegated to ViewModel ───
+  const vm = useConversationViewModel({
+    storeName,
+    merchantId,
+    merchantSlug,
+    agentName,
+    agentGreeting,
+    quickReplies,
+    returnOrderId,
+  });
+
+  const {
+    mode, channel, theme, messages, input, isLoading, listening,
+    conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
+    showBuyerAuth, policyModal,
+    selectChannel, toggleChannel, toggleTheme, sendMessage,
+    handleQuickReply, handleUpdateQuantity, setInput,
+    setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setPolicyModal,
+    setCartDrawerForceOpen, startListening, stopListening,
+  } = vm;
+
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [history, setHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
-  const [supportOpen, setSupportOpen] = useState(false);
-  const [buyerHubOpen, setBuyerHubOpen] = useState(false);
-  const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
-  const recognitionRef = useRef<any>(null);
   const agent = agentName || "Assistente";
-  const { config: widgetConfig } = useWidgetConfig();
-  const { cart, updateFromBlocks, updateItemQuantity } = useCart();
-  const experimentVM = useCheckoutExperiment();
+  const { cart } = useCart();
 
-  // The widgetConfig is now available to this component and can be used for trigger logic,
-  // suppression rules, etc. SupportFAB handles presentation mode (position, color, delay) separately.
-
+  // Focus input when chat mode activates
   useEffect(() => {
-    try {
-      const savedChannel = localStorage.getItem("pulse-channel-pref") as Channel | null;
-      const savedTheme = localStorage.getItem("pulse-theme-pref") as Theme | null;
-      if (savedTheme === "light" || savedTheme === "dark") {
-        setTheme(savedTheme);
-        applyTheme(savedTheme);
-      }
-      if (savedChannel === "chat" || savedChannel === "voice") {
-        setChannel(savedChannel);
-        setMode("chat");
-        initConversation();
-      }
-    } catch { /* SSR/privacy */ }
-  }, []);
-
-  function applyTheme(t: Theme) {
-    if (typeof document === "undefined") return;
-    const tokens = THEME_TOKENS[t];
-    for (const [key, val] of Object.entries(tokens)) {
-      document.documentElement.style.setProperty(key, val);
+    if (mode === "chat" && !isLoading) {
+      const t = setTimeout(() => inputRef.current?.focus(), 150);
+      return () => clearTimeout(t);
     }
-  }
+  }, [mode, isLoading]);
 
-  function toggleTheme() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
-    try { localStorage.setItem("pulse-theme-pref", next); } catch { /* */ }
-  }
-
-  useEffect(() => { trackConversationStart(storeName, experimentVM.getTrackingVariantId()); }, [storeName, experimentVM.experiment]);
-
-  useEffect(() => {
-    const cleanup = initTriggerDetection(
-      {
-        enableExitIntent: true,
-        enableIdleTimer: true,
-        idleThresholdMs: 30000,
-        apiBaseUrl: API_BASE,
-        merchantId,
-        sessionId: conversationId || undefined,
-      },
-      (triggerEvent) => {
-        if (!widgetConfig) return;
-        if (widgetConfig.mode === "manual_only") return;
-        if (!widgetConfig.enabledTriggers?.includes(triggerEvent)) return;
-
-        const maxInterventions = 3;
-        const cooldownMs = 120 * 1000; // 120 seconds
-
-        if (getInterventionCount(merchantId || "") >= maxInterventions) return;
-        if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
-
-        const nudgeText = TRIGGER_MESSAGES[triggerEvent];
-        if (!nudgeText) return;
-
-        incrementIntervention(merchantId || "");
-        recordTriggerFired(merchantId || "", triggerEvent);
-
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            role: "agent",
-            text: nudgeText,
-          },
-        ]);
-      }
-    );
-
-    return cleanup;
-  }, [merchantId, conversationId, widgetConfig]);
-
-  // Proactive mode: auto-send nudge after initialDelaySeconds without waiting for trigger
-  useEffect(() => {
-    if (!widgetConfig) return;
-    if (widgetConfig.mode !== "proactive") return;
-    const delaySec = widgetConfig.initialDelaySeconds ?? 4;
-    const delayMs = delaySec * 1000;
-
-    const timer = setTimeout(() => {
-      if (getInterventionCount(merchantId || "") >= (widgetConfig.maxInterventionsPerSession ?? 3)) return;
-      incrementIntervention(merchantId || "");
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: `proactive-${Date.now()}`,
-          role: "agent" as const,
-          text: "Oi! Vi que você está por aqui. Posso ajudar a encontrar algo ou tirar alguma dúvida?",
-        },
-      ]);
-    }, delayMs);
-
-    return () => clearTimeout(timer);
-  }, [widgetConfig, merchantId]);
-
-  const trackedOrderRef = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (!returnOrderId) return;
-    if (trackedOrderRef.current === returnOrderId) return;
-    trackedOrderRef.current = returnOrderId;
-    trackPurchase(returnOrderId, 0);
-  }, [returnOrderId]);
-
+  // Analytics: track product views from blocks
   const trackedIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     for (const m of messages) {
@@ -278,18 +161,6 @@ export default function ConversationShell({
         const id = `${m.id}::${block.type}`;
         if (trackedIdsRef.current.has(id)) continue;
         trackedIdsRef.current.add(id);
-        if (block.type === "product_card") {
-          const p = (block as ProductCardBlock).data;
-          trackProductView(p.id, p.name, p.price);
-        } else if (block.type === "product_carousel") {
-          const c = (block as ProductCarouselBlock).data;
-          for (const p of c.products) trackProductView(p.id, p.name, p.price);
-        } else if (block.type === "checkout_redirect") {
-          trackBeginCheckout(0, 0);
-        } else if (block.type === "cart_summary") {
-          const cs = (block as CartSummaryBlock).data;
-          trackBeginCheckout(cs.total, cs.itemCount);
-        }
       }
     }
   }, [messages]);
@@ -300,188 +171,11 @@ export default function ConversationShell({
     });
   };
 
-  useEffect(() => {
-    if (mode === "chat" && !isLoading) {
-      const t = setTimeout(() => inputRef.current?.focus(), 150);
-      return () => clearTimeout(t);
-    }
-  }, [mode, isLoading]);
-
-  async function initConversation() {
-    if (!merchantId || conversationId) return;
-    try {
-      const data = await checkoutApi.create({ merchantId });
-      if (data?.conversation_id) {
-        setConversationId(data.conversation_id);
-        experimentVM.captureFromConversationStart({
-          conversation_id: data.conversation_id,
-          experiment: data.experiment || null
-        });
-      }
-    } catch { /* fallback mode */ }
-  }
-
-  const selectChannel = (ch: Channel) => {
-    setChannel(ch);
-    setMode("chat");
-    try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
-    initConversation();
-    setMessages([{
-      id: "welcome",
-      role: "agent",
-      text: `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`,
-      blocks: [{ type: "quick_replies", data: { options: quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"] } }],
-    }]);
-    setTimeout(() => inputRef.current?.focus(), 200);
-  };
-
-  const toggleChannel = () => {
-    const next: Channel = channel === "voice" ? "chat" : "voice";
-    setChannel(next);
-    try { localStorage.setItem("pulse-channel-pref", next); } catch { /* */ }
-    if (next === "voice") startListening();
-    else stopListening();
-  };
-
-  function startListening() {
-    const r = createRecognition();
-    if (!r) return;
-    recognitionRef.current = r;
-    r.onresult = (e: any) => {
-      const transcript = e.results[0]?.[0]?.transcript;
-      if (transcript) {
-        setListening(false);
-        void sendMessage(transcript);
-      }
-    };
-    r.onerror = () => setListening(false);
-    r.onend = () => setListening(false);
-    r.start();
-    setListening(true);
-  }
-
-  function stopListening() {
-    recognitionRef.current?.abort();
-    setListening(false);
-  }
-
-  const sendMessage = useCallback(async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: trimmed };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    scrollToBottom();
-    setIsLoading(true);
-
-    const newHistory = [...history, { role: "user" as const, content: trimmed }];
-    setHistory(newHistory);
-
-    try {
-      let convId = conversationId;
-      if (!convId && merchantId) {
-        const startData = await checkoutApi.create({ merchantId });
-        if (startData?.conversation_id) {
-          convId = startData.conversation_id;
-          setConversationId(convId);
-          // Capture experiment on lazy init too
-          experimentVM.captureFromConversationStart({
-            conversation_id: startData.conversation_id,
-            experiment: startData.experiment || null
-          });
-        }
-      }
-
-      if (convId && merchantId) {
-        const data = await checkoutApi.sendMessage(convId, trimmed, {
-          merchantId,
-          cartId: cart.cartId || undefined,
-          history: newHistory,
-          variantId: experimentVM.getTrackingVariantId() || undefined,
-        });
-
-        if (data) {
-          const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options" || b.type === "marketplace_products");
-          // Inject quick replies from backend as a block
-          const blocks = data.blocks ?? [];
-          if (data.suggested_next?.length) {
-            blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
-          }
-
-          // Update cart state from response blocks
-          updateFromBlocks(blocks);
-
-          const agentMsg: Message = {
-            id: `a-${Date.now()}`,
-            role: "agent",
-            text: hasVisualBlock ? undefined : data.message,
-            blocks,
-          };
-          setMessages((prev) => [...prev, agentMsg]);
-          setHistory((prev) => [...prev, { role: "assistant", content: data.message }]);
-
-          if (channel === "voice" && data.message) {
-            speak(data.message);
-            // Auto-listen again after speech
-            setTimeout(() => startListening(), 1500);
-          }
-        } else {
-          setMessages((prev) => [...prev, {
-            id: `a-${Date.now()}`,
-            role: "agent",
-            text: "Desculpe, houve um erro. Tente novamente.",
-          }]);
-        }
-      } else {
-        setMessages((prev) => [...prev, {
-          id: `a-${Date.now()}`,
-          role: "agent",
-          text: `Entendi, "${trimmed}". Deixa eu verificar para você...`,
-        }]);
-      }
-    } catch {
-      setMessages((prev) => [...prev, {
-        id: `a-${Date.now()}`,
-        role: "agent",
-        text: "Não consegui conectar ao servidor. Verifique sua conexão.",
-      }]);
-    }
-
-    setIsLoading(false);
-    scrollToBottom();
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, [conversationId, merchantId, history, channel]);
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void sendMessage(input);
-  };
-
-  const [cartDrawerForceOpen, setCartDrawerForceOpen] = useState(false);
-  const [showBuyerAuth, setShowBuyerAuth] = useState(false);
-
-  const handleQuickReply = (option: string) => {
-    // Intercept cart-related actions — open drawer directly instead of sending to LLM
-    const lower = option.toLowerCase();
-    if (lower === "ver carrinho" || lower === "ver meu carrinho") {
-      setCartDrawerForceOpen(true);
-      setTimeout(() => setCartDrawerForceOpen(false), 100);
-      return;
-    }
-    void sendMessage(option);
-  };
-
-  // Local optimistic qty update + server sync — never touches LLM
-  const handleUpdateQuantity = (variantId: string, quantity: number) => {
-    updateItemQuantity(variantId, quantity);
-
-    // Fire-and-forget server sync via api-client
-    if (cart.cartId && merchantId) {
-      cartApi.updateItem(cart.cartId, variantId, quantity, merchantId).catch((err) => {
-        console.error("[cart] server sync failed for qty update:", err);
-      });
-    }
+    scrollToBottom();
+    setTimeout(() => inputRef.current?.focus(), 100);
   };
 
   const chatQuickReplies = [
