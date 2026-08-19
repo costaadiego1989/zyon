@@ -37,7 +37,6 @@ import { StoriesModule } from "./modules/stories/stories.module.js";
 import { ExperimentsModule } from "./modules/experiments/experiments.module.js";
 import { MarketplaceModule } from "./modules/marketplace/marketplace.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
-import { PublicApiModule } from "./modules/public-api/public-api.module.js";
 
 const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
@@ -122,7 +121,7 @@ const REDACTED_LOG_PATHS = [
     StorageModule,
     ExperimentsModule,
     MarketplaceModule,
-    PublicApiModule,
+    // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
   ]
 })
 export class AppModule {}
