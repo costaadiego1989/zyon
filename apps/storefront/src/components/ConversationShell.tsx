@@ -17,6 +17,7 @@ import {
 } from "@/lib/analytics";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
+import { checkoutApi, cartApi } from "@/lib/api/api-client";
 import { initTriggerDetection } from "@/lib/triggers";
 import { getInterventionCount, incrementIntervention, canFireTrigger, recordTriggerFired } from "@/lib/intervention-tracker";
 import { TRIGGER_MESSAGES } from "@/lib/trigger-messages";
@@ -309,15 +310,9 @@ export default function ConversationShell({
   async function initConversation() {
     if (!merchantId || conversationId) return;
     try {
-      const res = await fetch(`${API_BASE}/storefront/conversations`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ merchant_id: merchantId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const data = await checkoutApi.create({ merchantId });
+      if (data?.conversation_id) {
         setConversationId(data.conversation_id);
-        // Capture experiment assignment from API (transparent to UI)
         experimentVM.captureFromConversationStart({
           conversation_id: data.conversation_id,
           experiment: data.experiment || null
@@ -386,13 +381,8 @@ export default function ConversationShell({
     try {
       let convId = conversationId;
       if (!convId && merchantId) {
-        const startRes = await fetch(`${API_BASE}/storefront/conversations`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchant_id: merchantId }),
-        });
-        if (startRes.ok) {
-          const startData = await startRes.json();
+        const startData = await checkoutApi.create({ merchantId });
+        if (startData?.conversation_id) {
           convId = startData.conversation_id;
           setConversationId(convId);
           // Capture experiment on lazy init too
@@ -404,20 +394,14 @@ export default function ConversationShell({
       }
 
       if (convId && merchantId) {
-        const res = await fetch(`${API_BASE}/storefront/conversations/${convId}/messages`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            merchant_id: merchantId,
-            user_message: trimmed,
-            cart_id: cart.cartId || undefined,
-            history: newHistory,
-            variant_id: experimentVM.getTrackingVariantId() || undefined,
-          }),
+        const data = await checkoutApi.sendMessage(convId, trimmed, {
+          merchantId,
+          cartId: cart.cartId || undefined,
+          history: newHistory,
+          variantId: experimentVM.getTrackingVariantId() || undefined,
         });
 
-        if (res.ok) {
-          const data = await res.json();
+        if (data) {
           const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options" || b.type === "marketplace_products");
           // Inject quick replies from backend as a block
           const blocks = data.blocks ?? [];
@@ -492,13 +476,9 @@ export default function ConversationShell({
   const handleUpdateQuantity = (variantId: string, quantity: number) => {
     updateItemQuantity(variantId, quantity);
 
-    // Fire-and-forget server sync
-    if (cart.cartId) {
-      fetch(`${API_BASE}/storefront/cart/${encodeURIComponent(cart.cartId)}/items/${encodeURIComponent(variantId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quantity }),
-      }).catch((err) => {
+    // Fire-and-forget server sync via api-client
+    if (cart.cartId && merchantId) {
+      cartApi.updateItem(cart.cartId, variantId, quantity, merchantId).catch((err) => {
         console.error("[cart] server sync failed for qty update:", err);
       });
     }

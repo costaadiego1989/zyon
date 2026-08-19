@@ -244,7 +244,13 @@ export const checkoutApi = {
     }
   },
 
-  async sendMessage(checkoutId: string, text: string, token?: string): Promise<any> {
+  async sendMessage(checkoutId: string, text: string, options?: {
+    token?: string;
+    merchantId?: string;
+    cartId?: string;
+    history?: any[];
+    variantId?: string;
+  }): Promise<any> {
     if (FEATURE_FLAGS.checkouts) {
       const envelope: ApiEnvelope<any> = await safeFetch(
         `${API_V1_PROXY}/checkouts/${checkoutId}/messages`,
@@ -257,8 +263,14 @@ export const checkoutApi = {
     } else {
       return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
         method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: JSON.stringify({ text }),
+        headers: options?.token ? { Authorization: `Bearer ${options.token}` } : {},
+        body: JSON.stringify({
+          merchant_id: options?.merchantId,
+          user_message: text,
+          cart_id: options?.cartId || undefined,
+          history: options?.history,
+          variant_id: options?.variantId || undefined,
+        }),
       });
     }
   },
