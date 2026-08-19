@@ -6,22 +6,38 @@ import type { MarketplaceConfig, MarketplaceOrder, MarketplaceStats } from "./ty
 
 export type MarketplaceTab = "settings" | "orders";
 
+const DEFAULT_CONFIG: MarketplaceConfig = {
+  enabled: false,
+  commission_percent: 15,
+  return_window_days: 7,
+  settlement_window_days: 14,
+  chargeback_window_days: 30,
+  blocked_merchant_ids: [],
+};
+
+const DEFAULT_STATS: MarketplaceStats = {
+  pending_orders: 0,
+  monthly_revenue: 0,
+  items_shipped: 0,
+  fulfillment_rate: 0,
+};
+
 export function useMarketplacePage(me: MerchantProfile | null) {
   const api = useApi();
 
   const [tab, setTab] = useState<MarketplaceTab>("settings");
-  const [config, setConfig] = useState<MarketplaceConfig | null>(null);
+  const [config, setConfig] = useState<MarketplaceConfig>(DEFAULT_CONFIG);
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
-  const [stats, setStats] = useState<MarketplaceStats | null>(null);
+  const [stats, setStats] = useState<MarketplaceStats>(DEFAULT_STATS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const loadConfig = useCallback(async () => {
     try {
       const cfg = await api.getMarketplaceConfig();
-      setConfig(cfg);
+      if (cfg) setConfig(cfg);
     } catch {
-      setConfig(null);
+      // Use default config — endpoint may not be reachable yet
     }
   }, [api]);
 
@@ -31,19 +47,18 @@ export function useMarketplacePage(me: MerchantProfile | null) {
         api.getMarketplaceOrders(),
         api.getMarketplaceStats(),
       ]);
-      setOrders(orderList);
-      setStats(orderStats);
+      if (orderList) setOrders(orderList);
+      if (orderStats) setStats(orderStats);
     } catch {
-      setOrders([]);
-      setStats(null);
+      // Use defaults
     }
   }, [api]);
 
   useEffect(() => {
     if (!me) {
-      setConfig(null);
+      setConfig(DEFAULT_CONFIG);
       setOrders([]);
-      setStats(null);
+      setStats(DEFAULT_STATS);
       setLoading(false);
       return;
     }
@@ -52,10 +67,12 @@ export function useMarketplacePage(me: MerchantProfile | null) {
   }, [me, loadConfig, loadOrders]);
 
   async function saveConfig(updates: Partial<MarketplaceConfig>) {
+    const merged = { ...config, ...updates };
+    setConfig(merged);
     setSaving(true);
     try {
       const updated = await api.updateMarketplaceConfig(updates);
-      setConfig(updated);
+      if (updated) setConfig(updated);
       showToast("success", "Configurações salvas");
     } catch {
       showToast("error", "Erro ao salvar configurações");

@@ -2,6 +2,7 @@ import React from "react";
 import { Store, ShoppingBag, Zap } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { TabBar } from "../../components/TabBar.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { SettlementTimeline } from "./components/SettlementTimeline.js";
 import { OrderRow } from "./components/OrderRow.js";
@@ -61,22 +62,16 @@ export function MarketplacePage({ me }: MarketplacePageProps) {
         </p>
       </div>
 
-      <div className="marketplace-page__tabs">
-        <button
-          className={`marketplace-page__tab ${tab === "settings" ? "marketplace-page__tab--active" : ""}`}
-          onClick={() => setTab("settings")}
-        >
-          Configurações
-        </button>
-        <button
-          className={`marketplace-page__tab ${tab === "orders" ? "marketplace-page__tab--active" : ""}`}
-          onClick={() => setTab("orders")}
-        >
-          Pedidos
-        </button>
-      </div>
+      <TabBar
+        tabs={[
+          { key: "orders", label: "Pedidos" },
+          { key: "settings", label: "Configurações" },
+        ]}
+        activeTab={tab}
+        onTabChange={(key) => setTab(key as "orders" | "settings")}
+      />
 
-      {tab === "settings" && config && (
+      {tab === "settings" && (
         <div className="marketplace-page__settings">
           <div className="panel">
             <div className="marketplace-section__header">
