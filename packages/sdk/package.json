@@ -1,7 +1,7 @@
 {
   "name": "@zyon/sdk",
   "version": "1.0.0",
-  "description": "TypeScript SDK for the AACP Integration API",
+  "description": "TypeScript SDK for the Zyon Integration API — AI-powered checkout platform",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,9 +18,22 @@
   "scripts": {
     "generate": "orval",
     "build": "tsc",
-    "prepublishOnly": "pnpm generate && pnpm build",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist src/generated",
+    "sdk:generate": "orval && tsc",
+    "sdk:publish": "pnpm sdk:generate && npm publish --access public",
+    "sdk:publish:beta": "pnpm sdk:generate && npm publish --access public --tag beta",
+    "sdk:release": "pnpm clean && pnpm sdk:generate && npm publish --access public",
+    "prepublishOnly": "pnpm sdk:generate"
   },
+  "keywords": [
+    "aacp",
+    "zyon",
+    "checkout",
+    "sdk",
+    "api",
+    "ecommerce",
+    "headless"
+  ],
   "dependencies": {
     "axios": "^1.7.9"
   },
@@ -37,12 +50,15 @@
     }
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/zyon-platform/aacp.git",
     "directory": "packages/sdk"
-  }
+  },
+  "homepage": "https://docs.aacp.dev/sdk",
+  "bugs": "https://github.com/zyon-platform/aacp/issues"
 }
