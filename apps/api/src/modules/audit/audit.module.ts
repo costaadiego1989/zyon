@@ -28,6 +28,6 @@ import { AuditEventsController } from "./presentation/http/audit-events.controll
       useClass: AuditMutationInterceptor,
     },
   ],
-  exports: [RecordAuditEventUseCase],
+  exports: [RecordAuditEventUseCase, ListAuditEventsUseCase],
 })
 export class AuditModule {}
