@@ -219,6 +219,7 @@ curl https://api.aacp.dev/v1/orders/ord_m4n5o6p7 \
 
 ## Next Steps
 
+- Install the SDK: `npm install @zyon/sdk` — [npm package](https://www.npmjs.com/package/@zyon/sdk)
 - Set up [Webhooks](./WEBHOOKS.md) to receive real-time event notifications
 - Explore the [full API reference](https://api.aacp.dev/docs)
 - Configure [Analytics](https://console.aacp.dev/analytics) in the dashboard

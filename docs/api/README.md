@@ -159,6 +159,43 @@ The API is versioned via the URL path (`/v1`). Breaking changes are introduced o
 | [Billing](#) | 5 | Plans, subscription, usage, invoices |
 | [Commerce](#) | 6 | Platform connections (WooCommerce, Magento, VTEX) |
 
+## SDK
+
+Install the official TypeScript SDK:
+
+```bash
+npm install @zyon/sdk
+```
+
+```typescript
+import { createClient } from '@zyon/sdk';
+
+const aacp = createClient({
+  apiKey: 'aacp_test_sk_xxxxx',
+  environment: 'sandbox', // or 'production'
+});
+
+// Start a checkout
+const checkout = await aacp.checkouts.start({
+  session_id: 'sess_001',
+  cart: [{ sku: 'SKU-001', name: 'Widget', price: 4990, quantity: 1 }],
+});
+
+// List orders
+const orders = await aacp.orders.list({ limit: 20 });
+
+// Create a webhook
+const webhook = await aacp.webhooks.create({
+  url: 'https://myapp.com/webhooks/aacp',
+  events: ['order.created', 'checkout.completed'],
+});
+```
+
+**Links:**
+- [npm: @zyon/sdk](https://www.npmjs.com/package/@zyon/sdk)
+- [SDK Source (GitHub)](https://github.com/zyon-platform/aacp/tree/main/packages/sdk)
+- [SDK README](https://github.com/zyon-platform/aacp/blob/main/packages/sdk/README.md)
+
 ## Quick Links
 
 - [Quickstart](./QUICKSTART.md) — Make your first API call
