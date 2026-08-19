@@ -9,6 +9,7 @@ import { assertValidEmail, assertStrongPassword, normalizeEmail } from "../domai
 import type { AuthResponse } from "../domain/auth.types.js";
 import { toAuthResponse } from "./auth-response.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { generateUniqueSlug } from "../../../shared/utils/slugify.js";
 
 /**
  * H6: Removed merchant_id from request — always server-generated.
@@ -69,6 +70,19 @@ export class RegisterMerchantUseCase {
         email,
         passwordHash
       });
+
+      // Auto-generate slug from merchant name
+      const slug = await generateUniqueSlug(
+        input.merchant_name.trim(),
+        async (candidate) => {
+          const taken = await this.repository.isSlugTaken(candidate);
+          return !taken;
+        },
+      );
+
+      // Persist slug in storeSettings
+      await this.repository.setStoreSettings(merchantId, { slug });
+
       return toAuthResponse(created.user, this.jwt);
     } catch (err: unknown) {
       if (err instanceof EmailAlreadyRegisteredError) {

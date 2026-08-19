@@ -340,6 +340,26 @@ export default function ProductCarouselBlock({
                   )}
                 </div>
 
+                {/* "Vendido e entregue por" badge for marketplace products */}
+                {(product as any).source === "marketplace" && (product as any).sellerName && (
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "4px",
+                    marginTop: "6px",
+                    padding: "4px 8px",
+                    borderRadius: "6px",
+                    background: "color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface-2))",
+                    border: "1px solid color-mix(in srgb, var(--aacp-accent) 20%, var(--aacp-line))",
+                  }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+                    <span style={{ fontSize: "9.5px", fontWeight: 600, color: "var(--aacp-fg)", lineHeight: 1.2 }}>
+                      Vendido por <span style={{ color: "var(--aacp-accent)" }}>{(product as any).sellerName}</span>
+                    </span>
+                  </div>
+                )}
+
                 {/* "Saber mais" outline button */}
                 <button
                   type="button"

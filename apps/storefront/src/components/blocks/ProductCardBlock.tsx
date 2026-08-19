@@ -683,6 +683,48 @@ export default function ProductCardBlock({
           </div>
         )}
 
+        {/* Marketplace seller badge */}
+        {data.source === "marketplace" && data.sellerName && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              padding: "8px 12px",
+              borderRadius: "8px",
+              background: "color-mix(in srgb, var(--aacp-accent) 8%, var(--aacp-surface-2))",
+              border: "1px solid color-mix(in srgb, var(--aacp-accent) 20%, var(--aacp-line))",
+              marginTop: "2px",
+            }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="var(--aacp-accent)"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span
+              style={{
+                fontSize: "11.5px",
+                fontWeight: 600,
+                color: "var(--aacp-fg)",
+                lineHeight: 1.3,
+              }}
+            >
+              Vendido e entregue por{" "}
+              <span style={{ color: "var(--aacp-accent)" }}>{data.sellerName}</span>
+            </span>
+          </div>
+        )}
+
         {/* Action buttons */}
         <div
           style={{

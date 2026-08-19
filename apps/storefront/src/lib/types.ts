@@ -15,6 +15,11 @@ export interface ProductCardBlock {
     originalPrice?: number;
     originalPriceFormatted?: string;
     discountPercent?: number;
+    /** "marketplace" when product comes from a partner store */
+    source?: "local" | "marketplace";
+    /** Seller store name (only for marketplace products) */
+    sellerName?: string;
+    sellerMerchantId?: string;
   };
 }
 

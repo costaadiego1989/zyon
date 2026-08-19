@@ -189,5 +189,27 @@ export class PrismaAuthRepository implements AuthRepository {
       data: { passwordHash },
     });
   }
+
+  async isSlugTaken(slug: string): Promise<boolean> {
+    const match = await this.prisma.merchant.findFirst({
+      where: {
+        storeSettings: { path: ["slug"], equals: slug },
+      },
+      select: { id: true },
+    });
+    return !!match;
+  }
+
+  async setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void> {
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { storeSettings: true },
+    });
+    const existing = (merchant?.storeSettings as Record<string, unknown>) ?? {};
+    await this.prisma.merchant.update({
+      where: { id: merchantId },
+      data: { storeSettings: { ...existing, ...settings } },
+    });
+  }
 }
 

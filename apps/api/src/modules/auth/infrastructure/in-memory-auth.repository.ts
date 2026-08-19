@@ -98,4 +98,14 @@ export class InMemoryAuthRepository implements AuthRepository {
       }
     }
   }
+
+  private slugs = new Map<string, string>(); // slug → merchantId
+
+  async isSlugTaken(slug: string): Promise<boolean> {
+    return this.slugs.has(slug);
+  }
+
+  async setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void> {
+    if (settings.slug) this.slugs.set(settings.slug as string, merchantId);
+  }
 }

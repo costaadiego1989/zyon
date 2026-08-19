@@ -368,6 +368,7 @@ export class StorefrontLangGraphAgent {
       const searchData = toolResults["search_products"] as any;
       if (searchData?.products?.length > 0) {
         const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+        const isMarketplace = searchData.source === "marketplace";
         blocks.push({
           type: "product_carousel",
           data: {
@@ -383,6 +384,9 @@ export class StorefrontLangGraphAgent {
               rating: p.rating,
               reviewCount: p.reviewCount,
               variants: p.variants,
+              source: isMarketplace ? "marketplace" : "local",
+              sellerName: p.sellerName ?? (isMarketplace ? (searchData.note || "Loja parceira") : undefined),
+              sellerMerchantId: p.sellerMerchantId,
             })),
             nextCursor: searchData.nextCursor,
             merchantId: input.merchantId,

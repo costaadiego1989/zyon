@@ -92,7 +92,17 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               hostMerchantId: this.currentMerchantId,
               limit: Math.min(args.limit ?? 5, 10),
             });
-            const marketplaceProducts = (marketplaceResult.products ?? []).map((p) => ({
+            const rawProducts = marketplaceResult.products ?? [];
+            // Resolve seller names
+            const sellerIds = [...new Set(rawProducts.map(p => p.sourceMerchantId))];
+            const sellerNames: Record<string, string> = {};
+            for (const sid of sellerIds) {
+              try {
+                const m = await this.merchantRepo.getProfile(sid);
+                if (m) sellerNames[sid] = m.name;
+              } catch { /* skip */ }
+            }
+            const marketplaceProducts = rawProducts.map((p) => ({
               id: p.id,
               name: p.name,
               description: p.description || "",
@@ -105,6 +115,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
               variants: [{ id: p.id, sku: p.sourceProductId }],
               source: "marketplace" as const,
               sellerMerchantId: p.sourceMerchantId,
+              sellerName: sellerNames[p.sourceMerchantId] || "Loja parceira",
             }));
             if (marketplaceProducts.length > 0) {
               return {
@@ -182,7 +193,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         let resolvedVariantId = args.variantId;
 
         try {
-          // First try: args.variantId is a productId
+          // First try: args.variantId is a productId in local catalog
           let product = await this.productRepo.findById(merchantId, args.variantId);
           if (product) {
             productName = product.name;
@@ -207,6 +218,21 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
                 imageUrl = variant.media?.[0]?.url;
               }
             }
+          }
+
+          // Third try: marketplace federated product (cross-store item)
+          if (unitPriceCents === 0 && this.searchFederatedProducts) {
+            try {
+              const fedProduct = await this.prisma.federatedProduct.findUnique({
+                where: { id: args.variantId },
+              });
+              if (fedProduct) {
+                productName = fedProduct.name;
+                unitPriceCents = fedProduct.priceCents;
+                imageUrl = fedProduct.imageUrl ?? undefined;
+                resolvedVariantId = fedProduct.id;
+              }
+            } catch { /* not a federated product ID */ }
           }
         } catch {
           // Non-critical: proceed with what we have

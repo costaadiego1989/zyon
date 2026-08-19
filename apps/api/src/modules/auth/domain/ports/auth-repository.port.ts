@@ -32,5 +32,9 @@ export interface AuthRepository {
     oauthProviderId: string;
   }): Promise<{ merchant: AuthMerchant; user: AuthUser }>;
   linkOAuthToUser(userId: string, provider: string, providerId: string): Promise<void>;
+
+  // Slug management
+  isSlugTaken(slug: string): Promise<boolean>;
+  setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void>;
 }
 
