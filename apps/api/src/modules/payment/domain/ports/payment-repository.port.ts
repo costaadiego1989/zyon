@@ -92,4 +92,12 @@ export interface PaymentRepository {
    * Deletes reservations older than their expires_at without a corresponding approved intent.
    */
   reapExpiredCryptoReservations(): Promise<number>;
+  /**
+   * Lists payment intents by merchant, optionally filtered by status prefix.
+   * Used by dashboard to render chargeback/dispute lists.
+   */
+  listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]>;
 }

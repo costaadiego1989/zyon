@@ -1,28 +1,26 @@
 /**
- * STOREFRONT API CLIENT — consumes headless API v1 exclusively.
+ * STOREFRONT API CLIENT
  *
- * All calls go through /api/v1 proxy (Next.js route that injects API key).
- * No internal routes. No feature flags. Pure headless commerce consumer.
+ * Architecture:
+ * - OUR storefront is multi-tenant (serves many merchants by slug)
+ * - External customers are single-tenant (have their own API key)
  *
- * This is how ANY customer (PHP, React Native, Flutter) would consume the API.
+ * For our storefront:
+ * - Catalog/products: internal route (scoped by merchantId param)
+ * - Checkout/messages: internal route (uses embed token for auth)
+ * - Cart: internal route (scoped by merchantId)
+ * - Settings: loaded via SSR (server-client.ts)
+ *
+ * For external customers consuming our headless API:
+ * - Everything goes through /v1 with their API key
+ * - They DON'T use this file — they use the SDK (zyon-sdk)
+ *
+ * This file is the STOREFRONT's integration layer. Customers use the SDK.
  */
 
-const API_V1 = "/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 // ─── Types ───────────────────────────────────────────────────
-
-export interface ApiEnvelope<T> {
-  data: T;
-  meta: {
-    request_id: string;
-    timestamp: string;
-    version: string;
-  };
-  pagination?: {
-    next_cursor: string | null;
-    has_more: boolean;
-  };
-}
 
 export interface Product {
   id: string;
@@ -44,7 +42,7 @@ export interface ProductListResponse {
   nextCursor?: string;
 }
 
-// ─── HTTP Client ─────────────────────────────────────────────
+// ─── HTTP ────────────────────────────────────────────────────
 
 async function safeFetch(url: string, options?: RequestInit) {
   const res = await fetch(url, {
@@ -58,88 +56,18 @@ async function safeFetch(url: string, options?: RequestInit) {
   if (!res.ok) {
     const error: any = new Error(`HTTP ${res.status}`);
     error.status = res.status;
-    try {
-      error.body = await res.json();
-    } catch {
-      // ignore
-    }
+    try { error.body = await res.json(); } catch { /* */ }
     throw error;
   }
 
   return res.json();
 }
 
-// ─── Mappers ─────────────────────────────────────────────────
-
-function mapV1Product(p: any): Product {
-  const firstVariant = p.variants?.[0];
-  const price = firstVariant?.base_price_minor ?? p.price ?? 0;
-
-  return {
-    id: p.id,
-    name: p.name,
-    description: p.description,
-    price,
-    image: firstVariant?.media?.[0]?.url ?? p.image ?? p.images?.[0],
-    images: firstVariant?.media?.map((m: any) => m.url) ?? p.images ?? [],
-    inStock: p.in_stock ?? (firstVariant ? (firstVariant.stock_quantity - (firstVariant.stock_reserved ?? 0)) > 0 : true),
-    rating: p.rating ?? p.average_rating,
-    reviewCount: p.review_count ?? p.reviewCount,
-    variants: p.variants?.map((v: any) => ({
-      id: v.id,
-      value: v.sku ?? v.attributes?.color ?? v.attributes?.size ?? v.id,
-    })),
-    discountPercent: p.discount_percent ?? p.discountPercent,
-    originalPrice: p.original_price ?? p.originalPrice,
-  };
-}
-
-function mapV1CheckoutSettings(d: any): any {
-  const wb = d.widget_behavior ?? {};
-  return {
-    mode: d.mode ?? "silent_until_trigger",
-    position: wb.position ?? "bottom_right",
-    fabColor: wb.fab_color,
-    inviteText: wb.invite_text,
-    presentationMode: wb.presentation_mode ?? "fab",
-    cartPresentationMode: wb.cart_presentation_mode ?? "floating",
-    budgetModeEnabled: wb.budget_mode_enabled ?? false,
-    startMinimized: wb.start_minimized ?? false,
-    initialDelaySeconds: wb.initial_delay_seconds ?? 4,
-    showCartBadge: wb.show_cart_badge ?? true,
-    fabClickAction: wb.fab_click_action,
-    fabRedirectUrl: wb.fab_redirect_url,
-    openWidgetOnTrigger: wb.open_widget_on_trigger ?? true,
-    enabledTriggers: (d.trigger_rules ?? [])
-      .filter((r: any) => r.enabled)
-      .map((r: any) => r.trigger),
-    suppressedSteps: (d.suppression_rules ?? [])
-      .filter((r: any) => r.enabled)
-      .map((r: any) => r.step),
-    blockedRegions: d.blocked_regions ?? [],
-    minimumCartValue: d.minimum_cart_value,
-    handoffEnabled: d.handoff?.enabled ?? false,
-    handoffMessage: d.handoff?.message ?? "",
-    handoffChannels: d.handoff?.channels ?? [],
-    cooldownSeconds: d.cooldown_seconds,
-    maxInterventionsPerSession: d.max_interventions_per_session,
-  };
-}
-
-function mapV1MessageResponse(d: any): any {
-  return {
-    message: d.content ?? d.message ?? "",
-    blocks: d.experience?.blocks ?? d.blocks ?? [],
-    suggested_next: d.experience?.suggested_next ?? d.suggested_next ?? [],
-    conversation_id: d.conversation_id,
-  };
-}
-
-// ─── Products API ────────────────────────────────────────────
+// ─── Products (internal route — multi-tenant by merchantId) ──
 
 export const productsApi = {
   async list(
-    _merchantId: string,
+    merchantId: string,
     options?: {
       query?: string;
       categoryId?: string;
@@ -148,74 +76,72 @@ export const productsApi = {
     },
   ): Promise<ProductListResponse> {
     const params = new URLSearchParams();
-    if (options?.query) params.set("search", options.query);
+    if (options?.query) params.set("query", options.query);
+    if (options?.categoryId) params.set("categoryId", options.categoryId);
     if (options?.limit) params.set("limit", String(options.limit));
     if (options?.cursor) params.set("cursor", options.cursor);
 
     const qs = params.toString();
-    const envelope: ApiEnvelope<any[]> = await safeFetch(
-      `${API_V1}/products${qs ? `?${qs}` : ""}`,
+    const result = await safeFetch(
+      `${API_BASE}/merchants/${merchantId}/products${qs ? `?${qs}` : ""}`,
+      { credentials: "include" },
     );
 
     return {
-      products: envelope.data.map(mapV1Product),
-      nextCursor: envelope.pagination?.next_cursor ?? undefined,
+      products: result.products ?? [],
+      nextCursor: result.nextCursor,
     };
   },
 
-  async get(_merchantId: string, productId: string): Promise<Product | null> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/products/${productId}`,
+  async get(merchantId: string, productId: string): Promise<Product | null> {
+    const result = await safeFetch(
+      `${API_BASE}/merchants/${merchantId}/products/${productId}`,
+      { credentials: "include" },
     );
-    return mapV1Product(envelope.data);
+    return result ?? null;
   },
 };
 
-// ─── Settings API ────────────────────────────────────────────
+// ─── Settings (loaded via SSR — this is for client-side refresh) ──
 
 export const settingsApi = {
-  async getCheckoutSettings(_merchantId: string): Promise<any> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/settings/checkout`,
+  async getCheckoutSettings(merchantId: string): Promise<any> {
+    return safeFetch(
+      `${API_BASE}/checkout-settings/widget-config?merchantId=${encodeURIComponent(merchantId)}`,
     );
-    return mapV1CheckoutSettings(envelope.data);
   },
 
-  async getStoreSettings(_slug: string): Promise<any> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/settings/store`,
-    );
-    return envelope.data;
+  async getStoreSettings(slug: string): Promise<any> {
+    return safeFetch(`${API_BASE}/storefront/${slug}/config`);
   },
 };
 
-// ─── Marketplace API ─────────────────────────────────────────
+// ─── Marketplace (internal — federated cross-merchant) ───────
 
 export const marketplaceApi = {
   async search(query: string, options?: { limit?: number }): Promise<any[]> {
     const params = new URLSearchParams();
-    params.set("search", query);
+    params.set("q", query);
     if (options?.limit) params.set("limit", String(options.limit));
 
-    const envelope: ApiEnvelope<any[]> = await safeFetch(
-      `${API_V1}/products?${params.toString()}`,
+    const result = await safeFetch(
+      `${API_BASE}/storefront/marketplace/search?${params.toString()}`,
     );
-    return envelope.data.map(mapV1Product);
+    return result.items ?? [];
   },
 
   async list(options?: { limit?: number; cursor?: string }): Promise<any[]> {
     const params = new URLSearchParams();
     if (options?.limit) params.set("limit", String(options.limit));
-    if (options?.cursor) params.set("cursor", options.cursor);
 
-    const envelope: ApiEnvelope<any[]> = await safeFetch(
-      `${API_V1}/products?${params.toString()}`,
+    const result = await safeFetch(
+      `${API_BASE}/storefront/marketplace/items?${params.toString()}`,
     );
-    return envelope.data.map(mapV1Product);
+    return result.items ?? [];
   },
 };
 
-// ─── Checkout API ────────────────────────────────────────────
+// ─── Checkout / Conversations (internal — embed token auth) ──
 
 export const checkoutApi = {
   async create(data: {
@@ -223,48 +149,44 @@ export const checkoutApi = {
     customerId?: string;
     items?: any[];
   }): Promise<any> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/checkouts`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          merchant_id: data.merchantId,
-          customer_id: data.customerId,
-          items: data.items,
-        }),
-      },
-    );
-    return envelope.data;
+    return safeFetch(`${API_BASE}/storefront/conversations`, {
+      method: "POST",
+      body: JSON.stringify({
+        merchant_id: data.merchantId,
+        customer_id: data.customerId,
+        items: data.items,
+      }),
+    });
   },
 
   async sendMessage(checkoutId: string, text: string, options?: {
+    token?: string;
     merchantId?: string;
     cartId?: string;
     history?: any[];
     variantId?: string;
   }): Promise<any> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/checkouts/${checkoutId}/messages`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          user_message: text,
-          conversation_id: checkoutId,
-        }),
-      },
-    );
-    return mapV1MessageResponse(envelope.data);
+    return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
+      method: "POST",
+      headers: options?.token ? { Authorization: `Bearer ${options.token}` } : {},
+      body: JSON.stringify({
+        merchant_id: options?.merchantId,
+        user_message: text,
+        cart_id: options?.cartId || undefined,
+        history: options?.history,
+        variant_id: options?.variantId || undefined,
+      }),
+    });
   },
 };
 
-// ─── Cart API ────────────────────────────────────────────────
+// ─── Cart (internal — scoped by merchantId) ──────────────────
 
 export const cartApi = {
-  async get(cartId: string, _merchantId: string): Promise<any> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/checkouts/${cartId}`,
+  async get(cartId: string, merchantId: string): Promise<any> {
+    return safeFetch(
+      `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}?merchantId=${encodeURIComponent(merchantId)}`,
     );
-    return envelope.data;
   },
 
   async updateItem(
@@ -273,15 +195,13 @@ export const cartApi = {
     quantity: number,
     _merchantId: string,
   ): Promise<any> {
-    const envelope: ApiEnvelope<any> = await safeFetch(
-      `${API_V1}/checkouts/${cartId}/cart`,
+    return safeFetch(
+      `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(variantId)}`,
       {
-        method: "PATCH",
-        body: JSON.stringify({
-          items: [{ variant_id: variantId, quantity }],
-        }),
+        method: quantity === 0 ? "DELETE" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quantity }),
       },
     );
-    return envelope.data;
   },
 };

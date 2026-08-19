@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { PAYMENT_INTENT_REPOSITORY } from "../../domain/ports/payment-platform-repository.port.js";
-import type { PaymentIntentRepository } from "../../domain/ports/payment-platform-repository.port.js";
+import { PAYMENT_REPOSITORY } from "../../domain/ports/payment-repository.port.js";
+import type { PaymentRepository } from "../../domain/ports/payment-repository.port.js";
 
 export interface ListPaymentChargebacksInput {
   merchantId: string;
@@ -30,38 +30,38 @@ export interface ListPaymentChargebacksOutput {
   totalWonCents: number;
 }
 
-const DISPUTE_STATUSES = ["chargeback_pending", "chargeback_disputed", "chargeback_lost", "chargeback_won"];
+const CHARGEBACK_STATUS_PREFIX = "chargeback_";
 
 @Injectable()
 export class ListPaymentChargebacksUseCase {
   constructor(
-    private readonly paymentIntentRepository: PaymentIntentRepository,
+    private readonly paymentRepository: PaymentRepository,
   ) {}
 
   async execute(
     input: ListPaymentChargebacksInput,
   ): Promise<ListPaymentChargebacksOutput> {
     // Fetch all PaymentIntents with chargeback-like status
-    const allIntents = await this.paymentIntentRepository.findByMerchantId(
+    const chargebackIntents = await this.paymentRepository.listByMerchantId(
       input.merchantId,
+      "chargeback_",
     );
 
-    const chargebackIntents = allIntents.filter((intent) =>
-      DISPUTE_STATUSES.includes(intent.status),
-    );
-
-    const chargebacks: PaymentChargebackEntry[] = chargebackIntents.map((intent) => ({
-      paymentIntentId: intent.id,
-      orderId: intent.commerceOrderId ?? intent.sessionId,
-      amountCents: intent.amountCents,
-      provider: this.detectProvider(intent),
-      providerPaymentId: intent.providerPaymentId ?? null,
-      disputeStatus: this.toDisputeStatus(intent.status),
-      disputeOpenedAt: intent.updatedAt,
-      disputeReason: null,
-      customerEmail: null,
-      createdAt: intent.createdAt,
-    }));
+    const chargebacks: PaymentChargebackEntry[] = chargebackIntents.map((intent) => {
+      const snap = intent.snapshot();
+      return {
+        paymentIntentId: snap.id,
+        orderId: snap.commerceOrderId ?? snap.sessionId,
+        amountCents: snap.amountCents,
+        provider: this.detectProvider(snap),
+        providerPaymentId: snap.providerPaymentId ?? null,
+        disputeStatus: this.toDisputeStatus(snap.status),
+        disputeOpenedAt: snap.updatedAt,
+        disputeReason: null,
+        customerEmail: null,
+        createdAt: snap.createdAt,
+      };
+    });
 
     // Filter by status if provided
     let filtered = chargebacks;

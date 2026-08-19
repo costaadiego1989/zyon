@@ -1,31 +1,27 @@
 /**
- * SERVER-SIDE API client — for Next.js Server Components, generateMetadata, etc.
+ * SERVER-SIDE API client — for Next.js Server Components (SSR).
  *
- * Calls v1 API directly with service API key (server-side only).
- * Never import this from client components.
+ * IMPORTANT: Our storefront is MULTI-TENANT (serves many merchants by slug).
+ * v1 API keys are per-merchant, so SSR config loading uses internal routes
+ * that resolve merchant by slug. Client-side uses embed token for tenant context.
+ *
+ * This is the correct pattern:
+ * - SSR: internal route (resolve slug → merchant config)
+ * - Client: /api/v1 proxy with embed token (tenant derived from token)
+ *
+ * External customers (single-tenant) use their own API key for everything.
  */
 
 const API_BASE_URL = process.env.AACP_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3009";
-const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
-
-interface ApiEnvelope<T> {
-  data: T;
-  meta: { request_id: string; timestamp: string; version: string };
-  pagination?: { next_cursor: string | null; has_more: boolean };
-}
 
 async function serverFetch(url: string, options?: RequestInit) {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
-  if (API_KEY) {
-    headers["Authorization"] = `Bearer ${API_KEY}`;
-  }
-
   const res = await fetch(url, {
     ...options,
-    headers: { ...headers, ...options?.headers as Record<string, string> },
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...options?.headers as Record<string, string>,
+    },
     cache: "no-store",
   });
 
@@ -33,25 +29,23 @@ async function serverFetch(url: string, options?: RequestInit) {
   return res.json();
 }
 
-/** Fetch store config via v1 API */
+/** Fetch store config by slug — internal route (multi-tenant resolution) */
 export async function fetchStoreConfig(slug: string): Promise<any | null> {
-  const envelope = await serverFetch(`${API_BASE_URL}/v1/settings/store`) as ApiEnvelope<any> | null;
-  return envelope?.data ?? null;
+  return serverFetch(`${API_BASE_URL}/storefront/${slug}/config`);
 }
 
-/** Fetch store stories — internal only (no v1 equivalent) */
+/** Fetch store stories by slug — internal route (CMS content) */
 export async function fetchStoreStories(slug: string): Promise<any[]> {
-  // Stories are storefront-specific CMS content, not in public API
   const data = await serverFetch(`${API_BASE_URL}/storefront/${slug}/stories`);
   return data?.categories ?? [];
 }
 
-/** Fetch products for sitemap generation */
+/** Fetch storefront index for sitemap — internal route */
 export async function fetchSitemapProducts(): Promise<Array<{ slug: string; updatedAt: string }>> {
-  const envelope = await serverFetch(`${API_BASE_URL}/v1/products?limit=100`) as ApiEnvelope<any[]> | null;
-  if (!envelope?.data) return [];
-  return envelope.data.map((p: any) => ({
-    slug: p.slug || p.id,
-    updatedAt: p.updated_at || p.created_at || new Date().toISOString(),
+  const data = await serverFetch(`${API_BASE_URL}/storefront/index`);
+  if (!data?.stores) return [];
+  return data.stores.map((s: any) => ({
+    slug: s.slug,
+    updatedAt: s.updatedAt || new Date().toISOString(),
   }));
 }

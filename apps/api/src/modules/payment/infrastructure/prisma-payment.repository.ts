@@ -334,4 +334,19 @@ export class PrismaPaymentRepository implements PaymentRepository {
     });
     return result.count;
   }
+
+  async listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]> {
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: {
+        merchantId,
+        ...(statusPrefix && { status: { startsWith: statusPrefix } }),
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+    });
+    return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
+  }
 }
