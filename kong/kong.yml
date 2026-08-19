@@ -1,0 +1,216 @@
+# Kong Declarative Configuration
+# This file defines ALL routes, services, and plugins.
+# No database needed — Kong loads this on startup.
+#
+# Flow:
+#   Client → Kong (:8000) → zyon API (:3009)
+#   Kong injects API key, applies rate limit, handles CORS.
+
+_format_version: "3.0"
+
+# ─── Services ─────────────────────────────────────────────────
+# A "service" is a backend that Kong proxies to.
+
+services:
+
+  # zyon API v1 — headless commerce endpoints
+  - name: zyon-api-v1
+    url: http://host.docker.internal:3009/v1
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+    retries: 2
+
+    routes:
+      # Products
+      - name: v1-products
+        paths:
+          - /v1/products
+        methods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+        strip_path: false
+
+      # Checkouts
+      - name: v1-checkouts
+        paths:
+          - /v1/checkouts
+        methods:
+          - GET
+          - POST
+          - PATCH
+        strip_path: false
+
+      # Orders
+      - name: v1-orders
+        paths:
+          - /v1/orders
+        methods:
+          - GET
+          - POST
+          - PATCH
+        strip_path: false
+
+      # Settings
+      - name: v1-settings
+        paths:
+          - /v1/settings
+        methods:
+          - GET
+          - PUT
+        strip_path: false
+
+      # Categories
+      - name: v1-categories
+        paths:
+          - /v1/categories
+        methods:
+          - GET
+          - POST
+          - PATCH
+          - DELETE
+          - PUT
+        strip_path: false
+
+      # Payments
+      - name: v1-payments
+        paths:
+          - /v1/payments
+        methods:
+          - GET
+          - POST
+        strip_path: false
+
+      # Webhooks
+      - name: v1-webhooks
+        paths:
+          - /v1/webhooks
+        methods:
+          - GET
+          - POST
+          - PUT
+          - DELETE
+        strip_path: false
+
+      # Analytics
+      - name: v1-analytics
+        paths:
+          - /v1/analytics
+        methods:
+          - GET
+        strip_path: false
+
+      # All other v1 routes (catch-all)
+      - name: v1-catch-all
+        paths:
+          - /v1
+        strip_path: false
+
+  # zyon Internal — storefront multi-tenant routes (NOT exposed to external clients)
+  - name: zyon-internal
+    url: http://host.docker.internal:3009
+    connect_timeout: 5000
+    write_timeout: 30000
+    read_timeout: 30000
+
+    routes:
+      # Storefront config (resolve by slug)
+      - name: internal-storefront
+        paths:
+          - /storefront
+        strip_path: false
+
+      # Merchants products (multi-tenant catalog)
+      - name: internal-merchants
+        paths:
+          - /merchants
+        strip_path: false
+
+      # Checkout settings (widget config)
+      - name: internal-checkout-settings
+        paths:
+          - /checkout-settings
+        strip_path: false
+
+      # Embed sessions
+      - name: internal-embed
+        paths:
+          - /embed
+        strip_path: false
+
+      # Support
+      - name: internal-support
+        paths:
+          - /support
+        strip_path: false
+
+      # Buyer auth
+      - name: internal-buyer
+        paths:
+          - /buyer
+        strip_path: false
+
+# ─── Plugins (Global) ─────────────────────────────────────────
+# These apply to ALL routes unless overridden per-service/route.
+
+plugins:
+
+  # CORS — allow storefront and dashboard origins
+  - name: cors
+    config:
+      origins:
+        - "http://localhost:3000"
+        - "http://localhost:3001"
+        - "http://localhost:5173"
+        - "https://*.zyon.dev"
+        - "https://*.zyon.com"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - PATCH
+        - DELETE
+        - OPTIONS
+      headers:
+        - Content-Type
+        - Authorization
+        - Idempotency-Key
+        - X-Request-Id
+      exposed_headers:
+        - X-RateLimit-Limit
+        - X-RateLimit-Remaining
+        - X-RateLimit-Reset
+        - ETag
+      credentials: true
+      max_age: 86400
+
+  # Rate limiting — protect against abuse at gateway level
+  - name: rate-limiting
+    config:
+      minute: 120
+      hour: 3600
+      policy: local
+      fault_tolerant: true
+      hide_client_headers: false
+
+  # Request size limit — prevent oversized payloads
+  - name: request-size-limiting
+    config:
+      allowed_payload_size: 10  # MB
+
+  # Logging — structured request/response logging
+  - name: file-log
+    config:
+      path: /tmp/kong-access.log
+      reopen: true
+
+# ─── Consumer + Key Auth (for external clients) ───────────────
+# External clients authenticate with their zyon API key via Kong.
+# Kong validates the key format and passes it through to the API.
+# The API itself does the actual tenant resolution from the key.
+
+# No consumer/key-auth plugin here because zyon API handles auth internally.
+# Kong is a transparent proxy — it adds CORS, rate limiting, logging, caching.
+# API keys are validated by TenantCredentialGuard in the NestJS API.
