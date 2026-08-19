@@ -7,7 +7,7 @@ import { ExternalLink, RefreshCw, PlugZap, Settings } from "lucide-react";
 import { Button } from "../../../components/Button.js";
 
 interface GatewayCardProps {
-  provider: "stripe" | "asaas" | "crypto";
+  provider: "stripe" | "asaas" | "crypto" | "mercadopago";
   name: string;
   description: string;
   iconBg: string;

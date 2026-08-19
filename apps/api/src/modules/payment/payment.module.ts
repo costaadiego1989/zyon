@@ -69,6 +69,17 @@ import {
   PaymentPlatformController,
   MerchantPaymentConnectionsController,
 } from "./presentation/http/payment-platform.controller.js";
+import {
+  MercadoPagoOAuthController,
+  MerchantMercadoPagoController,
+} from "./presentation/http/mercadopago-oauth.controller.js";
+import {
+  CreateMercadoPagoOAuthLinkUseCase,
+  HandleMercadoPagoOAuthCallbackUseCase,
+  SyncMercadoPagoConnectionUseCase,
+  RefreshMercadoPagoTokenUseCase,
+  DeleteMercadoPagoConnectionUseCase,
+} from "./application/mercadopago-platform.use-cases.js";
 
 @Module({
   imports: [
@@ -87,6 +98,8 @@ import {
     PaymentPlatformController,
     MerchantPaymentConnectionsController,
     BillingController,
+    MercadoPagoOAuthController,
+    MerchantMercadoPagoController,
   ],
   providers: [
     CreatePaymentIntentUseCase,
@@ -111,6 +124,11 @@ import {
     CreateBillingCheckoutUseCase,
     CreateBillingPortalUseCase,
     HandleStripePlatformEventUseCase,
+    CreateMercadoPagoOAuthLinkUseCase,
+    HandleMercadoPagoOAuthCallbackUseCase,
+    SyncMercadoPagoConnectionUseCase,
+    RefreshMercadoPagoTokenUseCase,
+    DeleteMercadoPagoConnectionUseCase,
     EvmCryptoPaymentAdapter,
     CheckoutPaymentAdapter,
     // Background job: reconcile stale payment intents (every 15 minutes)

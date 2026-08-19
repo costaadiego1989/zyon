@@ -46,6 +46,8 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
     onboardAsaas,
     saveAsaasConfig,
     syncAsaas,
+    onboardMercadoPago,
+    syncMercadoPago,
     saveCryptoWallet,
   } = usePaymentConnectionsPage(me);
 
@@ -73,8 +75,9 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
   const isLoading = operation === "loading";
   const stripeConn = connections.find((c) => c.provider === "stripe");
   const asaasConn = connections.find((c) => c.provider === "asaas");
+  const mercadopagoConn = connections.find((c) => c.provider === "mercadopago");
   const otherConns = connections.filter(
-    (c) => c.provider !== "stripe" && c.provider !== "asaas" && c.provider !== "crypto",
+    (c) => c.provider !== "stripe" && c.provider !== "asaas" && c.provider !== "crypto" && c.provider !== "mercadopago",
   );
   const tokenAddress = USDC_TOKEN_BY_CHAIN_NETWORK[`${crypto.config.chain}:${crypto.config.network}`];
   const activeCount = connections.filter((c) => c.status === "active").length + (crypto.config.enabled ? 1 : 0);
@@ -145,6 +148,19 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             syncingOperation="syncing-asaas"
             onConnect={() => void onboardAsaas()}
             onSync={() => void syncAsaas()}
+          />
+          <GatewayCard
+            provider="mercadopago"
+            name="Mercado Pago"
+            description="PIX, cartão e boleto — América Latina"
+            iconBg="#009EE3"
+            icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
+            connection={mercadopagoConn}
+            operation={operation}
+            connectingOperation="connecting-mercadopago"
+            syncingOperation="syncing-mercadopago"
+            onConnect={() => void onboardMercadoPago()}
+            onSync={() => void syncMercadoPago()}
           />
         </div>
       ) : null}

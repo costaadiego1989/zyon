@@ -12,8 +12,10 @@ export type Operation =
   | "loading"
   | "connecting-stripe"
   | "connecting-asaas"
+  | "connecting-mercadopago"
   | "syncing-stripe"
-  | "syncing-asaas";
+  | "syncing-asaas"
+  | "syncing-mercadopago";
 
 export type AlertKind = "success" | "error" | "info";
 
@@ -194,6 +196,38 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     }
   }
 
+  async function onboardMercadoPago() {
+    setOperation("connecting-mercadopago");
+    setAlert(null);
+    try {
+      const { url } = await api.createMercadoPagoOAuthLink();
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (e) {
+      console.error("[payment-connections]", e);
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setOperation("idle");
+    }
+  }
+
+  async function syncMercadoPago() {
+    setOperation("syncing-mercadopago");
+    setAlert(null);
+    try {
+      const updated = await api.syncMercadoPagoConnection();
+      setConnections((prev) => {
+        const idx = prev.findIndex((c) => c.id === updated.id);
+        return idx >= 0 ? prev.map((c, i) => (i === idx ? updated : c)) : [updated, ...prev];
+      });
+      showToast("success", "Conexão verificada");
+    } catch (e) {
+      console.error("[payment-connections]", e);
+      setAlert({ message: sanitizeError(e), kind: "error" });
+    } finally {
+      setOperation("idle");
+    }
+  }
+
   async function saveCryptoWallet() {
     setCrypto((prev) => ({ ...prev, saving: true, saved: false }));
     try {
@@ -240,6 +274,8 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     onboardAsaas,
     saveAsaasConfig,
     syncAsaas,
+    onboardMercadoPago,
+    syncMercadoPago,
     saveCryptoWallet,
   };
 }
