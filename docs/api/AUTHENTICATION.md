@@ -9,15 +9,15 @@ Service API keys authenticate automated integrations, backend services, and scri
 ### Header Format
 
 ```
-Authorization: Bearer sk_live_abc123def456
+Authorization: Bearer aacp_live_abc123def456
 ```
 
 ### Key Prefixes
 
 | Prefix | Environment | Purpose |
 |--------|-------------|---------|
-| `sk_live_` | Production | Real transactions, live data |
-| `sk_test_` | Sandbox | Testing, development, CI/CD |
+| `aacp_live_` | Production | Real transactions, live data |
+| `aacp_test_` | Sandbox | Testing, development, CI/CD |
 
 Test keys operate against isolated sandbox data. No real transactions are processed.
 

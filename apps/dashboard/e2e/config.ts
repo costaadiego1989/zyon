@@ -12,8 +12,8 @@ export const DASHBOARD_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhos
 export const API_BASE_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3009";
 
 /** Test credentials — NEVER hardcode real passwords in source */
-export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? "demo@zyon.com";
-export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? "demo1234";
+export const TEST_EMAIL = process.env.E2E_TEST_EMAIL ?? "costaadiego1989@gmail.com";
+export const TEST_PASSWORD = process.env.E2E_TEST_PASSWORD ?? "UeUf3900@";
 
 /** Unique identifier per test run — useful for cleanup/isolation */
 export const E2E_RUN_ID = `e2e-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

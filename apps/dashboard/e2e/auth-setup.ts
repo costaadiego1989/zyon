@@ -21,8 +21,8 @@ setup("authenticate and save state", async ({ page }) => {
   // Submit
   await page.locator("button[type='submit']").click();
 
-  // Wait for successful login — nav shell appears
-  await page.locator("nav").waitFor({ state: "visible", timeout: TIMEOUTS.auth });
+  // Wait for successful login — sidebar shell appears
+  await page.locator("aside").waitFor({ state: "visible", timeout: TIMEOUTS.auth });
 
   // Save authenticated state
   await page.context().storageState({ path: STORAGE_STATE_PATH });

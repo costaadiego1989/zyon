@@ -19,7 +19,7 @@ Every request must include one of:
 
 | Method | Header / Mechanism | Use Case |
 |--------|-------------------|-----------|
-| API Key (Bearer) | `Authorization: Bearer sk_live_...` | Service-to-service integrations |
+| API Key (Bearer) | `Authorization: Bearer aacp_live_...` | Service-to-service integrations |
 | Session Cookie | `aacp_session=...` | Dashboard / console access |
 
 API keys come in two environments: `test` and `live`. Keys are scoped — each key is granted a subset of the 31 available permission scopes.
@@ -164,35 +164,47 @@ The API is versioned via the URL path (`/v1`). Breaking changes are introduced o
 Install the official TypeScript SDK:
 
 ```bash
-npm install @zyon/sdk
+npm install zyon-sdk
 ```
 
 ```typescript
-import { createClient } from '@zyon/sdk';
+import { createClient } from 'zyon-sdk';
+import { getOrders } from 'zyon-sdk/dist/generated/orders/orders';
+import { getCheckouts } from 'zyon-sdk/dist/generated/checkouts/checkouts';
+import { getWebhooks } from 'zyon-sdk/dist/generated/webhooks/webhooks';
 
-const aacp = createClient({
-  apiKey: 'aacp_test_sk_xxxxx',
+// Initialize SDK
+const client = createClient({
+  apiKey: 'aacp_test_xxxxx',
   environment: 'sandbox', // or 'production'
 });
 
+// Get API methods for each resource
+const { ordersList, ordersGet } = getOrders();
+const { checkoutsCreate } = getCheckouts();
+const { webhooksList, webhooksCreate } = getWebhooks();
+
 // Start a checkout
-const checkout = await aacp.checkouts.start({
-  session_id: 'sess_001',
-  cart: [{ sku: 'SKU-001', name: 'Widget', price: 4990, quantity: 1 }],
+const checkout = await checkoutsCreate({
+  product_url: 'https://store.example.com/products/widget',
+  product_name: 'Widget',
+  product_price: 4990,
+  currency: 'BRL',
+  customer: { email: 'buyer@example.com' }
 });
 
 // List orders
-const orders = await aacp.orders.list({ limit: 20 });
+const orders = await ordersList({ limit: 20 });
 
 // Create a webhook
-const webhook = await aacp.webhooks.create({
+const webhook = await webhooksCreate({
   url: 'https://myapp.com/webhooks/aacp',
-  events: ['order.created', 'checkout.completed'],
+  events: ['order.created', 'checkout.completed']
 });
 ```
 
 **Links:**
-- [npm: @zyon/sdk](https://www.npmjs.com/package/@zyon/sdk)
+- [npm: zyon-sdk](https://www.npmjs.com/package/zyon-sdk)
 - [SDK Source (GitHub)](https://github.com/zyon-platform/aacp/tree/main/packages/sdk)
 - [SDK README](https://github.com/zyon-platform/aacp/blob/main/packages/sdk/README.md)
 

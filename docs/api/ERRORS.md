@@ -34,7 +34,7 @@ Missing, invalid, or expired credentials.
 
 ```bash
 curl https://api.aacp.dev/v1/orders \
-  -H "Authorization: Bearer sk_live_invalid_key"
+  -H "Authorization: Bearer aacp_live_invalid_key"
 ```
 
 ```json

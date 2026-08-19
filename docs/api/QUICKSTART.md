@@ -11,8 +11,8 @@ Make your first API call in under 5 minutes.
 
 ```bash
 # Your test key looks like:
-# sk_test_abc123def456...
-export AACP_API_KEY="sk_test_your_key_here"
+# aacp_test_abc123def456...
+export AACP_API_KEY="aacp_test_your_key_here"
 ```
 
 ## 2. Create a Checkout Session
@@ -219,8 +219,33 @@ curl https://api.aacp.dev/v1/orders/ord_m4n5o6p7 \
 
 ## Next Steps
 
-- Install the SDK: `npm install @zyon/sdk` — [npm package](https://www.npmjs.com/package/@zyon/sdk)
+- Install the SDK: `npm install zyon-sdk` — [npm package](https://www.npmjs.com/package/zyon-sdk)
 - Set up [Webhooks](./WEBHOOKS.md) to receive real-time event notifications
 - Explore the [full API reference](https://api.aacp.dev/docs)
 - Configure [Analytics](https://console.aacp.dev/analytics) in the dashboard
 - Read about [Error Handling](./ERRORS.md) for production integrations
+
+### SDK Usage Example
+
+Once you have an API key, use the TypeScript SDK:
+
+```typescript
+import { createClient } from 'zyon-sdk';
+import { getCheckouts } from 'zyon-sdk/dist/generated/checkouts/checkouts';
+
+const client = createClient({
+  apiKey: 'aacp_test_your_key_here',
+  environment: 'sandbox'
+});
+
+const { checkoutsCreate } = getCheckouts();
+const checkout = await checkoutsCreate({
+  product_url: 'https://store.example.com/products/premium-headphones',
+  product_name: 'Premium Wireless Headphones',
+  product_price: 29900,
+  currency: 'BRL',
+  customer: { name: 'Maria Silva', email: 'maria@example.com' }
+});
+
+console.log(`Checkout created: ${checkout.data.id}`);
+```
