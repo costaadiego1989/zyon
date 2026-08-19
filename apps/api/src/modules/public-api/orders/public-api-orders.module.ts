@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { IntegrationsModule } from '../../integrations/integrations.module.js';
 import { OperationsModule } from '../../operations/operations.module.js';
 import { OrdersV1Controller } from './presentation/http/orders-v1.controller.js';
 
@@ -9,7 +10,7 @@ import { OrdersV1Controller } from './presentation/http/orders-v1.controller.js'
  * No business logic here — only HTTP → use-case → DTO mapping.
  */
 @Module({
-  imports: [OperationsModule],
+  imports: [IntegrationsModule, OperationsModule],
   controllers: [OrdersV1Controller],
 })
 export class PublicApiOrdersModule {}

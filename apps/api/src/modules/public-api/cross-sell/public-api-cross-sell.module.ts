@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { IntegrationsModule } from '../../integrations/integrations.module.js';
 import { CrossSellModule } from '../../cross-sell/cross-sell.module.js';
 import { CrossSellV1Controller } from './presentation/http/cross-sell-v1.controller.js';
 
@@ -9,7 +10,7 @@ import { CrossSellV1Controller } from './presentation/http/cross-sell-v1.control
  * No business logic here — only HTTP → use-case → DTO mapping.
  */
 @Module({
-  imports: [CrossSellModule],
+  imports: [IntegrationsModule, CrossSellModule],
   controllers: [CrossSellV1Controller],
 })
 export class PublicApiCrossSellModule {}

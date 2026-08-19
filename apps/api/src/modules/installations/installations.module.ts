@@ -31,6 +31,6 @@ import { InstallationsController } from "./presentation/http/installations.contr
       inject: [PRISMA_CLIENT],
     },
   ],
-  exports: [GetInstallationUseCase, ResolveInstallationForEmbedUseCase],
+  exports: [GetInstallationUseCase, ResolveInstallationForEmbedUseCase, ListInstallationsUseCase, CreateInstallationUseCase, UpdateInstallationUseCase],
 })
 export class InstallationsModule {}
