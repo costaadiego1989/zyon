@@ -61,7 +61,7 @@ export function AuthScreen(props: AuthScreenProps) {
         <header className="auth-header">
           <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
           <div className="auth-header__sep" />
-          <span className="auth-header__label">Headless Commerce Platform</span>
+          <span className="auth-header__label">IA First Headless Commerce</span>
         </header>
 
         <div className="auth-form-container">

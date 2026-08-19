@@ -15,8 +15,8 @@
   flex-direction: column;
   justify-content: center;
   padding: 24px;
-  max-height: 100vh;
-  overflow: hidden;
+  min-height: 100vh;
+  overflow: visible;
 }
 
 .auth-header {
@@ -27,7 +27,7 @@
 }
 
 .auth-header__logo {
-  height: 36px;
+  height: 48px;
   width: auto;
   flex: none;
 }
@@ -45,7 +45,7 @@
 }
 
 .auth-header__label {
-  font: 600 11px 'IBM Plex Mono', monospace;
+  font: 600 12px 'IBM Plex Mono', monospace;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: oklch(58% 0.006 145);
