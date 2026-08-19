@@ -2,10 +2,24 @@ import type { ShipmentEntity } from "../entities/shipment.entity.js";
 
 export const SHIPMENT_REPOSITORY = Symbol("SHIPMENT_REPOSITORY");
 
+export type ListShipmentsInput = {
+  merchantId: string;
+  limit: number;
+  cursor?: string;
+  orderId?: string;
+  status?: string;
+};
+
+export type ListShipmentsResult = {
+  data: ShipmentEntity[];
+  nextCursor: string | null;
+};
+
 export interface ShipmentRepository {
   save(shipment: ShipmentEntity): Promise<void>;
   findById(id: string, merchantId: string): Promise<ShipmentEntity | null>;
   findByOrderId(orderId: string, merchantId: string): Promise<ShipmentEntity | null>;
+  listByMerchant(input: ListShipmentsInput): Promise<ListShipmentsResult>;
   /**
    * P2 fix: scoped by merchantId to enforce the tenant boundary invariant.
    * The tracking-code lookup is used by the webhook ingest path; merchantId

@@ -6,6 +6,7 @@ import { TRACKING_EVENT_REPOSITORY } from "./domain/ports/tracking-event-reposit
 import { PrismaShipmentRepository } from "./infrastructure/repositories/prisma-shipment.repository.js";
 import { PrismaTrackingEventRepository } from "./infrastructure/repositories/prisma-tracking-event.repository.js";
 import { CreateShipmentUseCase } from "./application/use-cases/create-shipment.use-case.js";
+import { ListShipmentsUseCase } from "./application/use-cases/list-shipments.use-case.js";
 import { RecordTrackingEventUseCase } from "./application/use-cases/record-tracking-event.use-case.js";
 import { CancelShipmentUseCase } from "./application/use-cases/cancel-shipment.use-case.js";
 import { FulfillmentOnOrderCompletedHandler } from "./infrastructure/event-handlers/on-order-completed.handler.js";
@@ -27,10 +28,11 @@ import { TrackingWebhookController } from "./presentation/http/tracking-webhook.
       inject: [PRISMA_CLIENT],
     },
     CreateShipmentUseCase,
+    ListShipmentsUseCase,
     RecordTrackingEventUseCase,
     CancelShipmentUseCase,
     FulfillmentOnOrderCompletedHandler
   ],
-  exports: [CreateShipmentUseCase, SHIPMENT_REPOSITORY]
+  exports: [CreateShipmentUseCase, ListShipmentsUseCase, SHIPMENT_REPOSITORY]
 })
 export class FulfillmentModule {}

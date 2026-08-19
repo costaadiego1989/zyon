@@ -95,7 +95,12 @@ class FakeShipmentRepository implements ShipmentRepository {
     return null;
   }
 
+  async listByMerchant() {
+    return { data: [], nextCursor: null };
+  }
+
   async findByTrackingCode() {
     return null;
   }
 }
+

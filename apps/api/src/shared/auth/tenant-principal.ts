@@ -35,6 +35,8 @@ export const TENANT_API_SCOPES = [
   "billing:write",
   "integrations:read",
   "integrations:write",
+  "marketplace:read",
+  "marketplace:write",
 ] as const;
 
 export type TenantApiScope = (typeof TENANT_API_SCOPES)[number];

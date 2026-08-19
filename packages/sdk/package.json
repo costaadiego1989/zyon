@@ -1,5 +1,5 @@
 {
-  "name": "@zyon/sdk",
+  "name": "zyon-sdk",
   "version": "1.0.0",
   "description": "TypeScript SDK for the Zyon Integration API — AI-powered checkout platform",
   "type": "module",

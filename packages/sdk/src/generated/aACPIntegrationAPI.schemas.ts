@@ -731,12 +731,10 @@ export type CommerceConnectionsConnectBodyOneOfSeven = {
 export type CommerceConnectionsConnectBody = CommerceConnectionsConnectBodyOneOf | CommerceConnectionsConnectBodyOneOfThree | CommerceConnectionsConnectBodyOneOfFive | CommerceConnectionsConnectBodyOneOfSeven;
 
 
-export type CustomerDetail = Record<string, unknown>;
+// ─── Auto-generated stubs for referenced but undefined schemas ───
+export type Order = Record<string, unknown>;
 export type OrderDetail = Record<string, unknown>;
+export type CustomerDetail = Record<string, unknown>;
 export type PaymentSummary = Record<string, unknown>;
 export type WebhookEndpoint = Record<string, unknown>;
-
-
-export type Order = Record<string, unknown>;
 export type CommerceConnection = Record<string, unknown>;
-

@@ -91,7 +91,7 @@ export class DeletePaymentConnectionUseCase {
     private readonly repository: PaymentPlatformRepository,
   ) {}
 
-  async execute(merchantId: string, provider: "stripe" | "asaas"): Promise<{ success: boolean }> {
+  async execute(merchantId: string, provider: "stripe" | "asaas" | "mercadopago"): Promise<{ success: boolean }> {
     await this.repository.deleteConnection(merchantId, provider);
     return { success: true };
   }

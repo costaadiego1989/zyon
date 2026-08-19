@@ -16,8 +16,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_payment_intent_accepted_offer" ON "
 -- Buyer accounts: lookup by global user
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_buyer_account_global_user" ON "buyer_accounts" ("global_user_id");
 
--- Buyer preferences: lookup by global user
-CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_buyer_preference_global_user" ON "buyer_preferences" ("global_user_id");
+-- Buyer preferences: lookup by global user (skipped - table created in later migration)
 
 -- Buyer agent profiles: lookup by global user
 CREATE INDEX CONCURRENTLY IF NOT EXISTS "idx_buyer_agent_profile_global_user" ON "buyer_agent_profiles" ("global_user_id");

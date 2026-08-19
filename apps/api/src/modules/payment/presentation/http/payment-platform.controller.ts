@@ -355,7 +355,7 @@ export class MerchantPaymentConnectionsController {
   })
   @Delete(":provider")
   async disconnect(@Req() request: unknown, @Param("provider") provider: string) {
-    if (provider !== "stripe" && provider !== "asaas") throw new BadRequestException("payment_connection_provider_invalid");
+    if (provider !== "stripe" && provider !== "asaas" && provider !== "mercadopago") throw new BadRequestException("payment_connection_provider_invalid");
     return this.deleteConnection.execute(humanPrincipal(request).tenantId, provider);
   }
 }
@@ -487,7 +487,7 @@ function humanPrincipal(
   return principal;
 }
 
-function toConnectionResponse(connection: PaymentConnectionSnapshot) {
+export function toConnectionResponse(connection: PaymentConnectionSnapshot) {
   return {
     id: `${connection.merchantId}:${connection.provider}`,
     provider: connection.provider,
