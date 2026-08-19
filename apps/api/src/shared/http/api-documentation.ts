@@ -46,10 +46,16 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
     path: /^\/integrations\/api-keys(?:\/[^/]+(?:\/rotate)?)?$/,
     security: "human",
   },
-  { methods: ["get", "post", "delete"], path: /^\/commerce\/connections(?:\/.*)?$/, security: "tenant" },
+  { methods: ["get", "post"], path: /^\/commerce\/connections$/, security: "tenant" },
+  { methods: ["get", "patch", "delete"], path: /^\/commerce\/connections\/[^/]+$/, security: "tenant" },
+  { methods: ["post"], path: /^\/commerce\/connections\/[^/]+\/sync$/, security: "tenant" },
   { methods: ["get"], path: /^\/catalog(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/payments\/connections(?:\/.*)?$/, security: "human" },
-  { methods: ["get", "post"], path: /^\/billing(?:\/.*)?$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/plans$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/subscription$/, security: "human" },
+  { methods: ["post"], path: /^\/billing\/subscription\/change$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/usage$/, security: "human" },
+  { methods: ["get"], path: /^\/billing\/invoices$/, security: "human" },
   { methods: ["get", "put"], path: /^\/support\/settings$/, security: "tenant" },
   { methods: ["get", "post", "patch"], path: /^\/support\/tickets(?:\/.*)?$/, security: "tenant" },
   { methods: ["get", "post"], path: /^\/onboarding(?:\/.*)?$/, security: "session" },
@@ -244,6 +250,14 @@ export function configureApiDocumentation(app: INestApplication): OpenAPIObject 
     console.warn(`[Swagger] Fallback to shallow scan: ${err.message}`);
   }
   const publicDocument = createPublicApiDocument(generated);
+
+  app.use("/", (request: Request, response: Response, next: NextFunction) => {
+    if (request.method !== "GET" || request.path !== "/") {
+      next();
+      return;
+    }
+    response.redirect(301, "/docs");
+  });
 
   SwaggerModule.setup("docs", app, publicDocument, {
     ui: false,
