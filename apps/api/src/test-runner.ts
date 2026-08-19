@@ -147,6 +147,14 @@ import "./modules/fulfillment/application/use-cases/fulfillment.use-cases.spec.j
 import "./modules/scraping-agent/application/use-cases/request-price-quote.use-case.spec.js";
 import "./modules/checkout/presentation/http/checkout.shipping-evaluate.e2e-spec.js";
 import "./modules/checkout/infrastructure/adapters/deterministic-chat.e2e-spec.js";
+import "./modules/marketplace/domain/services/__tests__/commission-calculator.service.spec.js";
+import "./modules/marketplace/domain/services/__tests__/settlement-state-machine.service.spec.js";
+import "./modules/marketplace/application/use-cases/__tests__/add-cross-store-item.use-case.spec.js";
+import "./modules/marketplace/application/use-cases/__tests__/get-seller-orders.use-case.spec.js";
+import "./modules/marketplace/application/use-cases/__tests__/get-seller-stats.use-case.spec.js";
+import "./modules/marketplace/application/use-cases/__tests__/handle-marketplace-chargeback.use-case.spec.js";
+import "./modules/marketplace/application/use-cases/__tests__/place-cross-store-order.use-case.spec.js";
+import "./modules/marketplace/application/use-cases/__tests__/process-scheduled-transfers.use-case.spec.js";
 import "./modules/experiments/domain/services/experiment-router.service.spec.js";
 import "./modules/experiments/domain/services/significance-calculator.service.spec.js";
 import "./modules/experiments/domain/services/prompt-validator.service.spec.js";

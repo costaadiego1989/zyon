@@ -11,7 +11,7 @@ import { supportEndpoints } from "./endpoints/support.js";
 import { otherEndpoints } from "./endpoints/other.js";
 import { catalogEndpoints } from "./endpoints/catalog.js";
 import { experimentsEndpoints } from "./endpoints/experiments.js";
-import { marketplaceEndpoints } from "./endpoints/marketplace.js";
+import { marketplaceEndpoints } from "./endpoints/marketplace-v2.js";
 
 export * from "./http/index.js";
 export * from "./types.js";

@@ -1,192 +1,245 @@
-# Roadmap
+# Marketplace Dashboard Roadmap
 
-**Current Milestone:** Functional AACP Checkout MVP
-**Status:** In Progress
+## Phase 1: Core Settlement Visibility (Foundation)
 
----
+### 1.1 Dashboard Module Controller
+- Wire `GetSellerStatsUseCase` → `GET /marketplace/dashboard/stats`
+- Wire `GetSellerOrdersUseCase` → `GET /marketplace/dashboard/orders`
+- Create `GET /marketplace/dashboard/settlements` → list + filter
+- Create `GET /marketplace/dashboard/settlements/:id` → detail + timeline
 
-## Functional AACP Checkout MVP
+**Depends on:** API use-cases, repos (already done)  
+**Deliverable:** API endpoints ready for dashboard client  
+**Tests:** Controller unit + integration
 
-**Goal:** A merchant can configure rules, embed a secure checkout widget, negotiate with a buyer, charge the buyer through Asaas, sync the order to commerce, and see analytics.
-**Target:** Shippable local/pilot MVP.
+### 1.2 Settlement Timeline Component
+- Render settlement state machine as visual timeline
+- Show windows: return, transfer, chargeback
+- Display timestamps, status badge, action buttons
+- Responsive, accessible
 
-### Features
+**Depends on:** 1.1  
+**Deliverable:** React component + CSS  
+**Tests:** Component snapshots, state transitions
 
-**Checkout Session Identity** - IN PROGRESS
+### 1.3 Settlement Detail Panel
+- Pull settlement data via API
+- Show line items, seller info, amounts
+- Render timeline component
+- Link to debt ledger (if debt exists)
 
-- Create `session_id` and `global_user_id`.
-- Link external customer identifiers to the global buyer identity.
-- Keep all history scoped by `merchant_id`.
-- Close the checkout bounded context with TDD tasks documented in `.specs/features/checkout-module/`.
-- Cover checkout domain, use cases, repository ports, event contracts, outbox-ready flow, and compatibility e2e tests before moving to the next module.
-
-**Decision and Offer Engine** - IN PROGRESS
-
-- Score abandonment from checkout events.
-- Trigger the agent only on meaningful hesitation.
-- Authorize discounts and shipping offers using margin rules.
-
-**Conversational Widget** - IN PROGRESS
-
-- Embed as Web Component.
-- Capture checkout signals.
-- Chat with the buyer and show offer actions.
-- Move to a token-only secure embed that does not receive sensitive cart, margin, cost, or customer data.
-
-**Widget Conversation Flow Fixes** - NEXT
-
-- Fix 8 confirmed UI/UX bugs: composer visibility during streaming, coupon quick-reply gate, ShippingSelector render, freight totals, CouponBox layout, transparent card form, support fallback.
-- Install Playwright and add E2E coverage for conversation happy path, card form, and support panel.
-- Spec: `.specs/features/widget-conversation-fixes/`.
-
-**User Hub Buyer Panel** - NEXT
-
-- Wire `UserPanel` to real buyer API (`/buyer/me/*` endpoints).
-- Implement `useBuyerHub` hook replacing merchant-scoped `useAccountHub`.
-- Complete Profile, Orders, Agent, and Settings tabs with real data and saves.
-- Spec: `.specs/features/user-hub-buyer-panel/`.
-
-**Payment Asaas** - PLANNED
-
-- Create payment intents for checkout sessions.
-- Charge buyers through Asaas without storing raw card data or CVV.
-- Confirm or fail checkout through idempotent Asaas webhooks.
-
-**Commerce Sync** - PLANNED
-
-- Validate cart server-side through commerce adapters.
-- Create pending orders in WooCommerce/Magento/VTEX via platform APIs.
-- Mark commerce orders as paid only after payment approval.
-- Platform adapters implement common `CommerceAdapter` port interface.
-
-**Billing Asaas** - PLANNED
-
-- Charge merchants for SaaS usage separately from buyer payments.
-- Consume metering events and enforce plan quotas.
-
-**Merchant Dashboard** - IN PROGRESS
-
-- Configure commercial and shipping rules.
-- Show conversations, offers, and conversion metrics.
+**Depends on:** 1.2  
+**Deliverable:** Modal/panel in Orders tab  
+**Tests:** E2E: navigate to settlement, verify state timeline
 
 ---
 
-## Post-MVP Hardening
+## Phase 2: Debt Management
 
-**Goal:** Move from dev MVP to merchant pilot.
+### 2.1 Debt Repository + Use-case
+- Implement `PrismaMarketplaceSellerDebtRepository`
+- Create `GetSellerDebtsUseCase`
+- Create `ResolveSellerDebtUseCase`
+- Tests: unit + integration
 
-### Features
+**Depends on:** API module (Prisma schema should have debt table)  
+**Deliverable:** Use-cases, full test coverage  
+**Tests:** Unit tests for all methods
 
-**Modular DDD Foundation** - PLANNED
+### 2.2 Debt API Endpoint
+- `GET /marketplace/dashboard/debts` → seller outstanding debts
+- `GET /marketplace/dashboard/debts/:id` → detail + deduction history
+- `POST /marketplace/dashboard/debts/:id/resolve` → mark resolved (admin only)
+- Validate merchant boundary
 
-- Document module ownership for checkout, merchant, decision, shipping, conversation, commerce, payment, analytics, and recovery.
-- Prepare Prisma/PostgreSQL persistence, CQRS, RabbitMQ outbox, event contracts, and TDD tasks.
-- Feature spec: `.specs/features/modular-ddd-foundation/`.
+**Depends on:** 2.1  
+**Deliverable:** Controller endpoints  
+**Tests:** Unit + integration
 
-**PostgreSQL Persistence with Prisma** - PLANNED
+### 2.3 Debt Ledger UI
+- Render outstanding debts table
+- Show: settlement ref, amount, status, created/resolved dates
+- Deduction history (settlement where debt was deducted from)
+- Link to settlement detail
 
-- Replace in-memory repositories behind existing ports.
-- Persist sessions, events, offers, rules, conversations, integrations, outbox, and read models.
-- Keep all commands and queries scoped by `merchant_id`.
+**Depends on:** 2.2  
+**Deliverable:** React component + CSS  
+**Tests:** Component snapshots, data binding
 
-**RabbitMQ Outbox Eventing** - PLANNED
+### 2.4 Debt Integration with Settlement Timeline
+- When settlement is `chargeback_debt`, show debt impact
+- Show deduction history on settlement detail
+- Link debt ledger from settlement
 
-- Publish domain facts through durable outbox workers.
-- Use `aacp.events`, `aacp.retry`, and `aacp.dlx` topology.
-- Keep consumers idempotent and responsibility-scoped.
-
-**VTEX Payment Provider Homologation** - PLANNED
-
-- Implement PPP endpoints (manifest, create payment, capture, cancel, refund).
-- Run VTEX Payment Provider Test Suite.
-- Submit for VTEX review and connector publication.
-
-**Multi-Platform Commerce Adapters** - PLANNED
-
-- WooCommerce adapter (REST API + Stripe gateway).
-- Magento adapter (REST API + Braintree/Stripe nonce).
-- Tray Commerce adapter (pending viability confirmation).
-
-**A/B Holdout Analytics** - PLANNED
-**Payment Failure Rescue** - PLANNED
-
----
-
-## Architecture Hardening
-
-**Goal:** Eliminate critical couplings before new features land (cross-sell, buyer wallet, scraping agent, fulfillment).
-**Plan doc:** `docs/architecture/refactor-plan.md`
-**ADRs:** `docs/architecture/adr/0003` (EventBus), `0004` (Prisma isolation), `0005` (multi-tenant)
-
-Waves ship independently — no big-bang. Each wave leaves the system deployable.
-
-### Wave 0 — CI Hygiene (1 sprint) - PLANNED
-
-- `eslint-plugin-boundaries` blocking cross-layer and cross-context infra imports.
-- CI gate: test + lint + typecheck + Prisma integration on every PR.
-- Coverage reporting (`--coverage`) published to CI.
-- Feature spec: `.specs/features/hardening-wave-0-ci-hygiene/`.
-
-### Wave 1 — PersistenceModule + Prisma Isolation (1–2 sprints) - PLANNED
-
-- Move `prisma-client.ts` from `checkout/` to `shared/persistence/`.
-- `PersistenceModule` global — single registered client.
-- Tenant middleware filters all `findMany`/`findFirst`/`update`/`delete` by `merchantId`.
-- Success: zero cross-module `../checkout/infrastructure/prisma` imports.
-- Feature spec: `.specs/features/hardening-wave-1-persistence-module/`.
-
-### Wave 2 — CheckoutRepository Split (2 sprints) - PLANNED
-
-- Explode 17-method God Port into: `CheckoutSessionRepository`, `OfferRepository`, `OrderRepository`, `MerchantRulesRepository`, `BuyerIdentityRepository`, `OutboxRepository`, `DashboardReadModel`.
-- Migrate use-case by use-case; each ships as a small PR with tests.
-- Success: `CheckoutRepository` deleted; each use-case test mocks only its own port.
-- Feature spec: `.specs/features/hardening-wave-2-checkout-repo-split/`.
-
-### Wave 3 — EventBus + OutboxDispatcher (2 sprints) - PLANNED
-
-- `@nestjs/cqrs` in-process EventBus.
-- `OutboxDispatcher` (BullMQ + Redis) with idempotency by `event_id`.
-- Payment/Negotiation/Embed decoupled from checkout use-case injection.
-- Success: `payment` and `negotiation` import nothing from `checkout/application/`.
-- Feature spec: `.specs/features/hardening-wave-3-event-bus-outbox/`.
-
-### Wave 4 — TenantContext + RLS (1 sprint) - PLANNED
-
-- `AsyncLocalStorage` loading `{ merchantId, userId, role }` per request.
-- `TenantGuard` global + `@CurrentTenant()` decorator.
-- Postgres RLS optional via `PRISMA_RLS=true`.
-- Success: 1000-request cross-tenant fuzz test returns 403/404 every time.
-- Feature spec: `.specs/features/hardening-wave-4-tenant-context/`.
-
-### Wave 5 — Observability + Resilient HttpClient (1 sprint) - PLANNED
-
-- `pino` + `nestjs-pino` structured logs with correlation-id.
-- OpenTelemetry SDK + exporter.
-- Prometheus metrics: `checkout_started_total`, `order_completed_total`, `payment_approved_total`, `outbox_lag_seconds`, `llm_latency_seconds`.
-- `HttpClient` in `shared/http/`: 5 s default timeout, 3× exponential retry, circuit breaker.
-- Feature spec: `.specs/features/hardening-wave-5-observability/`.
-
-### Wave 6 — Widget Refactor + Playwright (2 sprints) - PLANNED
-
-- Split 706-line `useCheckoutAgentViewModel` into: `useCheckoutSession`, `useCheckoutChat`, `useCheckoutCart`, `useCheckoutPayment`, `useCheckoutPanels`.
-- Zod runtime validation of API responses before render.
-- Playwright suite covering 8 critical flows from `docs/testing/test-strategy.md`.
-- Feature spec: `.specs/features/hardening-wave-6-widget-refactor/`.
-
-### Wave 7 — New Features (parallel after Wave 3) - PLANNED
-
-- Cross-sell + coupons: `docs/features/cross-sell-and-coupons.md`
-- Buyer self-checkout wallet: `docs/features/buyer-self-checkout.md`
-- Price scraping agent: `docs/features/price-scraping-agent.md`
-- Delivery + fulfillment: `docs/features/delivery-and-fulfillment.md`
-- Feature spec: `.specs/features/hardening-wave-7-new-features/`.
+**Depends on:** 1.3, 2.3  
+**Deliverable:** Connected UI  
+**Tests:** E2E: create chargeback debt, verify settlement → debt link
 
 ---
 
-## Future Considerations
+## Phase 3: Marketplace Chargeback Management
 
-- WhatsApp/email recovery.
-- ML-based abandonment scoring.
-- Advanced shipping and warehouse optimization.
-- Tray Commerce integration (pending viability).
-- Additional LATAM platform adapters.
+### 3.1 Marketplace Chargeback Use-case Tests + Implementation
+- `GetMarketplaceChargebacksUseCase` (list chargebacks for seller)
+- `HandleMarketplaceChargebackUseCase` (already done, but verify integration)
+- Tests: list by status, filter by settlement, date range
+
+**Depends on:** API repos (already exist)  
+**Deliverable:** Use-cases + full coverage  
+**Tests:** Unit tests
+
+### 3.2 Chargeback API Endpoints
+- `GET /marketplace/dashboard/chargebacks` → seller chargebacks
+- `GET /marketplace/dashboard/chargebacks/:id` → detail + state machine
+- `POST /marketplace/dashboard/chargebacks/:id/acknowledge` → mark reviewed
+- Filter/sort: status, settlement ref, date range
+
+**Depends on:** 3.1  
+**Deliverable:** Controller endpoints  
+**Tests:** Unit + integration
+
+### 3.3 Marketplace Chargeback Dashboard Tab
+- New tab in MarketplacePage: "Chargebacks"
+- Show chargeback list: settlement ref, amount, status, dates (return window end, chargeback window end)
+- Detail view: timeline, settlement link, debt info (if `chargeback_debt`)
+- Acknowledge button (dismiss notification)
+
+**Depends on:** 3.2  
+**Deliverable:** React component + CSS + hook  
+**Tests:** E2E: navigate tab, filter, view details
+
+---
+
+## Phase 4: Blocked Merchants Management
+
+### 4.1 Blocked Merchants Use-case
+- `AddBlockedMerchantUseCase`
+- `RemoveBlockedMerchantUseCase`
+- `GetBlockedMerchantsUseCase`
+- Validate merchant not already blocked, not self-block
+
+**Depends on:** Marketplace config repo  
+**Deliverable:** Use-cases + tests  
+**Tests:** Unit tests, edge cases
+
+### 4.2 Blocked Merchants API Endpoints
+- `GET /marketplace/dashboard/config/blocked` → list
+- `POST /marketplace/dashboard/config/blocked` → add (request: merchant_id)
+- `DELETE /marketplace/dashboard/config/blocked/:merchantId` → remove
+- Validate merchant_id exists, not duplicate
+
+**Depends on:** 4.1  
+**Deliverable:** Controller endpoints  
+**Tests:** Unit + integration
+
+### 4.3 Blocked Merchants UI
+- Settings tab, "Lojas Bloqueadas" section
+- Search/add form: merchant name or ID + search button
+- List: merchant name, add date, remove button + confirmation
+- Empty state: "Nenhuma loja bloqueada"
+
+**Depends on:** 4.2  
+**Deliverable:** React component + CSS  
+**Tests:** E2E: add merchant, verify list, remove
+
+---
+
+## Phase 5: Payment Chargeback Dashboard (Checkout Module)
+
+### 5.1 Payment Chargeback Use-cases
+- `GetPaymentChargebacksUseCase` (merchant chargebacks from payment processing)
+- `HandlePaymentChargebackUseCase` (create chargeback record on webhook)
+- Status: pending, disputed, resolved, lost
+- Tests: list, filter by status/date
+
+**Depends on:** Payment module (webhook intake already exists)  
+**Deliverable:** Use-cases + tests  
+**Tests:** Unit tests
+
+### 5.2 Payment Chargeback API Endpoints
+- `GET /checkout/dashboard/chargebacks` → merchant chargebacks
+- `GET /checkout/dashboard/chargebacks/:id` → detail + dispute status
+- `POST /checkout/dashboard/chargebacks/:id/dispute` → submit dispute (if open)
+- Filter: status, order ref, amount range
+
+**Depends on:** 5.1  
+**Deliverable:** Controller endpoints  
+**Tests:** Unit + integration
+
+### 5.3 Payment Chargeback Dashboard Tab
+- New page or tab in Dashboard: "Chargebacks" (payment-specific)
+- Show chargeback list: order ref, amount, status, dates (created, chargeback window end)
+- Detail: customer info, order items, reason code, dispute status
+- Dispute form if status = pending
+
+**Depends on:** 5.2  
+**Deliverable:** React component + CSS + hook  
+**Tests:** E2E: navigate to chargebacks, view detail
+
+---
+
+## Phase 6: Notifications & Real-time Updates
+
+### 6.1 Event Stream Setup
+- Webhook handlers for settlement state changes, chargebacks, debt events
+- Store events in DB (audit trail)
+- Polling endpoint: `GET /marketplace/dashboard/events?since=timestamp`
+
+**Depends on:** 1.1, 3.2, 5.2  
+**Deliverable:** Event capture + polling endpoint  
+**Tests:** Unit tests
+
+### 6.2 Dashboard Event Polling Hook
+- `useMarketplaceEvents()` — poll events every 10s
+- Parse event type, trigger toast notifications
+- Update settlement/chargeback state in real-time (if visible)
+
+**Depends on:** 6.1  
+**Deliverable:** React hook  
+**Tests:** Unit tests (mock polling)
+
+### 6.3 Toast Notifications
+- Settlement transferred → "Transferência processada"
+- Chargeback received → "Chargeback recebido"
+- Debt created → "Débito criado por chargeback"
+- Actions: dismiss, view detail
+
+**Depends on:** 6.2  
+**Deliverable:** Toast integration  
+**Tests:** E2E: verify toast appears
+
+---
+
+## Milestones
+
+| Milestone | Phases | Target |
+|-----------|--------|--------|
+| **MVP: Settlement Visibility** | 1, 2.1-2 | Week 1 |
+| **Chargeback Management** | 3, 4 | Week 2 |
+| **Payment Chargeback Parity** | 5 | Week 2 |
+| **Notifications** | 6 | Week 3 |
+| **Polish & E2E** | All | Week 4 |
+
+---
+
+## Testing Strategy
+
+- **Unit:** Use-cases, repos, services (100% coverage required)
+- **Integration:** API controllers + Prisma (with test DB)
+- **Component:** React snapshots, user interactions
+- **E2E:** Playwright tests for key flows (see TESTING.md)
+- **Gate:** All tests pass, typecheck, build
+
+## Risks
+
+1. **Settlement state machine complexity** — verify all transitions before UI
+2. **Debt deduction calculation** — must match financial rules
+3. **Real-time sync** — polling may lag; consider WebSocket if needed later
+4. **Merchant boundary** — ensure no cross-tenant data leaks
+
+## Deferred (Future)
+
+- Chargeback dispute forms
+- Seller analytics (revenue trends, chargeback rate)
+- Bulk operations (resolve multiple debts)
+- Automated debt settlement from transfers
