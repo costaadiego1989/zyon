@@ -1,0 +1,48 @@
+{
+  "name": "@zyon/sdk",
+  "version": "1.0.0",
+  "description": "TypeScript SDK for the AACP Integration API",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "generate": "orval",
+    "build": "tsc",
+    "prepublishOnly": "pnpm generate && pnpm build",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "axios": "^1.7.9"
+  },
+  "devDependencies": {
+    "orval": "^7.3.0",
+    "typescript": "^5.7.2"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zyon-platform/aacp.git",
+    "directory": "packages/sdk"
+  }
+}
