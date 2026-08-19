@@ -216,5 +216,18 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
     }> {
       return dashboardJson(base, "/marketplace/dashboard/chargebacks", { method: "GET" }, f);
     },
+
+    async getMarketplaceEvents(params?: { since?: string }): Promise<{
+      events: Array<{
+        id: string;
+        type: string;
+        settlementId: string;
+        amountCents: number;
+        createdAt: string;
+      }>;
+    }> {
+      const qs = params?.since ? `?since=${encodeURIComponent(params.since)}` : "";
+      return dashboardJson(base, `/marketplace/dashboard/events${qs}`, { method: "GET" }, f);
+    },
   };
 }

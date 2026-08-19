@@ -19,6 +19,7 @@ import { GetSettlementDetailUseCase } from "../../application/use-cases/get-sett
 import { ListSellerDebtsUseCase } from "../../application/use-cases/list-seller-debts.use-case.js";
 import { GetDebtDetailUseCase } from "../../application/use-cases/get-debt-detail.use-case.js";
 import { ListMarketplaceChargebacksUseCase } from "../../application/use-cases/list-marketplace-chargebacks.use-case.js";
+import { ListMarketplaceEventsUseCase } from "../../application/use-cases/list-marketplace-events.use-case.js";
 import { MarketplaceEntityMapper } from "../../application/mappers/marketplace-entity.mapper.js";
 
 interface AuthenticatedRequest {
@@ -43,6 +44,7 @@ export class MarketplaceController {
     private readonly listDebts: ListSellerDebtsUseCase,
     private readonly getDebtDetail: GetDebtDetailUseCase,
     private readonly listChargebacks: ListMarketplaceChargebacksUseCase,
+    private readonly listEvents: ListMarketplaceEventsUseCase,
   ) {}
 
   @Get("config")
@@ -159,6 +161,19 @@ export class MarketplaceController {
     const user = currentUser(request);
     return this.listChargebacks.execute({
       sellerMerchantId: user.merchantId,
+    });
+  }
+
+  @Get("events")
+  async events(
+    @Req() request: AuthenticatedRequest,
+    @Query("since") since?: string,
+  ) {
+    const user = currentUser(request);
+    const sinceDate = since ? new Date(since) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return this.listEvents.execute({
+      sellerMerchantId: user.merchantId,
+      since: sinceDate,
     });
   }
 }

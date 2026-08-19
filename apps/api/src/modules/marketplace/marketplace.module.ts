@@ -32,6 +32,7 @@ import { GetSettlementDetailUseCase } from "./application/use-cases/get-settleme
 import { ListSellerDebtsUseCase } from "./application/use-cases/list-seller-debts.use-case.js";
 import { GetDebtDetailUseCase } from "./application/use-cases/get-debt-detail.use-case.js";
 import { ListMarketplaceChargebacksUseCase } from "./application/use-cases/list-marketplace-chargebacks.use-case.js";
+import { ListMarketplaceEventsUseCase } from "./application/use-cases/list-marketplace-events.use-case.js";
 
 import { SyncMarketplaceIndexJob } from "./infrastructure/jobs/sync-marketplace-index.job.js";
 import { ProcessTransfersJob } from "./infrastructure/jobs/process-transfers.job.js";
@@ -253,6 +254,12 @@ const prismaProvider = {
         MARKETPLACE_SELLER_DEBT_REPOSITORY,
       ],
     },
+    {
+      provide: ListMarketplaceEventsUseCase,
+      useFactory: (settlementRepo: PrismaMarketplaceSettlementRepository) =>
+        new ListMarketplaceEventsUseCase(settlementRepo),
+      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY],
+    },
 
     // Background Jobs
     SyncMarketplaceIndexJob,
@@ -278,6 +285,7 @@ const prismaProvider = {
     ListSellerDebtsUseCase,
     GetDebtDetailUseCase,
     ListMarketplaceChargebacksUseCase,
+    ListMarketplaceEventsUseCase,
   ],
 })
 export class MarketplaceModule {}
