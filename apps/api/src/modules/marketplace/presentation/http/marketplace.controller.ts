@@ -18,6 +18,7 @@ import { ListSellerSettlementsUseCase } from "../../application/use-cases/list-s
 import { GetSettlementDetailUseCase } from "../../application/use-cases/get-settlement-detail.use-case.js";
 import { ListSellerDebtsUseCase } from "../../application/use-cases/list-seller-debts.use-case.js";
 import { GetDebtDetailUseCase } from "../../application/use-cases/get-debt-detail.use-case.js";
+import { ListMarketplaceChargebacksUseCase } from "../../application/use-cases/list-marketplace-chargebacks.use-case.js";
 import { MarketplaceEntityMapper } from "../../application/mappers/marketplace-entity.mapper.js";
 
 interface AuthenticatedRequest {
@@ -41,6 +42,7 @@ export class MarketplaceController {
     private readonly getSettlementDetail: GetSettlementDetailUseCase,
     private readonly listDebts: ListSellerDebtsUseCase,
     private readonly getDebtDetail: GetDebtDetailUseCase,
+    private readonly listChargebacks: ListMarketplaceChargebacksUseCase,
   ) {}
 
   @Get("config")
@@ -148,6 +150,14 @@ export class MarketplaceController {
     const user = currentUser(request);
     return this.getDebtDetail.execute({
       debtId,
+      sellerMerchantId: user.merchantId,
+    });
+  }
+
+  @Get("chargebacks")
+  async chargebacks(@Req() request: AuthenticatedRequest) {
+    const user = currentUser(request);
+    return this.listChargebacks.execute({
       sellerMerchantId: user.merchantId,
     });
   }
