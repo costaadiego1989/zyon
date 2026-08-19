@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { CartFAB, CartSheet } from "@zyon/checkout-ui";
 import { useWidgetConfig } from "@/lib/widget-config";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+import { checkoutApi } from "@/lib/api/api-client";
 
 interface NativeCartPanelProps {
   merchantId?: string;
@@ -75,25 +74,15 @@ export default function NativeCartPanel({
     customerPhone: string;
     note?: string;
   }) => {
-    const res = await fetch(`${API_BASE}/storefront/budget-requests`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        merchant_id: merchantId,
-        customer_name: data.customerName,
-        customer_email: data.customerEmail,
-        customer_phone: data.customerPhone,
-        items: cart.items.map((item) => ({
-          variantId: item.variantId,
-          productName: item.productName,
-          quantity: item.quantity,
-          price: item.price,
-        })),
-        total: cart.total,
-        note: data.note,
-      }),
+    await checkoutApi.create({
+      merchantId: merchantId!,
+      items: cart.items.map((item) => ({
+        variantId: item.variantId,
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.price,
+      })),
     });
-    if (!res.ok) throw new Error("budget_request_failed");
     clearCart();
   };
 

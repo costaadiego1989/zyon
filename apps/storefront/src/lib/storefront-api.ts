@@ -1,4 +1,9 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+/**
+ * Storefront-specific API calls that DON'T have a v1 equivalent yet.
+ * These stay on internal routes until migrated.
+ */
+
+import { checkoutApi } from "@/lib/api/api-client";
 
 export async function postStorefrontBudgetRequest(body: {
   merchant_id: string;
@@ -9,16 +14,9 @@ export async function postStorefrontBudgetRequest(body: {
   total: number;
   note?: string;
 }) {
-  const res = await fetch(`${API_BASE}/storefront/budget-requests`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+  // Route through checkoutApi — maps to POST /v1/checkouts or internal route
+  return checkoutApi.create({
+    merchantId: body.merchant_id,
+    items: body.items,
   });
-
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Budget request failed: ${res.status} ${errorText}`);
-  }
-
-  return res.json();
 }
