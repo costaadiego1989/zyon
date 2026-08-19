@@ -203,5 +203,18 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
         f
       );
     },
+
+    async getMarketplaceChargebacks(): Promise<{
+      chargebacks: Array<{
+        settlement: MarketplaceSettlement;
+        debt: MarketplaceSellerDebt | null;
+        type: "chargeback_cancelled" | "chargeback_debt";
+      }>;
+      totalDebtCents: number;
+      totalCancelled: number;
+      totalWithDebt: number;
+    }> {
+      return dashboardJson(base, "/marketplace/dashboard/chargebacks", { method: "GET" }, f);
+    },
   };
 }

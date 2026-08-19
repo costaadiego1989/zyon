@@ -17,7 +17,7 @@ interface MarketplacePageProps {
 
 export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   const { state, actions } = useMarketplacePage(me);
-  const { config, orders, stats, loading, saving, tab, settlements, selectedSettlementId } = state;
+  const { config, orders, stats, loading, saving, tab, settlements, chargebacks, chargebackStats, selectedSettlementId } = state;
   const { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId } = actions;
 
   if (!me) {
@@ -366,13 +366,83 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
 
       {tab === "chargebacks" && (
         <div className="marketplace-page__chargebacks">
-          <div className="panel">
-            <EmptyState
-              icon={Zap}
-              title="Chargebacks do Marketplace"
-              description="Chargebacks recebidos de pedidos cross-store aparecerão aqui. Acompanhe o status e impacto nos repasses."
+          {/* Stats Cards */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            <StatCard
+              label="Cancelados"
+              value={chargebackStats.totalCancelled}
+              icon={<Zap size={16} />}
+              accent="var(--warning)"
+            />
+            <StatCard
+              label="Com Débito"
+              value={chargebackStats.totalWithDebt}
+              icon={<Zap size={16} />}
+              accent="var(--danger)"
+            />
+            <StatCard
+              label="Total Débitos"
+              value={new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              }).format(chargebackStats.totalDebtCents / 100)}
+              icon={<TrendingUp size={16} />}
+              accent="var(--danger)"
             />
           </div>
+
+          {chargebacks.length === 0 ? (
+            <div className="panel">
+              <EmptyState
+                icon={Zap}
+                title="Nenhum chargeback registrado"
+                description="Chargebacks recebidos de pedidos cross-store aparecerão aqui."
+              />
+            </div>
+          ) : (
+            <div className="panel">
+              <table className="marketplace-orders__table">
+                <thead>
+                  <tr>
+                    <th>Settlement</th>
+                    <th>Pedido</th>
+                    <th>Valor</th>
+                    <th>Tipo</th>
+                    <th>Débito</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chargebacks.map((cb) => (
+                    <tr key={cb.settlement.id}>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+                        {cb.settlement.id.slice(0, 8)}...
+                      </td>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+                        {cb.settlement.orderId.slice(0, 8)}...
+                      </td>
+                      <td style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>
+                        R$ {(cb.settlement.sellerNetCents / 100).toFixed(2)}
+                      </td>
+                      <td>
+                        <span className={`settlement-status settlement-status--${cb.type}`}>
+                          {cb.type === "chargeback_cancelled" ? "Cancelado" : "Débito"}
+                        </span>
+                      </td>
+                      <td style={{ fontFamily: "var(--mono)", color: cb.debt ? "var(--danger)" : "var(--muted)" }}>
+                        {cb.debt ? `R$ ${(cb.debt.amountCents / 100).toFixed(2)}` : "—"}
+                      </td>
+                      <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                        {cb.settlement.chargebackAt
+                          ? new Date(cb.settlement.chargebackAt).toLocaleDateString("pt-BR")
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

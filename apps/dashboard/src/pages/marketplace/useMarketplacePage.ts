@@ -3,9 +3,15 @@ import { showToast } from "../../components/Toast.js";
 import { useApi } from "../../hooks/useApi.js";
 import type { MerchantProfile } from "../../api-client.js";
 import type { MarketplaceConfig, MarketplaceOrder, MarketplaceStats } from "./types.js";
-import type { MarketplaceSettlement } from "../../api/endpoints/marketplace-v2.js";
+import type { MarketplaceSettlement, MarketplaceSellerDebt } from "../../api/endpoints/marketplace-v2.js";
 
 export type MarketplaceTab = "settings" | "orders" | "settlements" | "chargebacks";
+
+export interface ChargebackEntry {
+  settlement: MarketplaceSettlement;
+  debt: MarketplaceSellerDebt | null;
+  type: "chargeback_cancelled" | "chargeback_debt";
+}
 
 const DEFAULT_CONFIG: MarketplaceConfig = {
   enabled: false,
@@ -31,6 +37,8 @@ export function useMarketplacePage(me: MerchantProfile | null) {
   const [orders, setOrders] = useState<MarketplaceOrder[]>([]);
   const [stats, setStats] = useState<MarketplaceStats>(DEFAULT_STATS);
   const [settlements, setSettlements] = useState<MarketplaceSettlement[]>([]);
+  const [chargebacks, setChargebacks] = useState<ChargebackEntry[]>([]);
+  const [chargebackStats, setChargebackStats] = useState({ totalDebtCents: 0, totalCancelled: 0, totalWithDebt: 0 });
   const [selectedSettlementId, setSelectedSettlementId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -69,18 +77,35 @@ export function useMarketplacePage(me: MerchantProfile | null) {
     }
   }, [api]);
 
+  const loadChargebacks = useCallback(async () => {
+    try {
+      const res = await api.getMarketplaceChargebacks?.();
+      if (res && Array.isArray(res.chargebacks)) {
+        setChargebacks(res.chargebacks);
+        setChargebackStats({
+          totalDebtCents: res.totalDebtCents ?? 0,
+          totalCancelled: res.totalCancelled ?? 0,
+          totalWithDebt: res.totalWithDebt ?? 0,
+        });
+      }
+    } catch {
+      // Chargebacks endpoint may not exist yet
+    }
+  }, [api]);
+
   useEffect(() => {
     if (!me) {
       setConfig(DEFAULT_CONFIG);
       setOrders([]);
       setStats(DEFAULT_STATS);
       setSettlements([]);
+      setChargebacks([]);
       setLoading(false);
       return;
     }
     setLoading(true);
-    Promise.all([loadConfig(), loadOrders(), loadSettlements()]).finally(() => setLoading(false));
-  }, [me, loadConfig, loadOrders, loadSettlements]);
+    Promise.all([loadConfig(), loadOrders(), loadSettlements(), loadChargebacks()]).finally(() => setLoading(false));
+  }, [me, loadConfig, loadOrders, loadSettlements, loadChargebacks]);
 
   async function saveConfig(updates: Partial<MarketplaceConfig>) {
     const previous = config;
@@ -119,7 +144,7 @@ export function useMarketplacePage(me: MerchantProfile | null) {
   }
 
   return {
-    state: { config, orders, stats, loading, saving, tab, settlements, selectedSettlementId },
+    state: { config, orders, stats, loading, saving, tab, settlements, chargebacks, chargebackStats, selectedSettlementId },
     actions: { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId },
   };
 }
