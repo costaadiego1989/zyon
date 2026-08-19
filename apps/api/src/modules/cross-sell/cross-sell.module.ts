@@ -9,6 +9,7 @@ import { CreateCrossSellPromotionUseCase } from "./application/use-cases/create-
 import { UpdateCrossSellPromotionUseCase } from "./application/use-cases/update-cross-sell-promotion.use-case.js";
 import { ArchiveCrossSellPromotionUseCase } from "./application/use-cases/archive-cross-sell-promotion.use-case.js";
 import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-eligible-cross-sells.use-case.js";
+import { ListCrossSellPromotionsUseCase } from "./application/use-cases/list-cross-sell-promotions.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
 import { AcceptCrossSellFromWidgetUseCase } from "./application/use-cases/accept-cross-sell-from-widget.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
@@ -39,6 +40,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
     UpdateCrossSellPromotionUseCase,
     ArchiveCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
+    ListCrossSellPromotionsUseCase,
     AcceptCrossSellSuggestionUseCase,
     AcceptCrossSellFromWidgetUseCase,
     DeclineCrossSellSuggestionUseCase,
@@ -53,6 +55,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
   exports: [
     CreateCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
+    ListCrossSellPromotionsUseCase,
     AcceptCrossSellSuggestionUseCase,
     AcceptCrossSellFromWidgetUseCase,
     DeclineCrossSellSuggestionUseCase,

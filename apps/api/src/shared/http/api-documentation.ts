@@ -108,6 +108,25 @@ const PUBLIC_OPERATIONS: readonly PublicOperationRule[] = [
   { methods: ["post"], path: /^\/experiments\/[^/]+\/archive$/, security: "tenant" },
   { methods: ["get"], path: /^\/experiments\/[^/]+\/results$/, security: "tenant" },
   { methods: ["post"], path: /^\/experiments\/[^/]+\/promote$/, security: "tenant" },
+  // Public API v1 — Domains
+  { methods: ["get", "post"], path: /^\/domains$/, security: "tenant" },
+  { methods: ["post"], path: /^\/domains\/[^/]+\/verify$/, security: "tenant" },
+  // Public API v1 — Support
+  { methods: ["get"], path: /^\/support\/settings$/, security: "tenant" },
+  { methods: ["get"], path: /^\/support\/tickets$/, security: "tenant" },
+  // Public API v1 — Shipping
+  { methods: ["post"], path: /^\/shipping\/quotes$/, security: "tenant" },
+  // Public API v1 — Fulfillment
+  { methods: ["post"], path: /^\/fulfillment\/shipments$/, security: "tenant" },
+  { methods: ["get"], path: /^\/fulfillment\/shipments$/, security: "tenant" },
+  // Public API v1 — Notifications
+  { methods: ["post"], path: /^\/notifications\/order-confirmation$/, security: "tenant" },
+  { methods: ["post"], path: /^\/notifications\/order-shipped$/, security: "tenant" },
+  { methods: ["post"], path: /^\/notifications\/order-delivered$/, security: "tenant" },
+  { methods: ["post"], path: /^\/notifications\/return-approved$/, security: "tenant" },
+  // Public API v1 — Cross-Sell
+  { methods: ["get", "post"], path: /^\/cross-sells$/, security: "tenant" },
+  { methods: ["get"], path: /^\/cross-sells\/eligible$/, security: "tenant" },
 ];
 
 const SCALAR_CSS = `

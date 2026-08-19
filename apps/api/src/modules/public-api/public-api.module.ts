@@ -12,6 +12,12 @@ import { PublicApiAnalyticsModule } from './analytics/public-api-analytics.modul
 import { PublicApiCustomersModule } from './customers/public-api-customers.module.js';
 import { PublicApiTeamModule } from './team/public-api-team.module.js';
 import { PublicApiReturnsModule } from './returns/public-api-returns.module.js';
+import { PublicApiDomainsModule } from './domains/public-api-domains.module.js';
+import { PublicApiSupportModule } from './support/public-api-support.module.js';
+import { PublicApiShippingModule } from './shipping/public-api-shipping.module.js';
+import { PublicApiNotificationsModule } from './notifications/public-api-notifications.module.js';
+import { PublicApiCrossSellModule } from './cross-sell/public-api-cross-sell.module.js';
+import { PublicApiFulfillmentModule } from './fulfillment/public-api-fulfillment.module.js';
 
 @Module({
   imports: [
@@ -28,6 +34,12 @@ import { PublicApiReturnsModule } from './returns/public-api-returns.module.js';
     PublicApiCustomersModule,
     PublicApiTeamModule,
     PublicApiReturnsModule,
+    PublicApiDomainsModule,
+    PublicApiSupportModule,
+    PublicApiShippingModule,
+    PublicApiNotificationsModule,
+    PublicApiCrossSellModule,
+    PublicApiFulfillmentModule,
   ],
 })
 export class PublicApiModule {}

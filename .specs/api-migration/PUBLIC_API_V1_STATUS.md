@@ -188,6 +188,19 @@
 |--------|------|-----------------|----------|
 | POST | /notifications/order-confirmation | SendOrderConfirmationUseCase | P3 |
 | POST | /notifications/order-shipped | SendOrderShippedUseCase | P3 |
+| POST | /notifications/order-delivered | SendOrderDeliveredUseCase | P3 |
+| POST | /notifications/return-approved | SendReturnApprovedUseCase | P3 |
+
+### P3 — Audit
+| Method | Path | Use-Case Source | Priority |
+|--------|------|-----------------|----------|
+| GET | /audit-events | (read-only query) | P3 |
+
+### P3 — Onboarding
+| Method | Path | Use-Case Source | Priority |
+|--------|------|-----------------|----------|
+| GET | /onboarding/status | (read state from repo) | P3 |
+| POST | /onboarding/complete-step | (update state) | P3 |
 
 ## Implementation Checklist (per module)
 
