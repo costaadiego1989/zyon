@@ -14,6 +14,7 @@ import { resolveCorsConfig } from "./shared/config/cors-config.js";
 import { resolveSecurityHeaders } from "./shared/config/security-headers-config.js";
 import { configureApiDocumentation } from "./shared/http/api-documentation.js";
 import { apiVersioningMiddleware } from "./shared/http/api-versioning.js";
+import { initMetrics, initDomainMetrics } from "./shared/http/metrics.middleware.js";
 import {
   assertRequiredSecretsInProduction,
   resolveProductionRequiredSecrets,
@@ -25,6 +26,10 @@ loadDotenv({ path: resolve(__dirname, "../.env") });
 loadDotenv({ path: resolve(__dirname, "../../../.env"), override: false });
 
 async function bootstrap() {
+  // Initialize Prometheus metrics
+  initMetrics();
+  initDomainMetrics();
+
   assertRequiredSecretsInProduction(resolveProductionRequiredSecrets());
 
   // AppModule is production-pure. Non-production runs that need the seed +

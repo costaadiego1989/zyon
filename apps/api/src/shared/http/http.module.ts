@@ -22,11 +22,13 @@ import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 import { ProblemDetailsFilter } from "./problem-details.filter.js";
 import { RateLimitGuard } from "./rate-limit.guard.js";
 import { WidgetAssetsController } from "./widget-assets.controller.js";
+import { MetricsMiddleware } from "./metrics.middleware.js";
+import { MetricsController } from "./metrics.controller.js";
 
 @Global()
 @Module({
   imports: [PersistenceModule],
-  controllers: [WidgetAssetsController],
+  controllers: [WidgetAssetsController, MetricsController],
   providers: [
     {
       provide: HttpClientService,
@@ -49,5 +51,6 @@ import { WidgetAssetsController } from "./widget-assets.controller.js";
 export class HttpModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer.apply(correlationIdMiddleware).forRoutes("*");
+    consumer.apply(MetricsMiddleware).forRoutes("*");
   }
 }
