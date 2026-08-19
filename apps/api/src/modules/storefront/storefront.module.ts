@@ -7,6 +7,7 @@ import { CouponsModule } from "../coupons/coupons.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { SupportModule } from "../support/support.module.js";
+import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
@@ -15,6 +16,8 @@ import { GetStorefrontFunnelUseCase } from "./application/use-cases/get-storefro
 import { CreateBudgetRequestUseCase } from "./application/use-cases/create-budget-request.use-case.js";
 import { ListBudgetRequestsUseCase } from "./application/use-cases/list-budget-requests.use-case.js";
 import { UpdateBudgetRequestStatusUseCase } from "./application/use-cases/update-budget-request-status.use-case.js";
+import { SearchMarketplaceProductsStorefrontUseCase } from "./application/use-cases/search-marketplace-products-storefront.use-case.js";
+import { AddMarketplaceItemToCartStorefrontUseCase } from "./application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
@@ -36,6 +39,7 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     MerchantModule,
     BuyerAccountRepositoryModule,
     SupportModule,
+    MarketplaceModule,
   ],
   controllers: [StorefrontController],
   providers: [
@@ -77,7 +81,9 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     GetStorefrontFunnelUseCase,
     CreateBudgetRequestUseCase,
     ListBudgetRequestsUseCase,
-    UpdateBudgetRequestStatusUseCase
+    UpdateBudgetRequestStatusUseCase,
+    SearchMarketplaceProductsStorefrontUseCase,
+    AddMarketplaceItemToCartStorefrontUseCase
   ],
   exports: [
     StartStoreConversationUseCase,

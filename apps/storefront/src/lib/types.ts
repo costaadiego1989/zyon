@@ -183,6 +183,23 @@ export interface CategoryCarouselBlock {
   };
 }
 
+export interface MarketplaceProductsBlock {
+  type: "marketplace_products";
+  data: {
+    query: string;
+    products: Array<{
+      id: string;
+      name: string;
+      price: number;
+      priceFormatted: string;
+      image?: string;
+      sellerName: string;
+      sellerId: string;
+      inStock: boolean;
+    }>;
+  };
+}
+
 export type ConversationBlock =
   | ProductCardBlock
   | ProductCarouselBlock
@@ -198,4 +215,5 @@ export type ConversationBlock =
   | ReviewsBlock
   | AddReviewBlock
   | CrossSellBlock
-  | CategoryCarouselBlock;
+  | CategoryCarouselBlock
+  | MarketplaceProductsBlock;

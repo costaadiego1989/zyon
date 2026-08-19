@@ -10,6 +10,8 @@ import { GetStorefrontFunnelUseCase } from "../../application/use-cases/get-stor
 import { CreateBudgetRequestUseCase } from "../../application/use-cases/create-budget-request.use-case.js";
 import { ListBudgetRequestsUseCase } from "../../application/use-cases/list-budget-requests.use-case.js";
 import { UpdateBudgetRequestStatusUseCase } from "../../application/use-cases/update-budget-request-status.use-case.js";
+import { SearchMarketplaceProductsStorefrontUseCase } from "../../application/use-cases/search-marketplace-products-storefront.use-case.js";
+import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 
@@ -36,6 +38,8 @@ export class StorefrontController {
     private readonly createBudgetRequest: CreateBudgetRequestUseCase,
     private readonly listBudgetRequests: ListBudgetRequestsUseCase,
     private readonly updateBudgetStatus: UpdateBudgetRequestStatusUseCase,
+    private readonly searchMarketplace: SearchMarketplaceProductsStorefrontUseCase,
+    private readonly addMarketplaceItem: AddMarketplaceItemToCartStorefrontUseCase,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort
   ) {}
@@ -222,6 +226,62 @@ export class StorefrontController {
       discount: cart.discount ? cart.discount / 100 : 0,
       total: cart.total / 100,
     };
+  }
+
+  @Get("marketplace/search")
+  async handleMarketplaceSearch(
+    @Query("query") query: string,
+    @Query("merchantId") merchantId?: string,
+    @Query("category") category?: string,
+    @Query("limit") limitRaw?: string
+  ) {
+    if (!query?.trim()) {
+      return { products: [] };
+    }
+
+    if (!merchantId?.trim()) {
+      return { products: [] };
+    }
+
+    const parsed = Number(limitRaw ?? "10");
+    const limit = Number.isFinite(parsed) ? Math.max(1, Math.min(parsed, 100)) : 10;
+
+    return this.searchMarketplace.execute({
+      merchantId,
+      query: query.trim(),
+      category,
+      limit,
+    });
+  }
+
+  @Post("marketplace/items")
+  async handleAddMarketplaceItem(
+    @Body()
+    body: {
+      merchant_id: string;
+      session_id: string;
+      seller_merchant_id: string;
+      federated_product_id: string;
+      quantity: number;
+      unit_price_cents: number;
+    }
+  ) {
+    if (!body.session_id?.trim() || !body.seller_merchant_id?.trim()) {
+      throw new BadRequestException("session_id and seller_merchant_id required");
+    }
+
+    if (!body.merchant_id?.trim()) {
+      throw new BadRequestException("merchant_id required");
+    }
+
+    return this.addMarketplaceItem.execute({
+      merchantId: body.merchant_id,
+      checkoutSessionId: body.session_id,
+      sellerMerchantId: body.seller_merchant_id,
+      federatedProductId: body.federated_product_id,
+      quantity: body.quantity ?? 1,
+      unitPriceCents: body.unit_price_cents ?? 0,
+    });
   }
 
   @Post("budget-requests")

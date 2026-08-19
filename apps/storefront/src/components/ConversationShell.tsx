@@ -418,7 +418,7 @@ export default function ConversationShell({
 
         if (res.ok) {
           const data = await res.json();
-          const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options");
+          const hasVisualBlock = data.blocks?.some((b: any) => b.type === "product_carousel" || b.type === "product_card" || b.type === "cart_summary" || b.type === "category_carousel" || b.type === "product_comparison" || b.type === "shipping_options" || b.type === "marketplace_products");
           // Inject quick replies from backend as a block
           const blocks = data.blocks ?? [];
           if (data.suggested_next?.length) {
