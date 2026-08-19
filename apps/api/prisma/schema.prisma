@@ -49,6 +49,7 @@ model Merchant {
   auditEvents            MerchantAuditEvent[]
   storyCategories        StoryCategory[]
   budgetRequests         BudgetRequest[]
+  marketplaceConfig      MarketplaceConfig?
 
   @@map("merchants")
 }
@@ -1713,4 +1714,109 @@ model PromptVariantResult {
   @@index([variantId, createdAt])
   @@index([variantId, checkoutCompleted, createdAt], name: "idx_prompt_variant_results_funnel")
   @@map("prompt_variant_results")
+}
+
+model MarketplaceConfig {
+  id                    String   @id @default(cuid())
+  merchantId            String   @unique @map("merchant_id")
+  enabled               Boolean  @default(false)
+  commissionRateBps     Int      @default(1500) @map("commission_rate_bps")
+  returnWindowDays      Int      @default(7) @map("return_window_days")
+  payoutDelayDays       Int      @default(14) @map("payout_delay_days")
+  chargebackWindowDays  Int      @default(30) @map("chargeback_window_days")
+  allowedCategories     String[] @map("allowed_categories")
+  blockedMerchants      String[] @map("blocked_merchants")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@map("marketplace_configs")
+}
+
+model FederatedProduct {
+  id                String   @id @default(cuid())
+  sourceMerchantId  String   @map("source_merchant_id")
+  sourceProductId   String   @map("source_product_id")
+  name              String
+  description       String?
+  category          String?
+  priceCents        Int      @map("price_cents")
+  currency          String   @default("BRL")
+  stockAvailable    Boolean  @default(true) @map("stock_available")
+  imageUrl          String?  @map("image_url")
+  searchableText    String   @map("searchable_text")
+  createdAt         DateTime @default(now()) @map("created_at")
+  syncedAt          DateTime @default(now()) @map("synced_at")
+
+  @@unique([sourceMerchantId, sourceProductId])
+  @@index([category])
+  @@index([sourceMerchantId])
+  @@map("federated_products")
+}
+
+model CrossStoreLineItem {
+  id                  String   @id @default(cuid())
+  checkoutSessionId   String   @map("checkout_session_id")
+  orderId             String?  @map("order_id")
+  hostMerchantId      String   @map("host_merchant_id")
+  sellerMerchantId    String   @map("seller_merchant_id")
+  federatedProductId  String   @map("federated_product_id")
+  quantity            Int
+  unitPriceCents      Int      @map("unit_price_cents")
+  commissionRateBps   Int      @map("commission_rate_bps")
+  commissionCents     Int      @map("commission_cents")
+  sellerNetCents      Int      @map("seller_net_cents")
+  fulfillmentStatus   String   @default("pending") @map("fulfillment_status")
+  fulfillmentReference String? @map("fulfillment_reference")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([hostMerchantId])
+  @@index([sellerMerchantId])
+  @@index([orderId])
+  @@map("cross_store_line_items")
+}
+
+model MarketplaceSettlement {
+  id                    String   @id @default(cuid())
+  hostMerchantId        String   @map("host_merchant_id")
+  sellerMerchantId      String   @map("seller_merchant_id")
+  orderId               String   @map("order_id")
+  lineItemId            String   @map("line_item_id")
+  totalAmountCents      Int      @map("total_amount_cents")
+  commissionCents       Int      @map("commission_cents")
+  sellerNetCents        Int      @map("seller_net_cents")
+  status                String   @default("awaiting_return_window")
+  returnWindowUntil     DateTime @map("return_window_until")
+  transferScheduledAt   DateTime? @map("transfer_scheduled_at")
+  chargebackWindowUntil DateTime @map("chargeback_window_until")
+  transferredAt         DateTime? @map("transferred_at")
+  finalizedAt           DateTime? @map("finalized_at")
+  chargebackAt          DateTime? @map("chargeback_at")
+  returnAt              DateTime? @map("return_at")
+  providerTransferId    String?  @map("provider_transfer_id")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([hostMerchantId])
+  @@index([sellerMerchantId])
+  @@index([status])
+  @@index([transferScheduledAt])
+  @@map("marketplace_settlements")
+}
+
+model MarketplaceSellerDebt {
+  id                        String   @id @default(cuid())
+  sellerMerchantId          String   @map("seller_merchant_id")
+  settlementId              String   @map("settlement_id")
+  amountCents               Int      @map("amount_cents")
+  status                    String   @default("outstanding")
+  deductedFromSettlementId  String?  @map("deducted_from_settlement_id")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  resolvedAt                DateTime? @map("resolved_at")
+
+  @@index([sellerMerchantId])
+  @@index([status])
+  @@map("marketplace_seller_debts")
 }
