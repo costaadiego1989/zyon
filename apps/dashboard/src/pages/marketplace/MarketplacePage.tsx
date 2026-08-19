@@ -8,6 +8,7 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
 import { SettlementDetailPanel } from "./components/SettlementDetailPanel.js";
+import { BlockedMerchantForm } from "./components/BlockedMerchantForm.js";
 import "./marketplace-page.css";
 
 interface MarketplacePageProps {
@@ -206,31 +207,20 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             <p className="marketplace-enable__description" style={{ marginTop: 0 }}>
               Merchants que você não quer que vendam em sua loja
             </p>
-            {config.blocked_merchant_ids.length === 0 ? (
-              <EmptyState
-                icon={Zap}
-                title="Nenhuma loja bloqueada"
-                description="Você pode adicionar merchants à blocklist conforme necessário"
-              />
-            ) : (
-              <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-                {config.blocked_merchant_ids.map((id) => (
-                  <li
-                    key={id}
-                    style={{
-                      padding: "8px 12px",
-                      background: "var(--color-surface-alt)",
-                      borderRadius: "4px",
-                      marginBottom: "4px",
-                      font: "400 12px var(--sans)",
-                      color: "var(--ink)",
-                    }}
-                  >
-                    {id}
-                  </li>
-                ))}
-              </ul>
-            )}
+
+            {/* Add Blocked Merchant Form */}
+            <BlockedMerchantForm
+              blockedIds={config.blocked_merchant_ids}
+              saving={saving}
+              onAdd={(merchantId) => {
+                const updated = [...config.blocked_merchant_ids, merchantId];
+                void saveConfig({ blocked_merchant_ids: updated });
+              }}
+              onRemove={(merchantId) => {
+                const updated = config.blocked_merchant_ids.filter((id) => id !== merchantId);
+                void saveConfig({ blocked_merchant_ids: updated });
+              }}
+            />
           </div>
         </div>
       )}
