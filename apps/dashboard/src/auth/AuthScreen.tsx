@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { KeyRound, UserPlus, Github, Code2, Eye, EyeOff } from "lucide-react";
 import { SignupWizard } from "./SignupWizard.js";
+import { useApi } from "../hooks/useApi.js";
+import { readError } from "../utils/read-error.js";
+import { DashboardHttpError } from "../api-client.js";
 import "./auth-screen.css";
 
 export type AuthMode = "login" | "signup" | "forgot" | "reset";
@@ -21,7 +24,6 @@ export interface AuthScreenProps {
   onSaveTheme: (theme: { accentColor: string; logoUrl: string; headerTitle: string; agentName: string }) => Promise<void>;
   onSaveCompanyData?: (data: { company: Record<string, unknown>; social?: Record<string, unknown> }) => Promise<void>;
   onComplete: () => Promise<void>;
-  apiBaseUrl?: string;
 }
 
 function generateOAuthState(): string {
@@ -59,7 +61,7 @@ export function AuthScreen(props: AuthScreenProps) {
         <header className="auth-header">
           <img src="/logo-zyon.png" alt="Zyon" className="auth-header__logo" />
           <div className="auth-header__sep" />
-          <span className="auth-header__label">AI Checkout Sales Agent</span>
+          <span className="auth-header__label">Headless Commerce Platform</span>
         </header>
 
         <div className="auth-form-container">
@@ -74,9 +76,9 @@ export function AuthScreen(props: AuthScreenProps) {
 
           <div className="auth-form-area">
             {mode === "reset" ? (
-              <ResetPasswordForm apiBaseUrl={props.apiBaseUrl} onBack={() => props.setMode("login")} />
+              <ResetPasswordForm onBack={() => props.setMode("login")} />
             ) : mode === "forgot" ? (
-              <ForgotPasswordForm apiBaseUrl={props.apiBaseUrl} onBack={() => props.setMode("login")} />
+              <ForgotPasswordForm onBack={() => props.setMode("login")} />
             ) : isSignup ? (
               <SignupWizard
                 busy={props.busy}
@@ -97,7 +99,7 @@ export function AuthScreen(props: AuthScreenProps) {
       </section>
 
       {/* Right: Hero */}
-      <section className="auth-hero" aria-label="AACP Marketing">
+      <section className="auth-hero" aria-label="Zyon Platform">
         <div className="auth-hero__glow auth-hero__glow--top" />
         <div className="auth-hero__glow auth-hero__glow--mid" />
         <div className="auth-hero__glow auth-hero__glow--bottom" />
@@ -106,20 +108,20 @@ export function AuthScreen(props: AuthScreenProps) {
             <img src="/logo-zyon.png" alt="Zyon" className="auth-hero__logo-img" />
           </div>
           <p className="auth-hero__tagline">
-            Checkout agêntico com IA que negocia, oferece e converte.
+            Plataforma headless de checkout inteligente com IA que negocia, personaliza ofertas e converte abandonos em vendas.
           </p>
           <div className="auth-hero__metrics">
             <div className="auth-hero__metric">
-              <span className="auth-hero__metric-value">+34%</span>
-              <span className="auth-hero__metric-label">Conversão</span>
+              <span className="auth-hero__metric-value">110+</span>
+              <span className="auth-hero__metric-label">API Endpoints</span>
             </div>
             <div className="auth-hero__metric">
-              <span className="auth-hero__metric-value">2.4s</span>
-              <span className="auth-hero__metric-label">Tempo médio</span>
+              <span className="auth-hero__metric-value">23</span>
+              <span className="auth-hero__metric-label">Módulos</span>
             </div>
             <div className="auth-hero__metric">
-              <span className="auth-hero__metric-value">98%</span>
-              <span className="auth-hero__metric-label">Satisfação</span>
+              <span className="auth-hero__metric-value">3</span>
+              <span className="auth-hero__metric-label">Integrações</span>
             </div>
           </div>
         </div>
@@ -181,7 +183,8 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
   );
 }
 
-function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBack: () => void }) {
+function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+  const api = useApi();
   const [email, setEmail] = React.useState("");
   const [sent, setSent] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -192,11 +195,9 @@ function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBac
     setBusy(true);
     setError(null);
     try {
-      const base = (apiBaseUrl || "http://localhost:3009").replace(/\/$/, "");
-      const res = await fetch(`${base}/auth/forgot-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
-      if (!res.ok) { const body = await res.json().catch(() => ({})) as Record<string, unknown>; throw new Error((body.detail as string) || "Erro ao enviar email"); }
+      await api.forgotPassword(email);
       setSent(true);
-    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+    } catch (err) { setError(readError(err) || "Erro ao enviar email"); } finally { setBusy(false); }
   };
 
   if (sent) {
@@ -226,7 +227,8 @@ function ForgotPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBac
   );
 }
 
-export function ResetPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string; onBack: () => void }) {
+export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
+  const api = useApi();
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [showPw, setShowPw] = React.useState(false);
@@ -243,21 +245,27 @@ export function ResetPasswordForm({ apiBaseUrl, onBack }: { apiBaseUrl?: string;
     if (newPassword !== confirmPassword) { setError("Senhas não conferem"); return; }
     setBusy(true);
     try {
-      const base = (apiBaseUrl || "http://localhost:3009").replace(/\/$/, "");
-      const res = await fetch(`${base}/auth/reset-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, password: newPassword }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({})) as Record<string, unknown>;
-        const msg = body.code === "token_expired" ? "Link expirado. Solicite novamente." : body.code === "invalid_or_expired_token" ? "Link inválido ou expirado." : (body.detail as string) || "Erro ao redefinir senha";
-        throw new Error(msg);
-      }
+      await api.resetPassword(token, newPassword);
       setDone(true);
       // Clean URL
       window.history.replaceState({}, "", "/");
-    } catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+    } catch (err) {
+      let message: string;
+      if (err instanceof DashboardHttpError) {
+        try {
+          const body = JSON.parse(err.responseBody) as Record<string, unknown>;
+          const code = body.code as string | undefined;
+          if (code === "token_expired") message = "Link expirado. Solicite novamente.";
+          else if (code === "invalid_or_expired_token") message = "Link inválido ou expirado.";
+          else message = (body.detail as string) || `Erro ao redefinir senha`;
+        } catch {
+          message = `Erro ao redefinir senha`;
+        }
+      } else {
+        message = readError(err) || "Erro ao redefinir senha";
+      }
+      setError(message);
+    } finally { setBusy(false); }
   };
 
   if (!token) {
