@@ -28,6 +28,7 @@ import { GetSellerOrdersUseCase } from "./application/use-cases/get-seller-order
 import { SyncMarketplaceIndexJob } from "./infrastructure/jobs/sync-marketplace-index.job.js";
 import { ProcessTransfersJob } from "./infrastructure/jobs/process-transfers.job.js";
 import { FinalizeSettlementsJob } from "./infrastructure/jobs/finalize-settlements.job.js";
+import { MarketplaceCatalogSyncHandler } from "./application/handlers/marketplace-catalog-sync.handler.js";
 
 const prismaProvider = {
   provide: PrismaClient,
@@ -168,6 +169,9 @@ const prismaProvider = {
     SyncMarketplaceIndexJob,
     ProcessTransfersJob,
     FinalizeSettlementsJob,
+
+    // Event Handlers (event-driven sync from Catalog → Federated Index)
+    MarketplaceCatalogSyncHandler,
   ],
   exports: [
     SearchFederatedProductsUseCase,

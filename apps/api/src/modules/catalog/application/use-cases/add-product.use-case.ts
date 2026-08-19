@@ -1,7 +1,8 @@
-import { Injectable, Inject, ConflictException, Logger } from "@nestjs/common";
+import { Injectable, Inject, ConflictException, Logger, Optional } from "@nestjs/common";
 import { ProductRepositoryPort, CreateProductInput } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity } from "../../domain/entities/product.entity.js";
 import { GenerateProductSeoUseCase } from "./generate-product-seo.use-case.js";
+import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events/domain-event-bus.port.js";
 
 @Injectable()
 export class AddProductUseCase {
@@ -10,6 +11,7 @@ export class AddProductUseCase {
   constructor(
     @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
     private readonly generateSeo: GenerateProductSeoUseCase,
+    @Optional() @Inject(DOMAIN_EVENT_BUS) private readonly eventBus?: DomainEventBus,
   ) {}
 
   async execute(input: CreateProductInput): Promise<ProductEntity> {
@@ -27,6 +29,24 @@ export class AddProductUseCase {
     }
 
     const product = await this.productRepo.create(input);
+
+    // Emit domain event for marketplace sync
+    this.eventBus?.publish({
+      eventType: "product.upserted",
+      merchantId: product.merchantId,
+      payload: {
+        id: product.id,
+        name: product.name,
+        description: product.description,
+        category: product.categoryId,
+        priceCents: product.variants?.[0]?.basePriceInCents ?? 0,
+        currency: product.variants?.[0]?.currency ?? "BRL",
+        stockAvailable: true,
+        isActive: true,
+      },
+    }).catch((err) => {
+      this.logger.warn(`Event publish failed for product ${product.id}: ${err.message}`);
+    });
 
     // Auto-generate SEO in background (non-blocking, best-effort)
     this.autoGenerateSeo(product.merchantId, product.id).catch((err) => {
