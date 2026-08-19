@@ -37,6 +37,16 @@ async function bootstrap() {
   const app = await NestFactory.create(rootModule, { rawBody: true });
   configureTrustProxy(app);
 
+  // CORS: In production Kong handles CORS; in dev we need it for local dashboard/storefront
+  if (process.env.NODE_ENV !== "production") {
+    app.enableCors({
+      origin: true,
+      credentials: true,
+      methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Internal-Service-Token", "X-Merchant-Id", "Idempotency-Key", "Cookie"],
+    });
+  }
+
   app.use(json());
   app.use(urlencoded({ extended: true }));
   app.use(apiVersioningMiddleware);

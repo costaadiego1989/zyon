@@ -47,7 +47,10 @@ export default function SupportPanel({ open, onClose, merchantId, agentName }: S
         const res = await fetch("/api/checkout-token", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ merchant_id: merchantId }),
+          body: JSON.stringify({
+            merchant_id: merchantId,
+            allowed_origin: typeof window !== "undefined" ? window.location.origin : undefined,
+          }),
         });
         if (res.ok) {
           const data = await res.json();
