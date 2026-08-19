@@ -61,7 +61,8 @@ export type TabKey =
   | "agent-config-checkout"
   | "stories"
   | "team"
-  | "account-settings";
+  | "account-settings"
+  | "marketplace";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -98,6 +99,7 @@ export const NAV_ITEMS: Array<{
   { key: "integrations", label: "Desenvolvedores", section: "Integrações", icon: Webhook },
   { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
+  { key: "marketplace", label: "Marketplace", section: "Integrações", icon: ShoppingBag },
 
   // ─── Conta ───
   { key: "team", label: "Equipe", section: "Conta", icon: Users },
