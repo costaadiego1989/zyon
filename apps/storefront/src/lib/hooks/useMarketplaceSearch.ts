@@ -2,6 +2,8 @@
 
 import { useCallback, useState } from "react";
 
+// Federated marketplace uses internal endpoint — no v1 equivalent yet.
+// Keeps V1 behavior unchanged. When marketplace has v1 endpoints, add flag here.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 export interface FederatedProduct {

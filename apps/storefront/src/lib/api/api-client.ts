@@ -1,13 +1,3 @@
-/**
- * V2 DATA SOURCE — backward compatible with V1 internal API
- *
- * This is the bridge between V1 (internal routes) and V2 (v1 public API).
- * Uses feature flag to choose source. Zero behavioral change when flag is off.
- *
- * Usage:
- *   import { productsApi } from "@/lib/api/api-client";
- *   const products = await productsApi.list(merchantId, { limit: 10 });
- */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 const API_V1_PROXY = "/api/v1";
@@ -18,7 +8,6 @@ const FEATURE_FLAGS = {
   checkouts: process.env.NEXT_PUBLIC_USE_V1_CHECKOUTS === "true",
 };
 
-/** Common JSON envelope from v1 API */
 export interface ApiEnvelope<T> {
   data: T;
   meta: {
@@ -32,7 +21,6 @@ export interface ApiEnvelope<T> {
   };
 }
 
-/** Product domain model (v1 format) */
 export interface Product {
   id: string;
   name: string;
@@ -48,13 +36,11 @@ export interface Product {
   originalPrice?: number;
 }
 
-/** Paginated product list */
 export interface ProductListResponse {
   products: Product[];
   nextCursor?: string;
 }
 
-/** Fetch with error handling */
 async function safeFetch(url: string, options?: RequestInit) {
   const res = await fetch(url, {
     ...options,
@@ -78,7 +64,6 @@ async function safeFetch(url: string, options?: RequestInit) {
   return res.json();
 }
 
-/** Map v1 API product → V1 internal product format */
 function mapV1Product(p: any): Product {
   return {
     id: p.id,
@@ -96,9 +81,7 @@ function mapV1Product(p: any): Product {
   };
 }
 
-/** PRODUCTS API */
 export const productsApi = {
-  /** List products with pagination */
   async list(
     merchantId: string,
     options?: {
@@ -109,7 +92,6 @@ export const productsApi = {
     },
   ): Promise<ProductListResponse> {
     if (FEATURE_FLAGS.products) {
-      // ─── V2 path: /v1/products ───
       const params = new URLSearchParams();
       if (options?.query) params.set("search", options.query);
       if (options?.limit) params.set("limit", String(options.limit));
@@ -125,7 +107,6 @@ export const productsApi = {
         nextCursor: envelope.pagination?.next_cursor ?? undefined,
       };
     } else {
-      // ─── V1 path: /merchants/{id}/products (current behavior) ───
       const params = new URLSearchParams();
       if (options?.query) params.set("query", options.query);
       if (options?.categoryId) params.set("categoryId", options.categoryId);
@@ -145,7 +126,6 @@ export const productsApi = {
     }
   },
 
-  /** Get single product */
   async get(merchantId: string, productId: string): Promise<Product | null> {
     if (FEATURE_FLAGS.products) {
       const envelope: ApiEnvelope<any> = await safeFetch(
@@ -162,7 +142,6 @@ export const productsApi = {
   },
 };
 
-/** SETTINGS API */
 export const settingsApi = {
   async getCheckoutSettings(merchantId: string): Promise<any> {
     if (FEATURE_FLAGS.settings) {
@@ -189,7 +168,6 @@ export const settingsApi = {
   },
 };
 
-/** MARKETPLACE API (search) */
 export const marketplaceApi = {
   async search(query: string, options?: { limit?: number }): Promise<any[]> {
     if (FEATURE_FLAGS.products) {
@@ -235,7 +213,6 @@ export const marketplaceApi = {
   },
 };
 
-/** CHECKOUT / CONVERSATION API */
 export const checkoutApi = {
   async create(data: {
     merchantId: string;
@@ -287,7 +264,6 @@ export const checkoutApi = {
   },
 };
 
-/** CART API */
 export const cartApi = {
   async get(cartId: string, merchantId: string): Promise<any> {
     if (FEATURE_FLAGS.checkouts) {
@@ -331,7 +307,6 @@ export const cartApi = {
   },
 };
 
-/** Export feature flags for runtime introspection */
 export const isUsingV1Api = {
   products: () => FEATURE_FLAGS.products,
   settings: () => FEATURE_FLAGS.settings,

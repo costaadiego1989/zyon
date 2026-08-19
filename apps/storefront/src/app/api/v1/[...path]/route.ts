@@ -1,14 +1,3 @@
-/**
- * V1 API PROXY — Next.js API Route
- *
- * This is the GATEWAY between client-side React components and the v1 API.
- * Client components call /api/v1/[...path] → this route injects the API key
- * and forwards to the actual API. Credentials never exposed to client.
- *
- * Usage: fetch('/api/v1/products')        → GET  /v1/products
- *        fetch('/api/v1/checkouts', POST) → POST /v1/checkouts
- */
-
 import { NextRequest, NextResponse } from "next/server";
 
 const API_BASE_URL = process.env.AACP_API_URL || "http://localhost:3009";
@@ -16,37 +5,42 @@ const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(request, params.path, "GET");
+  const { path } = await params;
+  return proxyRequest(request, path, "GET");
 }
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(request, params.path, "POST");
+  const { path } = await params;
+  return proxyRequest(request, path, "POST");
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(request, params.path, "PATCH");
+  const { path } = await params;
+  return proxyRequest(request, path, "PATCH");
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(request, params.path, "PUT");
+  const { path } = await params;
+  return proxyRequest(request, path, "PUT");
 }
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { path: string[] } },
+  { params }: { params: Promise<{ path: string[] }> },
 ) {
-  return proxyRequest(request, params.path, "DELETE");
+  const { path } = await params;
+  return proxyRequest(request, path, "DELETE");
 }
 
 async function proxyRequest(
@@ -63,13 +57,10 @@ async function proxyRequest(
     Accept: "application/json",
   };
 
-  // Inject API key — this is the SECURITY boundary.
-  // Client components cannot access this key.
   if (API_KEY) {
     headers["Authorization"] = `Bearer ${API_KEY}`;
   }
 
-  // Forward idempotency key if present
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey) {
     headers["Idempotency-Key"] = idempotencyKey;
@@ -93,7 +84,6 @@ async function proxyRequest(
       status: response.status,
       headers: {
         "Content-Type": response.headers.get("Content-Type") || "application/json",
-        // Forward rate limit headers
         ...(response.headers.get("X-RateLimit-Limit") && {
           "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit")!,
         }),

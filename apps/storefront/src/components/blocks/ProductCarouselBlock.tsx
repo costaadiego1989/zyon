@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProductCarouselBlock as ProductCarouselBlockType, ProductCardBlock } from "@/lib/types";
+import { productsApi } from "@/lib/api/api-client";
 import ImageSlideshow from "../ImageSlideshow";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 function formatPrice(cents: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -29,15 +28,13 @@ export default function ProductCarouselBlock({
     if (!cursor || loadingMore || !data.merchantId) return;
     setLoadingMore(true);
     try {
-      const params = new URLSearchParams();
-      if (data.query) params.set("query", data.query);
-      if (data.categoryId) params.set("categoryId", data.categoryId);
-      params.set("limit", "10");
-      params.set("cursor", cursor);
-      const res = await fetch(`${API_BASE}/merchants/${data.merchantId}/products?${params}`, { credentials: "include" });
-      if (!res.ok) return;
-      const result = await res.json();
-      const newProducts: ProductCardBlock["data"][] = (result.products ?? []).map((p: any) => ({
+      const result = await productsApi.list(data.merchantId, {
+        query: data.query,
+        categoryId: data.categoryId,
+        limit: 10,
+        cursor,
+      });
+      const newProducts: ProductCardBlock["data"][] = result.products.map((p: any) => ({
         id: p.id,
         name: p.name,
         description: p.description,

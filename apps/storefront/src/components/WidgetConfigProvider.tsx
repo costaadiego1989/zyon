@@ -2,8 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { WidgetConfigContext, type WidgetConfig, type WidgetConfigState } from "@/lib/widget-config";
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+import { settingsApi } from "@/lib/api/api-client";
 
 interface WidgetConfigProviderProps {
   merchantId?: string;
@@ -11,8 +10,8 @@ interface WidgetConfigProviderProps {
 }
 
 /**
- * Fetches checkout settings from the public widget-config endpoint
- * and provides them to all child components via context.
+ * Fetches checkout settings and provides them to all child components via context.
+ * Uses settingsApi (feature-flag driven: internal or v1 path).
  */
 export function WidgetConfigProvider({ merchantId, children }: WidgetConfigProviderProps) {
   const [state, setState] = useState<WidgetConfigState>({
@@ -23,15 +22,8 @@ export function WidgetConfigProvider({ merchantId, children }: WidgetConfigProvi
 
   const fetchConfig = useCallback(async (id: string) => {
     try {
-      const res = await fetch(
-        `${API_BASE}/checkout-settings/widget-config?merchantId=${encodeURIComponent(id)}`,
-      );
-      if (!res.ok) {
-        setState({ config: null, loading: false, error: `HTTP ${res.status}` });
-        return;
-      }
-      const data = (await res.json()) as WidgetConfig;
-      setState({ config: data, loading: false, error: null });
+      const data = await settingsApi.getCheckoutSettings(id);
+      setState({ config: data as WidgetConfig, loading: false, error: null });
     } catch (err) {
       setState({
         config: null,

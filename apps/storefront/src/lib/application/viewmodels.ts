@@ -7,7 +7,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { RepositoryFactory } from "./repository-factory";
+import type { RepositoryFactory } from "../infrastructure/api";
 
 /**
  * Base ViewModel pattern — all screens inherit this.

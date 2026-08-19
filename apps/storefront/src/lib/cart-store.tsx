@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { cartApi } from "@/lib/api/api-client";
 
 export interface CartItem {
   variantId: string;
@@ -26,7 +27,6 @@ interface CartContextValue {
 }
 
 const STORAGE_KEY_PREFIX = "zyon-cart-id";
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 function getStorageKey(merchantId: string): string {
   return `${STORAGE_KEY_PREFIX}:${merchantId}`;
@@ -77,8 +77,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     // Hydrate cartId optimistically while fetching full state
     setCart((prev) => prev.cartId === savedId ? prev : { ...EMPTY_CART, cartId: savedId });
 
-    fetch(`${API_BASE}/storefront/cart/${encodeURIComponent(savedId)}?merchantId=${encodeURIComponent(merchantId)}`)
-      .then((res) => res.ok ? res.json() : null)
+    cartApi.get(savedId, merchantId)
       .then((data) => {
         if (!data || !data.items?.length) return;
         setCart({
