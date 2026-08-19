@@ -3,7 +3,8 @@ import { defineConfig } from "orval";
 export default defineConfig({
   aacp: {
     input: {
-      target: "http://localhost:3009/openapi.json",
+      target: process.env.AACP_SPEC_URL || "./openapi.json",
+      validation: false,
     },
     output: {
       target: "./src/generated",

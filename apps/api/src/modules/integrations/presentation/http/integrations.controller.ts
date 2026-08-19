@@ -49,7 +49,7 @@ export class IntegrationsController {
   @ApiResponse({
     status: 200,
     description: "API keys retrieved successfully",
-    schema: { type: "array" },
+    schema: { type: "array", items: { type: "object", properties: { id: { type: "string" }, name: { type: "string" }, prefix: { type: "string" }, scopes: { type: "array", items: { type: "string" } }, environment: { type: "string" }, created_at: { type: "string" } } } },
   })
   @ApiResponse({ status: 401, description: "Unauthorized - invalid or missing credentials" })
   @ApiResponse({ status: 403, description: "Forbidden - insufficient permissions" })

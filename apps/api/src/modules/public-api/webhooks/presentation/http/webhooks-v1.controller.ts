@@ -83,7 +83,7 @@ export class WebhooksV1Controller {
   @ApiOperation({ summary: "List webhook endpoints" })
   @ApiQuery({ name: "limit", type: "number", required: false, example: 20 })
   @ApiQuery({ name: "cursor", type: "string", required: false })
-  @ApiOkResponse({ description: "Webhook endpoints list", type: [WebhookResponse] })
+  @ApiOkResponse({ description: "Webhook endpoints list", type: WebhookResponse, isArray: true })
   @ApiResponse({ status: 401, description: "Unauthorized" })
   @ApiResponse({ status: 403, description: "Forbidden" })
   async list(

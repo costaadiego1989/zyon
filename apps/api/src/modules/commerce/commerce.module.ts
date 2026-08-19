@@ -100,6 +100,10 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     COMMERCE_CATALOG_PORT,
     COMMERCE_ORDER_PORT,
     TenantCommerceAdapterFactory,
+    GetCommerceConnectionUseCase,
+    ConnectCommerceUseCase,
+    SyncCommerceConnectionUseCase,
+    DisconnectCommerceUseCase,
   ]
 })
 export class CommerceModule {}
