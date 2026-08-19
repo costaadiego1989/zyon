@@ -1,8 +1,8 @@
 # Public API v1 — Implementation Status
 
 > Source of truth for REST v1 headless API surface.
-> Last updated: 2026-08-18
-> **Status: COMPLETE — 23 modules, 100+ endpoints**
+> Last updated: 2026-08-19
+> **Status: PRODUCTION-READY — 23 modules, 110+ endpoints, SDK, rate limiting, E2E**
 
 ## Architecture
 
@@ -229,10 +229,26 @@ TENANT_API_SCOPES = [
 - `merchant` — merchant profile
 - `__test__` — test fixtures
 
-## Next Steps
+## Production Readiness Checklist
 
-1. **Documentation** — Update API reference (ADR, API specs, migration guide)
-2. **SDK Generation** — Orval: OpenAPI → TypeScript SDK
-3. **Webhook Events** — Event catalog documentation
-4. **Error Codes** — Per-endpoint error reference
-5. **Integration Tests** — E2E for all 23 modules
+| Area | Status | Details |
+|------|--------|---------|
+| API Implementation | ✅ | 23 modules, 110+ endpoints |
+| Documentation | ✅ | `docs/api/` — README, quickstart, auth, errors, pagination, webhooks, 23 resource refs |
+| SDK (TypeScript) | ✅ | `zyon-sdk` via Orval from OpenAPI spec |
+| SDK Publishing | ✅ | `scripts/release-sdk.sh` → npm publish |
+| Rate Limiting | ✅ | Redis sliding-window, per-tier (free:60, pro:600, enterprise:6000 req/min) |
+| Webhook Delivery | ✅ | Async dispatcher, HMAC SHA-256 signing, exponential backoff, 5 retries, SSRF protection |
+| Idempotency | ✅ | Prisma-backed, `@Idempotent()` on all mutations |
+| E2E Tests | ✅ | API integration, dashboard, storefront, widget full-purchase flows |
+| Error Contract | ✅ | RFC 7807 ProblemDetails on all endpoints |
+| API Docs UI | ✅ | Scalar at `/docs`, OpenAPI JSON at `/openapi.json` |
+| Postman Collection | ✅ | Auto-generated at `/postman.json` |
+
+## Remaining (Post-Launch)
+
+1. **Deploy** — Containerize + CI/CD pipeline
+2. **Monitoring** — APM, alerting, SLO dashboards
+3. **Usage Analytics** — Per-merchant API usage tracking
+4. **SDK v2 Features** — Typed response schemas (OpenAPI `@ApiResponse` decorators)
+5. **Changelog** — Public API versioning & deprecation policy
