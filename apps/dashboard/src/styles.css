@@ -3956,4 +3956,53 @@ button.dash-tab.active {
   background: var(--color-brand-soft, rgba(0,200,150,0.1));
   align-self: flex-end;
 }
+
+/* ─── Custom Scrollbar — Dashboard Shell ─── */
+/* Sidebar nav */
+aside {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(22% 0.02 149) transparent;
+}
+
+aside::-webkit-scrollbar {
+  width: 5px;
+}
+
+aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+aside::-webkit-scrollbar-thumb {
+  background: oklch(22% 0.02 149);
+  border-radius: 10px;
+  transition: background 0.2s;
+}
+
+aside::-webkit-scrollbar-thumb:hover {
+  background: oklch(35% 0.04 149);
+}
+
+/* Main content area */
+.dashboard-main section {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(20% 0.01 149) transparent;
+}
+
+.dashboard-main section::-webkit-scrollbar {
+  width: 6px;
+}
+
+.dashboard-main section::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 8px 0;
+}
+
+.dashboard-main section::-webkit-scrollbar-thumb {
+  background: oklch(20% 0.01 149);
+  border-radius: 10px;
+}
+
+.dashboard-main section::-webkit-scrollbar-thumb:hover {
+  background: oklch(32% 0.04 149);
+}
 .support-msg--merchant .support-msg-label { color: var(--color-brand); }
