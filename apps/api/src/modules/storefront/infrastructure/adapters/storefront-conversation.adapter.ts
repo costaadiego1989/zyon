@@ -720,7 +720,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       storeSettings: input.storeSettings,
       agentIdentity: input.agentIdentity,
       merchantPolicy: input.merchantPolicy,
-      advancedRules: input.advancedRules
+      advancedRules: input.advancedRules,
+      systemPrompt: input.experimentSystemPrompt,
     });
 
     // Emit funnel events based on tools used (non-blocking)

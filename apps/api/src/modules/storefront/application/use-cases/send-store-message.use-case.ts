@@ -110,6 +110,30 @@ export class SendStoreMessageUseCase {
       }
     } catch { /* optional — rules are advisory */ }
 
+    // Load experiment variant system prompt for this session (if A/B test running)
+    let experimentSystemPrompt: string | undefined;
+    try {
+      const running = await this.prisma.promptExperiment.findFirst({
+        where: { merchantId: input.merchant_id, status: "running" },
+        include: { variants: true },
+      });
+      if (running && running.variants.length > 0) {
+        // Use deterministic assignment based on conversation_id hash for consistency
+        const hash = this.hashCode(input.conversation_id);
+        const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
+        let target = Math.abs(hash) % totalWeight;
+        for (const variant of running.variants) {
+          target -= variant.weight;
+          if (target <= 0) {
+            experimentSystemPrompt = variant.systemPrompt;
+            break;
+          }
+        }
+      }
+    } catch {
+      // Non-critical — continue without experiment prompt
+    }
+
     const result = await this.conversation.reply({
       userMessage: input.user_message,
       cartId: input.cart_id,
@@ -121,7 +145,8 @@ export class SendStoreMessageUseCase {
       storeSettings,
       agentIdentity,
       merchantPolicy,
-      advancedRules
+      advancedRules,
+      experimentSystemPrompt,
     });
 
     // Persist conversation history (non-blocking, best-effort)
@@ -164,5 +189,16 @@ export class SendStoreMessageUseCase {
       conversation_id: input.conversation_id,
       suggested_next: result.suggestedNext ?? []
     };
+  }
+
+  /** Deterministic hash for consistent variant assignment per conversation */
+  private hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
   }
 }

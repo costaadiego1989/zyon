@@ -200,7 +200,30 @@ export class SendChatMessageUseCase {
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
     this.logger.debug("chat.routing", { stage, missingFields, rulesCount: merchantRules?.length ?? 0 });
 
-    const llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id);
+    // Load experiment variant prompt override (A/B test)
+    let experimentPromptOverride: string | undefined;
+    try {
+      const running = await this.prisma?.promptExperiment?.findFirst?.({
+        where: { merchantId: input.merchant_id, status: "running" },
+        include: { variants: true },
+      });
+      if (running && running.variants.length > 0) {
+        const hash = this.hashSessionId(input.session_id);
+        const totalWeight = running.variants.reduce((sum: number, v: any) => sum + v.weight, 0);
+        let target = Math.abs(hash) % totalWeight;
+        for (const variant of running.variants) {
+          target -= variant.weight;
+          if (target <= 0) {
+            experimentPromptOverride = variant.systemPrompt;
+            break;
+          }
+        }
+      }
+    } catch {
+      // Non-critical — continue without experiment override
+    }
+
+    const llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride);
 
     if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
       reply = llmReply;
@@ -358,6 +381,7 @@ export class SendChatMessageUseCase {
     merchantName?: string,
     cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number },
     merchantId?: string,
+    experimentPromptOverride?: string,
   ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] }> {
     if (!this.chatLlmGateway || !this.chatToolExecutor) {
       return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
@@ -365,7 +389,8 @@ export class SendChatMessageUseCase {
 
     const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
     const tools = this.chatLlmGateway.getTools();
-    const systemPrompt = this.chatLlmGateway.buildSystemPrompt({ merchantName, merchantRules, cartInfo });
+    const systemPrompt = experimentPromptOverride
+      || this.chatLlmGateway.buildSystemPrompt({ merchantName, merchantRules, cartInfo });
 
     const messages: Array<{ role: "system" | "user"; content: string }> = [
       { role: "system", content: systemPrompt },
@@ -390,6 +415,17 @@ export class SendChatMessageUseCase {
     }
 
     return { message: result.content || "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+  }
+
+  /** Deterministic hash for consistent variant assignment per session */
+  private hashSessionId(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return hash;
   }
 
 }
