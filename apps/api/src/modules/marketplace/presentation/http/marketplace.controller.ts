@@ -16,6 +16,8 @@ import { UpdateMarketplaceConfigUseCase } from "../../application/use-cases/upda
 import { HandleMarketplaceChargebackUseCase } from "../../application/use-cases/handle-marketplace-chargeback.use-case.js";
 import { ListSellerSettlementsUseCase } from "../../application/use-cases/list-seller-settlements.use-case.js";
 import { GetSettlementDetailUseCase } from "../../application/use-cases/get-settlement-detail.use-case.js";
+import { ListSellerDebtsUseCase } from "../../application/use-cases/list-seller-debts.use-case.js";
+import { GetDebtDetailUseCase } from "../../application/use-cases/get-debt-detail.use-case.js";
 import { MarketplaceEntityMapper } from "../../application/mappers/marketplace-entity.mapper.js";
 
 interface AuthenticatedRequest {
@@ -37,6 +39,8 @@ export class MarketplaceController {
     private readonly handleChargeback: HandleMarketplaceChargebackUseCase,
     private readonly listSettlements: ListSellerSettlementsUseCase,
     private readonly getSettlementDetail: GetSettlementDetailUseCase,
+    private readonly listDebts: ListSellerDebtsUseCase,
+    private readonly getDebtDetail: GetDebtDetailUseCase,
   ) {}
 
   @Get("config")
@@ -120,6 +124,30 @@ export class MarketplaceController {
     const user = currentUser(request);
     return this.getSettlementDetail.execute({
       settlementId,
+      sellerMerchantId: user.merchantId,
+    });
+  }
+
+  @Get("debts")
+  async debts(
+    @Req() request: AuthenticatedRequest,
+    @Query("status") status?: string,
+  ) {
+    const user = currentUser(request);
+    return this.listDebts.execute({
+      sellerMerchantId: user.merchantId,
+      status: (status as any) || undefined,
+    });
+  }
+
+  @Get("debts/:debtId")
+  async debtDetail(
+    @Req() request: AuthenticatedRequest,
+    @Param("debtId") debtId: string,
+  ) {
+    const user = currentUser(request);
+    return this.getDebtDetail.execute({
+      debtId,
       sellerMerchantId: user.merchantId,
     });
   }

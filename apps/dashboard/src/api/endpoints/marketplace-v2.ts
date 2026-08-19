@@ -178,5 +178,30 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
         f
       );
     },
+
+    async getMarketplaceDebts(status?: "outstanding" | "deducted" | "resolved"): Promise<{
+      debts: MarketplaceSellerDebt[];
+      totalOutstandingCents: number;
+      totalDeductedCents: number;
+      totalResolvedCents: number;
+    }> {
+      const url = status
+        ? `/marketplace/dashboard/debts?status=${status}`
+        : "/marketplace/dashboard/debts";
+      return dashboardJson(base, url, { method: "GET" }, f);
+    },
+
+    async getMarketplaceDebtDetail(debtId: string): Promise<{
+      debt: MarketplaceSellerDebt;
+      originSettlement: { id: string; orderId: string } | null;
+      deductionHistory: Array<{ deductedFromSettlementId: string; deductedAt: string | null }>;
+    }> {
+      return dashboardJson(
+        base,
+        `/marketplace/dashboard/debts/${encodeURIComponent(debtId)}`,
+        { method: "GET" },
+        f
+      );
+    },
   };
 }

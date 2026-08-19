@@ -29,6 +29,8 @@ import { GetSellerOrdersUseCase } from "./application/use-cases/get-seller-order
 import { GetSellerStatsUseCase } from "./application/use-cases/get-seller-stats.use-case.js";
 import { ListSellerSettlementsUseCase } from "./application/use-cases/list-seller-settlements.use-case.js";
 import { GetSettlementDetailUseCase } from "./application/use-cases/get-settlement-detail.use-case.js";
+import { ListSellerDebtsUseCase } from "./application/use-cases/list-seller-debts.use-case.js";
+import { GetDebtDetailUseCase } from "./application/use-cases/get-debt-detail.use-case.js";
 
 import { SyncMarketplaceIndexJob } from "./infrastructure/jobs/sync-marketplace-index.job.js";
 import { ProcessTransfersJob } from "./infrastructure/jobs/process-transfers.job.js";
@@ -220,6 +222,24 @@ const prismaProvider = {
         SettlementStateMachineService,
       ],
     },
+    {
+      provide: ListSellerDebtsUseCase,
+      useFactory: (debtRepo: PrismaMarketplaceSellerDebtRepository) =>
+        new ListSellerDebtsUseCase(debtRepo),
+      inject: [MARKETPLACE_SELLER_DEBT_REPOSITORY],
+    },
+    {
+      provide: GetDebtDetailUseCase,
+      useFactory: (
+        debtRepo: PrismaMarketplaceSellerDebtRepository,
+        settlementRepo: PrismaMarketplaceSettlementRepository,
+      ) =>
+        new GetDebtDetailUseCase(debtRepo, settlementRepo),
+      inject: [
+        MARKETPLACE_SELLER_DEBT_REPOSITORY,
+        MARKETPLACE_SETTLEMENT_REPOSITORY,
+      ],
+    },
 
     // Background Jobs
     SyncMarketplaceIndexJob,
@@ -242,6 +262,8 @@ const prismaProvider = {
     GetSellerStatsUseCase,
     ListSellerSettlementsUseCase,
     GetSettlementDetailUseCase,
+    ListSellerDebtsUseCase,
+    GetDebtDetailUseCase,
   ],
 })
 export class MarketplaceModule {}
