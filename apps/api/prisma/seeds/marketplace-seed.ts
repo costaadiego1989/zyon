@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-const prisma = new PrismaClient();
+process.env.DATABASE_URL ??= 'postgresql://atendeai:atendeai_dev@localhost:5434/aacp_dev?schema=public';
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 // 10 merchants with diverse store categories
 const MERCHANTS = [
@@ -518,12 +522,12 @@ async function seed() {
         where: {
           variantId_warehouseId: {
             variantId: variantId,
-            warehouseId: null,
+            warehouseId: "default",
           },
         },
         create: {
           variantId: variantId,
-          warehouseId: null,
+          warehouseId: "default",
           quantity: 50 + Math.floor(Math.random() * 100),
           reserved: 0,
         },
