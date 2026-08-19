@@ -141,4 +141,16 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     // In-memory implementation: no-op (in-memory doesn't track expires_at)
     return 0;
   }
+
+  async listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]> {
+    return this.intents.filter((i) => {
+      const snap = i.snapshot();
+      if (snap.merchantId !== merchantId) return false;
+      if (statusPrefix && !snap.status.startsWith(statusPrefix)) return false;
+      return true;
+    });
+  }
 }
