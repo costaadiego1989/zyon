@@ -18,6 +18,7 @@ import { PublicApiShippingModule } from './shipping/public-api-shipping.module.j
 import { PublicApiNotificationsModule } from './notifications/public-api-notifications.module.js';
 import { PublicApiCrossSellModule } from './cross-sell/public-api-cross-sell.module.js';
 import { PublicApiFulfillmentModule } from './fulfillment/public-api-fulfillment.module.js';
+import { PublicApiInstallationsModule } from './installations/public-api-installations.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { PublicApiFulfillmentModule } from './fulfillment/public-api-fulfillment
     PublicApiNotificationsModule,
     PublicApiCrossSellModule,
     PublicApiFulfillmentModule,
+    PublicApiInstallationsModule,
   ],
 })
 export class PublicApiModule {}

@@ -29,6 +29,12 @@ export const TENANT_API_SCOPES = [
   "team:write",
   "returns:read",
   "returns:write",
+  "installations:read",
+  "installations:write",
+  "billing:read",
+  "billing:write",
+  "integrations:read",
+  "integrations:write",
 ] as const;
 
 export type TenantApiScope = (typeof TENANT_API_SCOPES)[number];
