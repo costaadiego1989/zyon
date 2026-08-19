@@ -16,10 +16,10 @@
     "README.md"
   ],
   "scripts": {
-    "generate": "orval",
+    "generate": "orval && node scripts/post-generate.cjs",
     "build": "tsc",
     "clean": "rm -rf dist src/generated",
-    "sdk:generate": "orval && tsc",
+    "sdk:generate": "orval && node scripts/post-generate.cjs && tsc",
     "sdk:publish": "pnpm sdk:generate && npm publish --access public",
     "sdk:publish:beta": "pnpm sdk:generate && npm publish --access public --tag beta",
     "sdk:release": "pnpm clean && pnpm sdk:generate && npm publish --access public",
