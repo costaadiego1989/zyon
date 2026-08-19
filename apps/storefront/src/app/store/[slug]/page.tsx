@@ -7,75 +7,12 @@ import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema } from "@/compo
 import { GoogleTagManager } from "@/components/GoogleTagManager";
 import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
 import { getDemoMerchant } from "@/lib/demo-merchant";
+import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://stores.zyon.com";
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 type Params = { slug: string };
 type SearchParams = { order?: string };
-
-interface StoreConfig {
-  merchantId: string;
-  name: string;
-  logo?: string;
-  favicon?: string;
-  description?: string;
-  theme: {
-    accentColor: string;
-    secondaryColor?: string;
-    textColor: string;
-    backgroundColor: string;
-    fontFamily: string;
-    fontDisplay?: string;
-    logoUrl?: string;
-    agentAvatarUrl?: string;
-    surfaceColor?: string;
-    surfaceElevatedColor?: string;
-    borderColor?: string;
-    borderRadius?: number;
-    mode?: string;
-    density?: string;
-    backgroundImageUrl?: string;
-  };
-  agentName?: string;
-  agentGreeting?: string;
-  quickReplies?: string[];
-  stories?: any[];
-  storeCategory?: string;
-  storeSettings?: {
-    social?: { instagram?: string; facebook?: string; linkedin?: string; youtube?: string; googleMaps?: string };
-    company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
-    policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
-    seo?: { title?: string; description?: string; keywords?: string[]; ogTitle?: string; ogDescription?: string; ogImage?: string; twitterCard?: string; canonicalUrl?: string };
-    gtm?: { gtmId?: string; gaTrackingId?: string; pixelIds?: { facebook?: string; tiktok?: string; custom?: Record<string, string> }; dataLayerEnabled?: boolean };
-  };
-}
-
-async function fetchStoreConfig(slug: string): Promise<StoreConfig | null> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/storefront/${slug}/config`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    return (await res.json()) as StoreConfig;
-  } catch {
-    return null;
-  }
-}
-
-async function fetchStoreStories(slug: string): Promise<any[]> {
-  try {
-    const res = await fetch(`${API_BASE_URL}/storefront/${slug}/stories`, {
-      cache: "no-store",
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.categories ?? [];
-  } catch {
-    return [];
-  }
-}
 
 export async function generateMetadata({
   params,

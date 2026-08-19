@@ -1,11 +1,9 @@
 import { ImageResponse } from "next/og";
+import { fetchStoreConfig } from "@/lib/api/server-client";
 
 export const alt = "Store preview";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 export default async function Image({
   params,
@@ -19,11 +17,8 @@ export default async function Image({
   let storeCategory = "Loja Online";
 
   try {
-    const res = await fetch(`${API_BASE_URL}/storefront/${slug}/config`, {
-      next: { revalidate: 3600 },
-    });
-    if (res.ok) {
-      const config = await res.json();
+    const config = await fetchStoreConfig(slug);
+    if (config) {
       storeName = config.name || storeName;
       accentColor = config.theme?.accentColor || accentColor;
       storeCategory = config.storeCategory || storeCategory;
