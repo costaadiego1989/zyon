@@ -13,6 +13,7 @@ import type { ConversationBlock } from "../../domain/types/conversation-block.js
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
@@ -37,6 +38,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly supportHandoff: SupportHandoffService,
+    @Optional() private readonly searchFederatedProducts?: SearchFederatedProductsUseCase,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -67,19 +69,56 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           isActiveOnly: true,
           limit: Math.min(args.limit ?? 10, 20)
         });
+
+        const localProducts = result.products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.defaultVariant?.basePriceInCents ?? 0,
+          image: p.defaultVariant?.media?.[0]?.url,
+          images: p.defaultVariant?.media?.map((m) => m.url) ?? [],
+          inStock: p.hasStock,
+          rating: p.averageRating,
+          reviewCount: p.reviewCount,
+          variants: p.variants.map((v) => ({ id: v.id, sku: v.sku })),
+          source: "local" as const,
+        }));
+
+        // Marketplace fallback: when local catalog has no results, search partner stores
+        if (localProducts.length === 0 && this.searchFederatedProducts && args.query && args.query !== "*") {
+          try {
+            const marketplaceResult = await this.searchFederatedProducts.execute({
+              query: args.query,
+              hostMerchantId: this.currentMerchantId,
+              limit: Math.min(args.limit ?? 5, 10),
+            });
+            const marketplaceProducts = (marketplaceResult.products ?? []).map((p) => ({
+              id: p.id,
+              name: p.name,
+              description: p.description || "",
+              price: p.priceCents,
+              image: p.imageUrl,
+              images: p.imageUrl ? [p.imageUrl] : [],
+              inStock: p.stockAvailable,
+              rating: null,
+              reviewCount: 0,
+              variants: [{ id: p.id, sku: p.sourceProductId }],
+              source: "marketplace" as const,
+              sellerMerchantId: p.sourceMerchantId,
+            }));
+            if (marketplaceProducts.length > 0) {
+              return {
+                products: marketplaceProducts,
+                source: "marketplace",
+                note: "Produtos de lojas parceiras do marketplace",
+                nextCursor: null,
+              };
+            }
+          } catch { /* marketplace search failed — return empty */ }
+        }
+
         return {
-          products: result.products.map((p) => ({
-            id: p.id,
-            name: p.name,
-            description: p.description,
-            price: p.defaultVariant?.basePriceInCents ?? 0,
-            image: p.defaultVariant?.media?.[0]?.url,
-            images: p.defaultVariant?.media?.map((m) => m.url) ?? [],
-            inStock: p.hasStock,
-            rating: p.averageRating,
-            reviewCount: p.reviewCount,
-            variants: p.variants.map((v) => ({ id: v.id, sku: v.sku }))
-          })),
+          products: localProducts,
           nextCursor: result.nextCursor
         };
       },

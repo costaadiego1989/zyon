@@ -29,7 +29,8 @@ import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
+import { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -53,7 +54,8 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
-    @Optional() private readonly searchMarketplace?: SearchFederatedProductsUseCase,
+    @Optional() private readonly chatToolExecutor?: ChatToolExecutorService,
+    @Optional() private readonly chatLlmGateway?: ChatLlmGatewayService,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -193,15 +195,17 @@ export class SendChatMessageUseCase {
       this.logger.error("rules.load.failed", { error: rulesErr instanceof Error ? rulesErr.message : String(rulesErr) });
     }
 
-    // Off-script detection: if user asks question/objection instead of providing data, route to LLM
+    // LLM-first: always route to LLM (tools: marketplace, discount, etc)
+    // Conversation engine is fallback only when LLM is unavailable
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
-    const isOffScript = this.detectOffScript(input.user_message, stage, missingFields);
-    this.logger.debug("chat.routing", { stage, missingFields, offScript: isOffScript, rulesCount: merchantRules?.length ?? 0 });
+    this.logger.debug("chat.routing", { stage, missingFields, rulesCount: merchantRules?.length ?? 0 });
 
-    if (isOffScript && merchantRules?.length) {
-      // Call Llama directly for off-script with merchant rules
-      reply = await this.callLocalLlm(input.user_message, merchantRules, merchant?.name, working.cart);
+    const llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id);
+
+    if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
+      reply = llmReply;
     } else {
+      // Fallback: deterministic conversation engine (no LLM available)
       reply = await this.conversation.reply({
         userMessage: input.user_message,
         brandVoice: rules.brandVoice,
@@ -330,6 +334,9 @@ export class SendChatMessageUseCase {
   private detectOffScript(message: string, stage?: string, missingFields?: string[]): boolean {
     if (!stage || !missingFields?.length) return true;
     const msg = message.toLowerCase();
+    // Product search intent — route to LLM with marketplace tools
+    if (/(quero|procur|busc|preciso|tem |quer|comprar|gostaria).*(produto|item|calça|camis|fone|tênis|jaqueta|bolsa|relóg|mochilaeletrônic)/i.test(msg)) return true;
+    if (/(quero comprar|quero uma?|procurando|tem algum|vocês têm|buscando)/i.test(msg)) return true;
     // Question or objection patterns
     if (/\?$/.test(msg)) return true;
     if (/(cupom|desconto|promoç|oferta|parcel|frete.*caro|caro.*frete)/i.test(msg)) return true;
@@ -349,137 +356,40 @@ export class SendChatMessageUseCase {
     userMessage: string,
     merchantRules: string[],
     merchantName?: string,
-    cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number }
+    cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number },
+    merchantId?: string,
   ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] }> {
-    const baseUrl = process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1";
-    const model = process.env.OLLAMA_MODEL || "llama3.1:8b";
+    if (!this.chatLlmGateway || !this.chatToolExecutor) {
+      return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+    }
+
     const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
+    const tools = this.chatLlmGateway.getTools();
+    const systemPrompt = this.chatLlmGateway.buildSystemPrompt({ merchantName, merchantRules, cartInfo });
 
-    const tools = [
-      {
-        type: "function" as const,
-        function: {
-          name: "apply_discount",
-          description: "Aplica desconto percentual no carrinho do comprador",
-          parameters: { type: "object", properties: { percent: { type: "number", description: "Percentual de desconto (ex: 10 para 10%)" } }, required: ["percent"] }
-        }
-      },
-      {
-        type: "function" as const,
-        function: {
-          name: "apply_free_shipping",
-          description: "Aplica frete grátis no pedido do comprador",
-          parameters: { type: "object", properties: {}, required: [] }
-        }
-      },
-      {
-        type: "function" as const,
-        function: {
-          name: "apply_coupon",
-          description: "Aplica um cupom de desconto no carrinho",
-          parameters: { type: "object", properties: { code: { type: "string", description: "Código do cupom" } }, required: ["code"] }
-        }
-      },
-      {
-        type: "function" as const,
-        function: {
-          name: "search_marketplace",
-          description: "Busca produto no marketplace de lojas parceiras",
-          parameters: { type: "object", properties: { query: { type: "string", description: "Nome ou descrição do produto" } }, required: ["query"] }
-        }
-      }
+    const messages: Array<{ role: "system" | "user"; content: string }> = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
     ];
 
-    const systemPrompt = [
-      `Você é assistente de checkout da ${merchantName || "loja"}. Seja breve e direto.`,
-      cartInfo,
-      "",
-      "REGRAS COMERCIAIS (siga a primeira que encaixar e USE A FERRAMENTA correspondente):",
-      ...merchantRules.map((r, i) => `${i + 1}. ${r}`),
-      "",
-      "IMPORTANTE: Quando uma regra diz 'ofereça X% desconto', CHAME apply_discount. Quando diz 'frete grátis', CHAME apply_free_shipping. Quando diz 'cupom CODIGO', CHAME apply_coupon.",
-      "Se local_search não encontrar o produto, CHAME search_marketplace para parceiros.",
-      "Após chamar a ferramenta, confirme ao cliente o que foi aplicado.",
-      "Responda em português. Sem markdown.",
-    ].join("\n");
-
-    const messages = [
-      { role: "system" as const, content: systemPrompt },
-      { role: "user" as const, content: userMessage },
-    ];
-
-    // Try Llama first (15s timeout — if slow/OOM, fallback fast)
-    const llamaResult = await this.callProvider(
-      `${baseUrl}/chat/completions`, "ollama", model, messages, tools, 15000
-    );
-
-    if (llamaResult) {
-      return { message: llamaResult.message, objection: "unknown" as any };
+    const result = await this.chatLlmGateway.call(messages, tools);
+    if (!result) {
+      return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
     }
 
-    // Fallback: DeepSeek (60s timeout — cloud is reliable)
-    const cloudKey = process.env.DEEPSEEK_API_KEY;
-    if (cloudKey) {
-      const deepseekResult = await this.callProvider(
-        `${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"}/chat/completions`,
-        cloudKey,
-        process.env.DEEPSEEK_MODEL || "deepseek-chat",
-        messages,
-        tools,
-        60000
+    if (result.toolCalls.length > 0) {
+      const execution = await this.chatToolExecutor.executeToolCalls(
+        result.toolCalls,
+        { merchantId: merchantId || "" },
       );
-      if (deepseekResult) {
-        return { message: deepseekResult.message, objection: "unknown" as any };
-      }
+      const textContent = result.content?.trim() || "";
+      const finalMsg = execution.message
+        ? `${textContent ? textContent + "\n" : ""}${execution.message}`
+        : textContent || "Benefício aplicado ao seu pedido!";
+      return { message: finalMsg, objection: "unknown" as any };
     }
 
-    return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
-  }
-
-  private async callProvider(
-    url: string, key: string, model: string,
-    messages: Array<{ role: string; content: string }>,
-    tools: Array<{ type: string; function: { name: string; description: string; parameters: object } }>,
-    timeoutMs = 30000
-  ): Promise<{ message: string; toolCalls: Array<{ name: string; args: Record<string, any> }> } | null> {
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, messages, tools, max_tokens: 300, temperature: 0.3 }),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      if (!res.ok) throw new Error(`http_${res.status}`);
-      const json = await res.json() as any;
-      const choice = json.choices?.[0];
-
-      if (choice?.message?.tool_calls?.length) {
-        const toolCalls: Array<{ name: string; args: Record<string, any> }> = [];
-        const toolResults: string[] = [];
-        for (const tc of choice.message.tool_calls) {
-          const fn = tc.function?.name;
-          const args = typeof tc.function?.arguments === "string" ? JSON.parse(tc.function.arguments) : tc.function?.arguments ?? {};
-          toolCalls.push({ name: fn, args });
-          if (fn === "apply_discount") toolResults.push(`✅ Desconto de ${args.percent}% aplicado no carrinho`);
-          if (fn === "apply_free_shipping") toolResults.push(`✅ Frete grátis aplicado`);
-          if (fn === "apply_coupon") toolResults.push(`✅ Cupom ${args.code} aplicado`);
-        }
-        const textContent = choice.message.content?.trim() || "";
-        const finalMsg = toolResults.length > 0
-          ? `${textContent ? textContent + " " : ""}${toolResults.join(". ")}`
-          : textContent || "Benefício aplicado ao seu pedido!";
-        return { message: finalMsg, toolCalls };
-      }
-
-      const content = choice?.message?.content?.trim();
-      if (content) return { message: content, toolCalls: [] };
-      return null;
-    } catch {
-      return null;
-    }
+    return { message: result.content || "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
   }
 
 }

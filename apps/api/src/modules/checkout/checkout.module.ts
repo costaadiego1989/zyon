@@ -22,6 +22,8 @@ import { EvaluateShippingUseCase } from "./application/use-cases/evaluate-shippi
 import { GetDecisionUseCase } from "./application/use-cases/get-decision.use-case.js";
 import { GetCheckoutSessionUseCase } from "./application/use-cases/get-checkout-session.use-case.js";
 import { SendChatMessageUseCase } from "./application/use-cases/send-chat-message.use-case.js";
+import { ChatToolExecutorService } from "./application/services/chat-tool-executor.service.js";
+import { ChatLlmGatewayService } from "./application/services/chat-llm-gateway.service.js";
 import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
@@ -81,6 +83,8 @@ import { ExperimentsModule } from "../experiments/experiments.module.js";
     TrackCheckoutEventUseCase,
     GetCheckoutSessionUseCase,
     GetDecisionUseCase,
+    ChatToolExecutorService,
+    ChatLlmGatewayService,
     SendChatMessageUseCase,
     CheckoutCustomerService,
     CheckoutShippingService,
