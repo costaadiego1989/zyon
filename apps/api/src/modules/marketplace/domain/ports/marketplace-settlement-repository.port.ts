@@ -66,6 +66,7 @@ export interface MarketplaceSettlementRepository {
     sellerMerchantId: string,
     status?: SettlementStatus,
   ): Promise<MarketplaceSettlementSnapshot[]>;
+  findExpiredReturnWindows(nowDate: Date): Promise<MarketplaceSettlementSnapshot[]>;
   findDueTransfers(nowDate: Date): Promise<MarketplaceSettlementSnapshot[]>;
   findExpiredChargebackWindows(nowDate: Date): Promise<MarketplaceSettlementSnapshot[]>;
   updateStatus(input: UpdateSettlementStatusInput): Promise<MarketplaceSettlementSnapshot>;

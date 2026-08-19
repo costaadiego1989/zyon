@@ -5,7 +5,7 @@
 .marketplace-page {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-6);
 }
 
 .marketplace-page__header {
@@ -71,6 +71,18 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
+}
+
+.marketplace-page__settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.marketplace-page__orders {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
 }
 
 /* ── Stats Grid ──────────────────────────────────────────────────────────── */
@@ -428,6 +440,73 @@
 .marketplace-page__button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* ── Settlement Status Badges ──────────────────────────────────────────────── */
+
+.settlement-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font: 600 11px var(--font-mono);
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.settlement-status--awaiting_return_window {
+  background: oklch(70% 0.08 245 / 0.2);
+  color: #2563eb;
+}
+
+.settlement-status--transfer_scheduled {
+  background: oklch(70% 0.1 48 / 0.2);
+  color: #f59e0b;
+}
+
+.settlement-status--transferred {
+  background: oklch(72% 0.11 145 / 0.2);
+  color: #10b981;
+}
+
+.settlement-status--finalized {
+  background: oklch(72% 0.11 145 / 0.2);
+  color: #059669;
+}
+
+.settlement-status--return_cancelled,
+.settlement-status--chargeback_cancelled {
+  background: oklch(65% 0.08 260 / 0.2);
+  color: #7c3aed;
+}
+
+.settlement-status--chargeback_debt {
+  background: oklch(70% 0.13 25 / 0.2);
+  color: #dc2626;
+}
+
+.btn-sm {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+  font: 500 11px var(--font-sans);
+  cursor: pointer;
+  transition: all var(--duration-fast, 150ms) ease;
+}
+
+.btn-sm:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.marketplace-page__settlements,
+.marketplace-page__chargebacks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4, 16px);
 }
 
 /* ── Responsive ──────────────────────────────────────────────────────────── */

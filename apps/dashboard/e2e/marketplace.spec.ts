@@ -51,12 +51,16 @@ test.describe('Marketplace Dashboard', () => {
     test.setTimeout(60000);
     await navigateToMarketplace(page);
 
-    // Toggle marketplace enabled
-    const checkbox = page.locator('#marketplace-enabled');
-    await expect(checkbox).toBeVisible();
+    // Click Configurações tab first (default is orders)
+    const settingsTab = page.locator('button[role="tab"]').filter({ hasText: 'Configurações' });
+    await settingsTab.click();
+    await page.waitForTimeout(1000);
 
-    const wasChecked = await checkbox.isChecked();
-    await checkbox.click({ force: true });
+    // Toggle marketplace enabled (ToggleSwitch = button[role="switch"])
+    const toggle = page.locator('button[role="switch"]');
+    await expect(toggle).toBeVisible();
+
+    await toggle.click();
     await page.waitForTimeout(1500);
 
     // Should show toast

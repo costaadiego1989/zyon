@@ -39,6 +39,7 @@ const TRANSITIONS: TransitionMap = {
   awaiting_return_window: {
     return_window_expired: "transfer_scheduled",
     buyer_returned: "return_cancelled",
+    chargeback_received: "chargeback_cancelled",
   },
   transfer_scheduled: {
     transfer_executed: "transferred",
@@ -113,6 +114,15 @@ export class SettlementStateMachineService {
         "chargebackWindowDays must be an integer between 7 and 30"
       );
     }
+  }
+
+  getAvailableEvents(current: SettlementStatus): SettlementEvent[] {
+    const stateTransitions = TRANSITIONS[current];
+    return Object.keys(stateTransitions) as SettlementEvent[];
+  }
+
+  isTerminal(status: SettlementStatus): boolean {
+    return this.getAvailableEvents(status).length === 0;
   }
 
   private addDays(date: Date, days: number): Date {

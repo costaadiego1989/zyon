@@ -67,6 +67,18 @@ export class PrismaMarketplaceSettlementRepository
     return settlements.map((s: any) => this.toSnapshot(s));
   }
 
+  async findExpiredReturnWindows(
+    nowDate: Date,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: {
+        status: "awaiting_return_window",
+        returnWindowUntil: { lte: nowDate },
+      },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
   async findDueTransfers(
     nowDate: Date,
   ): Promise<MarketplaceSettlementSnapshot[]> {

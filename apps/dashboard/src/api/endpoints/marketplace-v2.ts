@@ -5,7 +5,75 @@ import type {
   MarketplaceStats,
 } from "../../pages/marketplace/types.js";
 
-/** Maps API config response → dashboard MarketplaceConfig shape */
+// ────────────────────────────────────────────────────────────────────────────────
+
+export interface MarketplaceSettlement {
+  id: string;
+  orderId: string;
+  lineItemId: string;
+  totalAmountCents: number;
+  commissionCents: number;
+  sellerNetCents: number;
+  status: SettlementStatus;
+  returnWindowUntil: string;
+  transferScheduledAt: string | null;
+  chargebackWindowUntil: string;
+  transferredAt: string | null;
+  finalizedAt: string | null;
+  chargebackAt: string | null;
+  returnAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type SettlementStatus =
+  | "awaiting_return_window"
+  | "transfer_scheduled"
+  | "transferred"
+  | "finalized"
+  | "return_cancelled"
+  | "chargeback_cancelled"
+  | "chargeback_debt";
+
+export type SettlementEvent =
+  | "return_window_expired"
+  | "buyer_returned"
+  | "transfer_executed"
+  | "chargeback_received"
+  | "chargeback_window_expired";
+
+export interface SettlementTimelineEntry {
+  status: SettlementStatus;
+  timestamp: string | null;
+  label: string;
+}
+
+export interface MarketplaceSellerDebt {
+  id: string;
+  settlementId: string;
+  amountCents: number;
+  status: "outstanding" | "deducted" | "resolved";
+  deductedFromSettlementId: string | null;
+  createdAt: string;
+  resolvedAt: string | null;
+}
+
+export interface SettlementDetail {
+  settlement: MarketplaceSettlement;
+  timeline: SettlementTimelineEntry[];
+  availableTransitions: SettlementEvent[];
+  debt: MarketplaceSellerDebt | null;
+}
+
+export interface ListSettlementsResponse {
+  settlements: MarketplaceSettlement[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+
 function mapConfigResponse(raw: any): MarketplaceConfig {
   return {
     id: raw.id ?? "",
@@ -13,8 +81,8 @@ function mapConfigResponse(raw: any): MarketplaceConfig {
     enabled: raw.enabled ?? false,
     commission_percent: raw.commission_rate_bps != null
       ? Math.round(raw.commission_rate_bps / 100)
-      : (raw.commission_percent ?? 15),
-    return_window_days: raw.return_window_days ?? 7,
+      : (raw.commission_percent ?? 0),
+    return_window_days: raw.return_window_days ?? 14,
     settlement_window_days: raw.payout_delay_days ?? raw.settlement_window_days ?? 14,
     chargeback_window_days: raw.chargeback_window_days ?? 30,
     blocked_merchant_ids: raw.blocked_merchants ?? raw.blocked_merchant_ids ?? [],
@@ -23,7 +91,6 @@ function mapConfigResponse(raw: any): MarketplaceConfig {
   };
 }
 
-/** Maps dashboard config update → API payload shape */
 function mapConfigPayload(payload: Partial<Pick<MarketplaceConfig, "enabled" | "commission_percent" | "return_window_days" | "settlement_window_days" | "chargeback_window_days" | "blocked_merchant_ids">>) {
   const mapped: Record<string, unknown> = {};
   if (payload.enabled != null) mapped.enabled = payload.enabled;
@@ -51,7 +118,6 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
 
     async getMarketplaceOrders(): Promise<MarketplaceOrder[]> {
       const raw = await dashboardJson<any>(base, "/marketplace/dashboard/orders", { method: "GET" }, f);
-      // API returns { orders: [...] } or array directly
       const list = Array.isArray(raw) ? raw : (raw?.orders ?? []);
       return list;
     },
@@ -68,7 +134,34 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
       };
     },
 
-    markMarketplaceItemShipped(lineItemId: string, trackingNumber: string): Promise<void> {
+    async getMarketplaceSettlements(filters?: {
+      status?: SettlementStatus;
+      created_after?: Date;
+      created_before?: Date;
+      limit?: number;
+      offset?: number;
+    }): Promise<ListSettlementsResponse> {
+      const params = new URLSearchParams();
+      if (filters?.status) params.set("status", filters.status);
+      if (filters?.created_after) params.set("created_after", filters.created_after.toISOString());
+      if (filters?.created_before) params.set("created_before", filters.created_before.toISOString());
+      if (filters?.limit) params.set("limit", String(filters.limit));
+      if (filters?.offset) params.set("offset", String(filters.offset));
+
+      const url = params.toString() ? `/marketplace/dashboard/settlements?${params}` : "/marketplace/dashboard/settlements";
+      return dashboardJson<ListSettlementsResponse>(base, url, { method: "GET" }, f);
+    },
+
+    async getMarketplaceSettlementDetail(settlementId: string): Promise<SettlementDetail> {
+      return dashboardJson<SettlementDetail>(
+        base,
+        `/marketplace/dashboard/settlements/${encodeURIComponent(settlementId)}`,
+        { method: "GET" },
+        f
+      );
+    },
+
+    async markMarketplaceItemShipped(lineItemId: string, trackingNumber: string): Promise<void> {
       return dashboardJson(
         base,
         `/marketplace/orders/line-items/${encodeURIComponent(lineItemId)}/ship`,
@@ -77,7 +170,7 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
       );
     },
 
-    markMarketplaceItemDelivered(lineItemId: string): Promise<void> {
+    async markMarketplaceItemDelivered(lineItemId: string): Promise<void> {
       return dashboardJson(
         base,
         `/marketplace/orders/line-items/${encodeURIComponent(lineItemId)}/deliver`,

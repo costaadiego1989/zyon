@@ -1,0 +1,126 @@
+import {
+  Controller,
+  Get,
+  Patch,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Req,
+} from "@nestjs/common";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { GetSellerOrdersUseCase } from "../../application/use-cases/get-seller-orders.use-case.js";
+import { GetSellerStatsUseCase } from "../../application/use-cases/get-seller-stats.use-case.js";
+import { UpdateMarketplaceConfigUseCase } from "../../application/use-cases/update-marketplace-config.use-case.js";
+import { HandleMarketplaceChargebackUseCase } from "../../application/use-cases/handle-marketplace-chargeback.use-case.js";
+import { ListSellerSettlementsUseCase } from "../../application/use-cases/list-seller-settlements.use-case.js";
+import { GetSettlementDetailUseCase } from "../../application/use-cases/get-settlement-detail.use-case.js";
+import { MarketplaceEntityMapper } from "../../application/mappers/marketplace-entity.mapper.js";
+
+interface AuthenticatedRequest {
+  user: {
+    userId: string;
+    merchantId: string;
+    email: string;
+    role: "owner" | "admin";
+  };
+}
+
+@UseGuards(AuthGuard)
+@Controller("marketplace/dashboard")
+export class MarketplaceController {
+  constructor(
+    private readonly getSellerOrders: GetSellerOrdersUseCase,
+    private readonly getSellerStats: GetSellerStatsUseCase,
+    private readonly configUseCase: UpdateMarketplaceConfigUseCase,
+    private readonly handleChargeback: HandleMarketplaceChargebackUseCase,
+    private readonly listSettlements: ListSellerSettlementsUseCase,
+    private readonly getSettlementDetail: GetSettlementDetailUseCase,
+  ) {}
+
+  @Get("config")
+  async getConfig(@Req() request: AuthenticatedRequest) {
+    const user = currentUser(request);
+    const result = await this.configUseCase.execute({
+      merchantId: user.merchantId,
+    });
+    return MarketplaceEntityMapper.toConfigResponse(result.config);
+  }
+
+  @Patch("config")
+  async updateConfig(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: any,
+  ) {
+    const user = currentUser(request);
+    const result = await this.configUseCase.execute({
+      merchantId: user.merchantId,
+      enabled: body.enabled,
+      commissionRateBps: body.commission_rate_bps,
+      returnWindowDays: body.return_window_days,
+      payoutDelayDays: body.payout_delay_days,
+      chargebackWindowDays: body.chargeback_window_days,
+      blockedMerchants: body.blocked_merchants,
+    });
+    return MarketplaceEntityMapper.toConfigResponse(result.config);
+  }
+
+  @Get("orders")
+  async orders(@Req() request: AuthenticatedRequest) {
+    const user = currentUser(request);
+    return this.getSellerOrders.execute({
+      sellerMerchantId: user.merchantId,
+    });
+  }
+
+  @Get("stats")
+  async stats(@Req() request: AuthenticatedRequest) {
+    const user = currentUser(request);
+    return this.getSellerStats.execute({
+      sellerMerchantId: user.merchantId,
+    });
+  }
+
+  @Post("chargeback/:settlementId")
+  async chargeback(
+    @Req() request: AuthenticatedRequest,
+    @Param("settlementId") settlementId: string,
+  ) {
+    return this.handleChargeback.execute({
+      settlementId,
+    });
+  }
+
+  @Get("settlements")
+  async settlements(
+    @Req() request: AuthenticatedRequest,
+    @Query("status") status?: string,
+    @Query("created_after") createdAfter?: string,
+    @Query("created_before") createdBefore?: string,
+    @Query("limit") limit?: string,
+    @Query("offset") offset?: string,
+  ) {
+    const user = currentUser(request);
+    return this.listSettlements.execute({
+      sellerMerchantId: user.merchantId,
+      status: status || undefined,
+      createdAfter: createdAfter ? new Date(createdAfter) : undefined,
+      createdBefore: createdBefore ? new Date(createdBefore) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  @Get("settlements/:settlementId")
+  async settlementDetail(
+    @Req() request: AuthenticatedRequest,
+    @Param("settlementId") settlementId: string,
+  ) {
+    const user = currentUser(request);
+    return this.getSettlementDetail.execute({
+      settlementId,
+      sellerMerchantId: user.merchantId,
+    });
+  }
+}

@@ -8,6 +8,8 @@ export interface ProcessScheduledTransfersInput {
 }
 
 export interface ProcessScheduledTransfersOutput {
+  returnWindowsExpired: number;
+  transfersExecuted: number;
   processed: number;
 }
 
@@ -25,10 +27,47 @@ export class ProcessScheduledTransfersUseCase {
   ): Promise<ProcessScheduledTransfersOutput> {
     const nowDate = input.nowDate ?? new Date();
 
+    // Step 1: Process expired return windows (awaiting_return_window → transfer_scheduled)
+    const expiredReturnWindows =
+      await this.settlementRepository.findExpiredReturnWindows(nowDate);
+
+    let returnWindowsExpired = 0;
+    for (const settlement of expiredReturnWindows) {
+      try {
+        const newStatus = this.stateMachine.transition(
+          settlement.status,
+          "return_window_expired",
+        );
+
+        // Calculate transferScheduledAt based on the settlement config
+        // transferScheduledAt = returnWindowUntil + payoutDelayDays
+        // For now, we'll set it to now + a minimal delay
+        // In a real system, this would be persisted in the settlement or fetched from config
+        const transferScheduledAt = new Date(nowDate.getTime());
+        transferScheduledAt.setDate(transferScheduledAt.getDate() + 1);
+
+        await this.settlementRepository.updateStatus({
+          settlementId: settlement.id,
+          status: newStatus,
+          transferScheduledAt,
+        });
+
+        returnWindowsExpired++;
+        this.logger.log(
+          `Processed return window expiration for settlement ${settlement.id}, seller=${settlement.sellerMerchantId}`,
+        );
+      } catch (err) {
+        this.logger.error(
+          `Failed to process return window for settlement ${settlement.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+
+    // Step 2: Process due transfers (transfer_scheduled → transferred)
     const dueSettlements =
       await this.settlementRepository.findDueTransfers(nowDate);
 
-    let processed = 0;
+    let transfersExecuted = 0;
     for (const settlement of dueSettlements) {
       try {
         const newStatus = this.stateMachine.transition(
@@ -42,7 +81,7 @@ export class ProcessScheduledTransfersUseCase {
           transferredAt: nowDate,
         });
 
-        processed++;
+        transfersExecuted++;
         this.logger.log(
           `Processed transfer for settlement ${settlement.id}, seller=${settlement.sellerMerchantId}`,
         );
@@ -53,6 +92,10 @@ export class ProcessScheduledTransfersUseCase {
       }
     }
 
-    return { processed };
+    return {
+      returnWindowsExpired,
+      transfersExecuted,
+      processed: returnWindowsExpired + transfersExecuted,
+    };
   }
 }

@@ -31,11 +31,12 @@ export class SearchFederatedProductsUseCase {
     input: SearchFederatedProductsInput,
   ): Promise<SearchFederatedProductsOutput> {
     const config = await this.configRepository.get(input.hostMerchantId);
-    if (!config?.enabled) {
+    // If config exists and is explicitly disabled, skip search
+    if (config && !config.enabled) {
       return { products: [] };
     }
 
-    const excludeMerchants = config.blockedMerchants ?? [];
+    const excludeMerchants = config?.blockedMerchants ?? [];
 
     const results = await this.federatedSearchService.search({
       hostMerchantId: input.hostMerchantId,

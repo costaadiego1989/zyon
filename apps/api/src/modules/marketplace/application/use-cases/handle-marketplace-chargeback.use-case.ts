@@ -4,6 +4,11 @@ import type {
   MarketplaceSettlementRepository,
   MarketplaceSettlementSnapshot,
 } from "../../domain/ports/marketplace-settlement-repository.port.js";
+import { MARKETPLACE_SELLER_DEBT_REPOSITORY } from "../../domain/ports/marketplace-seller-debt-repository.port.js";
+import type {
+  MarketplaceSellerDebtRepository,
+  MarketplaceSellerDebtSnapshot,
+} from "../../domain/ports/marketplace-seller-debt-repository.port.js";
 import { SettlementStateMachineService } from "../../domain/services/settlement-state-machine.service.js";
 
 export interface HandleMarketplaceChargebackInput {
@@ -13,6 +18,7 @@ export interface HandleMarketplaceChargebackInput {
 export interface HandleMarketplaceChargebackOutput {
   settlement: MarketplaceSettlementSnapshot;
   debtCreated: boolean;
+  debt?: MarketplaceSellerDebtSnapshot;
 }
 
 @Injectable()
@@ -21,6 +27,7 @@ export class HandleMarketplaceChargebackUseCase {
 
   constructor(
     private readonly settlementRepository: MarketplaceSettlementRepository,
+    private readonly debtRepository: MarketplaceSellerDebtRepository,
     private readonly stateMachine: SettlementStateMachineService,
   ) {}
 
@@ -46,12 +53,24 @@ export class HandleMarketplaceChargebackUseCase {
     });
 
     const debtCreated = newStatus === "chargeback_debt";
+    let debt: MarketplaceSellerDebtSnapshot | undefined;
+
     if (debtCreated) {
+      debt = await this.debtRepository.create({
+        sellerMerchantId: settlement.sellerMerchantId,
+        settlementId: settlement.id,
+        amountCents: settlement.sellerNetCents,
+      });
+
       this.logger.warn(
-        `Chargeback debt created for settlement ${settlement.id}, seller ${settlement.sellerMerchantId}, amount=${settlement.sellerNetCents}`,
+        `Chargeback debt created for settlement ${settlement.id}, seller ${settlement.sellerMerchantId}, amount=${settlement.sellerNetCents}, debtId=${debt.id}`,
+      );
+    } else {
+      this.logger.log(
+        `Chargeback cancelled settlement ${settlement.id}, status: ${settlement.status} → ${newStatus}`,
       );
     }
 
-    return { settlement: updated, debtCreated };
+    return { settlement: updated, debtCreated, debt };
   }
 }

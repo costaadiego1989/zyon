@@ -6,11 +6,13 @@ import { MARKETPLACE_CONFIG_REPOSITORY } from "./domain/ports/marketplace-config
 import { FEDERATED_PRODUCT_REPOSITORY } from "./domain/ports/federated-product-repository.port.js";
 import { CROSS_STORE_ORDER_REPOSITORY } from "./domain/ports/cross-store-order-repository.port.js";
 import { MARKETPLACE_SETTLEMENT_REPOSITORY } from "./domain/ports/marketplace-settlement-repository.port.js";
+import { MARKETPLACE_SELLER_DEBT_REPOSITORY } from "./domain/ports/marketplace-seller-debt-repository.port.js";
 
 import { PrismaMarketplaceConfigRepository } from "./infrastructure/repositories/prisma-marketplace-config.repository.js";
 import { PrismaFederatedProductRepository } from "./infrastructure/repositories/prisma-federated-product.repository.js";
 import { PrismaCrossStoreOrderRepository } from "./infrastructure/repositories/prisma-cross-store-order.repository.js";
 import { PrismaMarketplaceSettlementRepository } from "./infrastructure/repositories/prisma-marketplace-settlement.repository.js";
+import { PrismaMarketplaceSellerDebtRepository } from "./infrastructure/repositories/prisma-marketplace-seller-debt.repository.js";
 
 import { CommissionCalculatorService } from "./domain/services/commission-calculator.service.js";
 import { FederatedSearchService } from "./domain/services/federated-search.service.js";
@@ -24,18 +26,25 @@ import { SyncMerchantProductsUseCase } from "./application/use-cases/sync-mercha
 import { HandleMarketplaceChargebackUseCase } from "./application/use-cases/handle-marketplace-chargeback.use-case.js";
 import { ProcessScheduledTransfersUseCase } from "./application/use-cases/process-scheduled-transfers.use-case.js";
 import { GetSellerOrdersUseCase } from "./application/use-cases/get-seller-orders.use-case.js";
+import { GetSellerStatsUseCase } from "./application/use-cases/get-seller-stats.use-case.js";
+import { ListSellerSettlementsUseCase } from "./application/use-cases/list-seller-settlements.use-case.js";
+import { GetSettlementDetailUseCase } from "./application/use-cases/get-settlement-detail.use-case.js";
 
 import { SyncMarketplaceIndexJob } from "./infrastructure/jobs/sync-marketplace-index.job.js";
 import { ProcessTransfersJob } from "./infrastructure/jobs/process-transfers.job.js";
 import { FinalizeSettlementsJob } from "./infrastructure/jobs/finalize-settlements.job.js";
 import { MarketplaceCatalogSyncScheduler, MarketplaceCatalogSyncWorker } from "./application/handlers/marketplace-catalog-sync.handler.js";
 
+import { MarketplaceController } from "./presentation/http/marketplace.controller.js";
+
 const prismaProvider = {
   provide: PrismaClient,
   useFactory: () => createPrismaClient(),
 };
 
+
 @Module({
+  controllers: [MarketplaceController],
   providers: [
     prismaProvider,
 
@@ -55,6 +64,10 @@ const prismaProvider = {
     {
       provide: MARKETPLACE_SETTLEMENT_REPOSITORY,
       useClass: PrismaMarketplaceSettlementRepository,
+    },
+    {
+      provide: MARKETPLACE_SELLER_DEBT_REPOSITORY,
+      useClass: PrismaMarketplaceSellerDebtRepository,
     },
 
     // Domain Services
@@ -144,10 +157,19 @@ const prismaProvider = {
       provide: HandleMarketplaceChargebackUseCase,
       useFactory: (
         settlementRepo: PrismaMarketplaceSettlementRepository,
+        debtRepo: PrismaMarketplaceSellerDebtRepository,
         stateMachine: SettlementStateMachineService,
       ) =>
-        new HandleMarketplaceChargebackUseCase(settlementRepo, stateMachine),
-      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY, SettlementStateMachineService],
+        new HandleMarketplaceChargebackUseCase(
+          settlementRepo,
+          debtRepo,
+          stateMachine,
+        ),
+      inject: [
+        MARKETPLACE_SETTLEMENT_REPOSITORY,
+        MARKETPLACE_SELLER_DEBT_REPOSITORY,
+        SettlementStateMachineService,
+      ],
     },
     {
       provide: ProcessScheduledTransfersUseCase,
@@ -163,6 +185,40 @@ const prismaProvider = {
       useFactory: (orderRepo: PrismaCrossStoreOrderRepository) =>
         new GetSellerOrdersUseCase(orderRepo),
       inject: [CROSS_STORE_ORDER_REPOSITORY],
+    },
+    {
+      provide: GetSellerStatsUseCase,
+      useFactory: (
+        orderRepo: PrismaCrossStoreOrderRepository,
+        settlementRepo: PrismaMarketplaceSettlementRepository,
+        debtRepo: PrismaMarketplaceSellerDebtRepository,
+      ) =>
+        new GetSellerStatsUseCase(orderRepo, settlementRepo, debtRepo),
+      inject: [
+        CROSS_STORE_ORDER_REPOSITORY,
+        MARKETPLACE_SETTLEMENT_REPOSITORY,
+        MARKETPLACE_SELLER_DEBT_REPOSITORY,
+      ],
+    },
+    {
+      provide: ListSellerSettlementsUseCase,
+      useFactory: (settlementRepo: PrismaMarketplaceSettlementRepository) =>
+        new ListSellerSettlementsUseCase(settlementRepo),
+      inject: [MARKETPLACE_SETTLEMENT_REPOSITORY],
+    },
+    {
+      provide: GetSettlementDetailUseCase,
+      useFactory: (
+        settlementRepo: PrismaMarketplaceSettlementRepository,
+        debtRepo: PrismaMarketplaceSellerDebtRepository,
+        stateMachine: SettlementStateMachineService,
+      ) =>
+        new GetSettlementDetailUseCase(settlementRepo, debtRepo, stateMachine),
+      inject: [
+        MARKETPLACE_SETTLEMENT_REPOSITORY,
+        MARKETPLACE_SELLER_DEBT_REPOSITORY,
+        SettlementStateMachineService,
+      ],
     },
 
     // Background Jobs
@@ -183,6 +239,9 @@ const prismaProvider = {
     HandleMarketplaceChargebackUseCase,
     ProcessScheduledTransfersUseCase,
     GetSellerOrdersUseCase,
+    GetSellerStatsUseCase,
+    ListSellerSettlementsUseCase,
+    GetSettlementDetailUseCase,
   ],
 })
 export class MarketplaceModule {}

@@ -27,6 +27,11 @@ describe("SettlementStateMachineService", () => {
         to: "return_cancelled",
       },
       {
+        from: "awaiting_return_window",
+        event: "chargeback_received",
+        to: "chargeback_cancelled",
+      },
+      {
         from: "transfer_scheduled",
         event: "transfer_executed",
         to: "transferred",
@@ -62,7 +67,6 @@ describe("SettlementStateMachineService", () => {
       event: SettlementEvent;
     }> = [
       { from: "awaiting_return_window", event: "transfer_executed" },
-      { from: "awaiting_return_window", event: "chargeback_received" },
       { from: "awaiting_return_window", event: "chargeback_window_expired" },
       { from: "transfer_scheduled", event: "return_window_expired" },
       { from: "transfer_scheduled", event: "buyer_returned" },

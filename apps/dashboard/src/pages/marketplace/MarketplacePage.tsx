@@ -1,11 +1,13 @@
 import React from "react";
-import { Store, ShoppingBag, Zap } from "lucide-react";
+import { Store, ShoppingBag, Zap, Clock, TrendingUp, Truck, BarChart3 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { StatCard } from "../overview/components/StatCard.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
-import { SettlementTimeline } from "./components/SettlementTimeline.js";
 import { OrderRow } from "./components/OrderRow.js";
+import { SettlementDetailPanel } from "./components/SettlementDetailPanel.js";
 import "./marketplace-page.css";
 
 interface MarketplacePageProps {
@@ -13,19 +15,21 @@ interface MarketplacePageProps {
   me: MerchantProfile | null;
 }
 
-export function MarketplacePage({ me }: MarketplacePageProps) {
+export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   const { state, actions } = useMarketplacePage(me);
-  const { config, orders, stats, loading, saving, tab } = state;
-  const { saveConfig, markShipped, markDelivered, setTab } = actions;
+  const { config, orders, stats, loading, saving, tab, settlements, selectedSettlementId } = state;
+  const { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId } = actions;
 
   if (!me) {
     return (
       <div className="marketplace-page">
-        <div className="marketplace-page__header">
-          <span className="eyebrow">Marketplace</span>
-          <h1 className="marketplace-page__title">Configurações do Marketplace</h1>
-          <p className="page-lead">Gerencie como seus produtos aparecem em lojas parceiras</p>
-        </div>
+        <header className="page-head">
+          <div>
+            <span className="eyebrow">INTEGRAÇÕES</span>
+            <h1>Marketplace</h1>
+            <p className="page-lead">Gerencie como seus produtos aparecem em lojas parceiras</p>
+          </div>
+        </header>
         <EmptyState
           icon={Store}
           title="Login necessário"
@@ -38,37 +42,43 @@ export function MarketplacePage({ me }: MarketplacePageProps) {
   if (loading) {
     return (
       <div className="marketplace-page">
-        <div className="marketplace-page__header">
-          <span className="eyebrow">Marketplace</span>
-          <h1 className="marketplace-page__title">Carregando...</h1>
-        </div>
+        <header className="page-head">
+          <div>
+            <span className="eyebrow">INTEGRAÇÕES</span>
+            <h1>Marketplace</h1>
+          </div>
+        </header>
       </div>
     );
   }
 
   return (
     <div className="marketplace-page">
-      <div className="marketplace-page__header">
-        <span className="eyebrow">Marketplace</span>
-        <h1 className="marketplace-page__title">
-          {tab === "settings"
-            ? "Configurações do Marketplace"
-            : "Pedidos do Marketplace"}
-        </h1>
-        <p className="page-lead">
-          {tab === "settings"
-            ? "Gerencie como seus produtos aparecem em lojas parceiras e configure comissões"
-            : "Pedidos recebidos de lojas parceiras que vendem seus produtos"}
-        </p>
-      </div>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">INTEGRAÇÕES</span>
+          <h1>Marketplace</h1>
+          <p className="page-lead">
+            {tab === "settings"
+              ? "Gerencie comissões, janelas de pagamento e lojas parceiras"
+              : tab === "settlements"
+              ? "Acompanhe repasses, janelas e status de cada transação cross-store"
+              : tab === "chargebacks"
+              ? "Visualize chargebacks recebidos e impacto nos repasses"
+              : "Pedidos recebidos de lojas parceiras que vendem seus produtos"}
+          </p>
+        </div>
+      </header>
 
       <TabBar
         tabs={[
           { key: "orders", label: "Pedidos" },
+          { key: "settlements", label: "Repasses" },
+          { key: "chargebacks", label: "Chargebacks" },
           { key: "settings", label: "Configurações" },
         ]}
         activeTab={tab}
-        onTabChange={(key) => setTab(key as "orders" | "settings")}
+        onTabChange={(key) => setTab(key as "orders" | "settlements" | "chargebacks" | "settings")}
       />
 
       {tab === "settings" && (
@@ -79,13 +89,10 @@ export function MarketplacePage({ me }: MarketplacePageProps) {
             </div>
             <div className="marketplace-enable">
               <div className="marketplace-enable__checkbox">
-                <input
-                  type="checkbox"
+                <ToggleSwitch
                   id="marketplace-enabled"
                   checked={config.enabled}
-                  onChange={(e) =>
-                    void saveConfig({ enabled: e.target.checked })
-                  }
+                  onChange={(v) => void saveConfig({ enabled: v })}
                   disabled={saving}
                 />
               </div>
@@ -190,8 +197,6 @@ export function MarketplacePage({ me }: MarketplacePageProps) {
                 </span>
               </div>
             </div>
-
-            <SettlementTimeline config={config} />
           </div>
 
           <div className="panel">
@@ -233,30 +238,32 @@ export function MarketplacePage({ me }: MarketplacePageProps) {
       {tab === "orders" && (
         <div className="marketplace-page__orders">
           {stats && (
-            <div className="marketplace-page__stats">
-              <div className="stat-card">
-                <span className="stat-card__label">Pedidos Pendentes</span>
-                <span className="stat-card__value">{stats.pending_orders}</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-card__label">Receita (mês)</span>
-                <span className="stat-card__value">
-                  {new Intl.NumberFormat("pt-BR", {
-                    style: "currency",
-                    currency: "BRL",
-                  }).format(stats.monthly_revenue)}
-                </span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-card__label">Itens Enviados</span>
-                <span className="stat-card__value">{stats.items_shipped}</span>
-              </div>
-              <div className="stat-card">
-                <span className="stat-card__label">Taxa Fulfillment</span>
-                <span className="stat-card__value">
-                  {Math.round(stats.fulfillment_rate * 100)}%
-                </span>
-              </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+              <StatCard
+                label="Pedidos Pendentes"
+                value={stats.pending_orders}
+                icon={<Clock size={16} />}
+              />
+              <StatCard
+                label="Receita (mês)"
+                value={new Intl.NumberFormat("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                }).format(stats.monthly_revenue)}
+                icon={<TrendingUp size={16} />}
+                accent="var(--accent)"
+              />
+              <StatCard
+                label="Itens Enviados"
+                value={stats.items_shipped}
+                icon={<Truck size={16} />}
+              />
+              <StatCard
+                label="Taxa Fulfillment"
+                value={`${Math.round(stats.fulfillment_rate * 100)}%`}
+                icon={<BarChart3 size={16} />}
+                accent="var(--good)"
+              />
             </div>
           )}
 
@@ -299,6 +306,83 @@ export function MarketplacePage({ me }: MarketplacePageProps) {
             </div>
           )}
         </div>
+      )}
+
+      {tab === "settlements" && (
+        <div className="marketplace-page__settlements">
+          {settlements.length === 0 ? (
+            <div className="panel">
+              <EmptyState
+                icon={Clock}
+                title="Nenhum repasse registrado"
+                description="Quando pedidos forem finalizados, os repasses aparecerão aqui com a timeline completa."
+              />
+            </div>
+          ) : (
+            <div className="panel">
+              <table className="marketplace-orders__table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Pedido</th>
+                    <th>Valor Líquido</th>
+                    <th>Status</th>
+                    <th>Criado</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {settlements.map((s) => (
+                    <tr key={s.id}>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
+                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
+                      <td style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>
+                        R$ {(s.sellerNetCents / 100).toFixed(2)}
+                      </td>
+                      <td>
+                        <span className={`settlement-status settlement-status--${s.status}`}>
+                          {s.status.replace(/_/g, " ")}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                        {new Date(s.createdAt).toLocaleDateString("pt-BR")}
+                      </td>
+                      <td>
+                        <button
+                          className="btn-sm"
+                          onClick={() => setSelectedSettlementId(s.id)}
+                        >
+                          Detalhes
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "chargebacks" && (
+        <div className="marketplace-page__chargebacks">
+          <div className="panel">
+            <EmptyState
+              icon={Zap}
+              title="Chargebacks do Marketplace"
+              description="Chargebacks recebidos de pedidos cross-store aparecerão aqui. Acompanhe o status e impacto nos repasses."
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Settlement Detail Panel */}
+      {selectedSettlementId && (
+        <SettlementDetailPanel
+          settlementId={selectedSettlementId}
+          apiBaseUrl={apiBaseUrl}
+          onClose={() => setSelectedSettlementId(null)}
+        />
       )}
     </div>
   );
