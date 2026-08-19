@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common";
-import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
+import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
@@ -8,6 +8,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { SupportModule } from "../support/support.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
+import { SearchFederatedProductsUseCase } from "../marketplace/application/use-cases/search-federated-products.use-case.js";
 import { StartStoreConversationUseCase } from "./application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "./application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "./application/use-cases/get-conversation-history.use-case.js";
@@ -82,7 +83,12 @@ import { OpenRouterProvider } from "./infrastructure/ai/openrouter-provider.js";
     CreateBudgetRequestUseCase,
     ListBudgetRequestsUseCase,
     UpdateBudgetRequestStatusUseCase,
-    SearchMarketplaceProductsStorefrontUseCase,
+    {
+      provide: SearchMarketplaceProductsStorefrontUseCase,
+      useFactory: (searchFederated: any, prisma: any) =>
+        new SearchMarketplaceProductsStorefrontUseCase(searchFederated, prisma),
+      inject: [SearchFederatedProductsUseCase, PRISMA_CLIENT],
+    },
     AddMarketplaceItemToCartStorefrontUseCase
   ],
   exports: [
