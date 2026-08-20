@@ -90,12 +90,28 @@ export function experimentsEndpoints(base: string, f: typeof fetch) {
     },
 
     async getExperimentResults(experimentId: string): Promise<ExperimentResults> {
-      return dashboardJson<ExperimentResults>(
+      const raw = await dashboardJson<any>(
         base,
         `${PREFIX}/${encodeURIComponent(experimentId)}/results`,
         { method: "GET" },
         f
       );
+      // Map API response shape to dashboard ExperimentResults type
+      return {
+        experiment_id: raw.experiment_id ?? experimentId,
+        created_at: raw.started_at ?? raw.created_at ?? "",
+        winner_variant_id: raw.winner_variant_id,
+        confidence_level: raw.confidence_level ?? raw.significance?.confidence ?? 0,
+        metrics: (raw.variant_results ?? raw.metrics ?? []).map((v: any) => ({
+          experiment_id: raw.experiment_id ?? experimentId,
+          variant_id: v.variant_id,
+          conversions: v.conversions ?? 0,
+          total_visitors: v.sessions ?? v.total_visitors ?? 0,
+          conversion_rate: v.conversion_rate ?? 0,
+          avg_order_value: v.avg_order_value ?? 0,
+          revenue: v.revenue ?? 0,
+        })),
+      };
     },
 
     async promoteExperimentVariant(experimentId: string, variantId: string): Promise<Experiment> {
