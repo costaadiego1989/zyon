@@ -20,6 +20,7 @@ export interface WidgetConfig {
   fabRedirectUrl?: string;
   openWidgetOnTrigger: boolean;
   enabledTriggers: string[];
+  triggerMessages?: Record<string, { message: string; couponCode?: string }>;
   suppressedSteps: string[];
   blockedRegions: string[];
   minimumCartValue?: number;

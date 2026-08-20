@@ -380,14 +380,14 @@ export function useConversationViewModel(
         if (widgetConfig.mode === "manual_only") return;
         if (!widgetConfig.enabledTriggers?.includes(triggerEvent)) return;
 
-        const maxInterventions = 3;
-        const cooldownMs = 120 * 1000;
+        const maxInterventions = widgetConfig.maxInterventionsPerSession ?? 3;
+        const cooldownMs = (widgetConfig.cooldownSeconds ?? 120) * 1000;
 
         if (getInterventionCount(merchantId || "") >= maxInterventions) return;
         if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
 
         // Use custom trigger message from merchant settings, fallback to default
-        const customTrigger = (widgetConfig as any).triggerMessages?.[triggerEvent];
+        const customTrigger = widgetConfig.triggerMessages?.[triggerEvent];
         const nudgeText = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
         if (!nudgeText) return;
 

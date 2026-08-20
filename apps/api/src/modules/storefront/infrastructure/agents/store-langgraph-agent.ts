@@ -155,7 +155,11 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
-    const systemContent = input.systemPrompt || this.baseSystemPrompt || this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules);
+    // System prompt: experiment variant EXTENDS default (not replaces) to keep advancedRules + merchantPolicy
+    const defaultSystem = this.buildDefaultSystem(input.merchantName, input.storeCategory, input.storeSettings, input.agentIdentity, input.merchantPolicy, input.advancedRules);
+    const systemContent = input.systemPrompt
+      ? `${input.systemPrompt}\n\n${defaultSystem}`
+      : this.baseSystemPrompt || defaultSystem;
     // Limit history to last 10 messages to prevent context overflow that makes LLM skip tool calls
     const recentHistory = input.history.slice(-10);
     const rawMessages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
@@ -796,10 +800,10 @@ export class StorefrontLangGraphAgent {
       "",
       "IMPORTANTE: Quando o cliente diz 'Ver produtos' ou pede para listar produtos, SEMPRE use search_products (com query '*' se necessário). NUNCA responda com categorias quando o pedido é por PRODUTOS.",
       "",
-      // Advanced rules from merchant checkout settings
+      // Advanced rules from merchant checkout settings (sanitized)
       ...(advancedRules && advancedRules.length > 0 ? [
         "REGRAS CONFIGURADAS PELO MERCHANT (siga durante a conversa — primeira que encaixar é a que vale):",
-        ...advancedRules.map((r, i) => `${i + 1}. ${r}`),
+        ...advancedRules.slice(0, 20).map((r, i) => `${i + 1}. ${r.replace(/\n/g, " ").slice(0, 300)}`),
         "IMPORTANTE: O motor de regras valida descontos. Se oferecer desconto acima do permitido, o sistema rejeita. Mantenha-se dentro dos valores das regras.",
         "",
       ] : []),
