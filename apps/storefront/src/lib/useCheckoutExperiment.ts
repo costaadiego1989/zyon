@@ -31,12 +31,17 @@ interface UseCheckoutExperimentReturn {
   }) => void;
   /** Returns variantId for analytics tracking (or null if no experiment) */
   getTrackingVariantId: () => string | null;
+  /** Store pre-fetched experiment greeting from LLM */
+  setExperimentGreeting: (message: string, suggestedNext?: string[]) => void;
+  /** Get stored experiment greeting (or null if not fetched yet) */
+  getExperimentGreeting: () => { message: string; suggestedNext?: string[] } | null;
 }
 
 export function useCheckoutExperiment(): UseCheckoutExperimentReturn {
   const [experiment, setExperiment] = useState<ExperimentAssignment | null>(null);
   const [sessionConversationId, setSessionConversationId] = useState<string | null>(null);
   const assignedRef = useRef(false);
+  const greetingRef = useRef<{ message: string; suggestedNext?: string[] } | null>(null);
 
   const captureFromConversationStart = useCallback(
     (apiResponse: {
@@ -72,10 +77,20 @@ export function useCheckoutExperiment(): UseCheckoutExperimentReturn {
     return experiment?.variantId ?? null;
   }, [experiment]);
 
+  const setExperimentGreeting = useCallback((message: string, suggestedNext?: string[]) => {
+    greetingRef.current = { message, suggestedNext };
+  }, []);
+
+  const getExperimentGreeting = useCallback(() => {
+    return greetingRef.current;
+  }, []);
+
   return {
     experiment,
     sessionConversationId,
     captureFromConversationStart,
     getTrackingVariantId,
+    setExperimentGreeting,
+    getExperimentGreeting,
   };
 }

@@ -112,30 +112,10 @@ export function useConversationViewModel(
             history: [],
           }).then((greetingData) => {
             if (greetingData?.message) {
-              const experimentWelcome = {
-                id: "welcome",
-                role: "agent" as const,
-                text: greetingData.message,
-                blocks: [
-                  ...(greetingData.blocks ?? []),
-                  { type: "quick_replies" as const, data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } },
-                ],
-              };
-              setMessages((prev) => {
-                if (prev.length === 0) {
-                  return [experimentWelcome];
-                }
-                const hasWelcome = prev.some((m) => m.id === "welcome");
-                if (hasWelcome) {
-                  return prev.map((m) => m.id === "welcome" ? experimentWelcome : m);
-                }
-                return [experimentWelcome, ...prev];
-              });
-              setMode("chat");
-              setChannel("chat");
-              setHistory([{ role: "user", content: "olá" }, { role: "assistant", content: greetingData.message }]);
+              // Store for when user interacts — hero stays until then
+              experimentVM.setExperimentGreeting(greetingData.message, greetingData.suggested_next);
             }
-          }).catch(() => { /* keep static greeting on failure */ });
+          }).catch(() => { /* keep default behavior */ });
         }
       }
     } catch { /* fallback mode */ }
@@ -194,14 +174,19 @@ export function useConversationViewModel(
     try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
     initConversation();
 
-    const greeting = agentGreeting
+    // Use experiment greeting if pre-fetched, otherwise static
+    const expGreeting = experimentVM.getExperimentGreeting();
+    const greeting = expGreeting?.message
+      || agentGreeting
       || `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`;
+
+    const replies = expGreeting?.suggestedNext ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
 
     setMessages([{
       id: "welcome",
       role: "agent",
       text: greeting,
-      blocks: [{ type: "quick_replies", data: { options: quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"] } }],
+      blocks: [{ type: "quick_replies", data: { options: replies } }],
     }]);
   }, [agent, storeName, quickReplies, agentGreeting, initConversation]);
 
