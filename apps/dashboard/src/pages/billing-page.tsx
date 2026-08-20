@@ -5,7 +5,7 @@ import {
   type BillingSubscription,
   type MerchantProfile,
 } from "../api-client.js";
-import { useApi } from "../hooks/useApi.js";
+import { useBillingApi } from "../hooks/api/useBillingApi.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { readError } from "../utils/read-error.js";
 
@@ -92,7 +92,7 @@ function UsageBar(props: { label: string; current?: number | null; limit?: numbe
 
 
 export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useApi();
+  const billing = useBillingApi();
   const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -110,7 +110,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
     setLoading(true);
     setMessage(null);
     try {
-      const sub = await api.getBillingSubscription();
+      const sub = await billing.getBillingSubscription();
       setSubscription(sub);
     } catch (e) {
       setMessage(readError(e));
@@ -123,7 +123,7 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
     setBusy(true);
     setMessage(null);
     try {
-      const { url } = await api.createBillingPortalSession({
+      const { url } = await billing.createBillingPortalSession({
         return_url: window.location.href,
       });
       window.open(url, "_blank", "noopener,noreferrer");

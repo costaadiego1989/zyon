@@ -11,6 +11,7 @@ import {
   type StoryDTO,
   type TitleConfig,
 } from "../api/endpoints/stories.js";
+import { reportError } from "../lib/observability/error-reporter.js";
 
 const DEFAULT_TITLE_CONFIG: TitleConfig = {
   font: "inter",
@@ -59,7 +60,9 @@ export function useStoriesPage(apiBaseUrl: string) {
         if (!prev && cats.length > 0) return cats[0];
         return prev;
       });
-    } catch { /* */ }
+    } catch (err) {
+      reportError({ source: "stories.loadCategories", error: err, severity: "warning" });
+    }
     setLoading(false);
   }, [apiBaseUrl]);
 
@@ -68,7 +71,9 @@ export function useStoriesPage(apiBaseUrl: string) {
     try {
       const items = await listStories(apiBaseUrl, selectedCategory.id);
       setStories(items);
-    } catch { /* */ }
+    } catch (err) {
+      reportError({ source: "stories.loadStories", error: err, severity: "warning" });
+    }
   }, [apiBaseUrl, selectedCategory]);
 
   useEffect(() => { loadCategories(); }, [loadCategories]);
@@ -88,9 +93,13 @@ export function useStoriesPage(apiBaseUrl: string) {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    await archiveStoryCategory(apiBaseUrl, id);
-    if (selectedCategory?.id === id) setSelectedCategory(null);
-    await loadCategories();
+    try {
+      await archiveStoryCategory(apiBaseUrl, id);
+      if (selectedCategory?.id === id) setSelectedCategory(null);
+      await loadCategories();
+    } catch (err) {
+      reportError({ source: "stories.deleteCategory", error: err, severity: "error" });
+    }
   };
 
   const handleFileUpload = async (file: File) => {
@@ -104,7 +113,8 @@ export function useStoriesPage(apiBaseUrl: string) {
       try {
         const result = await uploadStoryImage(apiBaseUrl, base64);
         setEditor((s) => ({ ...s, imageUrl: result.url, uploading: false }));
-      } catch {
+      } catch (err) {
+        reportError({ source: "stories.uploadImage", error: err, severity: "warning" });
         setEditor((s) => ({ ...s, imageUrl: base64, uploading: false }));
       }
     };
@@ -126,6 +136,7 @@ export function useStoriesPage(apiBaseUrl: string) {
       setShowCreateStory(false);
       await loadStories();
     } catch (err: any) {
+      reportError({ source: "stories.createStory", error: err, severity: "error" });
       console.error("[Stories] Create story failed:", err);
       await loadCategories();
       const status = err?.status ?? err?.statusCode;
@@ -138,8 +149,12 @@ export function useStoriesPage(apiBaseUrl: string) {
   };
 
   const handleDeleteStory = async (id: string) => {
-    await archiveStory(apiBaseUrl, id);
-    await loadStories();
+    try {
+      await archiveStory(apiBaseUrl, id);
+      await loadStories();
+    } catch (err) {
+      reportError({ source: "stories.deleteStory", error: err, severity: "error" });
+    }
   };
 
   const openCreateStory = async () => {
@@ -158,7 +173,8 @@ export function useStoriesPage(apiBaseUrl: string) {
       if (!current || !freshCats.some(c => c.id === current.id)) {
         setSelectedCategory(freshCats[0]);
       }
-    } catch {
+    } catch (err) {
+      reportError({ source: "stories.openCreateStory", error: err, severity: "warning" });
       alert("Erro ao carregar categorias.");
       return;
     }
