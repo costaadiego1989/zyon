@@ -758,6 +758,8 @@ export class StorefrontLangGraphAgent {
       "- 'Filtrar Produtos' → Pergunte critério (preço, avaliação, etc). Use search_products com sortBy.",
       "- 'Ofertas do Dia' → use get_daily_deals. A UI mostra carrossel com badges de desconto.",
       "- 'Mais Informações' → use get_product_details. Foque na info solicitada (specs, material, etc).",
+      "- 'Ver detalhes', 'Detalhes', 'Mais detalhes', 'Selecionar' (após carrossel) → use get_product_details com o productId do produto mencionado. A UI renderiza o card completo.",
+      "- 'Detalhes [nome do produto]' → o cliente clicou num produto do carrossel. Use search_products com o nome para obter o ID, depois get_product_details. OBRIGATÓRIO renderizar card.",
       "- 'Ver Avaliações' → use get_reviews com productId. A UI mostra bloco de reviews.",
       "- 'Tirar Dúvidas' → use get_product_questions ou diga 'Pode perguntar!' e ESPERE.",
       "- 'Comparar' → use compare_products. A UI mostra tabela comparativa.",
