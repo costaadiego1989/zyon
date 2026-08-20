@@ -23,12 +23,13 @@ function formatDate(iso?: string): string {
 }
 
 /** Dropdown with searchbox — loads items from API, multi-select */
-function MultiSearchSelect({ label, placeholder, selected, onChange, type }: {
+function MultiSearchSelect({ label, placeholder, selected, onChange, type, merchantId }: {
   label: string;
   placeholder: string;
   selected: string[];
   onChange: (ids: string[]) => void;
   type: "products" | "categories";
+  merchantId: string;
 }) {
   const api = useApi();
   const [query, setQuery] = useState("");
@@ -40,10 +41,10 @@ function MultiSearchSelect({ label, placeholder, selected, onChange, type }: {
     setLoading(true);
     try {
       if (type === "products") {
-        const data = await api.getProducts?.() ?? [];
-        setItems((Array.isArray(data) ? data : (data as any).products ?? []).map((p: any) => ({ id: p.id, name: p.name })));
+        const data = await api.listProducts(merchantId, { limit: 50 });
+        setItems((data?.products ?? []).map((p: any) => ({ id: p.id, name: p.name })));
       } else {
-        const data = await api.getCategories?.() ?? [];
+        const data = await api.listCategories(merchantId);
         setItems((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, name: c.name })));
       }
     } catch {
@@ -142,6 +143,7 @@ const FIELD_STYLES = `
 
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
+  const merchantId = _props.me?.id ?? "";
 
   return (
     <div>
@@ -260,6 +262,7 @@ export function CouponsPage(_props: CouponsPageProps) {
                     selected={vm.form.productIds}
                     onChange={(ids) => vm.patch({ productIds: ids })}
                     type="products"
+                    merchantId={merchantId}
                   />
                   <MultiSearchSelect
                     label="Vincular a categorias"
@@ -267,6 +270,7 @@ export function CouponsPage(_props: CouponsPageProps) {
                     selected={vm.form.categoryIds}
                     onChange={(ids) => vm.patch({ categoryIds: ids })}
                     type="categories"
+                    merchantId={merchantId}
                   />
                 </div>
                 <span className="field-hint" style={{ marginTop: 8 }}>Se preenchido, cupom só vale para itens vinculados.</span>
