@@ -390,6 +390,69 @@ See [docs/api/VERSIONING.md](docs/api/VERSIONING.md) for full policy and semver 
 
 O demo do widget (`apps/widget/index.html`) não depende mais de carrinho fixo no código React. O host da loja envia `data-cart-json`, `data-customer-json` e `data-shipping-json`; o widget repassa isso para a API em `/checkout/start` ou `/embed/start`, e a API devolve `experience` com marca, resumo do pedido, copy inicial e sugestões.
 
+## Data Architecture (Multi-tenant SaaS)
+
+A Zyon opera como **API headless multi-tenant**. Merchants (lojistas) contratam a plataforma e seus dados são armazenados na nossa infraestrutura, isolados por `merchant_id`.
+
+### Como funciona
+
+```
+┌──────────────────────────────────────────────────┐
+│            INFRAESTRUTURA ZYON                    │
+│                                                  │
+│  Kong Gateway → NestJS API → PostgreSQL + Redis  │
+│                                                  │
+│  Dados separados por merchant_id em toda query   │
+└──────────────────────────────────────────────────┘
+        ↑              ↑              ↑
+   Merchant A     Merchant B     Merchant C
+   (API key)      (API key)      (API key)
+```
+
+### Quem armazena o quê
+
+| Dado | Onde fica | Quem controla |
+|------|-----------|---------------|
+| Produtos, categorias, estoque | Nosso DB | Merchant via API/Dashboard |
+| Pedidos, pagamentos | Nosso DB | Merchant via API |
+| Config do agente IA (regras, tom, prompts) | Nosso DB | Merchant via Dashboard |
+| Dados do comprador (nome, CPF, endereço) | Nosso DB | Merchant é o controlador LGPD |
+| Conversas do chat (histórico) | Nosso DB | Retido por sessão |
+| Métricas de conversão e A/B tests | Nosso DB | Merchant visualiza no Dashboard |
+| Secrets (API keys, tokens de pagamento) | Nosso DB (criptografado) | Merchant gera/revoga |
+
+### Isolamento de dados
+
+- **Tenant boundary**: toda query no Prisma é filtrada por `merchant_id`
+- **API keys**: scoped por merchant, não permite acesso cross-tenant
+- **Dashboard**: cookie auth com `merchantId` no JWT — nunca expõe dados de outro merchant
+- **Storefront**: público (sem auth), mas filtrado por merchant do slug da loja
+
+### Modelo de acesso
+
+O merchant **nunca** acessa o banco diretamente. Todo acesso é via:
+
+1. **API REST** (autenticada por API key ou cookie JWT)
+2. **Dashboard** (interface visual)
+3. **Webhooks** (push de eventos para URL do merchant)
+4. **SDK** (`zyon-sdk` — wrapper TypeScript da API)
+
+### Compliance (LGPD)
+
+- Merchant é **controlador** dos dados dos seus compradores
+- Zyon é **operador** (processa dados em nome do merchant)
+- Export de dados: disponível via API (`GET /customers`, `GET /orders`)
+- Exclusão: merchant pode deletar dados de compradores via API
+- Retenção: conversas expiram após período configurável
+
+### Escalabilidade futura
+
+| Tier | Isolamento | Para quem |
+|------|-----------|-----------|
+| **Shared** (atual) | `merchant_id` filter no mesmo DB | SMB, startups |
+| **Isolated Schema** (futuro) | Schema separado por merchant | Mid-market |
+| **Dedicated DB** (futuro) | DB próprio por merchant | Enterprise, compliance rigoroso |
+
 Smoke test local:
 
 1. Suba o Postgres: `docker compose up -d postgres` (ou `pnpm db:up` na raiz).
