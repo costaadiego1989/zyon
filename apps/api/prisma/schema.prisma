@@ -1820,3 +1820,93 @@ model MarketplaceSellerDebt {
   @@index([status])
   @@map("marketplace_seller_debts")
 }
+
+// ============================================================================
+// AI Revenue Manager (Autonomous) — Feature 2
+// ============================================================================
+
+model RevenueManagerObservation {
+  id                        String   @id @default(cuid())
+  merchantId                String   @map("merchant_id")
+  observationWindowStart    DateTime @map("observation_window_start")
+  observationWindowEnd      DateTime @map("observation_window_end")
+
+  funnelJson                Json     @map("funnel_json")
+  abandonmentJson           Json     @map("abandonment_json")
+  objectionsJson            Json     @map("objections_json")
+  crossSellJson             Json     @map("cross_sell_json")
+  currentExperimentJson     Json?    @map("current_experiment_json")
+  cohortsJson               Json     @map("cohorts_json")
+  revenueJson               Json     @map("revenue_json")
+  aiCostsCents              Int      @map("ai_costs_cents")
+
+  fingerprint               String   @unique
+  createdAt                 DateTime @default(now()) @map("created_at")
+
+  hypotheses                RevenueManagerHypothesis[]
+
+  @@index([merchantId, createdAt])
+  @@index([merchantId, observationWindowStart])
+  @@map("revenue_manager_observations")
+}
+
+model RevenueManagerHypothesis {
+  id                        String   @id @default(cuid())
+  merchantId                String   @map("merchant_id")
+  observationId             String   @map("observation_id")
+
+  hypothesisText            String   @map("hypothesis_text") @db.Text
+  reasoning                 String   @db.Text
+  expectedLiftPercent       Decimal  @map("expected_lift_percent") @db.Decimal(10, 2)
+  riskLevel                 String   @map("risk_level")
+
+  templateJson              Json     @map("template_json")
+
+  status                    String   @default("pending_review")
+  approvalStrategy          String   @map("approval_strategy")
+  merchantApprovedAt        DateTime? @map("merchant_approved_at")
+  merchantApprovedBy        String?  @map("merchant_approved_by")
+  merchantApprovalReason    String?  @map("merchant_approval_reason")
+  rejectionReason           String?  @map("rejection_reason")
+
+  createdExperimentId       String?  @map("created_experiment_id")
+  experimentCreationError   String?  @map("experiment_creation_error")
+
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  observation               RevenueManagerObservation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+  lessons                   RevenueManagerStrategyLesson[]
+
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@map("revenue_manager_hypotheses")
+}
+
+model RevenueManagerStrategyLesson {
+  id                        String   @id @default(cuid())
+  merchantId                String   @map("merchant_id")
+  experimentId              String   @map("experiment_id")
+  hypothesisId              String   @map("hypothesis_id")
+
+  hypothesisText            String   @map("hypothesis_text") @db.Text
+  actualWinner              String   @map("actual_winner")
+  hypothesisWasCorrect      Boolean  @map("hypothesis_was_correct")
+
+  controlConversionRate     Decimal  @map("control_conversion_rate") @db.Decimal(10, 4)
+  challengerConversionRate  Decimal  @map("challenger_conversion_rate") @db.Decimal(10, 4)
+  conversionLiftPercent     Decimal  @map("conversion_lift_percent") @db.Decimal(10, 2)
+  sessionsPerVariant        Int      @map("sessions_per_variant")
+  statisticalConfidence     Decimal  @map("statistical_confidence") @db.Decimal(10, 4)
+
+  insightsJson              Json     @map("insights_json")
+  generatorFeedback         String   @map("generator_feedback") @db.Text
+
+  recordedAt                DateTime @default(now()) @map("recorded_at")
+
+  hypothesis                RevenueManagerHypothesis @relation(fields: [hypothesisId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, recordedAt])
+  @@index([experimentId])
+  @@map("revenue_manager_strategy_lessons")
+}
