@@ -4,12 +4,12 @@ export interface SearchInputProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  width?: number;
+  width?: number | string;
 }
 
 export function SearchInput({ value, onChange, placeholder = "Buscar...", width = 260 }: SearchInputProps) {
   return (
-    <div style={{ position: "relative", display: "inline-flex", alignItems: "center", height: 32 }}>
+    <div style={{ position: "relative", display: "flex", alignItems: "center", height: 36, width: width === 9999 ? "100%" : undefined }}>
       <svg
         width="14"
         height="14"
@@ -29,10 +29,10 @@ export function SearchInput({ value, onChange, placeholder = "Buscar...", width 
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
-          width,
-          height: 32,
+          width: width === 9999 ? "100%" : width,
+          height: 36,
           padding: "0 12px 0 32px",
-          borderRadius: 7,
+          borderRadius: 8,
           border: "1px solid var(--border)",
           font: "13px var(--sans)",
           color: "var(--ink)",

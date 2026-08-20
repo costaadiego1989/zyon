@@ -90,12 +90,22 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
           {/* Master-Detail Grid */}
           <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, alignItems: "start" }}>
             {/* Left Column: Filters + List */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {/* Search */}
-              <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar testes..." />
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              background: "var(--card)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: 16,
+            }}>
+              {/* Search — full width */}
+              <div style={{ width: "100%" }}>
+                <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar testes..." width={9999} />
+              </div>
 
               {/* Filter Chips */}
-              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {(["all", "draft", "running", "completed"] as const).map((s) => (
                   <button
                     key={s}
@@ -113,7 +123,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
               <div style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 6,
+                gap: 10,
                 maxHeight: "calc(100vh - 300px)",
                 overflowY: "auto",
                 paddingRight: 4,
