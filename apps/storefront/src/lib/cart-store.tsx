@@ -104,16 +104,20 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
       if (resolvedCartId && merchantId) saveCartId(resolvedCartId, merchantId);
       return {
         cartId: resolvedCartId,
-        items: items.map((i: any) => ({
-          variantId: i.variantId,
-          productName: i.productName,
-          quantity: i.quantity,
-          price: i.price,
-          subtotal: i.subtotal,
-        })),
-        itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + i.quantity, 0),
+        items: items.map((i: any) => {
+          const qty = i.quantity ?? 1;
+          const price = i.price ?? i.unit_price_cents ?? i.unitPrice ?? 0;
+          return {
+            variantId: i.variantId ?? i.variant_id ?? i.id,
+            productName: i.productName ?? i.product_name ?? i.name ?? "Produto",
+            quantity: qty,
+            price,
+            subtotal: i.subtotal ?? price * qty,
+          };
+        }),
+        itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + (i.quantity ?? 1), 0),
         discount: discount ?? 0,
-        total,
+        total: total ?? items.reduce((sum: number, i: any) => sum + (i.subtotal ?? (i.price ?? i.unit_price_cents ?? 0) * (i.quantity ?? 1)), 0),
       };
     });
   }, [merchantId]);

@@ -186,7 +186,16 @@ export default function ConversationShell({
   ];
 
   return (
-    <div className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative" }}>
+    <div className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1.5px" }}>
+      {/* Shimmer border — rotating conic gradient around entire chat container */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: "19px", overflow: "hidden", pointerEvents: "none", zIndex: 0 }}>
+        <div style={{ position: "absolute", inset: "-50%", background: "conic-gradient(from 0deg, transparent 0%, transparent 70%, var(--aacp-accent, #0f766e) 80%, transparent 90%, transparent 100%)", animation: "shimmerRotate 4s linear infinite", opacity: 0.7 }} />
+        <div style={{ position: "absolute", inset: "1.5px", borderRadius: "17.5px", background: "var(--aacp-bg, #08080c)" }} />
+      </div>
+      {/* Static border */}
+      <div style={{ position: "absolute", inset: 0, borderRadius: "19px", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", pointerEvents: "none", zIndex: 1 }} />
+      {/* Content */}
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "17.5px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -201,6 +210,7 @@ export default function ConversationShell({
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(255,76,108,0.5)} 100%{box-shadow:0 0 0 9px rgba(255,76,108,0)} }
         @keyframes shimmerSlide { 0%{left:-100%} 50%{left:100%} 100%{left:100%} }
+        @keyframes shimmerRotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
 
       {mode === "chat" && (
@@ -582,6 +592,7 @@ export default function ConversationShell({
           onCancel={() => setShowBuyerAuth(false)}
         />
       )}
+      </div>{/* end content wrapper */}
     </div>
   );
 }
