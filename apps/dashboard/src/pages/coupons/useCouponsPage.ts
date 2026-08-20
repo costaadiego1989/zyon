@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { useApi } from "../hooks/useApi.js";
-import { showToast } from "../components/Toast.js";
+import { useApi } from "../../hooks/useApi.js";
+import { showToast } from "../../components/Toast.js";
 
 export interface Coupon {
   id: string;
