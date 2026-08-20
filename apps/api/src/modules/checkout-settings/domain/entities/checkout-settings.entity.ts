@@ -199,16 +199,14 @@ export class CheckoutSettingsEntity {
     }
     validateProgressiveDiscount(this.props.interventionPolicy.progressiveDiscount);
     validateTriggers(this.props.triggerRules);
-    // CSS-H2: Validate handoff config
+
     if (!this.props.handoff.message || !this.props.handoff.message.trim()) {
       throw new CheckoutSettingsValidationError("handoff_message_required");
     }
     if (!this.props.handoff.channels || this.props.handoff.channels.length === 0) {
       throw new CheckoutSettingsValidationError("handoff_channels_required");
     }
-    // CSS-H4: Validate blockedRegions format (ISO 3166 alpha-2)
     validateBlockedRegions(this.props.suppressionRules.blockedRegions);
-    // Validate advanced rules
     validateAdvancedRules(this.props.advancedRules);
   }
 
@@ -260,7 +258,6 @@ function validateTriggers(rules: CheckoutTriggerRule[]): void {
     if (rule.enabled) hasEnabled = true;
     seen.add(rule.trigger);
   }
-  // CSS-H1: At least one trigger must be enabled
   if (!hasEnabled) throw new CheckoutSettingsValidationError("at_least_one_trigger_must_be_enabled");
 }
 
@@ -307,15 +304,12 @@ function assertNoCommercialKeys(value: unknown, path: string[] = []): void {
   if (!value || typeof value !== "object") return;
   for (const [key, nested] of Object.entries(value)) {
     const nextPath = [...path, key];
-    // Allow entire progressiveDiscount subtree
     if (nextPath.join(".") === "interventionPolicy.progressiveDiscount") {
       continue;
     }
-    // Allow advancedRules subtree (contains actions that reference commercial concepts)
     if (nextPath.join(".") === "advancedRules") {
       continue;
     }
-    // Allow suppressionRules subtree (field names like suppressAfterOfferAccepted are config, not commercial authorization)
     if (nextPath.join(".") === "suppressionRules") {
       continue;
     }
@@ -326,9 +320,6 @@ function assertNoCommercialKeys(value: unknown, path: string[] = []): void {
   }
 }
 
-/**
- * CSS-H4: Validate region codes follow ISO 3166-1 alpha-2 format (2 uppercase letters).
- */
 const ISO_3166_ALPHA2 = /^[A-Z]{2}$/;
 
 function validateBlockedRegions(regions: string[]): void {
