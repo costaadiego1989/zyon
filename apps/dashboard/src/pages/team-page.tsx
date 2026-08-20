@@ -177,6 +177,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
       <Modal
         isOpen={showInviteModal}
         title="Novo membro"
+        eyebrow="EQUIPE"
         onClose={() => setShowInviteModal(false)}
         footer={
           <Button

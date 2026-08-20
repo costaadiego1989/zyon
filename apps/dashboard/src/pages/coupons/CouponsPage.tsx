@@ -2,6 +2,7 @@ import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { Modal } from "../../components/Modal.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useCouponsPage } from "./useCouponsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
@@ -159,46 +160,21 @@ export function CouponsPage(_props: CouponsPageProps) {
       </div>
 
       {/* Side Panel — Create Coupon */}
-      {vm.showForm && (
-        <div
-          onClick={() => vm.setShowForm(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1000,
-            background: "rgba(0,0,0,0.5)",
-            backdropFilter: "blur(2px)",
-            display: "flex",
-            justifyContent: "flex-end",
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "100%",
-              maxWidth: 440,
-              height: "100%",
-              background: "var(--card)",
-              borderLeft: "1px solid var(--border)",
-              display: "flex",
-              flexDirection: "column",
-              animation: "slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
-              overflowY: "auto",
-            }}
-          >
-            {/* Panel Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--border)", flex: "none" }}>
-              <div>
-                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>MARKETING</div>
-                <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0, letterSpacing: "-0.01em" }}>Criar cupom</h2>
-              </div>
-              <button type="button" onClick={() => vm.setShowForm(false)} aria-label="Fechar" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }} onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card)"; e.currentTarget.style.color = "var(--ink)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--muted)"; }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Panel Body */}
-            <div style={{ flex: 1, padding: "24px", display: "flex", flexDirection: "column", gap: 20, overflowY: "auto" }}>
+      <Modal
+        isOpen={vm.showForm}
+        title="Criar cupom"
+        eyebrow="MARKETING"
+        onClose={() => vm.setShowForm(false)}
+        footer={
+          <>
+            <Button variant="secondary" size="sm" onClick={() => vm.setShowForm(false)}>Cancelar</Button>
+            <Button variant="primary" size="sm" onClick={() => void vm.handleCreate()} disabled={vm.creating} loading={vm.creating}>
+              Criar cupom
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
               {/* Código */}
               <label>
                 <span className="field-label">Código do cupom *</span>
@@ -237,11 +213,11 @@ export function CouponsPage(_props: CouponsPageProps) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
                   <span className="field-label">Início da validade</span>
-                  <input type="date" value={vm.form.startsAt} onChange={(e) => vm.patch({ startsAt: e.target.value })} className="field-input" lang="pt-BR" />
+                  <input type="date" value={vm.form.startsAt} onChange={(e) => vm.patch({ startsAt: e.target.value })} className="field-input" />
                 </label>
                 <label>
                   <span className="field-label">Fim da validade</span>
-                  <input type="date" value={vm.form.expiresAt} onChange={(e) => vm.patch({ expiresAt: e.target.value })} className="field-input" lang="pt-BR" />
+                  <input type="date" value={vm.form.expiresAt} onChange={(e) => vm.patch({ expiresAt: e.target.value })} className="field-input" />
                 </label>
               </div>
 
@@ -251,50 +227,19 @@ export function CouponsPage(_props: CouponsPageProps) {
                 <input type="number" value={vm.form.maxUses} onChange={(e) => vm.patch({ maxUses: e.target.value })} placeholder="Ilimitado" min={1} className="field-input" />
               </label>
 
-              {/* Restrições — Produto e Categoria multi-select */}
+              {/* Restrições */}
               <div style={{ borderTop: "1px solid var(--border)", paddingTop: 18 }}>
                 <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 14 }}>Restrições (opcional)</span>
-
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                  <MultiSearchSelect
-                    label="Vincular a produtos"
-                    placeholder="Buscar produto..."
-                    selected={vm.form.productIds}
-                    onChange={(ids) => vm.patch({ productIds: ids })}
-                    type="products"
-                    merchantId={merchantId}
-                  />
-                  <MultiSearchSelect
-                    label="Vincular a categorias"
-                    placeholder="Buscar categoria..."
-                    selected={vm.form.categoryIds}
-                    onChange={(ids) => vm.patch({ categoryIds: ids })}
-                    type="categories"
-                    merchantId={merchantId}
-                  />
+                  <MultiSearchSelect label="Vincular a produtos" placeholder="Buscar produto..." selected={vm.form.productIds} onChange={(ids) => vm.patch({ productIds: ids })} type="products" merchantId={merchantId} />
+                  <MultiSearchSelect label="Vincular a categorias" placeholder="Buscar categoria..." selected={vm.form.categoryIds} onChange={(ids) => vm.patch({ categoryIds: ids })} type="categories" merchantId={merchantId} />
                 </div>
                 <span className="field-hint" style={{ marginTop: 8 }}>Se preenchido, cupom só vale para itens vinculados.</span>
               </div>
-            </div>
-
-            {/* Panel Footer */}
-            <div style={{ padding: "16px 24px", borderTop: "1px solid var(--border)", display: "flex", gap: 10, justifyContent: "flex-end", flex: "none" }}>
-              <Button variant="secondary" size="sm" onClick={() => vm.setShowForm(false)}>Cancelar</Button>
-              <Button variant="primary" size="sm" onClick={() => void vm.handleCreate()} disabled={vm.creating} loading={vm.creating}>
-                Criar cupom
-              </Button>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        ${FIELD_STYLES}
-      `}</style>
+      <style>{FIELD_STYLES}</style>
 
       {/* Coupons List */}
       <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
