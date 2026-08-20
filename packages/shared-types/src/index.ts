@@ -498,6 +498,42 @@ export interface DecisionResponse {
   abandonment_score: number;
 }
 
+/**
+ * Feature 4: Customer Intent Memory
+ * LGPD Art. 8 (consent), Art. 18 (erasure), Art. 6 (minimization)
+ */
+
+export interface BuyerIntentMemoryConsent {
+  merchant_id: string;
+  global_user_id: string;
+  opted_in: boolean;
+  expires_at: string;
+  updated_at: string;
+}
+
+export interface BehavioralSignals {
+  session_duration_seconds: number;
+  items_viewed: number;
+  comparisons_made: number;
+  objections_raised: number;
+  checkout_stage_reached: number;
+  last_objection_type?: string;
+}
+
+export interface CustomerIntentRecord {
+  id: string;
+  merchant_id: string;
+  global_user_id: string;
+  primary_intent: string;
+  urgency: "low" | "medium" | "high";
+  budget_tier: "budget" | "mid" | "premium";
+  category_focus: string[];
+  pain_points: string[];
+  conversion_likelihood_percent: number;
+  behavioral_signals: BehavioralSignals;
+  generated_at: string;
+}
+
 export type OfferType =
   | "discount_percent"
   | "discount_fixed"
