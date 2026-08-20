@@ -56,7 +56,7 @@ export function ExperimentMetrics({
                   Taxa
                 </th>
                 <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--sans)", color: "var(--muted)" }}>
-                  AOV
+                  Ticket Médio
                 </th>
               </tr>
             </thead>
@@ -85,10 +85,10 @@ export function ExperimentMetrics({
                         color: isWinner ? "var(--good)" : "var(--ink)",
                       }}
                     >
-                      {(m.conversion_rate * 100).toFixed(2)}%
+                      {m.conversion_rate?.toFixed(2) ?? "0.00"}%
                     </td>
                     <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--ink)" }}>
-                      R$ {m.avg_order_value?.toFixed(2) ?? "—"}
+                      R$ {m.avg_order_value?.toFixed(2) ?? "0.00"}
                     </td>
                   </tr>
                 );
