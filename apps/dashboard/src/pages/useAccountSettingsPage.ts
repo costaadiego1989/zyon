@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { readError } from "../utils/read-error.js";
+import { useApi } from "../hooks/useApi.js";
 import type { MerchantProfile } from "../api-client.js";
 
 export interface AccountForm {
@@ -14,8 +15,8 @@ export interface PasswordForm {
   confirmPassword: string;
 }
 
-export function useAccountSettingsPage(props: { me: MerchantProfile | null; apiBaseUrl: string }) {
-  const baseUrl = props.apiBaseUrl.replace(/\/+$/, "");
+export function useAccountSettingsPage(props: { me: MerchantProfile | null }) {
+  const api = useApi();
   const [form, setForm] = useState<AccountForm>({ name: "", email: "", phone: "" });
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [saving, setSaving] = useState(false);
@@ -32,42 +33,33 @@ export function useAccountSettingsPage(props: { me: MerchantProfile | null; apiB
   const loadProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${baseUrl}/auth/me`, { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        setForm({
-          name: data.name || data.merchant_name || props.me?.name || "",
-          email: data.email || "",
-          phone: data.phone || "",
-        });
-      }
+      const data = await api.getMe();
+      setForm({
+        name: data.name || data.merchant_name || props.me?.name || "",
+        email: data.email || "",
+        phone: data.phone || "",
+      });
     } catch { /* use props.me fallback */ }
     setLoading(false);
-  }, [baseUrl, props.me]);
+  }, [api, props.me]);
 
   const saveProfile = useCallback(async () => {
     if (!form.name.trim() || !form.email.trim()) return;
     setSaving(true);
     setMessage(null);
     try {
-      const res = await fetch(`${baseUrl}/auth/me`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: form.name.trim(),
-          email: form.email.trim(),
-          phone: form.phone.trim() || undefined,
-        }),
+      await api.updateMe({
+        name: form.name.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim() || undefined,
       });
-      if (!res.ok) throw new Error(await res.text());
       setMessage({ text: "Dados atualizados com sucesso.", kind: "ok" });
     } catch (e) {
       setMessage({ text: readError(e), kind: "error" });
     } finally {
       setSaving(false);
     }
-  }, [baseUrl, form]);
+  }, [api, form]);
 
   const changePassword = useCallback(async () => {
     if (!passwordForm.newPassword || !passwordForm.currentPassword) return;
@@ -82,19 +74,7 @@ export function useAccountSettingsPage(props: { me: MerchantProfile | null; apiB
     setSavingPassword(true);
     setMessage(null);
     try {
-      const res = await fetch(`${baseUrl}/auth/me/password`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          current_password: passwordForm.currentPassword,
-          new_password: passwordForm.newPassword,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(body.includes("invalid") ? "Senha atual incorreta." : body.slice(0, 100));
-      }
+      await api.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
       setMessage({ text: "Senha alterada com sucesso.", kind: "ok" });
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (e) {
@@ -102,7 +82,7 @@ export function useAccountSettingsPage(props: { me: MerchantProfile | null; apiB
     } finally {
       setSavingPassword(false);
     }
-  }, [baseUrl, passwordForm]);
+  }, [api, passwordForm]);
 
   return {
     form,

@@ -33,5 +33,25 @@ export function authEndpoints(base: string, f: typeof fetch) {
     logout(): Promise<Record<string, never>> {
       return dashboardJson<Record<string, never>>(base, "/auth/logout", { method: "POST" }, f);
     },
+
+    forgotPassword(email: string): Promise<{ ok: true }> {
+      return dashboardJson(base, "/auth/forgot-password", { method: "POST", jsonBody: { email } }, f);
+    },
+
+    resetPassword(token: string, password: string): Promise<{ ok: true }> {
+      return dashboardJson(base, "/auth/reset-password", { method: "POST", jsonBody: { token, password } }, f);
+    },
+
+    getMe(): Promise<{ name?: string; merchant_name?: string; email?: string; phone?: string }> {
+      return dashboardJson(base, "/auth/me", { method: "GET" }, f);
+    },
+
+    updateMe(payload: { name: string; email: string; phone?: string }): Promise<{ name?: string; email?: string; phone?: string }> {
+      return dashboardJson(base, "/auth/me", { method: "PUT", jsonBody: payload }, f);
+    },
+
+    changePassword(currentPassword: string, newPassword: string): Promise<{ ok: true }> {
+      return dashboardJson(base, "/auth/me/password", { method: "PUT", jsonBody: { current_password: currentPassword, new_password: newPassword } }, f);
+    },
   };
 }

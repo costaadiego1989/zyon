@@ -10,7 +10,7 @@ import { FormField, FormSelect } from "../components/FormField.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const vm = useTeamPage({ me: props.me, apiBaseUrl: props.apiBaseUrl });
+  const vm = useTeamPage({ me: props.me });
   const [showInviteModal, setShowInviteModal] = useState(false);
 
   if (!props.me) {

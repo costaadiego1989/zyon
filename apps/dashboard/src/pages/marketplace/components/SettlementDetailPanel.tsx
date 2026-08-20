@@ -1,20 +1,22 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { X, ExternalLink } from "lucide-react";
-import type { SettlementDetail } from "../../api/endpoints/marketplace-v2.js";
+import { useApi } from "../../../hooks/useApi.js";
+import { reportError } from "../../../hooks/useErrorReporter.js";
+import type { SettlementDetail } from "../../../api/endpoints/marketplace-v2.js";
 import { SettlementTimeline } from "./SettlementTimeline.js";
 import "./settlement-detail-panel.css";
 
 interface SettlementDetailPanelProps {
   settlementId: string;
-  apiBaseUrl: string;
+  apiBaseUrl?: string;
   onClose: () => void;
 }
 
 export function SettlementDetailPanel({
   settlementId,
-  apiBaseUrl,
   onClose,
 }: SettlementDetailPanelProps) {
+  const api = useApi();
   const [detail, setDetail] = useState<SettlementDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,19 +25,15 @@ export function SettlementDetailPanel({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(
-        `${apiBaseUrl}/marketplace/dashboard/settlements/${encodeURIComponent(settlementId)}`,
-        { method: "GET", credentials: "include" }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await api.getMarketplaceSettlementDetail(settlementId);
       setDetail(data);
     } catch (err: any) {
+      reportError({ source: "marketplace.SettlementDetailPanel.fetchDetail", error: err, context: { settlementId } });
       setError(err.message ?? "Falha ao carregar detalhes");
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, settlementId]);
+  }, [api, settlementId]);
 
   useEffect(() => {
     fetchDetail();

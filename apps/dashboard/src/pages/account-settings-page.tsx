@@ -7,7 +7,7 @@ import { FormField } from "../components/FormField.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
 
 export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const vm = useAccountSettingsPage({ me: props.me, apiBaseUrl: props.apiBaseUrl });
+  const vm = useAccountSettingsPage({ me: props.me });
 
   if (!props.me) {
     return (

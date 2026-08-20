@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { readError } from "../utils/read-error.js";
+import { useApi } from "../hooks/useApi.js";
 import type { MerchantProfile } from "../api-client.js";
 
 export type MemberRole = "OWNER" | "ADMIN" | "STAFF";
@@ -41,8 +42,8 @@ const ROLE_LABELS: Record<MemberRole, string> = {
 
 export { ROLE_LABELS };
 
-export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: string }) {
-  const baseUrl = props.apiBaseUrl.replace(/\/+$/, "");
+export function useTeamPage(props: { me: MerchantProfile | null }) {
+  const api = useApi();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
   const [loading, setLoading] = useState(false);
@@ -62,11 +63,7 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team`, {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
+      const data = await api.listTeam(merchantId);
       setMembers(data.members ?? []);
       setInvites(data.invites ?? []);
     } catch (e) {
@@ -74,7 +71,7 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
     } finally {
       setLoading(false);
     }
-  }, [merchantId]);
+  }, [api, merchantId]);
 
   useEffect(() => {
     if (props.me) void load();
@@ -85,21 +82,12 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
     setInviting(true);
     setMessage(null);
     try {
-      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team/invite`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: inviteName.trim(),
-          email: inviteEmail.trim(),
-          phone: invitePhone.trim() || undefined,
-          role: inviteRole,
-        }),
+      await api.inviteTeamMember(merchantId, {
+        name: inviteName.trim(),
+        email: inviteEmail.trim(),
+        phone: invitePhone.trim() || undefined,
+        role: inviteRole,
       });
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(body.slice(0, 100));
-      }
       setMessage({ text: `Convite enviado para ${inviteEmail}`, kind: "ok" });
       setInviteName("");
       setInviteEmail("");
@@ -110,36 +98,26 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
     } finally {
       setInviting(false);
     }
-  }, [merchantId, inviteEmail, inviteRole, load]);
+  }, [api, merchantId, inviteEmail, inviteRole, load]);
 
   const updateRole = useCallback(async (userId: string, role: MemberRole) => {
     if (!merchantId) return;
     setMessage(null);
     try {
-      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team/${userId}/role`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await api.updateTeamMemberRole(merchantId, userId, role);
       setMembers((prev) => prev.map((m) => m.userId === userId ? { ...m, role } : m));
       setMessage({ text: "Função atualizada.", kind: "ok" });
     } catch (e) {
       setMessage({ text: readError(e), kind: "error" });
     }
-  }, [merchantId]);
+  }, [api, merchantId]);
 
   const removeMember = useCallback(async (userId: string) => {
     if (!merchantId) return;
     setRemovingId(userId);
     setMessage(null);
     try {
-      const res = await fetch(`${baseUrl}/merchants/${merchantId}/team/${userId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await api.removeTeamMember(merchantId, userId);
       setMembers((prev) => prev.filter((m) => m.userId !== userId));
       setMessage({ text: "Membro removido.", kind: "ok" });
     } catch (e) {
@@ -147,7 +125,7 @@ export function useTeamPage(props: { me: MerchantProfile | null; apiBaseUrl: str
     } finally {
       setRemovingId(null);
     }
-  }, [merchantId]);
+  }, [api, merchantId]);
 
   return {
     members,

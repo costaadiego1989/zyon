@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
+import { reportError } from "../../hooks/useErrorReporter.js";
+import { lookupViaCep } from "../../api/external/via-cep.js";
 import { DashboardHttpError } from "../../api/http/index.js";
 import { showToast } from "../../components/Toast.js";
 
@@ -167,27 +169,22 @@ export function useStoreSettingsPage() {
     const digits = zip.replace(/\D/g, "");
     if (digits.length < 8) return;
     setState((p) => ({ ...p, cepLoading: true }));
-    try {
-      const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      const data = await res.json() as any;
-      if (data.erro) {
-        setState((p) => ({ ...p, cepLoading: false }));
-        return;
-      }
-      setState((p) => ({
-        ...p,
-        company: {
-          ...p.company,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || "",
-        },
-        cepLoading: false,
-      }));
-    } catch {
+    const data = await lookupViaCep(digits);
+    if (!data) {
       setState((p) => ({ ...p, cepLoading: false }));
+      return;
     }
+    setState((p) => ({
+      ...p,
+      company: {
+        ...p.company,
+        street: data.logradouro || "",
+        neighborhood: data.bairro || "",
+        city: data.localidade || "",
+        state: data.uf || "",
+      },
+      cepLoading: false,
+    }));
   }
 
   async function handleSave() {

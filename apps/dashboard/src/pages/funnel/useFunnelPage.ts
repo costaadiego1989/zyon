@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useApi } from "../../hooks/useApi.js";
+import { reportError } from "../../hooks/useErrorReporter.js";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -112,7 +114,8 @@ export function useFunnelPage(props: {
   merchantName?: string;
   plan?: FunnelPlan;
 }): FunnelPageVM {
-  const { apiBaseUrl, merchantId, merchantName, plan } = props;
+  const { apiBaseUrl: _apiBaseUrl, merchantId, merchantName, plan } = props;
+  const api = useApi();
 
   const resolvedPlan: FunnelPlan = plan ?? "BOTH";
   const showSourceTabs = resolvedPlan === "BOTH";
@@ -134,43 +137,32 @@ export function useFunnelPage(props: {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ period });
-      if (breakdown !== "none") params.set("breakdown", breakdown);
-      if (compareEnabled) params.set("compare", "true");
-
-      const endpoint = funnelSource === "storefront"
-        ? `${apiBaseUrl}/storefront/funnel/${merchantId}`
-        : `${apiBaseUrl}/checkout/funnel/${merchantId}`;
-
-      const res = await fetch(
-        `${endpoint}?${params.toString()}`,
-        { credentials: "include" },
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json: FunnelData = await res.json();
+      const params = { period, breakdown, compare: compareEnabled };
+      const json: FunnelData = funnelSource === "storefront"
+        ? await api.getStorefrontFunnel(merchantId, params)
+        : await api.getCheckoutFunnel(merchantId, params);
       setData(json);
     } catch (e) {
+      reportError({ source: "funnel.useFunnelPage.fetchFunnel", error: e, context: { merchantId, funnelSource, period } });
       setError(e instanceof Error ? e.message : String(e));
       // Show empty structure even on error so page isn't blank
       if (!data) setData(EMPTY_FUNNEL);
     } finally {
       setLoading(false);
     }
-  }, [apiBaseUrl, merchantId, period, breakdown, compareEnabled, funnelSource]);
+  }, [api, merchantId, period, breakdown, compareEnabled, funnelSource]);
 
   const fetchSessions = useCallback(async () => {
     try {
-      const sessionsEndpoint = funnelSource === "storefront"
-        ? `${apiBaseUrl}/storefront/funnel/${merchantId}/sessions`
-        : `${apiBaseUrl}/checkout/funnel/${merchantId}/sessions`;
-      const res = await fetch(sessionsEndpoint, { credentials: "include" });
-      if (!res.ok) return;
-      const json: FunnelSessionsResponse = await res.json();
+      const json: FunnelSessionsResponse = funnelSource === "storefront"
+        ? await api.getStorefrontFunnelSessions(merchantId)
+        : await api.getCheckoutFunnelSessions(merchantId);
       setSessions(json.sessions);
-    } catch {
+    } catch (e) {
+      reportError({ source: "funnel.useFunnelPage.fetchSessions", error: e, context: { merchantId, funnelSource } });
       // non-blocking; sessions are supplementary
     }
-  }, [apiBaseUrl, merchantId, funnelSource]);
+  }, [api, merchantId, funnelSource]);
 
   useEffect(() => {
     void fetchFunnel();

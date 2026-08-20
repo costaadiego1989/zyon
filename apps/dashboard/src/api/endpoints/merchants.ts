@@ -125,5 +125,21 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     removeDomain(domainId: string): Promise<{ success: boolean }> {
       return dashboardJson(base, `/merchants/me/domains/${domainId}`, { method: "DELETE" }, f);
     },
+
+    listTeam(merchantId: string): Promise<{ members: Array<{ id: string; userId: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; joinedAt: string }>; invites: Array<{ id: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; status: "PENDING" | "ACCEPTED" | "EXPIRED"; createdAt: string; expiresAt: string }> }> {
+      return dashboardJson(base, `/merchants/${merchantId}/team`, { method: "GET" }, f);
+    },
+
+    inviteTeamMember(merchantId: string, payload: { name: string; email: string; phone?: string; role: "OWNER" | "ADMIN" | "STAFF" }): Promise<{ id: string }> {
+      return dashboardJson(base, `/merchants/${merchantId}/team/invite`, { method: "POST", jsonBody: payload }, f);
+    },
+
+    updateTeamMemberRole(merchantId: string, userId: string, role: "OWNER" | "ADMIN" | "STAFF"): Promise<{ ok: true }> {
+      return dashboardJson(base, `/merchants/${merchantId}/team/${userId}/role`, { method: "PUT", jsonBody: { role } }, f);
+    },
+
+    removeTeamMember(merchantId: string, userId: string): Promise<{ ok: true }> {
+      return dashboardJson(base, `/merchants/${merchantId}/team/${userId}`, { method: "DELETE" }, f);
+    },
   };
 }

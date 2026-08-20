@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { Calendar, CheckCircle2, Clock, AlertCircle, DollarSign } from "lucide-react";
-import type { SettlementDetail, SettlementStatus } from "../../api/endpoints/marketplace-v2.js";
+import type { SettlementDetail, SettlementStatus, SettlementTimelineEntry } from "../../../api/endpoints/marketplace-v2.js";
 import "./settlement-timeline.css";
 
 interface SettlementTimelineProps {
@@ -119,7 +119,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
       {/* Timeline Line */}
       <div className="settlement-timeline__line-container">
         <div className="settlement-timeline__line" />
-        {timeline.map((entry, idx) => {
+        {timeline.map((entry: SettlementTimelineEntry, idx: number) => {
           const config = STATUS_CONFIG[entry.status];
           const isCurrent = entry.status === settlement.status;
 

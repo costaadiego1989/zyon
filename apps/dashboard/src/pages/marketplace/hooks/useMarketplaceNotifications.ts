@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useApi } from "../../hooks/useApi.js";
-import type { NotificationItem } from "../../components/NotificationBell.js";
+import { useApi } from "../../../hooks/useApi.js";
+import type { NotificationItem } from "../../../components/NotificationBell.js";
 
 export type MarketplaceEventType =
   | "settlement_transferred"
