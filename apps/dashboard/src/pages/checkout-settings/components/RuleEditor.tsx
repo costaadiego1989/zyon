@@ -1,7 +1,64 @@
 import React, { useState, useEffect } from "react";
-import { Plus, X } from "lucide-react";
+import { Plus, X, ChevronDown } from "lucide-react";
 import { Button } from "../../../components/Button.js";
+import { useApi } from "../../../hooks/useApi.js";
 import type { AdvancedRule } from "../lib/draft.js";
+
+/** Dropdown that loads active coupons from API */
+function CouponDropdown({ value, onChange, disabled }: { value: string; onChange: (code: string) => void; disabled?: boolean }) {
+  const api = useApi();
+  const [open, setOpen] = useState(false);
+  const [coupons, setCoupons] = useState<Array<{ code: string; discountType: string; discountValue: number }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  const loadCoupons = async () => {
+    setLoading(true);
+    try {
+      const data = await api.listCoupons();
+      setCoupons((data ?? []).filter((c: any) => c.isActive !== false).map((c: any) => ({
+        code: c.code,
+        discountType: c.discountType ?? c.discount_type ?? "percent",
+        discountValue: c.discountValue ?? c.discount_value ?? 0,
+      })));
+    } catch { setCoupons([]); }
+    setLoading(false);
+  };
+
+  return (
+    <div className="cfg-rule-param" style={{ position: "relative" }}>
+      <label>Código do cupom</label>
+      <div
+        onClick={() => { if (!disabled) { setOpen(!open); if (!open) void loadCoupons(); } }}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1 }}
+      >
+        <span style={{ font: "12px var(--mono)", color: value ? "var(--ink)" : "var(--faint)" }}>{value || "Selecionar cupom..."}</span>
+        <ChevronDown size={14} color="var(--faint)" />
+      </div>
+      {open && (
+        <>
+          <div style={{ position: "fixed", inset: 0, zIndex: 10 }} onClick={() => setOpen(false)} />
+          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: 4, zIndex: 20, boxShadow: "0 8px 24px rgba(0,0,0,0.4)", maxHeight: 180, overflowY: "auto" }}>
+            {loading ? (
+              <div style={{ padding: 10, textAlign: "center", font: "11px var(--sans)", color: "var(--faint)" }}>Carregando...</div>
+            ) : coupons.length === 0 ? (
+              <div style={{ padding: 10, textAlign: "center", font: "11px var(--sans)", color: "var(--faint)" }}>Nenhum cupom ativo</div>
+            ) : (
+              coupons.map((c) => (
+                <button key={c.code} type="button" onClick={() => { onChange(c.code); setOpen(false); }} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "none", background: value === c.code ? "var(--accent-soft)" : "transparent", color: "var(--ink)", font: "12px var(--sans)", cursor: "pointer", textAlign: "left", display: "flex", justifyContent: "space-between" }}
+                  onMouseEnter={(e) => { if (value !== c.code) e.currentTarget.style.background = "var(--bg)"; }}
+                  onMouseLeave={(e) => { if (value !== c.code) e.currentTarget.style.background = "transparent"; }}
+                >
+                  <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>{c.code}</span>
+                  <span style={{ color: "var(--muted)", fontSize: 11 }}>{c.discountType === "free_shipping" ? "Frete grátis" : c.discountType === "percent" ? `${c.discountValue}%` : `R$${(c.discountValue/100).toFixed(0)}`}</span>
+                </button>
+              ))
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 const CONDITION_FIELDS = [
   { value: "cart_total", label: "Valor do carrinho" },
@@ -181,10 +238,11 @@ export function RuleEditor({
               </div>
             )}
             {actionType === "offer_coupon" && (
-              <div className="cfg-rule-param">
-                <label>Código do cupom</label>
-                <input type="text" value={actionParams.code ?? ""} disabled={busy} onChange={(e) => setActionParams({ ...actionParams, code: e.target.value })} placeholder="BEMVINDO10" />
-              </div>
+              <CouponDropdown
+                value={actionParams.code ?? ""}
+                onChange={(code) => setActionParams({ ...actionParams, code })}
+                disabled={busy}
+              />
             )}
             {actionType === "offer_installments" && (
               <div className="cfg-rule-param">
