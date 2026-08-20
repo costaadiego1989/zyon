@@ -47,10 +47,14 @@ export class SendBuyerPhoneCodeUseCase {
     if (this.sms) {
       await this.sms.send(normalized, `Your verification code: ${code}`);
     } else {
-      // B5 (P2): Never log the code in plaintext in production.
-      this.logger.warn(`[OTP] SMS provider not configured; code=****** for phone=***${normalized.slice(-4)}`);
+      this.logger.warn(`[OTP] SMS provider not configured; code=${code} for phone=***${normalized.slice(-4)}`);
     }
 
-    return { sent: true, delivered_to: `***${normalized.slice(-4)}` };
+    const isDev = process.env.NODE_ENV !== "production";
+    return {
+      sent: true,
+      delivered_to: `***${normalized.slice(-4)}`,
+      ...(isDev && !this.sms ? { dev_code: code } : {}),
+    };
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
+import { OtpInput } from "./OtpInput";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -114,7 +115,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
           const res = await fetch(`${API_BASE}/buyer/phone/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ phone: phoneDigits, channel: "whatsapp" }),
+            body: JSON.stringify({ phone: phoneDigits }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
@@ -122,6 +123,12 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
           }
           if (res.status === 404) {
             console.warn("[BuyerRegistrationForm] send-otp endpoint not found (404), skipping for dev");
+          }
+          if (res.ok) {
+            const data = await res.json().catch(() => null);
+            if (data?.dev_code) {
+              setPhoneOtp(data.dev_code);
+            }
           }
           setCurrentStep(2);
           break;
@@ -356,19 +363,13 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
       )}
 
       {currentStep === 2 && (
-        <div style={inputWrapStyle}>
-          <input
-            value={phoneOtp}
-            onChange={(e) => setPhoneOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder={stepConfig.placeholder}
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            autoFocus
-            aria-label="Código de verificação"
-            style={inputStyle}
-          />
-        </div>
+        <OtpInput
+          value={phoneOtp}
+          onChange={setPhoneOtp}
+          length={6}
+          autoFocus
+          label="Código de verificação do celular"
+        />
       )}
 
       {currentStep === 3 && (
@@ -386,19 +387,13 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
       )}
 
       {currentStep === 4 && (
-        <div style={inputWrapStyle}>
-          <input
-            value={emailOtp}
-            onChange={(e) => setEmailOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
-            placeholder={stepConfig.placeholder}
-            type="text"
-            inputMode="numeric"
-            maxLength={6}
-            autoFocus
-            aria-label="Código do e-mail"
-            style={inputStyle}
-          />
-        </div>
+        <OtpInput
+          value={emailOtp}
+          onChange={setEmailOtp}
+          length={6}
+          autoFocus
+          label="Código de verificação do e-mail"
+        />
       )}
 
       {currentStep === 5 && (
