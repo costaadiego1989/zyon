@@ -4,6 +4,7 @@ import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Modal } from "../../components/Modal.js";
 import { useApi } from "../../hooks/useApi.js";
+import { StatCard } from "../overview/components/StatCard.js";
 import { useCouponsPage } from "./useCouponsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 
@@ -243,49 +244,10 @@ export function CouponsPage(_props: CouponsPageProps) {
       {/* KPIs */}
       {!vm.loading && vm.coupons.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Tag size={14} color="var(--accent)" />
-              </div>
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>Total de cupons</span>
-            </div>
-            <span style={{ font: "700 22px var(--mono)", color: "var(--ink)" }}>{vm.coupons.length}</span>
-          </div>
-
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: "var(--good-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Play size={14} color="var(--good)" />
-              </div>
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>Ativos</span>
-            </div>
-            <span style={{ font: "700 22px var(--mono)", color: "var(--good)" }}>{vm.coupons.filter(c => c.isActive).length}</span>
-          </div>
-
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <TrendingUp size={14} color="var(--accent)" />
-              </div>
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>Total resgates</span>
-            </div>
-            <span style={{ font: "700 22px var(--mono)", color: "var(--ink)" }}>{vm.coupons.reduce((sum, c) => sum + (c.usedCount || 0), 0)}</span>
-          </div>
-
-          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "16px 18px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 7, background: "var(--warn-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <Percent size={14} color="var(--warn)" />
-              </div>
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>Taxa de uso</span>
-            </div>
-            <span style={{ font: "700 22px var(--mono)", color: "var(--warn)" }}>
-              {vm.coupons.length > 0
-                ? `${Math.round((vm.coupons.filter(c => c.usedCount > 0).length / vm.coupons.length) * 100)}%`
-                : "0%"}
-            </span>
-          </div>
+          <StatCard label="Total de cupons" value={vm.coupons.length} icon={<Tag size={16} />} />
+          <StatCard label="Ativos" value={vm.coupons.filter(c => c.isActive).length} icon={<Play size={16} />} accent="var(--good)" />
+          <StatCard label="Total resgates" value={vm.coupons.reduce((sum, c) => sum + (c.usedCount || 0), 0)} icon={<TrendingUp size={16} />} />
+          <StatCard label="Taxa de uso" value={`${vm.coupons.length > 0 ? Math.round((vm.coupons.filter(c => c.usedCount > 0).length / vm.coupons.length) * 100) : 0}%`} icon={<Percent size={16} />} accent="var(--warn)" />
         </div>
       )}
 
