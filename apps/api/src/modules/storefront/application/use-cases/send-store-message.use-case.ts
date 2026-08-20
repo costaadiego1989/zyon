@@ -132,12 +132,17 @@ export class SendStoreMessageUseCase {
           target -= variant.weight;
           if (target <= 0) {
             experimentSystemPrompt = variant.systemPrompt;
+            this.logger.log(
+              `[experiment] merchant=${input.merchant_id} conv=${input.conversation_id} → variant="${variant.name}" (exp=${running.id})`,
+            );
             break;
           }
         }
+      } else {
+        this.logger.debug(`[experiment] No running experiment for merchant=${input.merchant_id}`);
       }
-    } catch {
-      // Non-critical — continue without experiment prompt
+    } catch (err) {
+      this.logger.warn(`[experiment] Failed to load: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     const result = await this.conversation.reply({

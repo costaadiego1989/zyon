@@ -215,6 +215,9 @@ export class SendChatMessageUseCase {
           target -= variant.weight;
           if (target <= 0) {
             experimentPromptOverride = variant.systemPrompt;
+            this.logger.log(
+              `[experiment] session=${input.session_id} → variant="${variant.name}" (exp=${running.id})`,
+            );
             break;
           }
         }
