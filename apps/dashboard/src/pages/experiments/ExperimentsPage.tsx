@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus, FlaskConical, Play, Pause, Archive } from "lucide-react";
+import { Plus, Zap } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -19,14 +19,15 @@ const STATUS_COUNTS_STYLE: React.CSSProperties = {
 };
 
 const FILTER_CHIP: React.CSSProperties = {
-  padding: "5px 12px",
+  padding: "4px 10px",
   borderRadius: 20,
   border: "1px solid var(--border)",
   background: "transparent",
   color: "var(--muted)",
-  font: "500 11px var(--sans)",
+  font: "500 10px var(--sans)",
   cursor: "pointer",
   transition: "all 0.15s",
+  whiteSpace: "nowrap",
 };
 
 const FILTER_CHIP_ACTIVE: React.CSSProperties = {
@@ -79,7 +80,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
       ) : vm.experiments.length === 0 ? (
         <div className="panel" style={{ padding: "60px 24px" }}>
           <EmptyState
-            icon={FlaskConical}
+            icon={Zap}
             title="Nenhum teste criado"
             description="Testes A/B permitem comparar como diferentes estratégias de comunicação do agente impactam suas vendas"
             action={<Button size="sm" onClick={vm.openCreateForm}><Plus size={12} /> Criar primeiro teste</Button>}
@@ -88,12 +89,12 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
       ) : (
         <>
           {/* Master-Detail Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, alignItems: "start" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "380px 1fr", gap: 20, alignItems: "start" }}>
             {/* Left Column: Filters + List */}
             <div style={{
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              gap: 14,
               background: "var(--card)",
               border: "1px solid var(--border)",
               borderRadius: 14,
@@ -104,8 +105,8 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
                 <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar testes..." width={9999} />
               </div>
 
-              {/* Filter Chips */}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {/* Filter Chips — single row */}
+              <div style={{ display: "flex", gap: 4, flexWrap: "nowrap", overflow: "hidden" }}>
                 {(["all", "draft", "running", "completed"] as const).map((s) => (
                   <button
                     key={s}
@@ -114,7 +115,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
                     style={vm.filterStatus === s ? FILTER_CHIP_ACTIVE : FILTER_CHIP}
                   >
                     {s === "all" ? "Todos" : s === "draft" ? "Rascunho" : s === "running" ? "Ativo" : "Concluído"}
-                    <span style={{ marginLeft: 4, opacity: 0.7 }}>{statusCounts[s]}</span>
+                    <span style={{ marginLeft: 3, opacity: 0.7 }}>{statusCounts[s]}</span>
                   </button>
                 ))}
               </div>
@@ -123,8 +124,8 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
               <div style={{
                 display: "flex",
                 flexDirection: "column",
-                gap: 10,
-                maxHeight: "calc(100vh - 300px)",
+                gap: 8,
+                maxHeight: "calc(100vh - 320px)",
                 overflowY: "auto",
                 paddingRight: 4,
               }}>
@@ -153,21 +154,12 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
                   onArchive={() => vm.handleArchiveExperiment(vm.selectedId!)}
                 />
               ) : (
-                <div style={{
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 14,
-                  padding: "48px 24px",
-                  textAlign: "center",
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  gap: 12,
-                }}>
-                  <FlaskConical size={32} style={{ color: "var(--muted)", opacity: 0.4 }} />
-                  <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
-                    Selecione um teste ao lado para ver detalhes e métricas
-                  </p>
+                <div className="panel" style={{ padding: "48px 24px" }}>
+                  <EmptyState
+                    icon={Zap}
+                    title="Nenhum teste selecionado"
+                    description="Selecione um teste ao lado para ver detalhes e métricas"
+                  />
                 </div>
               )}
             </div>

@@ -20,7 +20,7 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
     draft: "var(--muted)",
     running: "var(--accent)",
     paused: "var(--faint)",
-    completed: "var(--good)",
+    completed: "var(--good, #10b981)",
     archived: "var(--muted)",
   }[experiment.status];
 
@@ -28,31 +28,41 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
     <button
       onClick={onSelect}
       style={{
-        background: selected ? "var(--accent-soft)" : "var(--card)",
+        background: selected ? "var(--accent-soft, oklch(30% 0.04 160 / 0.3))" : "var(--bg)",
         border: selected ? "1px solid var(--accent)" : "1px solid var(--border)",
         borderRadius: 10,
-        padding: "12px 16px",
+        padding: "14px 16px",
         cursor: "pointer",
         textAlign: "left",
-        transition: "all 0.2s",
+        transition: "all 0.15s",
+        width: "100%",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-        <span style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>{experiment.name}</span>
+      {/* Row 1: Title + Badge right */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ font: "600 13px var(--sans)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {experiment.name}
+        </span>
         <span
           style={{
-            font: "11px var(--mono)",
+            font: "600 9px var(--mono)",
             color: statusColor,
-            background: "rgba(0,0,0,0.1)",
-            padding: "2px 6px",
-            borderRadius: 3,
+            background: `color-mix(in oklch, ${statusColor} 15%, transparent)`,
+            padding: "3px 8px",
+            borderRadius: 4,
+            textTransform: "uppercase",
+            letterSpacing: "0.03em",
+            whiteSpace: "nowrap",
+            flexShrink: 0,
           }}
         >
           {statusLabel}
         </span>
       </div>
-      <div style={{ font: "11px var(--sans)", color: "var(--muted)" }}>
-        {experiment.variants.length} variantes • {new Date(experiment.created_at).toLocaleDateString("pt-BR")}
+
+      {/* Row 2: Meta below */}
+      <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginTop: 6 }}>
+        {(experiment.variants ?? []).length} variantes • {new Date(experiment.created_at).toLocaleDateString("pt-BR")}
       </div>
     </button>
   );
