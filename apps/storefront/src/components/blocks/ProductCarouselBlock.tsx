@@ -239,6 +239,35 @@ export default function ProductCarouselBlock({
                     -{(product as any).discountPercent}%
                   </div>
                 )}
+                {/* Wishlist heart */}
+                <button
+                  type="button"
+                  aria-label="Adicionar à lista de desejos"
+                  onClick={(e) => { e.stopPropagation(); onQuickReply?.(`Adicionar ${product.name} à lista de desejos`); }}
+                  style={{
+                    position: "absolute",
+                    top: "8px",
+                    right: product.inStock ? "90px" : "98px",
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    background: "color-mix(in srgb, var(--aacp-surface) 80%, transparent)",
+                    border: "1px solid var(--aacp-line)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    color: "var(--aacp-muted)",
+                    backdropFilter: "blur(6px)",
+                    transition: "all 0.15s ease",
+                    padding: 0,
+                    zIndex: 1,
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = "#ef4444"; e.currentTarget.style.borderColor = "#ef4444"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = "var(--aacp-muted)"; e.currentTarget.style.borderColor = "var(--aacp-line)"; }}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                </button>
               </div>
 
               {/* Card body */}
