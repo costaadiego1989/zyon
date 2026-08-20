@@ -84,6 +84,11 @@ export class CheckoutSettingsPublicController {
       enabledTriggers: settings.triggerRules
         .filter((rule) => rule.enabled)
         .map((rule) => rule.trigger),
+      triggerMessages: Object.fromEntries(
+        settings.triggerRules
+          .filter((rule: any) => rule.enabled && rule.message)
+          .map((rule: any) => [rule.trigger, { message: rule.message, couponCode: rule.couponCode }])
+      ),
       suppressedSteps: settings.suppressionRules.suppressedSteps,
       blockedRegions: settings.suppressionRules.blockedRegions,
       minimumCartValue: settings.suppressionRules.minimumCartValue,

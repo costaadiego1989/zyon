@@ -386,13 +386,20 @@ export function useConversationViewModel(
         if (getInterventionCount(merchantId || "") >= maxInterventions) return;
         if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
 
-        const nudgeText = TRIGGER_MESSAGES[triggerEvent];
+        // Use custom trigger message from merchant settings, fallback to default
+        const customTrigger = (widgetConfig as any).triggerMessages?.[triggerEvent];
+        const nudgeText = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
         if (!nudgeText) return;
 
         incrementIntervention(merchantId || "");
         recordTriggerFired(merchantId || "", triggerEvent);
 
-        setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: nudgeText }]);
+        // If trigger has coupon attached, include it in the message
+        const couponSuffix = customTrigger?.couponCode
+          ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
+          : "";
+
+        setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: nudgeText + couponSuffix }]);
       },
     );
     return cleanup;
