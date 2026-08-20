@@ -217,11 +217,11 @@ export default function ProductCarouselBlock({
                     </div>
                   );
                 })()}
-                {/* Stock badge — top right */}
+                {/* Stock badge — top left */}
                 <div style={{
                   position: "absolute",
                   top: "8px",
-                  right: "8px",
+                  left: "8px",
                   padding: "3px 8px",
                   borderRadius: "6px",
                   background: product.inStock ? "color-mix(in srgb, var(--aacp-success) 15%, var(--aacp-surface))" : "color-mix(in srgb, #ef4444 12%, var(--aacp-surface))",
@@ -235,11 +235,11 @@ export default function ProductCarouselBlock({
                 </div>
                 {/* Discount badge */}
                 {(product as any).discountPercent > 0 && (
-                  <div style={{ position: "absolute", top: "8px", left: "8px", padding: "3px 8px", borderRadius: "6px", background: "var(--aacp-accent)", color: "#fff", fontSize: "10px", fontWeight: 700, letterSpacing: "0.02em" }}>
+                  <div style={{ position: "absolute", top: "32px", left: "8px", padding: "3px 8px", borderRadius: "6px", background: "var(--aacp-accent)", color: "#fff", fontSize: "10px", fontWeight: 700, letterSpacing: "0.02em" }}>
                     -{(product as any).discountPercent}%
                   </div>
                 )}
-                {/* Wishlist heart */}
+                {/* Wishlist heart — top right */}
                 <button
                   type="button"
                   aria-label="Adicionar à lista de desejos"
@@ -247,7 +247,7 @@ export default function ProductCarouselBlock({
                   style={{
                     position: "absolute",
                     top: "8px",
-                    right: product.inStock ? "90px" : "98px",
+                    right: "8px",
                     width: "28px",
                     height: "28px",
                     borderRadius: "50%",
