@@ -290,9 +290,7 @@ export function ExperimentForm({
                     </div>
 
                     <div>
-                      <span style={{ font: "600 10px var(--mono)", color: "var(--muted)", display: "block", marginBottom: 4, textTransform: "uppercase" }}>
-                        Instrução para o agente (system prompt)
-                      </span>
+                    
                       <textarea
                         value={v.description ?? ""}
                         onChange={(e) => updateVariant(idx, { description: e.target.value })}
@@ -312,31 +310,20 @@ export function ExperimentForm({
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: 12, alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ font: "600 10px var(--mono)", color: "var(--muted)", textTransform: "uppercase" }}>Tráfego</span>
-                        <input
-                          type="number"
-                          value={v.weight ?? 50}
-                          onChange={(e) => updateVariant(idx, { weight: Number(e.target.value) })}
-                          min="1"
-                          max="99"
-                          style={{
-                            width: 48,
-                            padding: "5px 6px",
-                            borderRadius: 6,
-                            border: "1px solid var(--border)",
-                            background: "var(--card)",
-                            color: "var(--ink)",
-                            font: "600 12px var(--mono)",
-                            textAlign: "center",
-                          }}
-                        />
-                        <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>%</span>
-                      </div>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                      <span style={{
+                        font: "600 11px var(--mono)",
+                        color: "var(--muted)",
+                        background: "var(--card)",
+                        padding: "4px 10px",
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                      }}>
+                        {Math.round(100 / form.variants.length)}% do público
+                      </span>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
                         <span style={{ font: "11px var(--sans)", color: v.is_control ? "var(--accent)" : "var(--muted)" }}>
-                          Controle
+                          Baseline
                         </span>
                         <ToggleSwitch
                           id={`variant-control-${idx}`}
