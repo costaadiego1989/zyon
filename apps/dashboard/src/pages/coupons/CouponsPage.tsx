@@ -288,14 +288,14 @@ export function CouponsPage(_props: CouponsPageProps) {
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button type="button" onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} title={coupon.isActive ? "Pausar" : "Ativar"} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: coupon.isActive ? "var(--warn)" : "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {coupon.isActive ? <Pause size={15} /> : <Play size={15} />}
+                  <button type="button" onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} title={coupon.isActive ? "Pausar" : "Ativar"} style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: coupon.isActive ? "var(--warn)" : "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {coupon.isActive ? <Pause size={18} /> : <Play size={18} />}
                   </button>
-                  <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar código" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Copy size={15} />
+                  <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar código" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Copy size={18} />
                   </button>
-                  <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Trash2 size={15} />
+                  <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Trash2 size={18} />
                   </button>
                 </div>
               </div>
