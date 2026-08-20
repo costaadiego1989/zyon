@@ -269,44 +269,53 @@ export function CouponsPage(_props: CouponsPageProps) {
           }
         />
       ) : (
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: 12 }}>
           {vm.coupons.map((coupon) => (
-            <div key={coupon.id} style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12 }}>
-              {/* Icon */}
-              <div style={{ width: 38, height: 38, borderRadius: 9, background: coupon.isActive ? "var(--accent-soft)" : "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                {coupon.discountType === "free_shipping"
-                  ? <Truck size={16} color={coupon.isActive ? "var(--accent)" : "var(--faint)"} />
-                  : <Tag size={16} color={coupon.isActive ? "var(--accent)" : "var(--faint)"} />}
+            <div key={coupon.id} style={{ padding: "18px 20px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12 }}>
+              {/* Top row: code + badge + actions */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: coupon.isActive ? "var(--accent-soft)" : "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {coupon.discountType === "free_shipping"
+                      ? <Truck size={18} color={coupon.isActive ? "var(--accent)" : "var(--faint)"} />
+                      : <Tag size={18} color={coupon.isActive ? "var(--accent)" : "var(--faint)"} />}
+                  </div>
+                  <div>
+                    <span style={{ font: "700 16px var(--mono)", color: "var(--ink)", letterSpacing: "0.03em", display: "block" }}>{coupon.code}</span>
+                    <span style={{ font: "600 9px var(--sans)", padding: "2px 7px", borderRadius: 5, background: coupon.isActive ? "var(--accent-soft)" : "rgba(255,255,255,0.05)", color: coupon.isActive ? "var(--accent)" : "var(--faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      {coupon.isActive ? "Ativo" : "Pausado"}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <button type="button" onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} title={coupon.isActive ? "Pausar" : "Ativar"} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: coupon.isActive ? "var(--warn)" : "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {coupon.isActive ? <Pause size={15} /> : <Play size={15} />}
+                  </button>
+                  <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar código" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Copy size={15} />
+                  </button>
+                  <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
 
-              {/* Info */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ font: "700 15px var(--mono)", color: "var(--ink)", letterSpacing: "0.03em" }}>{coupon.code}</span>
-                  <span style={{ font: "600 9px var(--sans)", padding: "2px 7px", borderRadius: 5, background: coupon.isActive ? "var(--accent-soft)" : "rgba(255,255,255,0.05)", color: coupon.isActive ? "var(--accent)" : "var(--faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                    {coupon.isActive ? "Ativo" : "Pausado"}
-                  </span>
+              {/* Bottom: metrics grid */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "12px 0 0", borderTop: "1px solid var(--border)" }}>
+                <div>
+                  <div style={{ font: "10px var(--sans)", color: "var(--faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Desconto</div>
+                  <div style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>{formatDiscount(coupon.discountType, coupon.discountValue)}</div>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 5, font: "11.5px var(--sans)", color: "var(--muted)" }}>
-                  <span style={{ color: "var(--ink)", fontWeight: 600 }}>{formatDiscount(coupon.discountType, coupon.discountValue)}</span>
-                  <span style={{ color: "var(--border)" }}>|</span>
-                  <span>{coupon.usedCount ?? 0} de {coupon.maxUses ?? "∞"} usos</span>
-                  <span style={{ color: "var(--border)" }}>|</span>
-                  <span>{coupon.startsAt ? formatDate(coupon.startsAt) : "Hoje"} → {coupon.expiresAt ? formatDate(coupon.expiresAt) : "Sem fim"}</span>
+                <div>
+                  <div style={{ font: "10px var(--sans)", color: "var(--faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Usos</div>
+                  <div style={{ font: "600 13px var(--mono)", color: "var(--ink)" }}>{coupon.usedCount ?? 0}<span style={{ color: "var(--faint)", fontWeight: 400 }}>/{coupon.maxUses ?? "∞"}</span></div>
                 </div>
-              </div>
-
-              {/* Actions */}
-              <div style={{ display: "flex", alignItems: "center", gap: 4, flex: "none" }}>
-                <button type="button" onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} title={coupon.isActive ? "Pausar" : "Ativar"} style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--border)", background: "transparent", color: coupon.isActive ? "var(--warn)" : "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
-                  {coupon.isActive ? <Pause size={13} /> : <Play size={13} />}
-                </button>
-                <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar" style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
-                  <Copy size={13} />
-                </button>
-                <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 30, height: 30, borderRadius: 7, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }}>
-                  <Trash2 size={13} />
-                </button>
+                <div>
+                  <div style={{ font: "10px var(--sans)", color: "var(--faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Validade</div>
+                  <div style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>
+                    {coupon.startsAt ? formatDate(coupon.startsAt) : "Hoje"} → {coupon.expiresAt ? formatDate(coupon.expiresAt) : "Sem fim"}
+                  </div>
+                </div>
               </div>
             </div>
           ))}
