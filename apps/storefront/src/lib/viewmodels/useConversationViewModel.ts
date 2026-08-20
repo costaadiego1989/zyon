@@ -124,29 +124,31 @@ export function useConversationViewModel(
           experiment: data.experiment || null,
         });
 
-        // If experiment has a custom greeting, replace welcome message
+        // If experiment running: fetch LLM greeting in background, replace static when ready
         if (data.experiment?.system_prompt) {
-          // Experiment running: send automatic "olá" to get LLM-generated greeting with variant prompt
-          try {
-            const greetingData = await checkoutApi.sendMessage(data.conversation_id, "olá", {
-              merchantId,
-              cartId: cart.cartId || undefined,
-              history: [],
-            });
+          checkoutApi.sendMessage(data.conversation_id, "olá", {
+            merchantId,
+            cartId: cart.cartId || undefined,
+            history: [],
+          }).then((greetingData) => {
             if (greetingData?.message) {
-              setMessages([{
-                id: "welcome",
-                role: "agent",
-                text: greetingData.message,
-                blocks: greetingData.blocks?.length
-                  ? [...greetingData.blocks, { type: "quick_replies", data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } }]
-                  : [{ type: "quick_replies", data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } }],
-              }]);
+              setMessages((prev) => {
+                // Replace the static welcome message with LLM variant greeting
+                const welcome = prev.find((m) => m.id === "welcome");
+                if (welcome) {
+                  return prev.map((m) => m.id === "welcome" ? {
+                    ...m,
+                    text: greetingData.message,
+                    blocks: greetingData.blocks?.length
+                      ? [...greetingData.blocks, { type: "quick_replies", data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } }]
+                      : m.blocks,
+                  } : m);
+                }
+                return prev;
+              });
               setHistory([{ role: "user", content: "olá" }, { role: "assistant", content: greetingData.message }]);
             }
-          } catch {
-            // Fallback: keep static greeting
-          }
+          }).catch(() => { /* keep static greeting on failure */ });
         }
       }
     } catch { /* fallback mode */ }
