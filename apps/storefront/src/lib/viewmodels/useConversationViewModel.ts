@@ -123,9 +123,30 @@ export function useConversationViewModel(
           conversation_id: data.conversation_id,
           experiment: data.experiment || null,
         });
+
+        // If experiment has a custom greeting, replace welcome message
+        if (data.experiment?.system_prompt) {
+          // Extract greeting from system_prompt or use variant-specific welcome
+          const variantGreeting = data.experiment.variant_name
+            ? `Oi! Sou ${agent}, assistente da ${storeName}. ${data.experiment.variant_name === "control" ? "" : ""}Como posso ajudar?`
+            : null;
+
+          if (variantGreeting) {
+            setMessages((prev) => {
+              // Replace hardcoded welcome if it's the only message
+              if (prev.length === 1 && prev[0]?.id === "welcome") {
+                return [{
+                  ...prev[0],
+                  text: variantGreeting,
+                }];
+              }
+              return prev;
+            });
+          }
+        }
       }
     } catch { /* fallback mode */ }
-  }, [merchantId, conversationId]);
+  }, [merchantId, conversationId, agent, storeName]);
 
   // ─── Theme ───
   const applyTheme = useCallback((t: Theme) => {
@@ -181,13 +202,18 @@ export function useConversationViewModel(
     setMode("chat");
     try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
     initConversation();
+
+    // Use custom agent greeting if configured, otherwise default
+    const greeting = agentGreeting
+      || `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`;
+
     setMessages([{
       id: "welcome",
       role: "agent",
-      text: `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`,
+      text: greeting,
       blocks: [{ type: "quick_replies", data: { options: quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"] } }],
     }]);
-  }, [agent, storeName, quickReplies, initConversation]);
+  }, [agent, storeName, quickReplies, agentGreeting, initConversation]);
 
   const toggleChannel = useCallback(() => {
     const next: Channel = channel === "voice" ? "chat" : "voice";
