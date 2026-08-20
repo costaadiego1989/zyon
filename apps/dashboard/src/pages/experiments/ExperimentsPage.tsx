@@ -1,5 +1,5 @@
 import React from "react";
-import { Plus } from "lucide-react";
+import { Plus, FlaskConical, Play, Pause, Archive } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -8,12 +8,33 @@ import { useExperimentsPage } from "./hooks/useExperimentsPage.js";
 import { ExperimentCard } from "./components/ExperimentCard.js";
 import { ExperimentDetail } from "./components/ExperimentDetail.js";
 import { ExperimentForm } from "./components/ExperimentForm.js";
-import type { Experiment } from "./types.js";
 
 export interface ExperimentsPageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
 }
+
+const STATUS_COUNTS_STYLE: React.CSSProperties = {
+  display: "flex", gap: 6, font: "600 11px var(--mono)",
+};
+
+const FILTER_CHIP: React.CSSProperties = {
+  padding: "5px 12px",
+  borderRadius: 20,
+  border: "1px solid var(--border)",
+  background: "transparent",
+  color: "var(--muted)",
+  font: "500 11px var(--sans)",
+  cursor: "pointer",
+  transition: "all 0.15s",
+};
+
+const FILTER_CHIP_ACTIVE: React.CSSProperties = {
+  ...FILTER_CHIP,
+  background: "var(--accent)",
+  borderColor: "var(--accent)",
+  color: "#fff",
+};
 
 export function ExperimentsPage(props: ExperimentsPageProps) {
   const vm = useExperimentsPage({ me: props.me });
@@ -29,75 +50,74 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
     );
   }
 
+  const statusCounts = {
+    all: vm.experiments.length,
+    draft: vm.experiments.filter(e => e.status === "draft").length,
+    running: vm.experiments.filter(e => e.status === "running").length,
+    completed: vm.experiments.filter(e => e.status === "completed").length,
+  };
+
   return (
-    <div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <span className="eyebrow">CONFIGURAÇÃO</span>
+          <span className="eyebrow">AGENTE IA</span>
           <h1>Testes A/B</h1>
-          <p className="page-lead">Experimente variações de ofertas e mensagens</p>
+          <p className="page-lead">Compare estratégias de abordagem e meça conversão</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={vm.openCreateForm}>
           <Plus size={14} /> Novo Teste
         </Button>
       </div>
 
-      {/* List */}
+      {/* Content */}
       {vm.loading ? (
-        <div className="panel" style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)" }}>Carregando testes...</div>
+        <div className="panel" style={{ padding: "60px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
+          Carregando experimentos...
+        </div>
       ) : vm.experiments.length === 0 ? (
-        <div className="panel">
+        <div className="panel" style={{ padding: "60px 24px" }}>
           <EmptyState
-            title="Nenhum teste A/B"
-            description="Crie seu primeiro teste para começar a experimentar"
-            action={<Button size="sm" onClick={vm.openCreateForm}>Criar Teste</Button>}
+            icon={FlaskConical}
+            title="Nenhum teste criado"
+            description="Testes A/B permitem comparar como diferentes estratégias de comunicação do agente impactam suas vendas"
+            action={<Button size="sm" onClick={vm.openCreateForm}><Plus size={12} /> Criar primeiro teste</Button>}
           />
         </div>
       ) : (
-        <div className="panel" style={{ padding: "16px 20px" }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 16 }}>
-            <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar testes..." />
-            <select
-              value={vm.filterStatus}
-              onChange={(e) => vm.setFilterStatus(e.target.value as any)}
-              style={{
-                padding: "7px 10px",
-                borderRadius: 7,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "12px var(--sans)",
-                minWidth: 120,
-              }}
-            >
-              <option value="all">Todos</option>
-              <option value="draft">Rascunho</option>
-              <option value="running">Em Execução</option>
-              <option value="completed">Concluído</option>
-            </select>
-            <select
-              value={vm.sortBy}
-              onChange={(e) => vm.setSortBy(e.target.value as any)}
-              style={{
-                padding: "7px 10px",
-                borderRadius: 7,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "12px var(--sans)",
-                minWidth: 120,
-              }}
-            >
-              <option value="created">Mais Recentes</option>
-              <option value="name">Nome A-Z</option>
-              <option value="status">Status</option>
-            </select>
+        <>
+          {/* Filters Row */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ flex: 1, maxWidth: 240 }}>
+              <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar..." />
+            </div>
+            <div style={{ display: "flex", gap: 4 }}>
+              {(["all", "draft", "running", "completed"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => vm.setFilterStatus(s)}
+                  style={vm.filterStatus === s ? FILTER_CHIP_ACTIVE : FILTER_CHIP}
+                >
+                  {s === "all" ? "Todos" : s === "draft" ? "Rascunho" : s === "running" ? "Ativo" : "Concluído"}
+                  <span style={{ marginLeft: 4, opacity: 0.7 }}>{statusCounts[s]}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.2fr", gap: 16 }}>
-            {/* List Column */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Master-Detail Grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, alignItems: "start" }}>
+            {/* Experiment List */}
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              maxHeight: "calc(100vh - 260px)",
+              overflowY: "auto",
+              paddingRight: 4,
+            }}>
               {vm.experiments.map((exp) => (
                 <ExperimentCard
                   key={exp.id}
@@ -108,37 +128,43 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
               ))}
             </div>
 
-            {/* Detail Column */}
-            {vm.selectedId && vm.selectedExperiment ? (
-              <ExperimentDetail
-                experiment={vm.selectedExperiment}
-                results={vm.selectedResults}
-                loading={vm.resultsLoading}
-                saving={vm.saving}
-                onStart={() => vm.handleStartExperiment(vm.selectedId!)}
-                onStop={() => vm.handleStopExperiment(vm.selectedId!)}
-                onPromote={(variantId) => vm.handlePromoteVariant(vm.selectedId!, variantId)}
-                onArchive={() => vm.handleArchiveExperiment(vm.selectedId!)}
-              />
-            ) : (
-              <div
-                style={{
+            {/* Detail Panel */}
+            <div style={{ position: "sticky", top: 20 }}>
+              {vm.selectedId && vm.selectedExperiment ? (
+                <ExperimentDetail
+                  experiment={vm.selectedExperiment}
+                  results={vm.selectedResults}
+                  loading={vm.resultsLoading}
+                  saving={vm.saving}
+                  onStart={() => vm.handleStartExperiment(vm.selectedId!)}
+                  onStop={() => vm.handleStopExperiment(vm.selectedId!)}
+                  onPromote={(variantId) => vm.handlePromoteVariant(vm.selectedId!, variantId)}
+                  onArchive={() => vm.handleArchiveExperiment(vm.selectedId!)}
+                />
+              ) : (
+                <div style={{
                   background: "var(--card)",
-                  border: "1px dashed var(--border)",
+                  border: "1px solid var(--border)",
                   borderRadius: 14,
-                  padding: 24,
+                  padding: "48px 24px",
                   textAlign: "center",
-                  color: "var(--muted)",
-                }}
-              >
-                <p>Selecione um teste para ver detalhes</p>
-              </div>
-            )}
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
+                }}>
+                  <FlaskConical size={32} style={{ color: "var(--muted)", opacity: 0.4 }} />
+                  <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
+                    Selecione um teste ao lado para ver detalhes e métricas
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Drawer */}
       {vm.formMode && (
         <ExperimentForm
           form={vm.form}
