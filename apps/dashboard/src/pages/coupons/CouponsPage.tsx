@@ -1,5 +1,6 @@
 import { Plus, Trash2, Copy, RefreshCw, Tag } from "lucide-react";
 import { Button } from "../../components/Button.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { useCouponsPage } from "./useCouponsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 
@@ -121,14 +122,20 @@ export function CouponsPage(_props: CouponsPageProps) {
       )}
 
       {/* Coupons List */}
+      <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
       {vm.loading ? (
         <div style={{ padding: "40px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando cupons...</div>
       ) : vm.coupons.length === 0 ? (
-        <div style={{ padding: "60px 0", textAlign: "center" }}>
-          <Tag size={32} color="var(--faint)" style={{ marginBottom: 12 }} />
-          <p style={{ color: "var(--muted)", font: "13px var(--sans)" }}>Nenhum cupom criado ainda.</p>
-          <p style={{ color: "var(--faint)", font: "12px var(--sans)" }}>Crie cupons para usar em triggers, campanhas ou compartilhar com clientes.</p>
-        </div>
+        <EmptyState
+          icon={Tag}
+          title="Nenhum cupom criado ainda"
+          description="Crie cupons para usar em triggers de abandono, campanhas de email ou compartilhar com clientes nas redes sociais."
+          action={
+            <Button variant="primary" size="sm" onClick={() => vm.setShowForm(true)}>
+              <Plus size={14} /> Criar primeiro cupom
+            </Button>
+          }
+        />
       ) : (
         <div style={{ display: "grid", gap: 8 }}>
           {vm.coupons.map((coupon) => (
@@ -174,6 +181,7 @@ export function CouponsPage(_props: CouponsPageProps) {
           ))}
         </div>
       )}
+      </section>
     </div>
   );
 }
