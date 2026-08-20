@@ -1,3 +1,4 @@
+import { Injectable } from "@nestjs/common";
 import { createHash } from "crypto";
 
 export interface HoldoutAssignment {
@@ -13,6 +14,7 @@ export interface HoldoutAssignment {
  *
  * INVARIANT H2: Salt must always be "holdout_salt_v1" — never randomize.
  */
+@Injectable()
 export class HoldoutGroupService {
   // INVARIANT H2: never change this salt
   private readonly HOLDOUT_SALT = "holdout_salt_v1";

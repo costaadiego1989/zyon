@@ -102,6 +102,22 @@ export class TrackCheckoutEventUseCase {
         })
       );
     }
+    // Emit intervention_triggered event if decision to intervene was made
+    // Allows CartRecovery scanner to react immediately (not wait 15 min)
+    if (!session.triggerAgent && finalSession.triggerAgent) {
+      await this.outbox.appendOutbox(
+        createCheckoutEventEnvelope({
+          eventType: "checkout.intervention_triggered",
+          merchantId: input.merchant_id,
+          payload: {
+            session_id: input.session_id,
+            abandonment_score: finalSession.abandonmentScore,
+            reason: input.event
+          },
+          causationId: input.event
+        })
+      );
+    }
     const progressiveOffer = await this.authorizeProgressiveOffer(input.event, finalSession, settingsCtx ?? undefined);
     if (input.event === "checkout_abandoned") {
       await this.outbox.appendOutbox(

@@ -105,6 +105,21 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       .filter((s) => s.customer?.email?.toLowerCase().trim() === normalizedEmail);
   }
 
+  async findSessionsWithTrigger(threshold = 0.55): Promise<CheckoutSession[]> {
+    // Cart Recovery scanner targets sessions within 24h of triggering (to prioritize fresh abandonments).
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const rows = await this.prisma.checkoutSession.findMany({
+      where: {
+        triggerAgent: true,
+        abandonmentScore: { gte: threshold },
+        updatedAt: { gte: twentyFourHoursAgo }
+      },
+      take: 100,
+      orderBy: { updatedAt: "desc" }
+    });
+    return rows.map(toCheckoutSession);
+  }
+
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> {
     await this.prisma.$transaction(async (tx) => {
       const session = await tx.checkoutSession.findUnique({

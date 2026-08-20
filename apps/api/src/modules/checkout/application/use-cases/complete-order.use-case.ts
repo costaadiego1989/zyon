@@ -11,6 +11,8 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { CHECKOUT_REPOSITORY } from "../../domain/ports/checkout-repository.port.js";
 import type { CheckoutEventName, CompletedOrder, DomainEventEnvelope } from "@zyon/shared-types";
 import { PlaceCrossStoreOrderUseCase } from "../../../marketplace/application/use-cases/place-cross-store-order.use-case.js";
+import { RecordIntentIfConsentedUseCase } from "../../../intent-memory/application/use-cases/classify-customer-intent.use-case.js";
+import { AttributionTaggerService } from "../../../revenue-lift/domain/services/attribution-tagger.service.js";
 
 /** Persistence surface required to commit an order atomically with its events. */
 interface OrderCommitRepository {
@@ -44,7 +46,9 @@ export class CompleteOrderUseCase {
     @Optional() @Inject(CHECKOUT_REPOSITORY) private readonly txRunner?: TransactionRunner,
     @Optional() private readonly recordExperimentResult?: RecordExperimentResultUseCase,
     @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
-    @Optional() private readonly placeCrossStoreOrder?: PlaceCrossStoreOrderUseCase
+    @Optional() private readonly placeCrossStoreOrder?: PlaceCrossStoreOrderUseCase,
+    @Optional() private readonly attributionTagger?: AttributionTaggerService,
+    @Optional() private readonly recordIntentIfConsented?: RecordIntentIfConsentedUseCase
   ) { }
 
   private readonly logger = new Logger(CompleteOrderUseCase.name);
@@ -198,6 +202,37 @@ export class CompleteOrderUseCase {
           }
         }
       }
+
+      // Revenue Lift: tag order for attribution (if service is available)
+      if (this.attributionTagger) {
+        try {
+          const cohort = (session as any).cohort || "treatment";
+          const attributionTag = this.attributionTagger.tag({
+            sessionId: input.session_id,
+            orderId: input.external_order_id,
+            cohort: cohort as "holdout" | "treatment",
+            features: {
+              negotiation: false, // TODO: detect if negotiation was applied
+              crossSell: false, // TODO: detect if cross-sell was applied
+              progressiveDiscount: (session.cart.currentDiscount ?? 0) > 0,
+              cartRecovery: false, // TODO: detect if recovery was applied
+              intentPersonalization: false, // TODO: detect if intent was applied
+              experimentVariantId: session.promptVariantId
+            },
+            revenue: {
+              orderValueCents: input.order_total,
+              discountCents: session.cart.currentDiscount ?? 0,
+              shippingSubsidyCents: 0 // TODO: calculate from shipping realCost vs customerPrice
+            },
+            aiCostCents: 0 // TODO: track LLM costs per session
+          });
+          this.logger.debug("attribution.tagged", { sessionId: input.session_id, cohort, tag: attributionTag });
+        } catch (err) {
+          this.logger.error("attribution.failed", { error: err instanceof Error ? err.message : String(err) });
+          // Non-critical — attribution tagging failure does not block order completion
+        }
+      }
+
       const globalUserId = await this.resolveBuyerGlobalUserId(session);
       if (globalUserId) {
         await this.purchaseHistory?.recordCheckoutPurchase({
@@ -230,6 +265,22 @@ export class CompleteOrderUseCase {
       } catch (err) {
         this.logger.error("cross-store-order.failed", { error: err instanceof Error ? err.message : String(err) });
       }
+    }
+
+    // Async intent classification (non-blocking): records buyer intent if consented
+    // Runs AFTER order completion so buyer is not blocked
+    if (this.recordIntentIfConsented && !idempotent) {
+      this.recordIntentIfConsented.execute({
+        merchantId: input.merchant_id,
+        globalUserId: session.globalUserId,
+        sessionEvents: [],
+        cart: session.cart
+      }).catch((err) => {
+        this.logger.warn(`intent-classification.failed (non-blocking)`, {
+          merchantId: input.merchant_id,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      });
     }
 
     return {

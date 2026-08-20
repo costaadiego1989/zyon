@@ -75,6 +75,24 @@ export class SafeAuthorizedOffer implements AuthorizedOffer {
   }
 
   /**
+   * Factory for a no-op offer (holdout users, suppressed stages, etc).
+   * Returns a safe non-approved offer without hitting the repository.
+   */
+  static noOffer(merchantId: string, sessionId: string): SafeAuthorizedOffer {
+    return new SafeAuthorizedOffer({
+      id: `noop_${Date.now()}`,
+      merchantId,
+      sessionId,
+      type: "none",
+      value: 0,
+      approved: false,
+      reason: "holdout_suppressed",
+      marginAfterOffer: 0,
+      expiresAt: new Date().toISOString()
+    });
+  }
+
+  /**
    * Upcast to plain AuthorizedOffer for contexts that don't need the safety guarantee.
    * Use sparingly — prefer keeping SafeAuthorizedOffer type throughout.
    */

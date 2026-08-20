@@ -1,3 +1,5 @@
+import { Injectable } from "@nestjs/common";
+
 export interface CohortMetrics {
   sessions: number;
   orders: number;
@@ -32,6 +34,7 @@ export interface LiftCalculationResult {
  * - treatment worse → negative (NOT clamped to 0)
  * - ai_costs = 0 → roi = null (NOT Infinity)
  */
+@Injectable()
 export class RevenueLiftCalculatorService {
   calculate(input: LiftCalculationInput): LiftCalculationResult {
     const { holdout, treatment, aiCostsTotalCents } = input;

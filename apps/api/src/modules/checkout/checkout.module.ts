@@ -7,6 +7,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
+import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
 import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
@@ -65,6 +66,8 @@ import { OtpService } from "./application/services/otp.service.js";
 import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
 import { ExperimentsModule } from "../experiments/experiments.module.js";
+import { CartRecoveryModule } from "../cart-recovery/cart-recovery.module.js";
+import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
 
 @Module({
   imports: [
@@ -75,7 +78,10 @@ import { ExperimentsModule } from "../experiments/experiments.module.js";
     forwardRef(() => ShippingModule),
     forwardRef(() => MarketplaceModule),
     BuyerAccountRepositoryModule,
-    ExperimentsModule
+    ExperimentsModule,
+    RevenueLiftModule,
+    forwardRef(() => CartRecoveryModule),
+    IntentMemoryModule
   ],
   controllers: [CheckoutController],
   providers: [

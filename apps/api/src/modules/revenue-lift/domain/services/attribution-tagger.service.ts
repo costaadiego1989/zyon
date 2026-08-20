@@ -38,12 +38,15 @@ export interface AttributionTag {
   aiCostCents: number;
 }
 
+import { Injectable } from "@nestjs/common";
+
 /**
  * Attribution tagger for multi-touch feature tracking.
  *
  * INVARIANT A3: Holdout cohort safety guard — all features forced to false
  * regardless of upstream input. This is a safety measure against contamination.
  */
+@Injectable()
 export class AttributionTaggerService {
   tag(input: TagInput): AttributionTag {
     const {

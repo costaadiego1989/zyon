@@ -1,8 +1,11 @@
-import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from "@nestjs/common";
 import { Queue, Worker, type Job } from "bullmq";
 import type { RedisOptions } from "ioredis";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { ObserveMetricsUseCase } from "../../application/use-cases/observe-metrics.use-case.js";
+import { GenerateHypothesisUseCase } from "../../application/use-cases/generate-hypothesis.use-case.js";
+import { CreateExperimentFromHypothesisUseCase } from "../../application/use-cases/create-experiment-from-hypothesis.use-case.js";
 
 export const REVENUE_MANAGER_OBSERVATION_QUEUE = "revenue-manager-observations";
 const JOB_NAME = "daily-observation-compile";
@@ -83,7 +86,12 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
   private worker: Worker<DailyObservationJobData> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly observeMetricsUseCase: ObserveMetricsUseCase,
+    private readonly generateHypothesisUseCase: GenerateHypothesisUseCase,
+    private readonly createExperimentUseCase: CreateExperimentFromHypothesisUseCase,
+  ) {}
 
   async onModuleInit(): Promise<void> {
     const connection = redisConnection();
@@ -135,9 +143,7 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
 
       for (const merchant of merchants) {
         try {
-          // Placeholder: In production, would call ObserveMetricsUseCase
-          // For now, just log
-          this.logger.debug(`Would trigger observation cycle for merchant ${merchant.id}`);
+          await this.processMerchant(merchant.id);
           processedCount++;
         } catch (err) {
           this.logger.warn(`Failed to process merchant ${merchant.id}: ${err instanceof Error ? err.message : String(err)}`);
@@ -148,6 +154,69 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
     } catch (err) {
       this.logger.warn(`Failed to run observation cycle: ${err instanceof Error ? err.message : String(err)}`);
       return 0;
+    }
+  }
+
+  /**
+   * Full pipeline per merchant:
+   * 1. Observe metrics → deduplicate by fingerprint
+   * 2. Generate hypothesis → LLM call (skip if fails)
+   * 3. If auto-approved → create experiment (skip if running experiment exists)
+   */
+  private async processMerchant(merchantId: string): Promise<void> {
+    // Calculate observation window (last 24 hours)
+    const windowEnd = new Date();
+    const windowStart = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1_000);
+
+    // Step 1: Observe metrics
+    const observation = await this.observeMetricsUseCase.execute({
+      merchant_id: merchantId,
+      window_start: windowStart,
+      window_end: windowEnd,
+    });
+
+    // If observation already existed (fingerprint dedup), skip
+    if (!observation.is_new) {
+      this.logger.debug(`Merchant ${merchantId}: observation unchanged (fingerprint dedup)`);
+      return;
+    }
+
+    // Step 2: Generate hypothesis (LLM call — skip on failure)
+    let hypothesis;
+    try {
+      hypothesis = await this.generateHypothesisUseCase.execute({
+        merchant_id: merchantId,
+        observation_id: observation.observation_id,
+      });
+    } catch (err) {
+      this.logger.warn(`Merchant ${merchantId}: hypothesis generation failed, skipping: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+
+    // Step 3: If auto-approved (low risk), create experiment immediately
+    if (hypothesis.approval_strategy === "auto") {
+      try {
+        const result = await this.createExperimentUseCase.execute({
+          merchant_id: merchantId,
+          hypothesis_id: hypothesis.hypothesis_id,
+        });
+
+        if (result.status === "created") {
+          this.logger.log(`Merchant ${merchantId}: auto-created experiment ${result.experiment_id} from hypothesis ${hypothesis.hypothesis_id}`);
+        } else {
+          this.logger.warn(`Merchant ${merchantId}: experiment creation failed: ${result.error}`);
+        }
+      } catch (err) {
+        // Constraint: merchant already has running experiment — expected, skip silently
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("MERCHANT_ALREADY_HAS_RUNNING_EXPERIMENT")) {
+          this.logger.debug(`Merchant ${merchantId}: already has running experiment, skipping`);
+        } else {
+          this.logger.warn(`Merchant ${merchantId}: experiment creation failed: ${message}`);
+        }
+      }
+    } else {
+      this.logger.log(`Merchant ${merchantId}: hypothesis ${hypothesis.hypothesis_id} needs manual approval (risk=${hypothesis.risk_level})`);
     }
   }
 }

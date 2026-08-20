@@ -1,15 +1,21 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
 import type { ChatStage, CheckoutSession, MerchantRules } from "@zyon/shared-types";
 import { CHECKOUT_REPOSITORY, type CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { createAuthorizedOffer } from "../use-cases/offer-factory.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
+import { EvaluateNegotiationUseCase } from "../../../negotiation/application/evaluate-negotiation.use-case.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
 @Injectable()
 export class CheckoutOfferService {
+  private readonly logger = new Logger(CheckoutOfferService.name);
+
   constructor(
-    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository
+    @Inject(CHECKOUT_REPOSITORY) private readonly repository: CheckoutRepository,
+    @Optional() private readonly evaluateNegotiation?: EvaluateNegotiationUseCase,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any
   ) { }
 
   /**
@@ -53,6 +59,62 @@ export class CheckoutOfferService {
     // shape the cap — that would let LLM-influenced state leak into offer math.
     // Objection handling belongs to `conversation-engine` (copy only).
     const discountCapPercent = rules.maxDiscountPercent;
+
+    // Deal Engine: at payment stage, attempt negotiation if merchant has policy
+    if (stage === "payment" && this.evaluateNegotiation && this.prisma) {
+      try {
+        const negotiationPolicy = await this.prisma.merchantNegotiationPolicy?.findUnique?.({
+          where: { merchantId: sessionObj.merchantId }
+        });
+        if (negotiationPolicy?.enabled) {
+          const result = this.evaluateNegotiation.execute({
+            merchantId: sessionObj.merchantId,
+            globalUserId: sessionObj.globalUserId,
+            cart: {
+              total: sessionObj.cart.total ?? sessionObj.cart.items.reduce((s, i) => s + i.price * i.quantity, 0),
+              items: sessionObj.cart.items.map(i => ({ sku: i.sku, price: i.price, quantity: i.quantity }))
+            },
+            merchantPolicy: {
+              enabled: negotiationPolicy.enabled,
+              global: negotiationPolicy.global ?? { minOfferDiscountPercent: 3, maxDiscountPercent: discountCapPercent },
+              categories: negotiationPolicy.categories ?? [],
+              items: negotiationPolicy.items ?? [],
+              maxRounds: negotiationPolicy.maxRounds ?? 3,
+              maxAiCostCents: negotiationPolicy.maxAiCostCents,
+              estimatedCostPerAiCallCents: negotiationPolicy.estimatedCostPerAiCallCents ?? 2
+            },
+            buyerPreferences: {
+              enabled: true,
+              targetDiscountPercent: discountCapPercent,
+              minimumAcceptableDiscountPercent: 1,
+              maxRounds: 3,
+              autoAccept: true
+            }
+          });
+          if (result.agreement) {
+            const negotiatedDiscount = Math.round(result.selectedDiscountPercent * (sessionObj.cart.total ?? 0) / 100);
+            const offer = createAuthorizedOffer({
+              merchantId: sessionObj.merchantId,
+              sessionId: sessionObj.sessionId,
+              rules,
+              evaluation: {
+                approved: true,
+                type: "discount_percent",
+                value: result.selectedDiscountPercent,
+                reason: `negotiation_agreement_${result.selectedScope}`,
+                marginAfterOffer: 0
+              }
+            });
+            const saved = await this.repository.saveOffer(offer);
+            return SafeAuthorizedOffer.fromRulesEngine(saved);
+          }
+          // No agreement — fall through to standard progressive discount
+        }
+      } catch (err) {
+        this.logger.warn("negotiation.evaluate.failed", { error: err instanceof Error ? err.message : String(err) });
+        // Non-critical — fall through to standard offer logic
+      }
+    }
 
     const wantsShipping = /(frete|envio|shipping)/.test(userMessage.toLowerCase());
     const evaluation = wantsShipping

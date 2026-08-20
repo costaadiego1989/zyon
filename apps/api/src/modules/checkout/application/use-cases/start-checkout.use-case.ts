@@ -22,6 +22,14 @@ import {
   type CheckoutCrossSellRecommenderPort
 } from "../../domain/ports/cross-sell-recommender.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import {
+  INTENT_MEMORY_REPOSITORY,
+  BUYER_INTENT_CONSENT_REPOSITORY,
+  type IntentMemoryRepositoryPort,
+  type BuyerIntentConsentRepositoryPort
+} from "../../../intent-memory/domain/ports/intent-memory-repository.port.js";
+import { BuyerIntentMemoryConsentEntity } from "../../../intent-memory/domain/entities/buyer-intent-memory-consent.entity.js";
+import { HoldoutGroupService } from "../../../revenue-lift/domain/services/holdout-group.service.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -38,7 +46,10 @@ export class StartCheckoutUseCase {
     @Optional() private readonly customerService?: CheckoutCustomerService,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: 1.99 },
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSell?: CheckoutCrossSellRecommenderPort,
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
+    @Optional() private readonly holdoutGroupService?: HoldoutGroupService,
+    @Optional() @Inject(INTENT_MEMORY_REPOSITORY) private readonly intentMemory?: IntentMemoryRepositoryPort,
+    @Optional() @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly intentConsent?: BuyerIntentConsentRepositoryPort
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
@@ -51,6 +62,33 @@ export class StartCheckoutUseCase {
       merchantId: input.merchant_id,
       globalUserId
     });
+
+    // Load intent memory if buyer has active consent (LGPD compliance)
+    let buyerIntent = undefined;
+    if (this.intentConsent && this.intentMemory && globalUserId) {
+      try {
+        const consent = await this.intentConsent.getConsent(input.merchant_id, globalUserId);
+        if (consent) {
+          const entity = BuyerIntentMemoryConsentEntity.rehydrate(consent);
+          if (entity.isActive()) {
+            const record = await this.intentMemory.getLatest(input.merchant_id, globalUserId);
+            if (record) {
+              buyerIntent = {
+                primary_intent: record.primary_intent,
+                urgency: record.urgency,
+                budget_tier: record.budget_tier,
+                pain_points: record.pain_points
+              };
+            }
+          }
+        }
+      } catch (err) {
+        this.logger.warn(`intent-memory load failed (non-blocking)`, {
+          merchantId: input.merchant_id,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
 
     this.metrics?.checkoutStarted.inc({ merchant_id: input.merchant_id });
     const existingSession = await this.sessions.getSession(input.merchant_id, sessionId);
@@ -74,6 +112,21 @@ export class StartCheckoutUseCase {
 
     if (this.customerService && session.customer?.email?.trim()) {
       session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);
+    }
+
+    // Revenue Lift: assign holdout cohort deterministically.
+    // Default to "treatment" if HoldoutGroupService is not available (graceful degradation).
+    const cohort = this.holdoutGroupService
+      ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
+      : "treatment" as const;
+    (session as any).cohort = cohort;
+
+    // Persist cohort assignment for new sessions
+    if (!existingSession) {
+      await this.sessions.saveSession(session);
+    } else {
+      // For existing sessions, also re-save to ensure cohort is persisted
+      await this.sessions.saveSession(session);
     }
 
     await this.outbox.appendOutbox(

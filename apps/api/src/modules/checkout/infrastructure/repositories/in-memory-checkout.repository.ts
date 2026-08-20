@@ -122,6 +122,14 @@ export class InMemoryCheckoutRepository
     );
   }
 
+  findSessionsWithTrigger(threshold = 0.55): CheckoutSession[] {
+    const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    return Array.from(this.sessions.values()).filter(
+      (s) => s.triggerAgent && s.abandonmentScore >= threshold &&
+        (s.updatedAt ? s.updatedAt >= twentyFourHoursAgo : true)
+    );
+  }
+
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): void {
     this.events.push({ merchantId, sessionId, event, at: new Date().toISOString() });
     const session = this.getSession(merchantId, sessionId);

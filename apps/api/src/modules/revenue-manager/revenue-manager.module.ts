@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, OnModuleInit } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { RedisModule } from "../../shared/cache/redis.module.js";
@@ -16,10 +16,16 @@ import { PrismaObservationRepository } from "./infrastructure/prisma-observation
 import { PrismaHypothesisRepository } from "./infrastructure/prisma-hypothesis.repository.js";
 import { PrismaStrategyLessonRepository } from "./infrastructure/prisma-strategy-lesson.repository.js";
 
+// Adapters
+import { LLMHypothesisGenerator } from "./infrastructure/hypothesis-generator.adapter.js";
+
 // Use Cases
 import { ApproveHypothesisUseCase } from "./application/use-cases/approve-hypothesis.use-case.js";
 import { RejectHypothesisUseCase } from "./application/use-cases/reject-hypothesis.use-case.js";
 import { RecordStrategyLessonUseCase } from "./application/use-cases/record-strategy-lesson.use-case.js";
+import { ObserveMetricsUseCase } from "./application/use-cases/observe-metrics.use-case.js";
+import { GenerateHypothesisUseCase } from "./application/use-cases/generate-hypothesis.use-case.js";
+import { CreateExperimentFromHypothesisUseCase } from "./application/use-cases/create-experiment-from-hypothesis.use-case.js";
 
 // Workers
 import { StrategyFeedbackWorker } from "./infrastructure/workers/strategy-feedback.worker.js";
@@ -47,9 +53,17 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
       useFactory: (prisma: PrismaClient) => new PrismaStrategyLessonRepository(prisma),
       inject: [PRISMA_CLIENT],
     },
+    // Hypothesis generator port — LLM-backed adapter
+    {
+      provide: HYPOTHESIS_GENERATOR_PORT,
+      useClass: LLMHypothesisGenerator,
+    },
     ApproveHypothesisUseCase,
     RejectHypothesisUseCase,
     RecordStrategyLessonUseCase,
+    ObserveMetricsUseCase,
+    GenerateHypothesisUseCase,
+    CreateExperimentFromHypothesisUseCase,
     StrategyFeedbackWorker,
     DailyObservationScheduler,
     DailyObservationWorker,
@@ -61,6 +75,18 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
     ApproveHypothesisUseCase,
     RejectHypothesisUseCase,
     RecordStrategyLessonUseCase,
+    ObserveMetricsUseCase,
+    GenerateHypothesisUseCase,
+    CreateExperimentFromHypothesisUseCase,
   ],
 })
-export class RevenueManagerModule {}
+export class RevenueManagerModule implements OnModuleInit {
+  constructor(
+    private readonly dailyObservationScheduler: DailyObservationScheduler,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    // Register recurring daily observation job on boot
+    await this.dailyObservationScheduler.ensureRecurringJob();
+  }
+}

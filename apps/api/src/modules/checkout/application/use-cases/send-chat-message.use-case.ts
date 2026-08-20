@@ -27,6 +27,7 @@ import { resolveCrossSellProduct } from "../../../cross-sell/application/service
 import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/product-search.port.js";
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
+import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
@@ -126,7 +127,13 @@ export class SendChatMessageUseCase {
 
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
-    const offer = await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
+
+    // Revenue Lift: check cohort early for offer suppression
+    const cohortForOffer = (working as any).cohort;
+    // Holdout users get NO offers — skip authorizeOffer entirely
+    const offer = cohortForOffer === "holdout"
+      ? SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId)
+      : await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
 
     TenantBoundaryGuard.assert.merchantIdMatches(
       working.merchantId,
@@ -195,47 +202,56 @@ export class SendChatMessageUseCase {
       this.logger.error("rules.load.failed", { error: rulesErr instanceof Error ? rulesErr.message : String(rulesErr) });
     }
 
+    // Revenue Lift: check if user is in holdout cohort
+    const isHoldout = (working as any).cohort === "holdout";
+
     // LLM-first: always route to LLM (tools: marketplace, discount, etc)
     // Conversation engine is fallback only when LLM is unavailable
+    // HOLDOUT USERS: skip LLM entirely, use deterministic reply only
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
-    this.logger.debug("chat.routing", { stage, missingFields, rulesCount: merchantRules?.length ?? 0 });
+    this.logger.debug("chat.routing", { stage, missingFields, rulesCount: merchantRules?.length ?? 0, isHoldout });
 
-    // Load experiment variant prompt override (A/B test)
-    let experimentPromptOverride: string | undefined;
-    try {
-      const running = await this.prisma?.promptExperiment?.findFirst?.({
-        where: { merchantId: input.merchant_id, status: "running" },
-        include: { variants: true },
-      });
-      if (running && running.variants.length > 0) {
-        const hash = this.hashSessionId(input.session_id);
-        const totalWeight = running.variants.reduce((sum: number, v: any) => sum + v.weight, 0);
-        let target = Math.abs(hash) % totalWeight;
-        for (const variant of running.variants) {
-          target -= variant.weight;
-          if (target <= 0) {
-            experimentPromptOverride = variant.systemPrompt;
-            this.logger.log(
-              `[experiment] session=${input.session_id} → variant="${variant.name}" (exp=${running.id})`,
-            );
-            break;
+    let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] } | null = null;
+
+    // If holdout: skip LLM and NegotiationDiscount entirely
+    if (!isHoldout) {
+      // Load experiment variant prompt override (A/B test)
+      let experimentPromptOverride: string | undefined;
+      try {
+        const running = await this.prisma?.promptExperiment?.findFirst?.({
+          where: { merchantId: input.merchant_id, status: "running" },
+          include: { variants: true },
+        });
+        if (running && running.variants.length > 0) {
+          const hash = this.hashSessionId(input.session_id);
+          const totalWeight = running.variants.reduce((sum: number, v: any) => sum + v.weight, 0);
+          let target = Math.abs(hash) % totalWeight;
+          for (const variant of running.variants) {
+            target -= variant.weight;
+            if (target <= 0) {
+              experimentPromptOverride = variant.systemPrompt;
+              this.logger.log(
+                `[experiment] session=${input.session_id} → variant="${variant.name}" (exp=${running.id})`,
+              );
+              break;
+            }
           }
         }
+      } catch {
+        // Non-critical — continue without experiment override
       }
-    } catch {
-      // Non-critical — continue without experiment override
-    }
 
-    const llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride);
+      llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride);
+    }
 
     if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
       reply = llmReply;
     } else {
-      // Fallback: deterministic conversation engine (no LLM available)
+      // Fallback: deterministic conversation engine (no LLM available OR holdout user)
       reply = await this.conversation.reply({
         userMessage: input.user_message,
         brandVoice: rules.brandVoice,
-        authorizedOffer: offer,
+        authorizedOffer: isHoldout ? { approved: false, type: "none" } as any : offer,
         agentContext,
         merchantName: merchant?.name,
         cart: working.cart,
@@ -280,7 +296,8 @@ export class SendChatMessageUseCase {
     const chatActions: any[] = [];
     let suggestedProducts: SuggestedProduct[] = [];
 
-    if (stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
+    // Revenue Lift: suppress cross-sell for holdout users
+    if (!isHoldout && stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
       try {
         const suggestions = await this.crossSellUseCase.execute({
           session_id: input.session_id,
@@ -295,7 +312,7 @@ export class SendChatMessageUseCase {
       }
     }
 
-    if (reply.suggested_skus?.length && suggestedProducts.length === 0) {
+    if (!isHoldout && reply.suggested_skus?.length && suggestedProducts.length === 0) {
       suggestedProducts = reply.suggested_skus.map((sku) => resolveCrossSellProduct(sku, "llm_suggestion"));
     }
 
