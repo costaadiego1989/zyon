@@ -6,6 +6,7 @@ import type {
   SupportTicketStatus,
   SupportTicketStatusPatch,
 } from "../types.js";
+import type { TicketMessage } from "../../hooks/useSupportSocket.js";
 
 export function supportEndpoints(base: string, f: typeof fetch) {
   return {
@@ -34,6 +35,23 @@ export function supportEndpoints(base: string, f: typeof fetch) {
         base,
         `/support/tickets/${encodeURIComponent(ticketId)}`,
         { method: "PATCH", jsonBody: patch },
+        f
+      );
+    },
+
+    async getTicketMessages(ticketId: string, limit = 100): Promise<TicketMessage[]> {
+      const query = `?limit=${encodeURIComponent(String(limit))}`;
+      const response = await dashboardJson<
+        TicketMessage[] | { data: TicketMessage[] }
+      >(base, `/support/tickets/${encodeURIComponent(ticketId)}/messages${query}`, { method: "GET" }, f);
+      return Array.isArray(response) ? response : (response?.data ?? []);
+    },
+
+    sendTicketMessage(ticketId: string, content: string): Promise<TicketMessage> {
+      return dashboardJson(
+        base,
+        `/support/tickets/${encodeURIComponent(ticketId)}/messages`,
+        { method: "POST", jsonBody: { content } },
         f
       );
     },
