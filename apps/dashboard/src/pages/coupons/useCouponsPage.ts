@@ -5,23 +5,29 @@ import { showToast } from "../../components/Toast.js";
 export interface Coupon {
   id: string;
   code: string;
-  discountType: "percent" | "fixed";
+  discountType: "percent" | "fixed" | "free_shipping";
   discountValue: number;
   minCartValue?: number;
   maxUses?: number;
   usedCount: number;
+  startsAt?: string;
   expiresAt?: string;
+  productId?: string;
+  categoryId?: string;
   isActive: boolean;
   createdAt: string;
 }
 
 export interface CreateCouponForm {
   code: string;
-  discountType: "percent" | "fixed";
+  discountType: "percent" | "fixed" | "free_shipping";
   discountValue: string;
   minCartValue: string;
   maxUses: string;
+  startsAt: string;
   expiresAt: string;
+  productId: string;
+  categoryId: string;
 }
 
 const DEFAULT_FORM: CreateCouponForm = {
@@ -30,7 +36,10 @@ const DEFAULT_FORM: CreateCouponForm = {
   discountValue: "10",
   minCartValue: "",
   maxUses: "",
+  startsAt: "",
   expiresAt: "",
+  productId: "",
+  categoryId: "",
 };
 
 export function useCouponsPage() {
@@ -71,10 +80,12 @@ export function useCouponsPage() {
       showToast("error", "Código do cupom é obrigatório");
       return;
     }
-    const discountValue = Number(form.discountValue);
-    if (discountValue <= 0) {
-      showToast("error", "Valor do desconto deve ser positivo");
-      return;
+    if (form.discountType !== "free_shipping") {
+      const discountValue = Number(form.discountValue);
+      if (discountValue <= 0) {
+        showToast("error", "Valor do desconto deve ser positivo");
+        return;
+      }
     }
 
     setCreating(true);
@@ -82,10 +93,13 @@ export function useCouponsPage() {
       await api.createCoupon({
         code: form.code.toUpperCase().trim(),
         discount_type: form.discountType,
-        discount_value: discountValue,
+        discount_value: form.discountType === "free_shipping" ? 0 : Number(form.discountValue),
         min_cart_value: form.minCartValue ? Number(form.minCartValue) : undefined,
         max_uses: form.maxUses ? Number(form.maxUses) : undefined,
+        starts_at: form.startsAt || undefined,
         expires_at: form.expiresAt || undefined,
+        product_id: form.productId || undefined,
+        category_id: form.categoryId || undefined,
       });
       showToast("success", `Cupom ${form.code.toUpperCase()} criado!`);
       setForm(DEFAULT_FORM);

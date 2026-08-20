@@ -10,13 +10,14 @@ export interface CouponsPageProps {
 }
 
 function formatDiscount(type: string, value: number): string {
+  if (type === "free_shipping") return "Frete grátis";
   if (type === "percent") return `${value}%`;
   return `R$ ${(value / 100).toFixed(2)}`;
 }
 
 function formatDate(iso?: string): string {
-  if (!iso) return "Sem expiração";
-  return new Date(iso).toLocaleDateString("pt-BR");
+  if (!iso) return "Sem limite";
+  return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export function CouponsPage(_props: CouponsPageProps) {
@@ -75,7 +76,7 @@ export function CouponsPage(_props: CouponsPageProps) {
             </div>
 
             {/* Panel Body */}
-            <div style={{ flex: 1, padding: "24px", display: "flex", flexDirection: "column", gap: 18 }}>
+            <div style={{ flex: 1, padding: "24px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
               <label>
                 <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Código do cupom *</span>
                 <div style={{ display: "flex", gap: 8 }}>
@@ -94,23 +95,28 @@ export function CouponsPage(_props: CouponsPageProps) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Tipo de desconto</span>
-                  <select value={vm.form.discountType} onChange={(e) => vm.patch({ discountType: e.target.value as "percent" | "fixed" })} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}>
+                  <select value={vm.form.discountType} onChange={(e) => vm.patch({ discountType: e.target.value as "percent" | "fixed" | "free_shipping" })} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}>
                     <option value="percent">Percentual (%)</option>
                     <option value="fixed">Valor fixo (R$)</option>
+                    <option value="free_shipping">Frete grátis</option>
                   </select>
                 </label>
 
-                <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Valor *</span>
-                  <input
-                    type="number"
-                    value={vm.form.discountValue}
-                    onChange={(e) => vm.patch({ discountValue: e.target.value })}
-                    placeholder={vm.form.discountType === "percent" ? "10" : "1000"}
-                    min={1}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                  />
-                </label>
+                {vm.form.discountType !== "free_shipping" && (
+                  <label>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
+                      {vm.form.discountType === "percent" ? "Percentual *" : "Valor em centavos *"}
+                    </span>
+                    <input
+                      type="number"
+                      value={vm.form.discountValue}
+                      onChange={(e) => vm.patch({ discountValue: e.target.value })}
+                      placeholder={vm.form.discountType === "percent" ? "10" : "1000"}
+                      min={1}
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
+                    />
+                  </label>
+                )}
               </div>
 
               <label>
@@ -127,26 +133,64 @@ export function CouponsPage(_props: CouponsPageProps) {
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Máximo de usos</span>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Início da validade</span>
                   <input
-                    type="number"
-                    value={vm.form.maxUses}
-                    onChange={(e) => vm.patch({ maxUses: e.target.value })}
-                    placeholder="Ilimitado"
-                    min={1}
+                    type="datetime-local"
+                    value={vm.form.startsAt}
+                    onChange={(e) => vm.patch({ startsAt: e.target.value })}
                     style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
                   />
                 </label>
 
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Expira em</span>
+                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Fim da validade</span>
                   <input
-                    type="date"
+                    type="datetime-local"
                     value={vm.form.expiresAt}
                     onChange={(e) => vm.patch({ expiresAt: e.target.value })}
                     style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
                   />
                 </label>
+              </div>
+
+              <label>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Máximo de usos</span>
+                <input
+                  type="number"
+                  value={vm.form.maxUses}
+                  onChange={(e) => vm.patch({ maxUses: e.target.value })}
+                  placeholder="Ilimitado"
+                  min={1}
+                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
+                />
+              </label>
+
+              {/* Vincular a produto ou categoria */}
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
+                <span style={{ font: "600 11px var(--sans)", color: "var(--muted)", display: "block", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.04em" }}>Restrições (opcional)</span>
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <label>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Vincular a produto</span>
+                    <input
+                      value={vm.form.productId}
+                      onChange={(e) => vm.patch({ productId: e.target.value })}
+                      placeholder="ID do produto (opcional)"
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
+                    />
+                  </label>
+
+                  <label>
+                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Vincular a categoria</span>
+                    <input
+                      value={vm.form.categoryId}
+                      onChange={(e) => vm.patch({ categoryId: e.target.value })}
+                      placeholder="ID da categoria (opcional)"
+                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
+                    />
+                  </label>
+                </div>
+                <span style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 6, display: "block" }}>Se preenchido, cupom só será válido para o produto ou categoria vinculado.</span>
               </div>
             </div>
 
