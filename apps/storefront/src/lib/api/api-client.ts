@@ -205,3 +205,25 @@ export const cartApi = {
     );
   },
 };
+
+// ─── Intent Memory / LGPD Consent (internal — buyer auth required) ──
+
+export const intentMemoryApi = {
+  async getConsent(buyerToken: string): Promise<any> {
+    return safeFetch(`${API_BASE}/buyer/consent/intent-memory`, {
+      headers: { Authorization: `Bearer ${buyerToken}` },
+    }).catch(() => null);
+  },
+
+  async deleteConsent(buyerToken: string): Promise<boolean> {
+    try {
+      await safeFetch(`${API_BASE}/buyer/consent/intent-memory`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${buyerToken}` },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+};

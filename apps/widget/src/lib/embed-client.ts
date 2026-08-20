@@ -18,7 +18,8 @@ export const CHECKOUT_EMBED_PATHS = {
   paymentStatus: (intentId: string) => `/embed/payment/intents/${intentId}/status`,
   cryptoPaymentConfirm: (intentId: string) => `/embed/payment/intents/${intentId}/crypto/confirm`,
   stripePaymentConfirm: (intentId: string) => `/embed/payment/intents/${intentId}/stripe/confirm`,
-  buyerLoginFromSession: "/buyer/login-from-session"
+  buyerLoginFromSession: "/buyer/login-from-session",
+  consent: "/embed/checkout/consent",
 } as const;
 
 export const CHECKOUT_LEGACY_PATHS = {
@@ -36,7 +37,8 @@ export const CHECKOUT_LEGACY_PATHS = {
   paymentStatus: (intentId: string) => `/payment/intents/${intentId}/status`,
   cryptoPaymentConfirm: (intentId: string) => `/payment/intents/${intentId}/crypto/confirm`,
   stripePaymentConfirm: (intentId: string) => `/payment/intents/${intentId}/stripe/confirm`,
-  buyerLoginFromSession: "/buyer/login-from-session"
+  buyerLoginFromSession: "/buyer/login-from-session",
+  consent: "/consent",
 } as const;
 
 export const EMBED_AUTH_HEADER = "Authorization";

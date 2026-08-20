@@ -38,6 +38,8 @@ import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
 import { ShippingSelector } from "./ShippingSelector.js";
 import { PulseHero } from "../../features/pulse/PulseHero.js";
 import { quickReplyId } from "../../hooks/checkout-presentation.js";
+import { ConsentBanner } from "../../features/consent/ConsentBanner.js";
+import { useRecoveryDetector } from "../../features/recovery/useRecoveryDetector.js";
 
 export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const agentName = agentGivenAndRest(vm.activeExperience.agent.name);
@@ -51,6 +53,17 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
   const showPulseHero =
     vm.checkoutStage === "data_collection" &&
     !vm.turns.some((turn) => turn.role === "buyer");
+
+  // Feature 3: Cart Recovery — detect mid-session offer changes
+  useRecoveryDetector({
+    currentOffer: vm.offer ?? null,
+    sessionId: vm.session?.session_id ?? "",
+    onRecoveryDetected: (_offer) => {
+      // Recovery offer detected — the agent already generated the recovery message
+      // via ChatMessageResponse. No additional UI injection needed here.
+      // This hook tracks that we don't show multiple recovery pushes.
+    },
+  });
 
   return (
     <div className="aacp-thread" ref={vm.threadRef} role="log" aria-live="polite" aria-label="Conversa">
@@ -70,6 +83,16 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       </section>
 
       <div className="aacp-conversation-divider" aria-hidden="true" />
+
+      {/* Feature 4: LGPD Consent Banner — shown once before first messages */}
+      {vm.session ? (
+        <ConsentBanner
+          sessionId={vm.session.session_id}
+          globalUserId={vm.session.global_user_id}
+          apiOrigin={vm.apiOrigin}
+          embedToken={vm.config?.embedSessionToken}
+        />
+      ) : null}
 
       {showPulseHero ? <PulseHero vm={vm} /> : null}
 

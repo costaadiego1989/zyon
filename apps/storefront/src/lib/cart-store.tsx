@@ -11,12 +11,20 @@ export interface CartItem {
   subtotal: number;
 }
 
+export interface ActiveOffer {
+  type: 'discount_percent' | 'shipping_free' | 'shipping_discount_fixed';
+  value: number;
+  reason: string;
+}
+
 export interface CartState {
   cartId: string | null;
   items: CartItem[];
   itemCount: number;
   discount: number;
   total: number;
+  activeOffer?: ActiveOffer;
+  discountedTotal?: number;
 }
 
 interface CartContextValue {
@@ -80,12 +88,35 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     cartApi.get(savedId, merchantId)
       .then((data) => {
         if (!data || !data.items?.length) return;
+        const baseTotal = data.total;
+        let discountedTotal = baseTotal;
+        let activeOffer: ActiveOffer | undefined;
+
+        if (data.authorizedOffer) {
+          const offer = data.authorizedOffer;
+          activeOffer = {
+            type: offer.type,
+            value: offer.value,
+            reason: offer.reason || 'Negociação aplicada',
+          };
+
+          if (offer.type === 'discount_percent') {
+            discountedTotal = baseTotal * (1 - offer.value / 100);
+          } else if (offer.type === 'shipping_free') {
+            discountedTotal = baseTotal - (data.shippingTotal ?? 0);
+          } else if (offer.type === 'shipping_discount_fixed') {
+            discountedTotal = baseTotal - offer.value;
+          }
+        }
+
         setCart({
           cartId: data.cartId,
           items: data.items,
           itemCount: data.itemCount,
           discount: data.discount ?? 0,
-          total: data.total,
+          total: baseTotal,
+          activeOffer,
+          discountedTotal,
         });
       })
       .catch(() => { /* silent — cart stays empty until next interaction */ });
@@ -97,11 +128,32 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     );
     if (!cartBlock) return;
 
-    const { items, itemCount, total, discount, cartId } = cartBlock.data;
+    const { items, itemCount, total, discount, cartId, authorizedOffer, shippingTotal } = cartBlock.data;
 
     setCart((prev) => {
       const resolvedCartId = cartId ?? prev.cartId;
       if (resolvedCartId && merchantId) saveCartId(resolvedCartId, merchantId);
+
+      let activeOffer: ActiveOffer | undefined;
+      let discountedTotal: number | undefined;
+
+      if (authorizedOffer) {
+        const offer = authorizedOffer;
+        activeOffer = {
+          type: offer.type,
+          value: offer.value,
+          reason: offer.reason || 'Negociação aplicada',
+        };
+
+        if (offer.type === 'discount_percent') {
+          discountedTotal = total * (1 - offer.value / 100);
+        } else if (offer.type === 'shipping_free') {
+          discountedTotal = total - (shippingTotal ?? 0);
+        } else if (offer.type === 'shipping_discount_fixed') {
+          discountedTotal = total - offer.value;
+        }
+      }
+
       return {
         cartId: resolvedCartId,
         items: items.map((i: any) => {
@@ -118,6 +170,8 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + (i.quantity ?? 1), 0),
         discount: discount ?? 0,
         total: total ?? items.reduce((sum: number, i: any) => sum + (i.subtotal ?? (i.price ?? i.unit_price_cents ?? 0) * (i.quantity ?? 1)), 0),
+        activeOffer,
+        discountedTotal,
       };
     });
   }, [merchantId]);

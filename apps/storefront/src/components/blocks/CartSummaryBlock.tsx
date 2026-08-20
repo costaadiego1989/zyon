@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { CartSummaryBlock as CartSummaryBlockType } from "@/lib/types";
+import type { ActiveOffer } from "@/lib/cart-store";
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", {
@@ -12,8 +13,12 @@ function formatPrice(value: number): string {
 
 export default function CartSummaryBlock({
   block,
+  activeOffer,
+  discountedTotal,
 }: {
   block: CartSummaryBlockType;
+  activeOffer?: ActiveOffer;
+  discountedTotal?: number;
 }) {
   const { items, total } = block.data;
   const [pulse, setPulse] = useState(true);
@@ -78,17 +83,34 @@ export default function CartSummaryBlock({
 
       {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "var(--aacp-fg)",
-            lineHeight: 1.3,
-          }}
-        >
-          {lastItem ? `${lastItem.productName} adicionado` : "Carrinho atualizado"}
-        </p>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "13px",
+              fontWeight: 600,
+              color: "var(--aacp-fg)",
+              lineHeight: 1.3,
+            }}
+          >
+            {lastItem ? `${lastItem.productName} adicionado` : "Carrinho atualizado"}
+          </p>
+          {activeOffer && (
+            <span
+              style={{
+                fontSize: "10px",
+                fontWeight: 700,
+                background: "var(--aacp-accent)",
+                color: "#fff",
+                padding: "2px 6px",
+                borderRadius: "3px",
+                textTransform: "uppercase",
+              }}
+            >
+              Oferta
+            </span>
+          )}
+        </div>
         <p
           style={{
             margin: "2px 0 0",
@@ -96,7 +118,19 @@ export default function CartSummaryBlock({
             color: "var(--aacp-muted)",
           }}
         >
-          {itemCount} {itemCount === 1 ? "item" : "itens"} · {formatPrice(total)}
+          {itemCount} {itemCount === 1 ? "item" : "itens"} ·
+          {discountedTotal ? (
+            <>
+              <span style={{ textDecoration: "line-through", marginLeft: "4px" }}>
+                {formatPrice(total)}
+              </span>
+              <span style={{ fontWeight: 600, color: "var(--aacp-fg)", marginLeft: "4px" }}>
+                {formatPrice(discountedTotal)}
+              </span>
+            </>
+          ) : (
+            ` ${formatPrice(total)}`
+          )}
         </p>
       </div>
 

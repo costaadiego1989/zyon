@@ -5,6 +5,7 @@ import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { MessagingModule } from "../../shared/messaging/messaging.module.js";
+import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
 import { EmbedTokenService } from "./domain/embed-token.service.js";
 import { AgentSessionTokenService } from "./domain/agent-session-token.service.js";
 import { AgentCheckoutStateService } from "./domain/agent-checkout-state.service.js";
@@ -17,6 +18,7 @@ import { EmbedSessionsController } from "./presentation/http/embed-sessions.cont
 import { EmbedSessionIssuerGuard } from "./presentation/http/embed-session-issuer.guard.js";
 import { EmbedAuthGuard } from "./presentation/http/embed-auth.guard.js";
 import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./presentation/http/embed-checkout.controller.js";
+import { EmbedConsentController } from "./presentation/http/embed-consent.controller.js";
 import { ProtocolAgentController } from "./presentation/http/protocol-agent.controller.js";
 import { WidgetCatalogController } from "../catalog/presentation/http/widget-catalog.controller.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
@@ -35,10 +37,12 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
     CatalogModule,
     InstallationsModule,
     MessagingModule,
+    IntentMemoryModule,
   ],
   controllers: [
     EmbedSessionsController,
     EmbedCheckoutController,
+    EmbedConsentController,
     ProtocolAgentController,
     WidgetCatalogController,
   ],

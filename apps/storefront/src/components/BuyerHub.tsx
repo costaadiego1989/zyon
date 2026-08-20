@@ -101,7 +101,7 @@ function formatPhone(value: string): string {
   return numbers;
 }
 
-type TabType = "profile" | "orders" | "tracking" | "settings";
+type TabType = "profile" | "orders" | "tracking" | "settings" | "personalization";
 
 export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string; isOpen: boolean; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<TabType>("profile");
@@ -464,7 +464,7 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
         {/* Tabs */}
         {isAuth && (
           <div style={{ display: "flex", borderBottom: "1px solid var(--aacp-line)", background: "var(--aacp-bg)" }}>
-            {(["profile", "orders", "tracking", "settings"] as TabType[]).map((tab) => (
+            {(["profile", "orders", "tracking", "personalization", "settings"] as TabType[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -484,6 +484,7 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
                 {tab === "profile" && "Perfil"}
                 {tab === "orders" && "Pedidos"}
                 {tab === "tracking" && "Rastreamento"}
+                {tab === "personalization" && "Preferências"}
                 {tab === "settings" && "Config"}
               </button>
             ))}
@@ -538,6 +539,8 @@ export function BuyerHub({ merchantId, isOpen, onClose }: { merchantId?: string;
             <OrdersTab purchases={purchases} />
           ) : activeTab === "tracking" ? (
             <TrackingTab purchases={purchases} />
+          ) : activeTab === "personalization" ? (
+            <PersonalizationTab />
           ) : activeTab === "settings" ? (
             <SettingsTab theme={theme} onToggleTheme={toggleTheme} onLogout={handleLogout} />
           ) : null}
@@ -834,6 +837,79 @@ function TrackingTab({ purchases }: { purchases: BuyerPurchase[] }) {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function PersonalizationTab() {
+  const [intentData, setIntentData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const session = safeReadSession();
+    if (!session) {
+      setLoading(false);
+      return;
+    }
+    fetch(`${API_BASE}/buyer/consent/intent-memory`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setIntentData(data))
+      .catch(() => setIntentData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return <div style={{ fontSize: "13px", color: "var(--aacp-muted)", padding: "24px 0", textAlign: "center" }}>Carregando...</div>;
+  }
+
+  if (!intentData || !intentData.has_consent) {
+    return (
+      <div style={{ fontSize: "13px", color: "var(--aacp-muted)", padding: "24px 0", textAlign: "center" }}>
+        <p>Nenhuma preferência ativa.</p>
+        <p style={{ fontSize: "11px", marginTop: "8px" }}>Aceite a personalização no checkout para ver recomendações personalizadas.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div>
+        <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)", textTransform: "uppercase" }}>Perfil detectado</div>
+        <div style={{ fontSize: "13px", color: "var(--aacp-fg)", marginTop: "4px" }}>{intentData.primary_intent ?? "Geral"}</div>
+      </div>
+      {intentData.category_focus && intentData.category_focus.length > 0 && (
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)", textTransform: "uppercase", marginBottom: "4px" }}>Categorias</div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {intentData.category_focus.map((cat: string) => (
+              <span
+                key={cat}
+                style={{
+                  padding: "3px 8px",
+                  borderRadius: "4px",
+                  background: "color-mix(in srgb, var(--aacp-accent) 15%, transparent)",
+                  color: "var(--aacp-accent)",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                }}
+              >
+                {cat}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+      {intentData.budget_tier && (
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)", textTransform: "uppercase" }}>Faixa de orçamento</div>
+          <div style={{ fontSize: "13px", color: "var(--aacp-fg)", marginTop: "4px", textTransform: "capitalize" }}>{intentData.budget_tier}</div>
+        </div>
+      )}
+      <div style={{ marginTop: "12px", padding: "10px 14px", borderRadius: "8px", background: "var(--aacp-surface-2)", border: "1px solid var(--aacp-line)", fontSize: "11px", color: "var(--aacp-muted)" }}>
+        Essas preferências ajudam a personalizar sugestões de produtos. Para apagar seus dados, acesse <a href="/privacidade" style={{ color: "var(--aacp-accent)", textDecoration: "none", fontWeight: 600 }}>Privacidade</a>.
+      </div>
     </div>
   );
 }
