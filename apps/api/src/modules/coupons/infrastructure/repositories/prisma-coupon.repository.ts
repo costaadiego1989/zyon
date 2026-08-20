@@ -40,12 +40,11 @@ export class PrismaCouponRepository implements CouponRepository {
   }
 
   async updateActive(merchantId: string, id: string, isActive: boolean): Promise<void> {
-    // Verify ownership then update
     const coupon = await this.prisma.coupon.findFirst({ where: { id, merchantId } });
     if (!coupon) return;
     await this.prisma.coupon.update({
       where: { id },
-      data: { isActive },
+      data: { status: isActive ? "active" : "paused" },
     });
   }
 }
