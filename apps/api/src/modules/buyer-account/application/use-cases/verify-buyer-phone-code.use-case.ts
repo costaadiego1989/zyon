@@ -25,23 +25,25 @@ export class VerifyBuyerPhoneCodeUseCase {
 
   async execute(input: VerifyBuyerPhoneCodeRequest): Promise<BuyerAuthResponse> {
     const normalized = input.phone.replace(/\D/g, "");
-    const countryCode = input.countryCode ?? "BR"; // C3 fix: default country code
-    const phoneKey = `${countryCode}:${normalized}`; // C3 fix: include country for unambiguous OTP lookup
+    const countryCode = input.countryCode ?? "BR";
+    const phoneKey = `${countryCode}:${normalized}`;
 
-    // B3 (P1): Fetch from persistent store (not in-process Map).
+    this.logger.warn(`[OTP verify] looking up phoneKey="${phoneKey}"`);
     const record = await this.otpStore.findActive(phoneKey);
-    if (!record) throw new UnauthorizedException("otp_expired");
+    if (!record) {
+      this.logger.warn(`[OTP verify] NO active record found for ${phoneKey} — expired or never sent`);
+      throw new UnauthorizedException("otp_expired");
+    }
+    this.logger.warn(`[OTP verify] record found: attempts=${record.attempts}/${record.maxAttempts} expires=${record.expiresAt.toISOString()}`);
 
-    // B2 (P0): Enforce per-OTP attempt lockout before checking the code.
-    // This closes the brute-force window: 10^6 codes × 5-minute window without
-    // throttling allows ~333k attempts/second on a trivial network.
     if (record.attempts >= record.maxAttempts) {
       throw new UnauthorizedException("otp_locked");
     }
 
-    // B4 (P2): Compare the hash, not the plaintext code.
-    const inputHash = createHash("sha256").update(input.code.trim()).digest("hex");
-    this.logger.debug(`[OTP verify] phone=${phoneKey} inputCode="${input.code}" inputHash=${inputHash.slice(0, 8)}... storedHash=${record.codeHash.slice(0, 8)}... match=${inputHash === record.codeHash}`);
+    // Compare hash — strip non-digits from input to handle any formatting
+    const sanitizedCode = input.code.replace(/\D/g, "").trim();
+    const inputHash = createHash("sha256").update(sanitizedCode).digest("hex");
+    this.logger.warn(`[OTP verify] code="${sanitizedCode}" len=${sanitizedCode.length} inputHash=${inputHash.slice(0, 12)} storedHash=${record.codeHash.slice(0, 12)} match=${inputHash === record.codeHash}`);
     if (inputHash !== record.codeHash) {
       // Increment attempt counter before throwing so lockout is enforced.
       await this.otpStore.incrementAttempts(phoneKey);
