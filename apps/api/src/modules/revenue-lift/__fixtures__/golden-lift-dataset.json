@@ -1,0 +1,80 @@
+{
+  "description": "Golden lift dataset — known (holdout, treatment, ai_costs) → expected values. Formula: holdout_avg=total/sessions, gross_lift=(t_avg-h_avg)/h_avg*100, projected=h_avg*t_sessions, net=(t_total-projected)-costs, roi=net/costs*100.",
+  "datasets": [
+    {
+      "name": "simple_50pct_lift_roi_900",
+      "description": "Task spec example: holdout_avg=100, treatment_avg=150 → gross_lift=50%, net=4500, roi=900%.",
+      "holdout": { "sessions": 100, "orders": 10, "totalRevenueCents": 10000 },
+      "treatment": { "sessions": 100, "orders": 10, "totalRevenueCents": 15000 },
+      "aiCostsTotalCents": 500,
+      "expected": {
+        "holdoutAvgRevenueCents": 100,
+        "treatmentAvgRevenueCents": 150,
+        "grossLiftPercent": 50,
+        "holdoutProjectedCents": 10000,
+        "netLiftCents": 4500,
+        "roiPercent": 900
+      }
+    },
+    {
+      "name": "positive_lift_realistic",
+      "description": "Realistic dataset with positive lift and AI costs.",
+      "holdout": { "sessions": 1200, "orders": 42, "totalRevenueCents": 777000 },
+      "treatment": { "sessions": 22800, "orders": 1140, "totalRevenueCents": 24168000 },
+      "aiCostsTotalCents": 45000,
+      "expected": {
+        "holdoutAvgRevenueCents": 647.5,
+        "treatmentAvgRevenueCents": 1060,
+        "grossLiftPercent": 63.7065637065637,
+        "holdoutProjectedCents": 14763000,
+        "netLiftCents": 9360000,
+        "roiPercent": 20800
+      }
+    },
+    {
+      "name": "zero_holdout_returns_null",
+      "description": "No holdout sessions → division guard → all null (NOT Infinity/NaN).",
+      "holdout": { "sessions": 0, "orders": 0, "totalRevenueCents": 0 },
+      "treatment": { "sessions": 5000, "orders": 250, "totalRevenueCents": 5000000 },
+      "aiCostsTotalCents": 5000,
+      "expected": {
+        "holdoutAvgRevenueCents": null,
+        "treatmentAvgRevenueCents": null,
+        "grossLiftPercent": null,
+        "holdoutProjectedCents": null,
+        "netLiftCents": null,
+        "roiPercent": null
+      }
+    },
+    {
+      "name": "negative_lift_treatment_worse",
+      "description": "Treatment performs worse → negative lift (NOT clamped to 0).",
+      "holdout": { "sessions": 1000, "orders": 100, "totalRevenueCents": 2000000 },
+      "treatment": { "sessions": 19000, "orders": 950, "totalRevenueCents": 17000000 },
+      "aiCostsTotalCents": 5000,
+      "expected": {
+        "holdoutAvgRevenueCents": 2000,
+        "treatmentAvgRevenueCents": 894.7368421052631,
+        "grossLiftPercent": -55.26315789473685,
+        "holdoutProjectedCents": 38000000,
+        "netLiftCents": -21005000,
+        "roiPercent": -420100
+      }
+    },
+    {
+      "name": "ai_costs_zero_roi_null",
+      "description": "AI costs = 0 → roi = null (NOT Infinity); gross/net still computed.",
+      "holdout": { "sessions": 100, "orders": 10, "totalRevenueCents": 100000 },
+      "treatment": { "sessions": 1900, "orders": 190, "totalRevenueCents": 1900000 },
+      "aiCostsTotalCents": 0,
+      "expected": {
+        "holdoutAvgRevenueCents": 1000,
+        "treatmentAvgRevenueCents": 1000,
+        "grossLiftPercent": 0,
+        "holdoutProjectedCents": 1900000,
+        "netLiftCents": 0,
+        "roiPercent": null
+      }
+    }
+  ]
+}

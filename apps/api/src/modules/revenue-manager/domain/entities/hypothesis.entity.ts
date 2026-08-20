@@ -41,6 +41,7 @@ export class HypothesisEntity {
   }): HypothesisEntity {
     const id = randomUUID();
     const now = new Date().toISOString();
+    const isAutoApproved = input.approval_strategy === "auto";
     return new HypothesisEntity({
       id,
       merchant_id: input.merchant_id,
@@ -50,8 +51,9 @@ export class HypothesisEntity {
       expected_lift_percent: input.expected_lift_percent,
       risk_level: input.risk_level,
       template: input.template,
-      status: input.approval_strategy === "auto" ? "approved" : "pending_review",
+      status: isAutoApproved ? "approved" : "pending_review",
       approval_strategy: input.approval_strategy,
+      ...(isAutoApproved ? { merchant_approved_by: "system", merchant_approved_at: now, merchant_approval_reason: "auto-approved (low risk)" } : {}),
       created_at: now,
       updated_at: now,
     });

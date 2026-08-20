@@ -1,0 +1,33 @@
+{
+  "description": "Golden hash vectors for holdout-group.service.ts — computed with SHA256(globalUserId + merchantId + 'holdout_salt_v1').slice(0,8) parsed as hex, mod 100. Bucket < 5 = holdout.",
+  "vectors": [
+    {
+      "globalUserId": "user_determinism_test_1",
+      "merchantId": "merchant_xyz",
+      "expectedBucket": 6,
+      "expectedCohort": "treatment",
+      "description": "Standard treatment user"
+    },
+    {
+      "globalUserId": "user_find_holdout_9",
+      "merchantId": "merchant_test",
+      "expectedBucket": 2,
+      "expectedCohort": "holdout",
+      "description": "Known holdout user (bucket=2 < 5)"
+    },
+    {
+      "globalUserId": "user_cross_1",
+      "merchantId": "merchant_a",
+      "expectedBucket": 72,
+      "expectedCohort": "treatment",
+      "description": "Cross-merchant test: treatment on merchant_a"
+    },
+    {
+      "globalUserId": "user_cross_1",
+      "merchantId": "merchant_b",
+      "expectedBucket": 1,
+      "expectedCohort": "holdout",
+      "description": "Cross-merchant test: holdout on merchant_b (same user, different cohort)"
+    }
+  ]
+}

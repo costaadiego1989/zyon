@@ -1910,3 +1910,20 @@ model RevenueManagerStrategyLesson {
   @@index([experimentId])
   @@map("revenue_manager_strategy_lessons")
 }
+
+model ProtocolSession {
+  id                        String   @id
+  merchantId                String   @map("merchant_id")
+  agentId                   String   @map("agent_id")
+  currentState              String   @map("current_state")
+  stateHistory              Json     @map("state_history")
+  sessionData               Json     @map("session_data")
+  tokenHash                 String   @map("token_hash")
+  expiresAt                 DateTime @map("expires_at")
+  createdAt                 DateTime @default(now()) @map("created_at")
+  updatedAt                 DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId, expiresAt])
+  @@index([merchantId, currentState])
+  @@map("protocol_sessions")
+}
