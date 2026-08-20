@@ -2,7 +2,7 @@ import React from "react";
 import type { CheckoutTriggerName } from "@zyon/shared-types";
 import { TRIGGER_LABELS, TRIGGER_HELP } from "../lib/constants.js";
 import { ToggleSwitch } from "./ToggleSwitch.js";
-import { Zap, Clock, CreditCard, ChevronRight } from "lucide-react";
+import { Zap, Clock, CreditCard, Pencil } from "lucide-react";
 
 const TRIGGER_ICONS: Record<string, React.ReactNode> = {
   exit_intent_detected: <Zap size={18} strokeWidth={1.6} />,
@@ -67,38 +67,25 @@ export function TriggerCard({
         </div>
       </div>
 
-      {enabled && onConfigure && (
-        <button
-          type="button"
-          onClick={onConfigure}
-          title="Configurar sinal"
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 8,
-            border: "1px solid var(--border)",
-            background: "var(--bg)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            cursor: "pointer",
-            color: "var(--muted)",
-            flexShrink: 0,
-            transition: "all 0.15s",
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}
-        >
-          <ChevronRight size={14} strokeWidth={2} />
-        </button>
-      )}
-
-      <ToggleSwitch
-        id={`trigger-${trigger}`}
-        checked={enabled}
-        disabled={busy}
-        onChange={onChange}
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <ToggleSwitch
+          id={`trigger-${trigger}`}
+          checked={enabled}
+          disabled={busy}
+          onChange={onChange}
+        />
+        {enabled && onConfigure && (
+          <button
+            type="button"
+            className="cfg-rule-icon-btn"
+            onClick={onConfigure}
+            title="Configurar sinal"
+            aria-label="Configurar sinal"
+          >
+            <Pencil size={14} strokeWidth={1.75} />
+          </button>
+        )}
+      </div>
     </div>
   );
 }

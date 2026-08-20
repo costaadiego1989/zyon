@@ -27,8 +27,15 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
     },
 
     // Coupons
-    listCoupons(): Promise<Array<{ id: string; code: string; type: string; value: number; isActive: boolean }>> {
-      return dashboardJson(base, "/merchant/coupons", { method: "GET" }, f);
+    async listCoupons(): Promise<Array<{ id: string; code: string; type: string; value: number; isActive: boolean }>> {
+      const raw = await dashboardJson<any[]>(base, "/merchant/coupons", { method: "GET" }, f);
+      return (raw ?? []).map((c: any) => ({
+        id: c.id,
+        code: c.code,
+        type: c.discount_type ?? c.type ?? "percent",
+        value: c.discount_value ?? c.value ?? 0,
+        isActive: c.is_active ?? c.isActive ?? true,
+      }));
     },
     createCoupon(payload: { code: string; discount_type: string; discount_value: number; min_cart_value?: number; max_uses?: number; starts_at?: string; expires_at?: string; product_id?: string; category_id?: string; is_active?: boolean }): Promise<unknown> {
       return dashboardJson(base, "/merchant/coupons", { method: "POST", jsonBody: payload }, f);
