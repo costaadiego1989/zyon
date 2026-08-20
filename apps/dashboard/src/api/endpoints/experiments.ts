@@ -3,6 +3,13 @@ import type { Experiment, ExperimentForm, ExperimentResults, ExperimentMetrics }
 
 const PREFIX = "/dashboard/experiments";
 
+/** Distribute 100% evenly — last variant absorbs remainder so sum is always 100 */
+function distributeWeights(count: number): number[] {
+  const base = Math.floor(100 / count);
+  const remainder = 100 - base * count;
+  return Array.from({ length: count }, (_, i) => base + (i < remainder ? 1 : 0));
+}
+
 export function experimentsEndpoints(base: string, f: typeof fetch) {
   return {
     async getExperiments(): Promise<Experiment[]> {
@@ -20,13 +27,14 @@ export function experimentsEndpoints(base: string, f: typeof fetch) {
     },
 
     async createExperiment(payload: ExperimentForm): Promise<Experiment> {
+      const weights = distributeWeights(payload.variants.length);
       const apiPayload = {
         name: payload.name,
         description: payload.description,
         variants: payload.variants.map((v, idx) => ({
           name: v.name,
           system_prompt: v.description || `Variante ${v.name}`,
-          weight: v.weight ?? Math.round(100 / payload.variants.length),
+          weight: weights[idx],
           is_control: v.is_control ?? idx === 0,
         })),
       };
@@ -38,10 +46,11 @@ export function experimentsEndpoints(base: string, f: typeof fetch) {
       if (payload.name) apiPayload.name = payload.name;
       if (payload.description !== undefined) apiPayload.description = payload.description;
       if (payload.variants) {
+        const weights = distributeWeights(payload.variants.length);
         apiPayload.variants = payload.variants.map((v, idx) => ({
           name: v.name,
           system_prompt: v.description || `Variante ${v.name}`,
-          weight: v.weight ?? Math.round(100 / payload.variants!.length),
+          weight: weights[idx],
           is_control: v.is_control ?? idx === 0,
         }));
       }
