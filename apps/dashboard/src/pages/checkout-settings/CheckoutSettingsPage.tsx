@@ -1,4 +1,5 @@
 import React from "react";
+import { useState } from "react";
 import {
   Save,
   RotateCcw,
@@ -27,6 +28,7 @@ import { SliderField } from "./components/SliderField.js";
 import { NumberField } from "./components/NumberField.js";
 import { ActivationFlow } from "./components/ActivationFlow.js";
 import { TriggerCard } from "./components/TriggerCard.js";
+import { TriggerEditor } from "./components/TriggerEditor.js";
 import { RulesList } from "./components/RulesList.js";
 import { RuleEditor } from "./components/RuleEditor.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
@@ -64,6 +66,7 @@ export function CheckoutSettingsPage(props: {
   me: MerchantMeProfile | null;
 }) {
   const vm = useCheckoutSettingsPage({ me: props.me });
+  const [editingTrigger, setEditingTrigger] = useState<import("@zyon/shared-types").CheckoutTriggerName | null>(null);
 
   if (!props.me) {
     return (
@@ -304,6 +307,7 @@ export function CheckoutSettingsPage(props: {
                     enabled={vm.draft!.triggers[t].enabled}
                     busy={vm.busy}
                     onChange={(v) => vm.patchTrigger(t, { enabled: v })}
+                    onConfigure={() => setEditingTrigger(t)}
                   />
                 ))}
               </div>
@@ -542,6 +546,21 @@ export function CheckoutSettingsPage(props: {
                 busy={vm.busy}
               />
               </SectionErrorBoundary>
+            )}
+
+            {editingTrigger && vm.draft && (
+              <TriggerEditor
+                trigger={editingTrigger}
+                message={vm.draft.triggers[editingTrigger].message}
+                cooldownSeconds={vm.draft.triggers[editingTrigger].cooldownSeconds}
+                couponCode={vm.draft.triggers[editingTrigger].couponCode}
+                onSave={(data) => {
+                  vm.patchTrigger(editingTrigger, data);
+                  setEditingTrigger(null);
+                }}
+                onCancel={() => setEditingTrigger(null)}
+                busy={vm.busy}
+              />
             )}
 
             {/* Footer actions */}

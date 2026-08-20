@@ -2,14 +2,12 @@ import React from "react";
 import type { CheckoutTriggerName } from "@zyon/shared-types";
 import { TRIGGER_LABELS, TRIGGER_HELP } from "../lib/constants.js";
 import { ToggleSwitch } from "./ToggleSwitch.js";
-import { Zap, Clock, CreditCard } from "lucide-react";
+import { Zap, Clock, CreditCard, ChevronRight } from "lucide-react";
 
-const TRIGGER_ICONS: Record<CheckoutTriggerName, React.ReactNode> = {
+const TRIGGER_ICONS: Record<string, React.ReactNode> = {
   exit_intent_detected: <Zap size={18} strokeWidth={1.6} />,
   idle_30_seconds: <Clock size={18} strokeWidth={1.6} />,
   payment_failed: <CreditCard size={18} strokeWidth={1.6} />,
-  shipping_objection_detected: <Zap size={18} strokeWidth={1.6} />,
-  coupon_field_clicked: <Zap size={18} strokeWidth={1.6} />,
 };
 
 export function TriggerCard({
@@ -17,6 +15,7 @@ export function TriggerCard({
   enabled,
   busy,
   onChange,
+  onConfigure,
 }: {
   trigger: CheckoutTriggerName;
   enabled: boolean;
@@ -28,6 +27,7 @@ export function TriggerCard({
   onMessageChange?: (v: string) => void;
   onCooldownChange?: (v: number) => void;
   onCouponChange?: (v: string) => void;
+  onConfigure?: () => void;
 }) {
   return (
     <div
@@ -56,7 +56,7 @@ export function TriggerCard({
           transition: "all 0.15s ease",
         }}
       >
-        {TRIGGER_ICONS[trigger]}
+        {TRIGGER_ICONS[trigger] ?? <Zap size={18} strokeWidth={1.6} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ font: "600 13px var(--sans)", color: "var(--ink)", lineHeight: 1.3 }}>
@@ -66,6 +66,33 @@ export function TriggerCard({
           {TRIGGER_HELP[trigger]}
         </div>
       </div>
+
+      {enabled && onConfigure && (
+        <button
+          type="button"
+          onClick={onConfigure}
+          title="Configurar sinal"
+          style={{
+            width: 30,
+            height: 30,
+            borderRadius: 8,
+            border: "1px solid var(--border)",
+            background: "var(--bg)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            color: "var(--muted)",
+            flexShrink: 0,
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--muted)"; }}
+        >
+          <ChevronRight size={14} strokeWidth={2} />
+        </button>
+      )}
+
       <ToggleSwitch
         id={`trigger-${trigger}`}
         checked={enabled}
