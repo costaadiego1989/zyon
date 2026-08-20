@@ -84,8 +84,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           source: "local" as const,
         }));
 
-        // Marketplace fallback: when local catalog has no results, search partner stores
-        if (localProducts.length === 0 && this.searchFederatedProducts && args.query && args.query !== "*") {
+        // Marketplace fallback: when local catalog has few/no relevant results, also search partner stores
+        const shouldSearchMarketplace = localProducts.length < 3 && this.searchFederatedProducts && args.query && args.query !== "*";
+        if (shouldSearchMarketplace) {
           try {
             const marketplaceResult = await this.searchFederatedProducts.execute({
               query: args.query,
@@ -119,9 +120,11 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             }));
             if (marketplaceProducts.length > 0) {
               return {
-                products: marketplaceProducts,
-                source: "marketplace",
-                note: "Produtos de lojas parceiras do marketplace",
+                products: [...localProducts, ...marketplaceProducts],
+                source: localProducts.length > 0 ? "mixed" : "marketplace",
+                note: localProducts.length > 0
+                  ? "Encontrei produtos locais e de lojas parceiras"
+                  : "Produtos de lojas parceiras do marketplace",
                 nextCursor: null,
               };
             }

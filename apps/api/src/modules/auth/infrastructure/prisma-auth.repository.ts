@@ -208,7 +208,7 @@ export class PrismaAuthRepository implements AuthRepository {
     const existing = (merchant?.storeSettings as Record<string, unknown>) ?? {};
     await this.prisma.merchant.update({
       where: { id: merchantId },
-      data: { storeSettings: { ...existing, ...settings } },
+      data: { storeSettings: { ...existing, ...settings } as any },
     });
   }
 }

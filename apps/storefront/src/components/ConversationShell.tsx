@@ -209,7 +209,6 @@ export default function ConversationShell({
         @keyframes dot-pulse { 0%,80%,100%{opacity:.3;transform:scale(.65)} 40%{opacity:1;transform:scale(1)} }
         @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:.4} }
         @keyframes micPulse { 0%{box-shadow:0 0 0 0 rgba(255,76,108,0.5)} 100%{box-shadow:0 0 0 9px rgba(255,76,108,0)} }
-        @keyframes shimmerSlide { 0%{left:-100%} 50%{left:100%} 100%{left:100%} }
         @keyframes shimmerRotate { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
       `}</style>
 
@@ -286,12 +285,6 @@ export default function ConversationShell({
             )}
           </nav>
         </header>
-        {/* Shimmer divider */}
-        <div style={{ height: "1px", position: "relative", overflow: "hidden", flex: "none" }}>
-          <div style={{ position: "absolute", inset: 0, background: "var(--aacp-line)" }} />
-          <div style={{ position: "absolute", top: 0, left: "-100%", width: "60%", height: "100%", background: "linear-gradient(90deg, transparent, var(--aacp-accent, #0f766e), transparent)", animation: "shimmerSlide 3s ease-in-out infinite", opacity: 0.8 }} />
-        </div>
-
         {/* Stories Row */}
         {merchantSlug && <StoriesRow merchantSlug={merchantSlug} initialCategories={initialStories} />}
         </>

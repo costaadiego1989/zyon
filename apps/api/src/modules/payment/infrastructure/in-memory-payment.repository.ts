@@ -146,7 +146,7 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     merchantId: string,
     statusPrefix?: string,
   ): Promise<PaymentIntentEntity[]> {
-    return this.intents.filter((i) => {
+    return [...this.byIntentId.values()].filter((i: PaymentIntentEntity) => {
       const snap = i.snapshot();
       if (snap.merchantId !== merchantId) return false;
       if (statusPrefix && !snap.status.startsWith(statusPrefix)) return false;

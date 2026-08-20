@@ -56,10 +56,10 @@ export class ListPaymentChargebacksUseCase {
         provider: this.detectProvider(snap),
         providerPaymentId: snap.providerPaymentId ?? null,
         disputeStatus: this.toDisputeStatus(snap.status),
-        disputeOpenedAt: snap.updatedAt,
+        disputeOpenedAt: (snap as any).updatedAt ?? new Date(),
         disputeReason: null,
         customerEmail: null,
-        createdAt: snap.createdAt,
+        createdAt: (snap as any).createdAt ?? new Date(),
       };
     });
 
