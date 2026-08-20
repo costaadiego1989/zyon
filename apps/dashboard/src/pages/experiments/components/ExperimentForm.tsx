@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import { Plus, X, Save, Sparkles, Info } from "lucide-react";
 import type { ExperimentForm, Variant } from "../types.js";
 import { Button } from "../../../components/Button.js";
-import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 
 interface ExperimentFormProps {
   form: ExperimentForm;
@@ -237,71 +236,63 @@ export function ExperimentForm({
             )}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              {form.variants.map((v, idx) => (
+              {form.variants.map((v, idx) => {
+                const isControl = idx === 0;
+                const variantLabel = isControl ? "Como o agente age HOJE" : `Nova abordagem ${form.variants.length > 2 ? String.fromCharCode(65 + idx) : ""}`.trim();
+
+                return (
                 <div
                   key={idx}
                   style={{
-                    background: v.is_control ? "oklch(25% 0.02 160 / 0.3)" : "var(--bg)",
-                    border: `1px solid ${v.is_control ? "var(--accent)" : "var(--border)"}`,
+                    background: isControl ? "oklch(25% 0.02 160 / 0.3)" : "var(--bg)",
+                    border: `1px solid ${isControl ? "var(--accent)" : "var(--border)"}`,
                     borderRadius: 12,
                     padding: 16,
                     position: "relative",
                     transition: "border-color 0.2s, background 0.2s",
                   }}
                 >
-                  {v.is_control && (
-                    <span style={{
-                      position: "absolute", top: -9, left: 14,
-                      font: "600 9px var(--mono)", color: "var(--accent)",
-                      background: "var(--card)", padding: "2px 8px",
-                      borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
-                      border: "1px solid var(--accent)",
-                    }}>
-                      ● Comportamento atual
-                    </span>
-                  )}
+                  {/* Fixed role label */}
+                  <span style={{
+                    position: "absolute", top: -9, left: 14,
+                    font: "600 9px var(--mono)",
+                    color: isControl ? "var(--accent)" : "var(--warning, #f59e0b)",
+                    background: "var(--card)", padding: "2px 8px",
+                    borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
+                    border: `1px solid ${isControl ? "var(--accent)" : "var(--warning, #f59e0b)"}`,
+                  }}>
+                    {isControl ? "● Atual (controle)" : "◆ Desafiante"}
+                  </span>
 
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        value={v.name}
-                        onChange={(e) => updateVariant(idx, { name: e.target.value })}
-                        placeholder={idx === 0 ? "Ex: Tom atual (conservador)" : "Ex: Tom direto e urgente"}
-                        style={{
-                          flex: 1,
-                          padding: "8px 12px",
-                          borderRadius: 6,
-                          border: "1px solid var(--border)",
-                          background: "var(--card)",
-                          color: "var(--ink)",
-                          font: "600 13px var(--sans)",
-                        }}
-                      />
-                      {form.variants.length > 2 && (
-                        <button
-                          onClick={() => removeVariant(idx)}
-                          aria-label="Remover variante"
-                          style={{
-                            background: "var(--danger-soft)",
-                            border: "1px solid var(--danger)",
-                            borderRadius: 6,
-                            padding: "6px 8px",
-                            cursor: "pointer",
-                            color: "var(--danger)",
-                            flexShrink: 0,
-                          }}
-                        >
-                          <X size={14} />
-                        </button>
-                      )}
-                    </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 4 }}>
+                    {/* Variant name */}
+                    <input
+                      value={v.name}
+                      onChange={(e) => updateVariant(idx, { name: e.target.value })}
+                      placeholder={isControl ? "Ex: Consultivo, paciente, sem pressão" : "Ex: Direto, agressivo, usa urgência"}
+                      style={{
+                        width: "100%",
+                        padding: "9px 12px",
+                        borderRadius: 6,
+                        border: "1px solid var(--border)",
+                        background: "var(--card)",
+                        color: "var(--ink)",
+                        font: "600 13px var(--sans)",
+                      }}
+                    />
 
+                    {/* Instruction */}
                     <div>
-                    
+                      <span style={{ font: "600 10px var(--mono)", color: "var(--muted)", display: "block", marginBottom: 4, textTransform: "uppercase" }}>
+                        {isControl ? "Como o agente se comporta hoje?" : "Como quer que ele se comporte neste teste?"}
+                      </span>
                       <textarea
                         value={v.description ?? ""}
                         onChange={(e) => updateVariant(idx, { description: e.target.value })}
-                        placeholder="Descreva como o agente deve se comportar nesta variante. Ex: 'Seja direto, ofereça desconto de 15% imediatamente, use urgência...'"
+                        placeholder={isControl
+                          ? "Descreva o comportamento atual do agente. Ex: 'Atende de forma consultiva, pergunta antes de oferecer desconto, tom educado e paciente...'"
+                          : "Descreva a nova abordagem. Ex: 'Seja direto, ofereça 15% logo de início, mencione que é oferta exclusiva do chat, use escassez...'"
+                        }
                         rows={4}
                         style={{
                           width: "100%",
@@ -317,7 +308,8 @@ export function ExperimentForm({
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: 12, alignItems: "center", paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+                    {/* Footer: traffic + remove */}
+                    <div style={{ display: "flex", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
                       <span style={{
                         font: "600 11px var(--mono)",
                         color: "var(--muted)",
@@ -328,20 +320,35 @@ export function ExperimentForm({
                       }}>
                         {Math.round(100 / form.variants.length)}% do público
                       </span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
-                        <span style={{ font: "11px var(--sans)", color: v.is_control ? "var(--accent)" : "var(--muted)" }}>
-                          {v.is_control ? "Este é o atual" : "Marcar como atual"}
-                        </span>
-                        <ToggleSwitch
-                          id={`variant-control-${idx}`}
-                          checked={v.is_control ?? idx === 0}
-                          onChange={(checked) => updateVariant(idx, { is_control: checked })}
-                        />
-                      </div>
+                      <span style={{ font: "11px var(--sans)", color: "var(--muted)", marginLeft: 8 }}>
+                        {variantLabel}
+                      </span>
+                      {!isControl && form.variants.length > 2 && (
+                        <button
+                          onClick={() => removeVariant(idx)}
+                          aria-label="Remover variante"
+                          style={{
+                            marginLeft: "auto",
+                            background: "var(--danger-soft)",
+                            border: "1px solid var(--danger)",
+                            borderRadius: 6,
+                            padding: "5px 8px",
+                            cursor: "pointer",
+                            color: "var(--danger)",
+                            font: "11px var(--sans)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <X size={12} /> Remover
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
