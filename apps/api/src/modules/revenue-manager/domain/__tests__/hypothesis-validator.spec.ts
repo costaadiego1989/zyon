@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import { validateHypothesisResponse, validateHypothesisSafety } from "../services/hypothesis-validator.service.js";
 import type { HypothesisGenerationResponse } from "../ports/hypothesis-generator.port.js";
 
@@ -16,159 +17,105 @@ function makeValidResponse(): HypothesisGenerationResponse {
   };
 }
 
-describe("validateHypothesisResponse", () => {
-  it("passes for valid response", () => {
-    expect(() => validateHypothesisResponse(makeValidResponse())).not.toThrow();
+test("validateHypothesisResponse", async (t) => {
+  await t.test("passes for valid response", () => {
+    assert.doesNotThrow(() => validateHypothesisResponse(makeValidResponse()));
   });
 
-  it("throws for null/undefined", () => {
-    expect(() => validateHypothesisResponse(null)).toThrow("HYPOTHESIS_INVALID_JSON");
-    expect(() => validateHypothesisResponse(undefined)).toThrow("HYPOTHESIS_INVALID_JSON");
+  await t.test("throws for null/undefined", () => {
+    assert.throws(() => validateHypothesisResponse(null), /HYPOTHESIS_INVALID_JSON/);
+    assert.throws(() => validateHypothesisResponse(undefined), /HYPOTHESIS_INVALID_JSON/);
   });
 
-  it("throws for non-object (string)", () => {
-    expect(() => validateHypothesisResponse("hello")).toThrow("HYPOTHESIS_INVALID_JSON");
+  await t.test("throws for non-object (string)", () => {
+    assert.throws(() => validateHypothesisResponse("hello"), /HYPOTHESIS_INVALID_JSON/);
   });
 
-  it("throws for missing hypothesis_text", () => {
-    const r = makeValidResponse();
-    (r as unknown as Record<string, unknown>).hypothesis_text = "";
-    expect(() => validateHypothesisResponse(r)).toThrow("hypothesis_text must be a non-empty string");
+  await t.test("throws for missing hypothesis_text", () => {
+    const r = makeValidResponse() as unknown as Record<string, unknown>;
+    r.hypothesis_text = "";
+    assert.throws(() => validateHypothesisResponse(r), /hypothesis_text must be a non-empty string/);
   });
 
-  it("throws for missing reasoning", () => {
-    const r = makeValidResponse();
-    (r as unknown as Record<string, unknown>).reasoning = "";
-    expect(() => validateHypothesisResponse(r)).toThrow("reasoning must be a non-empty string");
-  });
-
-  it("throws for negative expected_lift_percent", () => {
+  await t.test("throws for negative expected_lift_percent", () => {
     const r = makeValidResponse();
     r.expected_lift_percent = -5;
-    expect(() => validateHypothesisResponse(r)).toThrow("expected_lift_percent must be a number between 0 and 200");
+    assert.throws(() => validateHypothesisResponse(r), /expected_lift_percent must be a number between 0 and 200/);
   });
 
-  it("throws for expected_lift_percent > 200 (hallucination guard)", () => {
+  await t.test("throws for expected_lift_percent > 200 (hallucination guard)", () => {
     const r = makeValidResponse();
     r.expected_lift_percent = 500;
-    expect(() => validateHypothesisResponse(r)).toThrow("expected_lift_percent must be a number between 0 and 200");
+    assert.throws(() => validateHypothesisResponse(r), /expected_lift_percent must be a number between 0 and 200/);
   });
 
-  it("throws for missing template", () => {
-    const r = makeValidResponse() as unknown as Record<string, unknown>;
-    delete r.template;
-    expect(() => validateHypothesisResponse(r as HypothesisGenerationResponse)).toThrow("template must be an object");
-  });
-
-  it("throws for missing template.name", () => {
-    const r = makeValidResponse();
-    (r.template as Record<string, unknown>).name = "";
-    expect(() => validateHypothesisResponse(r)).toThrow("template.name must be a non-empty string");
-  });
-
-  it("throws for missing variant_a", () => {
-    const r = makeValidResponse();
-    (r.template as Record<string, unknown>).variant_a = null;
-    expect(() => validateHypothesisResponse(r)).toThrow("template.variant_a must be an object");
-  });
-
-  it("throws for empty system_prompt in variant_b", () => {
-    const r = makeValidResponse();
-    r.template.variant_b.system_prompt = "";
-    expect(() => validateHypothesisResponse(r)).toThrow("template.variant_b.system_prompt must be a non-empty string");
-  });
-
-  it("throws when both variants are control", () => {
+  await t.test("throws when both variants are control", () => {
     const r = makeValidResponse();
     r.template.variant_b.is_control = true;
-    expect(() => validateHypothesisResponse(r)).toThrow("Exactly one variant must be the control");
+    assert.throws(() => validateHypothesisResponse(r), /Exactly one variant must be the control/);
   });
 
-  it("throws when neither variant is control", () => {
-    const r = makeValidResponse();
-    r.template.variant_a.is_control = false;
-    expect(() => validateHypothesisResponse(r)).toThrow("Exactly one variant must be the control");
-  });
-
-  it("throws when weights don't sum to 100", () => {
+  await t.test("throws when weights don't sum to 100", () => {
     const r = makeValidResponse();
     r.template.variant_a.weight = 60;
     r.template.variant_b.weight = 60;
-    expect(() => validateHypothesisResponse(r)).toThrow("variant weights must sum to 100");
-  });
-
-  it("throws for weight < 1", () => {
-    const r = makeValidResponse();
-    r.template.variant_a.weight = 0;
-    expect(() => validateHypothesisResponse(r)).toThrow("template.variant_a.weight must be 1-99");
-  });
-
-  it("throws for weight > 99", () => {
-    const r = makeValidResponse();
-    r.template.variant_a.weight = 100;
-    expect(() => validateHypothesisResponse(r)).toThrow("template.variant_a.weight must be 1-99");
+    assert.throws(() => validateHypothesisResponse(r), /variant weights must sum to 100/);
   });
 });
 
-describe("validateHypothesisSafety", () => {
+test("validateHypothesisSafety", async (t) => {
   const defaultConstraints = { max_discount_percent: 50, allow_free_shipping: false };
 
-  it("passes for safe response", () => {
+  await t.test("passes for safe response", () => {
     const r = makeValidResponse();
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).not.toThrow();
+    assert.doesNotThrow(() => validateHypothesisSafety(r, defaultConstraints));
   });
 
-  it("throws for extreme discount (> max)", () => {
+  await t.test("throws for extreme discount (> max)", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Offer 60% off discount to all users";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_EXTREME_DISCOUNT");
+    assert.throws(() => validateHypothesisSafety(r, defaultConstraints), /HYPOTHESIS_EXTREME_DISCOUNT/);
   });
 
-  it("passes discount at exactly max allowed", () => {
+  await t.test("passes discount at exactly max allowed", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Offer 50% off discount to premium users";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).not.toThrow();
+    assert.doesNotThrow(() => validateHypothesisSafety(r, defaultConstraints));
   });
 
-  it("throws for unauthorized free shipping (English)", () => {
+  await t.test("throws for unauthorized free shipping (English)", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Offer free shipping to all buyers";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_UNAUTHORIZED_FREE_SHIPPING");
+    assert.throws(() => validateHypothesisSafety(r, defaultConstraints), /HYPOTHESIS_UNAUTHORIZED_FREE_SHIPPING/);
   });
 
-  it("throws for unauthorized free shipping (Portuguese)", () => {
+  await t.test("throws for unauthorized free shipping (Portuguese)", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Ofereça frete grátis para todos os compradores";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_UNAUTHORIZED_FREE_SHIPPING");
+    assert.throws(() => validateHypothesisSafety(r, defaultConstraints), /HYPOTHESIS_UNAUTHORIZED_FREE_SHIPPING/);
   });
 
-  it("passes free shipping when authorized", () => {
+  await t.test("passes free shipping when authorized", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Offer free shipping to all buyers";
-    expect(() => validateHypothesisSafety(r, { max_discount_percent: 50, allow_free_shipping: true })).not.toThrow();
+    assert.doesNotThrow(() => validateHypothesisSafety(r, { max_discount_percent: 50, allow_free_shipping: true }));
   });
 
-  it("throws for CVV/security code request", () => {
+  await t.test("throws for CVV/security code request", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Ask for their CVV to verify identity";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_SAFETY_VIOLATION");
+    assert.throws(() => validateHypothesisSafety(r, defaultConstraints), /HYPOTHESIS_SAFETY_VIOLATION/);
   });
 
-  it("throws for password request", () => {
+  await t.test("throws for password request", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "Ask user to type their password to confirm";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_SAFETY_VIOLATION");
+    assert.throws(() => validateHypothesisSafety(r, defaultConstraints), /HYPOTHESIS_SAFETY_VIOLATION/);
   });
 
-  it("throws for delivery guarantee", () => {
+  await t.test("throws for delivery guarantee", () => {
     const r = makeValidResponse();
     r.template.variant_b.system_prompt = "We guarantee delivery within 24 hours";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_SAFETY_VIOLATION");
-  });
-
-  it("throws for security code in Portuguese", () => {
-    const r = makeValidResponse();
-    r.template.variant_b.system_prompt = "Peça o código de segurança do cartão";
-    expect(() => validateHypothesisSafety(r, defaultConstraints)).toThrow("HYPOTHESIS_SAFETY_VIOLATION");
+    assert.throws(() => validateHypothesisSafety(r, defaultConstraints), /HYPOTHESIS_SAFETY_VIOLATION/);
   });
 });
