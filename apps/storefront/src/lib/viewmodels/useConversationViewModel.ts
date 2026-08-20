@@ -126,22 +126,26 @@ export function useConversationViewModel(
 
         // If experiment has a custom greeting, replace welcome message
         if (data.experiment?.system_prompt) {
-          // Extract greeting from system_prompt or use variant-specific welcome
-          const variantGreeting = data.experiment.variant_name
-            ? `Oi! Sou ${agent}, assistente da ${storeName}. ${data.experiment.variant_name === "control" ? "" : ""}Como posso ajudar?`
-            : null;
-
-          if (variantGreeting) {
-            setMessages((prev) => {
-              // Replace hardcoded welcome if it's the only message
-              if (prev.length === 1 && prev[0]?.id === "welcome") {
-                return [{
-                  ...prev[0],
-                  text: variantGreeting,
-                }];
-              }
-              return prev;
+          // Experiment running: send automatic "olá" to get LLM-generated greeting with variant prompt
+          try {
+            const greetingData = await checkoutApi.sendMessage(data.conversation_id, "olá", {
+              merchantId,
+              cartId: cart.cartId || undefined,
+              history: [],
             });
+            if (greetingData?.message) {
+              setMessages([{
+                id: "welcome",
+                role: "agent",
+                text: greetingData.message,
+                blocks: greetingData.blocks?.length
+                  ? [...greetingData.blocks, { type: "quick_replies", data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } }]
+                  : [{ type: "quick_replies", data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } }],
+              }]);
+              setHistory([{ role: "user", content: "olá" }, { role: "assistant", content: greetingData.message }]);
+            }
+          } catch {
+            // Fallback: keep static greeting
           }
         }
       }
