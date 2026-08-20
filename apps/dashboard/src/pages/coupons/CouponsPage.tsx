@@ -2,6 +2,7 @@ import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { useApi } from "../../hooks/useApi.js";
 import { useCouponsPage } from "./useCouponsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
 
@@ -21,59 +22,111 @@ function formatDate(iso?: string): string {
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-/** Searchable multi-select dropdown */
-function MultiSearchSelect({ label, placeholder, selected, onChange }: {
+/** Dropdown with searchbox — loads items from API, multi-select */
+function MultiSearchSelect({ label, placeholder, selected, onChange, type }: {
   label: string;
   placeholder: string;
   selected: string[];
   onChange: (ids: string[]) => void;
+  type: "products" | "categories";
 }) {
+  const api = useApi();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<Array<{ id: string; name: string }>>([]);
+  const [loading, setLoading] = useState(false);
 
-  function addItem() {
-    const trimmed = query.trim();
-    if (!trimmed || selected.includes(trimmed)) return;
-    onChange([...selected, trimmed]);
-    setQuery("");
-  }
+  const loadItems = async () => {
+    setLoading(true);
+    try {
+      if (type === "products") {
+        const data = await api.getProducts?.() ?? [];
+        setItems((Array.isArray(data) ? data : (data as any).products ?? []).map((p: any) => ({ id: p.id, name: p.name })));
+      } else {
+        const data = await api.getCategories?.() ?? [];
+        setItems((Array.isArray(data) ? data : []).map((c: any) => ({ id: c.id, name: c.name })));
+      }
+    } catch {
+      setItems([]);
+    }
+    setLoading(false);
+  };
 
-  function removeItem(id: string) {
-    onChange(selected.filter((s) => s !== id));
-  }
+  const filtered = items.filter((item) =>
+    !selected.includes(item.id) &&
+    item.name.toLowerCase().includes(query.toLowerCase())
+  );
 
   return (
-    <div>
+    <div style={{ position: "relative" }}>
       <span className="field-label">{label}</span>
-      <div style={{ position: "relative" }}>
-        <div className="field-input" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", minHeight: 40, padding: "6px 10px", cursor: "text" }} onClick={() => setOpen(true)}>
-          {selected.map((id) => (
-            <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 5, background: "var(--accent-soft)", color: "var(--accent)", font: "600 11px var(--mono)", whiteSpace: "nowrap" }}>
-              {id.length > 20 ? id.slice(0, 20) + "…" : id}
-              <button type="button" onClick={(e) => { e.stopPropagation(); removeItem(id); }} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, display: "flex" }}>
-                <X size={11} />
-              </button>
-            </span>
-          ))}
-          <input
-            value={query}
-            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
-            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setTimeout(() => setOpen(false), 150)}
-            placeholder={selected.length === 0 ? placeholder : ""}
-            style={{ flex: 1, minWidth: 80, border: "none", outline: "none", background: "transparent", color: "var(--ink)", font: "12px var(--sans)", padding: "4px 0" }}
-          />
-          <Search size={13} style={{ color: "var(--faint)", flex: "none" }} />
+
+      {/* Selected tags */}
+      {selected.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+          {selected.map((id) => {
+            const item = items.find((i) => i.id === id);
+            return (
+              <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--accent-soft)", color: "var(--accent)", font: "600 11px var(--sans)" }}>
+                {item?.name || id.slice(0, 12)}
+                <button type="button" onClick={() => onChange(selected.filter((s) => s !== id))} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, display: "flex" }}>
+                  <X size={12} />
+                </button>
+              </span>
+            );
+          })}
         </div>
-        {open && query.trim() && (
-          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: 6, zIndex: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
-            <button type="button" onClick={addItem} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "none", background: "var(--bg)", color: "var(--ink)", font: "12px var(--sans)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 6 }}>
-              <Plus size={12} color="var(--accent)" /> Adicionar "<strong>{query.trim()}</strong>"
-            </button>
-          </div>
-        )}
+      )}
+
+      {/* Dropdown trigger */}
+      <div
+        className="field-input"
+        style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+        onClick={() => { setOpen(!open); if (!open) void loadItems(); }}
+      >
+        <Search size={14} style={{ color: "var(--faint)", flex: "none" }} />
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); if (!open) { setOpen(true); void loadItems(); } }}
+          onFocus={() => { setOpen(true); void loadItems(); }}
+          placeholder={placeholder}
+          style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--ink)", font: "12px var(--sans)", padding: 0 }}
+        />
       </div>
+
+      {/* Dropdown list */}
+      {open && (
+        <div
+          style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: 4, zIndex: 20, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", maxHeight: 200, overflowY: "auto" }}
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          {loading ? (
+            <div style={{ padding: "12px", textAlign: "center", color: "var(--faint)", font: "11px var(--sans)" }}>Carregando...</div>
+          ) : filtered.length === 0 ? (
+            <div style={{ padding: "12px", textAlign: "center", color: "var(--faint)", font: "11px var(--sans)" }}>
+              {query ? "Nenhum resultado" : "Nenhum item disponível"}
+            </div>
+          ) : (
+            filtered.slice(0, 15).map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => { onChange([...selected, item.id]); setQuery(""); setOpen(false); }}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "none", background: "transparent", color: "var(--ink)", font: "12px var(--sans)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8, transition: "background 0.1s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flex: "none" }} />
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
+                <span style={{ font: "10px var(--mono)", color: "var(--faint)" }}>{item.id.slice(0, 8)}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+
+      {/* Click outside to close */}
+      {open && <div style={{ position: "fixed", inset: 0, zIndex: 15 }} onClick={() => setOpen(false)} />}
     </div>
   );
 }
@@ -81,9 +134,9 @@ function MultiSearchSelect({ label, placeholder, selected, onChange }: {
 const FIELD_STYLES = `
 .field-label { font: 600 11px var(--sans); color: var(--ink); display: block; margin-bottom: 6px; }
 .field-hint { font: 11px var(--sans); color: var(--faint); margin-top: 4px; display: block; }
-.field-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font: 13px var(--sans); outline: none; transition: border-color 0.15s; }
+.field-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font: 13px var(--sans); outline: none; transition: border-color 0.15s; box-sizing: border-box; }
 .field-input:focus { border-color: var(--accent); }
-.field-btn-icon { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--accent); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--sans); white-space: nowrap; transition: border-color 0.15s; }
+.field-btn-icon { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--accent); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--sans); white-space: nowrap; transition: border-color 0.15s; box-sizing: border-box; }
 .field-btn-icon:hover { border-color: var(--accent); }
 `;
 
@@ -182,11 +235,11 @@ export function CouponsPage(_props: CouponsPageProps) {
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
                   <span className="field-label">Início da validade</span>
-                  <input type="datetime-local" value={vm.form.startsAt} onChange={(e) => vm.patch({ startsAt: e.target.value })} className="field-input" />
+                  <input type="date" value={vm.form.startsAt} onChange={(e) => vm.patch({ startsAt: e.target.value })} className="field-input" lang="pt-BR" />
                 </label>
                 <label>
                   <span className="field-label">Fim da validade</span>
-                  <input type="datetime-local" value={vm.form.expiresAt} onChange={(e) => vm.patch({ expiresAt: e.target.value })} className="field-input" />
+                  <input type="date" value={vm.form.expiresAt} onChange={(e) => vm.patch({ expiresAt: e.target.value })} className="field-input" lang="pt-BR" />
                 </label>
               </div>
 
@@ -206,12 +259,14 @@ export function CouponsPage(_props: CouponsPageProps) {
                     placeholder="Buscar produto..."
                     selected={vm.form.productIds}
                     onChange={(ids) => vm.patch({ productIds: ids })}
+                    type="products"
                   />
                   <MultiSearchSelect
                     label="Vincular a categorias"
                     placeholder="Buscar categoria..."
                     selected={vm.form.categoryIds}
                     onChange={(ids) => vm.patch({ categoryIds: ids })}
+                    type="categories"
                   />
                 </div>
                 <span className="field-hint" style={{ marginTop: 8 }}>Se preenchido, cupom só vale para itens vinculados.</span>
