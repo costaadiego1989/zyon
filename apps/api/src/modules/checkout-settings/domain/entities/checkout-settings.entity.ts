@@ -315,6 +315,10 @@ function assertNoCommercialKeys(value: unknown, path: string[] = []): void {
     if (nextPath.join(".") === "advancedRules") {
       continue;
     }
+    // Allow suppressionRules subtree (field names like suppressAfterOfferAccepted are config, not commercial authorization)
+    if (nextPath.join(".") === "suppressionRules") {
+      continue;
+    }
     if (COMMERCIAL_KEYS.some((commercialKey) => key.toLowerCase().includes(commercialKey.toLowerCase()))) {
       throw new CheckoutSettingsValidationError("checkout_settings_cannot_authorize_commercial_terms");
     }
