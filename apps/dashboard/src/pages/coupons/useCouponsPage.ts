@@ -26,8 +26,8 @@ export interface CreateCouponForm {
   maxUses: string;
   startsAt: string;
   expiresAt: string;
-  productId: string;
-  categoryId: string;
+  productIds: string[];
+  categoryIds: string[];
 }
 
 const DEFAULT_FORM: CreateCouponForm = {
@@ -38,8 +38,8 @@ const DEFAULT_FORM: CreateCouponForm = {
   maxUses: "",
   startsAt: "",
   expiresAt: "",
-  productId: "",
-  categoryId: "",
+  productIds: [],
+  categoryIds: [],
 };
 
 export function useCouponsPage() {
@@ -98,8 +98,8 @@ export function useCouponsPage() {
         max_uses: form.maxUses ? Number(form.maxUses) : undefined,
         starts_at: form.startsAt || undefined,
         expires_at: form.expiresAt || undefined,
-        product_id: form.productId || undefined,
-        category_id: form.categoryId || undefined,
+        product_id: form.productIds.length > 0 ? form.productIds.join(",") : undefined,
+        category_id: form.categoryIds.length > 0 ? form.categoryIds.join(",") : undefined,
       });
       showToast("success", `Cupom ${form.code.toUpperCase()} criado!`);
       setForm(DEFAULT_FORM);

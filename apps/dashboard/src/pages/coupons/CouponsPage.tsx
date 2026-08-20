@@ -1,4 +1,5 @@
-import { Plus, Trash2, Copy, RefreshCw, Tag, X } from "lucide-react";
+import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search } from "lucide-react";
+import { useState } from "react";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { useCouponsPage } from "./useCouponsPage.js";
@@ -19,6 +20,72 @@ function formatDate(iso?: string): string {
   if (!iso) return "Sem limite";
   return new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
+
+/** Searchable multi-select dropdown */
+function MultiSearchSelect({ label, placeholder, selected, onChange }: {
+  label: string;
+  placeholder: string;
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+
+  function addItem() {
+    const trimmed = query.trim();
+    if (!trimmed || selected.includes(trimmed)) return;
+    onChange([...selected, trimmed]);
+    setQuery("");
+  }
+
+  function removeItem(id: string) {
+    onChange(selected.filter((s) => s !== id));
+  }
+
+  return (
+    <div>
+      <span className="field-label">{label}</span>
+      <div style={{ position: "relative" }}>
+        <div className="field-input" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", minHeight: 40, padding: "6px 10px", cursor: "text" }} onClick={() => setOpen(true)}>
+          {selected.map((id) => (
+            <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 8px", borderRadius: 5, background: "var(--accent-soft)", color: "var(--accent)", font: "600 11px var(--mono)", whiteSpace: "nowrap" }}>
+              {id.length > 20 ? id.slice(0, 20) + "…" : id}
+              <button type="button" onClick={(e) => { e.stopPropagation(); removeItem(id); }} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, display: "flex" }}>
+                <X size={11} />
+              </button>
+            </span>
+          ))}
+          <input
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addItem(); } }}
+            onFocus={() => setOpen(true)}
+            onBlur={() => setTimeout(() => setOpen(false), 150)}
+            placeholder={selected.length === 0 ? placeholder : ""}
+            style={{ flex: 1, minWidth: 80, border: "none", outline: "none", background: "transparent", color: "var(--ink)", font: "12px var(--sans)", padding: "4px 0" }}
+          />
+          <Search size={13} style={{ color: "var(--faint)", flex: "none" }} />
+        </div>
+        {open && query.trim() && (
+          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, padding: 6, zIndex: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.3)" }}>
+            <button type="button" onClick={addItem} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "none", background: "var(--bg)", color: "var(--ink)", font: "12px var(--sans)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 6 }}>
+              <Plus size={12} color="var(--accent)" /> Adicionar "<strong>{query.trim()}</strong>"
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const FIELD_STYLES = `
+.field-label { font: 600 11px var(--sans); color: var(--ink); display: block; margin-bottom: 6px; }
+.field-hint { font: 11px var(--sans); color: var(--faint); margin-top: 4px; display: block; }
+.field-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font: 13px var(--sans); outline: none; transition: border-color 0.15s; }
+.field-input:focus { border-color: var(--accent); }
+.field-btn-icon { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--accent); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--sans); white-space: nowrap; transition: border-color 0.15s; }
+.field-btn-icon:hover { border-color: var(--accent); }
+`;
 
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
@@ -76,121 +143,78 @@ export function CouponsPage(_props: CouponsPageProps) {
             </div>
 
             {/* Panel Body */}
-            <div style={{ flex: 1, padding: "24px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto" }}>
+            <div style={{ flex: 1, padding: "24px", display: "flex", flexDirection: "column", gap: 20, overflowY: "auto" }}>
+              {/* Código */}
               <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Código do cupom *</span>
+                <span className="field-label">Código do cupom *</span>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input
-                    value={vm.form.code}
-                    onChange={(e) => vm.patch({ code: e.target.value.toUpperCase() })}
-                    placeholder="EX: SAVE10"
-                    style={{ flex: 1, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--mono)", textTransform: "uppercase", letterSpacing: "0.04em" }}
-                  />
-                  <button type="button" onClick={vm.generateCode} title="Gerar código aleatório" style={{ padding: "10px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, font: "11px var(--sans)" }}>
-                    <RefreshCw size={13} /> Gerar
-                  </button>
+                  <input value={vm.form.code} onChange={(e) => vm.patch({ code: e.target.value.toUpperCase() })} placeholder="EX: SAVE10" className="field-input" style={{ fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.04em" }} />
+                  <button type="button" onClick={vm.generateCode} title="Gerar código" className="field-btn-icon"><RefreshCw size={13} /> Gerar</button>
                 </div>
               </label>
 
+              {/* Tipo + Valor */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Tipo de desconto</span>
-                  <select value={vm.form.discountType} onChange={(e) => vm.patch({ discountType: e.target.value as "percent" | "fixed" | "free_shipping" })} style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}>
+                  <span className="field-label">Tipo de desconto</span>
+                  <select value={vm.form.discountType} onChange={(e) => vm.patch({ discountType: e.target.value as any })} className="field-input">
                     <option value="percent">Percentual (%)</option>
                     <option value="fixed">Valor fixo (R$)</option>
                     <option value="free_shipping">Frete grátis</option>
                   </select>
                 </label>
-
                 {vm.form.discountType !== "free_shipping" && (
                   <label>
-                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>
-                      {vm.form.discountType === "percent" ? "Percentual *" : "Valor em centavos *"}
-                    </span>
-                    <input
-                      type="number"
-                      value={vm.form.discountValue}
-                      onChange={(e) => vm.patch({ discountValue: e.target.value })}
-                      placeholder={vm.form.discountType === "percent" ? "10" : "1000"}
-                      min={1}
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                    />
+                    <span className="field-label">{vm.form.discountType === "percent" ? "Percentual *" : "Valor (centavos) *"}</span>
+                    <input type="number" value={vm.form.discountValue} onChange={(e) => vm.patch({ discountValue: e.target.value })} placeholder={vm.form.discountType === "percent" ? "10" : "1000"} min={1} className="field-input" />
                   </label>
                 )}
               </div>
 
+              {/* Carrinho mínimo */}
               <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Valor mínimo do carrinho (centavos)</span>
-                <input
-                  type="number"
-                  value={vm.form.minCartValue}
-                  onChange={(e) => vm.patch({ minCartValue: e.target.value })}
-                  placeholder="Ex: 10000 (= R$ 100,00)"
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                />
-                <span style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 4, display: "block" }}>Deixe vazio para sem mínimo</span>
+                <span className="field-label">Valor mínimo do carrinho (centavos)</span>
+                <input type="number" value={vm.form.minCartValue} onChange={(e) => vm.patch({ minCartValue: e.target.value })} placeholder="Ex: 10000 (= R$ 100,00)" className="field-input" />
+                <span className="field-hint">Deixe vazio para sem mínimo</span>
               </label>
 
+              {/* Datas */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Início da validade</span>
-                  <input
-                    type="datetime-local"
-                    value={vm.form.startsAt}
-                    onChange={(e) => vm.patch({ startsAt: e.target.value })}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                  />
+                  <span className="field-label">Início da validade</span>
+                  <input type="datetime-local" value={vm.form.startsAt} onChange={(e) => vm.patch({ startsAt: e.target.value })} className="field-input" />
                 </label>
-
                 <label>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Fim da validade</span>
-                  <input
-                    type="datetime-local"
-                    value={vm.form.expiresAt}
-                    onChange={(e) => vm.patch({ expiresAt: e.target.value })}
-                    style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                  />
+                  <span className="field-label">Fim da validade</span>
+                  <input type="datetime-local" value={vm.form.expiresAt} onChange={(e) => vm.patch({ expiresAt: e.target.value })} className="field-input" />
                 </label>
               </div>
 
+              {/* Max usos */}
               <label>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Máximo de usos</span>
-                <input
-                  type="number"
-                  value={vm.form.maxUses}
-                  onChange={(e) => vm.patch({ maxUses: e.target.value })}
-                  placeholder="Ilimitado"
-                  min={1}
-                  style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                />
+                <span className="field-label">Máximo de usos</span>
+                <input type="number" value={vm.form.maxUses} onChange={(e) => vm.patch({ maxUses: e.target.value })} placeholder="Ilimitado" min={1} className="field-input" />
               </label>
 
-              {/* Vincular a produto ou categoria */}
-              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--muted)", display: "block", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.04em" }}>Restrições (opcional)</span>
+              {/* Restrições — Produto e Categoria multi-select */}
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 18 }}>
+                <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 14 }}>Restrições (opcional)</span>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <label>
-                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Vincular a produto</span>
-                    <input
-                      value={vm.form.productId}
-                      onChange={(e) => vm.patch({ productId: e.target.value })}
-                      placeholder="ID do produto (opcional)"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                    />
-                  </label>
-
-                  <label>
-                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Vincular a categoria</span>
-                    <input
-                      value={vm.form.categoryId}
-                      onChange={(e) => vm.patch({ categoryId: e.target.value })}
-                      placeholder="ID da categoria (opcional)"
-                      style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "13px var(--sans)" }}
-                    />
-                  </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <MultiSearchSelect
+                    label="Vincular a produtos"
+                    placeholder="Buscar produto..."
+                    selected={vm.form.productIds}
+                    onChange={(ids) => vm.patch({ productIds: ids })}
+                  />
+                  <MultiSearchSelect
+                    label="Vincular a categorias"
+                    placeholder="Buscar categoria..."
+                    selected={vm.form.categoryIds}
+                    onChange={(ids) => vm.patch({ categoryIds: ids })}
+                  />
                 </div>
-                <span style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 6, display: "block" }}>Se preenchido, cupom só será válido para o produto ou categoria vinculado.</span>
+                <span className="field-hint" style={{ marginTop: 8 }}>Se preenchido, cupom só vale para itens vinculados.</span>
               </div>
             </div>
 
@@ -210,6 +234,7 @@ export function CouponsPage(_props: CouponsPageProps) {
           from { transform: translateX(100%); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
+        ${FIELD_STYLES}
       `}</style>
 
       {/* Coupons List */}
