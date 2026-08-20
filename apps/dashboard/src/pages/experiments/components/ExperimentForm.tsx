@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Plus, X, Save, Sparkles, Info } from "lucide-react";
 import type { ExperimentForm, Variant } from "../types.js";
 import { Button } from "../../../components/Button.js";
+import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 
 interface ExperimentFormProps {
   form: ExperimentForm;
@@ -233,21 +234,23 @@ export function ExperimentForm({
                 <div
                   key={idx}
                   style={{
-                    background: "var(--bg)",
+                    background: v.is_control ? "oklch(25% 0.02 160 / 0.3)" : "var(--bg)",
                     border: `1px solid ${v.is_control ? "var(--accent)" : "var(--border)"}`,
-                    borderRadius: 10,
-                    padding: 14,
+                    borderRadius: 12,
+                    padding: 16,
                     position: "relative",
+                    transition: "border-color 0.2s, background 0.2s",
                   }}
                 >
                   {v.is_control && (
                     <span style={{
-                      position: "absolute", top: -8, left: 12,
+                      position: "absolute", top: -9, left: 14,
                       font: "600 9px var(--mono)", color: "var(--accent)",
-                      background: "var(--card)", padding: "2px 6px",
-                      borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.05em",
+                      background: "var(--card)", padding: "2px 8px",
+                      borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
+                      border: "1px solid var(--accent)",
                     }}>
-                      Controle (baseline)
+                      ● Baseline
                     </span>
                   )}
 
@@ -309,8 +312,9 @@ export function ExperimentForm({
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ font: "600 10px var(--mono)", color: "var(--muted)", textTransform: "uppercase" }}>Tráfego</span>
                         <input
                           type="number"
                           value={v.weight ?? 50}
@@ -318,27 +322,28 @@ export function ExperimentForm({
                           min="1"
                           max="99"
                           style={{
-                            width: 52,
-                            padding: "6px 8px",
+                            width: 48,
+                            padding: "5px 6px",
                             borderRadius: 6,
                             border: "1px solid var(--border)",
                             background: "var(--card)",
                             color: "var(--ink)",
-                            font: "12px var(--mono)",
+                            font: "600 12px var(--mono)",
                             textAlign: "center",
                           }}
                         />
-                        <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>% do tráfego</span>
+                        <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>%</span>
                       </div>
-                      <label style={{ display: "flex", alignItems: "center", gap: 5, font: "11px var(--sans)", color: "var(--muted)", marginLeft: "auto", cursor: "pointer" }}>
-                        <input
-                          type="checkbox"
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
+                        <span style={{ font: "11px var(--sans)", color: v.is_control ? "var(--accent)" : "var(--muted)" }}>
+                          Controle
+                        </span>
+                        <ToggleSwitch
+                          id={`variant-control-${idx}`}
                           checked={v.is_control ?? idx === 0}
-                          onChange={(e) => updateVariant(idx, { is_control: e.target.checked })}
-                          style={{ accentColor: "var(--accent)" }}
+                          onChange={(checked) => updateVariant(idx, { is_control: checked })}
                         />
-                        É o controle
-                      </label>
+                      </div>
                     </div>
                   </div>
                 </div>
