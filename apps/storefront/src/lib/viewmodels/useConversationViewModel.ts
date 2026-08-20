@@ -1,14 +1,5 @@
 "use client";
 
-/**
- * CONVERSATION VIEWMODEL HOOK
- *
- * Owns ALL business logic and state for ConversationShell.
- * Component becomes pure UI — only reads state and calls actions.
- *
- * Extracted from ConversationShell.tsx (913 lines → ~200 lines logic here)
- */
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
@@ -23,8 +14,6 @@ import {
   trackProductView,
   trackPurchase,
 } from "@/lib/analytics";
-
-// ─── Types ───────────────────────────────────────────────────
 
 export type Message = {
   id: string;
@@ -80,15 +69,11 @@ export interface ConversationViewModelActions {
   stopListening: () => void;
 }
 
-// ─── Hook ────────────────────────────────────────────────────
-
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
   const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId } = props;
   const agent = agentName || "Assistente";
-
-  // State
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
   const [theme, setTheme] = useState<Theme>("dark");
@@ -104,15 +89,11 @@ export function useConversationViewModel(
   const [showBuyerAuth, setShowBuyerAuth] = useState(false);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
 
-  // Refs
   const recognitionRef = useRef<any>(null);
-
-  // Context
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity } = useCart();
   const experimentVM = useCheckoutExperiment();
 
-  // ─── Init Conversation ───
   const initConversation = useCallback(async () => {
     if (!merchantId || conversationId) return;
     try {
@@ -124,7 +105,6 @@ export function useConversationViewModel(
           experiment: data.experiment || null,
         });
 
-        // If experiment running: fetch LLM greeting in background, replace static when ready
         if (data.experiment?.system_prompt) {
           checkoutApi.sendMessage(data.conversation_id, "olá", {
             merchantId,
@@ -132,20 +112,27 @@ export function useConversationViewModel(
             history: [],
           }).then((greetingData) => {
             if (greetingData?.message) {
+              const experimentWelcome = {
+                id: "welcome",
+                role: "agent" as const,
+                text: greetingData.message,
+                blocks: [
+                  ...(greetingData.blocks ?? []),
+                  { type: "quick_replies" as const, data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } },
+                ],
+              };
               setMessages((prev) => {
-                // Replace the static welcome message with LLM variant greeting
-                const welcome = prev.find((m) => m.id === "welcome");
-                if (welcome) {
-                  return prev.map((m) => m.id === "welcome" ? {
-                    ...m,
-                    text: greetingData.message,
-                    blocks: greetingData.blocks?.length
-                      ? [...greetingData.blocks, { type: "quick_replies", data: { options: greetingData.suggested_next ?? quickReplies ?? ["Ver Produtos", "Encontrar Produto", "Categorias"] } }]
-                      : m.blocks,
-                  } : m);
+                if (prev.length === 0) {
+                  return [experimentWelcome];
                 }
-                return prev;
+                const hasWelcome = prev.some((m) => m.id === "welcome");
+                if (hasWelcome) {
+                  return prev.map((m) => m.id === "welcome" ? experimentWelcome : m);
+                }
+                return [experimentWelcome, ...prev];
               });
+              setMode("chat");
+              setChannel("chat");
               setHistory([{ role: "user", content: "olá" }, { role: "assistant", content: greetingData.message }]);
             }
           }).catch(() => { /* keep static greeting on failure */ });
@@ -154,7 +141,6 @@ export function useConversationViewModel(
     } catch { /* fallback mode */ }
   }, [merchantId, conversationId, agent, storeName]);
 
-  // ─── Theme ───
   const applyTheme = useCallback((t: Theme) => {
     if (typeof document === "undefined") return;
     const THEME_TOKENS: Record<Theme, Record<string, string>> = {
@@ -202,14 +188,12 @@ export function useConversationViewModel(
     try { localStorage.setItem("pulse-theme-pref", next); } catch { /* */ }
   }, [theme, applyTheme]);
 
-  // ─── Channel Selection ───
   const selectChannel = useCallback((ch: Channel) => {
     setChannel(ch);
     setMode("chat");
     try { localStorage.setItem("pulse-channel-pref", ch); } catch { /* */ }
     initConversation();
 
-    // Use custom agent greeting if configured, otherwise default
     const greeting = agentGreeting
       || `Oi! Sou ${agent}, assistente da ${storeName}. Me diz o que procura — posso buscar produtos, aplicar cupons, calcular frete e fechar pedido tudo aqui. 🛍️`;
 
@@ -229,7 +213,6 @@ export function useConversationViewModel(
     else stopListening();
   }, [channel]);
 
-  // ─── Voice ───
   function startListening() {
     if (typeof window === "undefined") return;
     const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
@@ -257,7 +240,6 @@ export function useConversationViewModel(
     setListening(false);
   }
 
-  // ─── Send Message (CORE) ───
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
@@ -370,16 +352,16 @@ export function useConversationViewModel(
         setChannel(savedChannel);
         setMode("chat");
         initConversation();
+      } else {
+        initConversation();
       }
     } catch { /* SSR/privacy */ }
   }, []);
 
-  // Track conversation start
   useEffect(() => {
     trackConversationStart(storeName, experimentVM.getTrackingVariantId());
   }, [storeName, experimentVM.experiment]);
 
-  // Trigger detection
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cleanup = initTriggerDetection(
@@ -402,7 +384,6 @@ export function useConversationViewModel(
         if (getInterventionCount(merchantId || "") >= maxInterventions) return;
         if (!canFireTrigger(merchantId || "", triggerEvent, cooldownMs)) return;
 
-        // Use custom trigger message from merchant settings, fallback to default
         const customTrigger = widgetConfig.triggerMessages?.[triggerEvent];
         const nudgeText = customTrigger?.message || TRIGGER_MESSAGES[triggerEvent];
         if (!nudgeText) return;
@@ -410,7 +391,6 @@ export function useConversationViewModel(
         incrementIntervention(merchantId || "");
         recordTriggerFired(merchantId || "", triggerEvent);
 
-        // If trigger has coupon attached, include it in the message
         const couponSuffix = customTrigger?.couponCode
           ? ` 🎁 Use o cupom **${customTrigger.couponCode}** para um desconto especial!`
           : "";
@@ -421,7 +401,6 @@ export function useConversationViewModel(
     return cleanup;
   }, [merchantId, conversationId, widgetConfig]);
 
-  // Proactive mode
   useEffect(() => {
     if (!widgetConfig) return;
     if (widgetConfig.mode !== "proactive") return;
@@ -434,7 +413,6 @@ export function useConversationViewModel(
     return () => clearTimeout(timer);
   }, [widgetConfig, merchantId]);
 
-  // Track purchase
   const trackedOrderRef = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!returnOrderId) return;
@@ -444,7 +422,6 @@ export function useConversationViewModel(
   }, [returnOrderId]);
 
   return {
-    // State
     mode,
     channel,
     theme,
@@ -458,7 +435,6 @@ export function useConversationViewModel(
     cartDrawerForceOpen,
     showBuyerAuth,
     policyModal,
-    // Actions
     selectChannel,
     toggleChannel,
     toggleTheme,
