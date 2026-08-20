@@ -81,6 +81,7 @@ export function ExperimentForm({
   updateVariant,
 }: ExperimentFormProps) {
   const [generating, setGenerating] = useState(false);
+  const [hasGenerated, setHasGenerated] = useState(false);
 
   function handleAiGenerate() {
     const template = detectTemplate(form.name, form.description ?? "");
@@ -108,6 +109,7 @@ export function ExperimentForm({
       }
     }
     setGenerating(true);
+    setHasGenerated(true);
     setTimeout(() => setGenerating(false), 600);
   }
 
@@ -204,8 +206,13 @@ export function ExperimentForm({
               loading={generating}
             >
               <Sparkles size={14} />
-              {generating ? "Gerando..." : "Gerar variantes com IA"}
+              {generating ? "Gerando..." : hasGenerated ? "Regenerar variantes" : "Gerar variantes com IA"}
             </Button>
+            {hasGenerated && (
+              <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>
+                Não gostou? Ajuste o título/contexto e clique novamente
+              </span>
+            )}
           </div>
 
           {/* Divider */}
@@ -250,7 +257,7 @@ export function ExperimentForm({
                       borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
                       border: "1px solid var(--accent)",
                     }}>
-                      ● Baseline
+                      ● Comportamento atual
                     </span>
                   )}
 
@@ -323,7 +330,7 @@ export function ExperimentForm({
                       </span>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginLeft: "auto" }}>
                         <span style={{ font: "11px var(--sans)", color: v.is_control ? "var(--accent)" : "var(--muted)" }}>
-                          Baseline
+                          {v.is_control ? "Este é o atual" : "Marcar como atual"}
                         </span>
                         <ToggleSwitch
                           id={`variant-control-${idx}`}
