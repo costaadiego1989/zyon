@@ -29,6 +29,9 @@ import {
   commerceEndpoints,
   installationEndpoints,
 } from "./endpoints/integration.js";
+import { revenueLiftEndpoints } from "./endpoints/revenue-lift.js";
+import { revenueManagerEndpoints } from "./endpoints/revenue-manager.js";
+import { cartRecoveryEndpoints } from "./endpoints/cart-recovery.js";
 
 export * from "./http/index.js";
 export * from "./types.js";
@@ -73,6 +76,9 @@ export function createDashboardApi(options: {
     ...experimentsEndpoints(base, f),
     ...marketplaceEndpoints(base, f),
     ...funnelEndpoints(base, f),
+    ...revenueLiftEndpoints(base, f),
+    ...revenueManagerEndpoints(base, f),
+    ...cartRecoveryEndpoints(base, f),
     ...otherEndpoints(base, f),
   };
 }

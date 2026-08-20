@@ -53,6 +53,13 @@ const CrossSellPage = lazy(() => import("../pages/cross-sell/index.js").then(m =
 const MarketplacePage = lazy(() => import("../pages/marketplace/index.js").then(m => ({ default: m.MarketplacePage })));
 const ExperimentsPage = lazy(() => import("../pages/experiments-page.js").then(m => ({ default: m.ExperimentsPage })));
 const CouponsPage = lazy(() => import("../pages/coupons/index.js").then(m => ({ default: m.CouponsPage })));
+const RevenueLiftPage = lazy(() => import("../pages/revenue-lift/index.js").then(m => ({ default: m.RevenueLiftPage })));
+const RevenueManagerPage = lazy(() => import("../pages/revenue-manager/index.js").then(m => ({ default: m.RevenueManagerPage })));
+const CartRecoveryPage = lazy(() => import("../pages/cart-recovery/index.js").then(m => ({ default: m.CartRecoveryPage })));
+const M2MAgentsPage = lazy(() => import("../pages/m2m-agents/M2MAgentsPage.js").then(m => ({ default: m.M2MAgentsPage })));
+const ProtocolPage = lazy(() => import("../pages/checkout-protocol/ProtocolPage.js").then(m => ({ default: m.ProtocolPage })));
+const IntentMemoryPage = lazy(() => import("../pages/intent-memory/IntentMemoryPage.js").then(m => ({ default: m.IntentMemoryPage })));
+const NegotiationPolicyPage = lazy(() => import("../pages/negotiation-policy/NegotiationPolicyPage.js").then(m => ({ default: m.NegotiationPolicyPage })));
 
 function LoadingFallback() {
   return (
@@ -259,6 +266,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "marketplace" ? <MarketplacePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "coupons" ? <CouponsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "experiments" ? <ExperimentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "revenue-lift" ? <RevenueLiftPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "revenue-manager" ? <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "cart-recovery" ? <CartRecoveryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "m2m-agents" ? <M2MAgentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "checkout-protocol" ? <ProtocolPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "intent-memory" ? <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "negotiation-policy" ? <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>

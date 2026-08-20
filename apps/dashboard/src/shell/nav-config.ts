@@ -1,6 +1,7 @@
 import {
   Activity,
   Bot,
+  Brain,
   Code2,
   CreditCard,
   Crown,
@@ -8,6 +9,7 @@ import {
   Eye,
   FolderTree,
   Globe,
+  Handshake,
   MessageSquare,
   PackageSearch,
   Palette,
@@ -27,6 +29,8 @@ import {
   Zap,
   BarChart3,
   CircleDashed,
+  TrendingUp,
+  ShoppingCart,
   type LucideIcon
 } from "lucide-react";
 
@@ -65,7 +69,14 @@ export type TabKey =
   | "stories"
   | "team"
   | "account-settings"
-  | "marketplace";
+  | "marketplace"
+  | "m2m-agents"
+  | "checkout-protocol"
+  | "intent-memory"
+  | "negotiation-policy"
+  | "revenue-lift"
+  | "revenue-manager"
+  | "cart-recovery";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -98,6 +109,8 @@ export const NAV_ITEMS: Array<{
   { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "experiments", label: "Testes A/B", section: "Checkout", icon: Zap, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "negotiation-policy", label: "Negociação", section: "Checkout", icon: Handshake, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "checkout-protocol", label: "Protocol", section: "Checkout", icon: Code2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "coupons", label: "Cupons", section: "Checkout", icon: Tag, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
 
   // ─── Integrações ───
@@ -105,6 +118,13 @@ export const NAV_ITEMS: Array<{
   { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
   { key: "marketplace", label: "Marketplace", section: "Integrações", icon: ShoppingBag },
+
+  // ─── Inteligência IA ───
+  { key: "m2m-agents", label: "M2M Agents", section: "Inteligência IA", icon: Bot, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "intent-memory", label: "Intent Memory", section: "Inteligência IA", icon: Brain, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "revenue-lift", label: "Revenue Lift", section: "Inteligência IA", icon: TrendingUp, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "revenue-manager", label: "Revenue Manager", section: "Inteligência IA", icon: Brain, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "cart-recovery", label: "Cart Recovery", section: "Inteligência IA", icon: ShoppingCart, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
 
   // ─── Conta ───
   { key: "team", label: "Equipe", section: "Conta", icon: Users },
