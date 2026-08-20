@@ -56,7 +56,7 @@ export class ExperimentsDashboardController {
   async list(@Req() req: AuthenticatedRequest) {
     const user = currentUser(req);
     const experiments = await this.listExperiments.execute(user.merchantId);
-    return { data: experiments.map((e: any) => this.toResponse(e)) };
+    return { data: experiments.map((e: any) => this.toResponse(e.snapshot ? e.snapshot() : e)) };
   }
 
   @Get(":id")
@@ -64,7 +64,7 @@ export class ExperimentsDashboardController {
     const user = currentUser(req);
     const experiment = await this.getExperiment.execute(id, user.merchantId);
     if (!experiment) throw new NotFoundException("experiment_not_found");
-    return this.toResponse(experiment);
+    return this.toResponse(experiment.snapshot ? experiment.snapshot() : experiment);
   }
 
   @Post()

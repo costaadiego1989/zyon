@@ -63,7 +63,7 @@ export function ExperimentDetail({
             VARIANTES
           </span>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {experiment.variants.map((v) => (
+            {(experiment.variants ?? []).map((v) => (
               <span
                 key={v.id}
                 style={{
