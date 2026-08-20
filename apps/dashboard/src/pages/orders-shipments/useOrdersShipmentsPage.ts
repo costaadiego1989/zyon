@@ -162,24 +162,25 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     if (!props.me) return;
     setBudgetLoading(true);
     try {
-      const res = await fetch(`${(api as any).baseUrl ?? "http://localhost:3009"}/storefront/budget-requests?merchantId=${props.me.id}`);
-      if (res.ok) setBudgetRequests(await res.json());
-    } catch { /* */ }
-    setBudgetLoading(false);
-  }, [props.me]);
+      const data = await api.getBudgetRequests(props.me.id);
+      setBudgetRequests(data);
+    } catch (e) {
+      setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
+    } finally {
+      setBudgetLoading(false);
+    }
+  }, [api, props.me]);
 
   useEffect(() => { void loadBudgets(); }, [loadBudgets]);
 
   const updateBudgetStatus = useCallback(async (id: string, status: "approved" | "rejected") => {
     try {
-      await fetch(`${(api as any).baseUrl ?? "http://localhost:3009"}/storefront/budget-requests/${id}/status`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
+      await api.updateBudgetRequestStatus(id, status);
       setBudgetRequests((prev) => prev.map((b) => b.id === id ? { ...b, status } : b));
-    } catch { /* */ }
-  }, []);
+    } catch (e) {
+      setMessage(e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e));
+    }
+  }, [api]);
 
   return {
     orders,
