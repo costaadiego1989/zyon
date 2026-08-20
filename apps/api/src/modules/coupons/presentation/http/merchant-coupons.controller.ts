@@ -1,13 +1,11 @@
 import { Controller, Get, Post, Delete, Body, Param, Req, UseGuards } from "@nestjs/common";
 import { PlanLimitGuard, RequirePlanLimit } from "../../../payment/domain/billing-plan-guard.js";
 import { Inject } from "@nestjs/common";
-import { NonProductionRoute } from "../../../../shared/http/non-production-route.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { CreateCouponUseCase } from "../../application/use-cases/create-coupon.use-case.js";
 import { ArchiveCouponUseCase } from "../../application/use-cases/archive-coupon.use-case.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 
-@NonProductionRoute()
 @UseGuards(AuthGuard)
 @Controller("merchant/coupons")
 export class MerchantCouponsController {

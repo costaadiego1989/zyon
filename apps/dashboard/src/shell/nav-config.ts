@@ -20,6 +20,7 @@ import {
   ShoppingBag,
   Sparkles,
   Store,
+  Tag,
   Users,
   UsersRound,
   Webhook,
@@ -60,6 +61,7 @@ export type TabKey =
   | "agent-config"
   | "agent-config-checkout"
   | "experiments"
+  | "coupons"
   | "stories"
   | "team"
   | "account-settings"
@@ -96,6 +98,7 @@ export const NAV_ITEMS: Array<{
   { key: "preview", label: "Preview", section: "Checkout", icon: Eye, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "experiments", label: "Testes A/B", section: "Checkout", icon: Zap, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "coupons", label: "Cupons", section: "Checkout", icon: Tag, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
 
   // ─── Integrações ───
   { key: "integrations", label: "Desenvolvedores", section: "Integrações", icon: Webhook },

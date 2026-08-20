@@ -30,6 +30,12 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
     listCoupons(): Promise<Array<{ id: string; code: string; type: string; value: number; isActive: boolean }>> {
       return dashboardJson(base, "/merchant/coupons", { method: "GET" }, f);
     },
+    createCoupon(payload: { code: string; discount_type: string; discount_value: number; min_cart_value?: number; max_uses?: number; expires_at?: string }): Promise<unknown> {
+      return dashboardJson(base, "/merchant/coupons", { method: "POST", jsonBody: payload }, f);
+    },
+    deleteCoupon(id: string): Promise<unknown> {
+      return dashboardJson(base, `/merchant/coupons/${encodeURIComponent(id)}`, { method: "DELETE" }, f);
+    },
 
     // Budget Requests
     getBudgetRequests(merchantId: string): Promise<Array<{ id: string; status: string; [key: string]: unknown }>> {
