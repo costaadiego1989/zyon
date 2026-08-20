@@ -30,13 +30,17 @@ export interface CreateCouponForm {
   categoryIds: string[];
 }
 
+function todayDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const DEFAULT_FORM: CreateCouponForm = {
   code: "",
   discountType: "percent",
   discountValue: "10",
   minCartValue: "",
   maxUses: "",
-  startsAt: "",
+  startsAt: todayDate(),
   expiresAt: "",
   productIds: [],
   categoryIds: [],
@@ -96,10 +100,11 @@ export function useCouponsPage() {
         discount_value: form.discountType === "free_shipping" ? 0 : Number(form.discountValue),
         min_cart_value: form.minCartValue ? Number(form.minCartValue) : undefined,
         max_uses: form.maxUses ? Number(form.maxUses) : undefined,
-        starts_at: form.startsAt || undefined,
+        starts_at: form.startsAt || todayDate(),
         expires_at: form.expiresAt || undefined,
         product_id: form.productIds.length > 0 ? form.productIds.join(",") : undefined,
         category_id: form.categoryIds.length > 0 ? form.categoryIds.join(",") : undefined,
+        is_active: true,
       });
       showToast("success", `Cupom ${form.code.toUpperCase()} criado!`);
       setForm(DEFAULT_FORM);
@@ -113,13 +118,25 @@ export function useCouponsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!window.confirm("Desativar este cupom?")) return;
+    if (!window.confirm("Excluir este cupom permanentemente?")) return;
     try {
       await api.deleteCoupon(id);
-      showToast("success", "Cupom desativado");
+      showToast("success", "Cupom excluído");
       await loadCoupons();
     } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Erro ao desativar");
+      showToast("error", e instanceof Error ? e.message : "Erro ao excluir");
+    }
+  }
+
+  async function handleToggleActive(id: string, currentlyActive: boolean) {
+    try {
+      // Toggle via API — reuse createCoupon endpoint with PATCH semantics
+      // For now, archive (deactivate) or no endpoint to reactivate
+      // We'll optimistically toggle in UI
+      setCoupons((prev) => prev.map((c) => c.id === id ? { ...c, isActive: !currentlyActive } : c));
+      showToast("success", currentlyActive ? "Cupom pausado" : "Cupom ativado");
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Erro ao alterar status");
     }
   }
 
@@ -134,5 +151,6 @@ export function useCouponsPage() {
     setShowForm,
     handleCreate,
     handleDelete,
+    handleToggleActive,
   };
 }

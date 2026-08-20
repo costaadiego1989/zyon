@@ -1,4 +1,4 @@
-import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search } from "lucide-react";
+import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search, Pause, Play } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
@@ -14,7 +14,8 @@ export interface CouponsPageProps {
 
 function formatDiscount(type: string, value: number): string {
   if (type === "free_shipping") return "Frete grátis";
-  if (type === "percent") return `${value}%`;
+  if (type === "percent") return `${value || 0}%`;
+  if (!value || isNaN(value)) return "R$ 0,00";
   return `R$ ${(value / 100).toFixed(2)}`;
 }
 
@@ -282,6 +283,15 @@ export function CouponsPage(_props: CouponsPageProps) {
 
               <button
                 type="button"
+                onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)}
+                title={coupon.isActive ? "Pausar cupom" : "Ativar cupom"}
+                style={{ padding: 6, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: coupon.isActive ? "var(--warn)" : "var(--accent)", cursor: "pointer" }}
+              >
+                {coupon.isActive ? <Pause size={14} /> : <Play size={14} />}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => { navigator.clipboard.writeText(coupon.code); }}
                 title="Copiar código"
                 style={{ padding: 6, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer" }}
@@ -292,7 +302,7 @@ export function CouponsPage(_props: CouponsPageProps) {
               <button
                 type="button"
                 onClick={() => void vm.handleDelete(coupon.id)}
-                title="Desativar cupom"
+                title="Excluir cupom"
                 style={{ padding: 6, borderRadius: 6, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", cursor: "pointer" }}
               >
                 <Trash2 size={14} />
