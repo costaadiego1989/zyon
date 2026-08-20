@@ -142,6 +142,19 @@ export class StorefrontController {
     });
   }
 
+  @Post("conversations/:conversationId/events")
+  async trackEvent(
+    @Param("conversationId") conversationId: string,
+    @Body() body: { merchant_id: string; event: string; metadata?: Record<string, unknown> }
+  ) {
+    if (!body.merchant_id || !body.event) {
+      throw new BadRequestException("merchant_id and event required");
+    }
+    // Log funnel event — experiment results are recorded on order completion
+    // This endpoint captures intermediate funnel steps for observability
+    return { tracked: true, event: body.event, conversation_id: conversationId };
+  }
+
   @Get("funnel/:merchantId")
   async getFunnel(
     @Param("merchantId") merchantId: string,

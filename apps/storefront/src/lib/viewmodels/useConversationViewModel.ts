@@ -19,10 +19,10 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009"
 
 /** Fire funnel event to backend for experiment tracking */
 function trackFunnelEvent(merchantId: string, sessionId: string, event: string) {
-  fetch(`${API_BASE}/checkout/track-event`, {
+  fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ merchant_id: merchantId, session_id: sessionId, event, metadata: { timestamp: new Date().toISOString() } }),
+    body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),
   }).catch(() => {});
 }
 
