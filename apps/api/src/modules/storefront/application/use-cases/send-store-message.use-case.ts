@@ -108,7 +108,13 @@ export class SendStoreMessageUseCase {
             return `SE ${conds} ENTÃO ${action}`;
           });
       }
-    } catch { /* optional — rules are advisory */ }
+    } catch (err) {
+      this.logger.warn(`Failed to load advancedRules: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    if (advancedRules.length > 0) {
+      this.logger.debug(`[${input.merchant_id}] Loaded ${advancedRules.length} advanced rules for LLM`);
+    }
 
     // Load experiment variant system prompt for this session (if A/B test running)
     let experimentSystemPrompt: string | undefined;
