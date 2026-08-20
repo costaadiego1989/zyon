@@ -145,9 +145,11 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
             id: product.id,
             name: product.name,
             description: product.description,
+            type: product.type,
             variants: product.variants,
             media: product.defaultVariant?.media ?? [],
             stock: product.totalStock,
+            inStock: product.hasStock,
             rating: product.averageRating,
             reviewCount: product.reviewCount
           }
