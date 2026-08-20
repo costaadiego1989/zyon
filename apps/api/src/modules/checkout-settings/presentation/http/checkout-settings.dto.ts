@@ -329,6 +329,9 @@ export class WidgetConfigDto {
   @ApiProperty({ type: [String] })
   enabledTriggers!: string[];
 
+  @ApiPropertyOptional({ description: "Trigger-specific messages and coupon codes" })
+  triggerMessages?: Record<string, { message?: string; couponCode?: string }>;
+
   @ApiProperty({ type: [String] })
   suppressedSteps!: string[];
 
