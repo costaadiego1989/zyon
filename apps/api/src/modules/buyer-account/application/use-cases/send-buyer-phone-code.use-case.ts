@@ -47,6 +47,7 @@ export class SendBuyerPhoneCodeUseCase {
     const expiresAt = new Date(Date.now() + OTP_TTL_MS);
 
     await this.otpStore.save({ phone: phoneKey, codeHash, maxAttempts: 5, expiresAt });
+    this.logger.warn(`[OTP send] SAVED to store: phone="${phoneKey}" hash=${codeHash.slice(0, 12)} expires=${expiresAt.toISOString()}`);
 
     if (this.sms) {
       await this.sms.send(normalized, `Your verification code: ${code}`);
