@@ -15,6 +15,17 @@ import {
   trackPurchase,
 } from "@/lib/analytics";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+
+/** Fire funnel event to backend for experiment tracking */
+function trackFunnelEvent(merchantId: string, sessionId: string, event: string) {
+  fetch(`${API_BASE}/checkout/track-event`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ merchant_id: merchantId, session_id: sessionId, event, metadata: { timestamp: new Date().toISOString() } }),
+  }).catch(() => {});
+}
+
 export type Message = {
   id: string;
   role: "user" | "agent";
@@ -104,6 +115,11 @@ export function useConversationViewModel(
           conversation_id: data.conversation_id,
           experiment: data.experiment || null,
         });
+
+        // Track conversation_started funnel event
+        if (merchantId) {
+          trackFunnelEvent(merchantId, data.conversation_id, "conversation_started");
+        }
 
         if (data.experiment?.system_prompt) {
           checkoutApi.sendMessage(data.conversation_id, "olá", {
@@ -265,6 +281,17 @@ export function useConversationViewModel(
             blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
           }
           updateFromBlocks(blocks);
+
+          // Track funnel events for experiment based on response content
+          if (conversationId && merchantId) {
+            const hasCart = blocks.some((b: any) => b.type === "cart_summary");
+            const hasProducts = blocks.some((b: any) => ["product_carousel", "product_card", "marketplace_products"].includes(b.type));
+            if (hasCart) {
+              trackFunnelEvent(merchantId, conversationId, "add_to_cart");
+            } else if (hasProducts) {
+              trackFunnelEvent(merchantId, conversationId, "product_viewed");
+            }
+          }
 
           const hasVisualBlock = blocks.some((b: any) =>
             ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products"].includes(b.type)
