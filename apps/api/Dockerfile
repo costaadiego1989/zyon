@@ -27,8 +27,8 @@ WORKDIR /repo
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 
 # 2) Copy every package.json in the workspace so pnpm can resolve the graph.
-COPY packages/contracts/package.json        packages/contracts/package.json
-COPY packages/shared-types/package.json     packages/shared-types/package.json
+COPY packages/contracts/package.json         packages/contracts/package.json
+COPY packages/shared-types/package.json      packages/shared-types/package.json
 COPY packages/commerce-adapters/package.json packages/commerce-adapters/package.json
 COPY packages/payments-evm/package.json      packages/payments-evm/package.json
 COPY packages/conversation-engine/package.json packages/conversation-engine/package.json
@@ -37,29 +37,22 @@ COPY packages/negotiation-engine/package.json packages/negotiation-engine/packag
 COPY packages/rules-engine/package.json      packages/rules-engine/package.json
 COPY packages/shipping-engine/package.json   packages/shipping-engine/package.json
 COPY packages/agentic-checkout-js/package.json packages/agentic-checkout-js/package.json
+COPY packages/sdk/package.json               packages/sdk/package.json
+COPY packages/checkout-ui/package.json       packages/checkout-ui/package.json
 COPY apps/api/package.json                   apps/api/package.json
 COPY apps/widget/package.json                apps/widget/package.json
+COPY apps/widget_v2/package.json             apps/widget_v2/package.json
 COPY apps/dashboard/package.json             apps/dashboard/package.json
+COPY apps/storefront/package.json            apps/storefront/package.json
+COPY apps/web/package.json                   apps/web/package.json
 
-# 3) Install full workspace deps (dev included — needed for the build).
-#    `--filter ...` narrows to the API and its build-time workspace deps so we
-#    don't pay for unrelated apps at install time, while still resolving the
-#    full graph for the workspace.
-RUN pnpm install --frozen-lockfile \
-      --filter @zyon/api... \
-      --filter @zyon/contracts... \
-      --filter @zyon/shared-types... \
-      --filter @zyon/commerce-adapters... \
-      --filter @zyon/payments-evm... \
-      --filter @zyon/conversation-engine... \
-      --filter @zyon/decision-engine... \
-      --filter @zyon/negotiation-engine... \
-      --filter @zyon/rules-engine... \
-      --filter @zyon/shipping-engine...
-
-# 4) Copy the rest of the source tree.
+# 3) Copy full source before install (pnpm workspace links need source present).
 COPY packages/ packages/
 COPY apps/api/ apps/api/
+
+# 4) Install full workspace deps (dev included — needed for the build).
+#    Source must be present first so pnpm can create correct workspace symlinks.
+RUN pnpm install --frozen-lockfile
 
 # 5) Build the API. apps/api/package.json `build` already chains:
 #      contracts -> shared-types -> commerce-adapters -> prisma generate -> nest build
@@ -67,16 +60,7 @@ RUN pnpm --filter @zyon/api build
 
 # 6) Drop devDependencies so the runner stage can copy a slim tree.
 RUN pnpm install --frozen-lockfile --prod \
-      --filter @zyon/api... \
-      --filter @zyon/contracts... \
-      --filter @zyon/shared-types... \
-      --filter @zyon/commerce-adapters... \
-      --filter @zyon/payments-evm... \
-      --filter @zyon/conversation-engine... \
-      --filter @zyon/decision-engine... \
-      --filter @zyon/negotiation-engine... \
-      --filter @zyon/rules-engine... \
-      --filter @zyon/shipping-engine...
+      --filter @zyon/api...
 
 # -----------------------------------------------------------------------------
 # Stage 2: runner
@@ -96,6 +80,10 @@ COPY --from=builder --chown=node:node /repo/apps/api/dist          ./dist
 COPY --from=builder --chown=node:node /repo/apps/api/node_modules  ./node_modules
 COPY --from=builder --chown=node:node /repo/apps/api/prisma         ./prisma
 COPY --from=builder --chown=node:node /repo/apps/api/package.json  ./package.json
+
+# pnpm symlinks inside node_modules resolve to the .pnpm store at /repo/node_modules/.pnpm/
+# Copy the store so runtime resolution works.
+COPY --from=builder --chown=node:node /repo/node_modules/.pnpm     /repo/node_modules/.pnpm
 
 # Workspace packages may be linked from the api's node_modules; their dist
 # output is already part of apps/api/node_modules because pnpm links the
