@@ -130,9 +130,7 @@ export function useCouponsPage() {
 
   async function handleToggleActive(id: string, currentlyActive: boolean) {
     try {
-      // Toggle via API — reuse createCoupon endpoint with PATCH semantics
-      // For now, archive (deactivate) or no endpoint to reactivate
-      // We'll optimistically toggle in UI
+      await api.toggleCoupon(id, !currentlyActive);
       setCoupons((prev) => prev.map((c) => c.id === id ? { ...c, isActive: !currentlyActive } : c));
       showToast("success", currentlyActive ? "Cupom pausado" : "Cupom ativado");
     } catch (e) {

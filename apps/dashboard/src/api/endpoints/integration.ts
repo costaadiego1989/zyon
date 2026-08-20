@@ -36,6 +36,9 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
     deleteCoupon(id: string): Promise<unknown> {
       return dashboardJson(base, `/merchant/coupons/${encodeURIComponent(id)}`, { method: "DELETE" }, f);
     },
+    toggleCoupon(id: string, isActive: boolean): Promise<unknown> {
+      return dashboardJson(base, `/merchant/coupons/${encodeURIComponent(id)}`, { method: "PATCH", jsonBody: { is_active: isActive } }, f);
+    },
 
     // Budget Requests
     getBudgetRequests(merchantId: string): Promise<Array<{ id: string; status: string; [key: string]: unknown }>> {

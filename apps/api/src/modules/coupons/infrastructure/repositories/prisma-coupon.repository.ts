@@ -38,4 +38,11 @@ export class PrismaCouponRepository implements CouponRepository {
     });
     return rows.map(toCouponEntity);
   }
+
+  async updateActive(merchantId: string, id: string, isActive: boolean): Promise<void> {
+    await this.prisma.coupon.update({
+      where: { id, merchantId },
+      data: { isActive },
+    });
+  }
 }
