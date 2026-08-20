@@ -87,48 +87,49 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
         </div>
       ) : (
         <>
-          {/* Filters Row */}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ flex: 1, maxWidth: 240 }}>
-              <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar..." />
-            </div>
-            <div style={{ display: "flex", gap: 4 }}>
-              {(["all", "draft", "running", "completed"] as const).map((s) => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => vm.setFilterStatus(s)}
-                  style={vm.filterStatus === s ? FILTER_CHIP_ACTIVE : FILTER_CHIP}
-                >
-                  {s === "all" ? "Todos" : s === "draft" ? "Rascunho" : s === "running" ? "Ativo" : "Concluído"}
-                  <span style={{ marginLeft: 4, opacity: 0.7 }}>{statusCounts[s]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Master-Detail Grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "340px 1fr", gap: 16, alignItems: "start" }}>
-            {/* Experiment List */}
-            <div style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              maxHeight: "calc(100vh - 260px)",
-              overflowY: "auto",
-              paddingRight: 4,
-            }}>
-              {vm.experiments.map((exp) => (
-                <ExperimentCard
-                  key={exp.id}
-                  experiment={exp}
-                  selected={vm.selectedId === exp.id}
-                  onSelect={() => vm.setSelectedId(vm.selectedId === exp.id ? null : exp.id)}
-                />
-              ))}
+          <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", gap: 20, alignItems: "start" }}>
+            {/* Left Column: Filters + List */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {/* Search */}
+              <SearchInput value={vm.searchText} onChange={vm.setSearchText} placeholder="Buscar testes..." />
+
+              {/* Filter Chips */}
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {(["all", "draft", "running", "completed"] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => vm.setFilterStatus(s)}
+                    style={vm.filterStatus === s ? FILTER_CHIP_ACTIVE : FILTER_CHIP}
+                  >
+                    {s === "all" ? "Todos" : s === "draft" ? "Rascunho" : s === "running" ? "Ativo" : "Concluído"}
+                    <span style={{ marginLeft: 4, opacity: 0.7 }}>{statusCounts[s]}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Experiment List */}
+              <div style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                maxHeight: "calc(100vh - 300px)",
+                overflowY: "auto",
+                paddingRight: 4,
+              }}>
+                {vm.experiments.map((exp) => (
+                  <ExperimentCard
+                    key={exp.id}
+                    experiment={exp}
+                    selected={vm.selectedId === exp.id}
+                    onSelect={() => vm.setSelectedId(vm.selectedId === exp.id ? null : exp.id)}
+                  />
+                ))}
+              </div>
             </div>
 
-            {/* Detail Panel */}
+            {/* Right Column: Detail Panel */}
             <div style={{ position: "sticky", top: 20 }}>
               {vm.selectedId && vm.selectedExperiment ? (
                 <ExperimentDetail
