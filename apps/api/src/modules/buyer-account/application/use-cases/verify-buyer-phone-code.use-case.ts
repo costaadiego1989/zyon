@@ -41,6 +41,7 @@ export class VerifyBuyerPhoneCodeUseCase {
 
     // B4 (P2): Compare the hash, not the plaintext code.
     const inputHash = createHash("sha256").update(input.code.trim()).digest("hex");
+    this.logger.debug(`[OTP verify] phone=${phoneKey} inputCode="${input.code}" inputHash=${inputHash.slice(0, 8)}... storedHash=${record.codeHash.slice(0, 8)}... match=${inputHash === record.codeHash}`);
     if (inputHash !== record.codeHash) {
       // Increment attempt counter before throwing so lockout is enforced.
       await this.otpStore.incrementAttempts(phoneKey);
