@@ -368,7 +368,7 @@ export class StorefrontLangGraphAgent {
       const searchData = toolResults["search_products"] as any;
       if (searchData?.products?.length > 0) {
         const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
-        const isMarketplace = searchData.source === "marketplace";
+        const isMarketplaceSource = searchData.source === "marketplace" || searchData.source === "mixed";
         blocks.push({
           type: "product_carousel",
           data: {
@@ -384,8 +384,8 @@ export class StorefrontLangGraphAgent {
               rating: p.rating,
               reviewCount: p.reviewCount,
               variants: p.variants,
-              source: isMarketplace ? "marketplace" : "local",
-              sellerName: p.sellerName ?? (isMarketplace ? (searchData.note || "Loja parceira") : undefined),
+              source: p.source ?? (isMarketplaceSource ? "marketplace" : "local"),
+              sellerName: p.sellerName ?? undefined,
               sellerMerchantId: p.sellerMerchantId,
             })),
             nextCursor: searchData.nextCursor,
@@ -727,7 +727,7 @@ export class StorefrontLangGraphAgent {
       "- Quando usar get_product_details: responda apenas 'Aqui estão os detalhes:' (a UI mostra o card completo).",
       "- BUSCA INTELIGENTE: se o cliente escreveu com erros de digitação (ex: 'coro' → 'couro', 'calsa' → 'calça'), corrija mentalmente e busque o termo correto. Tente variações do termo.",
       "- Se a primeira busca não encontrou resultados, tente sinônimos ou termos mais genéricos (ex: 'calça de couro' → 'calça couro', depois 'couro', depois 'calça').",
-      "- NUNCA diga 'não encontrei' sem antes ter tentado pelo menos 2 buscas com termos diferentes.",
+      "- NUNCA diga 'não encontrei' sem antes ter tentado pelo menos 3 buscas com termos diferentes.",
       "- Quando pedirem 'Calcular frete': use quote_shipping com o CEP informado. Se não tem CEP, peça o CEP ao cliente — NÃO peça pra adicionar ao carrinho primeiro.",
       "- Quando pedirem 'Ver variações': use get_product_details e responda 'Aqui estão as variações disponíveis:' (UI mostra selector).",
       "- Quando pedirem 'Comparar': use compare_products com o produto + similares da mesma categoria. Responda 'Comparação:' (UI mostra tabela).",
