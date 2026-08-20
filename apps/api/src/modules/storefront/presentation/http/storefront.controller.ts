@@ -150,8 +150,57 @@ export class StorefrontController {
     if (!body.merchant_id || !body.event) {
       throw new BadRequestException("merchant_id and event required");
     }
-    // Log funnel event — experiment results are recorded on order completion
-    // This endpoint captures intermediate funnel steps for observability
+
+    try {
+      const running = await this.prisma.promptExperiment.findFirst({
+        where: { merchantId: body.merchant_id, status: "running" },
+        include: { variants: true },
+      });
+
+      if (running && running.variants.length > 0) {
+        let hash = 0;
+        for (let i = 0; i < conversationId.length; i++) {
+          hash = ((hash << 5) - hash) + conversationId.charCodeAt(i);
+          hash |= 0;
+        }
+        const totalWeight = running.variants.reduce((sum, v) => sum + v.weight, 0);
+        let target = Math.abs(hash) % totalWeight;
+        let variantId: string | null = null;
+        for (const variant of running.variants) {
+          target -= variant.weight;
+          if (target <= 0) {
+            variantId = variant.id;
+            break;
+          }
+        }
+
+        if (variantId) {
+          const stageMap: Record<string, Record<string, unknown>> = {
+            conversation_started: { conversationStarted: true },
+            product_viewed: { cartViewed: true },
+            add_to_cart: { cartViewed: true, cartItemsAdded: { increment: 1 } },
+            checkout_intent: { checkoutStarted: true },
+            auth_phone_submitted: { checkoutStarted: true },
+            auth_phone_verified: { checkoutStarted: true },
+            auth_identity_confirmed: { checkoutStarted: true },
+            auth_registration_completed: { checkoutCompleted: true },
+            purchase_completed: { converted: true, checkoutCompleted: true },
+          };
+
+          const update = stageMap[body.event];
+          if (update) {
+            await (this.prisma as any).promptVariantResult.upsert({
+              where: { variantId_sessionId: { variantId, sessionId: conversationId } },
+              create: { variantId, sessionId: conversationId, converted: false, conversationStarted: true, ...update },
+              update,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      // Non-critical — never block storefront
+    }
+
     return { tracked: true, event: body.event, conversation_id: conversationId };
   }
 
@@ -167,7 +216,6 @@ export class StorefrontController {
 
   @Get("funnel/:merchantId/sessions")
   async getFunnelSessions(@Param("merchantId") merchantId: string) {
-    // Reuse checkout funnel sessions — same table, filtered by merchantId + last 30 min
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000);
     const sessions = await this.prisma.checkoutSession.findMany({
       where: { merchantId, updatedAt: { gte: thirtyMinAgo }, NOT: { sessionId: { startsWith: "chk_" } } },
