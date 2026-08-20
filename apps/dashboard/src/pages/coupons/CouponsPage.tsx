@@ -66,11 +66,11 @@ export function CouponsPage(_props: CouponsPageProps) {
             {/* Panel Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--border)", flex: "none" }}>
               <div>
-                <h2 style={{ font: "600 16px var(--sans)", color: "var(--ink)", margin: 0 }}>Criar cupom</h2>
-                <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "4px 0 0" }}>Configure desconto, limites e expiração</p>
+                <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>MARKETING</div>
+                <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0, letterSpacing: "-0.01em" }}>Criar cupom</h2>
               </div>
-              <button type="button" onClick={() => vm.setShowForm(false)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <X size={16} />
+              <button type="button" onClick={() => vm.setShowForm(false)} aria-label="Fechar" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", transition: "all 0.15s" }} onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card)"; e.currentTarget.style.color = "var(--ink)"; }} onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--muted)"; }}>
+                <X size={20} />
               </button>
             </div>
 
