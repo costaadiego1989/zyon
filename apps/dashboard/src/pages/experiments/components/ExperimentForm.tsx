@@ -84,27 +84,38 @@ export function ExperimentForm({
 
   function handleAiGenerate() {
     const template = detectTemplate(form.name, form.description ?? "");
+    const weight = Math.round(100 / form.variants.length);
+
     if (!template) {
-      // Generic fallback
+      // Generic fallback — fill ALL variants
       updateVariant(0, {
         name: "Controle (atual)",
         description: "Use o comportamento padrão do agente. Siga as regras de negociação configuradas sem alterações. Mantenha tom e abordagem atuais.",
         is_control: true,
-        weight: 50,
+        weight,
       });
-      if (form.variants.length >= 2) {
-        updateVariant(1, {
-          name: "Variante Experimental",
-          description: `Baseado no objetivo "${form.name}": seja mais proativo na abordagem, ofereça benefícios adicionais, e use linguagem persuasiva para aumentar conversão.`,
+      for (let i = 1; i < form.variants.length; i++) {
+        updateVariant(i, {
+          name: i === 1 ? "Abordagem Direta" : `Variante ${String.fromCharCode(65 + i)}`,
+          description: i === 1
+            ? `Baseado no objetivo "${form.name}": seja mais proativo, ofereça benefícios adicionais, use linguagem persuasiva para aumentar conversão.`
+            : `Variação ${i + 1}: teste uma abordagem diferente das anteriores. Foque em ${i === 2 ? "urgência e escassez" : "empatia e personalização"}.`,
           is_control: false,
-          weight: 50,
+          weight,
         });
       }
     } else {
       const t = AI_TEMPLATES[template];
-      updateVariant(0, { ...t.control, is_control: true, weight: 50 });
-      if (form.variants.length >= 2) {
-        updateVariant(1, { ...t.challenger, is_control: false, weight: 50 });
+      updateVariant(0, { ...t.control, is_control: true, weight });
+      for (let i = 1; i < form.variants.length; i++) {
+        updateVariant(i, {
+          ...(i === 1 ? t.challenger : {
+            name: `Variante ${String.fromCharCode(65 + i)}`,
+            description: `Abordagem alternativa para "${form.name}": combine elementos de ambas estratégias anteriores com foco em ${i === 2 ? "personalização" : "velocidade de fechamento"}.`,
+          }),
+          is_control: false,
+          weight,
+        });
       }
     }
     setGenerating(true);

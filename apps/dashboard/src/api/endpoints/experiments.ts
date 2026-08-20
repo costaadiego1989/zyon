@@ -20,14 +20,35 @@ export function experimentsEndpoints(base: string, f: typeof fetch) {
     },
 
     async createExperiment(payload: ExperimentForm): Promise<Experiment> {
-      return dashboardJson<Experiment>(base, PREFIX, { method: "POST", jsonBody: payload }, f);
+      const apiPayload = {
+        name: payload.name,
+        description: payload.description,
+        variants: payload.variants.map((v, idx) => ({
+          name: v.name,
+          system_prompt: v.description || `Variante ${v.name}`,
+          weight: v.weight ?? Math.round(100 / payload.variants.length),
+          is_control: v.is_control ?? idx === 0,
+        })),
+      };
+      return dashboardJson<Experiment>(base, PREFIX, { method: "POST", jsonBody: apiPayload }, f);
     },
 
     async updateExperiment(experimentId: string, payload: Partial<ExperimentForm>): Promise<Experiment> {
+      const apiPayload: Record<string, unknown> = {};
+      if (payload.name) apiPayload.name = payload.name;
+      if (payload.description !== undefined) apiPayload.description = payload.description;
+      if (payload.variants) {
+        apiPayload.variants = payload.variants.map((v, idx) => ({
+          name: v.name,
+          system_prompt: v.description || `Variante ${v.name}`,
+          weight: v.weight ?? Math.round(100 / payload.variants!.length),
+          is_control: v.is_control ?? idx === 0,
+        }));
+      }
       return dashboardJson<Experiment>(
         base,
         `${PREFIX}/${encodeURIComponent(experimentId)}`,
-        { method: "PUT", jsonBody: payload },
+        { method: "PUT", jsonBody: apiPayload },
         f
       );
     },
