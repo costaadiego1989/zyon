@@ -8,6 +8,8 @@ import { EXPERIMENT_REPOSITORY_PORT } from "./domain/ports/experiment-repository
 import { PrismaExperimentRepository } from "./infrastructure/repositories/prisma-experiment.repository.js";
 import { ExperimentRouterService } from "./domain/services/experiment-router.service.js";
 import { SignificanceCalculator } from "./domain/services/significance-calculator.service.js";
+import { ExperimentsController } from "./presentation/http/experiments.controller.js";
+import { ExperimentsDashboardController } from "./presentation/http/experiments-dashboard.controller.js";
 import { CreateExperimentUseCase } from "./application/use-cases/create-experiment.use-case.js";
 import { GetExperimentUseCase } from "./application/use-cases/get-experiment.use-case.js";
 import { ListExperimentsUseCase } from "./application/use-cases/list-experiments.use-case.js";
@@ -25,6 +27,7 @@ import { AutoPromoteScheduler, AutoPromoteWorker } from "./infrastructure/jobs/a
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, IntegrationsModule],
+  controllers: [ExperimentsController, ExperimentsDashboardController],
   providers: [
     SignificanceCalculator,
     ExperimentRouterService,
