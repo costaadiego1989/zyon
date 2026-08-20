@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
@@ -226,6 +227,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
       )}
 
       {tab === "orders" && (
+        <SectionErrorBoundary sectionName="Pedidos Marketplace">
         <div className="marketplace-page__orders">
           {stats && (
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
@@ -296,9 +298,11 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             </div>
           )}
         </div>
+        </SectionErrorBoundary>
       )}
 
       {tab === "settlements" && (
+        <SectionErrorBoundary sectionName="Repasses">
         <div className="marketplace-page__settlements">
           {settlements.length === 0 ? (
             <div className="panel">
@@ -352,6 +356,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             </div>
           )}
         </div>
+        </SectionErrorBoundary>
       )}
 
       {tab === "chargebacks" && (

@@ -4,55 +4,29 @@ import type {
   OnboardingStateResponse,
   OnboardingStepId,
 } from "../../api-client.js";
-import { useApi, type DashboardApi } from "../../hooks/useApi.js";
-import type { MerchantTheme } from "@zyon/shared-types";
+import { useApi } from "../../hooks/useApi.js";
+import { reportError } from "../../lib/observability/error-reporter.js";
 import {
   validateThemeDraft,
   friendlyError,
 } from "./validation/schemas.js";
-import type { LucideIcon } from "lucide-react";
+import type {
+  ThemeDraft,
+  AddressDraft,
+  PaymentDraft,
+  IntegrationDraft,
+  StepMeta,
+} from "./types.js";
 import { Palette, MapPin, Truck, CreditCard, Key, Plug } from "lucide-react";
+import { useStepIdentity } from "./hooks/useStepIdentity.js";
+import { useStepAddress } from "./hooks/useStepAddress.js";
+import { useStepPayment } from "./hooks/useStepPayment.js";
+import { useStepApiKey } from "./hooks/useStepApiKey.js";
+import { useStepReview } from "./hooks/useStepReview.js";
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
-export type ThemeDraft = Pick<MerchantTheme, "accentColor" | "logoUrl" | "headerTitle" | "agentName"> & {
-  secondaryColor: string;
-  headingFont: string;
-  bodyFont: string;
-  originZip: string;
-  storeCategory: string;
-};
-
-export type AddressDraft = {
-  zip: string;
-  street: string;
-  number: string;
-  complement: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-};
-
-export type PaymentDraft = {
-  stripeStatus: "idle" | "pending" | "active";
-  asaasApiKey: string;
-  asaasStatus: "idle" | "testing" | "pending" | "active" | "error";
-  cryptoEnabled: boolean;
-  walletAddress: string;
-};
-
-export type PlatformChoice = "native" | "woocommerce" | "magento" | "vtex";
-
-export type IntegrationDraft = {
-  platform: PlatformChoice;
-};
-
-export type StepMeta = {
-  id: number;
-  label: string;
-  caption: string;
-  icon: LucideIcon;
-};
+// Re-exports for backward compatibility with step components
+export type { ThemeDraft, AddressDraft, PaymentDraft, IntegrationDraft, PlatformChoice } from "./types.js";
+export { isValidEvmAddress } from "./types.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -120,8 +94,6 @@ export const STORE_CATEGORIES: { value: string; label: string; emoji: string }[]
   { value: "others", label: "Outros", emoji: "📋" },
 ];
 
-const EMBED_SCOPES = ["checkout:start", "checkout:track", "checkout:chat", "offers:apply", "coupons:apply", "payment:intents:create"];
-
 // ── Defaults ─────────────────────────────────────────────────────────────────
 
 const DEFAULT_THEME_DRAFT: ThemeDraft = {
@@ -151,12 +123,6 @@ const DEFAULT_PAYMENT_DRAFT: PaymentDraft = {
 const DEFAULT_INTEGRATION_DRAFT: IntegrationDraft = {
   platform: "native",
 };
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-export function isValidEvmAddress(addr: string): boolean {
-  return /^0x[a-fA-F0-9]{40}$/.test(addr);
-}
 
 // ── ViewModel Interface ──────────────────────────────────────────────────────
 
@@ -203,13 +169,15 @@ export interface OnboardingWizardVM {
   onFinished: () => void;
 }
 
-// ── Hook ─────────────────────────────────────────────────────────────────────
+// ── Hook Props ───────────────────────────────────────────────────────────────
 
 export interface OnboardingWizardProps {
   apiBaseUrl: string;
   me: MerchantProfile;
   onFinished: () => void;
 }
+
+// ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWizardVM {
   const api = useApi();
@@ -220,11 +188,15 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch { /* corrupted */ }
+    } catch (err) {
+      reportError({ source: "onboarding.loadDrafts", error: err, severity: "warning", context: { storageKey: STORAGE_KEY } });
+    }
     return null;
   }
 
   const saved = loadDrafts();
+
+  // ── State ────────────────────────────────────────────────────────────────
 
   const [currentStep, setCurrentStep] = useState(saved?.step ?? 1);
   const [busy, setBusy] = useState(false);
@@ -274,8 +246,8 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
         if (asaas) {
           setPaymentDraft((d) => ({ ...d, asaasStatus: asaas.status === "active" ? "active" : "idle" }));
         }
-      } catch {
-        // No connections yet
+      } catch (err) {
+        reportError({ source: "onboarding.loadPaymentConnections", error: err, severity: "warning" });
       }
     })();
     return () => { active = false; };
@@ -303,245 +275,70 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
           originZip: "",
           storeCategory: "",
         });
-      } catch {
-        // drafts stay at defaults
+      } catch (err) {
+        reportError({ source: "onboarding.bootstrapDrafts", error: err, severity: "warning" });
       }
     })();
     return () => { active = false; };
   }, [api]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────
+  // ── Step handlers ────────────────────────────────────────────────────────
 
   async function markOnboardingStep(step: OnboardingStepId) {
     try {
       const next = await api.completeOnboardingStep(step);
       setOnboardingState(next);
-    } catch {
-      // non-blocking
+    } catch (err) {
+      reportError({ source: "onboarding.markStep", error: err, severity: "warning", context: { step } });
     }
   }
 
-  async function saveStep1() {
-    const errors = validateThemeDraft(themeDraft);
-    if (errors.length > 0) {
-      setFieldErrors(Object.fromEntries(
-        errors
-          .filter((e): e is { valid: false; field: string; message: string } => !e.valid)
-          .map((e) => [e.field, e.message]),
-      ));
-      return;
-    }
-    setFieldErrors({});
-    setBusy(true);
-    setMessage(null);
-    try {
-      let current: Record<string, unknown> = {};
-      try { current = (await api.getMerchantTheme()) as unknown as Record<string, unknown>; } catch {}
-      const { originZip, storeCategory, secondaryColor, headingFont, bodyFont, ...themeFields } = themeDraft;
+  const { saveStep1 } = useStepIdentity({
+    themeDraft,
+    setFieldErrors,
+    setMessage,
+    setBusy,
+    markOnboardingStep,
+    setCurrentStep,
+  });
 
-      let finalLogoUrl = themeFields.logoUrl;
-      if (finalLogoUrl && finalLogoUrl.startsWith("data:")) {
-        try {
-          const { logoUrl } = await api.uploadLogo(finalLogoUrl);
-          finalLogoUrl = logoUrl;
-        } catch {
-          // S3 upload failed — fall back to base64 inline
-        }
-      }
+  const { saveStep2 } = useStepAddress({
+    addressDraft,
+    setFieldErrors,
+    setMessage,
+    setBusy,
+    markOnboardingStep,
+    setCurrentStep,
+  });
 
-      const payload = { ...current, ...themeFields, logoUrl: finalLogoUrl, secondaryColor, fontDisplay: headingFont, fontFamily: bodyFont } as Parameters<typeof api.putMerchantTheme>[0];
-      await api.putMerchantTheme(payload);
-      if (originZip) {
-        try { await api.putMerchantRules({ originZip }); } catch {}
-      }
-      if (storeCategory) {
-        try { await api.putStoreCategory(storeCategory); } catch {}
-      }
-      await markOnboardingStep("account");
-      setCurrentStep(2);
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { saveStep3, initiateStripeOnboarding, initiateAsaasOnboarding } = useStepPayment({
+    paymentDraft,
+    setPaymentDraft,
+    addressDraft,
+    setFieldErrors,
+    setMessage,
+    setBusy,
+    markOnboardingStep,
+    setCurrentStep,
+    setOnboardingState,
+    me: props.me,
+    storageKey: STORAGE_KEY,
+  });
 
-  async function saveStep2() {
-    if (!addressDraft.zip || addressDraft.zip.replace(/\D/g, "").length < 8) {
-      setFieldErrors({ zip: "CEP obrigatório (8 dígitos)" });
-      return;
-    }
-    setFieldErrors({});
-    setBusy(true);
-    setMessage(null);
-    try {
-      await api.putStoreSettings({
-        company: {
-          address: {
-            street: addressDraft.street,
-            number: addressDraft.number,
-            complement: addressDraft.complement,
-            neighborhood: addressDraft.neighborhood,
-            city: addressDraft.city,
-            state: addressDraft.state,
-            zip: addressDraft.zip,
-          },
-        },
-      });
-      try { await api.putMerchantRules({ originZip: addressDraft.zip.replace(/\D/g, "") }); } catch {}
-      await markOnboardingStep("checkout_config");
-      setCurrentStep(3);
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const { generateApiKey } = useStepApiKey({
+    setGeneratedApiKey,
+    setMessage,
+    setBusy,
+    markOnboardingStep,
+  });
 
-  async function saveStep3() {
-    const trimmedWallet = paymentDraft.walletAddress.trim();
-    if (trimmedWallet !== paymentDraft.walletAddress) {
-      setPaymentDraft((d) => ({ ...d, walletAddress: trimmedWallet }));
-    }
-
-    if (paymentDraft.cryptoEnabled && !isValidEvmAddress(trimmedWallet)) {
-      setFieldErrors({ walletAddress: "Endereço EVM inválido (0x + 40 caracteres hex)" });
-      return;
-    }
-    setFieldErrors({});
-    setBusy(true);
-    setMessage(null);
-    try {
-      const hasCrypto = paymentDraft.cryptoEnabled && isValidEvmAddress(trimmedWallet);
-      if (hasCrypto) {
-        await api.putMerchantRules({
-          cryptoPayments: {
-            enabled: true,
-            chain: "polygon",
-            network: "mainnet",
-            treasuryAddress: trimmedWallet,
-            token: "USDC",
-            quoteTtlSeconds: 300,
-          },
-        });
-      }
-      await markOnboardingStep("checkout_config");
-
-      // STORE_ONLY plan finishes onboarding here — no embed/integration needed
-      const plan = (props.me as any).plan;
-      if (plan === "STORE_ONLY") {
-        await markOnboardingStep("embed");
-        await markOnboardingStep("publish");
-        localStorage.removeItem(STORAGE_KEY);
-        setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
-      } else {
-        setCurrentStep(4);
-      }
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function initiateStripeOnboarding() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const baseUrl = window.location.origin;
-      const { url } = await api.createStripeOnboardingLink({
-        return_url: baseUrl,
-        refresh_url: baseUrl,
-      });
-      setPaymentDraft((d) => ({ ...d, stripeStatus: "pending" }));
-      window.location.href = url;
-    } catch (e) {
-      setPaymentDraft((d) => ({ ...d, stripeStatus: "idle" }));
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function initiateAsaasOnboarding() {
-    setBusy(true);
-    setMessage(null);
-    setPaymentDraft((d) => ({ ...d, asaasStatus: "testing" }));
-    try {
-      const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
-      setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
-      window.location.href = url;
-    } catch {
-      try {
-        await api.createAsaasSubaccount({
-          name: props.me.name,
-          email: `store-${props.me.id.slice(-8)}@zyon.ai`,
-          cpf_cnpj: (props.me as any).cnpj ?? "05178178700",
-          birth_date: "1989-01-01",
-          mobile_phone: (props.me as any).phone ?? "19998887766",
-          income_value: 10000,
-          postal_code: addressDraft.zip?.replace(/\D/g, "") ?? "01311100",
-          address: addressDraft.street || "Não informado",
-          address_number: addressDraft.number || "0",
-          province: addressDraft.neighborhood || "Centro",
-          complement: addressDraft.complement ?? "",
-        });
-        setMessage("Subconta Asaas criada! Redirecionando...");
-        await new Promise((r) => setTimeout(r, 16000));
-        const { url } = await api.createAsaasOnboardingLink({ return_url: window.location.origin });
-        setPaymentDraft((d) => ({ ...d, asaasStatus: "pending" }));
-        window.location.href = url;
-      } catch {
-        // Subaccount may already exist (409) — ensure connection is persisted
-        try {
-          await api.syncAsaasConnection();
-        } catch {
-          // sync may fail if no connection exists yet — that's OK, the env key handles it
-        }
-        setPaymentDraft((d) => ({ ...d, asaasStatus: "active" }));
-        setMessage("Asaas já configurado para esta conta.");
-      }
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function generateApiKey() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const result = await api.createIntegrationApiKey({
-        name: "Onboarding key",
-        scopes: ["checkout:read", "checkout:write", "configuration:read", "embed:sessions:create", "orders:read", "catalog:read", "commerce:read"],
-      });
-      setGeneratedApiKey({ id: result.api_key.id, secretKey: result.secret_key, name: result.api_key.name });
-      await markOnboardingStep("embed");
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function saveStep4AndFinish() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      await markOnboardingStep("checkout_config");
-      await markOnboardingStep("embed");
-      await markOnboardingStep("publish");
-      localStorage.removeItem(STORAGE_KEY);
-      setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
-    } catch (e) {
-      setMessage(friendlyError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function finish() {
-    await saveStep4AndFinish();
-  }
+  const { finish } = useStepReview({
+    setMessage,
+    setBusy,
+    markOnboardingStep,
+    setOnboardingState,
+    storageKey: STORAGE_KEY,
+  });
 
   function goBack() {
     setMessage(null);

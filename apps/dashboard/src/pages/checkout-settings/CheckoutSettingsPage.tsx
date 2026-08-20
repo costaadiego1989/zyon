@@ -29,6 +29,7 @@ import { ActivationFlow } from "./components/ActivationFlow.js";
 import { TriggerCard } from "./components/TriggerCard.js";
 import { RulesList } from "./components/RulesList.js";
 import { RuleEditor } from "./components/RuleEditor.js";
+import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
 import { ALL_TRIGGERS, MODE_OPTIONS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
 import type { Draft } from "./lib/draft.js";
@@ -504,6 +505,7 @@ export function CheckoutSettingsPage(props: {
             </>}
 
             {vm.activeTab === "rules" && <>
+            <SectionErrorBoundary sectionName="Regras avançadas">
             <SectionRail
               icon={<Activity size={16} strokeWidth={1.75} />}
               index="06"
@@ -528,9 +530,11 @@ export function CheckoutSettingsPage(props: {
                 onReorder={(rules) => vm.reorderRules(rules)}
               />
             </SectionRail>
+            </SectionErrorBoundary>
             </>}
 
             {vm.editorOpen && (
+              <SectionErrorBoundary sectionName="Editor de Regras">
               <RuleEditor
                 rule={vm.editingRule}
                 onSave={(rule) => {
@@ -543,6 +547,7 @@ export function CheckoutSettingsPage(props: {
                 onCancel={() => vm.closeRuleEditor()}
                 busy={vm.busy}
               />
+              </SectionErrorBoundary>
             )}
 
             {/* Footer actions */}

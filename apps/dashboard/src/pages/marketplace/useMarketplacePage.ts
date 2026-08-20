@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { showToast } from "../../components/Toast.js";
 import { useApi } from "../../hooks/useApi.js";
+import { reportError } from "../../lib/observability/error-reporter.js";
 import type { MerchantProfile } from "../../api-client.js";
 import type { MarketplaceConfig, MarketplaceOrder, MarketplaceStats } from "./types.js";
 import type { MarketplaceSettlement, MarketplaceSellerDebt } from "../../api/endpoints/marketplace-v2.js";
@@ -14,12 +15,16 @@ export interface ChargebackEntry {
 }
 
 const DEFAULT_CONFIG: MarketplaceConfig = {
+  id: "",
+  merchant_id: "",
   enabled: false,
   commission_percent: 15,
   return_window_days: 7,
   settlement_window_days: 14,
   chargeback_window_days: 30,
   blocked_merchant_ids: [],
+  created_at: "",
+  updated_at: "",
 };
 
 const DEFAULT_STATS: MarketplaceStats = {
@@ -47,8 +52,9 @@ export function useMarketplacePage(me: MerchantProfile | null) {
     try {
       const cfg = await api.getMarketplaceConfig();
       if (cfg) setConfig(cfg);
-    } catch {
+    } catch (err) {
       // Use default config — endpoint may not be reachable yet
+      reportError({ source: "marketplace.loadConfig", error: err, severity: "warning" });
     }
   }, [api]);
 
@@ -61,8 +67,9 @@ export function useMarketplacePage(me: MerchantProfile | null) {
       if (Array.isArray(orderList)) setOrders(orderList);
       else if (orderList && Array.isArray((orderList as any).orders)) setOrders((orderList as any).orders);
       if (orderStats) setStats(orderStats);
-    } catch {
+    } catch (err) {
       // Use defaults
+      reportError({ source: "marketplace.loadOrders", error: err, severity: "warning" });
     }
   }, [api]);
 
@@ -72,8 +79,9 @@ export function useMarketplacePage(me: MerchantProfile | null) {
       if (res && Array.isArray(res.settlements)) {
         setSettlements(res.settlements);
       }
-    } catch {
+    } catch (err) {
       // Settlements endpoint may not exist yet
+      reportError({ source: "marketplace.loadSettlements", error: err, severity: "warning" });
     }
   }, [api]);
 
@@ -88,8 +96,9 @@ export function useMarketplacePage(me: MerchantProfile | null) {
           totalWithDebt: res.totalWithDebt ?? 0,
         });
       }
-    } catch {
+    } catch (err) {
       // Chargebacks endpoint may not exist yet
+      reportError({ source: "marketplace.loadChargebacks", error: err, severity: "warning" });
     }
   }, [api]);
 

@@ -5,6 +5,7 @@ import { Button } from "../../components/Button.js";
 import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useApi } from "../../hooks/useApi.js";
+import { reportError } from "../../hooks/useErrorReporter.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm, type StylesForm } from "./useStoreSettingsPage.js";
 import { useSeoSettingsTab } from "./useSeoSettingsTab.js";
 import { SeoGtmTab } from "./components/SeoGtmTab.js";
@@ -301,7 +302,8 @@ function StylesTab({ styles, onChange }: {
           const { logoUrl: url } = await api.uploadLogo(base64);
           onChange({ ...styles, logoUrl: url });
           setLogoPreview(url);
-        } catch {
+        } catch (e) {
+          reportError({ source: "store-settings.handleImageUpload.logo", error: e, context: { type } });
           onChange({ ...styles, logoUrl: base64 });
         }
       } else {

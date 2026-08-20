@@ -8,6 +8,7 @@ import { SectionHeader } from "../components/SectionHeader.js";
 import { showToast } from "../components/Toast.js";
 import { Button } from "../components/Button.js";
 import { FormField, FormSelect } from "../components/FormField.js";
+import { reportError } from "../lib/observability/error-reporter.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -152,6 +153,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         setInitialTheme(next);
         setInitialBadges(badges);
       } catch (e) {
+        reportError({ source: "theme-page-load", error: e });
         const text = e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e);
         showToast("error", text);
       } finally {
@@ -194,7 +196,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
         try {
           const { logoUrl } = await api.uploadLogo(payload.logoUrl);
           payload.logoUrl = logoUrl;
-        } catch {
+        } catch (e) {
+          reportError({ source: "theme-page-logo-upload", error: e });
           // S3 failed — save inline as fallback
         }
       }
@@ -206,6 +209,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       setInitialBadges(badges);
       showToast("success", LABELS.saveSuccess);
     } catch (e) {
+      reportError({ source: "theme-page-save", error: e });
       const text = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : String(e);
       showToast("error", text);
     } finally {

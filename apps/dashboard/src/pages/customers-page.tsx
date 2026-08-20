@@ -1,17 +1,14 @@
-import React, { useEffect, useState, useMemo } from "react";
-import { UsersRound, UserPlus, Repeat, Download, ArrowUpDown, X } from "lucide-react";
+import React, { useMemo } from "react";
+import { UsersRound, UserPlus, Repeat, Download, X } from "lucide-react";
 import { EmptyState } from "../components/EmptyState.js";
 import { StatCard } from "./overview/components/StatCard.js";
-import {
-  type CursorPage,
-  type MerchantProfile,
-  type TenantCustomer,
-} from "../api-client.js";
+import { type MerchantProfile } from "../api-client.js";
+import { type TenantCustomer } from "../api/types.js";
 import { Pagination } from "../components/Pagination.js";
 import { FilterToolbar } from "../components/FilterToolbar.js";
-import { useApi } from "../hooks/useApi.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
-import { DashboardHttpError } from "../api/http/index.js";
+import { useCustomersPage } from "./useCustomersPage.js";
+import { SectionErrorBoundary } from "../components/PageErrorBoundary.js";
 
 export type CustomerRow = {
   globalUserId: string;
@@ -91,112 +88,13 @@ export function filterRows(rows: CustomerRow[], term: string): CustomerRow[] {
   });
 }
 
-const PAGE_SIZE = 30;
-
 export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const api = useApi();
-  const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [sortCol, setSortCol] = useState<"name" | "email" | "lastSeen">("lastSeen");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [dateFilter, setDateFilter] = useState<"all" | "7d" | "30d">("all");
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 10;
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-  const [customerDetail, setCustomerDetail] = useState<unknown | null>(null);
-  const [loadingDetail, setLoadingDetail] = useState(false);
-
-  useEffect(() => {
-    if (!props.me) {
-      setRows([]);
-      return;
-    }
-    void load();
-  }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
-    if (!props.me) return;
-    setBusy(true);
-    setLoading(true);
-    setMessage(null);
-    setRows([]);
-    setNextCursor(null);
-    setHasMore(false);
-    try {
-      const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE);
-      setRows(toCustomerRows(page.data));
-      setNextCursor(page.next_cursor);
-      setHasMore(page.has_more);
-    } catch (e) {
-      setMessage(
-        e instanceof DashboardHttpError
-          ? e.responseBody.slice(0, 160)
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
-    } finally {
-      setBusy(false);
-      setLoading(false);
-    }
-  }
-
-  async function loadMore() {
-    if (!nextCursor || loadingMore) return;
-    setLoadingMore(true);
-    setBusy(true);
-    try {
-      const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE, nextCursor);
-      setRows((prev) => [...prev, ...toCustomerRows(page.data)]);
-      setNextCursor(page.next_cursor);
-      setHasMore(page.has_more);
-    } catch (e) {
-      setMessage(
-        e instanceof DashboardHttpError
-          ? e.responseBody.slice(0, 160)
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
-    } finally {
-      setLoadingMore(false);
-      setBusy(false);
-    }
-  }
-
-  async function loadCustomerDetail(customerId: string) {
-    setLoadingDetail(true);
-    try {
-      const detail = await api.getCustomerDetail(customerId);
-      setCustomerDetail(detail);
-    } catch (e) {
-      setMessage(
-        e instanceof DashboardHttpError
-          ? e.responseBody.slice(0, 160)
-          : e instanceof Error
-            ? e.message
-            : String(e),
-      );
-    } finally {
-      setLoadingDetail(false);
-    }
-  }
-
-  function openCustomerDetail(customerId: string) {
-    setSelectedCustomerId(customerId);
-    void loadCustomerDetail(customerId);
-  }
-
-  function closeCustomerDetail() {
-    setSelectedCustomerId(null);
-    setCustomerDetail(null);
-  }
+  const vm = useCustomersPage(props);
+  const {
+    rows, loading, message, searchTerm, sortCol, sortDir, dateFilter, page, pageSize: PAGE_SIZE,
+    selectedCustomerId, customerDetail, loadingDetail,
+    setSearchTerm, setDateFilter, setPage, openCustomerDetail, closeCustomerDetail,
+  } = vm;
 
   const filteredRows = useMemo(() => {
     let filtered = filterRows(rows, searchTerm);
@@ -216,18 +114,9 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   const paginatedRows = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
     return filteredRows.slice(start, start + PAGE_SIZE);
-  }, [filteredRows, page]);
+  }, [filteredRows, page, PAGE_SIZE]);
 
   const metrics = useMemo(() => computeMetrics(rows), [rows]);
-
-  function toggleSort(col: typeof sortCol) {
-    if (sortCol === col) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortCol(col);
-      setSortDir("asc");
-    }
-  }
 
   function exportCsv() {
     const header = "Nome,Email,Telefone,Primeira visita,Última atividade";
@@ -291,6 +180,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
       </div>
 
       {/* Customers table card */}
+      <SectionErrorBoundary sectionName="Tabela de Clientes">
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         <FilterToolbar
           tabs={[
@@ -340,6 +230,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           <Pagination page={page} pageSize={PAGE_SIZE} total={filteredRows.length} onChange={setPage} disabled={loading} />
         ) : null}
       </div>
+      </SectionErrorBoundary>
 
       {selectedCustomerId ? (
         <CustomerDetailModal

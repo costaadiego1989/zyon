@@ -13,6 +13,7 @@ import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import type { TabKey } from "./shell/nav-config.js";
 import { ApiContext, useApiInstance } from "./hooks/useApi.js";
+import { reportError } from "./lib/observability/error-reporter.js";
 import "./styles.css";
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
@@ -53,8 +54,9 @@ function App({ api }: AppProps) {
         const onboarding = await api.getOnboardingState();
         setOnboardingCompleted(onboarding.completed);
         if (!onboarding.completed && checkingSession) setInitialTab("onboarding");
-      } catch {
+      } catch (err) {
         // Onboarding state is best-effort; never block console access.
+        reportError({ source: "main.refreshSession.onboarding", error: err, severity: "warning" });
       }
     } catch (err) {
       if (err instanceof DashboardHttpError && err.status === 401) {
@@ -136,8 +138,9 @@ function App({ api }: AppProps) {
     setBusy(true);
     try {
       await api.logout();
-    } catch {
+    } catch (err) {
       // local state still clears the console when the API is unreachable.
+      reportError({ source: "main.logout", error: err, severity: "warning" });
     } finally {
       setMe(null);
       setPassword("");
@@ -178,7 +181,6 @@ function App({ api }: AppProps) {
         onSaveTheme={handleSaveTheme}
         onSaveCompanyData={handleSaveCompanyData}
         onComplete={handleSignupComplete}
-        apiBaseUrl={API_BASE_URL}
       />
     );
   }

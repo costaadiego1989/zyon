@@ -8,6 +8,7 @@ import { CheckoutMetrics } from "./sections/CheckoutMetrics.js";
 import { StoreMetrics } from "./sections/StoreMetrics.js";
 import { StatCard } from "./components/StatCard.js";
 import { RevenueChart } from "./components/RevenueChart.js";
+import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 
 export type OverviewPageProps = {
   apiBaseUrl: string;
@@ -325,9 +326,12 @@ export function OverviewPage(props: OverviewPageProps) {
       {/* Tab content */}
       {activeTab === "resumo" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <SectionErrorBoundary sectionName="Métricas Principais">
           <HeroMetrics vm={vm} />
+          </SectionErrorBoundary>
 
           {/* Bento grid: charts left (2/3), activity right (1/3) */}
+          <SectionErrorBoundary sectionName="Gráficos e Atividade">
           <div
             style={{
               display: "grid",
@@ -362,23 +366,28 @@ export function OverviewPage(props: OverviewPageProps) {
 
             <ActivityFeed items={activityItems} />
           </div>
+          </SectionErrorBoundary>
         </div>
       )}
 
       {activeTab === "checkout" && vm.showCheckout && vm.checkoutOverview && (
+        <SectionErrorBoundary sectionName="Métricas Checkout">
         <CheckoutMetrics
           overview={vm.checkoutOverview}
           previousOverview={vm.previousCheckoutOverview}
           timeseries={vm.timeseries}
         />
+        </SectionErrorBoundary>
       )}
 
       {activeTab === "loja" && vm.showStore && vm.storeOverview && (
+        <SectionErrorBoundary sectionName="Métricas Loja">
         <StoreMetrics
           overview={vm.storeOverview}
           previousOverview={vm.previousStoreOverview}
           timeseries={vm.timeseries}
         />
+        </SectionErrorBoundary>
       )}
     </div>
   );

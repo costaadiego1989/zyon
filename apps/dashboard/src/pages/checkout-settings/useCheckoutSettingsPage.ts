@@ -5,6 +5,7 @@ import {
   type MerchantProfile as MerchantMeProfile,
 } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
+import { useErrorReporter } from "../../hooks/useErrorReporter.js";
 import type { Draft, AdvancedRule } from "./lib/draft.js";
 import { settingsToDraft, draftToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
 import { validate, type ValidationErrors } from "./lib/validation.js";
@@ -44,6 +45,7 @@ export function useCheckoutSettingsPage(props: {
   me: MerchantMeProfile | null;
 }): CheckoutSettingsViewModel {
   const api = useApi();
+  const { reportError } = useErrorReporter();
 
   const [settings, setSettings] = useState<CheckoutSettings | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -78,6 +80,7 @@ export function useCheckoutSettingsPage(props: {
     } catch (e) {
       setSettings(null);
       setMessage({ text: `Erro ao carregar: ${errText(e)}`, kind: "error" });
+      reportError({ source: "checkout-settings.load", error: e, severity: "warning" });
     } finally {
       setBusy(false);
     }
@@ -100,6 +103,7 @@ export function useCheckoutSettingsPage(props: {
       setMessage({ text: "Salvo.", kind: "info" });
     } catch (e) {
       setMessage({ text: `Erro ao salvar: ${errText(e)}`, kind: "error" });
+      reportError({ source: "checkout-settings.save", error: e, severity: "warning" });
     } finally {
       setBusy(false);
     }

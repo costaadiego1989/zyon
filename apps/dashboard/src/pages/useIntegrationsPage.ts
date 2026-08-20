@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
+import { copyText } from "../utils/clipboard.js";
+import { reportError } from "../lib/observability/error-reporter.js";
 import type {
   Installation,
   MerchantApiKey,
@@ -107,15 +109,6 @@ function embedSessionQuickstart(root: string): string {
   ].join("\n");
 }
 
-async function copyText(text: string, successMsg: string, setMsg: (m: string) => void): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(text);
-    setMsg(successMsg);
-  } catch {
-    setMsg("Falha ao copiar. Copie manualmente.");
-  }
-}
-
 export function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
   const minutes = Math.floor(diff / 60_000);
@@ -168,7 +161,10 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
         api.getIntegrationApiKeys(),
         api.getWebhookEndpoints(),
         api.getWebhookDeliveries(20),
-        api.getInstallations().catch(() => [] as Installation[]),
+        api.getInstallations().catch((e) => {
+          reportError({ source: "integrations-page-load-installations", error: e });
+          return [] as Installation[];
+        }),
       ]);
       setApiKeys(keys);
       setWebhooks(endpoints);
@@ -176,6 +172,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setInstallations(installs);
       setApiReachable(true);
     } catch (e) {
+      reportError({ source: "integrations-page-load", error: e });
       setApiReachable(false);
       setMessage(readError(e));
     } finally {
@@ -192,6 +189,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setApiKeys((prev) => [created.api_key, ...prev]);
       setMessage("Chave criada.");
     } catch (e) {
+      reportError({ source: "integrations-page-create-key", error: e });
       setMessage(readError(e));
     } finally {
       setBusy(false);
@@ -206,6 +204,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setApiKeys((prev) => prev.map((key) => (key.id === apiKeyId ? revoked : key)));
       setMessage("Chave revogada.");
     } catch (e) {
+      reportError({ source: "integrations-page-revoke-key", error: e });
       setMessage(readError(e));
     } finally {
       setBusy(false);
@@ -221,6 +220,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setWebhooks((prev) => [created, ...prev]);
       setMessage(created.signingSecret ? `Webhook criado. Segredo: ${created.signingSecret}` : "Webhook criado.");
     } catch (e) {
+      reportError({ source: "integrations-page-create-webhook", error: e });
       setMessage(readError(e));
     } finally {
       setBusy(false);
@@ -235,6 +235,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setDeliveries((prev) => [delivery, ...prev]);
       setMessage("Teste enfileirado.");
     } catch (e) {
+      reportError({ source: "integrations-page-test-webhook", error: e });
       setMessage(readError(e));
     } finally {
       setBusy(false);
@@ -251,6 +252,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setDeliveries((prev) => prev.map((item) => (item.id === deliveryId ? delivery : item)));
       setMessage("Replay enfileirado.");
     } catch (e) {
+      reportError({ source: "integrations-page-replay", error: e });
       setMessage(readError(e));
     } finally {
       setBusy(false);
@@ -265,6 +267,7 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
       setInstallationHealth((prev) => ({ ...prev, [installationId]: result.status }));
       setMessage(`Health: ${result.status}`);
     } catch (e) {
+      reportError({ source: "integrations-page-check-health", error: e });
       setMessage(readError(e));
     } finally {
       setBusy(false);
@@ -281,7 +284,8 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
 
   const handleCopySecret = useCallback(async () => {
     if (!newSecret) return;
-    await copyText(newSecret, "Chave copiada! Guarde em local seguro.", setMessage);
+    const ok = await copyText(newSecret);
+    setMessage(ok ? "Chave copiada! Guarde em local seguro." : "Falha ao copiar. Copie manualmente.");
   }, [newSecret]);
 
   const activeKeysCount = apiKeys.filter((k) => !k.revokedAt).length;

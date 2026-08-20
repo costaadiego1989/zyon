@@ -6,6 +6,7 @@ import { GatewayCard } from "./components/GatewayCard.js";
 import { WalletSection } from "./components/WalletSection.js";
 import { usePaymentConnectionsPage, formatDate, type Operation, type CryptoWalletState, type AsaasState } from "./usePaymentConnectionsPage.js";
 import type { MerchantProfile } from "../../api-client.js";
+import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import "./payment-connections-page.css";
 
 interface PaymentConnectionsPageProps {
@@ -122,6 +123,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
 
       {/* Gateway Cards Grid */}
       {!isLoading ? (
+        <SectionErrorBoundary sectionName="Gateways de Pagamento">
         <div className="payment-connections-page__grid">
           <GatewayCard
             provider="stripe"
@@ -163,6 +165,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onSync={() => void syncMercadoPago()}
           />
         </div>
+        </SectionErrorBoundary>
       ) : null}
 
       {/* Asaas Config Card — only show when NOT connected */}

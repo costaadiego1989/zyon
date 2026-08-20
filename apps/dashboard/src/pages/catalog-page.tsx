@@ -1,13 +1,14 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
-import { useApi } from "../hooks/useApi.js";
+import { useCatalogApi } from "../hooks/api/useCatalogApi.js";
 import { Pagination } from "../components/Pagination.js";
 import { Button } from "../components/Button.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
+import { SectionErrorBoundary } from "../components/PageErrorBoundary.js";
 
 export interface CatalogPageProps {
   apiBaseUrl: string;
@@ -47,7 +48,7 @@ export function totalStock(product: Product): number {
 }
 
 export function CatalogPage(props: CatalogPageProps) {
-  const api = useApi();
+  const catalog = useCatalogApi();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -70,15 +71,15 @@ export function CatalogPage(props: CatalogPageProps) {
 
   useEffect(() => {
     if (!merchantId) return;
-    api.listCategories?.(merchantId).then(setCategories).catch(() => {});
-  }, [api, merchantId]);
+    catalog.listCategories?.(merchantId).then(setCategories).catch(() => {});
+  }, [catalog, merchantId]);
 
   const load = useCallback(async () => {
     if (!merchantId) return;
     setLoading(true);
     setError(null);
     try {
-      const result = await api.listProducts(merchantId, {
+      const result = await catalog.listProducts(merchantId, {
         query: search || undefined,
         categoryId: categoryFilter || undefined,
         limit: PAGE_SIZE,
@@ -91,7 +92,7 @@ export function CatalogPage(props: CatalogPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [api, merchantId, search, categoryFilter, page]);
+  }, [catalog, merchantId, search, categoryFilter, page]);
 
   useEffect(() => {
     void load();
@@ -127,7 +128,7 @@ export function CatalogPage(props: CatalogPageProps) {
     setDeletingId(product.id);
     setPageError(null);
     try {
-      await api.deleteProduct(merchantId, product.id);
+      await catalog.deleteProduct(merchantId, product.id);
       await load();
     } catch (e) {
       setPageError(e instanceof Error ? e.message : String(e));
@@ -141,7 +142,7 @@ export function CatalogPage(props: CatalogPageProps) {
     setTogglingId(product.id);
     setPageError(null);
     try {
-      await api.updateProduct(merchantId, product.id, { isActive: !product.isActive });
+      await catalog.updateProduct(merchantId, product.id, { isActive: !product.isActive });
       await load();
     } catch (e) {
       setPageError(e instanceof Error ? e.message : String(e));
@@ -157,7 +158,7 @@ export function CatalogPage(props: CatalogPageProps) {
 
     for (const row of rows) {
       try {
-        await api.createProduct(merchantId, {
+        await catalog.createProduct(merchantId, {
           name: row.name,
           description: row.description || undefined,
           categoryId: row.category ? row.category : undefined,
@@ -222,6 +223,7 @@ export function CatalogPage(props: CatalogPageProps) {
         <StatCard label="Inativos" value={totals.inactive} icon={<Pause size={16} />} accent="var(--faint)" />
       </div>
 
+      <SectionErrorBoundary sectionName="Tabela do Catálogo">
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         <FilterToolbar
           tabs={[
@@ -326,6 +328,7 @@ export function CatalogPage(props: CatalogPageProps) {
           disabled={loading}
         />
       </div>
+      </SectionErrorBoundary>
 
       <CsvImportModal
         isOpen={showCsvModal}

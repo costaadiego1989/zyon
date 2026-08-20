@@ -13,6 +13,7 @@ import {
 import { type MerchantProfile, type MerchantTheme } from "../api-client.js";
 import { LivePreviewPanel, type LivePreviewPanelRef } from "../components/LivePreviewPanel.js";
 import { useApi } from "../hooks/useApi.js";
+import { reportError } from "../hooks/useErrorReporter.js";
 
 type Presentation = "floating" | "conversational";
 type DeviceSize = keyof typeof DEVICE_SIZES;
@@ -117,7 +118,10 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
   useEffect(() => {
     api.getMerchantTheme()
       .then(setTheme)
-      .catch(() => setThemeError("Não foi possível carregar tema"));
+      .catch((e) => {
+        reportError({ source: "preview-page.themeFetch", error: e });
+        setThemeError("Não foi possível carregar tema");
+      });
   }, [api]);
 
   const reloadTheme = useCallback(() => {
@@ -127,7 +131,10 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
         setTheme(t);
         previewRef.current?.postThemeUpdate(t);
       })
-      .catch(() => setThemeError("Não foi possível carregar tema"));
+      .catch((e) => {
+        reportError({ source: "preview-page.reloadTheme", error: e });
+        setThemeError("Não foi possível carregar tema");
+      });
   }, [api]);
 
   // Fullscreen escape key
