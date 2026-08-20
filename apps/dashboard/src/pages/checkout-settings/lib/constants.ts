@@ -21,15 +21,13 @@ export const TRIGGER_STATUS: Record<CheckoutTriggerName, "active" | "soon"> = {
   idle_30_seconds: "active",
   shipping_objection_detected: "soon",
   coupon_field_clicked: "soon",
-  payment_failed: "soon",
+  payment_failed: "active",
 };
 
 export const ALL_TRIGGERS: CheckoutTriggerName[] = [
-  "shipping_objection_detected",
-  "coupon_field_clicked",
-  "payment_failed",
   "exit_intent_detected",
   "idle_30_seconds",
+  "payment_failed",
 ];
 
 export const TRIGGER_FIXED_PRIORITIES: Record<CheckoutTriggerName, number> = {

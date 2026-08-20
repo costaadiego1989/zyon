@@ -292,24 +292,18 @@ export function CheckoutSettingsPage(props: {
               desc="Momentos em que o agente pode intervir automaticamente."
               aside={
                 <span className={`badge ${activeTriggers > 0 ? "ok" : "muted"}`}>
-                  {activeTriggers}/{totalAvailableTriggers} ligados
+                  {activeTriggers}/{totalAvailableTriggers} ativos
                 </span>
               }
             >
-              <div className="cfg-triggers">
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {ALL_TRIGGERS.map((t) => (
                   <TriggerCard
                     key={t}
                     trigger={t}
                     enabled={vm.draft!.triggers[t].enabled}
                     busy={vm.busy}
-                    message={vm.draft!.triggers[t].message}
-                    cooldownSeconds={vm.draft!.triggers[t].cooldownSeconds}
-                    couponCode={vm.draft!.triggers[t].couponCode}
                     onChange={(v) => vm.patchTrigger(t, { enabled: v })}
-                    onMessageChange={(v) => vm.patchTrigger(t, { message: v })}
-                    onCooldownChange={(v) => vm.patchTrigger(t, { cooldownSeconds: v })}
-                    onCouponChange={(v) => vm.patchTrigger(t, { couponCode: v })}
                   />
                 ))}
               </div>
