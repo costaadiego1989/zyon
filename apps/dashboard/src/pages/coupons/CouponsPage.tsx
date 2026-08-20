@@ -1,4 +1,3 @@
-import React from "react";
 import { Plus, Trash2, Copy, RefreshCw, Tag } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { useCouponsPage } from "./useCouponsPage.js";
