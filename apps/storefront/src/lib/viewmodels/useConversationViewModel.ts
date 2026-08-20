@@ -111,6 +111,7 @@ export function useConversationViewModel(
       const data = await checkoutApi.create({ merchantId });
       if (data?.conversation_id) {
         setConversationId(data.conversation_id);
+        try { sessionStorage.setItem("zyon_conversation_id", data.conversation_id); } catch {}
         experimentVM.captureFromConversationStart({
           conversation_id: data.conversation_id,
           experiment: data.experiment || null,
@@ -330,6 +331,9 @@ export function useConversationViewModel(
       setCartDrawerForceOpen(true);
       setTimeout(() => setCartDrawerForceOpen(false), 100);
       setShowBuyerAuth(true);
+      if (merchantId && conversationId) {
+        trackFunnelEvent(merchantId, conversationId, "checkout_intent");
+      }
       return;
     }
     if (lower === "aplicar cupom" && cart.itemCount === 0) {

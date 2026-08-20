@@ -5,6 +5,19 @@ import { OtpInput } from "./OtpInput";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
+/** Track registration funnel step */
+function trackRegistrationStep(merchantId: string | undefined, event: string) {
+  if (!merchantId) return;
+  const sessionId = typeof sessionStorage !== "undefined"
+    ? sessionStorage.getItem("zyon_conversation_id") ?? "unknown"
+    : "unknown";
+  fetch(`${API_BASE}/v1/storefront/conversations/${encodeURIComponent(sessionId)}/events`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ merchant_id: merchantId, event, metadata: { timestamp: new Date().toISOString() } }),
+  }).catch(() => {});
+}
+
 type Props = {
   merchantId?: string;
   onComplete: (globalUserId: string) => void | Promise<void>;
@@ -131,6 +144,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             }
           }
           setCurrentStep(2);
+          trackRegistrationStep(merchantId, "auth_phone_submitted");
           break;
         }
         case 2: {
@@ -148,6 +162,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             console.warn("[BuyerRegistrationForm] verify-otp endpoint not found (404), skipping for dev");
           }
           setCurrentStep(3);
+          trackRegistrationStep(merchantId, "auth_phone_verified");
           break;
         }
         case 3: {
@@ -186,6 +201,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             throw new Error("CPF precisa ter 11 dígitos");
           }
           setCurrentStep(6);
+          trackRegistrationStep(merchantId, "auth_identity_confirmed");
           break;
         }
         case 6: {
@@ -237,6 +253,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, onCancel
             localStorage.setItem("zyon_buyer_token", "dev-mock-token");
           }
 
+          trackRegistrationStep(merchantId, "auth_registration_completed");
           await onComplete(globalUserId);
           break;
         }
