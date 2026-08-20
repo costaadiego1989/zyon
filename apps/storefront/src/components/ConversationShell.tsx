@@ -108,10 +108,15 @@ export default function ConversationShell({
   };
 
   const chatQuickReplies = [
-    "Ver categorias",
-    "Buscar produto",
-    "Calcular frete",
-    "Aplicar cupom",
+    "Ver Produtos",
+    "Encontrar Produto",
+    "Categorias",
+    "Prazo de Entrega",
+    ...(cart.itemCount > 0 ? ["Ver Carrinho", "Aplicar Cupom", "Finalizar Compra"] : []),
+    "Trocas e Devoluções",
+    "Rastrear Pedido",
+    "Meus Dados",
+    "Ofertas",
   ];
 
   return (

@@ -326,8 +326,18 @@ export function useConversationViewModel(
       setTimeout(() => setCartDrawerForceOpen(false), 100);
       return;
     }
+    if (lower === "finalizar compra" || lower === "finalizar pedido") {
+      setCartDrawerForceOpen(true);
+      setTimeout(() => setCartDrawerForceOpen(false), 100);
+      setShowBuyerAuth(true);
+      return;
+    }
+    if (lower === "aplicar cupom" && cart.itemCount === 0) {
+      void sendMessage("Quero aplicar um cupom de desconto");
+      return;
+    }
     void sendMessage(option);
-  }, [sendMessage]);
+  }, [sendMessage, cart.itemCount]);
 
   // ─── Cart Quantity ───
   const handleUpdateQuantity = useCallback((variantId: string, quantity: number) => {
