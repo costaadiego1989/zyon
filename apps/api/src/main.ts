@@ -43,7 +43,7 @@ async function bootstrap() {
       origin: true,
       credentials: true,
       methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "Authorization", "X-Internal-Service-Token", "X-Merchant-Id", "Idempotency-Key", "Cookie"],
+      allowedHeaders: ["Content-Type", "Authorization", "X-Internal-Service-Token", "X-Merchant-Id", "Idempotency-Key", "If-Match", "If-None-Match", "Cookie"],
     });
   }
 
