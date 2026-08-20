@@ -6,6 +6,7 @@ import {
 } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
 import { useErrorReporter } from "../../hooks/useErrorReporter.js";
+import { showToast } from "../../components/Toast.js";
 import type { Draft, AdvancedRule } from "./lib/draft.js";
 import { settingsToDraft, draftToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
 import { validate, type ValidationErrors } from "./lib/validation.js";
@@ -100,9 +101,11 @@ export function useCheckoutSettingsPage(props: {
       setSettings(s);
       setDraft(d);
       setSavedDraft(d);
-      setMessage({ text: "Salvo.", kind: "info" });
+      setMessage(null);
+      showToast("success", "Configurações salvas com sucesso");
     } catch (e) {
       setMessage({ text: `Erro ao salvar: ${errText(e)}`, kind: "error" });
+      showToast("error", `Erro ao salvar: ${errText(e)}`);
       reportError({ source: "checkout-settings.save", error: e, severity: "warning" });
     } finally {
       setBusy(false);
