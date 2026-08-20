@@ -90,8 +90,35 @@ export function ExperimentDetail({
         <div style={{ padding: "20px", textAlign: "center", color: "var(--faint)" }}>
           Carregando resultados...
         </div>
-      ) : results ? (
+      ) : results && results.metrics && results.metrics.length > 0 ? (
         <ExperimentMetrics results={results} experiment={experiment} saving={saving} onPromote={onPromote} />
+      ) : experiment.status === "running" ? (
+        <div
+          style={{
+            background: "var(--card)",
+            border: "1px solid var(--border)",
+            borderRadius: 10,
+            padding: "32px 20px",
+            textAlign: "center",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 12,
+          }}
+        >
+          <div style={{
+            width: 10, height: 10, borderRadius: "50%",
+            background: "var(--accent)",
+            animation: "pulse 2s infinite",
+            boxShadow: "0 0 8px var(--accent)",
+          }} />
+          <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
+            Teste ativo — aguardando sessões de compradores
+          </p>
+          <p style={{ font: "11px var(--sans)", color: "var(--faint)", margin: 0 }}>
+            Os resultados aparecerão aqui conforme clientes interagem com o agente
+          </p>
+        </div>
       ) : (
         <div
           style={{
@@ -101,9 +128,12 @@ export function ExperimentDetail({
             padding: 20,
             textAlign: "center",
             color: "var(--muted)",
+            font: "13px var(--sans)",
           }}
         >
-          Sem resultados ainda
+          {experiment.status === "draft"
+            ? "Inicie o teste para começar a coletar dados"
+            : "Sem resultados registrados"}
         </div>
       )}
     </div>

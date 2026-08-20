@@ -58,6 +58,11 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
         const data = (await api.getExperiments?.()) as Experiment[] | undefined;
         if (cancelled) return;
         setExperiments(data ?? []);
+        // Auto-select first running experiment on initial load
+        if (!selectedId && data && data.length > 0) {
+          const running = data.find(e => e.status === "running");
+          setSelectedId(running?.id ?? data[0].id);
+        }
       } catch (e) {
         reportError({ source: "experiments.load", error: e });
         if (!cancelled) {
