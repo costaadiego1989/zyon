@@ -644,6 +644,14 @@ export type ExperimentDomainEventType =
   | "experiment.completed"
   | "winner.promoted";
 
+export type RevenueManagerDomainEventType =
+  | "revenue_manager.observation.created"
+  | "revenue_manager.hypothesis.generated"
+  | "revenue_manager.hypothesis.approved"
+  | "revenue_manager.hypothesis.rejected"
+  | "revenue_manager.experiment.created"
+  | "revenue_manager.lesson.recorded";
+
 export type DomainEventType =
   | CheckoutDomainEventType
   | CrossSellDomainEventType
@@ -654,7 +662,8 @@ export type DomainEventType =
   | FulfillmentDomainEventType
   | CommerceDomainEventType
   | OnboardingDomainEventType
-  | ExperimentDomainEventType;
+  | ExperimentDomainEventType
+  | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
   | "checkout"
@@ -666,7 +675,8 @@ export type DomainEventProducer =
   | "fulfillment"
   | "commerce"
   | "onboarding"
-  | "experiments";
+  | "experiments"
+  | "revenue-manager";
 
 /**
  * Self-serve tenant onboarding (ADR 0015/0024). Resumable provisioning steps,
