@@ -164,8 +164,8 @@ plugins:
         - "http://localhost:3000"
         - "http://localhost:3001"
         - "http://localhost:5173"
-        - "https://*.zyon.dev"
-        - "https://*.zyon.com"
+        - "https://zyon-payments.com.br"
+        - "https://app.zyon-payments.com.br"
       methods:
         - GET
         - POST
