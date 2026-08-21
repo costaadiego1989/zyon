@@ -31,6 +31,7 @@ export interface IncomingMessageInput {
   mediaUrl?: string;
   mimetype?: string;
   timestamp: number;
+  provider?: string; // BUBBLEWHATS | TWILIO (default BUBBLEWHATS for backward compat)
 }
 
 @Injectable()

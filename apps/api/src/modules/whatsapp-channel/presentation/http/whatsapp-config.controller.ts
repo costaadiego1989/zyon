@@ -1,7 +1,7 @@
 /**
  * WhatsApp Config Controller — Dashboard endpoints.
- * Merchant-facing: only exposes phone number input, no credentials.
- * Platform credentials from env vars handle the Twilio integration.
+ * Merchant-facing: Embedded Signup via Meta + Twilio integration.
+ * Platform credentials from env vars handle the Twilio/Meta integration.
  */
 
 import {
@@ -57,8 +57,36 @@ export class WhatsAppConfigController {
   }
 
   /**
-   * Connect WhatsApp — merchant only provides phone number.
-   * Platform credentials (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) used internally.
+   * Connect WhatsApp via Meta Embedded Signup (production flow).
+   * Frontend passes OAuth code + WABA/phone IDs from the Meta popup.
+   */
+  @Post("meta/connect")
+  @HttpCode(200)
+  async connectViaEmbeddedSignup(
+    @Param("merchantId") merchantId: string,
+    @Body() body: { code: string; wabaId: string; phoneNumberId: string },
+  ) {
+    if (!body.code?.trim()) {
+      return { status: "MISSING_CODE" };
+    }
+    if (!body.wabaId?.trim()) {
+      return { status: "MISSING_WABA_ID" };
+    }
+    if (!body.phoneNumberId?.trim()) {
+      return { status: "MISSING_PHONE_NUMBER_ID" };
+    }
+
+    return this.configureWhatsApp.connectViaEmbeddedSignup({
+      merchantId,
+      code: body.code.trim(),
+      wabaId: body.wabaId.trim(),
+      phoneNumberId: body.phoneNumberId.trim(),
+    });
+  }
+
+  /**
+   * Legacy: Connect WhatsApp — merchant provides phone number only.
+   * Kept for backward compatibility; may fail with WABA_ID_REQUIRED.
    */
   @Post("twilio/connect")
   @HttpCode(200)

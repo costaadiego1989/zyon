@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Smartphone, CheckCircle, XCircle, Loader2, Send } from "lucide-react";
+import React, { useEffect, useState, useCallback } from "react";
+import { Smartphone, CheckCircle, XCircle, Loader2, Send, ExternalLink } from "lucide-react";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { Button } from "../../components/Button.js";
@@ -7,8 +7,52 @@ import { FormField } from "../../components/FormField.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
-import { maskPhone } from "../../utils/masks.js";
 import type { MerchantProfile } from "../../api-client.js";
+
+// ─── Meta FB SDK types ────────────────────────────────────────────────────────
+declare global {
+  interface Window {
+    FB: {
+      init(params: { appId: string; version: string; cookie?: boolean; xfbml?: boolean }): void;
+      login(callback: (response: FBLoginResponse) => void, params: FBLoginParams): void;
+    };
+    fbAsyncInit: () => void;
+  }
+}
+
+interface FBLoginResponse {
+  status: string;
+  authResponse?: {
+    code?: string;
+    accessToken?: string;
+    userID?: string;
+    expiresIn?: number;
+    signedRequest?: string;
+  } & {
+    /** WhatsApp Embedded Signup extras — returned when config_id targets WhatsApp */
+    extras?: {
+      setup?: {
+        waba_id?: string;
+        phone_number_id?: string;
+      };
+    };
+  };
+}
+
+interface FBLoginParams {
+  config_id: string;
+  response_type: string;
+  override_default_response_type: boolean;
+  extras?: {
+    setup?: Record<string, unknown>;
+    featureType?: string;
+    sessionInfoVersion?: string;
+  };
+}
+
+// ─── Config ───────────────────────────────────────────────────────────────────
+const META_APP_ID = ((import.meta as any).env?.VITE_META_APP_ID as string) || "1350309300356518";
+const EMBEDDED_SIGNUP_CONFIG_ID = ((import.meta as any).env?.VITE_EMBEDDED_SIGNUP_CONFIG_ID as string) || "2347331535755786";
 
 type ConnectionStatus = "disconnected" | "pending_verification" | "active" | "inactive" | "error";
 
@@ -20,20 +64,52 @@ interface WhatsAppConfig {
   connectedAt?: string;
 }
 
+// ─── Component ────────────────────────────────────────────────────────────────
 export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const api = useApi();
   const [config, setConfig] = useState<WhatsAppConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testSending, setTestSending] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
 
-  // Form state
-  const [phoneNumber, setPhoneNumber] = useState("");
+  // Verification form state
   const [verificationCode, setVerificationCode] = useState("");
   const [connectError, setConnectError] = useState<string | null>(null);
 
   const merchantId = props.me?.id;
 
+  // ─── Load Meta FB SDK ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (window.FB) {
+      setSdkReady(true);
+      return;
+    }
+
+    window.fbAsyncInit = () => {
+      window.FB.init({
+        appId: META_APP_ID,
+        cookie: true,
+        xfbml: false,
+        version: "v21.0",
+      });
+      setSdkReady(true);
+    };
+
+    // Load SDK script
+    const script = document.createElement("script");
+    script.src = "https://connect.facebook.net/en_US/sdk.js";
+    script.async = true;
+    script.defer = true;
+    script.crossOrigin = "anonymous";
+    document.body.appendChild(script);
+
+    return () => {
+      // Cleanup: don't remove script (FB SDK should persist)
+    };
+  }, []);
+
+  // ─── Load config ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!merchantId) return;
     loadConfig();
@@ -51,45 +127,113 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
     }
   }
 
-  async function handleConnect() {
-    const digits = phoneNumber.replace(/\D/g, "");
-    if (!merchantId || digits.length < 10) {
-      showToast("error", "Informe um número válido com DDD");
+  // ─── Meta Embedded Signup ─────────────────────────────────────────────────
+  const handleEmbeddedSignup = useCallback(() => {
+    if (!merchantId) return;
+    if (!window.FB) {
+      showToast("error", "Meta SDK ainda carregando. Tente novamente.");
       return;
     }
+
     setSaving(true);
     setConnectError(null);
-    try {
-      const result = await api.connectWhatsApp(merchantId, {
-        provider: "TWILIO",
-        phoneNumber: digits.startsWith("55") ? digits : `55${digits}`,
-      });
-      const validStatuses = ["active", "pending_verification", "disconnected", "inactive"];
-      if (result && validStatuses.includes(result.status)) {
-        setConfig(result);
-        showToast("ok", result.status === "active" ? "WhatsApp conectado!" : "Código de verificação enviado via SMS!");
-      } else {
-        const errorMsg = result?.status === "INVALID_CREDENTIALS"
-          ? "Credenciais inválidas. Entre em contato com o suporte."
-          : result?.message || result?.status || "Resposta inesperada. Tente novamente.";
-        setConnectError(errorMsg);
-      }
-    } catch (err: any) {
-      const msg = err?.responseBody || err?.message || "Erro ao conectar. Verifique se a API está rodando.";
-      setConnectError(typeof msg === "string" ? msg.slice(0, 150) : "Erro ao conectar");
-      showToast("error", "Falha ao conectar WhatsApp");
-    } finally {
-      setSaving(false);
-    }
-  }
 
+    // Timeout: if popup doesn't return in 2 minutes, reset state
+    const timeout = setTimeout(() => {
+      setSaving(false);
+      setConnectError("Tempo esgotado. O popup pode ter sido bloqueado ou fechado. Permita popups e tente novamente.");
+    }, 120_000);
+
+    window.FB.login(
+      (response: FBLoginResponse) => {
+        clearTimeout(timeout);
+        console.log("[WhatsApp Seller] FB.login response:", JSON.stringify(response, null, 2));
+        void (async () => {
+        try {
+          if (response.status !== "connected" || !response.authResponse?.code) {
+            setSaving(false);
+            if (response.status === "unknown") {
+              return;
+            }
+            setConnectError("Conexão cancelada ou não autorizada pelo Facebook.");
+            return;
+          }
+
+          const code = response.authResponse.code;
+          const wabaId = response.authResponse.extras?.setup?.waba_id;
+          const phoneNumberId = response.authResponse.extras?.setup?.phone_number_id;
+
+          if (!wabaId || !phoneNumberId) {
+            setConnectError("Configuração incompleta do WhatsApp Business. Tente novamente e selecione um número.");
+            setSaving(false);
+            return;
+          }
+
+          // Send to backend
+          const result = await api.connectWhatsAppViaEmbeddedSignup(merchantId, {
+            code,
+            wabaId,
+            phoneNumberId,
+          });
+
+          const validStatuses = ["active", "pending_verification"];
+          if (result && validStatuses.includes(result.status)) {
+            setConfig({
+              ...config,
+              status: result.status as ConnectionStatus,
+              whatsappNumber: result.whatsappNumber,
+              enabled: result.status === "active",
+              provider: "TWILIO",
+            });
+            showToast("success", result.status === "active" ? "WhatsApp conectado!" : "Código de verificação enviado via SMS!");
+          } else {
+            const errorMsg = result?.status === "PLATFORM_NOT_CONFIGURED"
+              ? "Plataforma não configurada. Entre em contato com o suporte."
+              : result?.status === "TOKEN_EXCHANGE_FAILED"
+              ? "Falha na autenticação Meta. Tente novamente."
+              : result?.message || result?.status || "Resposta inesperada. Tente novamente.";
+            setConnectError(errorMsg);
+          }
+        } catch (err: any) {
+          const msg = err?.responseBody || err?.message || "Erro ao conectar. Verifique se a API está rodando.";
+          setConnectError(typeof msg === "string" ? msg.slice(0, 150) : "Erro ao conectar");
+          showToast("error", "Falha ao conectar WhatsApp");
+        } finally {
+          setSaving(false);
+        }
+        })();
+      },
+      {
+        config_id: EMBEDDED_SIGNUP_CONFIG_ID,
+        response_type: "code",
+        override_default_response_type: true,
+        extras: {
+          setup: {},
+          featureType: "",
+          sessionInfoVersion: "3",
+        },
+      },
+    );
+  }, [merchantId, api, config]);
+
+  // ─── Verify OTP ───────────────────────────────────────────────────────────
   async function handleVerify() {
     if (!merchantId || !verificationCode.trim()) return;
     setSaving(true);
     try {
       const result = await api.verifyWhatsApp(merchantId, { code: verificationCode.trim() });
-      setConfig(result);
-      showToast("ok", "WhatsApp verificado com sucesso!");
+      if (result?.status === "active") {
+        setConfig({
+          ...config,
+          status: "active",
+          enabled: true,
+          provider: "TWILIO",
+          connectedAt: new Date().toISOString(),
+        });
+        showToast("success", "WhatsApp verificado com sucesso!");
+      } else {
+        showToast("error", result?.status === "INVALID_CODE" ? "Código inválido" : "Erro na verificação");
+      }
     } catch (err: any) {
       showToast("error", err?.message ?? "Código inválido");
     } finally {
@@ -97,6 +241,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
     }
   }
 
+  // ─── Disconnect ───────────────────────────────────────────────────────────
   async function handleDisconnect() {
     if (!merchantId) return;
     if (!confirm("Desconectar WhatsApp? Seus clientes não poderão mais comprar por este canal.")) return;
@@ -104,7 +249,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
     try {
       await api.disconnectWhatsApp(merchantId);
       setConfig({ enabled: false, provider: "TWILIO", status: "disconnected" });
-      showToast("ok", "WhatsApp desconectado");
+      showToast("success", "WhatsApp desconectado");
     } catch {
       showToast("error", "Erro ao desconectar");
     } finally {
@@ -112,12 +257,13 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
     }
   }
 
+  // ─── Test message ─────────────────────────────────────────────────────────
   async function handleTestMessage() {
     if (!merchantId) return;
     setTestSending(true);
     try {
       await api.testWhatsApp(merchantId);
-      showToast("ok", "Mensagem de teste enviada!");
+      showToast("success", "Mensagem de teste enviada!");
     } catch {
       showToast("error", "Falha ao enviar teste");
     } finally {
@@ -125,6 +271,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
     }
   }
 
+  // ─── Toggle ───────────────────────────────────────────────────────────────
   async function handleToggleEnabled(enabled: boolean) {
     if (!merchantId) return;
     try {
@@ -135,6 +282,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
     }
   }
 
+  // ─── Guard: no user ───────────────────────────────────────────────────────
   if (!props.me) {
     return (
       <header className="page-head">
@@ -226,15 +374,14 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
             Enviamos um código de verificação para o número cadastrado via SMS.
             Digite abaixo para ativar o canal.
           </p>
-          <FormField label="Código de verificação">
-            <input
-              type="text"
-              placeholder="123456"
-              value={verificationCode}
-              onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              style={{ font: "16px var(--mono)", letterSpacing: 4, textAlign: "center" }}
-            />
-          </FormField>
+          <FormField
+            label="Código de verificação"
+            type="text"
+            placeholder="123456"
+            value={verificationCode}
+            onChange={(v) => setVerificationCode(v.replace(/\D/g, "").slice(0, 6))}
+            maxLength={6}
+          />
           <div style={{ marginTop: 16 }}>
             <Button variant="primary" onClick={handleVerify} disabled={saving || verificationCode.length < 6}>
               {saving ? <Loader2 size={14} className="spin" /> : <CheckCircle size={14} />}
@@ -244,7 +391,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
         </div>
       )}
 
-      {/* ── DISCONNECTED — SETUP FORM ── */}
+      {/* ── DISCONNECTED — META EMBEDDED SIGNUP ── */}
       {(status === "disconnected" || status === "inactive" || status === "error") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Value proposition */}
@@ -258,38 +405,41 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
             </p>
           </div>
 
-          {/* Connection form — ONLY phone number */}
+          {/* Embedded Signup CTA */}
           <div className="panel" style={{ padding: "28px", maxWidth: 520 }}>
             <div style={{ font: "600 14px var(--sans)", color: "var(--ink)", marginBottom: 6 }}>
-              Conectar seu WhatsApp
+              Conectar seu WhatsApp Business
             </div>
             <p style={{ font: "12px/1.5 var(--sans)", color: "var(--muted)", margin: "0 0 20px" }}>
-              Informe o número do WhatsApp que seus clientes usarão para comprar.
-              Enviaremos um código de verificação por SMS para confirmar a titularidade.
+              Conecte sua conta Meta Business para usar o WhatsApp comercial.
+              Você será redirecionado para o Facebook para autorizar o acesso.
             </p>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <FormField
-                label="Número do WhatsApp"
-                type="tel"
-                placeholder="(21) 99300-1883"
-                hint="Com DDD (ex: (21) 99300-1883)"
-                value={maskPhone(phoneNumber)}
-                onChange={(v) => setPhoneNumber(v.replace(/\D/g, "").slice(0, 11))}
-                maxLength={15}
-              />
-
-              <Button variant="primary" onClick={handleConnect} disabled={saving || phoneNumber.length < 10}>
-                {saving ? <Loader2 size={14} className="spin" /> : <Smartphone size={14} />}
-                Conectar WhatsApp
-              </Button>
-
-              {connectError && (
-                <div style={{ padding: "10px 14px", background: "var(--danger-soft, rgba(239,68,68,0.1))", borderRadius: 8, font: "12px/1.5 var(--sans)", color: "var(--danger, #ef4444)" }}>
-                  ⚠️ {connectError}
-                </div>
+            <Button
+              variant="primary"
+              onClick={handleEmbeddedSignup}
+              disabled={saving || !sdkReady}
+              style={{ display: "inline-flex", alignItems: "center", gap: 8 }}
+            >
+              {saving ? (
+                <Loader2 size={14} className="spin" />
+              ) : (
+                <ExternalLink size={14} />
               )}
-            </div>
+              {saving ? "Conectando..." : "Conectar via Meta Business"}
+            </Button>
+
+            {!sdkReady && (
+              <p style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 8 }}>
+                Carregando Meta SDK...
+              </p>
+            )}
+
+            {connectError && (
+              <div style={{ padding: "10px 14px", background: "var(--danger-soft, rgba(239,68,68,0.1))", borderRadius: 8, font: "12px/1.5 var(--sans)", color: "var(--danger, #ef4444)", marginTop: 12 }}>
+                {connectError}
+              </div>
+            )}
           </div>
 
           {/* How it works */}
@@ -298,9 +448,10 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
               Como funciona
             </div>
             <ol style={{ font: "13px/1.8 var(--sans)", color: "var(--muted)", paddingLeft: 20, margin: 0 }}>
-              <li>Informe seu número de WhatsApp acima</li>
-              <li>Receba um código de verificação por SMS</li>
-              <li>Digite o código para confirmar</li>
+              <li>Clique em "Conectar via Meta Business" acima</li>
+              <li>Faça login no Facebook e selecione sua conta Business</li>
+              <li>Escolha ou crie seu número WhatsApp Business</li>
+              <li>Receba um código SMS para verificação</li>
               <li>Pronto! Seus clientes já podem comprar pelo WhatsApp</li>
             </ol>
             <p style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 12 }}>

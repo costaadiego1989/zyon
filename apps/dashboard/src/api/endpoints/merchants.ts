@@ -148,6 +148,12 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/connection`, { method: "GET" }, f);
     },
 
+    /** Meta Embedded Signup flow (production) */
+    connectWhatsAppViaEmbeddedSignup(merchantId: string, payload: { code: string; wabaId: string; phoneNumberId: string }): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/meta/connect`, { method: "POST", jsonBody: payload }, f);
+    },
+
+    /** Legacy phone-only flow (backward compat) */
     connectWhatsApp(merchantId: string, payload: { provider: string; phoneNumber: string }): Promise<any> {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/twilio/connect`, { method: "POST", jsonBody: payload }, f);
     },
