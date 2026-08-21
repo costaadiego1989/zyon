@@ -15,6 +15,17 @@ export const STATUS_LABELS: Record<string, string> = {
   returned: "Devolvido",
 };
 
+// Linear progression of order statuses. Used to disable backward transitions.
+export const STATUS_ORDER: readonly string[] = ["paid", "shipped", "delivered"];
+
+// "cancelled" is terminal and not part of the forward-only chain.
+export function isStatusBefore(current: string, candidate: string): boolean {
+  const ci = STATUS_ORDER.indexOf(current);
+  const vi = STATUS_ORDER.indexOf(candidate);
+  if (ci === -1 || vi === -1) return false;
+  return vi < ci;
+}
+
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export type OrderMetrics = {
@@ -58,6 +69,8 @@ export function filterOrders(
   orders: TenantOrder[],
   status: string,
   query: string,
+  startDate?: string,
+  endDate?: string,
 ): TenantOrder[] {
   let filtered = orders;
 
@@ -72,6 +85,17 @@ export function filterOrders(
       const label = customerLabel(o.customer);
       if (label !== "-" && label.toLowerCase().includes(q)) return true;
       return false;
+    });
+  }
+
+  if (startDate || endDate) {
+    const start = startDate ? new Date(startDate).getTime() : -Infinity;
+    const end = endDate ? new Date(endDate).setHours(23, 59, 59, 999) : Infinity;
+    filtered = filtered.filter((o) => {
+      const raw = o.completed_at ?? o.cancelled_at ?? "";
+      if (!raw) return false;
+      const t = new Date(raw).getTime();
+      return t >= start && t <= end;
     });
   }
 

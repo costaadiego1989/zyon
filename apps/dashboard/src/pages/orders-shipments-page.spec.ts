@@ -157,4 +157,14 @@ describe("filterOrders", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("5");
   });
+
+  it("filters by startDate (inclusive)", () => {
+    const result = filterOrders(orders, "all", "", "2026-06-16");
+    expect(result).toHaveLength(0);
+  });
+
+  it("filters by endDate (inclusive of day end)", () => {
+    const result = filterOrders(orders, "all", "", undefined, "2026-06-15");
+    expect(result).toHaveLength(5);
+  });
 });

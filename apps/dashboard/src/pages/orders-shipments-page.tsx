@@ -2,6 +2,7 @@ import React from "react";
 import {
   CheckCircle,
   DollarSign,
+  Download,
   Package,
   PackageSearch,
   Receipt,
@@ -16,11 +17,24 @@ import { StatCard } from "./overview/components/StatCard.js";
 import type { MerchantProfile, TenantOrder } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
-import { STATUS_LABELS, formatMinor, formatDate, formatPhone, customerLabel} from "./orders-shipments/utils.js";
+import { STATUS_LABELS, isStatusBefore, formatMinor, formatDate, formatPhone, customerLabel} from "./orders-shipments/utils.js";
+import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
 
 // ── Page Component (View) ───────────────────────────────────────────────────
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders } from "./orders-shipments/utils.js";
+
+const dateInputStyle: React.CSSProperties = {
+  height: 32,
+  padding: "0 10px",
+  borderRadius: 7,
+  border: "1px solid var(--border)",
+  background: "var(--bg)",
+  color: "var(--ink)",
+  font: "12px var(--sans)",
+  outline: "none",
+  boxSizing: "border-box",
+};
 
 export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   if (!props.me) {
@@ -100,6 +114,46 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
           onSearchChange={vm.setSearchQuery}
           searchPlaceholder="Buscar por ID ou cliente..."
           searchWidth={280}
+          extra={(
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: 8 }}>
+              <input
+                type="date"
+                value={vm.startDate}
+                onChange={(e) => vm.setStartDate(e.target.value)}
+                aria-label="Data inicial"
+                style={dateInputStyle}
+              />
+              <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>→</span>
+              <input
+                type="date"
+                value={vm.endDate}
+                onChange={(e) => vm.setEndDate(e.target.value)}
+                aria-label="Data final"
+                style={dateInputStyle}
+              />
+              <button
+                type="button"
+                onClick={vm.exportCsv}
+                disabled={vm.filteredOrders.length === 0}
+                style={{
+                  height: 32,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "0 12px",
+                  borderRadius: 7,
+                  border: "1px solid var(--border)",
+                  background: "var(--bg)",
+                  color: "var(--ink)",
+                  font: "600 12px var(--sans)",
+                  cursor: vm.filteredOrders.length === 0 ? "not-allowed" : "pointer",
+                  opacity: vm.filteredOrders.length === 0 ? 0.5 : 1,
+                }}
+              >
+                <Download size={14} /> Exportar CSV
+              </button>
+            </div>
+          )}
         />
 
         {vm.statusFilter === "budgets" ? (
@@ -126,9 +180,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                     R$ {(b.total ?? 0).toFixed(2)}
                   </td>
                   <td style={{ padding: "12px 22px" }}>
-                    <span style={{ fontSize: 10, fontWeight: 600, padding: "3px 8px", borderRadius: 6, background: b.status === "approved" ? "var(--good-soft)" : b.status === "rejected" ? "var(--danger-soft)" : "var(--accent-soft)", color: b.status === "approved" ? "var(--good)" : b.status === "rejected" ? "var(--danger)" : "var(--accent-dark)" }}>
-                      {b.status === "pending" ? "Pendente" : b.status === "approved" ? "Aprovado" : b.status === "rejected" ? "Recusado" : b.status}
-                    </span>
+                    <OrderStatusBadge status={b.status === "rejected" ? "cancelled" : b.status} />
                   </td>
                   <td style={{ padding: "12px 22px", fontSize: 11, color: "var(--faint)" }}>
                     {new Date(b.createdAt).toLocaleDateString("pt-BR")}
@@ -149,8 +201,6 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
             <tbody>
               {vm.paginatedOrders.map((order) => {
                 const initial = customerLabel(order.customer).charAt(0).toUpperCase();
-                const statusBg = order.status === "approved" ? "var(--good-soft)" : order.status === "cancelled" ? "var(--danger-soft)" : "var(--accent-soft)";
-                const statusColor = order.status === "approved" ? "var(--good)" : order.status === "cancelled" ? "var(--danger)" : "var(--accent-dark)";
                 return (
                   <tr
                     key={order.id}
@@ -167,7 +217,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                     <td style={{ padding: "12px 22px", font: "600 13px var(--mono)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{formatMinor(order.total, order.currency)}</td>
                     <td style={{ padding: "12px 22px", font: "12.5px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{order.tracking_code ?? "Aguardando"}</td>
                     <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
-                      <span style={{ font: "600 11px var(--sans)", padding: "4px 9px", borderRadius: 99, background: statusBg, color: statusColor }}>{STATUS_LABELS[order.status] ?? order.status}</span>
+                      <OrderStatusBadge status={order.status} />
                     </td>
                     <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(order.completed_at)}</td>
                   </tr>
@@ -233,9 +283,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
         <div style={{ ...sectionStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={labelStyle}>Status atual</div>
-            <span style={{ font: "600 12px var(--font-sans)", padding: "5px 12px", borderRadius: 99, background: order.status === "approved" ? "var(--color-success-bg)" : order.status === "processing" ? "var(--color-warning-bg)" : "var(--color-surface-raised)", color: order.status === "approved" ? "var(--color-success)" : order.status === "processing" ? "var(--color-warning)" : "var(--color-text)", border: "1px solid var(--color-border)" }}>
-              {STATUS_LABELS[order.status] ?? order.status}
-            </span>
+            <OrderStatusBadge status={order.status} />
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={labelStyle}>Total</div>
@@ -275,7 +323,8 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           <div style={labelStyle}>Rastreamento</div>
           {order.tracking_code ? (
             <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
-              <span style={{ font: "600 13px var(--font-mono)", color: "var(--color-success)" }}>{order.tracking_code}</span>
+              <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-success)" }}>{order.tracking_code}</div>
+              <div style={{ font: "500 11px var(--font-sans)", color: "var(--color-success)", marginTop: 4 }}>Código de rastreio enviado com sucesso</div>
             </div>
           ) : (
             <p style={{ ...valueStyle, color: "var(--color-text-muted)", marginBottom: 12 }}>Sem código de rastreio</p>
@@ -285,9 +334,10 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
               placeholder="Inserir código de rastreio"
               value={vm.trackingDrafts[order.id] ?? ""}
               onChange={(e) => vm.updateTrackingDraft(order.id, e.target.value)}
-              style={{ flex: 1, padding: "10px 14px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-raised)", color: "var(--color-text)", font: "13px var(--font-mono)" }}
+              readOnly={Boolean(order.tracking_code)}
+              style={{ flex: 1, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: order.tracking_code ? "var(--color-surface)" : "var(--color-surface-raised)", color: "var(--color-text)", font: "13px var(--font-mono)", cursor: order.tracking_code ? "not-allowed" : "text" }}
             />
-            <Button variant="primary" size="sm" arrow disabled={vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()} onClick={() => void vm.saveManualTracking(order)}>
+            <Button variant="primary" size="md" arrow disabled={Boolean(order.tracking_code) || vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()} onClick={() => void vm.saveManualTracking(order)}>
               Salvar e enviar
             </Button>
           </div>
@@ -309,12 +359,15 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
             {(["paid", "shipped", "delivered", "cancelled"] as const).map((status) => {
               const labels: Record<string, string> = { paid: "Pago", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
               const isActive = order.status === status;
+              const isDelivered = order.status === "delivered";
+              const isRegress = status !== "cancelled" && isStatusBefore(order.status, status);
+              const disabled = vm.busy || isActive || isDelivered || isRegress;
               return (
                 <button
                   key={status}
                   type="button"
                   onClick={() => void vm.changeOrderStatus(order, status)}
-                  disabled={vm.busy || isActive}
+                  disabled={disabled}
                   style={{
                     padding: "8px 14px",
                     borderRadius: 8,
@@ -322,8 +375,8 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
                     background: isActive ? "var(--color-brand)" : "var(--color-surface-raised)",
                     color: isActive ? "white" : "var(--color-text)",
                     font: "600 12px var(--font-sans)",
-                    cursor: vm.busy || isActive ? "not-allowed" : "pointer",
-                    opacity: isActive ? 1 : 0.85,
+                    cursor: disabled ? "not-allowed" : "pointer",
+                    opacity: disabled ? 0.45 : 1,
                     transition: "all 0.15s ease",
                   }}
                 >

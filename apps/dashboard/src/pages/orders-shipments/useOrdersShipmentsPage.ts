@@ -16,6 +16,8 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "approved" | "cancelled" | "budgets">("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [hasMore, setHasMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -60,8 +62,8 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
 
   const metrics = useMemo(() => computeOrderMetrics(orders), [orders]);
   const filteredOrders = useMemo(
-    () => filterOrders(orders, statusFilter, searchQuery),
-    [orders, statusFilter, searchQuery],
+    () => filterOrders(orders, statusFilter, searchQuery, startDate, endDate),
+    [orders, statusFilter, searchQuery, startDate, endDate],
   );
   const paginatedOrders = useMemo(() => {
     const start = (page - 1) * PAGE_SIZE;
@@ -69,16 +71,17 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   }, [filteredOrders, page]);
 
   const exportCsv = useCallback(() => {
-    const header = "ID,Status,Valor,Moeda,Cliente,Criado em";
+    const header = "id,customer,status,total,currency,created_at";
     const rows = filteredOrders.map((o: TenantOrder) => {
       const customer = o.customer as { full_name?: unknown; email?: unknown } | null;
       const name = typeof customer?.full_name === "string" ? customer.full_name : "";
       const email = typeof customer?.email === "string" ? customer.email : "";
       const label = name || email || "-";
       const createdAt = o.completed_at ?? o.cancelled_at ?? "";
-      return [o.id, o.status, String(o.total), o.currency, label, createdAt].join(",");
+      return [o.id, label, o.status, String(o.total), o.currency, createdAt].join(",");
     });
-    downloadCsv(header, rows, `pedidos-${new Date().toISOString().slice(0, 10)}.csv`);
+    const bom = String.fromCharCode(0xfeff);
+    downloadCsv(bom + header, rows, `orders-${new Date().toISOString().slice(0, 10)}.csv`);
   }, [filteredOrders]);
 
   const saveManualTracking = useCallback(async (order: TenantOrder) => {
@@ -193,6 +196,10 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     setStatusFilter,
     searchQuery,
     setSearchQuery,
+    startDate,
+    setStartDate,
+    endDate,
+    setEndDate,
     hasMore,
     nextCursor,
     page,
