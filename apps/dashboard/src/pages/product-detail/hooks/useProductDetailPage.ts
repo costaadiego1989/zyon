@@ -8,7 +8,6 @@ import { useMediaUploader } from "./useMediaUploader.js";
 import { useProductSeo } from "./useProductSeo.js";
 import { validateVariants, validateSimpleProduct, parseInteger, parseFloatSafe } from "../utils/product-validation.js";
 import type { MerchantProfile } from "../../../api-client.js";
-import type { ProductMetadata } from "../ProductDetailPage.js";
 
 export interface UseProductDetailPageOptions {
   me: MerchantProfile | null;
@@ -129,6 +128,13 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       const { variants } = variantManager;
       const { hasVariants } = variantManager;
 
+      const savedMetadata: Record<string, unknown> = { ...(form.metadata as Record<string, unknown>) };
+      if (form.productType === "food" && form.optionGroups.length > 0) {
+        savedMetadata.optionGroups = form.optionGroups;
+      } else {
+        delete savedMetadata.optionGroups;
+      }
+
       let skuToUse = variants[0].sku.trim();
       if (!skuToUse && !hasVariants) {
         skuToUse = form.name.toLowerCase().replace(/\s+/g, "-").slice(0, 32);
@@ -159,7 +165,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
           name: form.name.trim(),
           description: form.description.trim() || undefined,
           type: form.productType,
-          metadata: form.metadata as Record<string, unknown>,
+          metadata: savedMetadata,
           categoryId: form.categoryId.trim() || undefined,
           isActive: form.isActive,
           seoTitle: seo.seoTitle.trim() || undefined,
@@ -193,7 +199,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
           name: form.name.trim(),
           description: form.description.trim() || undefined,
           type: form.productType,
-          metadata: form.metadata as Record<string, unknown>,
+          metadata: savedMetadata,
           categoryId: form.categoryId.trim() || undefined,
           variants: payloadVariants,
         });

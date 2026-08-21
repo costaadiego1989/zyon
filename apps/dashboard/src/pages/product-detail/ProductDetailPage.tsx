@@ -10,7 +10,7 @@ import { MediaUploader } from "./components/MediaUploader.js";
 import { SeoSection } from "./components/SeoSection.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 
-export type ProductType = "physical" | "digital" | "service";
+export type ProductType = "physical" | "digital" | "service" | "food";
 
 export interface ProductMetadata {
   downloadUrl?: string;
@@ -123,6 +123,8 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
             generatingDesc={page.form.generatingDesc}
             onGenerateDescription={page.generateDescription}
             formErrors={page.formErrors}
+            optionGroups={page.form.optionGroups}
+            onOptionGroupsChange={page.form.setOptionGroups}
           />
           </SectionErrorBoundary>
 
