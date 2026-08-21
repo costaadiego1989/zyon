@@ -354,7 +354,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   placeholder="Ex: Compra Segura, Frete Grátis..."
                   disabled={!canAddBadge(badgesText)}
                 />
-                <Button variant="outline" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)}>
+                <Button variant="primary" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)}>
                   Adicionar selo
                 </Button>
               </div>
@@ -390,46 +390,50 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel stacked">
               <SectionHeader title="Imagens" subtitle="Logo, favicon, avatar e fundo do widget." />
 
-              <ImageUploader
-                label="Logo da marca"
-                hint="Exibida no topo do widget"
-                value={theme.logoUrl}
-                onChange={(url) => patch({ logoUrl: url })}
-                height={100}
-              />
+              <div className="theme-image-uploader-grid">
+                <ImageUploader
+                  label="Logo da marca"
+                  hint="Exibida no topo do widget"
+                  value={theme.logoUrl}
+                  onChange={(url) => patch({ logoUrl: url })}
+                  height={88}
+                />
 
-              <ImageUploader
-                label="Favicon"
-                hint="Ícone da aba do navegador (32×32px recomendado)"
-                value={theme.faviconUrl}
-                onChange={(url) => patch({ faviconUrl: url })}
-                height={64}
-              />
+                <ImageUploader
+                  label="Favicon"
+                  hint="Ícone da aba do navegador (32×32px recomendado)"
+                  value={theme.faviconUrl}
+                  onChange={(url) => patch({ faviconUrl: url })}
+                  height={88}
+                />
 
-              <ImageUploader
-                label="Avatar do assistente"
-                hint="Foto do agente na conversa"
-                value={theme.agentAvatarUrl}
-                onChange={(url) => patch({ agentAvatarUrl: url })}
-                height={100}
-              />
+                <ImageUploader
+                  label="Avatar do assistente"
+                  hint="Foto do agente na conversa"
+                  value={theme.agentAvatarUrl}
+                  onChange={(url) => patch({ agentAvatarUrl: url })}
+                  height={88}
+                />
 
-              <ImageUploader
-                label="Imagem de fundo"
-                hint="Background do painel principal"
-                value={theme.backgroundImageUrl}
-                onChange={(url) => patch({ backgroundImageUrl: url })}
-                height={160}
-              />
+                <ImageUploader
+                  label="Imagem de fundo"
+                  hint="Background do painel principal"
+                  value={theme.backgroundImageUrl}
+                  onChange={(url) => patch({ backgroundImageUrl: url })}
+                  height={88}
+                />
+              </div>
             </div>
 
             {/* Panel 4 — Layout */}
             <div className="panel stacked">
               <SectionHeader title="Layout e espaçamento" variant="secondary" />
 
-              <label>
-                Arredondamento dos cantos
-                <span className="field-hint" style={{ marginLeft: 8 }}>{theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}px</span>
+              <label className="theme-radius-field">
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                  <span className="theme-radius-label">Arredondamento dos cantos</span>
+                  <span className="theme-radius-value">{theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}px</span>
+                </div>
                 <input
                   type="range"
                   min={0}
@@ -437,7 +441,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   step={1}
                   value={theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}
                   onChange={(e) => patch({ borderRadius: Number(e.target.value) })}
-                  style={{ accentColor: "var(--accent)" }}
+                  style={{ accentColor: "var(--accent)", width: "100%" }}
                 />
               </label>
 

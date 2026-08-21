@@ -1,4 +1,5 @@
 import React from "react";
+import { Tag, Truck, CreditCard } from "lucide-react";
 import type { MerchantTheme } from "@zyon/shared-types";
 import { AgentOrb } from "../pages/onboarding-wizard/components/AgentOrb.js";
 
@@ -93,15 +94,15 @@ export function CheckoutPreviewWidget({ theme, merchantName }: CheckoutPreviewPr
 
           <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", maxWidth: 260, marginTop: 6 }}>
             {[
-              { text: "Acho a melhor opção e aplico promoções", color: theme.accentColor },
-              { text: "Calculo o frete e organizo a entrega", color: theme.secondaryColor || theme.accentColor },
-              { text: "Pago com Pix, cartão ou crypto", color: theme.secondaryColor || theme.accentColor },
-            ].map((cap) => (
-              <div key={cap.text} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: theme.borderRadius ?? 8, background: surfaceColor, border: `1px solid ${borderColor}`, textAlign: "left" }}>
-                <div style={{ width: 22, height: 22, borderRadius: 5, background: `${cap.color}20`, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                  <div style={{ width: 6, height: 6, borderRadius: "50%", background: cap.color }} />
+              { Icon: Tag, text: "Acho a melhor opção e aplico promoções", color: theme.accentColor },
+              { Icon: Truck, text: "Calculo o frete e organizo a entrega", color: theme.secondaryColor || theme.accentColor },
+              { Icon: CreditCard, text: "Pago com Pix, cartão ou crypto", color: theme.secondaryColor || theme.accentColor },
+            ].map(({ Icon, text, color }) => (
+              <div key={text} style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", borderRadius: theme.borderRadius ?? 8, background: surfaceColor, border: `1px solid ${borderColor}`, textAlign: "left" }}>
+                <div style={{ width: 22, height: 22, borderRadius: 5, background: `${color}20`, display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                  <Icon size={12} color={color} strokeWidth={2.25} />
                 </div>
-                <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 500, color: textColor }}>{cap.text}</span>
+                <span style={{ fontFamily: bodyFont, fontSize: 11, fontWeight: 500, color: textColor }}>{text}</span>
               </div>
             ))}
           </div>

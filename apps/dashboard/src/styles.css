@@ -1736,6 +1736,37 @@ button.dash-tab.active {
   gap: var(--space-4);
 }
 
+.theme-image-uploader-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.theme-radius-field {
+  display: block;
+  margin-bottom: var(--space-3);
+}
+
+.theme-radius-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.theme-radius-value {
+  font-family: var(--font-mono, monospace);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--accent, var(--color-brand));
+  background: color-mix(in srgb, var(--accent, var(--color-brand)) 10%, transparent);
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: -0.01em;
+  min-width: 56px;
+  text-align: center;
+  display: inline-block;
+}
+
 .theme-upload-row {
   display: flex;
   gap: var(--space-2);
