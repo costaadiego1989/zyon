@@ -102,8 +102,9 @@ export class RouteToSessionUseCase {
   }
 
   /**
-   * Ensure buyer record exists. WhatsApp phone = identity.
-   * Returns known buyer data for session pre-fill.
+   * Ensure buyer identity exists. WhatsApp phone = identity.
+   * On first contact: creates BuyerIdentity with phone as key.
+   * On returning: hydrates known fields from last checkout session.
    */
   private async ensureBuyerExists(
     merchantId: string,
@@ -111,30 +112,45 @@ export class RouteToSessionUseCase {
     globalUserId: string,
     alias?: string,
   ): Promise<RouteResult["buyerData"]> {
-    // Check if buyer has purchase history (returning buyer)
-    const existingPurchase = await this.prisma.buyerPurchaseHistory.findFirst({
-      where: { merchantId, globalUserId },
-      orderBy: { createdAt: "desc" },
+    // Check if buyer identity exists for this phone
+    const identityKey = `phone:${phone}`;
+    const existingIdentity = await this.prisma.buyerIdentity.findUnique({
+      where: { merchantId_identityKey: { merchantId, identityKey } },
     }).catch(() => null);
 
-    if (existingPurchase) {
-      // Returning buyer — hydrate known fields
-      this.logger.debug(`Returning buyer: ${phone} (${existingPurchase.buyerEmail ?? "no email"})`);
+    if (existingIdentity) {
+      // Returning buyer — hydrate from last checkout session
+      const lastSession = await this.prisma.checkoutSession.findFirst({
+        where: { merchantId, globalUserId: existingIdentity.globalUserId },
+        orderBy: { updatedAt: "desc" },
+      }).catch(() => null);
+
+      const customer = (lastSession?.customer as any) ?? {};
+
+      this.logger.debug(`Returning WA buyer: ${phone} (name=${customer.fullName ?? "?"})`);
       return {
-        globalUserId,
+        globalUserId: existingIdentity.globalUserId,
         phone,
         phoneVerified: true,
-        fullName: existingPurchase.buyerName ?? alias ?? undefined,
-        email: existingPurchase.buyerEmail ?? undefined,
-        cpf: (existingPurchase as any).buyerCpf ?? undefined,
-        address: (existingPurchase as any).lastAddress ?? undefined,
+        fullName: customer.fullName ?? alias ?? undefined,
+        email: customer.email ?? undefined,
+        cpf: customer.cpf ?? undefined,
+        address: customer.address ?? undefined,
       };
     }
 
-    // New buyer — register minimal record (phone only)
-    this.logger.debug(`New buyer registered: ${phone}`);
+    // New buyer — create BuyerIdentity with phone as key
+    const newIdentity = await this.prisma.buyerIdentity.create({
+      data: {
+        merchantId,
+        identityKey,
+        globalUserId,
+      },
+    }).catch(() => null);
+
+    this.logger.log(`New WA buyer registered: ${phone} → ${globalUserId}`);
     return {
-      globalUserId,
+      globalUserId: newIdentity?.globalUserId ?? globalUserId,
       phone,
       phoneVerified: true,
       fullName: alias ?? undefined,
@@ -150,15 +166,16 @@ export class RouteToSessionUseCase {
     globalUserId: string,
     buyerData: RouteResult["buyerData"],
   ): Promise<string> {
-    // Use existing checkout session table (same as widget/storefront)
     const sessionId = crypto.randomUUID();
+    const conversationId = crypto.randomUUID();
+    const now = new Date();
 
     await this.prisma.checkoutSession.create({
       data: {
-        id: sessionId,
         merchantId,
+        sessionId,
         globalUserId,
-        channel: "whatsapp",
+        conversationId,
         customer: {
           phone: buyerData.phone,
           phone_verified: true,
@@ -171,11 +188,11 @@ export class RouteToSessionUseCase {
         chatHistory: [],
         abandonmentScore: 0,
         triggerAgent: false,
+        createdAt: now,
+        updatedAt: now,
       },
     }).catch((err) => {
-      // If checkoutSession table doesn't have these exact fields,
-      // fall back to in-memory session creation via existing use case
-      this.logger.warn(`Direct session creation failed, will use use-case fallback: ${err.message}`);
+      this.logger.warn(`Direct session creation failed: ${err.message}`);
     });
 
     return sessionId;
