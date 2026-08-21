@@ -41,7 +41,7 @@ const AuditLogPage = lazy(() => import("../pages/audit-log-page.js").then(m => (
 const CommerceConnectionsPage = lazy(() => import("../pages/commerce-connections-page.js").then(m => ({ default: m.CommerceConnectionsPage })));
 const CatalogPage = lazy(() => import("../pages/catalog-page.js").then(m => ({ default: m.CatalogPage })));
 const ProductDetailPage = lazy(() => import("../pages/product-detail-page.js").then(m => ({ default: m.ProductDetailPage })));
-const CategoriesPage = lazy(() => import("../pages/categories/index.js").then(m => ({ default: m.CategoriesPage })));
+const CategoriesPage = lazy(() => import("../pages/categories/index.js"));
 const StoreSettingsPage = lazy(() => import("../pages/store-settings/index.js").then(m => ({ default: m.StoreSettingsPage })));
 const AgentConfigPage = lazy(() => import("../pages/agent-config-page.js").then(m => ({ default: m.AgentConfigPage })));
 const StoriesPage = lazy(() => import("../pages/stories-page.js").then(m => ({ default: m.StoriesPage })));
