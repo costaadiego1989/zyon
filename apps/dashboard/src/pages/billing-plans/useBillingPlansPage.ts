@@ -51,15 +51,24 @@ export function useBillingPlansPage(): BillingPlansPageVM {
     if (subscription.plan === plan) return; // Already on this plan
 
     setUpgrading(true);
+    setError(null);
     try {
       const session = await api.createBillingCheckoutSession({
-        plan: plan as any,
-      } as any);
+        price_id: plan,
+        success_url: window.location.href + "?billing=success",
+        cancel_url: window.location.href + "?billing=cancelled",
+      });
       if (session.url) {
         window.location.href = session.url;
+      } else {
+        showToast("error", "Stripe não retornou URL de checkout. Verifique se os planos estão configurados.");
       }
-    } catch (err) {
-      setError("Erro ao iniciar upgrade");
+    } catch (err: any) {
+      const msg = err?.responseBody?.includes("billing_plan_not_configured")
+        ? "Plano não configurado no Stripe. Configure STRIPE_BILLING_PRICE_* no servidor."
+        : "Erro ao iniciar upgrade. Tente novamente.";
+      setError(msg);
+      showToast("error", msg);
       console.error(err);
     } finally {
       setUpgrading(false);

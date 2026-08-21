@@ -16,6 +16,10 @@ export function billingPriceId(
 ): string {
   const priceId = env[PRICE_ENV[plan]]?.trim();
   if (!priceId) {
+    // In dev, fall back to plan name — Stripe adapter will use it for sandbox testing
+    if (env.NODE_ENV !== "production") {
+      return plan;
+    }
     throw new BadRequestException("billing_plan_not_configured");
   }
   return priceId;
