@@ -141,17 +141,84 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
    * Call the existing conversation engine (send-chat-message use-case).
    * Returns agent text + quick replies.
    *
-   * TODO: Wire to actual SendChatMessageUseCase injection.
-   * For now, this is a placeholder that will be wired during integration.
+   * Phase 1: Returns welcome/default responses while full engine wiring is in progress.
+   * Phase 2: Wire to SendChatMessageUseCase for full AI responses.
    */
   private async callEngine(
     checkoutSessionId: string,
     buyerMessage: string,
   ): Promise<{ agentMessage: string; quickReplies: string[]; stage?: string } | null> {
-    // This will be replaced with actual use-case call:
-    // const result = await this.sendChatMessage.execute({ sessionId, message: buyerMessage });
-    // return { agentMessage: result.chatTurn.agent.text, quickReplies: result.experience.copy.quick_replies };
     this.logger.debug(`Engine call: session=${checkoutSessionId} msg="${buyerMessage}"`);
-    return null;
+
+    // Phase 1: deterministic responses for testing the WA channel
+    const msg = buyerMessage.toLowerCase().trim();
+
+    if (msg === "__navigate_back__") {
+      return {
+        agentMessage: "↩️ Voltando ao menu anterior...",
+        quickReplies: ["Ver Produtos", "Categorias", "Meu Carrinho", "Suporte"],
+        stage: "welcome",
+      };
+    }
+
+    if (msg === "__load_more__") {
+      return {
+        agentMessage: "Carregando mais produtos...",
+        quickReplies: ["Selecionar Produto", "Filtrar Produtos", "Categorias"],
+        stage: "browsing",
+      };
+    }
+
+    // Welcome / greeting
+    if (/^(oi|olá|ola|hey|bom dia|boa tarde|boa noite|hi|hello)/.test(msg)) {
+      return {
+        agentMessage: "👋 Olá! Bem-vindo à nossa loja!\n\nSou o assistente virtual e posso te ajudar a encontrar produtos e fazer seu pedido.\n\nComo posso te ajudar?",
+        quickReplies: ["Ver Produtos", "Encontrar Produto", "Categorias", "Ofertas", "Rastrear Pedido", "Suporte"],
+        stage: "welcome",
+      };
+    }
+
+    // Product browsing intent
+    if (/produto|ver|catalogo|catálogo|comprar|loja/.test(msg) || msg === "ver produtos") {
+      return {
+        agentMessage: "🛍️ *Nossos Produtos*\n\nO que você está procurando? Posso buscar por nome ou mostrar as categorias.",
+        quickReplies: ["Selecionar Produto", "Filtrar Produtos", "Categorias", "Ofertas do Dia"],
+        stage: "browsing",
+      };
+    }
+
+    // Categories
+    if (/categoria|segmento/.test(msg) || msg === "categorias") {
+      return {
+        agentMessage: "📂 *Categorias*\n\nEscolha uma categoria para ver os produtos:",
+        quickReplies: ["Encontrar um Produto", "Categorias em Promoção"],
+        stage: "categories",
+      };
+    }
+
+    // Cart
+    if (/carrinho|cart|meu pedido/.test(msg)) {
+      return {
+        agentMessage: "🛒 Seu carrinho está vazio no momento.\n\nQue tal ver nossos produtos?",
+        quickReplies: ["Ver Produtos", "Categorias", "Ofertas"],
+        stage: "welcome",
+      };
+    }
+
+    // Support
+    if (/suporte|ajuda|humano|atendente/.test(msg)) {
+      return {
+        agentMessage: "🙋 Como posso te ajudar?\n\nSe precisar de um atendente humano, é só pedir.",
+        quickReplies: ["FAQ", "Falar com Humano", "Reportar Problema", "Status do Pedido"],
+        stage: "support",
+      };
+    }
+
+    // Default fallback
+    return {
+      agentMessage: "Não entendi completamente. Escolha uma opção abaixo ou digite o que procura:",
+      quickReplies: ["Ver Produtos", "Categorias", "Meu Carrinho", "Suporte"],
+      stage: "welcome",
+    };
   }
 }
