@@ -7,7 +7,6 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { Request as _ExpressRequest } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
