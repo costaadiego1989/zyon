@@ -32,6 +32,8 @@ import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
 import { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
+import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { randomUUID } from "node:crypto";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -57,6 +59,7 @@ export class SendChatMessageUseCase {
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
     @Optional() private readonly chatToolExecutor?: ChatToolExecutorService,
     @Optional() private readonly chatLlmGateway?: ChatLlmGatewayService,
+    @Optional() private readonly createPaymentIntent?: CreatePaymentIntentUseCase,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -287,6 +290,7 @@ export class SendChatMessageUseCase {
 
     const wantsPix = /\b(pix|qr code)\b/i.test(input.user_message) && stage === "payment";
     const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.user_message) && stage === "payment";
+    const wantsBoleto = /\bboleto\b/i.test(input.user_message) && stage === "payment";
     const chatActions: any[] = [];
     let suggestedProducts: SuggestedProduct[] = [];
 
@@ -295,7 +299,9 @@ export class SendChatMessageUseCase {
         const suggestions = await this.crossSellUseCase.execute({
           session_id: input.session_id,
           merchant_id: input.merchant_id,
-          cart: working.cart
+          cart: working.cart,
+          global_user_id: working.globalUserId,
+          merchant_customer_id: working.customer?.externalCustomerId
         });
         suggestedProducts = suggestions.flatMap((suggestion) =>
           suggestion.ranked_items.map((sku) => resolveCrossSellProduct(sku, suggestion.id))
@@ -314,12 +320,70 @@ export class SendChatMessageUseCase {
     }
 
 
-    const responseExperience = suggestedProducts.length > 0
+    // Detect payment method selection and advance the session.
+    // Persist `paymentMethod` on the session so `deriveChatStage` advances to "completed"
+    // and the widget can render the right experience (PIX QR / card form / boleto).
+    let selectedPaymentMethod: import("@zyon/shared-types").PaymentMethod | undefined;
+    if (wantsPix) selectedPaymentMethod = "pix";
+    else if (wantsCard) selectedPaymentMethod = "credit_card";
+    else if (wantsBoleto) selectedPaymentMethod = "boleto";
+
+    if (selectedPaymentMethod && !working.paymentMethod) {
+      working = {
+        ...working,
+        paymentMethod: selectedPaymentMethod,
+        updatedAt: new Date().toISOString()
+      } as typeof working;
+      await this.sessions.saveSession(working);
+      this.logger.log(`[chat] payment.method.selected ${selectedPaymentMethod} session=${input.session_id}`);
+    }
+
+
+    const responseExperience: typeof experience = suggestedProducts.length > 0
       ? {
         ...experience,
         suggestedProducts
       }
       : experience;
+
+    // Create the payment intent when a method has been selected.
+    // Map shared-types PaymentMethod ("credit_card") to payment entity method ("card").
+    if (selectedPaymentMethod && this.createPaymentIntent) {
+      const intentMethod = selectedPaymentMethod === "credit_card" ? "card" : selectedPaymentMethod;
+      // Only pass accepted_offer_id if the offer has actually been APPLIED
+      // (cart.currentDiscount > 0 or shipping is now free). Just having
+      // `offer.approved === true` means the offer is *proposed*, not applied;
+      // passing an unaccepted id fails validateAcceptedOffer.
+      const offerApplied =
+        offer.approved &&
+        ((working.cart.currentDiscount ?? 0) > 0 ||
+          (working.shipping?.customerPrice === 0));
+      try {
+        const intent = await this.createPaymentIntent.execute({
+          merchant_id: input.merchant_id,
+          session_id: input.session_id,
+          idempotency_key: randomUUID(),
+          method: intentMethod as any,
+          ...(offerApplied ? { accepted_offer_id: offer.id } : {})
+        });
+        responseExperience.payment_intent = {
+          id: intent.id,
+          status: intent.status,
+          method: selectedPaymentMethod,
+          amount_cents: intent.amountCents,
+          currency: intent.currency,
+          expires_at: intent.buyerFacing?.quoteExpiresAt,
+          qr_code: intent.buyerFacing?.qrCodeCopyPaste,
+          qr_code_image: intent.buyerFacing?.encodedQrImage,
+          copy_paste: intent.buyerFacing?.qrCodeCopyPaste,
+          ticket_url: intent.buyerFacing?.invoiceUrl
+        };
+        this.logger.log(`[chat] payment.intent.created ${intent.id} status=${intent.status} method=${intentMethod}`);
+      } catch (payErr) {
+        this.logger.error(`[chat] payment.intent.failed session=${input.session_id}`, payErr instanceof Error ? payErr.stack : String(payErr));
+        responseExperience.payment_intent = undefined;
+      }
+    }
 
     if (wantsPix) {
       chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
@@ -354,6 +418,13 @@ export class SendChatMessageUseCase {
       }
     }
 
+    // Re-derive stage so a payment-method selection reports `completed`
+    // (and empty missing_fields) to the widget on the very next turn.
+    const finalStage = selectedPaymentMethod && working.paymentMethod
+      ? "completed"
+      : stage;
+    const finalMissingFields = finalStage === "completed" ? [] : missingFields;
+
     return {
       message: safeMessage,
       objection: reply.objection,
@@ -361,8 +432,8 @@ export class SendChatMessageUseCase {
       actions: chatActions,
       turns: updated.chatHistory,
       experience: responseExperience,
-      stage,
-      missing_fields: missingFields
+      stage: finalStage,
+      missing_fields: finalMissingFields
     };
   }
 

@@ -243,7 +243,7 @@ export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
 
 export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
 
-export type PaymentMethod = "pix" | "credit_card" | "crypto";
+export type PaymentMethod = "pix" | "credit_card" | "boleto" | "crypto";
 
 export type ChatTurnRole = "buyer" | "agent";
 
@@ -435,6 +435,19 @@ export interface CheckoutExperienceSnapshot {
   stripeEnabled?: boolean;
   cryptoPaymentsEnabled?: boolean;
   cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
+  /** Active payment intent created when buyer selected a method. Snapshot only, no secrets. */
+  payment_intent?: {
+    id: string;
+    status: string;
+    method: PaymentMethod;
+    amount_cents: number;
+    currency: string;
+    expires_at?: string;
+    qr_code?: string;
+    qr_code_image?: string;
+    copy_paste?: string;
+    ticket_url?: string;
+  };
 }
 
 export interface StartCheckoutResponse {

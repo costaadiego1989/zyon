@@ -19,10 +19,11 @@ import { MerchantCrossSellController } from "./presentation/http/merchant-cross-
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
+import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 
 @Global()
 @Module({
-  imports: [CheckoutPersistenceModule, MerchantModule],
+  imports: [CheckoutPersistenceModule, MerchantModule, BuyerPurchaseHistoryModule],
   controllers: [MerchantCrossSellController],
   providers: [
     // P0 fix: wire Prisma repositories for production persistence
