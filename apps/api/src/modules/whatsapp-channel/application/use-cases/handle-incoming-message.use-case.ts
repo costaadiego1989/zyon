@@ -50,21 +50,71 @@ export class HandleIncomingMessageUseCase implements OnModuleInit {
   }
 
   async execute(input: IncomingMessageInput): Promise<void> {
-    // Route first (to get session ID for debouncer key)
-    const route = await this.routeToSession.execute({
-      merchantId: input.merchantId,
-      deviceId: input.deviceId,
-      fromNumber: input.fromNumber,
-      fromAlias: input.fromAlias,
-    });
+    try {
+      // Route: find/create session + buyer identity
+      const route = await this.routeToSession.execute({
+        merchantId: input.merchantId,
+        deviceId: input.deviceId,
+        fromNumber: input.fromNumber,
+        fromAlias: input.fromAlias,
+      });
 
-    // Push to debouncer (5s window)
-    this.debouncer.push(
-      route.whatsappSession.id,
-      input.merchantId,
-      input.fromNumber,
-      input.body,
-    );
+      // Phase 1: process inline (skip debouncer for reliability)
+      // Phase 2: re-enable debouncer for batching rapid messages
+      const session = route.whatsappSession;
+
+      // Resolve numbered input
+      const menuState = buildMenuState(
+        session.currentOptions,
+        { currentOptions: session.previousOptions, previousOptions: [], page: session.currentPage, context: "menu" },
+      );
+      const resolved = resolveNumberedInput(input.body, menuState);
+
+      let textForEngine: string;
+      switch (resolved.action) {
+        case "select": textForEngine = resolved.text; break;
+        case "back": textForEngine = "__NAVIGATE_BACK__"; break;
+        case "more": textForEngine = "__LOAD_MORE__"; break;
+        default: textForEngine = input.body; break;
+      }
+
+      // Get response from engine
+      const engineResponse = await this.callEngine(session.checkoutSessionId ?? "", textForEngine);
+      const quickReplies: string[] = engineResponse?.quickReplies ?? ["Ver Produtos", "Categorias", "Suporte"];
+      const agentText: string = engineResponse?.agentMessage ?? "Como posso te ajudar?";
+
+      const responseText = `${agentText}\n\n${renderNumberedMenu(quickReplies, true)}`;
+
+      // Save menu state
+      await this.sessionRepo.updateMenuState(
+        session.id,
+        quickReplies,
+        session.currentOptions,
+        session.currentPage,
+      ).catch(() => {});
+
+      // Send response via WhatsApp
+      await this.sendResponse.execute({
+        merchantId: input.merchantId,
+        deviceId: input.deviceId,
+        toNumber: input.fromNumber,
+        text: responseText,
+      });
+
+      this.logger.log(`WA response sent to ${input.fromNumber}`);
+    } catch (error) {
+      this.logger.error(`WA pipeline error for ${input.fromNumber}: ${error instanceof Error ? error.message : String(error)}`);
+
+      // Fallback: try to send error message directly
+      try {
+        await this.sendResponse.execute({
+          merchantId: input.merchantId,
+          deviceId: input.deviceId,
+          toNumber: input.fromNumber,
+          text: "⚠️ Desculpe, tive um problema técnico. Tente novamente em alguns segundos.",
+        });
+      } catch { /* silent */ }
+    }
   }
 
   private async processDebounced(msg: DebouncedMessage): Promise<void> {
