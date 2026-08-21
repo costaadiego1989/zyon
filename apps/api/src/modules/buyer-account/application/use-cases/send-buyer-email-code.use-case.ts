@@ -29,6 +29,9 @@ export class SendBuyerEmailCodeUseCase {
     // Store OTP with email as key
     await this.otpStore.save({ phone: `email:${email}`, codeHash, maxAttempts: 5, expiresAt });
 
+    // LOG OTP for dev (always visible in terminal)
+    this.logger.warn(`[OTP-EMAIL] code=${code} email=${email} expires=${expiresAt.toISOString()}`);
+
     // Send via Resend
     const apiKey = process.env.RESEND_API_KEY;
     const fromEmail = process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL || "noreply@zyon.com.br";

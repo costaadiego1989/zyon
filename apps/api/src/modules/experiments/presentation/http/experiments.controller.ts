@@ -18,9 +18,7 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import type { TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
-import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
-import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { CreateExperimentUseCase } from "../../application/use-cases/create-experiment.use-case.js";
 import { GetExperimentUseCase } from "../../application/use-cases/get-experiment.use-case.js";
 import { ListExperimentsUseCase } from "../../application/use-cases/list-experiments.use-case.js";
@@ -40,7 +38,7 @@ import {
 
 @ApiTags("Experiments")
 @Controller("experiments")
-@UseGuards(TenantAccessGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth("JWT")
 export class ExperimentsController {
   constructor(
@@ -59,18 +57,18 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Create new experiment" })
   @ApiOkResponse({ type: ExperimentResponseDto })
   async create(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Body(ValidationPipe) body: CreateExperimentRequestDto,
   ): Promise<ExperimentResponseDto> {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
       const output = await this.createExperiment.execute({
-        merchant_id: principal.tenantId,
+        merchant_id: user.merchantId,
         name: body.name,
         description: body.description,
         variants: body.variants,
       });
-      const experiment = await this.getExperiment.execute(output.experiment_id, principal.tenantId);
+      const experiment = await this.getExperiment.execute(output.experiment_id, user.merchantId);
       if (!experiment) throw new Error("Failed to retrieve created experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
@@ -81,9 +79,9 @@ export class ExperimentsController {
   @Get()
   @ApiOperation({ summary: "List all experiments" })
   @ApiOkResponse({ type: ExperimentListResponseDto })
-  async list(@Req() req: TenantPrincipalRequest): Promise<ExperimentListResponseDto> {
-    const principal = currentTenantPrincipal(req);
-    const experiments = await this.listExperiments.execute(principal.tenantId);
+  async list(@Req() req: any): Promise<ExperimentListResponseDto> {
+    const user = currentUser(req);
+    const experiments = await this.listExperiments.execute(user.merchantId);
     return {
       data: experiments.map((e) => this.toResponse(e)),
       total: experiments.length,
@@ -95,11 +93,11 @@ export class ExperimentsController {
   @ApiOkResponse({ type: ExperimentResponseDto })
   @ApiNotFoundResponse({ description: "Experiment not found" })
   async get(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
   ): Promise<ExperimentResponseDto> {
-    const principal = currentTenantPrincipal(req);
-    const experiment = await this.getExperiment.execute(id, principal.tenantId);
+    const user = currentUser(req);
+    const experiment = await this.getExperiment.execute(id, user.merchantId);
     if (!experiment) {
       throw new NotFoundException("experiment_not_found");
     }
@@ -110,20 +108,20 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Update experiment (draft only)" })
   @ApiOkResponse({ type: ExperimentResponseDto })
   async update(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
     @Body(ValidationPipe) body: UpdateExperimentRequestDto,
   ): Promise<ExperimentResponseDto> {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
       await this.updateExperiment.execute({
         experiment_id: id,
-        merchant_id: principal.tenantId,
+        merchant_id: user.merchantId,
         name: body.name,
         description: body.description,
         variants: body.variants,
       });
-      const experiment = await this.getExperiment.execute(id, principal.tenantId);
+      const experiment = await this.getExperiment.execute(id, user.merchantId);
       if (!experiment) throw new Error("Failed to retrieve updated experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
@@ -135,13 +133,13 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Start experiment" })
   @ApiOkResponse({ type: ExperimentResponseDto })
   async start(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
   ): Promise<ExperimentResponseDto> {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
-      await this.startExperiment.execute({ merchant_id: principal.tenantId, experiment_id: id });
-      const experiment = await this.getExperiment.execute(id, principal.tenantId);
+      await this.startExperiment.execute({ merchant_id: user.merchantId, experiment_id: id });
+      const experiment = await this.getExperiment.execute(id, user.merchantId);
       if (!experiment) throw new Error("Failed to retrieve started experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
@@ -153,13 +151,13 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Stop experiment" })
   @ApiOkResponse({ type: ExperimentResponseDto })
   async stop(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
   ): Promise<ExperimentResponseDto> {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
-      await this.stopExperiment.execute({ merchant_id: principal.tenantId, experiment_id: id });
-      const experiment = await this.getExperiment.execute(id, principal.tenantId);
+      await this.stopExperiment.execute({ merchant_id: user.merchantId, experiment_id: id });
+      const experiment = await this.getExperiment.execute(id, user.merchantId);
       if (!experiment) throw new Error("Failed to retrieve stopped experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
@@ -171,13 +169,13 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Archive experiment" })
   @ApiOkResponse({ type: ExperimentResponseDto })
   async archive(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
   ): Promise<ExperimentResponseDto> {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
-      await this.archiveExperiment.execute({ merchant_id: principal.tenantId, experiment_id: id });
-      const experiment = await this.getExperiment.execute(id, principal.tenantId);
+      await this.archiveExperiment.execute({ merchant_id: user.merchantId, experiment_id: id });
+      const experiment = await this.getExperiment.execute(id, user.merchantId);
       if (!experiment) throw new Error("Failed to retrieve archived experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
@@ -189,17 +187,17 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Promote winner variant" })
   @ApiOkResponse({ type: ExperimentResponseDto })
   async promote(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
     @Body() body: { variant_id: string },
   ): Promise<ExperimentResponseDto> {
     if (!body.variant_id) {
       throw new BadRequestException("variant_id_required");
     }
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
-      await this.promoteWinner.execute(id, principal.tenantId, body.variant_id);
-      const experiment = await this.getExperiment.execute(id, principal.tenantId);
+      await this.promoteWinner.execute(id, user.merchantId, body.variant_id);
+      const experiment = await this.getExperiment.execute(id, user.merchantId);
       if (!experiment) throw new Error("Failed to retrieve experiment after promotion");
       return this.toResponse(experiment);
     } catch (error: any) {
@@ -211,11 +209,11 @@ export class ExperimentsController {
   @ApiOperation({ summary: "Get experiment results" })
   @ApiOkResponse({ type: ExperimentResultsResponseDto })
   async results(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: any,
     @Param("id") id: string,
   ): Promise<ExperimentResultsResponseDto> {
-    const principal = currentTenantPrincipal(req);
-    const output = await this.getResults.execute(id, principal.tenantId);
+    const user = currentUser(req);
+    const output = await this.getResults.execute(id, user.merchantId);
     if (!output) {
       throw new NotFoundException("experiment_not_found");
     }

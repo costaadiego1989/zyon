@@ -204,7 +204,11 @@ export class SendChatMessageUseCase {
 
     let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] } | null = null;
 
-    if (!isHoldout) {
+    // During data_collection stage with missing fields, ALWAYS use deterministic path.
+    // LLM tools (marketplace, discount) are irrelevant until buyer completes registration.
+    const forceDeterministic = stage === "data_collection" && missingFields && missingFields.length > 0;
+
+    if (!isHoldout && !forceDeterministic) {
       let experimentPromptOverride: string | undefined;
       try {
         const running = await this.prisma?.promptExperiment?.findFirst?.({
@@ -231,6 +235,8 @@ export class SendChatMessageUseCase {
       }
 
       llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride, offer);
+    } else if (forceDeterministic) {
+      this.logger.debug("chat.routing.forced-deterministic", { stage, missingFields });
     }
 
     if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
