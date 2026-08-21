@@ -7,6 +7,7 @@ import {
 } from "../api-client.js";
 import { useBillingApi } from "../hooks/api/useBillingApi.js";
 import { SectionHeader } from "../components/SectionHeader.js";
+import { Button } from "../components/Button.js";
 import { readError } from "../utils/read-error.js";
 
 function formatDate(iso: string | null): string {
@@ -248,9 +249,9 @@ export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | n
           icon={CreditCard}
           title="Nenhum método cadastrado"
           action={
-            <button type="button" style={{ background: "transparent", border: "none", padding: 0, color: "var(--accent)", font: "600 13px var(--mono)", cursor: busy ? "not-allowed" : "pointer", opacity: busy ? 0.6 : 1, textDecoration: "underline" }} disabled={busy} onClick={() => void openPortal()}>
+            <Button variant="outline" size="md" disabled={busy} loading={busy} onClick={() => void openPortal()}>
               Gerenciar assinatura
-            </button>
+            </Button>
           }
         />
       </section>

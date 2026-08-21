@@ -179,11 +179,28 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                 options={PROVIDERS.map((p) => ({ value: p, label: PROVIDER_LABELS[p] }))}
                 disabled={connections.isBusy}
               />
-              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 6, border: "1px solid var(--border)", color: "var(--muted)", opacity: 0.6, display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  VTEX <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "var(--border)", fontWeight: 600 }}>EM BREVE</span>
-                </span>
-              </div>
+              <span
+                title="Integração VTEX em breve"
+                aria-label="Integração VTEX em breve"
+                style={{
+                  fontSize: 10,
+                  padding: "3px 8px",
+                  borderRadius: 999,
+                  border: "1px solid var(--border)",
+                  color: "var(--muted)",
+                  background: "var(--bg)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontWeight: 600,
+                  letterSpacing: 0.3,
+                  textTransform: "uppercase",
+                  alignSelf: "flex-start",
+                  marginTop: 4,
+                }}
+              >
+                VTEX · Em breve
+              </span>
 
               {/* API Key Panel */}
               <ApiKeyPanel

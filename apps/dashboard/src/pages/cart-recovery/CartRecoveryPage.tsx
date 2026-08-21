@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { ShoppingCart, RefreshCw, CheckCircle, XCircle, Clock } from "lucide-react";
+import { ShoppingCart, Send, CheckCircle, XCircle, Clock, Wallet, Target, RefreshCw } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import { StatCard } from "../../components/stat-card.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 
 export interface CartRecoveryPageProps {
@@ -81,37 +83,40 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
-      <div>
-        <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)" }}>INTELIGÊNCIA</span>
-        <h1 style={{ font: "600 26px var(--serif)", margin: "4px 0 6px", color: "var(--ink)" }}>Cart Recovery</h1>
-        <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
-          Métricas de recuperação de carrinhos e configuração de estratégias
-        </p>
-      </div>
+      <SectionHeader
+        icon={<ShoppingCart size={18} aria-hidden="true" />}
+        title="Cart Recovery"
+        subtitle="Métricas de recuperação de carrinhos e configuração de estratégias"
+      />
 
       {/* Metric cards */}
       {metrics && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
-          <div style={CARD}>
-            <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 6 }}>ABANDONADOS</div>
-            <div style={{ font: "600 24px var(--serif)", color: "var(--ink)" }}>{metrics.total_abandoned.toLocaleString("pt-BR")}</div>
-          </div>
-          <div style={CARD}>
-            <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 6 }}>TENTATIVAS</div>
-            <div style={{ font: "600 24px var(--serif)", color: "var(--ink)" }}>{metrics.total_attempts.toLocaleString("pt-BR")}</div>
-          </div>
-          <div style={CARD}>
-            <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 6 }}>RECUPERADOS</div>
-            <div style={{ font: "600 24px var(--serif)", color: "var(--good)" }}>{metrics.total_recovered.toLocaleString("pt-BR")}</div>
-          </div>
-          <div style={CARD}>
-            <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 6 }}>TAXA RECUP.</div>
-            <div style={{ font: "600 24px var(--serif)", color: "var(--accent)" }}>{metrics.recovery_rate_percent.toFixed(1)}%</div>
-          </div>
-          <div style={CARD}>
-            <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 6 }}>RECEITA RECUP.</div>
-            <div style={{ font: "600 24px var(--serif)", color: "var(--good)" }}>R$ {metrics.revenue_recovered_brl.toLocaleString("pt-BR")}</div>
-          </div>
+        <div className="metrics">
+          <StatCard
+            icon={ShoppingCart}
+            value={metrics.total_abandoned.toLocaleString("pt-BR")}
+            label="Abandonados"
+          />
+          <StatCard
+            icon={Send}
+            value={metrics.total_attempts.toLocaleString("pt-BR")}
+            label="Tentativas"
+          />
+          <StatCard
+            icon={CheckCircle}
+            value={metrics.total_recovered.toLocaleString("pt-BR")}
+            label="Recuperados"
+          />
+          <StatCard
+            icon={Target}
+            value={`${metrics.recovery_rate_percent.toFixed(1)}%`}
+            label="Taxa Recuperação"
+          />
+          <StatCard
+            icon={Wallet}
+            value={`R$ ${metrics.revenue_recovered_brl.toLocaleString("pt-BR")}`}
+            label="Receita Recuperada"
+          />
         </div>
       )}
 

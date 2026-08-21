@@ -65,6 +65,13 @@
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
 }
+.payment-connections-page__grid--nested {
+  align-items: stretch;
+}
+.payment-connections-page__grid--nested > .gateway-card,
+.payment-connections-page__grid--nested > .wallet-section {
+  margin: 0;
+}
 
 /* ── Gateway Card ────────────────────────────────────────────────────────── */
 
@@ -485,7 +492,8 @@
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 900px) {
-  .payment-connections-page__grid { grid-template-columns: 1fr; }
+  .payment-connections-page__grid,
+  .payment-connections-page__grid--nested { grid-template-columns: 1fr; }
   .connection-skeleton { grid-template-columns: 1fr; }
   .wallet-section__grid { grid-template-columns: 1fr; }
   .asaas-config__grid { grid-template-columns: 1fr; }

@@ -54,7 +54,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
 
           {vm.activeTab === "identity" && (
             <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <SectionHeader title="IDENTIDADE DO AGENTE" variant="secondary" />
+              <SectionHeader title="Identidade do Agente" variant="secondary" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>Nome do Agente</span>

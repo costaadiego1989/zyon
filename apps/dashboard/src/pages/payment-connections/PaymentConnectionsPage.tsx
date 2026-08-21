@@ -151,19 +151,27 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             onConnect={() => void onboardAsaas()}
             onSync={() => void syncAsaas()}
           />
-          <GatewayCard
-            provider="mercadopago"
-            name="Mercado Pago"
-            description="PIX, cartão e boleto — América Latina"
-            iconBg="#009EE3"
-            icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
-            connection={mercadopagoConn}
-            operation={operation}
-            connectingOperation="connecting-mercadopago"
-            syncingOperation="syncing-mercadopago"
-            onConnect={() => void onboardMercadoPago()}
-            onSync={() => void syncMercadoPago()}
-          />
+          <div className="payment-connections-page__grid payment-connections-page__grid--nested">
+            <GatewayCard
+              provider="mercadopago"
+              name="Mercado Pago"
+              description="PIX, cartão e boleto — América Latina"
+              iconBg="#009EE3"
+              icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
+              connection={mercadopagoConn}
+              operation={operation}
+              connectingOperation="connecting-mercadopago"
+              syncingOperation="syncing-mercadopago"
+              onConnect={() => void onboardMercadoPago()}
+              onSync={() => void syncMercadoPago()}
+            />
+            <WalletSection
+              crypto={crypto}
+              setCrypto={setCrypto}
+              tokenAddress={tokenAddress}
+              saveCryptoWallet={saveCryptoWallet}
+            />
+          </div>
         </div>
         </SectionErrorBoundary>
       ) : null}
@@ -216,16 +224,6 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             </button>
           </div>
         </div>
-      ) : null}
-
-      {/* Wallet Section */}
-      {!isLoading ? (
-        <WalletSection
-          crypto={crypto}
-          setCrypto={setCrypto}
-          tokenAddress={tokenAddress}
-          saveCryptoWallet={saveCryptoWallet}
-        />
       ) : null}
 
       {/* Other Providers Table */}

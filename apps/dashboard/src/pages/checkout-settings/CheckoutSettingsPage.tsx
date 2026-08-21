@@ -515,6 +515,9 @@ export function CheckoutSettingsPage(props: {
                 </span>
               }
             >
+              <div className="cfg-help" role="note" data-priority="advanced-over-progressive">
+                <strong>Prioridade:</strong> Regras Avançadas têm preferência. As Regras Progressivas (Descontos) aplicam apenas quando Regras Avançadas não cobrem a situação.
+              </div>
               <RulesList
                 rules={vm.draft!.advancedRules}
                 busy={vm.busy}
