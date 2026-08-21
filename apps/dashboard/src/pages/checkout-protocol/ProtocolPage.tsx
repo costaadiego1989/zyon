@@ -3,6 +3,7 @@ import { Code2, Webhook } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useProtocolPage } from "./useProtocolPage.js";
 
@@ -44,7 +45,7 @@ export function ProtocolPage(props: ProtocolPageProps) {
     return (
       <header className="page-head">
         <div>
-          <h1>Checkout Protocol</h1>
+          <h1>Checkout Programável</h1>
           <p className="page-lead">Login necessário</p>
         </div>
       </header>
@@ -54,10 +55,67 @@ export function ProtocolPage(props: ProtocolPageProps) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
-      <div>
-        <span className="eyebrow">CHECKOUT</span>
-        <h1>Checkout Protocol</h1>
-        <p className="page-lead">Gerencie sessões do protocolo de checkout e webhooks para agentes externos</p>
+      <SectionHeader
+        variant="primary"
+        title="Checkout Programável"
+        subtitle="Conecte seu sistema ao checkout via API"
+      />
+
+      {/* Value Proposition */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <p style={{ font: "14px var(--sans)", color: "var(--ink)", margin: 0, lineHeight: 1.55 }}>
+          Permita que seu software interno (ERP, CRM, automação) inicie e controle sessões de checkout programaticamente.
+          Sua equipe de TI pode integrar o checkout direto no ERP — sem depender do dashboard.
+        </p>
+      </div>
+
+      {/* Como funciona */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader variant="secondary" title="Como funciona" />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          {[
+            { n: 1, t: "Crie uma chave de API", d: "Gere credenciais para autenticar seu sistema no protocolo." },
+            { n: 2, t: "Integre no seu sistema", d: "Conecte ERP, CRM ou automação usando os endpoints REST." },
+            { n: 3, t: "Controle o checkout via código", d: "Inicie sessões, acompanhe estados e receba webhooks." },
+          ].map((step) => (
+            <div key={step.n} style={{ padding: 14, border: "1px solid var(--border)", borderRadius: 9, background: "var(--bg)" }}>
+              <div style={{ font: "600 11px var(--mono)", color: "var(--accent)", marginBottom: 6 }}>PASSO {step.n}</div>
+              <div style={{ font: "600 13px var(--sans)", color: "var(--ink)", marginBottom: 4 }}>{step.t}</div>
+              <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.45 }}>{step.d}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Exemplo concreto */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader variant="secondary" title="Exemplo de uso" />
+        <p style={{ font: "13px var(--sans)", color: "var(--ink)", margin: 0, lineHeight: 1.55 }}>
+          Seu ERP pode criar um checkout com produtos pré-selecionados quando um vendedor fecha um pedido.
+          O sistema recebe o evento <code style={{ font: "12px var(--mono)", color: "var(--accent)" }}>session.completed</code> via webhook e dá baixa automática no estoque.
+        </p>
+      </div>
+
+      {/* Para quem serve */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader variant="secondary" title="Para quem serve" />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {["Empresas com ERP próprio", "Equipes de TI e integrações", "Automações de vendas", "Plataformas B2B customizadas"].map((tag) => (
+            <span
+              key={tag}
+              style={{
+                padding: "6px 12px",
+                borderRadius: 999,
+                border: "1px solid var(--border)",
+                font: "12px var(--sans)",
+                color: "var(--ink)",
+                background: "var(--bg)",
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Config Section */}
