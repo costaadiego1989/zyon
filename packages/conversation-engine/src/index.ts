@@ -128,9 +128,10 @@ export async function generateSalesReply(input: ConversationInput): Promise<Conv
       input.provider === "openai_chat"
         ? await generateChatCompletion(input, apiKey, objection)
         : await generateOpenAiResponse(input, apiKey, objection);
-    // Skip safety check when merchantRules authorize commercial actions
-    const hasMerchantRules = input.merchantRules && input.merchantRules.length > 0;
-    if (!hasMerchantRules && !isSafeGeneratedMessage(rawText, input.authorizedOffer)) return fb();
+    // Safety check ALWAYS runs — merchantRules expand LLM's topic scope but
+    // never bypass offer validation. LLM cannot promise discounts/shipping
+    // beyond what authorizedOffer explicitly approves.
+    if (!isSafeGeneratedMessage(rawText, input.authorizedOffer)) return fb();
     const suggested_skus = extractSuggestedSkus(rawText);
     const message = stripSuggestMarker(rawText).trim() || fb().message;
     return {
