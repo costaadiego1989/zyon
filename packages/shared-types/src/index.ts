@@ -623,6 +623,7 @@ export type CheckoutDomainEventType =
   | "checkout.event.tracked"
   | "checkout.abandonment.scored"
   | "checkout.abandoned"
+  | "checkout.intervention_triggered"
   | "checkout.cart.updated"
   | "order.completed"
   | "order.tracking.updated"
@@ -825,6 +826,12 @@ export interface AgentContext {
   checkout_settings: AgentCheckoutSettings;
   checkout_context?: CheckoutSettingsContext;
   purchase_history?: AgentPurchaseHistoryContext;
+  intent?: {
+    primary_intent: string;
+    urgency: "low" | "medium" | "high";
+    budget_tier: "budget" | "mid" | "premium";
+    pain_points: string[];
+  };
   copy_constraints: string[];
 }
 
