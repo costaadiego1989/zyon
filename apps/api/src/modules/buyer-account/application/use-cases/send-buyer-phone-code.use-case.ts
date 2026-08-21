@@ -29,16 +29,23 @@ export class SendBuyerPhoneCodeUseCase {
 
     const phoneKey = `${countryCode}:${normalized}`;
 
-    // If there's already an active (non-expired, non-consumed) OTP, don't regenerate.
-    // This prevents React StrictMode double-calls from overwriting the code.
+    // If there's already an active (non-expired, non-consumed) OTP, resend the same code.
     const existing = await this.otpStore.findActive(phoneKey);
     if (existing) {
-      const isDev = process.env.NODE_ENV !== "production";
-      this.logger.log(`[OTP] Active OTP exists for ***${normalized.slice(-4)}, skipping regeneration`);
+      this.logger.log(`[OTP] Active OTP exists for ***${normalized.slice(-4)}, resending delivery`);
+      // Re-deliver via SMS/WhatsApp (user might not have received the first one)
+      if (this.sms) {
+        // We can't recover the plain code from hash, so generate a new one
+        const code = String(randomInt(100000, 1000000));
+        const codeHash = createHash("sha256").update(code).digest("hex");
+        const expiresAt = new Date(Date.now() + OTP_TTL_MS);
+        await this.otpStore.save({ phone: phoneKey, codeHash, maxAttempts: 5, expiresAt });
+        this.logger.warn(`[OTP-PHONE] code=${code} phone=${normalized} (resend)`);
+        await this.sms.send(normalized, `Your verification code: ${code}`);
+      }
       return {
         sent: true,
         delivered_to: `***${normalized.slice(-4)}`,
-        ...(isDev && !this.sms ? { dev_code: "__check_logs__" } : {}),
       };
     }
 

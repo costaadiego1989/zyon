@@ -49,6 +49,7 @@ model Merchant {
   auditEvents            MerchantAuditEvent[]
   storyCategories        StoryCategory[]
   budgetRequests         BudgetRequest[]
+  whatsappChannelConfig  WhatsAppChannelConfig?
   marketplaceConfig      MarketplaceConfig?
 
   @@map("merchants")
@@ -762,7 +763,7 @@ model PaymentCryptoTransfer {
 model BuyerAccount {
   globalUserId String   @id @default(cuid()) @map("global_user_id")
   email        String   @unique
-  passwordHash String   @map("password_hash")
+  passwordHash String?  @map("password_hash")
   displayName  String   @map("display_name")
   phone        String?
   cpf          String?
@@ -2072,4 +2073,57 @@ model BuyerGlobalProfile {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   @@map("buyer_global_profiles")
+}
+
+// ─── WhatsApp Commerce Channel ─────────────────────────────────────────────
+
+model WhatsAppChannelConfig {
+  id              String   @id @default(uuid())
+  merchantId      String   @unique @map("merchant_id")
+  enabled         Boolean  @default(false)
+  provider        String   @default("BUBBLEWHATS") @map("provider") // TWILIO | BUBBLEWHATS | META_CLOUD
+
+  // Provider credentials (encrypted JSON)
+  credentials     Json     @default("{}") @map("credentials")
+
+  // WhatsApp number (E.164 format, used for webhook routing)
+  whatsappNumber  String?  @map("whatsapp_number")
+
+  // Connection status
+  status          String   @default("DISCONNECTED") @map("status") // DISCONNECTED | PENDING_VERIFICATION | ACTIVE | INACTIVE
+
+  // Legacy BubbleWhats fields (kept for backward compat)
+  deviceId        String?  @map("device_id")
+  phoneNumber     String?  @map("phone_number")
+  webhookSecret   String?  @map("webhook_secret")
+
+  connectedAt     DateTime? @map("connected_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([whatsappNumber])
+  @@index([deviceId])
+  @@map("whatsapp_channel_configs")
+}
+
+model WhatsAppSession {
+  id                String   @id @default(uuid())
+  merchantId        String   @map("merchant_id")
+  buyerPhone        String   @map("buyer_phone")
+  buyerAlias        String?  @map("buyer_alias")
+  checkoutSessionId String?  @map("checkout_session_id")
+  deviceId          String   @map("device_id")
+  currentOptions    Json     @default("[]") @map("current_options")
+  previousOptions   Json     @default("[]") @map("previous_options")
+  currentPage       Int      @default(0) @map("current_page")
+  lastActivityAt    DateTime @default(now()) @updatedAt @map("last_activity_at")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, buyerPhone, deviceId])
+  @@index([merchantId, status])
+  @@index([lastActivityAt])
+  @@map("whatsapp_sessions")
 }
