@@ -14,6 +14,7 @@ import { StatCard } from "./overview/components/StatCard.js";
 import type { MerchantProfile, TenantOrder } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
+import { showToast } from "../components/Toast.js";
 import { STATUS_LABELS, isStatusBefore, formatMinor, formatDate, formatPhone, customerLabel} from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
 
@@ -111,7 +112,9 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
     if (!canDrop(draggedOrder.status, columnId)) return;
 
     const targetStatus = columnId === "pending" ? "pending" : columnId;
+    const col = KANBAN_COLUMNS.find((c) => c.id === columnId);
     void vm.changeOrderStatus(draggedOrder, targetStatus);
+    showToast("success", `Pedido #${draggedOrder.external_order_id.slice(-6)} → ${col?.label ?? targetStatus}`);
     setDraggedOrder(null);
   }
 
@@ -379,39 +382,11 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           </button>
         </div>
 
-        {/* Status update */}
+        {/* Status — info only, change via drag on board */}
         <div style={{ ...sectionStyle, borderBottom: "none" }}>
-          <div style={labelStyle}>Alterar status</div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            {(["paid", "shipped", "delivered", "cancelled"] as const).map((status) => {
-              const labels: Record<string, string> = { paid: "Pago", shipped: "Enviado", delivered: "Entregue", cancelled: "Cancelado" };
-              const isActive = order.status === status;
-              const isDelivered = order.status === "delivered";
-              const isRegress = status !== "cancelled" && isStatusBefore(order.status, status);
-              const disabled = vm.busy || isActive || isDelivered || isRegress;
-              return (
-                <button
-                  key={status}
-                  type="button"
-                  onClick={() => void vm.changeOrderStatus(order, status)}
-                  disabled={disabled}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: 8,
-                    border: `1px solid ${isActive ? "var(--color-brand)" : "var(--color-border)"}`,
-                    background: isActive ? "var(--color-brand)" : "var(--surface-2)",
-                    color: isActive ? "white" : "var(--color-text)",
-                    font: "600 12px var(--font-sans)",
-                    cursor: disabled ? "not-allowed" : "pointer",
-                    opacity: disabled ? 0.45 : 1,
-                    transition: "all 0.15s ease",
-                  }}
-                >
-                  {labels[status]}
-                </button>
-              );
-            })}
-          </div>
+          <div style={labelStyle}>Status atual</div>
+          <OrderStatusBadge status={order.status} />
+          <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>Arraste o card no board para alterar o status</p>
         </div>
 
         {order.cancellation_reason ? (
