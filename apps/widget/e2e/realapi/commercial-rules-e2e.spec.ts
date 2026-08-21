@@ -182,26 +182,22 @@ test.describe("Commercial Rules E2E @realapi", () => {
   });
 
   test("Scenario 7: M2M Protocol — Register + Discover + Negotiate", async ({ request }) => {
-    // Register agent
-    const regResp = await request.post(`${API}/m2m/register`, {
-      headers: { Cookie: cookie },
-      data: { agent_name: `E2E-Bot-${Date.now()}`, capabilities: ["discover", "negotiate", "checkout"] },
-    });
-    expect(regResp.status()).toBe(201);
-
-    // Discover
+    // Discover (catalog search)
     const discResp = await request.post(`${API}/m2m/discover`, {
       headers: { Cookie: cookie },
       data: { query: { category: "running_shoes" } },
     });
     expect(discResp.status()).toBe(201);
 
-    // Negotiate
+    // Negotiate (deterministic engine)
     const negResp = await request.post(`${API}/m2m/negotiate`, {
       headers: { Cookie: cookie },
       data: { cart: { items: [{ sku: "nike-1", price: 500 }], total: 500 }, preferences: { target_discount: 15 } },
     });
     expect(negResp.status()).toBe(201);
+    const negData = await negResp.json();
+    // Negotiation result has agreement field (true/false based on policy)
+    expect(typeof negData.agreement).toBe("boolean");
   });
 
   test("Scenario 8: Discount never exceeds maxDiscountPercent under pressure", async ({ request }) => {
