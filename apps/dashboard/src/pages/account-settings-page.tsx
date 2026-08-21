@@ -5,6 +5,7 @@ import { Button } from "../components/Button.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { FormField } from "../components/FormField.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
+import { maskPhone } from "../utils/masks.js";
 
 export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useAccountSettingsPage({ me: props.me });
@@ -41,7 +42,7 @@ export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantPro
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <FormField label="Nome completo" placeholder="Seu nome" value={vm.form.name} onChange={(v) => vm.setForm((f) => ({ ...f, name: v }))} />
           <FormField label="Email" type="email" placeholder="seu@email.com" value={vm.form.email} onChange={(v) => vm.setForm((f) => ({ ...f, email: v }))} />
-          <FormField label="Celular / WhatsApp" type="tel" placeholder="(11) 99999-9999" value={vm.form.phone} onChange={(v) => vm.setForm((f) => ({ ...f, phone: v }))} />
+          <FormField label="Celular / WhatsApp" type="tel" placeholder="(11) 99999-9999" value={maskPhone(vm.form.phone)} onChange={(v) => vm.setForm((f) => ({ ...f, phone: maskPhone(v) }))} maxLength={15} />
         </div>
 
         <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>

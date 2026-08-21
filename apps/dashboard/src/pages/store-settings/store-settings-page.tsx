@@ -99,7 +99,7 @@ export function StoreSettingsPage() {
               {state.budgetMode && (
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
                   <FormField label="Email para orçamentos" type="email" placeholder="contato@loja.com" value={state.budgetEmail} onChange={(v) => setBudgetEmail(v)} />
-                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="(11) 99999-9999" value={state.budgetWhatsapp} onChange={(v) => setBudgetWhatsapp(v)} />
+                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="(11) 99999-9999" value={maskPhone(state.budgetWhatsapp)} onChange={(v) => setBudgetWhatsapp(maskPhone(v))} maxLength={15} />
                 </div>
               )}
             </div>
