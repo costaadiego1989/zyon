@@ -7,7 +7,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
+import type { Request as _ExpressRequest } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -31,7 +31,7 @@ export class IntentMemoryController {
   @ApiOperation({ summary: "Get current buyer's stored intent" })
   @ApiOkResponse({ description: "Buyer intent retrieved" })
   async getCurrentBuyerIntent(
-    @Req() req: Request,
+    @Req() req: any,
   ) {
     const user = currentUser(req);
     return {
@@ -45,7 +45,7 @@ export class IntentMemoryController {
   @ApiOperation({ summary: "Classify customer intent from session data" })
   @ApiOkResponse({ description: "Intent classified" })
   async classifyIntent(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);
@@ -67,7 +67,7 @@ export class IntentMemoryController {
   @ApiOperation({ summary: "Record intent if buyer has consent" })
   @ApiOkResponse({ description: "Intent recorded if consent exists" })
   async recordIntent(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);

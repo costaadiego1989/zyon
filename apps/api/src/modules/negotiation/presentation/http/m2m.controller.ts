@@ -9,7 +9,6 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -28,7 +27,7 @@ export class M2mController {
   @ApiOperation({ summary: "Register buyer agent for M2M protocol" })
   @ApiOkResponse({ description: "Agent registered" })
   async registerAgent(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);
@@ -43,7 +42,7 @@ export class M2mController {
   @ApiOperation({ summary: "Search catalog via M2M protocol" })
   @ApiOkResponse({ description: "Catalog search results" })
   async discoverProducts(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);
@@ -59,7 +58,7 @@ export class M2mController {
   @ApiOperation({ summary: "Initiate negotiation session via M2M" })
   @ApiOkResponse({ description: "Negotiation initiated" })
   async initiateNegotiation(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);
@@ -74,7 +73,7 @@ export class M2mController {
   @ApiOperation({ summary: "Get quote (pricing + shipping) via M2M" })
   @ApiOkResponse({ description: "Quote generated" })
   async getQuote(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);
@@ -94,7 +93,7 @@ export class M2mController {
   @ApiOperation({ summary: "Create order via M2M protocol" })
   @ApiOkResponse({ description: "Order created" })
   async createOrder(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: any,
   ) {
     const user = currentUser(req);
@@ -109,7 +108,7 @@ export class M2mController {
   @ApiOperation({ summary: "Track order fulfillment status via M2M" })
   @ApiOkResponse({ description: "Order status retrieved" })
   async trackOrder(
-    @Req() req: Request,
+    @Req() req: any,
     @Param("orderId") orderId: string,
   ) {
     const user = currentUser(req);

@@ -7,7 +7,6 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -34,7 +33,7 @@ export class CartRecoveryController {
   @ApiOperation({ summary: "Get recovery metrics and statistics" })
   @ApiOkResponse({ description: "Recovery metrics retrieved" })
   async getMetrics(
-    @Req() req: Request,
+    @Req() req: any,
     @Query() query?: { daysBack?: number },
   ) {
     const user = currentUser(req);
@@ -52,7 +51,7 @@ export class CartRecoveryController {
   @ApiOperation({ summary: "List recovery attempts" })
   @ApiOkResponse({ description: "Recovery attempts retrieved" })
   async listAttempts(
-    @Req() req: Request,
+    @Req() req: any,
     @Query() query?: { status?: string; limit?: number; offset?: number },
   ) {
     const user = currentUser(req);
@@ -71,7 +70,7 @@ export class CartRecoveryController {
   @Get("strategies")
   @ApiOperation({ summary: "Get cart recovery strategy toggles" })
   @ApiOkResponse({ description: "Strategy preferences retrieved" })
-  async getStrategies(@Req() req: Request) {
+  async getStrategies(@Req() req: any) {
     const user = currentUser(req);
     const strategies = await this.getStrategyPreferences.execute({
       merchantId: user.merchantId,
@@ -83,7 +82,7 @@ export class CartRecoveryController {
   @ApiOperation({ summary: "Update cart recovery strategy toggles" })
   @ApiOkResponse({ description: "Strategy preferences updated" })
   async patchStrategies(
-    @Req() req: Request,
+    @Req() req: any,
     @Body() body: { strategies?: Record<string, boolean> },
   ) {
     const user = currentUser(req);

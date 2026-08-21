@@ -11,7 +11,6 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -54,7 +53,7 @@ export class RevenueManagerController {
   @ApiOperation({ summary: "List observations for merchant" })
   @ApiOkResponse({ type: [ObservationResponseDto] })
   @ApiQuery({ name: "limit", required: false, type: Number })
-  async listObservations(@Req() req: Request, @Query("limit") limit?: string): Promise<ObservationResponseDto[]> {
+  async listObservations(@Req() req: any, @Query("limit") limit?: string): Promise<ObservationResponseDto[]> {
     const user = currentUser(req);
     const observations = await this.observationRepo.findByMerchant(user.merchantId, limit ? parseInt(limit, 10) : undefined);
     return observations.map((obs) => {
@@ -85,7 +84,7 @@ export class RevenueManagerController {
   @ApiQuery({ name: "status", required: false, type: String })
   @ApiQuery({ name: "limit", required: false, type: Number })
   async listHypotheses(
-    @Req() req: Request,
+    @Req() req: any,
     @Query("status") status?: string,
     @Query("limit") limit?: string,
   ): Promise<HypothesisResponseDto[]> {
@@ -126,7 +125,7 @@ export class RevenueManagerController {
   async approve(
     @Param("id") id: string,
     @Body() body: ApproveHypothesisDto,
-    @Req() req: Request,
+    @Req() req: any,
   ): Promise<ApproveHypothesisResponseDto> {
     const user = currentUser(req);
     try {
@@ -150,7 +149,7 @@ export class RevenueManagerController {
   async reject(
     @Param("id") id: string,
     @Body() body: RejectHypothesisDto,
-    @Req() req: Request,
+    @Req() req: any,
   ): Promise<RejectHypothesisResponseDto> {
     const user = currentUser(req);
     if (!body.reason || body.reason.trim().length === 0) {
@@ -176,7 +175,7 @@ export class RevenueManagerController {
   @ApiOperation({ summary: "List strategy lessons for merchant" })
   @ApiOkResponse({ type: [StrategyLessonResponseDto] })
   @ApiQuery({ name: "limit", required: false, type: Number })
-  async listStrategyLessons(@Req() req: Request, @Query("limit") limit?: string): Promise<StrategyLessonResponseDto[]> {
+  async listStrategyLessons(@Req() req: any, @Query("limit") limit?: string): Promise<StrategyLessonResponseDto[]> {
     const user = currentUser(req);
     const lessons = await this.lessonRepo.findByMerchant(user.merchantId, limit ? parseInt(limit, 10) : undefined);
     return lessons.map((l) => {

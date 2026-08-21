@@ -5,7 +5,6 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
-import type { Request } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -32,7 +31,7 @@ export class RevenueLiftController {
   @ApiOperation({ summary: "Get current revenue lift calculations" })
   @ApiOkResponse({ description: "Revenue lift data retrieved" })
   async getRevenueLift(
-    @Req() req: Request,
+    @Req() req: any,
     @Query() query?: { periodDays?: number },
   ) {
     const user = currentUser(req);
@@ -48,7 +47,7 @@ export class RevenueLiftController {
   @ApiOperation({ summary: "Get revenue breakdown by cohort" })
   @ApiOkResponse({ description: "Cohort breakdown retrieved" })
   async getCohortBreakdown(
-    @Req() req: Request,
+    @Req() req: any,
     @Query() query?: { periodDays?: number },
   ) {
     const user = currentUser(req);
@@ -65,7 +64,7 @@ export class RevenueLiftController {
   @ApiOperation({ summary: "Get daily revenue lift trend" })
   @ApiOkResponse({ description: "Revenue trend retrieved" })
   async getRevenueTrend(
-    @Req() req: Request,
+    @Req() req: any,
     @Query() query?: { days?: number },
   ) {
     const user = currentUser(req);
