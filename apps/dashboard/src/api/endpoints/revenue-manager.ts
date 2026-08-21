@@ -1,6 +1,6 @@
 import { dashboardJson } from "../http/client.js";
 
-const PREFIX = "/dashboard/revenue-manager";
+const PREFIX = "/revenue-manager";
 
 export interface Hypothesis {
   id: string;
@@ -35,20 +35,20 @@ export function revenueManagerEndpoints(base: string, f: typeof fetch) {
       return Array.isArray(res) ? res : res.data;
     },
 
-    async approveHypothesis(id: string): Promise<void> {
+    async approveHypothesis(id: string, payload: { approved_by: string; approval_reason?: string }): Promise<void> {
       await dashboardJson<unknown>(
         base,
         `${PREFIX}/hypotheses/${encodeURIComponent(id)}/approve`,
-        { method: "POST" },
+        { method: "POST", jsonBody: payload },
         f
       );
     },
 
-    async rejectHypothesis(id: string): Promise<void> {
+    async rejectHypothesis(id: string, payload: { reason: string }): Promise<void> {
       await dashboardJson<unknown>(
         base,
         `${PREFIX}/hypotheses/${encodeURIComponent(id)}/reject`,
-        { method: "POST" },
+        { method: "POST", jsonBody: payload },
         f
       );
     },

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
+import type { MerchantProfile } from "../../api-client.js";
 import type { Hypothesis, DailyObservation, StrategyLesson } from "../../api/endpoints/revenue-manager.js";
 
 const MOCK_HYPOTHESES: Hypothesis[] = [
@@ -47,7 +48,7 @@ const MOCK_LESSONS: StrategyLesson[] = [
   },
 ];
 
-export function useRevenueManagerPage() {
+export function useRevenueManagerPage(me: MerchantProfile | null) {
   const api = useApi();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [observations, setObservations] = useState<DailyObservation[]>([]);
@@ -86,7 +87,7 @@ export function useRevenueManagerPage() {
   const approveHypothesis = async (id: string) => {
     setApproving(prev => new Set([...prev, id]));
     try {
-      await api.approveHypothesis?.(id);
+      await api.approveHypothesis?.(id, { approved_by: me?.id ?? "merchant" });
       setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: "approved" as const } : h));
       showToast("success", "Hipótese aprovada");
     } catch (e) {
@@ -97,10 +98,10 @@ export function useRevenueManagerPage() {
     }
   };
 
-  const rejectHypothesis = async (id: string) => {
+  const rejectHypothesis = async (id: string, reason: string) => {
     setApproving(prev => new Set([...prev, id]));
     try {
-      await api.rejectHypothesis?.(id);
+      await api.rejectHypothesis?.(id, { reason });
       setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: "rejected" as const } : h));
       showToast("success", "Hipótese rejeitada");
     } catch (e) {

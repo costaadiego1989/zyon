@@ -1,7 +1,10 @@
-import React, { useState } from "react";
-import { CheckCircle, AlertCircle, Clock, Lightbulb, TrendingUp } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Lightbulb, TrendingUp } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
+import { TabBar } from "../../components/TabBar.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import { Pagination } from "../../components/Pagination.js";
 import { useRevenueManagerPage } from "./useRevenueManagerPage.js";
 
 export interface RevenueManagerPageProps {
@@ -64,9 +67,34 @@ const BADGE_RISK_HIGH: React.CSSProperties = {
   color: "var(--danger)",
 };
 
+const EXPLANATION_BOX: React.CSSProperties = {
+  ...CARD,
+  padding: "16px 20px",
+  background: "var(--bg)",
+  border: "1px solid var(--border)",
+  borderRadius: 10,
+  font: "13px var(--sans)",
+  color: "var(--muted)",
+  lineHeight: 1.55,
+};
+
+const PAGE_SIZE = 5;
+
 export function RevenueManagerPage(props: RevenueManagerPageProps) {
-  const vm = useRevenueManagerPage();
+  const vm = useRevenueManagerPage(props.me);
   const [tab, setTab] = useState<TabKey>("hypotheses");
+  const [obsQuery, setObsQuery] = useState("");
+  const [obsPage, setObsPage] = useState(1);
+  const [obsPageSize, setObsPageSize] = useState(PAGE_SIZE);
+
+  const filteredObservations = useMemo(() => {
+    const q = obsQuery.trim().toLowerCase();
+    if (!q) return vm.observations;
+    return vm.observations.filter((o) =>
+      o.date.toLowerCase().includes(q) ||
+      o.top_objection.toLowerCase().includes(q),
+    );
+  }, [vm.observations, obsQuery]);
 
   if (!props.me) {
     return <p style={{ color: "var(--faint)", font: "13px var(--sans)" }}>Login necessário</p>;
@@ -98,47 +126,41 @@ export function RevenueManagerPage(props: RevenueManagerPageProps) {
     return "Aguardando revisão";
   };
 
+  const rejectWithPrompt = (id: string) => {
+    const reason = window.prompt("Motivo da rejeição (obrigatório):");
+    if (!reason || reason.trim().length === 0) return;
+    void vm.rejectHypothesis(id, reason.trim());
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
-      <div>
-        <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)" }}>INTELIGÊNCIA</span>
-        <h1 style={{ font: "600 26px var(--serif)", margin: "4px 0 6px", color: "var(--ink)" }}>Revenue Manager</h1>
-        <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
-          Aprove hipóteses, observe padrões e extraia lições
-        </p>
-      </div>
+      <SectionHeader
+        title="Revenue Manager"
+        subtitle="Aprove hipóteses, observe padrões e extraia lições para aumentar receita."
+      />
 
       {/* Tabs */}
-      <div style={{ display: "flex", gap: 12, borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
-        {(["hypotheses", "observations", "lessons"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              padding: "10px 0",
-              paddingBottom: 10,
-              marginBottom: -1,
-              border: "none",
-              background: "transparent",
-              font: "13px var(--sans)",
-              fontWeight: tab === t ? 600 : 400,
-              color: tab === t ? "var(--accent)" : "var(--muted)",
-              cursor: "pointer",
-              borderBottom: tab === t ? "2px solid var(--accent)" : "2px solid transparent",
-              transition: "color 0.2s",
-            }}
-          >
-            {t === "hypotheses" && "Hipóteses"}
-            {t === "observations" && "Observações"}
-            {t === "lessons" && "Lições"}
-          </button>
-        ))}
-      </div>
+      <TabBar
+        tabs={[
+          { key: "hypotheses", label: "Hipóteses" },
+          { key: "observations", label: "Observações" },
+          { key: "lessons", label: "Lições" },
+        ]}
+        activeTab={tab}
+        onTabChange={(k) => setTab(k as TabKey)}
+      />
 
       {/* Hypotheses Tab */}
       {tab === "hypotheses" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={EXPLANATION_BOX}>
+            <strong style={{ color: "var(--ink)" }}>O que é uma hipótese?</strong>{" "}
+            É uma sugestão de mudança no checkout (ex.: novo gatilho, copy, oferta) gerada a partir dos padrões de comportamento dos seus compradores. Cada hipótese traz uma estimativa de impacto e um nível de risco. Ao aprová-la, o sistema executa um experimento controlado; ao rejeitá-la, ela é descartada e seu feedback alimenta o aprendizado do gerador.
+          </div>
+
+          <SectionHeader title="Hipóteses pendentes e histórico" variant="secondary" />
+
           {vm.hypotheses.length === 0 ? (
             <div style={{ ...CARD, textAlign: "center", padding: "60px 22px", color: "var(--faint)" }}>
               Nenhuma hipótese encontrada
@@ -175,7 +197,7 @@ export function RevenueManagerPage(props: RevenueManagerPageProps) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => vm.rejectHypothesis(h.id)}
+                      onClick={() => rejectWithPrompt(h.id)}
                       disabled={vm.approving.has(h.id)}
                       style={{ minWidth: 80 }}
                     >
@@ -191,39 +213,84 @@ export function RevenueManagerPage(props: RevenueManagerPageProps) {
 
       {/* Observations Tab */}
       {tab === "observations" && (
-        <div style={{ ...CARD }}>
-          {vm.observations.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "60px 22px", color: "var(--faint)" }}>Sem dados</div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {vm.observations.map((o) => (
-                <div key={o.date} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, padding: "12px 0", borderBottom: "1px solid var(--border)", alignItems: "center" }}>
-                  <div>
-                    <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>DATA</div>
-                    <div style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{o.date}</div>
-                  </div>
-                  <div>
-                    <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>CONVERSÃO</div>
-                    <div style={{ font: "13px var(--sans)", color: "var(--accent)" }}>{o.conversion_rate.toFixed(2)}%</div>
-                  </div>
-                  <div>
-                    <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>SESSÕES</div>
-                    <div style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{o.sessions_count.toLocaleString("pt-BR")}</div>
-                  </div>
-                  <div>
-                    <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>TOP OBJEÇÃO</div>
-                    <div style={{ font: "13px var(--sans)", color: "var(--muted)" }}>{o.top_objection}</div>
-                  </div>
-                </div>
-              ))}
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={EXPLANATION_BOX}>
+            <strong style={{ color: "var(--ink)" }}>O que são observações?</strong>{" "}
+            São registros diários do funil de checkout: taxa de conversão, volume de sessões e a principal objeção detectada. Use estes dados para identificar tendências, validar se experimentos estão funcionando e priorizar novas hipóteses.
+          </div>
+
+          <SectionHeader title="Observações recentes" variant="secondary" />
+
+          <div style={{ ...CARD, padding: 0 }}>
+            <div style={{ display: "flex", gap: 12, padding: "16px 22px", borderBottom: "1px solid var(--border)", alignItems: "center", flexWrap: "wrap" }}>
+              <input
+                value={obsQuery}
+                onChange={(e) => { setObsQuery(e.target.value); setObsPage(1); }}
+                placeholder="Filtrar por data ou objeção..."
+                style={{ flex: 1, minWidth: 200, padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
+              />
+              <select
+                value={obsPageSize}
+                onChange={(e) => { setObsPageSize(Number(e.target.value)); setObsPage(1); }}
+                style={{ padding: "7px 10px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", font: "12.5px var(--sans)" }}
+              >
+                <option value={5}>5 / página</option>
+                <option value={10}>10 / página</option>
+                <option value={20}>20 / página</option>
+              </select>
             </div>
-          )}
+
+            {filteredObservations.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "60px 22px", color: "var(--faint)" }}>Nenhuma observação encontrada</div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                {filteredObservations
+                  .slice((obsPage - 1) * obsPageSize, obsPage * obsPageSize)
+                  .map((o) => (
+                    <div key={o.date} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 16, padding: "16px 22px", borderBottom: "1px solid var(--border)", alignItems: "center" }}>
+                      <div>
+                        <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>DATA</div>
+                        <div style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{o.date}</div>
+                      </div>
+                      <div>
+                        <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>CONVERSÃO</div>
+                        <div style={{ font: "13px var(--sans)", color: "var(--accent)" }}>{o.conversion_rate.toFixed(2)}%</div>
+                      </div>
+                      <div>
+                        <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>SESSÕES</div>
+                        <div style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{o.sessions_count.toLocaleString("pt-BR")}</div>
+                      </div>
+                      <div>
+                        <div style={{ font: "11px var(--mono)", color: "var(--faint)" }}>TOP OBJEÇÃO</div>
+                        <div style={{ font: "13px var(--sans)", color: "var(--muted)" }}>{o.top_objection}</div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {filteredObservations.length > obsPageSize && (
+              <Pagination
+                page={obsPage}
+                pageSize={obsPageSize}
+                total={filteredObservations.length}
+                onChange={setObsPage}
+              />
+            )}
+          </div>
         </div>
       )}
 
       {/* Lessons Tab */}
       {tab === "lessons" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={EXPLANATION_BOX}>
+            <strong style={{ color: "var(--ink)" }}>O que são lições?</strong>{" "}
+            Cada lição é o aprendizado extraído de um experimento concluído: qual variante venceu, qual foi o lift real e qual insight prático pode ser aplicado daqui pra frente. As lições alimentam o gerador de hipóteses, são exibidas no painel de analytics e ajudam o agente a priorizar sugestões mais relevantes para a sua loja.
+          </div>
+
+          <SectionHeader title="Lições aprendidas" variant="secondary" />
+
           {vm.lessons.length === 0 ? (
             <div style={{ ...CARD, textAlign: "center", padding: "60px 22px", color: "var(--faint)" }}>
               Nenhuma lição extraída ainda
