@@ -14,3 +14,4 @@ export { useMerchantApi } from "./useMerchantApi.js";
 export { useOrdersApi } from "./useOrdersApi.js";
 export { useWebhookApi } from "./useWebhookApi.js";
 export { useMarketplaceApi } from "./useMarketplaceApi.js";
+export { useM2MApi } from "./useM2MApi.js";
