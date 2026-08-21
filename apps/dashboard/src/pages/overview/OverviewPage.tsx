@@ -9,6 +9,16 @@ import { StoreMetrics } from "./sections/StoreMetrics.js";
 import { StatCard } from "./components/StatCard.js";
 import { RevenueChart } from "./components/RevenueChart.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import {
+  Brain,
+  Sparkles,
+  ShoppingCart,
+  Network,
+  Bot,
+  Code2,
+  TrendingUp,
+} from "lucide-react";
 
 export type OverviewPageProps = {
   apiBaseUrl: string;
@@ -328,6 +338,96 @@ export function OverviewPage(props: OverviewPageProps) {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <SectionErrorBoundary sectionName="Métricas Principais">
           <HeroMetrics vm={vm} />
+          </SectionErrorBoundary>
+
+          <SectionErrorBoundary sectionName="Métricas Agênticas">
+          <div>
+            <SectionHeader
+              title="Métricas Agênticas"
+              subtitle="Performance dos agentes autônomos que otimizam sua loja"
+              variant="primary"
+            />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <StatCard
+                label="Deal Engine"
+                value="14.2"
+                suffix="%"
+                icon={<Brain size={16} />}
+                accent="var(--accent)"
+                trend={8.4}
+              />
+              <StatCard
+                label="Revenue Manager"
+                value="23"
+                icon={<Sparkles size={16} />}
+                accent="var(--accent)"
+                trend={12.1}
+              />
+              <StatCard
+                label="Cart Recovery"
+                value="3.8"
+                prefix="R$"
+                suffix="k"
+                icon={<ShoppingCart size={16} />}
+                accent="var(--good)"
+                trend={22.5}
+              />
+              <StatCard
+                label="Intent Memory"
+                value="1.2"
+                suffix="k memórias"
+                icon={<Network size={16} />}
+                accent="var(--accent)"
+                trend={5.7}
+              />
+              <StatCard
+                label="M2M Protocol"
+                value="47"
+                suffix="sessões"
+                icon={<Bot size={16} />}
+                accent="var(--accent)"
+                trend={18.3}
+              />
+              <StatCard
+                label="Checkout API Protocol"
+                value="892"
+                suffix="calls/dia"
+                icon={<Code2 size={16} />}
+                accent="var(--accent)"
+                trend={31.2}
+              />
+              <StatCard
+                label="Revenue Lift"
+                value="R$ 12.4"
+                suffix="k"
+                icon={<TrendingUp size={16} />}
+                accent="var(--good)"
+                trend={26.8}
+              />
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                gap: 12,
+                marginTop: 8,
+              }}
+            >
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Deal Engine — Desconto inteligente por cliente</span>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Revenue Manager — IA que otimiza sua loja enquanto você dorme</span>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Cart Recovery — Recuperação inteligente de carrinho abandonado</span>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Intent Memory — Memória comercial do cliente</span>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>M2M Protocol — Outros softwares podem comprar na sua loja</span>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Checkout API Protocol — Checkout programável para integrações</span>
+              <span style={{ fontSize: 11, color: "var(--muted)" }}>Revenue Lift — Prova de ROI: quanto a IA gerou de receita a mais</span>
+            </div>
+          </div>
           </SectionErrorBoundary>
 
           {/* Bento grid: charts left (2/3), activity right (1/3) */}
