@@ -41,6 +41,7 @@ import { RevenueManagerModule } from "./modules/revenue-manager/revenue-manager.
 import { RevenueLiftModule } from "./modules/revenue-lift/revenue-lift.module.js";
 import { CartRecoveryModule } from "./modules/cart-recovery/cart-recovery.module.js";
 import { IntentMemoryModule } from "./modules/intent-memory/intent-memory.module.js";
+import { CouponsModule } from "./modules/coupons/coupons.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
 
 const REDACTED_LOG_PATHS = [
@@ -131,6 +132,7 @@ const REDACTED_LOG_PATHS = [
     DashboardMarketplaceModule,
     CartRecoveryModule,
     IntentMemoryModule,
+    CouponsModule,
     // PublicApiModule, // TODO: fix DI (CommerceV1Controller, InstallationsModule)
   ]
 })

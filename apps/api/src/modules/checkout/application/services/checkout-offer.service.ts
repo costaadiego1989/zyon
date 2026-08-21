@@ -169,6 +169,35 @@ export class CheckoutOfferService {
     }
 
     const wantsShipping = /(frete|envio|shipping)/.test(userMessage.toLowerCase());
+
+    // ANTI-STACKING GUARD: If coupon already applied, do NOT stack progressive discount.
+    // Coupon OR progressive — never both. Merchant margin protected.
+    const hasCouponApplied = Boolean(
+      (sessionObj as any).couponCode || (sessionObj.cart.currentDiscount && sessionObj.cart.currentDiscount > 0)
+    );
+    if (hasCouponApplied && !wantsShipping) {
+      this.logger.log("offer.anti_stacking: coupon already applied, skipping progressive discount", {
+        merchantId: sessionObj.merchantId,
+        sessionId: sessionObj.sessionId,
+        currentDiscount: sessionObj.cart.currentDiscount,
+      });
+      const saved = await this.repository.saveOffer(
+        createAuthorizedOffer({
+          merchantId: sessionObj.merchantId,
+          sessionId: sessionObj.sessionId,
+          rules,
+          evaluation: {
+            approved: false,
+            type: "none",
+            value: 0,
+            reason: "coupon_already_applied_no_stacking",
+            marginAfterOffer: 0
+          }
+        })
+      );
+      return SafeAuthorizedOffer.fromRulesEngine(saved);
+    }
+
     const evaluation = wantsShipping
       ? evaluateShippingOffer({
         cart: sessionObj.cart,
