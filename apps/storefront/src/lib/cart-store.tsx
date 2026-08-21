@@ -158,18 +158,23 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         cartId: resolvedCartId,
         items: items.map((i: any) => {
           const qty = i.quantity ?? 1;
-          const price = i.price ?? i.unit_price_cents ?? i.unitPrice ?? 0;
+          // price comes in reais (149.90) from product cards, or unit_price_cents (14990) from API
+          const rawPrice = i.price ?? (i.unit_price_cents ? i.unit_price_cents / 100 : null) ?? i.unitPrice ?? 0;
+          const price = rawPrice > 1000 && !i.price ? rawPrice / 100 : rawPrice; // guard: if looks like cents, convert
           return {
             variantId: i.variantId ?? i.variant_id ?? i.id,
             productName: i.productName ?? i.product_name ?? i.name ?? "Produto",
             quantity: qty,
             price,
-            subtotal: i.subtotal ?? price * qty,
+            subtotal: i.subtotal ? (i.subtotal > 1000 ? i.subtotal / 100 : i.subtotal) : price * qty,
           };
         }),
         itemCount: itemCount ?? items.reduce((sum: number, i: any) => sum + (i.quantity ?? 1), 0),
         discount: discount ?? 0,
-        total: total ?? items.reduce((sum: number, i: any) => sum + (i.subtotal ?? (i.price ?? i.unit_price_cents ?? 0) * (i.quantity ?? 1)), 0),
+        total: total ? (total > 10000 ? total / 100 : total) : items.reduce((sum: number, i: any) => {
+          const p = i.price ?? (i.unit_price_cents ? i.unit_price_cents / 100 : 0);
+          return sum + (p > 1000 ? p / 100 : p) * (i.quantity ?? 1);
+        }, 0),
         activeOffer,
         discountedTotal,
       };
