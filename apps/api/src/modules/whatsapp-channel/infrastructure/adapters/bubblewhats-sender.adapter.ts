@@ -1,5 +1,6 @@
 /**
  * BubbleWhats Sender Adapter — sends messages via BubbleWhats HTTP API.
+ * Matches existing pattern from notifications/infrastructure/adapters/bubblewhats.adapter.ts
  */
 
 import { Injectable, Logger } from "@nestjs/common";
@@ -12,43 +13,48 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
   private readonly token: string;
 
   constructor() {
-    this.baseUrl = process.env.BUBBLEWHATS_API_URL?.trim() || "https://api.bubblewhats.com";
+    this.baseUrl = process.env.BUBBLEWHATS_API_URL?.trim() || "";
     this.token = process.env.BUBBLEWHATS_TOKEN?.trim() || "";
 
-    if (!this.token) {
-      this.logger.warn("BUBBLEWHATS_TOKEN not configured — messages will fail");
+    if (!this.token || !this.baseUrl) {
+      this.logger.warn("BUBBLEWHATS_API_URL / BUBBLEWHATS_TOKEN not configured — messages will fail");
     }
   }
 
   async sendText(msg: WhatsAppOutboundMessage): Promise<WhatsAppSendResult> {
-    const url = `${this.baseUrl}/device/${msg.deviceId}/send-text`;
+    if (!this.baseUrl || !this.token) {
+      return { messageId: "", status: "failed" };
+    }
 
-    const body = {
-      number: msg.toNumber,
-      message: msg.text,
-    };
+    const cleanDigits = msg.toNumber.replace(/\D/g, "");
+    const number = cleanDigits.startsWith("55") ? cleanDigits : `55${cleanDigits}`;
+    const jid = `${number}@s.whatsapp.net`;
 
     try {
-      const res = await fetch(url, {
+      const response = await fetch(`${this.baseUrl}/send-message`, {
         method: "POST",
         headers: {
+          Authorization: this.token,
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          jid,
+          message: msg.text,
+        }),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        this.logger.error(`BubbleWhats send failed: ${res.status} ${text}`);
-        return { messageId: "", status: "failed" };
+      if (response.ok) {
+        const data = await response.json().catch(() => ({})) as Record<string, unknown>;
+        this.logger.log(`WhatsApp sent to ${number}`);
+        return {
+          messageId: String(data.key ?? data.id ?? ""),
+          status: "sent",
+        };
       }
 
-      const data = await res.json() as { key?: string; id?: string };
-      return {
-        messageId: data.key ?? data.id ?? "",
-        status: "sent",
-      };
+      const errText = await response.text();
+      this.logger.error(`BubbleWhats send failed: ${response.status} — ${errText}`);
+      return { messageId: "", status: "failed" };
     } catch (error) {
       this.logger.error(`BubbleWhats network error: ${error instanceof Error ? error.message : String(error)}`);
       return { messageId: "", status: "failed" };
@@ -56,33 +62,8 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
   }
 
   async sendMedia(msg: WhatsAppOutboundMessage & { mediaUrl: string; mimetype: string }): Promise<WhatsAppSendResult> {
-    const url = `${this.baseUrl}/device/${msg.deviceId}/send-media`;
-
-    const body = {
-      number: msg.toNumber,
-      media_url: msg.mediaUrl,
-      caption: msg.text || undefined,
-      mimetype: msg.mimetype,
-    };
-
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${this.token}`,
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        return { messageId: "", status: "failed" };
-      }
-
-      const data = await res.json() as { key?: string; id?: string };
-      return { messageId: data.key ?? data.id ?? "", status: "sent" };
-    } catch {
-      return { messageId: "", status: "failed" };
-    }
+    // Phase 2: media support
+    this.logger.warn("sendMedia not implemented yet — falling back to text");
+    return this.sendText(msg);
   }
 }
