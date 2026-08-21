@@ -168,7 +168,10 @@ export class EmbedAuthGuard implements CanActivate {
     // being inherited unpredictably by child routes.
     const required = this.reflector?.get<EmbedScope>(EMBED_REQUIRED_SCOPE_KEY, context.getHandler());
     if (!required) return;
-    if (!claims.scopes || !claims.scopes.includes(required)) {
+    // Backward compat: tokens without explicit scopes field are treated as full-access
+    // (v1 tokens issued before scope enforcement was added).
+    if (!claims.scopes) return;
+    if (!claims.scopes.includes(required)) {
       throw new ForbiddenException("embed_scope_not_granted");
     }
   }
