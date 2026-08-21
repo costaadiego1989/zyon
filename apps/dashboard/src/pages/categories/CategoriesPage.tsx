@@ -97,7 +97,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
       </div>
 
       {vm.error ? (
-        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>
+        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
           {vm.error}
         </div>
       ) : null}
@@ -112,17 +112,17 @@ export function CategoriesPage(props: CategoriesPageProps) {
           label="Ativas"
           value={totals.active}
           icon={<CheckCircle size={16} />}
-          accent="var(--good)"
+          accent="var(--color-success)"
         />
         <StatCard
           label="Pausadas"
           value={totals.paused}
           icon={<PauseCircle size={16} />}
-          accent="var(--faint)"
+          accent="var(--color-text-faint)"
         />
       </div>
 
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden" }}>
         {/* Filters bar */}
         <FilterToolbar
           tabs={[
@@ -137,7 +137,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
         />
 
         {vm.loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando categorias...</div>
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando categorias...</div>
         ) : filteredTree.length === 0 ? (
           <EmptyState
             icon={FolderTree}

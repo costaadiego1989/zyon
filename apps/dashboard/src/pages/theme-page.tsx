@@ -441,7 +441,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   step={1}
                   value={theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}
                   onChange={(e) => patch({ borderRadius: Number(e.target.value) })}
-                  style={{ accentColor: "var(--accent)", width: "100%" }}
+                  style={{ accentColor: "var(--color-brand)", width: "100%" }}
                 />
               </label>
 

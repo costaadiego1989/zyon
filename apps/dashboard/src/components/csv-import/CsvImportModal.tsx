@@ -64,8 +64,8 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "relative",
-          background: "var(--card)",
-          border: "1px solid var(--border)",
+          background: "var(--surface-2)",
+          border: "1px solid var(--color-border)",
           borderRadius: 14,
           width: "90vw",
           maxWidth: 700,
@@ -77,8 +77,8 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
         }}
       >
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--border)" }}>
-          <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--color-border)" }}>
+          <h2 style={{ font: "600 18px var(--font-serif)", color: "var(--color-text)", margin: 0 }}>
             {step === "upload" && "Importar Produtos"}
             {step === "preview" && "Revisar Dados"}
             {step === "confirm" && "Confirmar Importação"}
@@ -90,7 +90,7 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
               border: "none",
               fontSize: 20,
               cursor: "pointer",
-              color: "var(--faint)",
+              color: "var(--color-text-faint)",
               padding: 0,
             }}
           >
@@ -102,7 +102,7 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
         <div style={{ flex: 1, padding: "24px", overflowY: "auto" }}>
           {step === "upload" && (
             <>
-              <p style={{ font: "13px var(--sans)", color: "var(--muted)", marginBottom: 16 }}>
+              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
                 Selecione ou arraste um arquivo CSV com os dados dos produtos. O arquivo deve incluir as colunas: <strong>name</strong>, <strong>sku</strong> e <strong>price</strong>.
               </p>
 
@@ -119,10 +119,10 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
                   gap: 8,
                   padding: "10px 14px",
                   borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg)",
-                  font: "600 12.5px var(--sans)",
-                  color: "var(--ink)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--surface-1)",
+                  font: "600 12.5px var(--font-sans)",
+                  color: "var(--color-text)",
                   cursor: "pointer",
                   width: "100%",
                   justifyContent: "center",
@@ -135,7 +135,7 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
 
           {step === "preview" && (
             <>
-              <p style={{ font: "13px var(--sans)", color: "var(--muted)", marginBottom: 16 }}>
+              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
                 {parsedRows.length} linha{parsedRows.length !== 1 ? "s" : ""} pronta{parsedRows.length !== 1 ? "s" : ""} para importação.
               </p>
 
@@ -147,16 +147,16 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
 
           {step === "confirm" && (
             <>
-              <p style={{ font: "13px var(--sans)", color: "var(--muted)", marginBottom: 16 }}>
+              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
                 Você está prestes a importar {parsedRows.length} produto{parsedRows.length !== 1 ? "s" : ""}. Esta ação não pode ser desfeita. Confirme para continuar.
               </p>
 
               {importError && (
-                <div style={{ background: "var(--danger-soft)", border: "1px solid var(--danger)", borderRadius: 8, padding: "12px 14px", marginBottom: 16 }}>
-                  <div style={{ font: "600 12px var(--sans)", color: "var(--danger)" }}>
+                <div style={{ background: "var(--color-error-bg)", border: "1px solid var(--color-error)", borderRadius: 8, padding: "12px 14px", marginBottom: 16 }}>
+                  <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-error)" }}>
                     Erro durante importação:
                   </div>
-                  <p style={{ font: "12px var(--sans)", color: "var(--danger)", margin: "6px 0 0" }}>
+                  <p style={{ font: "12px var(--font-sans)", color: "var(--color-error)", margin: "6px 0 0" }}>
                     {importError}
                   </p>
                 </div>
@@ -168,7 +168,7 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
         </div>
 
         {/* Footer */}
-        <div style={{ display: "flex", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--border)" }}>
+        <div style={{ display: "flex", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--color-border)" }}>
           {step === "upload" && (
             <button
               type="button"
@@ -177,10 +177,10 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
                 flex: 1,
                 padding: "10px 14px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                font: "600 12.5px var(--sans)",
-                color: "var(--ink)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                font: "600 12.5px var(--font-sans)",
+                color: "var(--color-text)",
                 cursor: "pointer",
               }}
             >
@@ -197,10 +197,10 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
                   flex: 1,
                   padding: "10px 14px",
                   borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg)",
-                  font: "600 12.5px var(--sans)",
-                  color: "var(--ink)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--surface-1)",
+                  font: "600 12.5px var(--font-sans)",
+                  color: "var(--color-text)",
                   cursor: "pointer",
                 }}
               >
@@ -214,9 +214,9 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
                   flex: 1,
                   padding: "10px 14px",
                   borderRadius: 8,
-                  border: "1px solid var(--accent-dark)",
-                  background: "var(--accent-dark)",
-                  font: "600 12.5px var(--sans)",
+                  border: "1px solid var(--color-brand-hover)",
+                  background: "var(--color-brand-hover)",
+                  font: "600 12.5px var(--font-sans)",
                   color: "white",
                   cursor: hasErrors ? "not-allowed" : "pointer",
                   opacity: hasErrors ? 0.6 : 1,
@@ -237,10 +237,10 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
                   flex: 1,
                   padding: "10px 14px",
                   borderRadius: 8,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg)",
-                  font: "600 12.5px var(--sans)",
-                  color: "var(--ink)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--surface-1)",
+                  font: "600 12.5px var(--font-sans)",
+                  color: "var(--color-text)",
                   cursor: importing ? "not-allowed" : "pointer",
                   opacity: importing ? 0.6 : 1,
                 }}
@@ -255,9 +255,9 @@ export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProp
                   flex: 1,
                   padding: "10px 14px",
                   borderRadius: 8,
-                  border: "1px solid var(--accent-dark)",
-                  background: "var(--accent-dark)",
-                  font: "600 12.5px var(--sans)",
+                  border: "1px solid var(--color-brand-hover)",
+                  background: "var(--color-brand-hover)",
+                  font: "600 12.5px var(--font-sans)",
                   color: "white",
                   cursor: importing ? "not-allowed" : "pointer",
                   opacity: importing ? 0.6 : 1,

@@ -56,7 +56,9 @@ test("WidgetCouponsController uses merchant from embed token and ignores body me
     applyCoupon as never,
     new EmbedCheckoutGuardHelper(checkout),
     checkout,
-    merchantRepo as never
+    merchantRepo as never,
+    { platformFeeBrl: 1.99 },
+    { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never
   );
 
   const response = await controller.apply(
@@ -94,7 +96,9 @@ test("WidgetCouponsController rejects session from another merchant", async () =
     { async execute() { return {}; } } as never,
     new EmbedCheckoutGuardHelper(checkout),
     checkout,
-    merchantRepo as never
+    merchantRepo as never,
+    { platformFeeBrl: 1.99 },
+    { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never
   );
 
   await assert.rejects(

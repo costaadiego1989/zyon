@@ -57,43 +57,43 @@ export function CategoryRow({
       }}
       style={{
         cursor: "pointer",
-        background: isDropTarget ? "var(--accent-soft)" : "transparent",
+        background: isDropTarget ? "var(--color-brand-subtle)" : "transparent",
         transition: "background 0.15s",
-        borderLeft: isDropTarget ? "3px solid var(--accent)" : "3px solid transparent",
+        borderLeft: isDropTarget ? "3px solid var(--color-brand)" : "3px solid transparent",
       }}
     >
-      <td style={{ padding: "12px 22px", paddingLeft: 22 + depth * 24, borderBottom: "1px solid var(--border)", font: "13px var(--sans)", color: "var(--ink)" }}>
+      <td style={{ padding: "12px 22px", paddingLeft: 22 + depth * 24, borderBottom: "1px solid var(--color-border)", font: "13px var(--font-sans)", color: "var(--color-text)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <GripVertical size={13} style={{ color: "var(--faint)", opacity: 0.5, flexShrink: 0 }} />
+          <GripVertical size={13} style={{ color: "var(--color-text-faint)", opacity: 0.5, flexShrink: 0 }} />
           <span>{category.name}</span>
         </div>
       </td>
-      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)", font: "13px var(--mono)", color: "var(--accent)" }}>
+      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", font: "13px var(--font-mono)", color: "var(--color-brand)" }}>
         {category.product_count ?? 0}
       </td>
-      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)", font: "12px var(--mono)", color: category.is_active ? "var(--ink)" : "var(--faint)" }}>
+      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", font: "12px var(--font-mono)", color: category.is_active ? "var(--color-text)" : "var(--color-text-faint)" }}>
         {category.is_active ? "Ativo" : "Pausado"}
       </td>
-      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)", textAlign: "right" }}>
+      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
         <div style={{ display: "inline-flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onEdit(); }}
-            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
+            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
           >
             <Pencil size={12} /> Editar
           </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onToggleActive(); }}
-            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: category.is_active ? "var(--muted)" : "var(--good)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
+            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: category.is_active ? "var(--color-text-muted)" : "var(--color-success)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
           >
             {category.is_active ? <><Pause size={12} /> Pausar</> : <><Play size={12} /> Ativar</>}
           </button>
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
+            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
           >
             <Trash2 size={12} /> Remover
           </button>
@@ -101,7 +101,7 @@ export function CategoryRow({
             type="button"
             onClick={(e) => { e.stopPropagation(); onAddChild(); }}
             aria-label="Adicionar subcategoria"
-            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--accent)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
+            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-brand)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
           >
             <Plus size={12} /> Adicionar
           </button>

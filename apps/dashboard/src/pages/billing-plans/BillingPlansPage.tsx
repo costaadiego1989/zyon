@@ -117,9 +117,9 @@ export function BillingPlansPage() {
       <header className="billing-plans__header">
         <div
           style={{
-            font: "600 10px var(--mono)",
+            font: "600 10px var(--font-mono)",
             letterSpacing: "0.06em",
-            color: "var(--faint)",
+            color: "var(--color-text-faint)",
             marginBottom: 4,
           }}
         >
@@ -150,9 +150,9 @@ export function BillingPlansPage() {
       <section className="billing-plans__plans-section">
         <div
           style={{
-            font: "600 10.5px var(--mono)",
+            font: "600 10.5px var(--font-mono)",
             letterSpacing: "0.06em",
-            color: "var(--faint)",
+            color: "var(--color-text-faint)",
             marginBottom: 16,
           }}
         >

@@ -76,13 +76,13 @@ export function SupportTicketsTab(props: Props) {
             label="Em aberto"
             value={openCount}
             icon={<Clock size={16} />}
-            accent={openCount > 0 ? "var(--warn)" : undefined}
+            accent={openCount > 0 ? "var(--color-warning)" : undefined}
           />
           <StatCard
             label="Em atendimento"
             value={inProgressCount}
             icon={<MessageSquare size={16} />}
-            accent={inProgressCount > 0 ? "var(--accent)" : undefined}
+            accent={inProgressCount > 0 ? "var(--color-brand)" : undefined}
           />
         </div>
       ) : null}

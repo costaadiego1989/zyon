@@ -15,51 +15,54 @@ export interface M2MAgentsPageProps {
 }
 
 const CARD: React.CSSProperties = {
-  background: "var(--card)",
-  border: "1px solid var(--border)",
-  borderRadius: 14,
-  padding: "24px 28px",
+  background: "var(--surface-2)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "var(--radius-md)",
+  padding: "24px",
+  boxShadow: "var(--card-shadow)",
 };
 
 const TABLE_STYLE: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  font: "13px var(--sans)",
+  font: "13px var(--font-sans)",
 };
 
 const TH_STYLE: React.CSSProperties = {
   textAlign: "left",
-  padding: "10px 14px",
-  borderBottom: "1px solid var(--border)",
-  font: "600 11px var(--mono)",
-  letterSpacing: "0.04em",
-  color: "var(--faint)",
+  padding: "12px 14px",
+  borderBottom: "1px solid var(--color-border)",
+  font: "600 10.5px var(--font-mono)",
+  letterSpacing: "0.05em",
+  color: "var(--color-text-faint)",
+  textTransform: "uppercase",
 };
 
 const TD_STYLE: React.CSSProperties = {
-  padding: "10px 14px",
-  borderBottom: "1px solid var(--border)",
-  color: "var(--ink)",
+  padding: "14px",
+  borderBottom: "1px solid var(--color-border)",
+  color: "var(--color-text)",
 };
 
 const STAT_CARD: React.CSSProperties = {
-  background: "var(--card)",
-  border: "1px solid var(--border)",
-  borderRadius: 14,
+  background: "var(--surface-2)",
+  border: "1px solid var(--color-border)",
+  borderRadius: "var(--radius-md)",
   padding: "20px 22px",
   display: "flex",
   flexDirection: "column",
-  gap: 6,
+  gap: 8,
+  transition: "var(--card-transition)",
 };
 
 function StatCard({ label, value, icon: Icon, color }: { label: string; value: string; icon: React.ComponentType<{ size?: number; color?: string }>; color: string }) {
   return (
-    <div style={STAT_CARD}>
+    <div style={STAT_CARD} className="stat-card">
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ font: "11px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase" }}>{label}</div>
+        <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-muted)", textTransform: "uppercase" }}>{label}</div>
         <Icon size={16} color={color} />
       </div>
-      <div style={{ font: "600 24px var(--serif)", color: "var(--ink)", letterSpacing: "-0.01em" }}>{value}</div>
+      <div style={{ font: "600 26px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.01em" }}>{value}</div>
     </div>
   );
 }
@@ -113,24 +116,25 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="page-container">
       {/* Header */}
-      <div>
-        <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)" }}>INTELIGÊNCIA IA</span>
-        <h1 style={{ font: "600 26px var(--serif)", margin: "4px 0 6px", color: "var(--ink)" }}>M2M Agents</h1>
-        <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0, maxWidth: 720 }}>
-          Permite que agentes compradores externos (buyer agents) negociem descontos autonomamente
-          com seu checkout via protocolo M2M. Ative o protocolo, defina limites e supervisione os agentes
-          registrados.
-        </p>
-      </div>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Inteligência IA</span>
+          <h1>M2M Agents</h1>
+          <p className="page-lead">
+            Permite que agentes compradores externos (buyer agents) negociem descontos autonomamente
+            com seu checkout via protocolo M2M.
+          </p>
+        </div>
+      </header>
 
       {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-        <StatCard label="Agentes Registrados" value={String(vm.stats.total)} icon={Users} color="var(--accent)" />
-        <StatCard label="Agentes Ativos" value={String(vm.stats.active)} icon={Cpu} color="var(--good)" />
-        <StatCard label="Negociações" value={String(vm.stats.requests)} icon={Activity} color="var(--accent)" />
-        <StatCard label="Taxa de Sucesso" value={`${vm.stats.successRate.toFixed(1)}%`} icon={CheckCircle2} color="var(--good)" />
+      <div className="grid-4" style={{ gap: 14 }}>
+        <StatCard label="Agentes Registrados" value={String(vm.stats.total)} icon={Users} color="var(--color-brand)" />
+        <StatCard label="Agentes Ativos" value={String(vm.stats.active)} icon={Cpu} color="var(--color-success)" />
+        <StatCard label="Negociações" value={String(vm.stats.requests)} icon={Activity} color="var(--color-brand)" />
+        <StatCard label="Taxa de Sucesso" value={`${vm.stats.successRate.toFixed(1)}%`} icon={CheckCircle2} color="var(--color-success)" />
       </div>
 
       {/* What is M2M */}
@@ -142,22 +146,22 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                    preços, descontos e frete diretamente com o seu checkout, sem interação humana."
         />
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 12 }}>
-          <div style={{ padding: "14px 16px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10 }}>
-            <div style={{ font: "600 12px var(--sans)", color: "var(--accent)", marginBottom: 6 }}>Casos de uso</div>
-            <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.55 }}>
+          <div style={{ padding: "14px 16px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
+            <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-brand)", marginBottom: 6 }}>Casos de uso</div>
+            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.55 }}>
               Compradores institucionais, comparadores de preço, agentes de RPA corporativo, automações de supply-chain.
             </div>
           </div>
-          <div style={{ padding: "14px 16px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10 }}>
-            <div style={{ font: "600 12px var(--sans)", color: "var(--accent)", marginBottom: 6 }}>Como clientes interagem</div>
-            <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.55 }}>
+          <div style={{ padding: "14px 16px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
+            <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-brand)", marginBottom: 6 }}>Como clientes interagem</div>
+            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.55 }}>
               O agente abre uma sessão M2M, envia o carrinho, recebe contra-ofertas do seu motor de regras
               e decide aceitar ou encerrar em até <strong>N</strong> rodadas.
             </div>
           </div>
-          <div style={{ padding: "14px 16px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10 }}>
-            <div style={{ font: "600 12px var(--sans)", color: "var(--accent)", marginBottom: 6 }}>Onde eles aparecem</div>
-            <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.55 }}>
+          <div style={{ padding: "14px 16px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 10 }}>
+            <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-brand)", marginBottom: 6 }}>Onde eles aparecem</div>
+            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.55 }}>
               Toda sessão M2M aparece como uma negociação no seu checkout. Você audita, suspende agentes
               e aplica políticas globais, por categoria ou por SKU.
             </div>
@@ -180,16 +184,16 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
               alignItems: "center",
               justifyContent: "space-between",
               padding: "14px 16px",
-              background: vm.config.m2m_enabled ? "var(--accent-soft, rgba(15,118,110,0.08))" : "var(--bg)",
-              border: `1px solid ${vm.config.m2m_enabled ? "var(--accent)" : "var(--border)"}`,
+              background: vm.config.m2m_enabled ? "var(--accent-soft, rgba(15,118,110,0.08))" : "var(--surface-1)",
+              border: `1px solid ${vm.config.m2m_enabled ? "var(--color-brand)" : "var(--color-border)"}`,
               borderRadius: 10,
             }}
           >
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>
+              <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
                 {vm.config.m2m_enabled ? "M2M habilitado" : "M2M desabilitado"}
               </div>
-              <div style={{ font: "12px var(--sans)", color: "var(--muted)" }}>
+              <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
                 {vm.config.m2m_enabled
                   ? "Buyer agents podem abrir sessões de negociação."
                   : "Nenhum buyer agent conseguirá negociar."}
@@ -202,7 +206,7 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <label style={{ font: "12px var(--sans)", color: "var(--muted)", minWidth: 200 }}>
+            <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", minWidth: 200 }}>
               Limite de rodadas por sessão:
             </label>
             <input
@@ -215,14 +219,14 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                 width: 110,
                 padding: "8px 12px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "13px var(--mono)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                color: "var(--color-text)",
+                font: "13px var(--font-mono)",
               }}
             />
-            <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>
-              (mapeado para <code style={{ font: "12px var(--mono)" }}>policy.maxRounds</code>)
+            <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
+              (mapeado para <code style={{ font: "12px var(--font-mono)" }}>policy.maxRounds</code>)
             </span>
           </div>
 
@@ -264,7 +268,7 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
         />
 
         {vm.loading ? (
-          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
+          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
             Carregando agentes...
           </div>
         ) : vm.agents.length === 0 ? (
@@ -300,13 +304,13 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                     <td style={TD_STYLE}>
                       <span
                         style={{
-                          font: "600 13px var(--mono)",
+                          font: "600 13px var(--font-mono)",
                           color:
                             agent.reputation_score >= 80
-                              ? "var(--good)"
+                              ? "var(--color-success)"
                               : agent.reputation_score >= 50
-                                ? "var(--warn)"
-                                : "var(--danger)",
+                                ? "var(--color-warning)"
+                                : "var(--color-error)",
                         }}
                       >
                         {agent.reputation_score}
@@ -319,10 +323,10 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                         style={{
                           padding: "3px 8px",
                           borderRadius: 5,
-                          font: "600 10px var(--mono)",
+                          font: "600 10px var(--font-mono)",
                           background:
-                            agent.status === "active" ? "var(--good-soft)" : "var(--danger-soft)",
-                          color: agent.status === "active" ? "var(--good)" : "var(--danger)",
+                            agent.status === "active" ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                          color: agent.status === "active" ? "var(--color-success)" : "var(--color-error)",
                         }}
                       >
                         {agent.status === "active" ? "Ativo" : "Suspenso"}
@@ -376,7 +380,7 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div>
-            <label style={{ font: "600 11px var(--mono)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <label style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
               Nome do agente
             </label>
             <input
@@ -389,15 +393,15 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                 marginTop: 6,
                 padding: "10px 12px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "13px var(--sans)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                color: "var(--color-text)",
+                font: "13px var(--font-sans)",
               }}
             />
           </div>
           <div>
-            <label style={{ font: "600 11px var(--mono)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <label style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
               Escopos (CSV)
             </label>
             <input
@@ -410,15 +414,15 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                 marginTop: 6,
                 padding: "10px 12px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "13px var(--mono)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                color: "var(--color-text)",
+                font: "13px var(--font-mono)",
               }}
             />
           </div>
           <div>
-            <label style={{ font: "600 11px var(--mono)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+            <label style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
               Rodadas máximas
             </label>
             <input
@@ -432,15 +436,15 @@ export function M2MAgentsPage(props: M2MAgentsPageProps) {
                 marginTop: 6,
                 padding: "10px 12px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "13px var(--mono)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                color: "var(--color-text)",
+                font: "13px var(--font-mono)",
               }}
             />
           </div>
-          <div style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 4 }}>
-            Após criar, configure as preferências em <code style={{ font: "11px var(--mono)" }}>buyer-agent/preferences</code>{" "}
+          <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 4 }}>
+            Após criar, configure as preferências em <code style={{ font: "11px var(--font-mono)" }}>buyer-agent/preferences</code>{" "}
             para que o agente saiba seu alvo de desconto e regras de auto-aceite.
           </div>
         </div>

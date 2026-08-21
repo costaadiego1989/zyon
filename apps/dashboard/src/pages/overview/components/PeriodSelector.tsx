@@ -20,8 +20,8 @@ export function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
       role="tablist"
       style={{
         display: "inline-flex",
-        background: "var(--card)",
-        border: "1px solid var(--border)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
         borderRadius: 999,
         padding: 3,
         gap: 2,
@@ -37,14 +37,14 @@ export function PeriodSelector({ value, onChange }: PeriodSelectorProps) {
             aria-selected={active}
             onClick={() => onChange(opt.value)}
             style={{
-              background: active ? "var(--accent)" : "transparent",
-              color: active ? "var(--color-bg)" : "var(--muted)",
+              background: active ? "var(--color-brand)" : "transparent",
+              color: active ? "var(--color-bg)" : "var(--color-text-muted)",
               border: "none",
               borderRadius: 999,
               padding: "6px 14px",
               fontSize: 12,
               fontWeight: 600,
-              fontFamily: "var(--sans)",
+              fontFamily: "var(--font-sans)",
               cursor: "pointer",
               transition: "background 170ms cubic-bezier(0.16,1,0.3,1), color 170ms",
             }}

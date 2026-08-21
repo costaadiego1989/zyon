@@ -201,13 +201,13 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
 
   // ----- Shared chrome (dots + URL bar) -----
   const chrome = (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--bg)", borderBottom: "1px solid var(--border)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: "var(--surface-1)", borderBottom: "1px solid var(--color-border)" }}>
       <div style={{ display: "flex", gap: 5 }}>
         {["oklch(60% 0.2 25)", "oklch(76% 0.15 80)", "oklch(70% 0.17 149)"].map((c) => (
           <span key={c} style={{ width: 8, height: 8, borderRadius: "50%", background: c }} />
         ))}
       </div>
-      <div style={{ flex: 1, textAlign: "center", font: "11px var(--mono)", color: "var(--faint)" }}>
+      <div style={{ flex: 1, textAlign: "center", font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
         {isCheckoutTab
           ? `${props.me.name || "Preview"} — ${DEVICE_SIZES[device].label} · ${presentation === "floating" ? "Flutuante" : "Fullscreen"}`
           : `${storefrontUrl} — ${DEVICE_SIZES[device].label}`}
@@ -226,7 +226,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
 
       {/* ── Product tab toggle (only when BOTH) ── */}
       {showTabs && (
-        <div style={{ display: "flex", gap: 4, background: "var(--bg)", borderRadius: 10, padding: 4, marginBottom: 12, width: "fit-content" }}>
+        <div style={{ display: "flex", gap: 4, background: "var(--surface-1)", borderRadius: 10, padding: 4, marginBottom: 12, width: "fit-content" }}>
           {(
             [
               { id: "checkout" as const, label: "Widget Checkout", Icon: ShoppingCart },
@@ -243,13 +243,13 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   padding: "8px 14px",
                   borderRadius: 7,
                   border: "none",
-                  font: "600 12px var(--sans)",
+                  font: "600 12px var(--font-sans)",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   gap: 6,
-                  background: active ? "var(--card)" : "transparent",
-                  color: active ? "var(--ink)" : "var(--faint)",
+                  background: active ? "var(--surface-2)" : "transparent",
+                  color: active ? "var(--color-text)" : "var(--color-text-faint)",
                   boxShadow: active ? "0 1px 3px rgba(0,0,0,0.2)" : "none",
                 }}
               >
@@ -261,7 +261,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
       )}
 
       {/* ── Control bar ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 18px", background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 12, marginBottom: 16 }}>
         {/* Status — checkout only */}
         {isCheckoutTab && (
           <>
@@ -271,22 +271,22 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   width: 7,
                   height: 7,
                   borderRadius: "50%",
-                  background: tokenStatus === "active" ? "var(--good)" : tokenStatus === "expired" ? "var(--danger)" : "var(--warn)",
+                  background: tokenStatus === "active" ? "var(--color-success)" : tokenStatus === "expired" ? "var(--color-error)" : "var(--color-warning)",
                 }}
               />
-              <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>{statusText}</span>
+              <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{statusText}</span>
               {countdown && tokenStatus === "active" && (
-                <span style={{ font: "11px var(--mono)", color: "var(--faint)" }}>{countdown}</span>
+                <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>{countdown}</span>
               )}
             </div>
-            <div style={{ width: 1, height: 20, background: "var(--border)" }} />
+            <div style={{ width: 1, height: 20, background: "var(--color-border)" }} />
           </>
         )}
 
         {/* Presentation mode — checkout only */}
         {isCheckoutTab && (
           <>
-            <div style={{ display: "flex", gap: 4, background: "var(--bg)", borderRadius: 8, padding: 3 }}>
+            <div style={{ display: "flex", gap: 4, background: "var(--surface-1)", borderRadius: 8, padding: 3 }}>
               {(["floating", "conversational"] as const).map((mode) => (
                 <button
                   key={mode}
@@ -296,10 +296,10 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                     padding: "6px 12px",
                     borderRadius: 6,
                     border: "none",
-                    font: "600 11px var(--sans)",
+                    font: "600 11px var(--font-sans)",
                     cursor: "pointer",
-                    background: presentation === mode ? "var(--card)" : "transparent",
-                    color: presentation === mode ? "var(--ink)" : "var(--faint)",
+                    background: presentation === mode ? "var(--surface-2)" : "transparent",
+                    color: presentation === mode ? "var(--color-text)" : "var(--color-text-faint)",
                     boxShadow: presentation === mode ? "0 1px 3px rgba(0,0,0,0.2)" : "none",
                   }}
                 >
@@ -307,12 +307,12 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                 </button>
               ))}
             </div>
-            <div style={{ width: 1, height: 20, background: "var(--border)" }} />
+            <div style={{ width: 1, height: 20, background: "var(--color-border)" }} />
           </>
         )}
 
         {/* Device toggle — both tabs */}
-        <div style={{ display: "flex", gap: 4, background: "var(--bg)", borderRadius: 8, padding: 3 }}>
+        <div style={{ display: "flex", gap: 4, background: "var(--surface-1)", borderRadius: 8, padding: 3 }}>
           {(Object.keys(DEVICE_SIZES) as DeviceSize[]).map((size) => {
             const Icon = size === "desktop" ? Monitor : size === "tablet" ? Tablet : Smartphone;
             return (
@@ -328,9 +328,9 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   display: "flex",
                   alignItems: "center",
                   gap: 5,
-                  font: "600 11px var(--sans)",
-                  background: device === size ? "var(--card)" : "transparent",
-                  color: device === size ? "var(--ink)" : "var(--faint)",
+                  font: "600 11px var(--font-sans)",
+                  background: device === size ? "var(--surface-2)" : "transparent",
+                  color: device === size ? "var(--color-text)" : "var(--color-text-faint)",
                   boxShadow: device === size ? "0 1px 3px rgba(0,0,0,0.2)" : "none",
                 }}
               >
@@ -348,13 +348,13 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
               width: 32,
               height: 32,
               borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--bg)",
+              border: "1px solid var(--color-border)",
+              background: "var(--surface-1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              color: "var(--muted)",
+              color: "var(--color-text-muted)",
             }}
             aria-label="Atualizar preview"
           >
@@ -367,13 +367,13 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
               width: 32,
               height: 32,
               borderRadius: 8,
-              border: "1px solid var(--border)",
-              background: "var(--bg)",
+              border: "1px solid var(--color-border)",
+              background: "var(--surface-1)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               cursor: "pointer",
-              color: "var(--muted)",
+              color: "var(--color-text-muted)",
             }}
             aria-label="Tela cheia"
           >
@@ -389,8 +389,8 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
             width: device === "desktop" ? "100%" : DEVICE_SIZES[device].width,
             maxWidth: "100%",
             transition: "width 0.25s ease",
-            background: "var(--card)",
-            border: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--color-border)",
             borderRadius: 14,
             overflow: "hidden",
           }}
@@ -418,7 +418,7 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   height: "100%",
                   border: "none",
                   display: "block",
-                  background: "var(--bg)",
+                  background: "var(--surface-1)",
                 }}
                 onError={() => {
                   // T-004: graceful fallback if storefront fails to load

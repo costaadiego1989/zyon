@@ -30,17 +30,17 @@ const STATUS_CONFIG: Record<SettlementStatus, { color: string; label: string; ic
     icon: <CheckCircle2 size={16} />,
   },
   return_cancelled: {
-    color: "var(--muted)",
+    color: "var(--color-text-muted)",
     label: "Devolvido",
     icon: <AlertCircle size={16} />,
   },
   chargeback_cancelled: {
-    color: "var(--danger)",
+    color: "var(--color-error)",
     label: "Chargeback Cancelado",
     icon: <AlertCircle size={16} />,
   },
   chargeback_debt: {
-    color: "var(--danger)",
+    color: "var(--color-error)",
     label: "Débito por Chargeback",
     icon: <AlertCircle size={16} />,
   },
@@ -73,7 +73,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
   if (isLoading) {
     return (
       <div className="settlement-timeline settlement-timeline--loading">
-        <div style={{ padding: 24, textAlign: "center", color: "var(--muted)" }}>
+        <div style={{ padding: 24, textAlign: "center", color: "var(--color-text-muted)" }}>
           Carregando timeline...
         </div>
       </div>
@@ -100,17 +100,17 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
             {currentStatus.icon}
           </div>
           <div>
-            <div style={{ fontSize: 12, color: "var(--muted)", textTransform: "uppercase" }}>
+            <div style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
               Status Atual
             </div>
-            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--ink)" }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text)" }}>
               {currentStatus.label}
             </div>
           </div>
         </div>
         <div style={{ textAlign: "right", fontSize: 12 }}>
-          <div style={{ color: "var(--muted)" }}>Criado em</div>
-          <div style={{ fontFamily: "var(--mono)", fontWeight: 500 }}>
+          <div style={{ color: "var(--color-text-muted)" }}>Criado em</div>
+          <div style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>
             {formatDate(settlement.createdAt)}
           </div>
         </div>
@@ -132,8 +132,8 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
               <div
                 className="settlement-timeline__dot"
                 style={{
-                  background: isCurrent ? config.color : "var(--border)",
-                  borderColor: isCurrent ? config.color : "var(--border)",
+                  background: isCurrent ? config.color : "var(--color-border)",
+                  borderColor: isCurrent ? config.color : "var(--color-border)",
                   boxShadow: isCurrent ? `0 0 0 4px ${config.color}20` : "none",
                 }}
               />
@@ -141,7 +141,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
               {/* Content */}
               <div className="settlement-timeline__content">
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--ink)" }}>
+                  <span style={{ fontSize: 14, fontWeight: 500, color: "var(--color-text)" }}>
                     {config.label}
                   </span>
                   {isCurrent && (
@@ -160,7 +160,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
                   )}
                 </div>
                 {entry.timestamp && (
-                  <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 4 }}>
+                  <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 4 }}>
                     {formatDate(entry.timestamp)}
                   </div>
                 )}
@@ -173,29 +173,29 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
       {/* Windows Info */}
       <div className="settlement-timeline__windows">
         <div className="settlement-timeline__window">
-          <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
             Janela de Devolução
           </div>
-          <div style={{ fontSize: 14, fontFamily: "var(--mono)", fontWeight: 600 }}>
+          <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
             Até {formatDate(windowDates.returnWindowUntil)}
           </div>
         </div>
 
         <div className="settlement-timeline__window">
-          <div style={{ fontSize: 11, color: "var(--muted)", textTransform: "uppercase" }}>
+          <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
             Janela de Chargeback
           </div>
-          <div style={{ fontSize: 14, fontFamily: "var(--mono)", fontWeight: 600 }}>
+          <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
             Até {formatDate(windowDates.chargebackWindowUntil)}
           </div>
         </div>
 
         {settlement.status === "chargeback_debt" && debt && (
           <div className="settlement-timeline__window settlement-timeline__window--debt">
-            <div style={{ fontSize: 11, color: "var(--danger)", textTransform: "uppercase" }}>
+            <div style={{ fontSize: 11, color: "var(--color-error)", textTransform: "uppercase" }}>
               Débito Criado
             </div>
-            <div style={{ fontSize: 14, fontFamily: "var(--mono)", fontWeight: 600, color: "var(--danger)" }}>
+            <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--color-error)" }}>
               R$ {(debt.amountCents / 100).toFixed(2)}
             </div>
           </div>
@@ -206,12 +206,12 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
       <div className="settlement-timeline__amounts">
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <DollarSign size={16} style={{ color: "var(--success)" }} />
-          <span style={{ fontSize: 12, color: "var(--muted)" }}>Valor Líquido do Vendedor</span>
+          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Valor Líquido do Vendedor</span>
         </div>
-        <div style={{ fontSize: 20, fontFamily: "var(--mono)", fontWeight: 700 }}>
+        <div style={{ fontSize: 20, fontFamily: "var(--font-mono)", fontWeight: 700 }}>
           R$ {(settlement.sellerNetCents / 100).toFixed(2)}
         </div>
-        <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 8 }}>
+        <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 8 }}>
           Comissão: R$ {(settlement.commissionCents / 100).toFixed(2)}
         </div>
       </div>

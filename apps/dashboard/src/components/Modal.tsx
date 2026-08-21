@@ -23,8 +23,8 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
       style={{
         position: "fixed",
         inset: 0,
-        background: "rgba(0, 0, 0, 0.5)",
-        backdropFilter: "blur(2px)",
+        background: "rgba(0, 0, 0, 0.6)",
+        backdropFilter: "blur(4px)",
         display: "flex",
         justifyContent: "flex-end",
         zIndex: 1000,
@@ -36,12 +36,13 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
           width: "100%",
           maxWidth: 440,
           height: "100%",
-          background: "var(--card)",
-          borderLeft: "1px solid var(--border)",
+          background: "var(--surface-2)",
+          borderLeft: "1px solid var(--color-border)",
           display: "flex",
           flexDirection: "column",
           animation: "slideInRight 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
           overflow: "hidden",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -51,22 +52,22 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
-            padding: "20px 24px",
-            borderBottom: "1px solid var(--border)",
+            padding: "24px 28px",
+            borderBottom: "1px solid var(--color-border)",
             flexShrink: 0,
           }}
         >
           <div>
             {eyebrow && (
-              <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--muted)", textTransform: "uppercase", marginBottom: 4 }}>
+              <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-brand)", textTransform: "uppercase", marginBottom: 6 }}>
                 {eyebrow}
               </div>
             )}
-            <h2 style={{ font: "600 18px var(--serif)", color: "var(--ink)", margin: 0, letterSpacing: "-0.01em" }}>
+            <h2 style={{ font: "600 20px var(--font-serif)", color: "var(--color-text)", margin: 0, letterSpacing: "-0.01em" }}>
               {title}
             </h2>
             {subtitle && (
-              <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "4px 0 0" }}>{subtitle}</p>
+              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-secondary)", margin: "6px 0 0" }}>{subtitle}</p>
             )}
           </div>
           <button
@@ -76,19 +77,19 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
             style={{
               width: 36,
               height: 36,
-              borderRadius: 9,
-              border: "1px solid var(--border)",
-              background: "var(--bg)",
+              borderRadius: 8,
+              border: "1px solid var(--color-border)",
+              background: "transparent",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "var(--muted)",
+              color: "var(--color-text-muted)",
               flexShrink: 0,
-              transition: "all 0.15s",
+              transition: "all 0.15s cubic-bezier(0.16, 1, 0.3, 1)",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--card)"; e.currentTarget.style.color = "var(--ink)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "var(--bg)"; e.currentTarget.style.color = "var(--muted)"; }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-3)"; e.currentTarget.style.color = "var(--color-text)"; e.currentTarget.style.borderColor = "var(--color-border-strong)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--color-text-muted)"; e.currentTarget.style.borderColor = "var(--color-border)"; }}
           >
             <X size={20} />
           </button>
@@ -99,7 +100,7 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "24px",
+            padding: "28px",
           }}
         >
           {children}
@@ -109,12 +110,13 @@ export function Modal({ isOpen, title, subtitle, eyebrow, onClose, children, foo
         {footer && (
           <div
             style={{
-              padding: "16px 24px",
-              borderTop: "1px solid var(--border)",
+              padding: "16px 28px",
+              borderTop: "1px solid var(--color-border)",
               display: "flex",
               gap: 10,
               justifyContent: "flex-end",
               flexShrink: 0,
+              background: "var(--surface-1)",
             }}
           >
             {footer}

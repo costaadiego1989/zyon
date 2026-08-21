@@ -52,10 +52,10 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
           width: "100%",
           padding: "10px 12px",
           borderRadius: 8,
-          border: "1px solid var(--border)",
-          font: "13px var(--sans)",
-          color: value ? "var(--ink)" : "var(--faint)",
-          background: "var(--card)",
+          border: "1px solid var(--color-border)",
+          font: "13px var(--font-sans)",
+          color: value ? "var(--color-text)" : "var(--color-text-faint)",
+          background: "var(--surface-2)",
           textAlign: "left",
           cursor: "pointer",
           display: "flex",
@@ -67,13 +67,13 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
           {selected ? (
             <>
               <strong>{selected.code}</strong>
-              <span style={{ color: "var(--muted)", marginLeft: 8, fontSize: 11 }}>
+              <span style={{ color: "var(--color-text-muted)", marginLeft: 8, fontSize: 11 }}>
                 {selected.type === "percent" ? `${selected.value}%` : `R$${(selected.value / 100).toFixed(2)}`}
               </span>
             </>
           ) : "Nenhum cupom selecionado"}
         </span>
-        <span style={{ fontSize: 10, color: "var(--faint)" }}>▾</span>
+        <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>▾</span>
       </button>
 
       {open && (
@@ -82,8 +82,8 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
           top: "calc(100% + 4px)",
           left: 0,
           right: 0,
-          background: "var(--card)",
-          border: "1px solid var(--border)",
+          background: "var(--surface-2)",
+          border: "1px solid var(--color-border)",
           borderRadius: 10,
           boxShadow: "0 12px 32px rgba(0,0,0,0.35)",
           zIndex: 200,
@@ -93,8 +93,8 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
           overflow: "hidden",
         }}>
           {/* Search */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--border)" }}>
-            <Search size={14} style={{ color: "var(--muted)", flexShrink: 0 }} />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 12px", borderBottom: "1px solid var(--color-border)" }}>
+            <Search size={14} style={{ color: "var(--color-text-muted)", flexShrink: 0 }} />
             <input
               type="text"
               value={search}
@@ -104,8 +104,8 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
               style={{
                 flex: 1,
                 border: "none",
-                font: "13px var(--sans)",
-                color: "var(--ink)",
+                font: "13px var(--font-sans)",
+                color: "var(--color-text)",
                 background: "transparent",
                 outline: "none",
               }}
@@ -121,9 +121,9 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
                 width: "100%",
                 padding: "10px 12px",
                 border: "none",
-                background: !value ? "color-mix(in srgb, var(--accent) 8%, transparent)" : "transparent",
-                font: "12px var(--sans)",
-                color: "var(--muted)",
+                background: !value ? "color-mix(in srgb, var(--color-brand) 8%, transparent)" : "transparent",
+                font: "12px var(--font-sans)",
+                color: "var(--color-text-muted)",
                 textAlign: "left",
                 cursor: "pointer",
               }}
@@ -132,13 +132,13 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
             </button>
 
             {!loaded && (
-              <div style={{ padding: "10px 12px", font: "11px var(--sans)", color: "var(--faint)" }}>
+              <div style={{ padding: "10px 12px", font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>
                 Carregando cupons...
               </div>
             )}
 
             {loaded && filtered.length === 0 && search && (
-              <div style={{ padding: "10px 12px", font: "11px var(--sans)", color: "var(--faint)" }}>
+              <div style={{ padding: "10px 12px", font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>
                 Nenhum cupom encontrado
               </div>
             )}
@@ -152,9 +152,9 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
                   width: "100%",
                   padding: "10px 12px",
                   border: "none",
-                  background: value === c.code ? "color-mix(in srgb, var(--accent) 8%, transparent)" : "transparent",
-                  font: "13px var(--mono)",
-                  color: "var(--ink)",
+                  background: value === c.code ? "color-mix(in srgb, var(--color-brand) 8%, transparent)" : "transparent",
+                  font: "13px var(--font-mono)",
+                  color: "var(--color-text)",
                   textAlign: "left",
                   cursor: "pointer",
                   display: "flex",
@@ -163,7 +163,7 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
                 }}
               >
                 <span style={{ fontWeight: value === c.code ? 600 : 400 }}>{c.code}</span>
-                <span style={{ font: "11px var(--sans)", color: "var(--faint)" }}>
+                <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>
                   {c.type === "percent" ? `${c.value}%` : `R$${(c.value / 100).toFixed(2)}`}
                 </span>
               </button>
@@ -236,15 +236,15 @@ export function TriggerEditor({
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                font: "13px var(--sans)",
-                color: "var(--ink)",
-                background: "var(--card)",
+                border: "1px solid var(--color-border)",
+                font: "13px var(--font-sans)",
+                color: "var(--color-text)",
+                background: "var(--surface-2)",
                 outline: "none",
                 resize: "vertical",
               }}
             />
-            <span style={{ font: "10px var(--mono)", color: "var(--faint)", marginTop: 4, display: "block" }}>
+            <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 4, display: "block" }}>
               {draft.message.length}/300 — Texto que o agente envia ao disparar este sinal
             </span>
           </div>
@@ -263,14 +263,14 @@ export function TriggerEditor({
                 width: "100%",
                 padding: "10px 12px",
                 borderRadius: 8,
-                border: "1px solid var(--border)",
-                font: "13px var(--mono)",
-                color: "var(--ink)",
-                background: "var(--card)",
+                border: "1px solid var(--color-border)",
+                font: "13px var(--font-mono)",
+                color: "var(--color-text)",
+                background: "var(--surface-2)",
                 outline: "none",
               }}
             />
-            <span style={{ font: "10px var(--mono)", color: "var(--faint)", marginTop: 4, display: "block" }}>
+            <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 4, display: "block" }}>
               Quanto tempo esperar antes de iniciar a ação
             </span>
           </div>
@@ -284,7 +284,7 @@ export function TriggerEditor({
               coupons={coupons}
               loaded={couponsLoaded}
             />
-            <span style={{ font: "10px var(--mono)", color: "var(--faint)", marginTop: 4, display: "block" }}>
+            <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 4, display: "block" }}>
               Se selecionado, o agente oferece este cupom ao disparar
             </span>
           </div>

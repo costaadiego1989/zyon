@@ -39,13 +39,20 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
     const ordersCount = orders.length;
     const averageTicket = ordersCount > 0 ? revenue / ordersCount : 0;
 
+    // Only count products from sessions that completed an order
+    const completedSessionIds = new Set(orders.map((o) => o.sessionId).filter(Boolean));
+
     const uniqueBuyers = new Set<string>();
     const productMap = new Map<string, { name: string; image_url?: string; quantity: number; revenue: number }>();
 
     for (const session of sessions) {
-      const cart = session.cart as unknown as Cart | null;
       const customer = session.customer as unknown as CustomerHints | null;
       if (customer?.email) uniqueBuyers.add(customer.email);
+
+      // Products sold = only from completed orders
+      if (!completedSessionIds.has(session.sessionId)) continue;
+
+      const cart = session.cart as unknown as Cart | null;
       if (cart?.items) {
         for (const item of cart.items) {
           const itemId = item.product_id ?? item.sku;

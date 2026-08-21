@@ -83,7 +83,7 @@ export function OrderRow({
                 style={{
                   padding: "6px 8px",
                   borderRadius: "4px",
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--color-border)",
                   fontSize: "11px",
                   width: "100px",
                 }}

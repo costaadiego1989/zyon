@@ -359,6 +359,9 @@ export function CheckoutSettingsPage(props: {
                 </span>
               }
             >
+              <div className="cfg-help" role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px" }} data-priority="rules-over-progressive">
+                <strong>Aviso:</strong> Regras avançadas do merchant têm prioridade sobre o desconto progressivo. Se uma regra avançada já ofereceu desconto ao comprador, o desconto progressivo não acumula.
+              </div>
               <div className="cfg-rows">
                 <SettingRow
                   id="toggle-progressive-discount"

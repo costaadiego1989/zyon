@@ -152,10 +152,10 @@ export function ExperimentForm({
         {/* Header */}
         <header className="experiment-drawer__header">
           <div>
-            <h2 style={{ font: "600 15px var(--serif)", color: "var(--ink)", margin: 0 }}>
+            <h2 style={{ font: "600 15px var(--font-serif)", color: "var(--color-text)", margin: 0 }}>
               Novo Teste A/B
             </h2>
-            <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: "4px 0 0" }}>
+            <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: "4px 0 0" }}>
               Compare estratÃ©gias de abordagem do agente IA
             </p>
           </div>
@@ -169,12 +169,12 @@ export function ExperimentForm({
           {/* Step 1: Context */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-              <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", color: "#fff", font: "700 11px var(--mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
-              <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>O que vocÃª quer testar?</span>
+              <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--color-brand)", color: "#fff", font: "700 11px var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>1</span>
+              <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>O que vocÃª quer testar?</span>
             </div>
 
             <label>
-              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>
+              <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>
                 TÃ­tulo do teste
               </span>
               <input
@@ -185,21 +185,21 @@ export function ExperimentForm({
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: 7,
-                  border: `1px solid ${errors.name ? "var(--danger)" : "var(--border)"}`,
-                  background: "var(--bg)",
-                  color: "var(--ink)",
-                  font: "13px var(--sans)",
+                  border: `1px solid ${errors.name ? "var(--color-error)" : "var(--color-border)"}`,
+                  background: "var(--surface-1)",
+                  color: "var(--color-text)",
+                  font: "13px var(--font-sans)",
                 }}
               />
               {errors.name && (
-                <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>
+                <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>
                   {errors.name}
                 </span>
               )}
             </label>
 
             <label>
-              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>
+              <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>
                 Contexto / Objetivo
               </span>
               <textarea
@@ -211,14 +211,14 @@ export function ExperimentForm({
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: 7,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg)",
-                  color: "var(--ink)",
-                  font: "13px var(--sans)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--surface-1)",
+                  color: "var(--color-text)",
+                  font: "13px var(--font-sans)",
                   resize: "vertical",
                 }}
               />
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)", marginTop: 4, display: "block" }}>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4, display: "block" }}>
                 Isso ajuda a IA a sugerir variantes relevantes para seu cenÃ¡rio
               </span>
             </label>
@@ -235,21 +235,21 @@ export function ExperimentForm({
               {generating ? "Gerando..." : hasGenerated ? "Regenerar variantes" : "Gerar variantes com IA"}
             </Button>
             {hasGenerated && (
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>
                 NÃ£o gostou? Ajuste o tÃ­tulo/contexto e clique novamente
               </span>
             )}
           </div>
 
           {/* Divider */}
-          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "4px 0" }} />
+          <hr style={{ border: "none", borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
 
           {/* Step 2: Variants */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", color: "#fff", font: "700 11px var(--mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>2</span>
-                <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Variantes</span>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--color-brand)", color: "#fff", font: "700 11px var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>2</span>
+                <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Variantes</span>
               </div>
               <Button size="sm" onClick={addVariant}>
                 <Plus size={12} /> Adicionar
@@ -257,7 +257,7 @@ export function ExperimentForm({
             </div>
 
             {errors.variants && (
-              <span style={{ font: "11px var(--sans)", color: "var(--danger)", display: "block" }}>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", display: "block" }}>
                 {errors.variants}
               </span>
             )}
@@ -271,8 +271,8 @@ export function ExperimentForm({
                 <div
                   key={idx}
                   style={{
-                    background: isControl ? "oklch(25% 0.02 160 / 0.3)" : "var(--bg)",
-                    border: `1px solid ${isControl ? "var(--accent)" : "var(--border)"}`,
+                    background: isControl ? "oklch(25% 0.02 160 / 0.3)" : "var(--surface-1)",
+                    border: `1px solid ${isControl ? "var(--color-brand)" : "var(--color-border)"}`,
                     borderRadius: 12,
                     padding: 16,
                     position: "relative",
@@ -282,11 +282,11 @@ export function ExperimentForm({
                   {/* Fixed role label */}
                   <span style={{
                     position: "absolute", top: -9, left: 14,
-                    font: "600 9px var(--mono)",
-                    color: isControl ? "var(--accent)" : "var(--warning, #f59e0b)",
-                    background: "var(--card)", padding: "2px 8px",
+                    font: "600 9px var(--font-mono)",
+                    color: isControl ? "var(--color-brand)" : "var(--warning, #f59e0b)",
+                    background: "var(--surface-2)", padding: "2px 8px",
                     borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.06em",
-                    border: `1px solid ${isControl ? "var(--accent)" : "var(--warning, #f59e0b)"}`,
+                    border: `1px solid ${isControl ? "var(--color-brand)" : "var(--warning, #f59e0b)"}`,
                   }}>
                     {isControl ? "â— Atual (controle)" : "â—† Desafiante"}
                   </span>
@@ -301,16 +301,16 @@ export function ExperimentForm({
                         width: "100%",
                         padding: "9px 12px",
                         borderRadius: 6,
-                        border: "1px solid var(--border)",
-                        background: "var(--card)",
-                        color: "var(--ink)",
-                        font: "600 13px var(--sans)",
+                        border: "1px solid var(--color-border)",
+                        background: "var(--surface-2)",
+                        color: "var(--color-text)",
+                        font: "600 13px var(--font-sans)",
                       }}
                     />
 
                     {/* Instruction */}
                     <div>
-                      <span style={{ font: "600 10px var(--mono)", color: "var(--muted)", display: "block", marginBottom: 4, textTransform: "uppercase" }}>
+                      <span style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-muted)", display: "block", marginBottom: 4, textTransform: "uppercase" }}>
                         {isControl ? "Como o agente se comporta hoje?" : "Como quer que ele se comporte neste teste?"}
                       </span>
                       <textarea
@@ -325,10 +325,10 @@ export function ExperimentForm({
                           width: "100%",
                           padding: "10px 12px",
                           borderRadius: 6,
-                          border: "1px solid var(--border)",
-                          background: "var(--card)",
-                          color: "var(--ink)",
-                          font: "12px var(--sans)",
+                          border: "1px solid var(--color-border)",
+                          background: "var(--surface-2)",
+                          color: "var(--color-text)",
+                          font: "12px var(--font-sans)",
                           resize: "vertical",
                           lineHeight: 1.5,
                         }}
@@ -336,18 +336,18 @@ export function ExperimentForm({
                     </div>
 
                     {/* Footer: traffic + remove */}
-                    <div style={{ display: "flex", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+                    <div style={{ display: "flex", alignItems: "center", paddingTop: 8, borderTop: "1px solid var(--color-border)" }}>
                       <span style={{
-                        font: "600 11px var(--mono)",
-                        color: "var(--muted)",
-                        background: "var(--card)",
+                        font: "600 11px var(--font-mono)",
+                        color: "var(--color-text-muted)",
+                        background: "var(--surface-2)",
                         padding: "4px 10px",
                         borderRadius: 6,
-                        border: "1px solid var(--border)",
+                        border: "1px solid var(--color-border)",
                       }}>
                         {Math.round(100 / form.variants.length)}% do pÃºblico
                       </span>
-                      <span style={{ font: "11px var(--sans)", color: "var(--muted)", marginLeft: 8 }}>
+                      <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginLeft: 8 }}>
                         {variantLabel}
                       </span>
                       {!isControl && form.variants.length > 2 && (
@@ -356,13 +356,13 @@ export function ExperimentForm({
                           aria-label="Remover variante"
                           style={{
                             marginLeft: "auto",
-                            background: "var(--danger-soft)",
-                            border: "1px solid var(--danger)",
+                            background: "var(--color-error-bg)",
+                            border: "1px solid var(--color-error)",
                             borderRadius: 6,
                             padding: "5px 8px",
                             cursor: "pointer",
-                            color: "var(--danger)",
-                            font: "11px var(--sans)",
+                            color: "var(--color-error)",
+                            font: "11px var(--font-sans)",
                             display: "flex",
                             alignItems: "center",
                             gap: 4,
@@ -380,17 +380,17 @@ export function ExperimentForm({
           </div>
 
           {/* Divider */}
-          <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "4px 0" }} />
+          <hr style={{ border: "none", borderTop: "1px solid var(--color-border)", margin: "4px 0" }} />
 
           {/* Step 3: Sample */}
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--accent)", color: "#fff", font: "700 11px var(--mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>3</span>
-              <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Quando encerrar?</span>
+              <span style={{ width: 20, height: 20, borderRadius: "50%", background: "var(--color-brand)", color: "#fff", font: "700 11px var(--font-mono)", display: "flex", alignItems: "center", justifyContent: "center" }}>3</span>
+              <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Quando encerrar?</span>
             </div>
 
             <label>
-              <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>
+              <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>
                 SessÃµes por variante (mÃ­n. para significÃ¢ncia)
               </span>
               <input
@@ -403,18 +403,18 @@ export function ExperimentForm({
                   width: "100%",
                   padding: "10px 12px",
                   borderRadius: 7,
-                  border: `1px solid ${errors.sample_size ? "var(--danger)" : "var(--border)"}`,
-                  background: "var(--bg)",
-                  color: "var(--ink)",
-                  font: "13px var(--mono)",
+                  border: `1px solid ${errors.sample_size ? "var(--color-error)" : "var(--color-border)"}`,
+                  background: "var(--surface-1)",
+                  color: "var(--color-text)",
+                  font: "13px var(--font-mono)",
                 }}
               />
               {errors.sample_size && (
-                <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>
+                <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>
                   {errors.sample_size}
                 </span>
               )}
-              <span style={{ font: "11px var(--sans)", color: "var(--muted)", marginTop: 6, display: "block" }}>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 6, display: "block" }}>
                 Recomendado: 100+ sessÃµes por variante para confianÃ§a â‰¥ 95%
               </span>
             </label>
@@ -422,9 +422,9 @@ export function ExperimentForm({
 
           {/* Info Box */}
           <div style={{ display: "flex", gap: 10, padding: "12px 14px", background: "oklch(50% 0.04 240 / 0.12)", borderRadius: 8, marginTop: 8 }}>
-            <Info size={16} style={{ color: "var(--accent)", flexShrink: 0, marginTop: 2 }} />
-            <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.5 }}>
-              <strong style={{ color: "var(--ink)" }}>Como funciona:</strong> Ao iniciar, cada sessÃ£o de compra recebe uma variante aleatÃ³ria.
+            <Info size={16} style={{ color: "var(--color-brand)", flexShrink: 0, marginTop: 2 }} />
+            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5 }}>
+              <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Ao iniciar, cada sessÃ£o de compra recebe uma variante aleatÃ³ria.
               O agente IA usa a instruÃ§Ã£o (prompt) daquela variante para conduzir toda a conversa.
               Ao final, comparamos taxa de conversÃ£o e ticket mÃ©dio entre variantes.
             </div>

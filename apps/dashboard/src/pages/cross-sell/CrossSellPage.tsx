@@ -31,30 +31,30 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
   const { state, visibleTouchpoints, toggleTouchpoint, toggleStrategy, patchConfig, save } = vm;
   const { config } = state;
 
-  if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>Carregando...</div>;
+  if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
 
   const sectionLabel = context === "store" ? "LOJA" : "CHECKOUT";
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div className="page-container">
+      <header className="page-head">
         <div>
           <span className="eyebrow">{sectionLabel}</span>
-          <h1 style={{ marginBottom: 4 }}>Cross Sell</h1>
+          <h1>Cross Sell</h1>
           <p className="page-lead">Configure quando e como a IA sugere produtos complementares</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={save} disabled={state.saving} loading={state.saving}>
           <Save size={14} /> Salvar
         </Button>
-      </div>
+      </header>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Global toggle */}
-        <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+        <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <h3 style={{ font: "600 14px var(--sans)", color: "var(--ink)", margin: "0 0 4px" }}>Cross Sell ativo</h3>
-              <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: 0 }}>Habilita sugestões de produtos complementares pela IA</p>
+              <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", margin: "0 0 4px" }}>Cross Sell ativo</h3>
+              <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>Habilita sugestões de produtos complementares pela IA</p>
             </div>
             <ToggleSwitch checked={config.enabled} onChange={() => patchConfig({ enabled: !config.enabled })} />
           </div>
@@ -63,14 +63,14 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
         {config.enabled && (
           <>
             {/* Touchpoints */}
-            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 11px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase", marginBottom: 14 }}>Onde sugerir</h3>
+            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
+              <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase", marginBottom: 14 }}>Onde sugerir</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {visibleTouchpoints.map((tp) => (
-                  <div key={tp} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border)", background: config.touchpoints[tp] ? "rgba(15,118,110,0.04)" : "transparent" }}>
+                  <div key={tp} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: config.touchpoints[tp] ? "rgba(15,118,110,0.04)" : "transparent" }}>
                     <div>
-                      <div style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>{TOUCHPOINT_LABELS[tp].title}</div>
-                      <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{TOUCHPOINT_LABELS[tp].desc}</div>
+                      <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>{TOUCHPOINT_LABELS[tp].title}</div>
+                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>{TOUCHPOINT_LABELS[tp].desc}</div>
                     </div>
                     <ToggleSwitch checked={config.touchpoints[tp]} onChange={() => toggleTouchpoint(tp)} />
                   </div>
@@ -79,15 +79,15 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
             </section>
 
             {/* Strategies */}
-            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 11px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase", marginBottom: 14 }}>Estratégias de recomendação</h3>
+            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
+              <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase", marginBottom: 14 }}>Estratégias de recomendação</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {(Object.keys(STRATEGY_LABELS) as CrossSellStrategy[]).map((s) => (
-                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--border)", cursor: "pointer", background: config.strategies.includes(s) ? "rgba(15,118,110,0.04)" : "transparent" }}>
-                    <input type="checkbox" checked={config.strategies.includes(s)} onChange={() => toggleStrategy(s)} style={{ width: 16, height: 16, accentColor: "var(--accent)" }} />
+                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", cursor: "pointer", background: config.strategies.includes(s) ? "rgba(15,118,110,0.04)" : "transparent" }}>
+                    <input type="checkbox" checked={config.strategies.includes(s)} onChange={() => toggleStrategy(s)} style={{ width: 16, height: 16, accentColor: "var(--color-brand)" }} />
                     <div style={{ flex: 1 }}>
-                      <div style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>{STRATEGY_LABELS[s].title}</div>
-                      <div style={{ font: "11px var(--sans)", color: "var(--muted)" }}>{STRATEGY_LABELS[s].desc}</div>
+                      <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{STRATEGY_LABELS[s].title}</div>
+                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>{STRATEGY_LABELS[s].desc}</div>
                     </div>
                   </label>
                 ))}
@@ -95,22 +95,22 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
             </section>
 
             {/* Limits + Discount + Display */}
-            <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-              <h3 style={{ font: "600 11px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)", textTransform: "uppercase", marginBottom: 14 }}>Limites e apresentação</h3>
+            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
+              <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase", marginBottom: 14 }}>Limites e apresentação</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Máx. sugestões por sessão</span>
+                  <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>Máx. sugestões por sessão</span>
                   <input
                     type="number"
                     min={1}
                     max={5}
                     value={config.limits.maxSuggestionsPerSession}
                     onChange={(e) => patchConfig({ limits: { ...config.limits, maxSuggestionsPerSession: Math.max(1, Math.min(5, parseInt(e.target.value) || 2)) } })}
-                    style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }}
+                    style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
                   />
                 </div>
                 <div>
-                  <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>Cooldown entre sugestões (s)</span>
+                  <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>Cooldown entre sugestões (s)</span>
                   <input
                     type="number"
                     min={30}
@@ -118,16 +118,16 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                     step={30}
                     value={config.limits.cooldownSeconds}
                     onChange={(e) => patchConfig({ limits: { ...config.limits, cooldownSeconds: Math.max(30, Math.min(600, parseInt(e.target.value) || 120)) } })}
-                    style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }}
+                    style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
                   />
                 </div>
               </div>
 
-              <div style={{ marginTop: 16, padding: "12px 0", borderTop: "1px solid var(--border)" }}>
+              <div style={{ marginTop: 16, padding: "12px 0", borderTop: "1px solid var(--color-border)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
                   <div>
-                    <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Desconto no cross-sell</span>
-                    <span style={{ font: "11px var(--sans)", color: "var(--muted)", display: "block", marginTop: 2 }}>Oferecer desconto no produto sugerido</span>
+                    <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Desconto no cross-sell</span>
+                    <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginTop: 2 }}>Oferecer desconto no produto sugerido</span>
                   </div>
                   <ToggleSwitch checked={config.discount.enabled} onChange={() => patchConfig({ discount: { ...config.discount, enabled: !config.discount.enabled } })} />
                 </div>
@@ -139,15 +139,15 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                       max={50}
                       value={config.discount.percent}
                       onChange={(e) => patchConfig({ discount: { ...config.discount, percent: Math.max(1, Math.min(50, parseInt(e.target.value) || 10)) } })}
-                      style={{ width: 80, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--bg)", font: "13px var(--mono)", color: "var(--ink)", outline: "none" }}
+                      style={{ width: 80, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
                     />
-                    <span style={{ font: "13px var(--sans)", color: "var(--muted)" }}>% de desconto</span>
+                    <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>% de desconto</span>
                   </div>
                 )}
               </div>
 
-              <div style={{ marginTop: 16, padding: "12px 0", borderTop: "1px solid var(--border)" }}>
-                <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 10 }}>Modo de exibição</span>
+              <div style={{ marginTop: 16, padding: "12px 0", borderTop: "1px solid var(--color-border)" }}>
+                <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 10 }}>Modo de exibição</span>
                 <div style={{ display: "flex", gap: 8 }}>
                   {DISPLAY_OPTIONS.map((opt) => (
                     <button
@@ -157,10 +157,10 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                       style={{
                         padding: "8px 14px",
                         borderRadius: 8,
-                        border: `2px solid ${config.display.mode === opt.value ? "var(--accent)" : "var(--border)"}`,
-                        background: config.display.mode === opt.value ? "var(--accent-soft, rgba(15,118,110,0.08))" : "transparent",
-                        font: "600 12px var(--sans)",
-                        color: config.display.mode === opt.value ? "var(--accent)" : "var(--ink)",
+                        border: `2px solid ${config.display.mode === opt.value ? "var(--color-brand)" : "var(--color-border)"}`,
+                        background: config.display.mode === opt.value ? "var(--color-brand-subtle, rgba(15,118,110,0.08))" : "transparent",
+                        font: "600 12px var(--font-sans)",
+                        color: config.display.mode === opt.value ? "var(--color-brand)" : "var(--color-text)",
                         cursor: "pointer",
                         transition: "all 0.15s",
                       }}

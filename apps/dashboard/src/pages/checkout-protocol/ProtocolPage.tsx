@@ -15,22 +15,22 @@ export interface ProtocolPageProps {
 const TABLE_STYLE: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  font: "13px var(--sans)",
+  font: "13px var(--font-sans)",
 };
 
 const TH_STYLE: React.CSSProperties = {
   textAlign: "left",
   padding: "10px 14px",
-  borderBottom: "1px solid var(--border)",
-  font: "600 11px var(--mono)",
+  borderBottom: "1px solid var(--color-border)",
+  font: "600 11px var(--font-mono)",
   letterSpacing: "0.04em",
-  color: "var(--faint)",
+  color: "var(--color-text-faint)",
 };
 
 const TD_STYLE: React.CSSProperties = {
   padding: "10px 14px",
-  borderBottom: "1px solid var(--border)",
-  color: "var(--ink)",
+  borderBottom: "1px solid var(--color-border)",
+  color: "var(--color-text)",
 };
 
 function formatDate(iso: string): string {
@@ -53,17 +53,18 @@ export function ProtocolPage(props: ProtocolPageProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Header */}
-      <SectionHeader
-        variant="primary"
-        title="Checkout Programável"
-        subtitle="Conecte seu sistema ao checkout via API"
-      />
+    <div className="page-container">
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Checkout</span>
+          <h1>Checkout Protocol</h1>
+          <p className="page-lead">Conecte seu sistema ao checkout via API</p>
+        </div>
+      </header>
 
       {/* Value Proposition */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <p style={{ font: "14px var(--sans)", color: "var(--ink)", margin: 0, lineHeight: 1.55 }}>
+        <p style={{ font: "14px var(--font-sans)", color: "var(--color-text)", margin: 0, lineHeight: 1.55 }}>
           Permita que seu software interno (ERP, CRM, automação) inicie e controle sessões de checkout programaticamente.
           Sua equipe de TI pode integrar o checkout direto no ERP — sem depender do dashboard.
         </p>
@@ -78,10 +79,10 @@ export function ProtocolPage(props: ProtocolPageProps) {
             { n: 2, t: "Integre no seu sistema", d: "Conecte ERP, CRM ou automação usando os endpoints REST." },
             { n: 3, t: "Controle o checkout via código", d: "Inicie sessões, acompanhe estados e receba webhooks." },
           ].map((step) => (
-            <div key={step.n} style={{ padding: 14, border: "1px solid var(--border)", borderRadius: 9, background: "var(--bg)" }}>
-              <div style={{ font: "600 11px var(--mono)", color: "var(--accent)", marginBottom: 6 }}>PASSO {step.n}</div>
-              <div style={{ font: "600 13px var(--sans)", color: "var(--ink)", marginBottom: 4 }}>{step.t}</div>
-              <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.45 }}>{step.d}</div>
+            <div key={step.n} style={{ padding: 14, border: "1px solid var(--color-border)", borderRadius: 9, background: "var(--surface-1)" }}>
+              <div style={{ font: "600 11px var(--font-mono)", color: "var(--color-brand)", marginBottom: 6 }}>PASSO {step.n}</div>
+              <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 4 }}>{step.t}</div>
+              <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.45 }}>{step.d}</div>
             </div>
           ))}
         </div>
@@ -90,9 +91,9 @@ export function ProtocolPage(props: ProtocolPageProps) {
       {/* Exemplo concreto */}
       <div className="panel" style={{ padding: "20px 24px" }}>
         <SectionHeader variant="secondary" title="Exemplo de uso" />
-        <p style={{ font: "13px var(--sans)", color: "var(--ink)", margin: 0, lineHeight: 1.55 }}>
+        <p style={{ font: "13px var(--font-sans)", color: "var(--color-text)", margin: 0, lineHeight: 1.55 }}>
           Seu ERP pode criar um checkout com produtos pré-selecionados quando um vendedor fecha um pedido.
-          O sistema recebe o evento <code style={{ font: "12px var(--mono)", color: "var(--accent)" }}>session.completed</code> via webhook e dá baixa automática no estoque.
+          O sistema recebe o evento <code style={{ font: "12px var(--font-mono)", color: "var(--color-brand)" }}>session.completed</code> via webhook e dá baixa automática no estoque.
         </p>
       </div>
 
@@ -106,10 +107,10 @@ export function ProtocolPage(props: ProtocolPageProps) {
               style={{
                 padding: "6px 12px",
                 borderRadius: 999,
-                border: "1px solid var(--border)",
-                font: "12px var(--sans)",
-                color: "var(--ink)",
-                background: "var(--bg)",
+                border: "1px solid var(--color-border)",
+                font: "12px var(--font-sans)",
+                color: "var(--color-text)",
+                background: "var(--surface-1)",
               }}
             >
               {tag}
@@ -120,19 +121,19 @@ export function ProtocolPage(props: ProtocolPageProps) {
 
       {/* Config Section */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <div style={{ font: "600 14px var(--sans)", color: "var(--ink)", marginBottom: 16 }}>Configuração</div>
+        <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 16 }}>Configuração</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
             <ToggleSwitch
               checked={vm.tempConfig.protocol_enabled}
               onChange={(v) => vm.setTempConfig({ ...vm.tempConfig, protocol_enabled: v })}
             />
-            <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>
+            <span style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>
               {vm.tempConfig.protocol_enabled ? "Protocolo habilitado" : "Protocolo desabilitado"}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <label style={{ font: "12px var(--sans)", color: "var(--muted)", minWidth: 120 }}>
+            <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", minWidth: 120 }}>
               Webhook URL:
             </label>
             <input
@@ -144,16 +145,16 @@ export function ProtocolPage(props: ProtocolPageProps) {
                 flex: 1,
                 maxWidth: 400,
                 padding: "6px 10px",
-                borderRadius: 7,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "13px var(--mono)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                color: "var(--color-text)",
+                font: "13px var(--font-mono)",
               }}
             />
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <label style={{ font: "12px var(--sans)", color: "var(--muted)", minWidth: 120 }}>
+            <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", minWidth: 120 }}>
               TTL (minutos):
             </label>
             <input
@@ -165,14 +166,14 @@ export function ProtocolPage(props: ProtocolPageProps) {
               style={{
                 width: 90,
                 padding: "6px 10px",
-                borderRadius: 7,
-                border: "1px solid var(--border)",
-                background: "var(--bg)",
-                color: "var(--ink)",
-                font: "13px var(--mono)",
+                borderRadius: "var(--radius-sm)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-1)",
+                color: "var(--color-text)",
+                font: "13px var(--font-mono)",
               }}
             />
-            <span style={{ font: "11px var(--sans)", color: "var(--faint)" }}>(padrão: 30min)</span>
+            <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>(padrão: 30min)</span>
           </div>
           <div>
             <Button variant="primary" size="sm" onClick={vm.handleSaveConfig} disabled={vm.saving}>
@@ -184,10 +185,10 @@ export function ProtocolPage(props: ProtocolPageProps) {
 
       {/* Sessions Table */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <div style={{ font: "600 14px var(--sans)", color: "var(--ink)", marginBottom: 16 }}>Sessões ativas</div>
+        <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 16 }}>Sessões ativas</div>
 
         {vm.loading ? (
-          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
+          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
             Carregando sessões...
           </div>
         ) : vm.sessions.length === 0 ? (
@@ -211,15 +212,15 @@ export function ProtocolPage(props: ProtocolPageProps) {
                 {vm.sessions.map((session) => (
                   <tr key={session.id}>
                     <td style={TD_STYLE}>
-                      <code style={{ font: "12px var(--mono)" }}>{session.agent_id}</code>
+                      <code style={{ font: "12px var(--font-mono)" }}>{session.agent_id}</code>
                     </td>
                     <td style={TD_STYLE}>
                       <span style={{
                         padding: "3px 8px",
                         borderRadius: 5,
-                        font: "600 10px var(--mono)",
-                        background: "var(--accent-soft)",
-                        color: "var(--accent)",
+                        font: "600 10px var(--font-mono)",
+                        background: "var(--color-brand-subtle)",
+                        color: "var(--color-brand)",
                       }}>
                         {session.current_state}
                       </span>
@@ -237,12 +238,12 @@ export function ProtocolPage(props: ProtocolPageProps) {
       {/* Webhook Log */}
       <div className="panel" style={{ padding: "20px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <Webhook size={16} color="var(--accent)" />
-          <span style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>Webhook log (últimas 10 entregas)</span>
+          <Webhook size={16} color="var(--color-brand)" />
+          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>Webhook log (últimas 10 entregas)</span>
         </div>
 
         {vm.webhookLogs.length === 0 ? (
-          <div style={{ padding: "24px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
+          <div style={{ padding: "24px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
             Nenhuma entrega registrada
           </div>
         ) : (
@@ -260,15 +261,15 @@ export function ProtocolPage(props: ProtocolPageProps) {
                 {vm.webhookLogs.map((log) => (
                   <tr key={log.id}>
                     <td style={TD_STYLE}>
-                      <code style={{ font: "12px var(--mono)" }}>{log.event_type}</code>
+                      <code style={{ font: "12px var(--font-mono)" }}>{log.event_type}</code>
                     </td>
                     <td style={TD_STYLE}>
                       <span style={{
                         padding: "3px 8px",
                         borderRadius: 5,
-                        font: "600 10px var(--mono)",
-                        background: log.status === "success" ? "var(--good-soft)" : log.status === "failed" ? "var(--danger-soft)" : "var(--warn-soft)",
-                        color: log.status === "success" ? "var(--good)" : log.status === "failed" ? "var(--danger)" : "var(--warn)",
+                        font: "600 10px var(--font-mono)",
+                        background: log.status === "success" ? "var(--color-success-bg)" : log.status === "failed" ? "var(--color-error-bg)" : "var(--color-warning-bg)",
+                        color: log.status === "success" ? "var(--color-success)" : log.status === "failed" ? "var(--color-error)" : "var(--color-warning)",
                       }}>
                         {log.status}
                       </span>

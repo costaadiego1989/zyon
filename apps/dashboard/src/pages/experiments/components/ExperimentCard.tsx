@@ -17,19 +17,19 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
   }[experiment.status];
 
   const statusColor = {
-    draft: "var(--muted)",
-    running: "var(--accent)",
-    paused: "var(--faint)",
+    draft: "var(--color-text-muted)",
+    running: "var(--color-brand)",
+    paused: "var(--color-text-faint)",
     completed: "var(--good, #10b981)",
-    archived: "var(--muted)",
+    archived: "var(--color-text-muted)",
   }[experiment.status];
 
   return (
     <button
       onClick={onSelect}
       style={{
-        background: selected ? "var(--accent-soft, oklch(30% 0.04 160 / 0.3))" : "var(--bg)",
-        border: selected ? "1px solid var(--accent)" : "1px solid var(--border)",
+        background: selected ? "var(--accent-soft, oklch(30% 0.04 160 / 0.3))" : "var(--surface-1)",
+        border: selected ? "1px solid var(--color-brand)" : "1px solid var(--color-border)",
         borderRadius: 10,
         padding: "14px 16px",
         cursor: "pointer",
@@ -40,12 +40,12 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
     >
       {/* Row 1: Title + Badge right */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span style={{ font: "600 13px var(--sans)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {experiment.name}
         </span>
         <span
           style={{
-            font: "600 9px var(--mono)",
+            font: "600 9px var(--font-mono)",
             color: statusColor,
             background: `color-mix(in oklch, ${statusColor} 15%, transparent)`,
             padding: "3px 8px",
@@ -61,7 +61,7 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
       </div>
 
       {/* Row 2: Meta below */}
-      <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginTop: 6 }}>
+      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 6 }}>
         {(experiment.variants ?? []).length} variantes • {new Date(experiment.created_at).toLocaleDateString("pt-BR")}
       </div>
     </button>

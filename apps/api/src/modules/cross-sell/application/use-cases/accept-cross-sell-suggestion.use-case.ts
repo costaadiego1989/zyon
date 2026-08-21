@@ -1,8 +1,10 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, UnprocessableEntityException , Logger} from "@nestjs/common";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
+import type { PrismaClient } from "@prisma/client";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
 import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { evaluateStacking } from "../../domain/policies/stacking.policy.js";
@@ -15,7 +17,8 @@ export class AcceptCrossSellSuggestionUseCase {
   constructor(
     @Inject(CROSS_SELL_SUGGESTION_REPOSITORY) private readonly suggestions: CrossSellSuggestionRepository,
     @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly promotions: CrossSellPromotionRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   async execute(input: {
@@ -83,6 +86,21 @@ export class AcceptCrossSellSuggestionUseCase {
     }
 
     await this.suggestions.save(accepted);
+
+    // Emit funnel event so cross-sell shows up in the conversion funnel.
+    // Best-effort: analytics must never break the accept flow.
+    try {
+      const existing = await this.prisma.checkoutEvent.findFirst({
+        where: { merchantId: input.merchant_id, sessionId: input.session_id, eventName: "cross_sell_accepted" },
+      });
+      if (!existing) {
+        await this.prisma.checkoutEvent.create({
+          data: { merchantId: input.merchant_id, sessionId: input.session_id, eventName: "cross_sell_accepted", occurredAt: new Date() },
+        });
+      }
+    } catch (err) {
+      this.logger.warn(`Failed to record cross_sell_accepted funnel event: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     await this.outbox.appendOutbox(
       createCrossSellEventEnvelope({

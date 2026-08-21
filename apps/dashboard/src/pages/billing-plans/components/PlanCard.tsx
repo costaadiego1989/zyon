@@ -32,14 +32,14 @@ export function PlanCard({
   upgrading,
 }: PlanCardProps) {
   const borderColor = isCurrent
-    ? "var(--accent)"
+    ? "var(--color-brand)"
     : plan.recommended
-      ? "var(--accent-line)"
-      : "var(--border)";
+      ? "var(--color-brand-ring)"
+      : "var(--color-border)";
 
   const cardBg = plan.recommended
-    ? "color-mix(in oklab, var(--accent-soft) 50%, var(--card))"
-    : "var(--card)";
+    ? "color-mix(in oklab, var(--color-brand-subtle) 50%, var(--surface-2))"
+    : "var(--surface-2)";
 
   return (
     <div
@@ -68,7 +68,7 @@ export function PlanCard({
             left: 20,
             right: 20,
             height: 2,
-            background: "var(--accent)",
+            background: "var(--color-brand)",
             borderRadius: "0 0 2px 2px",
           }}
         />
@@ -78,9 +78,9 @@ export function PlanCard({
       <div>
         <div
           style={{
-            font: "600 10.5px var(--mono)",
+            font: "600 10.5px var(--font-mono)",
             letterSpacing: "0.06em",
-            color: "var(--faint)",
+            color: "var(--color-text-faint)",
             marginBottom: 6,
           }}
         >
@@ -88,8 +88,8 @@ export function PlanCard({
         </div>
         <h4
           style={{
-            font: "700 20px var(--serif)",
-            color: "var(--ink)",
+            font: "700 20px var(--font-serif)",
+            color: "var(--color-text)",
             margin: 0,
           }}
         >
@@ -102,20 +102,20 @@ export function PlanCard({
         <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
           {plan.price > 0 ? (
             <>
-              <span style={{ font: "800 28px var(--mono)", color: "var(--ink)" }}>
+              <span style={{ font: "800 28px var(--font-mono)", color: "var(--color-text)" }}>
                 R${plan.price}
               </span>
-              <span style={{ font: "13px var(--sans)", color: "var(--muted)" }}>
+              <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>
                 /mês
               </span>
             </>
           ) : (
-            <span style={{ font: "800 28px var(--mono)", color: "var(--ink)" }}>
+            <span style={{ font: "800 28px var(--font-mono)", color: "var(--color-text)" }}>
               Grátis
             </span>
           )}
         </div>
-        <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 4 }}>
+        <div style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)", marginTop: 4 }}>
           {plan.fee} por transação
         </div>
       </div>
@@ -124,8 +124,8 @@ export function PlanCard({
       <div
         style={{
           padding: "16px 0",
-          borderTop: "1px solid var(--border)",
-          borderBottom: "1px solid var(--border)",
+          borderTop: "1px solid var(--color-border)",
+          borderBottom: "1px solid var(--color-border)",
           display: "flex",
           flexDirection: "column",
           gap: 10,
@@ -150,7 +150,7 @@ export function PlanCard({
                   width: 16,
                   height: 16,
                   borderRadius: 4,
-                  background: "var(--good-soft)",
+                  background: "var(--color-success-bg)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -162,7 +162,7 @@ export function PlanCard({
                   height="10"
                   viewBox="0 0 16 16"
                   fill="none"
-                  stroke="var(--good)"
+                  stroke="var(--color-success)"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -170,7 +170,7 @@ export function PlanCard({
                   <polyline points="2 8 6 12 14 4" />
                 </svg>
               </div>
-              <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>
+              <span style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>
                 {feature}
               </span>
             </div>
@@ -200,8 +200,8 @@ export function PlanCard({
 function LimitRow({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-      <span style={{ font: "13px var(--sans)", color: "var(--muted)" }}>{label}</span>
-      <span style={{ font: "12px var(--mono)", color: "var(--ink)" }}>{value}</span>
+      <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{label}</span>
+      <span style={{ font: "12px var(--font-mono)", color: "var(--color-text)" }}>{value}</span>
     </div>
   );
 }

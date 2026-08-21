@@ -78,66 +78,38 @@ export function StatCard({
   sparkline,
 }: StatCardProps) {
   const trendPositive = trend !== undefined && trend >= 0;
-  const trendBg = trendPositive ? "var(--good-soft)" : "var(--danger-soft)";
-  const trendFg = trendPositive ? "var(--good)" : "var(--danger)";
+  const trendBg = trendPositive ? "var(--color-success-bg)" : "var(--color-error-bg)";
+  const trendFg = trendPositive ? "var(--color-success)" : "var(--color-error)";
 
   return (
     <article
+      className="stat-card"
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: 18,
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-md)",
+        padding: "18px 20px",
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 10,
         minWidth: 0,
         position: "relative",
         overflow: "hidden",
-        transition: "all 200ms cubic-bezier(0.16,1,0.3,1)",
-      }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = "oklch(20% 0.006 145)";
-        (e.currentTarget as HTMLElement).style.borderColor = "oklch(35% 0.008 145)";
-        (e.currentTarget as HTMLElement).style.boxShadow =
-          "0 4px 12px rgba(0,0,0,0.3), inset 0 1px 0 oklch(30% 0.008 145 / 0.5)";
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.background = "var(--card)";
-        (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-        (e.currentTarget as HTMLElement).style.boxShadow = "none";
       }}
     >
-      {/* Glass overlay effect when hovering */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: "linear-gradient(135deg, oklch(30% 0.008 145 / 0) 0%, oklch(30% 0.008 145 / 0.1) 100%)",
-          opacity: 0,
-          transition: "opacity 200ms",
-          pointerEvents: "none",
-        }}
-      />
-
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, position: "relative", zIndex: 1 }}>
         <span
           style={{
-            fontSize: 11,
-            color: "var(--muted)",
+            font: "600 10px var(--font-mono)",
+            color: "var(--color-text-muted)",
             textTransform: "uppercase",
-            letterSpacing: 0.4,
-            fontWeight: 600,
-            fontFamily: "var(--sans)",
+            letterSpacing: "0.06em",
           }}
         >
           {label}
         </span>
         {icon ? (
-          <span style={{ color: accent ?? "var(--accent)", display: "flex", alignItems: "center", fontSize: 16 }}>
+          <span style={{ color: accent ?? "var(--color-brand)", display: "flex", alignItems: "center", fontSize: 16 }}>
             {icon}
           </span>
         ) : null}
@@ -145,16 +117,14 @@ export function StatCard({
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 4, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
         {prefix ? (
-          <span style={{ fontSize: 13, color: "var(--muted)", fontFamily: "var(--mono)" }}>
+          <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>
             {prefix}
           </span>
         ) : null}
         <span
           style={{
-            fontSize: 28,
-            fontFamily: "var(--mono)",
-            fontWeight: 700,
-            color: accent ?? "var(--ink)",
+            font: "700 26px var(--font-mono)",
+            color: accent ?? "var(--color-text)",
             letterSpacing: -0.5,
             lineHeight: 1.1,
           }}
@@ -162,14 +132,14 @@ export function StatCard({
           <AnimatedCounter value={value} />
         </span>
         {suffix ? (
-          <span style={{ fontSize: 13, color: "var(--muted)", fontFamily: "var(--mono)" }}>
+          <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>
             {suffix}
           </span>
         ) : null}
       </div>
 
       {sparkline && sparkline.length > 1 && (
-        <div style={{ color: accent ?? "var(--accent)", opacity: 0.6, position: "relative", zIndex: 1 }}>
+        <div style={{ color: accent ?? "var(--color-brand)", opacity: 0.6, position: "relative", zIndex: 1 }}>
           <MiniSparkline data={sparkline} />
         </div>
       )}
@@ -181,10 +151,8 @@ export function StatCard({
             background: trendBg,
             color: trendFg,
             padding: "3px 10px",
-            borderRadius: 999,
-            fontSize: 11,
-            fontFamily: "var(--mono)",
-            fontWeight: 700,
+            borderRadius: "var(--radius-full)",
+            font: "700 11px var(--font-mono)",
             display: "inline-flex",
             alignItems: "center",
             gap: 4,

@@ -19,7 +19,7 @@ export function SearchInput({ value, onChange, placeholder = "Buscar...", width 
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
-        style={{ position: "absolute", left: 10, color: "var(--faint)", pointerEvents: "none" }}
+        style={{ position: "absolute", left: 10, color: "var(--color-text-faint)", pointerEvents: "none" }}
       >
         <circle cx="11" cy="11" r="8" />
         <path d="M21 21l-4.35-4.35" />
@@ -33,11 +33,11 @@ export function SearchInput({ value, onChange, placeholder = "Buscar...", width 
           height: 36,
           padding: "0 12px 0 32px",
           borderRadius: 8,
-          border: "1px solid var(--border)",
-          font: "13px var(--sans)",
-          color: "var(--ink)",
+          border: "1px solid var(--color-border)",
+          font: "13px var(--font-sans)",
+          color: "var(--color-text)",
           outline: "none",
-          background: "var(--bg)",
+          background: "var(--surface-1)",
           boxSizing: "border-box",
         }}
       />

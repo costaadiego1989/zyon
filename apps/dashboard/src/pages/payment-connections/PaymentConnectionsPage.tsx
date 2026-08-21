@@ -142,7 +142,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             provider="asaas"
             name="Asaas"
             description="PIX, boleto e cartão Brasil"
-            iconBg="var(--accent)"
+            iconBg="var(--color-brand)"
             icon={<CreditCard size={18} color="#fff" aria-hidden="true" />}
             connection={asaasConn}
             operation={operation}

@@ -61,7 +61,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           <button
             type="button"
             onClick={() => props.onBack?.()}
-            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 0", border: "none", background: "transparent", cursor: "pointer", color: "var(--muted)", font: "600 11.5px var(--sans)", marginBottom: 8 }}
+            style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 0", border: "none", background: "transparent", cursor: "pointer", color: "var(--color-text-muted)", font: "600 11.5px var(--font-sans)", marginBottom: 8 }}
           >
             <ArrowLeft size={12} /> Voltar para o catálogo
           </button>
@@ -81,13 +81,13 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
       />
 
       {page.loadError ? (
-        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>
+        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
           {page.loadError}
         </div>
       ) : null}
 
       {page.loading ? (
-        <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produto...</div>
+        <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produto...</div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
           <SectionErrorBoundary sectionName="Mídia">

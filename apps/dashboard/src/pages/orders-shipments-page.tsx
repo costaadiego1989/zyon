@@ -27,11 +27,11 @@ export { STATUS_LABELS, computeOrderMetrics, filterOrders } from "./orders-shipm
 const dateInputStyle: React.CSSProperties = {
   height: 32,
   padding: "0 10px",
-  borderRadius: 7,
-  border: "1px solid var(--border)",
-  background: "var(--bg)",
-  color: "var(--ink)",
-  font: "12px var(--sans)",
+  borderRadius: "var(--radius-sm)",
+  border: "1px solid var(--color-border)",
+  background: "var(--surface-1)",
+  color: "var(--color-text)",
+  font: "12px var(--font-sans)",
   outline: "none",
   boxSizing: "border-box",
 };
@@ -58,12 +58,14 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const vm = useOrdersShipmentsPage({ me });
 
   return (
-    <div>
-      <div style={{ marginBottom: 20 }}>
-        <span className="eyebrow">COMÉRCIO</span>
-        <h1 >Pedidos e Envios</h1>
-        <p className="page-lead">Acompanhe pedidos e envios gerados pelo checkout agêntico</p>
-      </div>
+    <div className="page-container">
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Loja</span>
+          <h1>Pedidos e Envios</h1>
+          <p className="page-lead">Acompanhe pedidos e envios gerados pelo checkout agêntico</p>
+        </div>
+      </header>
 
       {/* Stats — StatCard pattern (matches visão geral) */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, marginBottom: 20 }}>
@@ -76,13 +78,13 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
           label="Aprovados"
           value={vm.hasLoaded ? Math.round(vm.metrics.approvalRate * 100) + "%" : "0%"}
           icon={<CheckCircle size={16} />}
-          accent="var(--good)"
+          accent="var(--color-success)"
         />
         <StatCard
           label="Receita"
           value={vm.hasLoaded ? formatMinor(vm.metrics.totalRevenue, "BRL") : "R$ 0"}
           icon={<DollarSign size={16} />}
-          accent="var(--accent)"
+          accent="var(--color-brand)"
         />
         <StatCard
           label="Rastreados"
@@ -96,10 +98,10 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         />
       </div>
 
-      {vm.message ? <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>{vm.message}</div> : null}
+      {vm.message ? <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>{vm.message}</div> : null}
 
       {/* Orders table card */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
         {/* Toolbar: tabs + search */}
         <FilterToolbar
           tabs={[
@@ -123,7 +125,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                 aria-label="Data inicial"
                 style={dateInputStyle}
               />
-              <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>→</span>
+              <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>→</span>
               <input
                 type="date"
                 value={vm.endDate}
@@ -141,11 +143,11 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                   alignItems: "center",
                   gap: 6,
                   padding: "0 12px",
-                  borderRadius: 7,
-                  border: "1px solid var(--border)",
-                  background: "var(--bg)",
-                  color: "var(--ink)",
-                  font: "600 12px var(--sans)",
+                  borderRadius: "var(--radius-sm)",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--surface-1)",
+                  color: "var(--color-text)",
+                  font: "600 12px var(--font-sans)",
                   cursor: vm.filteredOrders.length === 0 ? "not-allowed" : "pointer",
                   opacity: vm.filteredOrders.length === 0 ? 0.5 : 1,
                 }}
@@ -161,28 +163,28 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
               {["CLIENTE", "ITENS", "TOTAL", "STATUS", "DATA"].map((c) => (
-                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
               ))}
             </tr></thead>
             <tbody>
               {vm.budgetRequests.length === 0 && !vm.budgetLoading ? (
-                <tr><td colSpan={5} style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Nenhum orçamento recebido ainda.</td></tr>
+                <tr><td colSpan={5} style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Nenhum orçamento recebido ainda.</td></tr>
               ) : vm.budgetRequests.map((b: any) => (
-                <tr key={b.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                <tr key={b.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
                   <td style={{ padding: "12px 22px" }}>
-                    <strong style={{ fontSize: 13, color: "var(--ink)" }}>{b.customerName}</strong>
-                    <div style={{ fontSize: 11, color: "var(--faint)" }}>{b.customerEmail}</div>
+                    <strong style={{ fontSize: 13, color: "var(--color-text)" }}>{b.customerName}</strong>
+                    <div style={{ fontSize: 11, color: "var(--color-text-faint)" }}>{b.customerEmail}</div>
                   </td>
-                  <td style={{ padding: "12px 22px", fontSize: 12, color: "var(--muted)" }}>
+                  <td style={{ padding: "12px 22px", fontSize: 12, color: "var(--color-text-muted)" }}>
                     {Array.isArray(b.items) ? b.items.length : 0} itens
                   </td>
-                  <td style={{ padding: "12px 22px", fontSize: 13, fontWeight: 600, color: "var(--ink)" }}>
+                  <td style={{ padding: "12px 22px", fontSize: 13, fontWeight: 600, color: "var(--color-text)" }}>
                     R$ {(b.total ?? 0).toFixed(2)}
                   </td>
                   <td style={{ padding: "12px 22px" }}>
                     <OrderStatusBadge status={b.status === "rejected" ? "cancelled" : b.status} />
                   </td>
-                  <td style={{ padding: "12px 22px", fontSize: 11, color: "var(--faint)" }}>
+                  <td style={{ padding: "12px 22px", fontSize: 11, color: "var(--color-text-faint)" }}>
                     {new Date(b.createdAt).toLocaleDateString("pt-BR")}
                   </td>
                 </tr>
@@ -190,12 +192,12 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
             </tbody>
           </table>
         ) : vm.busy && !vm.hasLoaded ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando pedidos...</div>
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando pedidos...</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
               {["PEDIDO", "COMPRADOR", "VALOR", "RASTREIO", "STATUS", "DATA"].map((c) => (
-                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
               ))}
             </tr></thead>
             <tbody>
@@ -207,24 +209,24 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                     onClick={() => vm.setExpandedOrderId(vm.expandedOrderId === order.id ? null : order.id)}
                     style={{ cursor: "pointer" }}
                   >
-                    <td style={{ padding: "12px 22px", font: "600 13px var(--mono)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{order.external_order_id}</td>
-                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "12px 22px", font: "600 13px var(--font-mono)", color: "var(--color-text)", borderBottom: "1px solid var(--color-border)" }}>{order.external_order_id}</td>
+                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent-dark)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 10px var(--sans)", flex: "none" }}>{initial}</div>
-                        <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{customerLabel(order.customer)}</span>
+                        <div style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--color-brand-subtle)", color: "var(--color-brand-hover)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 10px var(--font-sans)", flex: "none" }}>{initial}</div>
+                        <span style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{customerLabel(order.customer)}</span>
                       </div>
                     </td>
-                    <td style={{ padding: "12px 22px", font: "600 13px var(--mono)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{formatMinor(order.total, order.currency)}</td>
-                    <td style={{ padding: "12px 22px", font: "12.5px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{order.tracking_code ?? "Aguardando"}</td>
-                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "12px 22px", font: "600 13px var(--font-mono)", color: "var(--color-text)", borderBottom: "1px solid var(--color-border)" }}>{formatMinor(order.total, order.currency)}</td>
+                    <td style={{ padding: "12px 22px", font: "12.5px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{order.tracking_code ?? "Aguardando"}</td>
+                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)" }}>
                       <OrderStatusBadge status={order.status} />
                     </td>
-                    <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(order.completed_at)}</td>
+                    <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{formatDate(order.completed_at)}</td>
                   </tr>
                 );
               })}
               {vm.busy && vm.hasLoaded ? (
-                <tr><td colSpan={6} style={{ padding: "12px 22px", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando...</td></tr>
+                <tr><td colSpan={6} style={{ padding: "12px 22px", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando...</td></tr>
               ) : null}
             </tbody>
           </table>
@@ -235,7 +237,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         ) : null}
 
         {vm.hasLoaded && vm.orders.length > 0 && vm.filteredOrders.length === 0 && !vm.busy ? (
-          <div style={{ padding: "30px 22px", textAlign: "center", font: "13px var(--sans)", color: "var(--faint)" }}>Nenhum pedido corresponde ao filtro</div>
+          <div style={{ padding: "30px 22px", textAlign: "center", font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>Nenhum pedido corresponde ao filtro</div>
         ) : null}
 
         {/* Pagination — inside card */}
@@ -275,8 +277,8 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
       <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--color-surface)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--accent)", margin: 0 }}>Pedido {order.external_order_id}</h2>
-          <button type="button" onClick={() => vm.setExpandedOrderId(null)} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}><X size={20} /></button>
+          <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--color-brand)", margin: 0 }}>Pedido {order.external_order_id}</h2>
+          <button type="button" onClick={() => vm.setExpandedOrderId(null)} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}><X size={20} /></button>
         </div>
 
         {/* Status + Total */}

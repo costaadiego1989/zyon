@@ -26,10 +26,10 @@ export function CurrentPlanCard({
 }: CurrentPlanCardProps) {
   const statusColor =
     status === "active"
-      ? "var(--good)"
+      ? "var(--color-success)"
       : status === "trialing"
-        ? "var(--accent)"
-        : "var(--muted)";
+        ? "var(--color-brand)"
+        : "var(--color-text-muted)";
 
   const statusLabel =
     status === "active"
@@ -43,8 +43,8 @@ export function CurrentPlanCard({
       style={{
         padding: "24px",
         borderRadius: 14,
-        border: "1px solid var(--border)",
-        background: "var(--card)",
+        border: "1px solid var(--color-border)",
+        background: "var(--surface-2)",
         display: "flex",
         flexDirection: "column",
         gap: 16,
@@ -55,15 +55,15 @@ export function CurrentPlanCard({
         <div>
           <div
             style={{
-              font: "600 10.5px var(--mono)",
+              font: "600 10.5px var(--font-mono)",
               letterSpacing: "0.06em",
-              color: "var(--faint)",
+              color: "var(--color-text-faint)",
               marginBottom: 4,
             }}
           >
             SEU PLANO
           </div>
-          <h3 style={{ font: "700 24px var(--serif)", color: "var(--accent)", margin: 0 }}>
+          <h3 style={{ font: "700 24px var(--font-serif)", color: "var(--color-brand)", margin: 0 }}>
             {planName}
           </h3>
         </div>
@@ -86,7 +86,7 @@ export function CurrentPlanCard({
               background: statusColor,
             }}
           />
-          <span style={{ font: "11px var(--mono)", color: statusColor }}>
+          <span style={{ font: "11px var(--font-mono)", color: statusColor }}>
             {statusLabel}
           </span>
         </div>
@@ -95,18 +95,18 @@ export function CurrentPlanCard({
       {/* Pricing */}
       <div style={{ display: "flex", gap: 32, alignItems: "baseline" }}>
         <div>
-          <div style={{ font: "11px var(--mono)", color: "var(--muted)", marginBottom: 2 }}>
+          <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)", marginBottom: 2 }}>
             VALOR MENSAL
           </div>
-          <div style={{ font: "700 20px var(--mono)", color: "var(--ink)" }}>
+          <div style={{ font: "700 20px var(--font-mono)", color: "var(--color-text)" }}>
             R${monthlyPrice.toLocaleString("pt-BR", { minimumFractionDigits: 0 })}
           </div>
         </div>
         <div>
-          <div style={{ font: "11px var(--mono)", color: "var(--muted)", marginBottom: 2 }}>
+          <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)", marginBottom: 2 }}>
             TAXA POR TRANSAÇÃO
           </div>
-          <div style={{ font: "700 20px var(--mono)", color: "var(--ink)" }}>
+          <div style={{ font: "700 20px var(--font-mono)", color: "var(--color-text)" }}>
             {transactionFee.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%
           </div>
         </div>
@@ -114,14 +114,14 @@ export function CurrentPlanCard({
 
       {/* Billing info */}
       {nextBillingDate && daysRemaining !== null && (
-        <div style={{ padding: "12px", borderRadius: 8, background: "var(--bg)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ padding: "12px", borderRadius: 8, background: "var(--surface-1)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
-            <div style={{ font: "11px var(--mono)", color: "var(--muted)" }}>
+            <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)" }}>
               PRÓXIMA COBRANÇA
             </div>
-            <div style={{ font: "13px var(--sans)", color: "var(--ink)", fontWeight: 500, marginTop: 2 }}>
+            <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)", fontWeight: 500, marginTop: 2 }}>
               {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(nextBillingDate))}
-              <span style={{ color: "var(--muted)", marginLeft: 8 }}>
+              <span style={{ color: "var(--color-text-muted)", marginLeft: 8 }}>
                 (em {daysRemaining} dia{daysRemaining !== 1 ? "s" : ""})
               </span>
             </div>
@@ -135,17 +135,17 @@ export function CurrentPlanCard({
           style={{
             padding: "12px",
             borderRadius: 8,
-            background: "var(--warn-soft)",
-            border: "1px solid var(--warn)",
+            background: "var(--color-warning-bg)",
+            border: "1px solid var(--color-warning)",
             display: "flex",
             gap: 8,
             alignItems: "flex-start",
           }}
         >
-          <div style={{ width: 16, height: 16, color: "var(--warn)", flex: "none", marginTop: 1 }}>
+          <div style={{ width: 16, height: 16, color: "var(--color-warning)", flex: "none", marginTop: 1 }}>
             ⚠
           </div>
-          <div style={{ fontSize: 13, color: "var(--warn)", lineHeight: 1.4 }}>
+          <div style={{ fontSize: 13, color: "var(--color-warning)", lineHeight: 1.4 }}>
             Seu plano será cancelado ao final do período atual
           </div>
         </div>

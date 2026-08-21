@@ -14,54 +14,56 @@ export type ConversionFunnelProps = {
 export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
   if (!steps || steps.length === 0) return null;
   const max = Math.max(...steps.map((s) => s.value ?? 0), 1);
+  const first = steps[0]?.value ?? 0;
+  const last = steps[steps.length - 1]?.value ?? 0;
+  const overallConversion = first > 0 ? ((last / first) * 100).toFixed(1) : "0";
 
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
-        borderRadius: 14,
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
+        borderRadius: "var(--radius-md)",
         padding: 20,
         display: "flex",
         flexDirection: "column",
         gap: 16,
-        height: "100%",
-        overflow: "hidden",
       }}
     >
       {title && (
-        <h4
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: "var(--ink)",
-            margin: 0,
-            fontFamily: "var(--sans)",
-            letterSpacing: -0.3,
-          }}
-        >
-          {title}
-        </h4>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h4
+            style={{
+              fontSize: 14,
+              fontWeight: 700,
+              color: "var(--color-brand)",
+              margin: 0,
+              fontFamily: "var(--font-sans)",
+              letterSpacing: -0.3,
+            }}
+          >
+            {title}
+          </h4>
+          <span style={{ font: "600 11px var(--font-mono)", color: "var(--color-success)" }}>
+            {overallConversion}% total
+          </span>
+        </div>
       )}
 
-      {/* Real trapezoid funnel */}
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 8,
-          alignItems: "stretch",
-          flex: 1,
-          justifyContent: "center",
+          gap: 6,
+          alignItems: "center",
         }}
       >
         {steps.map((step, i) => {
-          const fill = step.color ?? "var(--accent)";
+          const fill = step.color ?? "var(--color-brand)";
           const prevValue = i > 0 ? steps[i - 1].value : null;
           const convRate =
             prevValue && prevValue > 0 ? ((step.value ?? 0) / prevValue) * 100 : null;
-          const percentage = ((step.value ?? 0) / max) * 100;
-          const widthPercent = Math.max(20, 100 - i * 15);
+          const widthPercent = Math.max(30, 100 - i * (60 / Math.max(steps.length - 1, 1)));
 
           return (
             <div
@@ -71,182 +73,58 @@ export function ConversionFunnel({ steps, title }: ConversionFunnelProps) {
                 flexDirection: "column",
                 gap: 4,
                 alignItems: "center",
+                width: "100%",
               }}
             >
               <div
                 style={{
                   width: `${widthPercent}%`,
-                  minWidth: "50px",
                   background: fill,
-                  opacity: 0.85,
-                  borderRadius: 10,
-                  padding: "12px 16px",
+                  borderRadius: 8,
+                  padding: "10px 16px",
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 4,
-                  transition: "all 300ms cubic-bezier(0.16,1,0.3,1), opacity 200ms",
-                  position: "relative",
-                  overflow: "hidden",
+                  gap: 8,
+                  transition: "opacity 200ms, transform 200ms",
+                  cursor: "default",
                 }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.opacity = "1";
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(-2px)";
-                  (e.currentTarget as HTMLElement).style.boxShadow =
-                    "0 8px 24px " + fill + "33";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.opacity = "0.85";
-                  (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
-                  (e.currentTarget as HTMLElement).style.boxShadow = "none";
-                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.9"; (e.currentTarget as HTMLElement).style.transform = "scale(1.01)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; (e.currentTarget as HTMLElement).style.transform = "scale(1)"; }}
               >
-                <span
-                  style={{
-                    fontSize: 14,
-                    fontFamily: "var(--mono)",
-                    fontWeight: 700,
-                    color: "#fff",
-                    textShadow: "0 1px 3px rgba(0,0,0,0.4)",
-                  }}
-                >
+                <span style={{ font: "700 14px var(--font-mono)", color: "#fff", textShadow: "0 1px 2px rgba(0,0,0,0.3)" }}>
                   {(step.value ?? 0).toLocaleString("pt-BR")}
                 </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    color: "rgba(255,255,255,0.9)",
-                    fontWeight: 600,
-                    fontFamily: "var(--sans)",
-                  }}
-                >
+                <span style={{ font: "600 11px var(--font-sans)", color: "rgba(255,255,255,0.9)" }}>
                   {step.label}
                 </span>
               </div>
 
-              {/* Percentage labels between steps */}
               {convRate !== null && i > 0 && (
-                <div
+                <span
                   style={{
-                    fontSize: 11,
-                    fontFamily: "var(--mono)",
-                    fontWeight: 700,
-                    color:
-                      convRate >= 50
-                        ? "var(--good)"
-                        : convRate >= 25
-                          ? "var(--warn)"
-                          : "var(--danger)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
+                    font: "700 10px var(--font-mono)",
+                    color: convRate >= 50 ? "var(--color-success)" : convRate >= 25 ? "var(--color-warning)" : "var(--color-error)",
+                    padding: "1px 0",
                   }}
                 >
-                  <span
-                    style={{
-                      width: 2,
-                      height: 8,
-                      background: "currentColor",
-                      borderRadius: 999,
-                    }}
-                  />
                   {convRate.toFixed(0)}% conversão
-                </div>
+                </span>
               )}
             </div>
           );
         })}
       </div>
 
-      {/* Summary stats */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-          gap: 12,
-          paddingTop: 12,
-          borderTop: "1px solid var(--border)",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--muted)",
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-              fontWeight: 600,
-              marginBottom: 4,
-            }}
-          >
-            Entrada
-          </div>
-          <div
-            style={{
-              fontSize: 16,
-              fontFamily: "var(--mono)",
-              fontWeight: 700,
-              color: "var(--ink)",
-            }}
-          >
-            {(steps[0]?.value ?? 0).toLocaleString("pt-BR")}
-          </div>
+      {/* Summary */}
+      <div style={{ display: "flex", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid var(--color-border)" }}>
+        <div>
+          <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Entrada</div>
+          <div style={{ font: "700 16px var(--font-mono)", color: "var(--color-text)" }}>{first.toLocaleString("pt-BR")}</div>
         </div>
-
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--muted)",
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-              fontWeight: 600,
-              marginBottom: 4,
-            }}
-          >
-            Saída
-          </div>
-          <div
-            style={{
-              fontSize: 16,
-              fontFamily: "var(--mono)",
-              fontWeight: 700,
-              color: "var(--ink)",
-            }}
-          >
-            {(steps[steps.length - 1]?.value ?? 0).toLocaleString("pt-BR")}
-          </div>
-        </div>
-
-        <div style={{ textAlign: "center" }}>
-          <div
-            style={{
-              fontSize: 10,
-              color: "var(--muted)",
-              textTransform: "uppercase",
-              letterSpacing: 0.4,
-              fontWeight: 600,
-              marginBottom: 4,
-            }}
-          >
-            Conversão Total
-          </div>
-          <div
-            style={{
-              fontSize: 16,
-              fontFamily: "var(--mono)",
-              fontWeight: 700,
-              color:
-                steps[0]?.value && steps[0].value > 0
-                  ? "var(--good)"
-                  : "var(--muted)",
-            }}
-          >
-            {steps[0]?.value && steps[0].value > 0
-              ? `${(((steps[steps.length - 1]?.value ?? 0) / steps[0].value) * 100).toFixed(1)}%`
-              : "0%"}
-          </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 2 }}>Saída</div>
+          <div style={{ font: "700 16px var(--font-mono)", color: "var(--color-text)" }}>{last.toLocaleString("pt-BR")}</div>
         </div>
       </div>
     </div>

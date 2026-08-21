@@ -9,7 +9,7 @@ export function SignificanceIndicator({ confidence }: SignificanceIndicatorProps
     return (
       <div style={{ textAlign: "center" }}>
         <div style={{ font: "28px", marginBottom: 4 }}>✓</div>
-        <span style={{ font: "11px var(--sans)", color: "var(--good)" }}>Significante</span>
+        <span style={{ font: "11px var(--font-sans)", color: "var(--color-success)" }}>Significante</span>
       </div>
     );
   }
@@ -17,14 +17,14 @@ export function SignificanceIndicator({ confidence }: SignificanceIndicatorProps
     return (
       <div style={{ textAlign: "center" }}>
         <div style={{ font: "28px", marginBottom: 4 }}>◐</div>
-        <span style={{ font: "11px var(--sans)", color: "var(--accent)" }}>Pendente</span>
+        <span style={{ font: "11px var(--font-sans)", color: "var(--color-brand)" }}>Pendente</span>
       </div>
     );
   }
   return (
     <div style={{ textAlign: "center" }}>
       <div style={{ font: "28px", marginBottom: 4 }}>○</div>
-      <span style={{ font: "11px var(--sans)", color: "var(--muted)" }}>Inicial</span>
+      <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Inicial</span>
     </div>
   );
 }

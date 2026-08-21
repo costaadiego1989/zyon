@@ -140,22 +140,22 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div className="page-container">
+      <header className="page-head">
         <div>
-          <span className="eyebrow">COMPRADORES</span>
-          <h1 >Clientes</h1>
+          <span className="eyebrow">Loja</span>
+          <h1>Clientes</h1>
           <p className="page-lead">Visualize e gerencie os compradores que interagiram com seu checkout</p>
         </div>
-        <button onClick={exportCsv} disabled={filteredRows.length === 0} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", font: "600 12.5px var(--sans)", color: "var(--ink)", cursor: "pointer", flex: "none" }}>
+        <button onClick={exportCsv} disabled={filteredRows.length === 0} className="zyn-btn zyn-btn--outline zyn-btn--sm" style={{ flex: "none" }}>
           <Download size={14} /> Exportar CSV
         </button>
-      </div>
+      </header>
 
-      {message ? <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>{message}</div> : null}
+      {message ? <div className="panel-error">{message}</div> : null}
 
-      {/* KPI cards — matching overview StatCard pattern */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+      {/* KPI cards */}
+      <div className="grid-3" style={{ gap: 14 }}>
         <StatCard
           label="Total de Clientes"
           value={metrics.total}
@@ -166,7 +166,7 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           label="Novos (7 dias)"
           value={metrics.newLast7Days}
           icon={<UserPlus size={16} />}
-          accent="var(--good)"
+          accent="var(--color-success)"
           trend={0}
         />
         <StatCard
@@ -174,14 +174,14 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           value={`${Math.round(metrics.returningRate * 100)}`}
           suffix="%"
           icon={<Repeat size={16} />}
-          accent="var(--accent)"
+          accent="var(--color-brand)"
           trend={0}
         />
       </div>
 
       {/* Customers table card */}
       <SectionErrorBoundary sectionName="Tabela de Clientes">
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden", boxShadow: "var(--card-shadow)" }}>
         <FilterToolbar
           tabs={[
             { key: "all", label: "Todos" },
@@ -197,29 +197,31 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
         />
 
         {loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando clientes...</div>
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando clientes...</div>
         ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <div className="table-wrap">
+          <table className="data-table">
             <thead><tr>
               {["", "NOME", "E-MAIL", "TELEFONE", "PRIMEIRA VISITA", "ÚLTIMA VISITA"].map((c) => (
-                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)", cursor: c ? "pointer" : "default" }}>{c}</th>
+                <th key={c} style={{ cursor: c ? "pointer" : "default" }}>{c}</th>
               ))}
             </tr></thead>
             <tbody>
               {paginatedRows.map((row) => (
                 <tr key={row.globalUserId} onClick={() => openCustomerDetail(row.globalUserId)} style={{ cursor: "pointer" }}>
-                  <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent-dark)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 11px var(--sans)" }}>{row.initials}</div>
+                  <td>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-brand-subtle)", color: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 11px var(--font-sans)" }}>{row.initials}</div>
                   </td>
-                  <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{row.name}</td>
-                  <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{row.email}</td>
-                  <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{row.phone}</td>
-                  <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(row.firstSeen)}</td>
-                  <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatDate(row.lastSeen)}</td>
+                  <td style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{row.name}</td>
+                  <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{row.email}</td>
+                  <td style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{row.phone}</td>
+                  <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.firstSeen)}</td>
+                  <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.lastSeen)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
 
         {filteredRows.length === 0 && !loading ? (
@@ -274,77 +276,77 @@ function CustomerDetailModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
-      <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--card)", borderLeft: "1px solid var(--border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out" }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} />
+      <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--surface-2)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ font: "600 18px var(--serif)", color: "var(--accent)", margin: 0 }}>{displayName}</h2>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}>
+          <h2 style={{ font: "600 18px var(--font-serif)", color: "var(--color-brand)", margin: 0 }}>{displayName}</h2>
+          <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}>
             <X size={20} />
           </button>
         </div>
 
         {loading ? (
-          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando...</div>
+          <div style={{ textAlign: "center", padding: "40px 0", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando...</div>
         ) : (
           <>
             {/* Contact info */}
-            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid var(--border)" }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--accent-soft)", color: "var(--accent)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 16px var(--sans)", flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid var(--color-border)" }}>
+              <div style={{ width: 48, height: 48, borderRadius: "50%", background: "var(--color-brand-subtle)", color: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 16px var(--font-sans)", flexShrink: 0 }}>
                 {displayInitials}
               </div>
               <div>
-                <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>{displayName}</div>
-                <div style={{ font: "12px var(--mono)", color: "var(--muted)", marginTop: 2 }}>{displayEmail}</div>
-                <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{displayPhone}</div>
+                <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>{displayName}</div>
+                <div style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)", marginTop: 2 }}>{displayEmail}</div>
+                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>{displayPhone}</div>
               </div>
             </div>
 
             {/* Metrics */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
-              <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ background: "var(--surface-1)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
                 <span className="eyebrow">PEDIDOS</span>
-                <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>{totalOrders}</div>
+                <div style={{ font: "600 16px var(--font-mono)", color: "var(--color-text)" }}>{totalOrders}</div>
               </div>
-              <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ background: "var(--surface-1)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
                 <span className="eyebrow">RECEITA</span>
-                <div style={{ font: "600 16px var(--mono)", color: "var(--accent)" }}>R$ {totalRevenue.toFixed(2)}</div>
+                <div style={{ font: "600 16px var(--font-mono)", color: "var(--color-brand)" }}>R$ {totalRevenue.toFixed(2)}</div>
               </div>
-              <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+              <div style={{ background: "var(--surface-1)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
                 <span className="eyebrow">TICKET MÉDIO</span>
-                <div style={{ font: "600 16px var(--mono)", color: "var(--ink)" }}>R$ {avgTicket.toFixed(2)}</div>
+                <div style={{ font: "600 16px var(--font-mono)", color: "var(--color-text)" }}>R$ {avgTicket.toFixed(2)}</div>
               </div>
             </div>
 
             {/* Dates */}
             {row && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ background: "var(--surface-1)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
                   <span className="eyebrow">PRIMEIRA VISITA</span>
-                  <div style={{ font: "13px var(--mono)", color: "var(--ink)" }}>{formatDate(row.firstSeen)}</div>
+                  <div style={{ font: "13px var(--font-mono)", color: "var(--color-text)" }}>{formatDate(row.firstSeen)}</div>
                 </div>
-                <div style={{ background: "var(--bg)", borderRadius: 8, padding: "12px 14px" }}>
+                <div style={{ background: "var(--surface-1)", borderRadius: "var(--radius-sm)", padding: "12px 14px" }}>
                   <span className="eyebrow">ÚLTIMA ATIVIDADE</span>
-                  <div style={{ font: "13px var(--mono)", color: "var(--ink)" }}>{formatDate(row.lastSeen)}</div>
+                  <div style={{ font: "13px var(--font-mono)", color: "var(--color-text)" }}>{formatDate(row.lastSeen)}</div>
                 </div>
               </div>
             )}
 
             {/* Purchase history */}
             <div>
-              <div style={{ font: "600 11px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 10, textTransform: "uppercase" }}>Últimos pedidos</div>
+              <div style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 10, textTransform: "uppercase" }}>Últimos pedidos</div>
               {purchaseHistory && purchaseHistory.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {purchaseHistory.slice(0, 8).map((order, idx) => (
-                    <div key={idx} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ font: "12px var(--mono)", color: "var(--ink)" }}>#{order.order_id.slice(-8)}</span>
-                      <span style={{ font: "600 12px var(--mono)", color: "var(--accent)" }}>R$ {(order.total / 100).toFixed(2)}</span>
-                      <span style={{ font: "11px var(--mono)", color: "var(--faint)" }}>{formatDate(order.completed_at)}</span>
+                    <div key={idx} style={{ padding: "10px 12px", background: "var(--surface-1)", borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ font: "12px var(--font-mono)", color: "var(--color-text)" }}>#{order.order_id.slice(-8)}</span>
+                      <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-brand)" }}>R$ {(order.total / 100).toFixed(2)}</span>
+                      <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>{formatDate(order.completed_at)}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p style={{ color: "var(--faint)", font: "13px var(--sans)", margin: 0, padding: "20px 0", textAlign: "center", background: "var(--bg)", borderRadius: 8 }}>Nenhum pedido registrado ainda</p>
+                <p style={{ color: "var(--color-text-faint)", font: "13px var(--font-sans)", margin: 0, padding: "20px 0", textAlign: "center", background: "var(--surface-1)", borderRadius: "var(--radius-sm)" }}>Nenhum pedido registrado ainda</p>
               )}
             </div>
           </>

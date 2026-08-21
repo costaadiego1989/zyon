@@ -286,8 +286,11 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
   if (!props.me) {
     return (
       <header className="page-head">
-        <h1>WhatsApp Seller</h1>
-        <p className="page-lead">Login necessário</p>
+        <div>
+          <span className="eyebrow">Integrações</span>
+          <h1>WhatsApp Seller</h1>
+          <p className="page-lead">Login necessário</p>
+        </div>
       </header>
     );
   }
@@ -322,8 +325,8 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           {/* Toggle + Info */}
           <div className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px" }}>
             <div>
-              <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>Canal WhatsApp</div>
-              <div style={{ font: "12px var(--sans)", color: "var(--muted)", marginTop: 4 }}>
+              <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>Canal WhatsApp</div>
+              <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
                 Número: <strong>+{config?.whatsappNumber?.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, "$1 $2 $3-$4")}</strong>
                 {config?.connectedAt && ` · Desde ${new Date(config.connectedAt).toLocaleDateString("pt-BR")}`}
               </div>
@@ -351,8 +354,8 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
           {/* How it works */}
           <div className="panel" style={{ padding: "20px 24px" }}>
-            <div style={{ font: "600 13px var(--sans)", color: "var(--accent)", marginBottom: 12 }}>Como funciona</div>
-            <ol style={{ font: "13px/1.8 var(--sans)", color: "var(--muted)", paddingLeft: 20, margin: 0 }}>
+            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-brand)", marginBottom: 12 }}>Como funciona</div>
+            <ol style={{ font: "13px/1.8 var(--font-sans)", color: "var(--color-text-muted)", paddingLeft: 20, margin: 0 }}>
               <li>Cliente envia mensagem para seu número WhatsApp</li>
               <li>Nosso agente responde automaticamente com catálogo, preços e opções</li>
               <li>Cliente adiciona ao carrinho respondendo com números</li>
@@ -367,10 +370,10 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
       {status === "pending_verification" && (
         <div className="panel" style={{ padding: "32px 28px", maxWidth: 480 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
-            <Loader2 size={20} className="spin" style={{ color: "var(--accent)" }} />
-            <span style={{ font: "600 15px var(--sans)", color: "var(--ink)" }}>Verificação pendente</span>
+            <Loader2 size={20} className="spin" style={{ color: "var(--color-brand)" }} />
+            <span style={{ font: "600 15px var(--font-sans)", color: "var(--color-text)" }}>Verificação pendente</span>
           </div>
-          <p style={{ font: "13px/1.6 var(--sans)", color: "var(--muted)", margin: "0 0 20px" }}>
+          <p style={{ font: "13px/1.6 var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 20px" }}>
             Enviamos um código de verificação para o número cadastrado via SMS.
             Digite abaixo para ativar o canal.
           </p>
@@ -395,11 +398,11 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
       {(status === "disconnected" || status === "inactive" || status === "error") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Value proposition */}
-          <div className="panel" style={{ padding: "24px 28px", borderLeft: "3px solid var(--accent)" }}>
-            <div style={{ font: "600 15px var(--sans)", color: "var(--ink)", marginBottom: 8 }}>
+          <div className="panel" style={{ padding: "24px 28px", borderLeft: "3px solid var(--color-brand)" }}>
+            <div style={{ font: "600 15px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>
               Venda pelo WhatsApp sem instalar nada
             </div>
-            <p style={{ font: "13px/1.6 var(--sans)", color: "var(--muted)", margin: 0 }}>
+            <p style={{ font: "13px/1.6 var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
               Seus clientes compram produtos, escolhem frete e pagam — tudo dentro da conversa no WhatsApp.
               O agente de IA faz tudo automaticamente usando menus numerados.
             </p>
@@ -407,10 +410,10 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
           {/* Embedded Signup CTA */}
           <div className="panel" style={{ padding: "28px", maxWidth: 520 }}>
-            <div style={{ font: "600 14px var(--sans)", color: "var(--ink)", marginBottom: 6 }}>
+            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 6 }}>
               Conectar seu WhatsApp Business
             </div>
-            <p style={{ font: "12px/1.5 var(--sans)", color: "var(--muted)", margin: "0 0 20px" }}>
+            <p style={{ font: "12px/1.5 var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 20px" }}>
               Conecte sua conta Meta Business para usar o WhatsApp comercial.
               Você será redirecionado para o Facebook para autorizar o acesso.
             </p>
@@ -430,13 +433,13 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
             </Button>
 
             {!sdkReady && (
-              <p style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 8 }}>
+              <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>
                 Carregando Meta SDK...
               </p>
             )}
 
             {connectError && (
-              <div style={{ padding: "10px 14px", background: "var(--danger-soft, rgba(239,68,68,0.1))", borderRadius: 8, font: "12px/1.5 var(--sans)", color: "var(--danger, #ef4444)", marginTop: 12 }}>
+              <div style={{ padding: "10px 14px", background: "var(--color-error-bg, rgba(239,68,68,0.1))", borderRadius: 8, font: "12px/1.5 var(--font-sans)", color: "var(--color-error, #ef4444)", marginTop: 12 }}>
                 {connectError}
               </div>
             )}
@@ -444,17 +447,17 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
           {/* How it works */}
           <div className="panel" style={{ padding: "20px 24px" }}>
-            <div style={{ font: "600 13px var(--sans)", color: "var(--accent)", marginBottom: 12 }}>
+            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-brand)", marginBottom: 12 }}>
               Como funciona
             </div>
-            <ol style={{ font: "13px/1.8 var(--sans)", color: "var(--muted)", paddingLeft: 20, margin: 0 }}>
+            <ol style={{ font: "13px/1.8 var(--font-sans)", color: "var(--color-text-muted)", paddingLeft: 20, margin: 0 }}>
               <li>Clique em "Conectar via Meta Business" acima</li>
               <li>Faça login no Facebook e selecione sua conta Business</li>
               <li>Escolha ou crie seu número WhatsApp Business</li>
               <li>Receba um código SMS para verificação</li>
               <li>Pronto! Seus clientes já podem comprar pelo WhatsApp</li>
             </ol>
-            <p style={{ font: "11px var(--sans)", color: "var(--faint)", marginTop: 12 }}>
+            <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 12 }}>
               Seu número continua funcionando normalmente. As mensagens de compra são processadas pelo agente de IA.
             </p>
           </div>

@@ -64,10 +64,10 @@ export function GatewayCard({
               alignItems: "center",
               padding: "3px 10px",
               borderRadius: 999,
-              font: "600 11px var(--mono)",
-              background: "var(--accent-soft)",
-              color: "var(--accent)",
-              border: "1px solid var(--accent-line)",
+              font: "600 11px var(--font-mono)",
+              background: "var(--color-brand-subtle)",
+              color: "var(--color-brand)",
+              border: "1px solid var(--color-brand-ring)",
             }}>
               Em breve
             </span>

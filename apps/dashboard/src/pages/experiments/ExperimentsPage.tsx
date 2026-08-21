@@ -15,16 +15,16 @@ export interface ExperimentsPageProps {
 }
 
 const STATUS_COUNTS_STYLE: React.CSSProperties = {
-  display: "flex", gap: 6, font: "600 11px var(--mono)",
+  display: "flex", gap: 6, font: "600 11px var(--font-mono)",
 };
 
 const FILTER_CHIP: React.CSSProperties = {
   padding: "4px 10px",
   borderRadius: 20,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--color-border)",
   background: "transparent",
-  color: "var(--muted)",
-  font: "500 10px var(--sans)",
+  color: "var(--color-text-muted)",
+  font: "500 10px var(--font-sans)",
   cursor: "pointer",
   transition: "all 0.15s",
   whiteSpace: "nowrap",
@@ -32,8 +32,8 @@ const FILTER_CHIP: React.CSSProperties = {
 
 const FILTER_CHIP_ACTIVE: React.CSSProperties = {
   ...FILTER_CHIP,
-  background: "var(--accent)",
-  borderColor: "var(--accent)",
+  background: "var(--color-brand)",
+  borderColor: "var(--color-brand)",
   color: "#fff",
 };
 
@@ -74,7 +74,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
 
       {/* Content */}
       {vm.loading ? (
-        <div className="panel" style={{ padding: "60px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
+        <div className="panel" style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
           Carregando experimentos...
         </div>
       ) : vm.experiments.length === 0 ? (
@@ -95,8 +95,8 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
               display: "flex",
               flexDirection: "column",
               gap: 14,
-              background: "var(--card)",
-              border: "1px solid var(--border)",
+              background: "var(--surface-2)",
+              border: "1px solid var(--color-border)",
               borderRadius: 14,
               padding: 16,
             }}>

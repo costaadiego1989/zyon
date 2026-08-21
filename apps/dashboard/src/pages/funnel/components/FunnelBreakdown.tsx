@@ -64,7 +64,7 @@ export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps)
             </div>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
               {segment.steps.map((step) => (
-                <span key={step.name} style={{ font: "500 10px var(--font-data)", color: "var(--faint)" }}>
+                <span key={step.name} style={{ font: "500 10px var(--font-data)", color: "var(--color-text-faint)" }}>
                   {step.label}: {step.count}
                 </span>
               ))}

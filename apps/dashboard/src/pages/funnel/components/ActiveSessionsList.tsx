@@ -62,7 +62,7 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
                       {STAGE_LABELS[s.stage] ?? s.stage}
                     </span>
                   </td>
-                  <td style={{ fontFamily: "var(--font-data)", fontSize: 12, color: "var(--muted)" }}>
+                  <td style={{ fontFamily: "var(--font-data)", fontSize: 12, color: "var(--color-text-muted)" }}>
                     {new Date(s.lastActivityAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </td>
                   <td>

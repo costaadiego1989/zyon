@@ -55,7 +55,7 @@ export function CheckoutMetrics({
           label="Taxa de Conversao"
           value={`${((overview.conversion_rate_with_agent ?? 0) * 100).toFixed(1)}`}
           suffix="%"
-          accent="var(--good)"
+          accent="var(--color-success)"
           trend={calcTrend(
             (overview.conversion_rate_with_agent ?? 0) * 100,
             prev?.conversion_rate_with_agent
@@ -76,7 +76,7 @@ export function CheckoutMetrics({
           label="Receita Incremental"
           value={formatCurrency(overview.incremental_revenue)}
           prefix="R$"
-          accent="var(--accent)"
+          accent="var(--color-brand)"
           trend={calcTrend(overview.incremental_revenue, prev?.incremental_revenue)}
           sparkline={revSparkline}
           icon={<DollarSign size={16} />}
@@ -97,20 +97,20 @@ export function CheckoutMetrics({
               data={timeseries.conversion_daily}
               type="line"
               label="Conversao diária"
-              color="var(--accent)"
+              color="var(--color-brand)"
               valueFormat="percent"
             />
           ) : (
             <div
               style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
+                background: "var(--surface-2)",
+                border: "1px solid var(--color-border)",
                 borderRadius: 14,
                 padding: 32,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--muted)",
+                color: "var(--color-text-muted)",
                 fontSize: 13,
               }}
             >
@@ -123,17 +123,17 @@ export function CheckoutMetrics({
               data={timeseries.revenue_daily}
               type="bar"
               label="Receita diária"
-              color="var(--accent)"
+              color="var(--color-brand)"
               valueFormat="currency"
             />
           )}
         </div>
 
         <ConversionFunnel steps={[
-          { label: "Sessões", value: overview.conversations_started ?? 0, color: "var(--accent)" },
+          { label: "Sessões", value: overview.conversations_started ?? 0, color: "var(--color-brand)" },
           { label: "Ofertas vistas", value: overview.offers_viewed ?? 0, color: "oklch(70% 0.14 250)" },
-          { label: "Ofertas aceitas", value: overview.offers_accepted ?? 0, color: "var(--warn)" },
-          { label: "Pedidos", value: overview.orders_completed ?? 0, color: "var(--good)" },
+          { label: "Ofertas aceitas", value: overview.offers_accepted ?? 0, color: "var(--color-warning)" },
+          { label: "Pedidos", value: overview.orders_completed ?? 0, color: "var(--color-success)" },
         ]} title="Funil de Conversao" />
       </div>
     </section>

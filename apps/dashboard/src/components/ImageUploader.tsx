@@ -88,7 +88,7 @@ export function ImageUploader({
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 4 }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
         <span style={{ fontSize: 12, fontWeight: 600, color: "var(--fg)" }}>{label}</span>
-        {hint && <span style={{ fontSize: 11, color: "var(--faint)" }}>· {hint}</span>}
+        {hint && <span style={{ fontSize: 11, color: "var(--color-text-faint)" }}>· {hint}</span>}
       </div>
 
       {/* Upload area — full width, rectangular */}
@@ -103,11 +103,11 @@ export function ImageUploader({
           height,
           borderRadius: 10,
           border: hasImage
-            ? "1px solid var(--border)"
-            : `2px dashed ${dragOver ? "var(--accent)" : "var(--border)"}`,
+            ? "1px solid var(--color-border)"
+            : `2px dashed ${dragOver ? "var(--color-brand)" : "var(--color-border)"}`,
           background: hasImage
-            ? "var(--bg)"
-            : dragOver ? "color-mix(in srgb, var(--accent) 4%, var(--card))" : "var(--card)",
+            ? "var(--surface-1)"
+            : dragOver ? "color-mix(in srgb, var(--color-brand) 4%, var(--surface-2))" : "var(--surface-2)",
           overflow: "hidden",
           cursor: "pointer",
           transition: "border-color 0.15s, background 0.15s",
@@ -121,8 +121,8 @@ export function ImageUploader({
           />
         ) : (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 6 }}>
-            <Upload size={20} color="var(--faint)" strokeWidth={1.5} />
-            <span style={{ fontSize: 11, color: "var(--faint)" }}>
+            <Upload size={20} color="var(--color-text-faint)" strokeWidth={1.5} />
+            <span style={{ fontSize: 11, color: "var(--color-text-faint)" }}>
               Arraste ou clique para selecionar
             </span>
           </div>
@@ -172,7 +172,7 @@ export function ImageUploader({
         )}
       </div>
 
-      {error && <span style={{ fontSize: 11, color: "var(--danger, #ef4444)" }}>{error}</span>}
+      {error && <span style={{ fontSize: 11, color: "var(--color-error, #ef4444)" }}>{error}</span>}
 
       <input ref={inputRef} type="file" accept={accept} onChange={handleInputChange} style={{ display: "none" }} />
       <style>{`@keyframes img-spin { to { transform: rotate(360deg); } }`}</style>

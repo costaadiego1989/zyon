@@ -12,9 +12,9 @@ interface UsageMetersProps {
 }
 
 function getBarColor(percentage: number): string {
-  if (percentage >= 100) return "var(--danger)";
-  if (percentage >= 80) return "var(--warn)";
-  return "var(--accent)";
+  if (percentage >= 100) return "var(--color-error)";
+  if (percentage >= 80) return "var(--color-warning)";
+  return "var(--color-brand)";
 }
 
 function formatValue(value: number | null, limit: number | null): string {
@@ -30,8 +30,8 @@ export function UsageMeters({ meters }: UsageMetersProps) {
       style={{
         padding: "24px",
         borderRadius: 14,
-        border: "1px solid var(--border)",
-        background: "var(--card)",
+        border: "1px solid var(--color-border)",
+        background: "var(--surface-2)",
         display: "flex",
         flexDirection: "column",
         gap: 20,
@@ -40,9 +40,9 @@ export function UsageMeters({ meters }: UsageMetersProps) {
       <div>
         <div
           style={{
-            font: "600 10.5px var(--mono)",
+            font: "600 10.5px var(--font-mono)",
             letterSpacing: "0.06em",
-            color: "var(--faint)",
+            color: "var(--color-text-faint)",
             marginBottom: 4,
           }}
         >
@@ -61,10 +61,10 @@ export function UsageMeters({ meters }: UsageMetersProps) {
                 marginBottom: 8,
               }}
             >
-              <span style={{ font: "500 13px var(--sans)", color: "var(--ink)" }}>
+              <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>
                 {meter.label}
               </span>
-              <span style={{ font: "12px var(--mono)", color: "var(--muted)" }}>
+              <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>
                 {formatValue(meter.current, meter.limit)}
               </span>
             </div>
@@ -73,7 +73,7 @@ export function UsageMeters({ meters }: UsageMetersProps) {
                 width: "100%",
                 height: 6,
                 borderRadius: 3,
-                background: "var(--bg)",
+                background: "var(--surface-1)",
                 overflow: "hidden",
               }}
             >

@@ -298,7 +298,7 @@ export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
         <label className="auth-field__label">Nova senha</label>
         <div style={{ position: "relative" }}>
           <input type={showPw ? "text" : "password"} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required minLength={8} className="auth-field__input" />
-          <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--faint)" }}>
+          <button type="button" onClick={() => setShowPw(!showPw)} style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--color-text-faint)" }}>
             {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>

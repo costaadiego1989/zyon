@@ -37,8 +37,8 @@ export function TriggerCard({
         gap: 14,
         padding: "16px 18px",
         borderRadius: 12,
-        border: `1px solid ${enabled ? "color-mix(in srgb, var(--accent) 30%, var(--border))" : "var(--border)"}`,
-        background: enabled ? "color-mix(in srgb, var(--accent) 4%, var(--card))" : "var(--card)",
+        border: `1px solid ${enabled ? "color-mix(in srgb, var(--color-brand) 30%, var(--color-border))" : "var(--color-border)"}`,
+        background: enabled ? "color-mix(in srgb, var(--color-brand) 4%, var(--surface-2))" : "var(--surface-2)",
         transition: "all 0.15s ease",
       }}
     >
@@ -50,8 +50,8 @@ export function TriggerCard({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: enabled ? "color-mix(in srgb, var(--accent) 12%, transparent)" : "var(--bg)",
-          color: enabled ? "var(--accent)" : "var(--muted)",
+          background: enabled ? "color-mix(in srgb, var(--color-brand) 12%, transparent)" : "var(--surface-1)",
+          color: enabled ? "var(--color-brand)" : "var(--color-text-muted)",
           flexShrink: 0,
           transition: "all 0.15s ease",
         }}
@@ -59,10 +59,10 @@ export function TriggerCard({
         {TRIGGER_ICONS[trigger] ?? <Zap size={18} strokeWidth={1.6} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ font: "600 13px var(--sans)", color: "var(--ink)", lineHeight: 1.3 }}>
+        <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.3 }}>
           {TRIGGER_LABELS[trigger]}
         </div>
-        <div style={{ font: "11.5px var(--sans)", color: "var(--muted)", marginTop: 2, lineHeight: 1.4 }}>
+        <div style={{ font: "11.5px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2, lineHeight: 1.4 }}>
           {TRIGGER_HELP[trigger]}
         </div>
       </div>

@@ -130,26 +130,26 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         style={{ display: "flex", flexDirection: "column", gap: 0, width: width ?? "100%", height: "100%" }}
       >
         {!hideControls && (
-          <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "10px 14px", background: "var(--bg)", borderRadius: "12px 12px 0 0", borderBottom: "1px solid var(--border)" }}>
-            <div style={{ display: "flex", gap: 3, background: "var(--card)", borderRadius: 7, padding: 3 }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", padding: "10px 14px", background: "var(--surface-1)", borderRadius: "12px 12px 0 0", borderBottom: "1px solid var(--color-border)" }}>
+            <div style={{ display: "flex", gap: 3, background: "var(--surface-2)", borderRadius: 7, padding: 3 }}>
               {(["floating", "conversational"] as const).map(mode => (
                 <button
                   key={mode}
                   type="button"
                   onClick={() => setPresentation(mode)}
-                  style={{ padding: "6px 12px", borderRadius: 6, border: "none", font: "600 11px var(--sans)", cursor: "pointer", background: presentation === mode ? "var(--accent-soft)" : "transparent", color: presentation === mode ? "var(--accent)" : "var(--faint)" }}
+                  style={{ padding: "6px 12px", borderRadius: 6, border: "none", font: "600 11px var(--font-sans)", cursor: "pointer", background: presentation === mode ? "var(--color-brand-subtle)" : "transparent", color: presentation === mode ? "var(--color-brand)" : "var(--color-text-faint)" }}
                 >
                   {mode === "floating" ? "Flutuante" : "Conversacional"}
                 </button>
               ))}
             </div>
-            <button type="button" disabled={busy} onClick={() => void issueToken()} style={{ marginLeft: "auto", padding: "6px 12px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", font: "600 11px var(--sans)", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+            <button type="button" disabled={busy} onClick={() => void issueToken()} style={{ marginLeft: "auto", padding: "6px 12px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
               <RefreshCw size={12} /> Renovar token
             </button>
           </div>
         )}
 
-        {errorMsg ? <p style={{ padding: "10px 14px", font: "12px var(--sans)", color: "var(--danger)", background: "var(--danger-soft)", margin: 0 }}>{errorMsg}</p> : null}
+        {errorMsg ? <p style={{ padding: "10px 14px", font: "12px var(--font-sans)", color: "var(--color-error)", background: "var(--color-error-bg)", margin: 0 }}>{errorMsg}</p> : null}
 
         <div style={{ flex: 1, minHeight: 520, width: "100%", overflow: "hidden", borderRadius: hideControls ? 0 : "0 0 12px 12px" }}>
           {srcDoc ? (

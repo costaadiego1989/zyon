@@ -71,9 +71,9 @@ function MultiSearchSelect({ label, placeholder, selected, onChange, type, merch
           {selected.map((id) => {
             const item = items.find((i) => i.id === id);
             return (
-              <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--accent-soft)", color: "var(--accent)", font: "600 11px var(--sans)" }}>
+              <span key={id} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", borderRadius: 6, background: "var(--color-brand-subtle)", color: "var(--color-brand)", font: "600 11px var(--font-sans)" }}>
                 {item?.name || id.slice(0, 12)}
-                <button type="button" onClick={() => onChange(selected.filter((s) => s !== id))} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, display: "flex" }}>
+                <button type="button" onClick={() => onChange(selected.filter((s) => s !== id))} style={{ background: "none", border: "none", color: "var(--color-brand)", cursor: "pointer", padding: 0, display: "flex" }}>
                   <X size={12} />
                 </button>
               </span>
@@ -88,26 +88,26 @@ function MultiSearchSelect({ label, placeholder, selected, onChange, type, merch
         style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
         onClick={() => { setOpen(!open); if (!open) void loadItems(); }}
       >
-        <Search size={14} style={{ color: "var(--faint)", flex: "none" }} />
+        <Search size={14} style={{ color: "var(--color-text-faint)", flex: "none" }} />
         <input
           value={query}
           onChange={(e) => { setQuery(e.target.value); if (!open) { setOpen(true); void loadItems(); } }}
           onFocus={() => { setOpen(true); void loadItems(); }}
           placeholder={placeholder}
-          style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--ink)", font: "12px var(--sans)", padding: 0 }}
+          style={{ flex: 1, border: "none", outline: "none", background: "transparent", color: "var(--color-text)", font: "12px var(--font-sans)", padding: 0 }}
         />
       </div>
 
       {/* Dropdown list */}
       {open && (
         <div
-          style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: 4, zIndex: 20, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", maxHeight: 200, overflowY: "auto" }}
+          style={{ position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4, background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 10, padding: 4, zIndex: 20, boxShadow: "0 12px 32px rgba(0,0,0,0.4)", maxHeight: 200, overflowY: "auto" }}
           onMouseDown={(e) => e.preventDefault()}
         >
           {loading ? (
-            <div style={{ padding: "12px", textAlign: "center", color: "var(--faint)", font: "11px var(--sans)" }}>Carregando...</div>
+            <div style={{ padding: "12px", textAlign: "center", color: "var(--color-text-faint)", font: "11px var(--font-sans)" }}>Carregando...</div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: "12px", textAlign: "center", color: "var(--faint)", font: "11px var(--sans)" }}>
+            <div style={{ padding: "12px", textAlign: "center", color: "var(--color-text-faint)", font: "11px var(--font-sans)" }}>
               {query ? "Nenhum resultado" : "Nenhum item disponível"}
             </div>
           ) : (
@@ -116,13 +116,13 @@ function MultiSearchSelect({ label, placeholder, selected, onChange, type, merch
                 key={item.id}
                 type="button"
                 onClick={() => { onChange([...selected, item.id]); setQuery(""); setOpen(false); }}
-                style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "none", background: "transparent", color: "var(--ink)", font: "12px var(--sans)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8, transition: "background 0.1s" }}
-                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
+                style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "none", background: "transparent", color: "var(--color-text)", font: "12px var(--font-sans)", cursor: "pointer", textAlign: "left", display: "flex", alignItems: "center", gap: 8, transition: "background 0.1s" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-1)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
               >
-                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", flex: "none" }} />
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)", flex: "none" }} />
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</span>
-                <span style={{ font: "10px var(--mono)", color: "var(--faint)" }}>{item.id.slice(0, 8)}</span>
+                <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>{item.id.slice(0, 8)}</span>
               </button>
             ))
           )}
@@ -136,12 +136,12 @@ function MultiSearchSelect({ label, placeholder, selected, onChange, type, merch
 }
 
 const FIELD_STYLES = `
-.field-label { font: 600 11px var(--sans); color: var(--ink); display: block; margin-bottom: 6px; }
-.field-hint { font: 11px var(--sans); color: var(--faint); margin-top: 4px; display: block; }
-.field-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--ink); font: 13px var(--sans); outline: none; transition: border-color 0.15s; box-sizing: border-box; }
-.field-input:focus { border-color: var(--accent); }
-.field-btn-icon { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--accent); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--sans); white-space: nowrap; transition: border-color 0.15s; box-sizing: border-box; }
-.field-btn-icon:hover { border-color: var(--accent); }
+.field-label { font: 600 11px var(--font-sans); color: var(--color-text); display: block; margin-bottom: 6px; }
+.field-hint { font: 11px var(--font-sans); color: var(--color-text-faint); margin-top: 4px; display: block; }
+.field-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--surface-1); color: var(--color-text); font: 13px var(--font-sans); outline: none; transition: border-color 0.15s; box-sizing: border-box; }
+.field-input:focus { border-color: var(--color-brand); }
+.field-btn-icon { padding: 10px 14px; border-radius: 8px; border: 1px solid var(--color-border); background: var(--surface-1); color: var(--color-brand); cursor: pointer; display: flex; align-items: center; gap: 5px; font: 500 11px var(--font-sans); white-space: nowrap; transition: border-color 0.15s; box-sizing: border-box; }
+.field-btn-icon:hover { border-color: var(--color-brand); }
 `;
 
 export function CouponsPage(_props: CouponsPageProps) {
@@ -149,17 +149,17 @@ export function CouponsPage(_props: CouponsPageProps) {
   const merchantId = _props.me?.id ?? "";
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+    <div className="page-container">
+      <header className="page-head">
         <div>
-          <span className="eyebrow">MARKETING</span>
-          <h1>Cupons de desconto</h1>
+          <span className="eyebrow">Checkout</span>
+          <h1>Cupons</h1>
           <p className="page-lead">Crie e gerencie cupons para suas campanhas</p>
         </div>
         <Button variant="primary" size="sm" onClick={() => vm.setShowForm(true)}>
           <Plus size={14} /> Novo cupom
         </Button>
-      </div>
+      </header>
 
       {/* Side Panel — Create Coupon */}
       <Modal
@@ -181,7 +181,7 @@ export function CouponsPage(_props: CouponsPageProps) {
               <label>
                 <span className="field-label">Código do cupom *</span>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <input value={vm.form.code} onChange={(e) => vm.patch({ code: e.target.value.toUpperCase() })} placeholder="EX: SAVE10" className="field-input" style={{ fontFamily: "var(--mono)", textTransform: "uppercase", letterSpacing: "0.04em" }} />
+                  <input value={vm.form.code} onChange={(e) => vm.patch({ code: e.target.value.toUpperCase() })} placeholder="EX: SAVE10" className="field-input" style={{ fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.04em" }} />
                   <button type="button" onClick={vm.generateCode} title="Gerar código" className="field-btn-icon"><RefreshCw size={13} /> Gerar</button>
                 </div>
               </label>
@@ -230,8 +230,8 @@ export function CouponsPage(_props: CouponsPageProps) {
               </label>
 
               {/* Restrições */}
-              <div style={{ borderTop: "1px solid var(--border)", paddingTop: 18 }}>
-                <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--muted)", textTransform: "uppercase", display: "block", marginBottom: 14 }}>Restrições (opcional)</span>
+              <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 18 }}>
+                <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-muted)", textTransform: "uppercase", display: "block", marginBottom: 14 }}>Restrições (opcional)</span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                   <MultiSearchSelect label="Vincular a produtos" placeholder="Buscar produto..." selected={vm.form.productIds} onChange={(ids) => vm.patch({ productIds: ids })} type="products" merchantId={merchantId} />
                   <MultiSearchSelect label="Vincular a categorias" placeholder="Buscar categoria..." selected={vm.form.categoryIds} onChange={(ids) => vm.patch({ categoryIds: ids })} type="categories" merchantId={merchantId} />
@@ -245,18 +245,18 @@ export function CouponsPage(_props: CouponsPageProps) {
       {!vm.loading && vm.coupons.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           <StatCard label="Total de cupons" value={vm.coupons.length} icon={<Tag size={16} />} />
-          <StatCard label="Ativos" value={vm.coupons.filter(c => c.isActive).length} icon={<Play size={16} />} accent="var(--good)" />
+          <StatCard label="Ativos" value={vm.coupons.filter(c => c.isActive).length} icon={<Play size={16} />} accent="var(--color-success)" />
           <StatCard label="Total resgates" value={vm.coupons.reduce((sum, c) => sum + (c.usedCount || 0), 0)} icon={<TrendingUp size={16} />} />
-          <StatCard label="Taxa de uso" value={`${vm.coupons.length > 0 ? Math.round((vm.coupons.filter(c => c.usedCount > 0).length / vm.coupons.length) * 100) : 0}%`} icon={<Percent size={16} />} accent="var(--warn)" />
+          <StatCard label="Taxa de uso" value={`${vm.coupons.length > 0 ? Math.round((vm.coupons.filter(c => c.usedCount > 0).length / vm.coupons.length) * 100) : 0}%`} icon={<Percent size={16} />} accent="var(--color-warning)" />
         </div>
       )}
 
       <style>{FIELD_STYLES}</style>
 
       {/* Coupons List */}
-      <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
       {vm.loading ? (
-        <div style={{ padding: "40px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando cupons...</div>
+        <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando cupons...</div>
       ) : vm.coupons.length === 0 ? (
         <EmptyState
           icon={Tag}
@@ -271,48 +271,48 @@ export function CouponsPage(_props: CouponsPageProps) {
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {vm.coupons.map((coupon) => (
-            <div key={coupon.id} style={{ padding: "18px 20px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 12 }}>
+            <div key={coupon.id} style={{ padding: "18px 20px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 12 }}>
               {/* Top row: code + badge + actions */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 9, background: coupon.isActive ? "var(--accent-soft)" : "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: coupon.isActive ? "var(--color-brand-subtle)" : "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {coupon.discountType === "free_shipping"
-                      ? <Truck size={18} color={coupon.isActive ? "var(--accent)" : "var(--faint)"} />
-                      : <Tag size={18} color={coupon.isActive ? "var(--accent)" : "var(--faint)"} />}
+                      ? <Truck size={18} color={coupon.isActive ? "var(--color-brand)" : "var(--color-text-faint)"} />
+                      : <Tag size={18} color={coupon.isActive ? "var(--color-brand)" : "var(--color-text-faint)"} />}
                   </div>
                   <div>
-                    <span style={{ font: "700 16px var(--mono)", color: "var(--ink)", letterSpacing: "0.03em", display: "block" }}>{coupon.code}</span>
-                    <span style={{ font: "600 9px var(--sans)", padding: "2px 7px", borderRadius: 5, background: coupon.isActive ? "var(--accent-soft)" : "rgba(255,255,255,0.05)", color: coupon.isActive ? "var(--accent)" : "var(--faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <span style={{ font: "700 16px var(--font-mono)", color: "var(--color-text)", letterSpacing: "0.03em", display: "block" }}>{coupon.code}</span>
+                    <span style={{ font: "600 9px var(--font-sans)", padding: "2px 7px", borderRadius: 5, background: coupon.isActive ? "var(--color-brand-subtle)" : "rgba(255,255,255,0.05)", color: coupon.isActive ? "var(--color-brand)" : "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       {coupon.isActive ? "Ativo" : "Pausado"}
                     </span>
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button type="button" onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} title={coupon.isActive ? "Pausar" : "Ativar"} style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: coupon.isActive ? "var(--warn)" : "var(--accent)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button type="button" onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} title={coupon.isActive ? "Pausar" : "Ativar"} style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--color-border)", background: "transparent", color: coupon.isActive ? "var(--color-warning)" : "var(--color-brand)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {coupon.isActive ? <Pause size={18} /> : <Play size={18} />}
                   </button>
-                  <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar código" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar código" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Copy size={18} />
                   </button>
-                  <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--border)", background: "transparent", color: "var(--danger)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-error)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Trash2 size={18} />
                   </button>
                 </div>
               </div>
 
               {/* Bottom: metrics grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "12px 0 0", borderTop: "1px solid var(--border)" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, padding: "12px 0 0", borderTop: "1px solid var(--color-border)" }}>
                 <div>
-                  <div style={{ font: "10px var(--sans)", color: "var(--faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Desconto</div>
-                  <div style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>{formatDiscount(coupon.discountType, coupon.discountValue)}</div>
+                  <div style={{ font: "10px var(--font-sans)", color: "var(--color-text-faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Desconto</div>
+                  <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>{formatDiscount(coupon.discountType, coupon.discountValue)}</div>
                 </div>
                 <div>
-                  <div style={{ font: "10px var(--sans)", color: "var(--faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Usos</div>
-                  <div style={{ font: "600 13px var(--mono)", color: "var(--ink)" }}>{coupon.usedCount ?? 0}<span style={{ color: "var(--faint)", fontWeight: 400 }}>/{coupon.maxUses ?? "∞"}</span></div>
+                  <div style={{ font: "10px var(--font-sans)", color: "var(--color-text-faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Usos</div>
+                  <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>{coupon.usedCount ?? 0}<span style={{ color: "var(--color-text-faint)", fontWeight: 400 }}>/{coupon.maxUses ?? "∞"}</span></div>
                 </div>
                 <div>
-                  <div style={{ font: "10px var(--sans)", color: "var(--faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Validade</div>
-                  <div style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>
+                  <div style={{ font: "10px var(--font-sans)", color: "var(--color-text-faint)", marginBottom: 3, textTransform: "uppercase", letterSpacing: "0.04em" }}>Validade</div>
+                  <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>
                     {coupon.startsAt ? formatDate(coupon.startsAt) : "Hoje"} → {coupon.expiresAt ? formatDate(coupon.expiresAt) : "Sem fim"}
                   </div>
                 </div>

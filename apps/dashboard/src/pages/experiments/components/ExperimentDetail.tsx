@@ -28,13 +28,13 @@ export function ExperimentDetail({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Header */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", marginBottom: 12 }}>
           <div>
-            <h3 style={{ font: "600 14px var(--sans)", color: "var(--ink)", margin: 0, marginBottom: 4 }}>
+            <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", margin: 0, marginBottom: 4 }}>
               {experiment.name}
             </h3>
-            <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: 0 }}>
+            <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
               Criado em {new Date(experiment.created_at).toLocaleDateString("pt-BR")}
             </p>
           </div>
@@ -58,8 +58,8 @@ export function ExperimentDetail({
         </div>
 
         {/* Variants */}
-        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
-          <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 8 }}>
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--color-border)" }}>
+          <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
             VARIANTES
           </span>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -70,11 +70,11 @@ export function ExperimentDetail({
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 4,
-                  background: v.id === experiment.control_variant_id ? "var(--accent-soft)" : "var(--bg)",
-                  color: v.id === experiment.control_variant_id ? "var(--accent)" : "var(--muted)",
+                  background: v.id === experiment.control_variant_id ? "var(--color-brand-subtle)" : "var(--surface-1)",
+                  color: v.id === experiment.control_variant_id ? "var(--color-brand)" : "var(--color-text-muted)",
                   borderRadius: 6,
                   padding: "4px 10px",
-                  font: "11px var(--sans)",
+                  font: "11px var(--font-sans)",
                 }}
               >
                 {v.name}
@@ -87,7 +87,7 @@ export function ExperimentDetail({
 
       {/* Results */}
       {loading ? (
-        <div style={{ padding: "20px", textAlign: "center", color: "var(--faint)" }}>
+        <div style={{ padding: "20px", textAlign: "center", color: "var(--color-text-faint)" }}>
           Carregando resultados...
         </div>
       ) : results && results.metrics && results.metrics.length > 0 ? (
@@ -95,8 +95,8 @@ export function ExperimentDetail({
       ) : experiment.status === "running" ? (
         <div
           style={{
-            background: "var(--card)",
-            border: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--color-border)",
             borderRadius: 10,
             padding: "32px 20px",
             textAlign: "center",
@@ -108,27 +108,27 @@ export function ExperimentDetail({
         >
           <div style={{
             width: 10, height: 10, borderRadius: "50%",
-            background: "var(--accent)",
+            background: "var(--color-brand)",
             animation: "pulse 2s infinite",
-            boxShadow: "0 0 8px var(--accent)",
+            boxShadow: "0 0 8px var(--color-brand)",
           }} />
-          <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
+          <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
             Teste ativo — aguardando sessões de compradores
           </p>
-          <p style={{ font: "11px var(--sans)", color: "var(--faint)", margin: 0 }}>
+          <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", margin: 0 }}>
             Os resultados aparecerão aqui conforme clientes interagem com o agente
           </p>
         </div>
       ) : (
         <div
           style={{
-            background: "var(--card)",
-            border: "1px dashed var(--border)",
+            background: "var(--surface-2)",
+            border: "1px dashed var(--color-border)",
             borderRadius: 10,
             padding: 20,
             textAlign: "center",
-            color: "var(--muted)",
-            font: "13px var(--sans)",
+            color: "var(--color-text-muted)",
+            font: "13px var(--font-sans)",
           }}
         >
           {experiment.status === "draft"

@@ -134,7 +134,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   max="50"
                   disabled={saving}
                 />
-                <span style={{ font: "400 10px var(--sans)", color: "var(--muted)" }}>
+                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Intervalo: 1-50%
                 </span>
               </div>
@@ -154,7 +154,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   max="30"
                   disabled={saving}
                 />
-                <span style={{ font: "400 10px var(--sans)", color: "var(--muted)" }}>
+                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Intervalo: 1-30 dias
                 </span>
               </div>
@@ -174,7 +174,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   max="30"
                   disabled={saving}
                 />
-                <span style={{ font: "400 10px var(--sans)", color: "var(--muted)" }}>
+                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Intervalo: 1-30 dias
                 </span>
               </div>
@@ -194,7 +194,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   max="30"
                   disabled={saving}
                 />
-                <span style={{ font: "400 10px var(--sans)", color: "var(--muted)" }}>
+                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Intervalo: 7-30 dias
                 </span>
               </div>
@@ -243,7 +243,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   currency: "BRL",
                 }).format(stats.monthly_revenue)}
                 icon={<TrendingUp size={16} />}
-                accent="var(--accent)"
+                accent="var(--color-brand)"
               />
               <StatCard
                 label="Itens Enviados"
@@ -254,7 +254,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 label="Taxa Fulfillment"
                 value={`${Math.round(stats.fulfillment_rate * 100)}%`}
                 icon={<BarChart3 size={16} />}
-                accent="var(--good)"
+                accent="var(--color-success)"
               />
             </div>
           )}
@@ -328,9 +328,9 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 <tbody>
                   {settlements.map((s) => (
                     <tr key={s.id}>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
-                      <td style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
                         R$ {(s.sellerNetCents / 100).toFixed(2)}
                       </td>
                       <td>
@@ -338,7 +338,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                           {s.status.replace(/_/g, " ")}
                         </span>
                       </td>
-                      <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                      <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                         {new Date(s.createdAt).toLocaleDateString("pt-BR")}
                       </td>
                       <td>
@@ -373,7 +373,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               label="Com Débito"
               value={chargebackStats.totalWithDebt}
               icon={<Zap size={16} />}
-              accent="var(--danger)"
+              accent="var(--color-error)"
             />
             <StatCard
               label="Total Débitos"
@@ -382,7 +382,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 currency: "BRL",
               }).format(chargebackStats.totalDebtCents / 100)}
               icon={<TrendingUp size={16} />}
-              accent="var(--danger)"
+              accent="var(--color-error)"
             />
           </div>
 
@@ -410,13 +410,13 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 <tbody>
                   {chargebacks.map((cb) => (
                     <tr key={cb.settlement.id}>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
                         {cb.settlement.id.slice(0, 8)}...
                       </td>
-                      <td style={{ fontFamily: "var(--mono)", fontSize: 12 }}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>
                         {cb.settlement.orderId.slice(0, 8)}...
                       </td>
-                      <td style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>
+                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
                         R$ {(cb.settlement.sellerNetCents / 100).toFixed(2)}
                       </td>
                       <td>
@@ -424,10 +424,10 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                           {cb.type === "chargeback_cancelled" ? "Cancelado" : "Débito"}
                         </span>
                       </td>
-                      <td style={{ fontFamily: "var(--mono)", color: cb.debt ? "var(--danger)" : "var(--muted)" }}>
+                      <td style={{ fontFamily: "var(--font-mono)", color: cb.debt ? "var(--color-error)" : "var(--color-text-muted)" }}>
                         {cb.debt ? `R$ ${(cb.debt.amountCents / 100).toFixed(2)}` : "—"}
                       </td>
-                      <td style={{ fontSize: 12, color: "var(--muted)" }}>
+                      <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                         {cb.settlement.chargebackAt
                           ? new Date(cb.settlement.chargebackAt).toLocaleDateString("pt-BR")
                           : "—"}

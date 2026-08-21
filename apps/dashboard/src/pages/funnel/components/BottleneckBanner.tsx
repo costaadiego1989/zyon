@@ -31,7 +31,7 @@ export function BottleneckBanner({ bottleneck, steps }: BottleneckBannerProps): 
           <>
             <p
               className="fnl-bottleneck-text"
-              style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--accent)", fontWeight: 600 }}
+              style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--color-brand)", fontWeight: 600 }}
             >
               <Sparkles size={12} strokeWidth={2} /> {insight.headline}
             </p>
@@ -42,7 +42,7 @@ export function BottleneckBanner({ bottleneck, steps }: BottleneckBannerProps): 
             </p>
             <p
               className="fnl-bottleneck-text"
-              style={{ fontSize: 10, color: "var(--faint)", letterSpacing: "0.04em", textTransform: "uppercase" }}
+              style={{ fontSize: 10, color: "var(--color-text-faint)", letterSpacing: "0.04em", textTransform: "uppercase" }}
             >
               Origem: {MODULE_LABELS[insight.module]}
             </p>

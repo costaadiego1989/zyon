@@ -186,9 +186,9 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
                   fontSize: 10,
                   padding: "3px 8px",
                   borderRadius: 999,
-                  border: "1px solid var(--border)",
-                  color: "var(--muted)",
-                  background: "var(--bg)",
+                  border: "1px solid var(--color-border)",
+                  color: "var(--color-text-muted)",
+                  background: "var(--surface-1)",
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 4,
@@ -234,17 +234,17 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
             />
 
             {/* Documentation + Submit */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--color-border)' }}>
               <div>
                 <a
                   href={PROVIDER_DOCS[provider]}
                   target="_blank"
                   rel="noreferrer"
-                  style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500 }}
+                  style={{ fontSize: 12, color: 'var(--color-brand)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 500 }}
                 >
                   Documentação {PROVIDER_LABELS[provider]} ↗
                 </a>
-                <span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--color-text-muted)', marginTop: 2 }}>
                   {PROVIDER_HELP[provider]}
                 </span>
               </div>
@@ -259,11 +259,11 @@ export function CommerceConnectionsPage(props: { apiBaseUrl: string; me: Merchan
       ) : null}
 
       {/* Active connection */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
-        <h2 style={{ font: "600 14px var(--serif)", color: "var(--accent)", marginBottom: 16 }}>Conexão Ativa</h2>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "22px", marginBottom: 20 }}>
+        <h2 style={{ font: "600 14px var(--font-serif)", color: "var(--color-brand)", marginBottom: 16 }}>Conexão Ativa</h2>
 
         {connections.isLoading ? (
-          <div style={{ height: 88, borderRadius: 8, background: "var(--bg)" }} />
+          <div style={{ height: 88, borderRadius: 8, background: "var(--surface-1)" }} />
         ) : !connections.hasConnection ? (
           <EmptyState icon={Store} title="Nenhuma conexão configurada" description="Conecte uma plataforma de e-commerce para importar catálogo e sincronizar pedidos." />
         ) : (

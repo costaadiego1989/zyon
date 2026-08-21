@@ -42,8 +42,8 @@ export function ConfirmDialog({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "var(--card)",
-          border: "1px solid var(--border)",
+          background: "var(--surface-2)",
+          border: "1px solid var(--color-border)",
           borderRadius: 14,
           padding: "24px",
           width: 380,
@@ -56,18 +56,18 @@ export function ConfirmDialog({
             width: 40,
             height: 40,
             borderRadius: "50%",
-            background: variant === "danger" ? "rgba(239, 68, 68, 0.1)" : "var(--accent-soft)",
+            background: variant === "danger" ? "rgba(239, 68, 68, 0.1)" : "var(--color-brand-subtle)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}>
-            <AlertTriangle size={20} style={{ color: variant === "danger" ? "#ef4444" : "var(--accent)" }} />
+            <AlertTriangle size={20} style={{ color: variant === "danger" ? "#ef4444" : "var(--color-brand)" }} />
           </div>
           <div>
-            <h3 style={{ font: "600 14px var(--sans)", color: "var(--ink)", margin: "0 0 4px" }}>{title}</h3>
+            <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", margin: "0 0 4px" }}>{title}</h3>
             {description && (
-              <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>{description}</p>
+              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5 }}>{description}</p>
             )}
           </div>
         </div>
@@ -83,9 +83,9 @@ export function ConfirmDialog({
               padding: "8px 16px",
               borderRadius: 8,
               border: "none",
-              font: "600 12px var(--sans)",
+              font: "600 12px var(--font-sans)",
               cursor: "pointer",
-              background: variant === "danger" ? "#ef4444" : "var(--accent)",
+              background: variant === "danger" ? "#ef4444" : "var(--color-brand)",
               color: "#fff",
               transition: "opacity 0.15s",
             }}

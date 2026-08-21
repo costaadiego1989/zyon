@@ -47,7 +47,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
 
       {/* KPIs */}
       {!vm.loading && vm.members.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+        <div className="grid-3" style={{ gap: 14, marginBottom: 20 }}>
           <StatCard
             label="Membros"
             value={vm.members.length}
@@ -62,7 +62,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
             label="Convites pendentes"
             value={vm.invites.length}
             icon={<Mail size={16} />}
-            accent={vm.invites.length > 0 ? "var(--warn)" : undefined}
+            accent={vm.invites.length > 0 ? "var(--color-warning)" : undefined}
           />
         </div>
       ) : null}

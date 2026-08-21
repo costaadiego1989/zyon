@@ -25,7 +25,8 @@ export function EmbedPage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     <div className="dashboard-content">
       <header className="page-head">
         <div>
-          <h1>Instalação do Widget</h1>
+          <span className="eyebrow">Checkout</span>
+          <h1>Embed</h1>
           <p className="page-lead">
             Adicione o agente de checkout ao seu site. Ele aparece como um chat flutuante e ajuda seus clientes a finalizarem compras.
           </p>
@@ -94,13 +95,13 @@ function InstallTab(props: {
             { name: "VTEX", hint: "App no VTEX IO", status: "em breve" },
             { name: "HTML customizado", hint: "Cole o snippet acima no seu site", status: "manual" },
           ].map((p) => (
-            <div key={p.name} style={{ padding: "14px 16px", border: "1px solid var(--border)", borderRadius: 10, background: "var(--card)", display: "flex", flexDirection: "column", gap: 4 }}>
+            <div key={p.name} style={{ padding: "14px 16px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", display: "flex", flexDirection: "column", gap: 4 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <strong style={{ fontSize: 13 }}>{p.name}</strong>
-                {p.status === "em breve" && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "var(--border)", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase" }}>Em breve</span>}
-                {p.status === "disponível" && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "color-mix(in srgb, var(--accent) 15%, transparent)", color: "var(--accent)", fontWeight: 600, textTransform: "uppercase" }}>Ativo</span>}
+                {p.status === "em breve" && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "var(--color-border)", color: "var(--color-text-muted)", fontWeight: 600, textTransform: "uppercase" }}>Em breve</span>}
+                {p.status === "disponível" && <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 4, background: "color-mix(in srgb, var(--color-brand) 15%, transparent)", color: "var(--color-brand)", fontWeight: 600, textTransform: "uppercase" }}>Ativo</span>}
               </div>
-              <span style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.4 }}>{p.hint}</span>
+              <span style={{ fontSize: 11, color: "var(--color-text-muted)", lineHeight: 1.4 }}>{p.hint}</span>
             </div>
           ))}
         </div>

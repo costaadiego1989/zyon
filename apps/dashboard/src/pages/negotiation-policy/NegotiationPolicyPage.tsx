@@ -3,6 +3,7 @@ import { BarChart3, ChevronDown, ChevronUp } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { useNegotiationPolicyPage } from "./useNegotiationPolicyPage.js";
 
 export interface NegotiationPolicyPageProps {
@@ -13,22 +14,22 @@ export interface NegotiationPolicyPageProps {
 const TABLE_STYLE: React.CSSProperties = {
   width: "100%",
   borderCollapse: "collapse",
-  font: "13px var(--sans)",
+  font: "13px var(--font-sans)",
 };
 
 const TH_STYLE: React.CSSProperties = {
   textAlign: "left",
   padding: "10px 14px",
-  borderBottom: "1px solid var(--border)",
-  font: "600 11px var(--mono)",
+  borderBottom: "1px solid var(--color-border)",
+  font: "600 11px var(--font-mono)",
   letterSpacing: "0.04em",
-  color: "var(--faint)",
+  color: "var(--color-text-faint)",
 };
 
 const TD_STYLE: React.CSSProperties = {
   padding: "10px 14px",
-  borderBottom: "1px solid var(--border)",
-  color: "var(--ink)",
+  borderBottom: "1px solid var(--color-border)",
+  color: "var(--color-text)",
 };
 
 function formatDate(iso: string): string {
@@ -44,7 +45,8 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
     return (
       <header className="page-head">
         <div>
-          <h1>Negotiation Policy</h1>
+          <span className="eyebrow">Checkout</span>
+          <h1>Política de Negociação</h1>
           <p className="page-lead">Login necessário</p>
         </div>
       </header>
@@ -52,20 +54,27 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="page-container">
       {/* Header */}
-      <div>
-        <span className="eyebrow">CHECKOUT</span>
-        <h1>Política de Negociação</h1>
-        <p className="page-lead">Configure os limites de desconto e gerencie tentativas de negociação</p>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Checkout</span>
+          <h1>Política de Negociação</h1>
+          <p className="page-lead">Configure os limites de desconto e gerencie tentativas de negociação</p>
+        </div>
+      </header>
+
+      {/* Priority Warning */}
+      <div role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px 16px", borderRadius: 6, font: "13px var(--font-sans)", color: "#92400e" }}>
+        <strong>Aviso:</strong> Negociação dinâmica tem prioridade sobre desconto progressivo. Quando uma negociação M2M ou Deal Engine autoriza uma oferta, o progressivo é ignorado para essa sessão.
       </div>
 
       {/* Policy Config Section */}
       <div className="panel" style={{ padding: "20px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
           <div>
-            <div style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>Negociação</div>
-            <div style={{ font: "13px var(--sans)", color: "var(--muted)", marginTop: 4 }}>
+            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>Negociação</div>
+            <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
               {vm.policy.negotiation_enabled ? "Negociação habilitada" : "Negociação desabilitada"}
             </div>
           </div>
@@ -79,7 +88,7 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <div style={{ display: "flex", gap: 14, alignItems: "flex-end" }}>
               <div style={{ flex: 1 }}>
-                <label style={{ font: "12px var(--sans)", color: "var(--muted)", display: "block", marginBottom: 6 }}>
+                <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>
                   Desconto mínimo (%)
                 </label>
                 <input
@@ -93,16 +102,16 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
                   style={{
                     width: "100%",
                     padding: "8px 12px",
-                    borderRadius: 7,
-                    border: "1px solid var(--border)",
-                    background: "var(--bg)",
-                    color: "var(--ink)",
-                    font: "13px var(--mono)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-border)",
+                    background: "var(--surface-1)",
+                    color: "var(--color-text)",
+                    font: "13px var(--font-mono)",
                   }}
                 />
               </div>
               <div style={{ flex: 1 }}>
-                <label style={{ font: "12px var(--sans)", color: "var(--muted)", display: "block", marginBottom: 6 }}>
+                <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 6 }}>
                   Desconto máximo (%)
                 </label>
                 <input
@@ -116,11 +125,11 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
                   style={{
                     width: "100%",
                     padding: "8px 12px",
-                    borderRadius: 7,
-                    border: "1px solid var(--border)",
-                    background: "var(--bg)",
-                    color: "var(--ink)",
-                    font: "13px var(--mono)",
+                    borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--color-border)",
+                    background: "var(--surface-1)",
+                    color: "var(--color-text)",
+                    font: "13px var(--font-mono)",
                   }}
                 />
               </div>
@@ -137,15 +146,15 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
         ) : (
           <div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-              <div style={{ padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 8 }}>
-                <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 4 }}>MÍNIMO</div>
-                <div style={{ font: "600 18px var(--mono)", color: "var(--accent)" }}>
+              <div style={{ padding: "12px 16px", background: "var(--accent-soft)", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", marginBottom: 4 }}>MÍNIMO</div>
+                <div style={{ font: "600 18px var(--font-mono)", color: "var(--color-brand)" }}>
                   {vm.policy.min_discount_percent}%
                 </div>
               </div>
-              <div style={{ padding: "12px 16px", background: "var(--accent-soft)", borderRadius: 8 }}>
-                <div style={{ font: "11px var(--mono)", color: "var(--faint)", marginBottom: 4 }}>MÁXIMO</div>
-                <div style={{ font: "600 18px var(--mono)", color: "var(--accent)" }}>
+              <div style={{ padding: "12px 16px", background: "var(--accent-soft)", borderRadius: "var(--radius-sm)" }}>
+                <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", marginBottom: 4 }}>MÁXIMO</div>
+                <div style={{ font: "600 18px var(--font-mono)", color: "var(--color-brand)" }}>
                   {vm.policy.max_discount_percent}%
                 </div>
               </div>
@@ -160,32 +169,22 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
       {/* Recent Attempts */}
       <div className="panel" style={{ padding: "20px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <BarChart3 size={16} color="var(--accent)" />
-          <span style={{ font: "600 14px var(--sans)", color: "var(--ink)" }}>
+          <BarChart3 size={16} color="var(--color-brand)" />
+          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>
             Últimas tentativas de negociação
           </span>
         </div>
 
         {vm.loading ? (
-          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
+          <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
             Carregando...
           </div>
         ) : vm.attempts.length === 0 ? (
-          <div style={{
-            padding: "40px 24px",
-            textAlign: "center",
-            background: "var(--accent-soft)",
-            borderRadius: 12,
-            border: "1px solid var(--accent-line)",
-          }}>
-            <BarChart3 size={32} color="var(--accent)" style={{ margin: "0 auto 12px" }} />
-            <div style={{ font: "14px var(--sans)", color: "var(--accent)" }}>
-              Nenhuma tentativa registrada
-            </div>
-            <div style={{ font: "13px var(--sans)", color: "var(--muted)", marginTop: 6 }}>
-              As tentativas aparecerão aqui conforme os agentes negociam com os clientes
-            </div>
-          </div>
+          <EmptyState
+            icon={BarChart3}
+            title="Nenhuma tentativa registrada"
+            description="As tentativas aparecerão aqui conforme os agentes negociam com os clientes"
+          />
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={TABLE_STYLE}>
@@ -207,10 +206,10 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
                         {expandedAttempt === attempt.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </td>
                       <td style={TD_STYLE}>
-                        <code style={{ font: "11px var(--mono)" }}>{attempt.session_id.slice(0, 8)}…</code>
+                        <code style={{ font: "11px var(--font-mono)" }}>{attempt.session_id.slice(0, 8)}…</code>
                       </td>
                       <td style={TD_STYLE}>
-                        <span style={{ font: "600 13px var(--mono)", color: "var(--warn)" }}>
+                        <span style={{ font: "600 13px var(--font-mono)", color: "var(--color-warning)" }}>
                           {attempt.discount_percent}%
                         </span>
                       </td>
@@ -219,9 +218,9 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
                         <span style={{
                           padding: "3px 8px",
                           borderRadius: 5,
-                          font: "600 10px var(--mono)",
+                          font: "600 10px var(--font-mono)",
                           background: attempt.result === "accepted" ? "var(--good-soft)" : attempt.result === "rejected" ? "var(--danger-soft)" : "var(--warn-soft)",
-                          color: attempt.result === "accepted" ? "var(--good)" : attempt.result === "rejected" ? "var(--danger)" : "var(--warn)",
+                          color: attempt.result === "accepted" ? "var(--color-success)" : attempt.result === "rejected" ? "var(--color-error)" : "var(--color-warning)",
                         }}>
                           {attempt.result === "accepted" ? "Aceito" : attempt.result === "rejected" ? "Rejeitado" : "Pendente"}
                         </span>

@@ -3,10 +3,12 @@ export type CurrencyCode = "BRL" | "USD" | "EUR";
 export type CheckoutEventName =
   | "checkout_started"
   | "cart_viewed"
+  | "product_viewed"
   | "shipping_calculated"
   | "shipping_option_selected"
   | "shipping_objection_detected"
   | "coupon_field_clicked"
+  | "coupon_applied"
   | "payment_method_selected"
   | "payment_failed"
   | "exit_intent_detected"
@@ -14,7 +16,13 @@ export type CheckoutEventName =
   | "offer_viewed"
   | "offer_accepted"
   | "order_completed"
-  | "checkout_abandoned";
+  | "checkout_abandoned"
+  | "cross_sell_accepted"
+  | "cross_sell_added"
+  | "auth_phone_submitted"
+  | "auth_phone_verified"
+  | "auth_identity_confirmed"
+  | "auth_registration_completed";
 
 export interface CartItem {
   sku: string;

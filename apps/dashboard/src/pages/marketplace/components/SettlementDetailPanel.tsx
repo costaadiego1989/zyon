@@ -50,10 +50,10 @@ export function SettlementDetailPanel({
         {/* Header */}
         <div className="settlement-panel__header">
           <div>
-            <div style={{ fontSize: 12, color: "var(--muted)", textTransform: "uppercase" }}>
+            <div style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
               Settlement
             </div>
-            <div style={{ fontSize: 16, fontFamily: "var(--mono)", fontWeight: 600 }}>
+            <div style={{ fontSize: 16, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
               {settlementId.slice(0, 12)}...
             </div>
           </div>
@@ -69,19 +69,19 @@ export function SettlementDetailPanel({
         {/* Content */}
         <div className="settlement-panel__body">
           {loading && (
-            <div style={{ padding: 40, textAlign: "center", color: "var(--muted)" }}>
+            <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-muted)" }}>
               Carregando...
             </div>
           )}
 
           {error && (
             <div style={{ padding: 24, textAlign: "center" }}>
-              <div style={{ color: "var(--danger)", marginBottom: 12 }}>{error}</div>
+              <div style={{ color: "var(--color-error)", marginBottom: 12 }}>{error}</div>
               <button
                 onClick={fetchDetail}
                 style={{
                   padding: "8px 16px",
-                  background: "var(--accent)",
+                  background: "var(--color-brand)",
                   color: "white",
                   border: "none",
                   borderRadius: 6,
@@ -98,28 +98,28 @@ export function SettlementDetailPanel({
               {/* Settlement Info */}
               <div className="settlement-panel__info">
                 <div className="settlement-panel__info-row">
-                  <span style={{ color: "var(--muted)" }}>Pedido</span>
-                  <span style={{ fontFamily: "var(--mono)" }}>{detail.settlement.orderId}</span>
+                  <span style={{ color: "var(--color-text-muted)" }}>Pedido</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{detail.settlement.orderId}</span>
                 </div>
                 <div className="settlement-panel__info-row">
-                  <span style={{ color: "var(--muted)" }}>Item</span>
-                  <span style={{ fontFamily: "var(--mono)" }}>{detail.settlement.lineItemId}</span>
+                  <span style={{ color: "var(--color-text-muted)" }}>Item</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>{detail.settlement.lineItemId}</span>
                 </div>
                 <div className="settlement-panel__info-row">
-                  <span style={{ color: "var(--muted)" }}>Total</span>
-                  <span style={{ fontFamily: "var(--mono)", fontWeight: 600 }}>
+                  <span style={{ color: "var(--color-text-muted)" }}>Total</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
                     R$ {(detail.settlement.totalAmountCents / 100).toFixed(2)}
                   </span>
                 </div>
                 <div className="settlement-panel__info-row">
-                  <span style={{ color: "var(--muted)" }}>Comissão</span>
-                  <span style={{ fontFamily: "var(--mono)" }}>
+                  <span style={{ color: "var(--color-text-muted)" }}>Comissão</span>
+                  <span style={{ fontFamily: "var(--font-mono)" }}>
                     R$ {(detail.settlement.commissionCents / 100).toFixed(2)}
                   </span>
                 </div>
                 <div className="settlement-panel__info-row">
-                  <span style={{ color: "var(--muted)" }}>Líquido</span>
-                  <span style={{ fontFamily: "var(--mono)", fontWeight: 600, color: "var(--success)" }}>
+                  <span style={{ color: "var(--color-text-muted)" }}>Líquido</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--success)" }}>
                     R$ {(detail.settlement.sellerNetCents / 100).toFixed(2)}
                   </span>
                 </div>
@@ -132,24 +132,24 @@ export function SettlementDetailPanel({
               {detail.debt && (
                 <div className="settlement-panel__debt">
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--danger)" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "var(--color-error)" }}>
                       Débito Associado
                     </span>
                   </div>
                   <div className="settlement-panel__info-row">
-                    <span style={{ color: "var(--muted)" }}>Valor</span>
-                    <span style={{ fontFamily: "var(--mono)", color: "var(--danger)", fontWeight: 600 }}>
+                    <span style={{ color: "var(--color-text-muted)" }}>Valor</span>
+                    <span style={{ fontFamily: "var(--font-mono)", color: "var(--color-error)", fontWeight: 600 }}>
                       R$ {(detail.debt.amountCents / 100).toFixed(2)}
                     </span>
                   </div>
                   <div className="settlement-panel__info-row">
-                    <span style={{ color: "var(--muted)" }}>Status</span>
+                    <span style={{ color: "var(--color-text-muted)" }}>Status</span>
                     <span style={{
                       fontSize: 12,
                       padding: "2px 8px",
                       borderRadius: 4,
-                      background: detail.debt.status === "outstanding" ? "var(--danger-soft)" : "var(--success-soft)",
-                      color: detail.debt.status === "outstanding" ? "var(--danger)" : "var(--success)",
+                      background: detail.debt.status === "outstanding" ? "var(--color-error-bg)" : "var(--success-soft)",
+                      color: detail.debt.status === "outstanding" ? "var(--color-error)" : "var(--success)",
                       fontWeight: 600,
                     }}>
                       {detail.debt.status === "outstanding" ? "Pendente" :

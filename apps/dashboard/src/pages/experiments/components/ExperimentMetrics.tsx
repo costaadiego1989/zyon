@@ -20,13 +20,13 @@ export function ExperimentMetrics({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Confidence */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px 20px" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "16px 20px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>
+            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>
               CONFIANÇA
             </span>
-            <span style={{ font: "24px var(--mono)", color: "var(--accent)" }}>
+            <span style={{ font: "24px var(--font-mono)", color: "var(--color-brand)" }}>
               {results.confidence_level}%
             </span>
           </div>
@@ -35,27 +35,27 @@ export function ExperimentMetrics({
       </div>
 
       {/* Metrics Table */}
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 10, overflow: "hidden" }}>
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-          <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>MÉTRICAS POR VARIANTE</span>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--color-border)" }}>
+          <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)" }}>MÉTRICAS POR VARIANTE</span>
         </div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", font: "12px var(--mono)" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", font: "12px var(--font-mono)" }}>
             <thead>
-              <tr style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}>
-                <th style={{ padding: "10px 16px", textAlign: "left", font: "600 11px var(--sans)", color: "var(--muted)" }}>
+              <tr style={{ borderBottom: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
+                <th style={{ padding: "10px 16px", textAlign: "left", font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Variante
                 </th>
-                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--sans)", color: "var(--muted)" }}>
+                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Visitantes
                 </th>
-                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--sans)", color: "var(--muted)" }}>
+                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Conversões
                 </th>
-                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--sans)", color: "var(--muted)" }}>
+                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Taxa
                 </th>
-                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--sans)", color: "var(--muted)" }}>
+                <th style={{ padding: "10px 16px", textAlign: "right", font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>
                   Ticket Médio
                 </th>
               </tr>
@@ -65,29 +65,29 @@ export function ExperimentMetrics({
                 const variant = experiment.variants.find((v) => v.id === m.variant_id);
                 const isWinner = results.winner_variant_id === m.variant_id;
                 return (
-                  <tr key={m.variant_id} style={{ borderBottom: "1px solid var(--border)" }}>
-                    <td style={{ padding: "12px 16px", color: "var(--ink)" }}>
+                  <tr key={m.variant_id} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <td style={{ padding: "12px 16px", color: "var(--color-text)" }}>
                       {variant?.name}
                       {isWinner && (
-                        <Trophy size={12} style={{ marginLeft: 6, display: "inline", color: "var(--accent)" }} />
+                        <Trophy size={12} style={{ marginLeft: 6, display: "inline", color: "var(--color-brand)" }} />
                       )}
                     </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--ink)" }}>
+                    <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--color-text)" }}>
                       {m.total_visitors}
                     </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--ink)" }}>
+                    <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--color-text)" }}>
                       {m.conversions}
                     </td>
                     <td
                       style={{
                         padding: "12px 16px",
                         textAlign: "right",
-                        color: isWinner ? "var(--good)" : "var(--ink)",
+                        color: isWinner ? "var(--color-success)" : "var(--color-text)",
                       }}
                     >
                       {m.conversion_rate?.toFixed(2) ?? "0.00"}%
                     </td>
-                    <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--ink)" }}>
+                    <td style={{ padding: "12px 16px", textAlign: "right", color: "var(--color-text)" }}>
                       R$ {m.avg_order_value?.toFixed(2) ?? "0.00"}
                     </td>
                   </tr>

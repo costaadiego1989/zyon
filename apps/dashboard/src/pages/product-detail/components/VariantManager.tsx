@@ -36,8 +36,8 @@ export function VariantManager(props: VariantManagerProps) {
     <>
       {/* SIMPLE PRODUCT MODE - Price & Stock */}
       {!hasVariants && (
-        <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-          <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>
+        <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
+          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>
             {productType === "physical" ? "PREÇO E ESTOQUE" : "PREÇO"}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
@@ -52,8 +52,8 @@ export function VariantManager(props: VariantManagerProps) {
 
       {/* DIMENSIONS - SIMPLE MODE & PHYSICAL ONLY */}
       {!hasVariants && productType === "physical" && (
-        <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
-          <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES</h3>
+        <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
+          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES</h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
             <PrefixInput prefix="g" label="Peso" value={variants[0].weightInput} onChange={(val) => onUpdateVariant(0, { weightInput: val })} error={formErrors["simple_weight"]} placeholder="300" />
             <PrefixInput prefix="cm" label="Comprimento" value={variants[0].lengthInput} onChange={(val) => onUpdateVariant(0, { lengthInput: val })} placeholder="20" />
@@ -64,16 +64,16 @@ export function VariantManager(props: VariantManagerProps) {
       )}
 
       {/* SIMPLE vs COMPLEX TOGGLE */}
-      <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
         <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-          <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Produto com variantes</span>
+          <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Produto com variantes</span>
           <input
             type="checkbox"
             checked={hasVariants}
             onChange={(e) => onToggleVariantsMode(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: "var(--accent-dark)", cursor: "pointer" }}
+            style={{ width: 18, height: 18, accentColor: "var(--color-brand-hover)", cursor: "pointer" }}
           />
-          <span style={{ font: "12px var(--sans)", color: "var(--faint)" }}>
+          <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
             {hasVariants ? "Ativado" : "Desativado"}
           </span>
         </label>
@@ -81,13 +81,13 @@ export function VariantManager(props: VariantManagerProps) {
 
       {/* COMPLEX VARIANTS MODE */}
       {hasVariants && (
-        <section style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: "20px 22px" }}>
+        <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-            <h3 style={{ font: "600 12px var(--mono)", color: "var(--faint)", letterSpacing: "0.05em" }}>VARIANTES</h3>
+            <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em" }}>VARIANTES</h3>
             <button
               type="button"
               onClick={onAddVariant}
-              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", cursor: "pointer", font: "600 11.5px var(--sans)" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", cursor: "pointer", font: "600 11.5px var(--font-sans)" }}
             >
               <Plus size={12} /> Adicionar variante
             </button>
@@ -95,15 +95,15 @@ export function VariantManager(props: VariantManagerProps) {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             {variants.map((v, idx) => (
-              <div key={idx} style={{ background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 10, padding: "16px" }}>
+              <div key={idx} style={{ background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "16px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <strong style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Variante #{idx + 1}</strong>
+                  <strong style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Variante #{idx + 1}</strong>
                   {variants.length > 1 ? (
                     <button
                       type="button"
                       onClick={() => onRemoveVariant(idx)}
                       aria-label="Remover variante"
-                      style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11px var(--sans)" }}
+                      style={{ padding: "4px 8px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11px var(--font-sans)" }}
                     >
                       <Trash2 size={11} /> Remover
                     </button>
@@ -120,19 +120,19 @@ export function VariantManager(props: VariantManagerProps) {
                 </div>
 
                 {/* ATTRIBUTES */}
-                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+                <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-border)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                    <span style={{ font: "600 11px var(--sans)", color: "var(--ink)" }}>Atributos</span>
+                    <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)" }}>Atributos</span>
                     <button
                       type="button"
                       onClick={() => onAddAttribute(idx)}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--border)", background: "transparent", color: "var(--ink)", cursor: "pointer", font: "600 11px var(--sans)" }}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 2, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text)", cursor: "pointer", font: "600 11px var(--font-sans)" }}
                     >
                       <Plus size={10} /> Adicionar
                     </button>
                   </div>
                   {v.attributes.length === 0 ? (
-                    <div style={{ font: "11px var(--sans)", color: "var(--faint)" }}>Nenhum atributo</div>
+                    <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Nenhum atributo</div>
                   ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                       {v.attributes.map((attr, attrIdx) => (
@@ -141,19 +141,19 @@ export function VariantManager(props: VariantManagerProps) {
                             value={attr.key}
                             onChange={(e) => onUpdateAttribute(idx, attrIdx, { key: e.target.value })}
                             placeholder="Ex: Cor"
-                            style={{ padding: "6px 8px", borderRadius: 4, border: "1px solid var(--border)", font: "11px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                            style={{ padding: "6px 8px", borderRadius: 4, border: "1px solid var(--color-border)", font: "11px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)" }}
                           />
                           <input
                             value={attr.value}
                             onChange={(e) => onUpdateAttribute(idx, attrIdx, { value: e.target.value })}
                             placeholder="Ex: Preto"
-                            style={{ padding: "6px 8px", borderRadius: 4, border: "1px solid var(--border)", font: "11px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+                            style={{ padding: "6px 8px", borderRadius: 4, border: "1px solid var(--color-border)", font: "11px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)" }}
                           />
                           <button
                             type="button"
                             onClick={() => onRemoveAttribute(idx, attrIdx)}
                             aria-label="Remover atributo"
-                            style={{ padding: "4px 6px", borderRadius: 4, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 10px var(--sans)" }}
+                            style={{ padding: "4px 6px", borderRadius: 4, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", font: "600 10px var(--font-sans)" }}
                           >
                             <X size={10} />
                           </button>
@@ -174,15 +174,15 @@ export function VariantManager(props: VariantManagerProps) {
 function Field(props: { label: string; value: string; onChange: (v: string) => void; error?: string; placeholder?: string }) {
   return (
     <label style={{ display: "block" }}>
-      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>{props.label}</span>
+      <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>{props.label}</span>
       <input
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
-        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--danger)" : "var(--border)"}`, font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--color-error)" : "var(--color-border)"}`, font: "12.5px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)" }}
       />
       {props.error ? (
-        <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{props.error}</span>
+        <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{props.error}</span>
       ) : null}
     </label>
   );

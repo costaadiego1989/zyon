@@ -9,25 +9,25 @@ import type { SeoSettings, GtmSettings, SeoTone, GenerateSeoSuggestionsResponse 
 
 function CharCounter({ value, max }: { value: string; max: number }) {
   const len = value.length;
-  const color = len > max ? "var(--danger)" : len > max * 0.85 ? "var(--warn)" : "var(--faint)";
-  return <span style={{ font: "11px var(--mono)", color, marginLeft: 8 }}>{len}/{max}</span>;
+  const color = len > max ? "var(--color-error)" : len > max * 0.85 ? "var(--color-warning)" : "var(--color-text-faint)";
+  return <span style={{ font: "11px var(--font-mono)", color, marginLeft: 8 }}>{len}/{max}</span>;
 }
 
 function FieldError({ error }: { error?: string }) {
   if (!error) return null;
-  return <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{error}</span>;
+  return <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{error}</span>;
 }
 
 function inputStyle(hasError?: boolean): React.CSSProperties {
   return {
-    width: "100%", padding: "10px 12px", font: "13px var(--sans)", borderRadius: 8,
-    border: `1px solid ${hasError ? "var(--danger)" : "var(--border)"}`, background: "var(--bg)",
-    color: "var(--ink)", outline: "none",
+    width: "100%", padding: "10px 12px", font: "13px var(--font-sans)", borderRadius: 8,
+    border: `1px solid ${hasError ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)",
+    color: "var(--color-text)", outline: "none",
   };
 }
 
-const labelStyle: React.CSSProperties = { font: "600 12px var(--sans)", color: "var(--muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 };
-const sectionCard: React.CSSProperties = { background: "var(--card)", border: "1px solid var(--border)", borderRadius: 12, padding: "20px 22px", marginBottom: 16 };
+const labelStyle: React.CSSProperties = { font: "600 12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 };
+const sectionCard: React.CSSProperties = { background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 12, padding: "20px 22px", marginBottom: 16 };
 
 // ── Generator Modal ───────────────────────────────────────────────────────────
 
@@ -50,8 +50,8 @@ function SeoGeneratorModal({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.6)", backdropFilter: "blur(3px)" }} onClick={onClose}>
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 16, padding: 28, maxWidth: 560, width: "90%", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
-        <h3 style={{ font: "600 14px var(--sans)", marginBottom: 16, color: "var(--accent)" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 16, padding: 28, maxWidth: 560, width: "90%", maxHeight: "80vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ font: "600 14px var(--font-sans)", marginBottom: 16, color: "var(--color-brand)" }}>
           Gerar SEO com IA
         </h3>
 
@@ -64,7 +64,7 @@ function SeoGeneratorModal({
               placeholder="Ex: Loja de roupas femininas premium, moda sustentável, entrega para todo Brasil..."
               style={{ ...inputStyle(), minHeight: 80, resize: "vertical" }}
             />
-            <span style={{ font: "11px var(--mono)", color: "var(--faint)", marginTop: 4, display: "block" }}>{prompt.length}/500 caracteres (mín. 10)</span>
+            <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 4, display: "block" }}>{prompt.length}/500 caracteres (mín. 10)</span>
 
             <label style={{ ...labelStyle, marginTop: 16 }}>Tom de voz</label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -73,10 +73,10 @@ function SeoGeneratorModal({
                   key={t}
                   onClick={() => setTone(t)}
                   style={{
-                    padding: "6px 12px", borderRadius: 6, font: "12px var(--sans)",
-                    border: `1px solid ${tone === t ? "var(--accent)" : "var(--border)"}`,
-                    background: tone === t ? "var(--accent-soft)" : "transparent",
-                    color: tone === t ? "var(--accent)" : "var(--muted)", cursor: "pointer",
+                    padding: "6px 12px", borderRadius: 6, font: "12px var(--font-sans)",
+                    border: `1px solid ${tone === t ? "var(--color-brand)" : "var(--color-border)"}`,
+                    background: tone === t ? "var(--color-brand-subtle)" : "transparent",
+                    color: tone === t ? "var(--color-brand)" : "var(--color-text-muted)", cursor: "pointer",
                   }}
                 >
                   {t.charAt(0).toUpperCase() + t.slice(1)}
@@ -95,25 +95,25 @@ function SeoGeneratorModal({
           <>
             <label style={labelStyle}>Títulos sugeridos</label>
             {suggestions.titles.map((t, i) => (
-              <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${selectedTitle === i ? "var(--accent)" : "var(--border)"}`, marginBottom: 8, cursor: "pointer", background: selectedTitle === i ? "var(--accent-soft)" : "transparent" }}>
+              <label key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${selectedTitle === i ? "var(--color-brand)" : "var(--color-border)"}`, marginBottom: 8, cursor: "pointer", background: selectedTitle === i ? "var(--color-brand-subtle)" : "transparent" }}>
                 <input type="radio" name="title" checked={selectedTitle === i} onChange={() => setSelectedTitle(i)} />
-                <span style={{ font: "13px var(--sans)", color: "var(--ink)" }}>{t}</span>
+                <span style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{t}</span>
                 <CharCounter value={t} max={70} />
               </label>
             ))}
 
             <label style={{ ...labelStyle, marginTop: 16 }}>Descrições sugeridas</label>
             {suggestions.descriptions.map((d, i) => (
-              <label key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${selectedDesc === i ? "var(--accent)" : "var(--border)"}`, marginBottom: 8, cursor: "pointer", background: selectedDesc === i ? "var(--accent-soft)" : "transparent" }}>
+              <label key={i} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "8px 12px", borderRadius: 8, border: `1px solid ${selectedDesc === i ? "var(--color-brand)" : "var(--color-border)"}`, marginBottom: 8, cursor: "pointer", background: selectedDesc === i ? "var(--color-brand-subtle)" : "transparent" }}>
                 <input type="radio" name="desc" checked={selectedDesc === i} onChange={() => setSelectedDesc(i)} style={{ marginTop: 3 }} />
-                <span style={{ font: "12px var(--sans)", color: "var(--ink)", lineHeight: 1.4 }}>{d}</span>
+                <span style={{ font: "12px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.4 }}>{d}</span>
               </label>
             ))}
 
             <label style={{ ...labelStyle, marginTop: 16 }}>Keywords sugeridas</label>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {suggestions.keywords.map((kw, i) => (
-                <span key={i} style={{ padding: "4px 10px", borderRadius: 20, font: "11px var(--sans)", background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)" }}>{kw}</span>
+                <span key={i} style={{ padding: "4px 10px", borderRadius: 20, font: "11px var(--font-sans)", background: "var(--color-brand-subtle)", color: "var(--color-brand)", border: "1px solid var(--color-brand-ring)" }}>{kw}</span>
               ))}
             </div>
 
@@ -179,7 +179,7 @@ export function SeoGtmTab({
       {/* ── SEO Section ── */}
       <section style={sectionCard}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <h3 style={{ font: "600 14px var(--sans)", color: "var(--accent)", display: "flex", alignItems: "center", gap: 8 }}>
+          <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", display: "flex", alignItems: "center", gap: 8 }}>
             SEO — Metatags
           </h3>
           <Button variant="primary" size="sm" onClick={onOpenModal}>
@@ -190,14 +190,14 @@ export function SeoGtmTab({
         {/* Slug */}
         <div className="form-field">
           <label>Slug da loja (endereço)</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1px solid ${errors.slug ? "var(--danger)" : "var(--border)"}`, borderRadius: 8, overflow: "hidden", background: "var(--bg)" }}>
-            <span style={{ padding: "10px 12px", font: "12px var(--mono)", color: "var(--faint)", background: "var(--surface, var(--card))", borderRight: "1px solid var(--border)", whiteSpace: "nowrap" }}>stores.zyon.com/store/</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 0, border: `1px solid ${errors.slug ? "var(--color-error)" : "var(--color-border)"}`, borderRadius: 8, overflow: "hidden", background: "var(--surface-1)" }}>
+            <span style={{ padding: "10px 12px", font: "12px var(--font-mono)", color: "var(--color-text-faint)", background: "var(--surface, var(--surface-2))", borderRight: "1px solid var(--color-border)", whiteSpace: "nowrap" }}>stores.zyon.com/store/</span>
             <input
               type="text"
               value={slug}
               onChange={(e) => onSlugChange(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
               placeholder="minha-loja"
-              style={{ flex: 1, padding: "10px 12px", font: "13px var(--mono)", color: "var(--ink)", border: "none", outline: "none", background: "transparent" }}
+              style={{ flex: 1, padding: "10px 12px", font: "13px var(--font-mono)", color: "var(--color-text)", border: "none", outline: "none", background: "transparent" }}
             />
           </div>
           {slug && <span className="form-field-hint">URL: https://stores.zyon.com/store/{slug}</span>}
@@ -241,9 +241,9 @@ export function SeoGtmTab({
           {(seo.keywords ?? []).length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               {(seo.keywords ?? []).map((kw, i) => (
-                <span key={i} style={{ padding: "4px 10px", borderRadius: 20, font: "11px var(--sans)", background: "var(--accent-soft)", color: "var(--accent)", border: "1px solid var(--accent-line)", display: "flex", alignItems: "center", gap: 4 }}>
+                <span key={i} style={{ padding: "4px 10px", borderRadius: 20, font: "11px var(--font-sans)", background: "var(--color-brand-subtle)", color: "var(--color-brand)", border: "1px solid var(--color-brand-ring)", display: "flex", alignItems: "center", gap: 4 }}>
                   {kw}
-                  <button onClick={() => removeKeyword(i)} style={{ background: "none", border: "none", color: "var(--danger)", cursor: "pointer", padding: 0, font: "inherit", lineHeight: 1 }}>×</button>
+                  <button onClick={() => removeKeyword(i)} style={{ background: "none", border: "none", color: "var(--color-error)", cursor: "pointer", padding: 0, font: "inherit", lineHeight: 1 }}>×</button>
                 </span>
               ))}
             </div>
@@ -252,12 +252,12 @@ export function SeoGtmTab({
         </div>
 
         {/* Open Graph */}
-        <div style={{ marginTop: 16, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-          <div style={{ padding: "12px 14px", background: "var(--bg)", font: "600 12px var(--sans)", color: "var(--muted)", cursor: "pointer" }} onClick={() => onToggleSection?.("og")}>
+        <div style={{ marginTop: 16, border: "1px solid var(--color-border)", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ padding: "12px 14px", background: "var(--surface-1)", font: "600 12px var(--font-sans)", color: "var(--color-text-muted)", cursor: "pointer" }} onClick={() => onToggleSection?.("og")}>
             Open Graph (compartilhamento social)
           </div>
           {showOgSection && (
-            <div style={{ display: "grid", gap: 14, padding: "14px 14px", borderTop: "1px solid var(--border)" }}>
+            <div style={{ display: "grid", gap: 14, padding: "14px 14px", borderTop: "1px solid var(--color-border)" }}>
               <FormField
                 label={`OG Título (${(seo.ogTitle ?? "").length}/70)`}
                 value={seo.ogTitle ?? ""}
@@ -281,7 +281,7 @@ export function SeoGtmTab({
                 onChange={(v) => onSeoChange({ ogImage: v })}
                 placeholder="https://..."
               />
-              {seo.ogImage && <img src={seo.ogImage} alt="OG preview" style={{ maxWidth: 200, maxHeight: 105, borderRadius: 6, border: "1px solid var(--border)", objectFit: "cover" }} />}
+              {seo.ogImage && <img src={seo.ogImage} alt="OG preview" style={{ maxWidth: 200, maxHeight: 105, borderRadius: 6, border: "1px solid var(--color-border)", objectFit: "cover" }} />}
               <FormField
                 label="URL Canônica"
                 type="url"
@@ -296,7 +296,7 @@ export function SeoGtmTab({
 
       {/* ── GTM Section ── */}
       <section style={sectionCard}>
-        <h3 style={{ font: "600 14px var(--sans)", color: "var(--accent)", marginBottom: 18 }}>
+        <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", marginBottom: 18 }}>
           GTM & Analytics
         </h3>
 
@@ -318,12 +318,12 @@ export function SeoGtmTab({
         </div>
 
         {/* Pixels */}
-        <div style={{ marginTop: 16, border: "1px solid var(--border)", borderRadius: 8, overflow: "hidden" }}>
-          <div style={{ padding: "12px 14px", background: "var(--bg)", font: "600 12px var(--sans)", color: "var(--muted)", cursor: "pointer" }} onClick={() => onToggleSection?.("pixels")}>
+        <div style={{ marginTop: 16, border: "1px solid var(--color-border)", borderRadius: 8, overflow: "hidden" }}>
+          <div style={{ padding: "12px 14px", background: "var(--surface-1)", font: "600 12px var(--font-sans)", color: "var(--color-text-muted)", cursor: "pointer" }} onClick={() => onToggleSection?.("pixels")}>
             Pixels de conversão
           </div>
           {showPixelsSection && (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, padding: "14px 14px", borderTop: "1px solid var(--border)" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, padding: "14px 14px", borderTop: "1px solid var(--color-border)" }}>
               <FormField
                 label="Facebook Pixel ID"
                 value={gtm.pixelIds?.facebook ?? ""}
@@ -348,7 +348,7 @@ export function SeoGtmTab({
             disabled={false}
             onChange={(v) => onGtmChange({ dataLayerEnabled: v })}
           />
-          <span id="gtm-datalayer" style={{ font: "12px var(--sans)", color: "var(--muted)" }}>Ativar GTM Data Layer (eventos: pageview, purchase, add_to_cart)</span>
+          <span id="gtm-datalayer" style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Ativar GTM Data Layer (eventos: pageview, purchase, add_to_cart)</span>
         </div>
       </section>
 

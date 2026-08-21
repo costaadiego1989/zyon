@@ -65,7 +65,7 @@ const ChargebacksPage = lazy(() => import("../pages/chargebacks/ChargebacksPage.
 
 function LoadingFallback() {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, font: "13px var(--sans)", color: "var(--faint)" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>
       Carregando...
     </div>
   );
@@ -127,13 +127,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 10px 14px" }}>
-          <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", padding: "3px 7px", borderRadius: 5, background: "var(--sidebar-active)", color: "var(--accent)" }}>PRODUÇÃO</span>
-          <span style={{ font: "11px var(--mono)", color: "var(--sidebar-muted)" }}>v2.4</span>
+          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", padding: "3px 7px", borderRadius: 5, background: "var(--sidebar-active)", color: "var(--color-brand)" }}>PRODUÇÃO</span>
+          <span style={{ font: "11px var(--font-mono)", color: "var(--sidebar-muted)" }}>v1.0</span>
         </div>
         <nav style={{ flex: 1 }} aria-label="Módulos do painel">
           {groupedSections.map((section) => (
             <div key={section} style={{ marginBottom: 16 }}>
-              <div style={{ font: "600 10px var(--mono)", letterSpacing: "0.08em", color: "var(--sidebar-muted)", padding: "0 10px 6px" }}>{section}</div>
+              <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.08em", color: "var(--sidebar-muted)", padding: "0 10px 6px" }}>{section}</div>
               {visibleNavItems.filter((item) => item.section === section).map((item) => {
                 const Icon = item.icon;
                 const active = tab === item.key;
@@ -145,9 +145,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                     style={{ width: "100%", display: "flex", alignItems: "center", gap: 9, padding: "6px 8px", borderRadius: 9, cursor: "pointer", marginBottom: 1, background: active ? "var(--sidebar-active)" : "transparent", border: "none", textAlign: "left", font: "inherit" }}
                   >
                     <div style={{ width: 24, height: 24, borderRadius: 7, background: active ? "oklch(30% 0.03 149)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                      <Icon size={14} color={active ? "var(--accent)" : "var(--sidebar-muted)"} />
+                      <Icon size={14} color={active ? "var(--color-brand)" : "var(--sidebar-muted)"} />
                     </div>
-                    <span style={{ font: "13px var(--sans)", color: active ? "var(--sidebar-text)" : "var(--sidebar-muted)", fontWeight: active ? 600 : 400, flex: 1 }}>{item.label}</span>
+                    <span style={{ font: "13px var(--font-sans)", color: active ? "var(--sidebar-text)" : "var(--sidebar-muted)", fontWeight: active ? 600 : 400, flex: 1 }}>{item.label}</span>
                   </button>
                 );
               })}
@@ -161,23 +161,23 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 7, cursor: "pointer", border: "none", background: "transparent", font: "inherit", textAlign: "left" }}
           >
             <LogOut size={16} color="oklch(62% 0.13 25)" />
-            <span style={{ font: "13px var(--sans)", color: "oklch(62% 0.13 25)" }}>Sair</span>
+            <span style={{ font: "13px var(--font-sans)", color: "oklch(62% 0.13 25)" }}>Sair</span>
           </button>
         </div>
       </aside>
 
       {/* ── MAIN ── */}
       <main className="dashboard-main" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", position: "relative", padding: 0 }}>
-        <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 32px", borderBottom: "1px solid var(--border)", background: "var(--card)" }}>
+        <div style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 32px", borderBottom: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <ActiveIcon size={17} color="var(--accent-dark)" />
+            <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-brand-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ActiveIcon size={17} color="var(--color-brand-hover)" />
             </div>
             <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 5, font: "600 10.5px var(--mono)", letterSpacing: "0.04em", color: "var(--faint)" }}>
-                {activeSection}<span style={{ color: "var(--faint)" }}>/</span><span style={{ color: "var(--accent-dark)" }}>{activeItem.label}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 5, font: "600 10.5px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)" }}>
+                {activeSection}<span style={{ color: "var(--color-text-faint)" }}>/</span><span style={{ color: "var(--color-brand-hover)" }}>{activeItem.label}</span>
               </div>
-              <div style={{ font: "600 22px var(--serif)", color: "var(--ink)", letterSpacing: "-0.005em" }}>{activeItem.label}</div>
+              <div style={{ font: "600 22px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.005em" }}>{activeItem.label}</div>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -186,7 +186,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 href={getStorefrontUrl(me.id)}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--card)", font: "12.5px var(--sans)", color: "var(--accent)", textDecoration: "none", cursor: "pointer", transition: "background 0.15s" }}
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-brand)", textDecoration: "none", cursor: "pointer", transition: "background 0.15s" }}
               >
                 <ExternalLink size={14} />
                 Acessar loja
@@ -202,7 +202,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 setNotifications((prev) => prev.filter((x) => x.id !== n.id));
               }}
             />
-            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--border)", background: "var(--card)", font: "12.5px var(--sans)", color: "var(--muted)" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "7px 12px", borderRadius: 9, border: "1px solid var(--color-border)", background: "var(--surface-2)", font: "12.5px var(--font-sans)", color: "var(--color-text-muted)" }}>
               <ShieldCheck size={14} />
               {me.name || me.id}
             </div>

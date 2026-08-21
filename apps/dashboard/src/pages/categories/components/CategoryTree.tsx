@@ -62,7 +62,7 @@ export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChil
 
   return (
     <div
-      style={{ background: "var(--card)", overflow: "hidden" }}
+      style={{ background: "var(--surface-2)", overflow: "hidden" }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         const id = e.dataTransfer.getData("category-id");
@@ -72,16 +72,16 @@ export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChil
       onDragEnd={() => setDragOverId(null)}
     >
       {tree.length === 0 ? (
-        <div style={{ padding: "48px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--faint)" }}>
-          <strong style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>Nenhuma categoria cadastrada.</strong>
-          <p style={{ font: "12.5px var(--sans)", color: "var(--faint)" }}>Clique em "Nova categoria" para começar.</p>
+        <div style={{ padding: "48px 22px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 8, color: "var(--color-text-faint)" }}>
+          <strong style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>Nenhuma categoria cadastrada.</strong>
+          <p style={{ font: "12.5px var(--font-sans)", color: "var(--color-text-faint)" }}>Clique em "Nova categoria" para começar.</p>
         </div>
       ) : (
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
               {["NOME", "PRODUTOS", "STATUS", ""].map((c) => (
-                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
               ))}
             </tr>
           </thead>

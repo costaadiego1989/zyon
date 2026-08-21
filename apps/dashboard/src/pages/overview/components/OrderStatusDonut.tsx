@@ -7,12 +7,12 @@ export type OrderStatusDonutProps = {
 type Slice = { label: string; value: number; color: string; hex: string };
 
 const STATUS_META: Record<string, { label: string; cssVar: string; hex: string }> = {
-  pending: { label: "Pendente", cssVar: "var(--warn)", hex: "#f59e0b" },
-  approved: { label: "Aprovado", cssVar: "var(--accent)", hex: "#3b82f6" },
-  paid: { label: "Pago", cssVar: "var(--accent)", hex: "#8b5cf6" },
+  pending: { label: "Pendente", cssVar: "var(--color-warning)", hex: "#f59e0b" },
+  approved: { label: "Aprovado", cssVar: "var(--color-brand)", hex: "#3b82f6" },
+  paid: { label: "Pago", cssVar: "var(--color-brand)", hex: "#8b5cf6" },
   shipped: { label: "Enviado", cssVar: "var(--color-info, #6ea8ff)", hex: "#06b6d4" },
-  delivered: { label: "Entregue", cssVar: "var(--good)", hex: "#22c55e" },
-  cancelled: { label: "Cancelado", cssVar: "var(--danger)", hex: "#ef4444" },
+  delivered: { label: "Entregue", cssVar: "var(--color-success)", hex: "#22c55e" },
+  cancelled: { label: "Cancelado", cssVar: "var(--color-error)", hex: "#ef4444" },
 };
 
 export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
@@ -25,7 +25,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
     .map(([key, value]) => {
       const meta = STATUS_META[key.toLowerCase()] ?? {
         label: key,
-        cssVar: "var(--muted)",
+        cssVar: "var(--color-text-muted)",
         hex: "#888888",
       };
       return { label: meta.label, value, color: meta.cssVar, hex: meta.hex };
@@ -75,8 +75,8 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
         borderRadius: 14,
         padding: 20,
         display: "flex",
@@ -88,9 +88,9 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
         style={{
           fontSize: 14,
           fontWeight: 700,
-          color: "var(--ink)",
+          color: "var(--color-brand)",
           margin: 0,
-          fontFamily: "var(--sans)",
+          fontFamily: "var(--font-sans)",
           letterSpacing: -0.3,
         }}
       >
@@ -128,7 +128,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
             <span
               style={{
                 fontSize: 10,
-                color: "var(--muted)",
+                color: "var(--color-text-muted)",
                 textTransform: "uppercase",
                 letterSpacing: 0.4,
                 fontWeight: 600,
@@ -139,9 +139,9 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
             <span
               style={{
                 fontSize: 24,
-                fontFamily: "var(--mono)",
+                fontFamily: "var(--font-mono)",
                 fontWeight: 700,
-                color: "var(--ink)",
+                color: "var(--color-text)",
               }}
             >
               {total}
@@ -162,7 +162,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
           }}
         >
           {slices.length === 0 ? (
-            <li style={{ fontSize: 12, color: "var(--muted)" }}>Sem pedidos</li>
+            <li style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Sem pedidos</li>
           ) : (
             slices.map((slice) => {
               const pct = total > 0 ? (slice.value / total) * 100 : 0;
@@ -174,7 +174,7 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
                     alignItems: "center",
                     gap: 10,
                     fontSize: 12,
-                    color: "var(--ink)",
+                    color: "var(--color-text)",
                     padding: "4px 0",
                   }}
                 >
@@ -191,8 +191,8 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
                   <span style={{ flex: 1, fontWeight: 500 }}>{slice.label}</span>
                   <span
                     style={{
-                      fontFamily: "var(--mono)",
-                      color: "var(--muted)",
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--color-text-muted)",
                       fontWeight: 700,
                       fontSize: 11,
                     }}
@@ -201,8 +201,8 @@ export function OrderStatusDonut({ data }: OrderStatusDonutProps) {
                   </span>
                   <span
                     style={{
-                      fontFamily: "var(--mono)",
-                      color: "var(--faint)",
+                      fontFamily: "var(--font-mono)",
+                      color: "var(--color-text-faint)",
                       fontSize: 10,
                       minWidth: 30,
                       textAlign: "right",

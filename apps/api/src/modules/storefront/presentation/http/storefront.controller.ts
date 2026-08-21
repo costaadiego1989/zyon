@@ -152,6 +152,23 @@ export class StorefrontController {
     }
 
     try {
+      // Emit to CheckoutEvent table for funnel analytics (best-effort)
+      const funnelEvents = new Set([
+        "auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed",
+        "auth_registration_completed", "product_viewed", "cart_viewed",
+        "cross_sell_accepted", "cross_sell_added",
+      ]);
+      if (funnelEvents.has(body.event)) {
+        const existing = await this.prisma.checkoutEvent.findFirst({
+          where: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event },
+        });
+        if (!existing) {
+          await this.prisma.checkoutEvent.create({
+            data: { merchantId: body.merchant_id, sessionId: conversationId, eventName: body.event, occurredAt: new Date() },
+          });
+        }
+      }
+
       const running = await this.prisma.promptExperiment.findFirst({
         where: { merchantId: body.merchant_id, status: "running" },
         include: { variants: true },

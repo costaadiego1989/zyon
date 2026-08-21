@@ -38,10 +38,13 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
 
   if (!props.me) {
     return (
-      <>
-        <h1>Desenvolvedores</h1>
-        <p className="page-lead">Login necessário</p>
-      </>
+      <header className="page-head">
+        <div>
+          <span className="eyebrow">Integrações</span>
+          <h1>Desenvolvedores</h1>
+          <p className="page-lead">Login necessário</p>
+        </div>
+      </header>
     );
   }
 
@@ -91,7 +94,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           label="Status API"
           value={apiReachable === null ? "—" : apiReachable ? "Online" : "Offline"}
           icon={<Activity size={16} />}
-          accent={apiReachable ? "var(--good)" : "var(--danger)"}
+          accent={apiReachable ? "var(--color-success)" : "var(--color-error)"}
         />
         <StatCard
           label="Chaves ativas"
@@ -302,8 +305,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                 <tr>
                   <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center" }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                      <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>As tentativas de entrega aparecerão aqui após o primeiro evento.</span>
+                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--color-text-faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                      <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>As tentativas de entrega aparecerão aqui após o primeiro evento.</span>
                     </div>
                   </td>
                 </tr>
@@ -364,8 +367,8 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                 <tr>
                   <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center" }}>
                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
-                      <span style={{ font: "13px var(--sans)", color: "var(--faint)" }}>Nenhuma instalação encontrada.</span>
+                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--color-text-faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+                      <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>Nenhuma instalação encontrada.</span>
                     </div>
                   </td>
                 </tr>

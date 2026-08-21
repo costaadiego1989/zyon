@@ -53,7 +53,7 @@ export function StoreMetrics({
           label="Receita"
           value={formatCurrency(overview.revenue)}
           prefix="R$"
-          accent="var(--accent)"
+          accent="var(--color-brand)"
           trend={calcTrend(overview.revenue, prev?.revenue)}
           sparkline={revSparkline}
           icon={<DollarSign size={16} />}
@@ -77,7 +77,7 @@ export function StoreMetrics({
           label="Abandono"
           value={`${((overview.abandonment_rate ?? 0) * 100).toFixed(1)}`}
           suffix="%"
-          accent="var(--danger)"
+          accent="var(--color-error)"
           trend={calcTrend(
             (overview.abandonment_rate ?? 0) * 100,
             prev?.abandonment_rate != null ? prev.abandonment_rate * 100 : undefined,
@@ -100,20 +100,20 @@ export function StoreMetrics({
               data={timeseries.revenue_daily}
               type="bar"
               label="Receita diária"
-              color="var(--accent)"
+              color="var(--color-brand)"
               valueFormat="currency"
             />
           ) : (
             <div
               style={{
-                background: "var(--card)",
-                border: "1px solid var(--border)",
+                background: "var(--surface-2)",
+                border: "1px solid var(--color-border)",
                 borderRadius: 14,
                 padding: 32,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--muted)",
+                color: "var(--color-text-muted)",
                 fontSize: 13,
               }}
             >
@@ -126,7 +126,7 @@ export function StoreMetrics({
               data={timeseries.conversion_daily}
               type="line"
               label="Conversao diária"
-              color="var(--accent)"
+              color="var(--color-brand)"
               valueFormat="percent"
             />
           )}
@@ -135,7 +135,7 @@ export function StoreMetrics({
         <ConversionFunnel
           title="Funil de Pedidos"
           steps={[
-            { label: "Pedidos", value: overview.orders_count ?? 0, color: "var(--accent)" },
+            { label: "Pedidos", value: overview.orders_count ?? 0, color: "var(--color-brand)" },
             {
               label: "Aprovados",
               value:
@@ -143,7 +143,7 @@ export function StoreMetrics({
                 (overview.orders_by_status?.paid ?? 0) +
                 (overview.orders_by_status?.shipped ?? 0) +
                 (overview.orders_by_status?.delivered ?? 0),
-              color: "var(--good)",
+              color: "var(--color-success)",
             },
             {
               label: "Enviados",
@@ -155,7 +155,7 @@ export function StoreMetrics({
             {
               label: "Entregues",
               value: overview.orders_by_status?.delivered ?? 0,
-              color: "var(--good)",
+              color: "var(--color-success)",
             },
           ]}
         />

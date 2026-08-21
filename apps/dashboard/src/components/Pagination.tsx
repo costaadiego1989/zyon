@@ -36,8 +36,8 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
     width: 30,
     height: 30,
     borderRadius: 7,
-    border: "1px solid var(--border)",
-    background: "var(--bg)",
+    border: "1px solid var(--color-border)",
+    background: "var(--surface-1)",
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
@@ -49,8 +49,8 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
   });
 
   return (
-    <div role="navigation" aria-label="Paginação" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderTop: "1px solid var(--border)" }}>
-      <span style={{ font: "12px var(--mono)", color: "var(--muted)" }}>
+    <div role="navigation" aria-label="Paginação" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderTop: "1px solid var(--color-border)" }}>
+      <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>
         {total === 0 ? "Nenhum item" : `${start}–${end} de ${total}`}
       </span>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -63,7 +63,7 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
         >
           <ChevronLeftIcon />
         </button>
-        <span style={{ font: "600 12px var(--mono)", color: "var(--ink)", minWidth: 44, textAlign: "center" }}>
+        <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text)", minWidth: 44, textAlign: "center" }}>
           {page} / {totalPages}
         </span>
         <button

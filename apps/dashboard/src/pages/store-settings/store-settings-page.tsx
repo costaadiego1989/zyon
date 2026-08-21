@@ -22,7 +22,7 @@ export function StoreSettingsPage() {
   const seoVm = useSeoSettingsTab();
   const { state: seoState, setSeo, setGtm, setSlug, handleSave: handleSeoSave, handleGenerate, handleApplySuggestion, openGeneratorModal, closeGeneratorModal, toggleSection } = seoVm;
 
-  if (state.loading || seoState.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--faint)" }}>Carregando...</div>;
+  if (state.loading || seoState.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
 
   return (
     <div>
@@ -50,7 +50,7 @@ export function StoreSettingsPage() {
         onTabChange={(k) => setActiveTab(k as any)}
       />
 
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden", marginTop: 16 }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden", marginTop: 16 }}>
 
         {/* Content */}
         <div style={{ padding: "24px 22px", minHeight: 400 }}>
@@ -81,17 +81,17 @@ export function StoreSettingsPage() {
           )}
           {state.activeTab === "budget" && (
             <div>
-              <p style={{ fontSize: 12, color: "var(--muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
+              <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
                 Quando ativado, clientes solicitam orçamento ao invés de finalizar compra. Você recebe por email e WhatsApp.
               </p>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--border)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--color-border)" }}>
                 <div>
-                  <strong style={{ fontSize: 13, color: "var(--ink)" }}>Ativar modo orçamento</strong>
-                  <p style={{ fontSize: 11, color: "var(--muted)", margin: "2px 0 0" }}>Substitui &quot;Finalizar pedido&quot; por &quot;Solicitar orçamento&quot;</p>
+                  <strong style={{ fontSize: 13, color: "var(--color-text)" }}>Ativar modo orçamento</strong>
+                  <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "2px 0 0" }}>Substitui &quot;Finalizar pedido&quot; por &quot;Solicitar orçamento&quot;</p>
                 </div>
                 <label style={{ position: "relative", width: 42, height: 24, cursor: "pointer" }}>
                   <input type="checkbox" checked={state.budgetMode} onChange={(e) => setBudgetMode(e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
-                  <span style={{ position: "absolute", inset: 0, borderRadius: 12, background: state.budgetMode ? "var(--accent, #0f766e)" : "var(--border)", transition: "background 0.2s" }}>
+                  <span style={{ position: "absolute", inset: 0, borderRadius: 12, background: state.budgetMode ? "var(--accent, #0f766e)" : "var(--color-border)", transition: "background 0.2s" }}>
                     <span style={{ position: "absolute", top: 2, left: state.budgetMode ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                   </span>
                 </label>
@@ -119,13 +119,13 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
   onHoursChange: (h: BusinessHour[]) => void;
   onCepChange: (zip: string) => void;
 }) {
-  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", fontFamily: "var(--sans)", outline: "none", color: "var(--ink)" };
+  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", fontSize: "13px", fontFamily: "var(--font-sans)", outline: "none", color: "var(--color-text)" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Company Info */}
       <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Informações Principais</h3>
+        <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Informações Principais</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <FormField label="Nome da loja" placeholder="Minha Loja" value={company.storeName} onChange={(v) => onCompanyChange({ ...company, storeName: v })} />
           <FormField label="Razão Social" placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(v) => onCompanyChange({ ...company, razaoSocial: v })} />
@@ -139,8 +139,8 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
       </div>
 
       {/* Address */}
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--accent)" }}>Endereço</h3>
+      <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--color-brand)" }}>Endereço</h3>
         <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
           <FormField label="CEP" placeholder="01311-100" value={maskCEP(company.zip)} onChange={(v) => { const digits = v.replace(/\D/g, ""); onCepChange(digits); }} disabled={cepLoading} />
         </div>
@@ -159,12 +159,12 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
       </div>
 
       {/* Business Hours */}
-      <div style={{ borderTop: "1px solid var(--border)", paddingTop: 16 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--accent)" }}>Horário de Atendimento</h3>
+      <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
+        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--color-brand)" }}>Horário de Atendimento</h3>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {businessHours.map((hour, idx) => (
             <div key={hour.day} style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr 80px", gap: 12, alignItems: "center" }}>
-              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--ink)" }}>{DAY_LABELS[hour.day]}</span>
+              <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text)" }}>{DAY_LABELS[hour.day]}</span>
               <input type="time" value={hour.closed ? "" : hour.startTime} onChange={(e) => {
                 const newHours = [...businessHours];
                 newHours[idx] = { ...hour, startTime: e.target.value, closed: false };
@@ -186,7 +186,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
                     onHoursChange(newHours);
                   }}
                 />
-                <span id={`closed-${hour.day}`} style={{ fontSize: 11, color: "var(--faint)" }}>Fechado</span>
+                <span id={`closed-${hour.day}`} style={{ fontSize: 11, color: "var(--color-text-faint)" }}>Fechado</span>
               </div>
             </div>
           ))}
@@ -202,7 +202,7 @@ function PoliciesTab({ policies, onChange, onGenerate, generatingPolicy }: {
   onGenerate: (type: "privacy" | "returns" | "terms" | "shipping") => void;
   generatingPolicy: string | null;
 }) {
-  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", outline: "none", fontFamily: "inherit", resize: "vertical", color: "var(--ink)" };
+  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", fontSize: "13px", outline: "none", fontFamily: "inherit", resize: "vertical", color: "var(--color-text)" };
 
   const fields: Array<{ key: "privacy" | "returns" | "terms" | "shipping"; label: string }> = [
     { key: "privacy", label: "Política de Privacidade" },
@@ -216,7 +216,7 @@ function PoliciesTab({ policies, onChange, onGenerate, generatingPolicy }: {
       {fields.map(({ key, label }) => (
         <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>{label}</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-faint)" }}>{label}</span>
             <button
               type="button"
               onClick={() => onGenerate(key)}
@@ -224,10 +224,10 @@ function PoliciesTab({ policies, onChange, onGenerate, generatingPolicy }: {
               style={{
                 display: "flex", alignItems: "center", gap: 5,
                 padding: "4px 10px", borderRadius: 6,
-                border: "1px solid var(--border)",
-                background: "var(--card)",
-                font: "500 11px var(--sans)",
-                color: generatingPolicy === key ? "var(--good)" : "var(--muted)",
+                border: "1px solid var(--color-border)",
+                background: "var(--surface-2)",
+                font: "500 11px var(--font-sans)",
+                color: generatingPolicy === key ? "var(--color-success)" : "var(--color-text-muted)",
                 cursor: generatingPolicy !== null ? "not-allowed" : "pointer",
                 opacity: generatingPolicy !== null && generatingPolicy !== key ? 0.5 : 1,
               }}
@@ -247,28 +247,28 @@ function SocialTab({ social, onChange }: {
   social: SocialForm;
   onChange: (s: SocialForm) => void;
 }) {
-  const fieldStyle: React.CSSProperties = { flex: 1, padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", outline: "none" };
+  const fieldStyle: React.CSSProperties = { flex: 1, padding: "8px 12px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", fontSize: "13px", outline: "none" };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Instagram size={18} style={{ color: "var(--good)", flex: "none" }} />
+        <Instagram size={18} style={{ color: "var(--color-success)", flex: "none" }} />
         <input placeholder="https://instagram.com/sua-loja" value={social.instagram} onChange={(e) => onChange({ ...social, instagram: e.target.value })} style={fieldStyle} />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Facebook size={18} style={{ color: "var(--good)", flex: "none" }} />
+        <Facebook size={18} style={{ color: "var(--color-success)", flex: "none" }} />
         <input placeholder="https://facebook.com/sua-loja" value={social.facebook} onChange={(e) => onChange({ ...social, facebook: e.target.value })} style={fieldStyle} />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Linkedin size={18} style={{ color: "var(--good)", flex: "none" }} />
+        <Linkedin size={18} style={{ color: "var(--color-success)", flex: "none" }} />
         <input placeholder="https://linkedin.com/company/sua-empresa" value={social.linkedin} onChange={(e) => onChange({ ...social, linkedin: e.target.value })} style={fieldStyle} />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Youtube size={18} style={{ color: "var(--good)", flex: "none" }} />
+        <Youtube size={18} style={{ color: "var(--color-success)", flex: "none" }} />
         <input placeholder="https://youtube.com/@seu-canal" value={social.youtube} onChange={(e) => onChange({ ...social, youtube: e.target.value })} style={fieldStyle} />
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <MapPin size={18} style={{ color: "var(--good)", flex: "none" }} />
+        <MapPin size={18} style={{ color: "var(--color-success)", flex: "none" }} />
         <input placeholder="https://maps.google.com/..." value={social.googleMaps} onChange={(e) => onChange({ ...social, googleMaps: e.target.value })} style={fieldStyle} />
       </label>
     </div>
@@ -316,7 +316,7 @@ function StylesTab({ styles, onChange }: {
     e.target.value = "";
   }
 
-  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--bg)", fontSize: "13px", outline: "none", color: "var(--ink)" };
+  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", fontSize: "13px", outline: "none", color: "var(--color-text)" };
 
   const FONT_OPTIONS = [
     "Inter, ui-sans-serif, system-ui, sans-serif",
@@ -335,13 +335,13 @@ function StylesTab({ styles, onChange }: {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Logo */}
         <div>
-          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Logotipo</h3>
+          <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Logotipo</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--color-border)", background: "var(--surface-1)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {logoPreview ? (
                 <img src={logoPreview} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <Upload size={20} style={{ color: "var(--faint)" }} />
+                <Upload size={20} style={{ color: "var(--color-text-faint)" }} />
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -350,7 +350,7 @@ function StylesTab({ styles, onChange }: {
                 type="button"
                 onClick={() => logoFileRef.current?.click()}
                 disabled={uploading !== null}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "600 12px var(--font-sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
               >
                 <Upload size={13} />
                 {uploading === "logo" ? "Enviando..." : "Alterar logo"}
@@ -359,7 +359,7 @@ function StylesTab({ styles, onChange }: {
                 <button
                   type="button"
                   onClick={() => { setLogoPreview(""); onChange({ ...styles, logoUrl: "" }); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", font: "600 11px var(--font-sans)", cursor: "pointer" }}
                 >
                   <Trash2 size={11} /> Remover
                 </button>
@@ -370,13 +370,13 @@ function StylesTab({ styles, onChange }: {
 
         {/* Favicon */}
         <div>
-          <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Favicon</h3>
+          <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Favicon</h3>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {faviconPreview ? (
                 <img src={faviconPreview} alt="Favicon" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               ) : (
-                <Palette size={18} style={{ color: "var(--faint)" }} />
+                <Palette size={18} style={{ color: "var(--color-text-faint)" }} />
               )}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -385,7 +385,7 @@ function StylesTab({ styles, onChange }: {
                 type="button"
                 onClick={() => faviconFileRef.current?.click()}
                 disabled={uploading !== null}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", font: "600 12px var(--sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 14px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "600 12px var(--font-sans)", cursor: uploading ? "not-allowed" : "pointer", opacity: uploading ? 0.6 : 1 }}
               >
                 <Upload size={13} />
                 {uploading === "favicon" ? "Enviando..." : "Alterar favicon"}
@@ -394,7 +394,7 @@ function StylesTab({ styles, onChange }: {
                 <button
                   type="button"
                   onClick={() => { setFaviconPreview(""); onChange({ ...styles, faviconUrl: "" }); }}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", font: "600 11px var(--sans)", cursor: "pointer" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", font: "600 11px var(--font-sans)", cursor: "pointer" }}
                 >
                   <Trash2 size={11} /> Remover
                 </button>
@@ -406,20 +406,20 @@ function StylesTab({ styles, onChange }: {
 
       {/* Colors */}
       <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Cores</h3>
+        <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Cores</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Cor Primária</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-faint)" }}>Cor Primária</span>
             <div style={{ display: "flex", gap: 8 }}>
-              <input type="color" value={styles.accentColor} onChange={(e) => onChange({ ...styles, accentColor: e.target.value })} style={{ width: 50, height: 38, borderRadius: 7, border: "1px solid var(--border)", cursor: "pointer" }} />
-              <input style={{ ...fieldStyle, fontFamily: "var(--mono)", fontSize: 12 }} placeholder="#000000" value={styles.accentColor} onChange={(e) => onChange({ ...styles, accentColor: e.target.value })} />
+              <input type="color" value={styles.accentColor} onChange={(e) => onChange({ ...styles, accentColor: e.target.value })} style={{ width: 50, height: 38, borderRadius: 7, border: "1px solid var(--color-border)", cursor: "pointer" }} />
+              <input style={{ ...fieldStyle, fontFamily: "var(--font-mono)", fontSize: 12 }} placeholder="#000000" value={styles.accentColor} onChange={(e) => onChange({ ...styles, accentColor: e.target.value })} />
             </div>
           </label>
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--faint)" }}>Cor Secundária</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-faint)" }}>Cor Secundária</span>
             <div style={{ display: "flex", gap: 8 }}>
-              <input type="color" value={styles.secondaryColor} onChange={(e) => onChange({ ...styles, secondaryColor: e.target.value })} style={{ width: 50, height: 38, borderRadius: 7, border: "1px solid var(--border)", cursor: "pointer" }} />
-              <input style={{ ...fieldStyle, fontFamily: "var(--mono)", fontSize: 12 }} placeholder="#666666" value={styles.secondaryColor} onChange={(e) => onChange({ ...styles, secondaryColor: e.target.value })} />
+              <input type="color" value={styles.secondaryColor} onChange={(e) => onChange({ ...styles, secondaryColor: e.target.value })} style={{ width: 50, height: 38, borderRadius: 7, border: "1px solid var(--color-border)", cursor: "pointer" }} />
+              <input style={{ ...fieldStyle, fontFamily: "var(--font-mono)", fontSize: 12 }} placeholder="#666666" value={styles.secondaryColor} onChange={(e) => onChange({ ...styles, secondaryColor: e.target.value })} />
             </div>
           </label>
         </div>
@@ -427,7 +427,7 @@ function StylesTab({ styles, onChange }: {
 
       {/* Fonts */}
       <div>
-        <h3 style={{ font: "600 13px var(--sans)", marginBottom: 12, color: "var(--accent)" }}>Tipografia</h3>
+        <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Tipografia</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <FormSelect label="Fonte de Títulos" value={styles.fontDisplay} onChange={(v) => onChange({ ...styles, fontDisplay: v })} options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0].trim() }))} />
           <FormSelect label="Fonte de Corpo" value={styles.fontFamily} onChange={(v) => onChange({ ...styles, fontFamily: v })} options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0].trim() }))} />

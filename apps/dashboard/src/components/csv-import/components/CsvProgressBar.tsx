@@ -12,13 +12,13 @@ export function CsvProgressBar({ isImporting, rowCount }: CsvProgressBarProps) {
   return (
     <div style={{ marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-        <span style={{ font: "12px var(--sans)", color: "var(--muted)" }}>Importando...</span>
-        <span style={{ font: "12px var(--sans)", color: "var(--muted)" }}>{rowCount} registros</span>
+        <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Importando...</span>
+        <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>{rowCount} registros</span>
       </div>
       <div
         style={{
           height: 4,
-          background: "var(--bg)",
+          background: "var(--surface-1)",
           borderRadius: 2,
           overflow: "hidden",
         }}
@@ -26,7 +26,7 @@ export function CsvProgressBar({ isImporting, rowCount }: CsvProgressBarProps) {
         <div
           style={{
             height: "100%",
-            background: "var(--accent-dark)",
+            background: "var(--color-brand-hover)",
             animation: "pulse 1.5s ease-in-out infinite",
             width: "30%",
           }}

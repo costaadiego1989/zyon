@@ -17,16 +17,16 @@ export interface CurrencyFieldProps {
 export function CurrencyField({ label, value, onChange, error, placeholder = "0,00" }: CurrencyFieldProps) {
   return (
     <label style={{ display: "block" }}>
-      <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 4 }}>{label}</span>
+      <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(applyCurrencyMask(e.target.value))}
         placeholder={placeholder}
         inputMode="numeric"
-        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${error ? "var(--danger)" : "var(--border)"}`, font: "12.5px var(--mono)", color: "var(--ink)", outline: "none", background: "var(--card)" }}
+        style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${error ? "var(--color-error)" : "var(--color-border)"}`, font: "12.5px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)" }}
       />
       {error ? (
-        <span style={{ font: "11px var(--sans)", color: "var(--danger)", marginTop: 4, display: "block" }}>{error}</span>
+        <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{error}</span>
       ) : null}
     </label>
   );

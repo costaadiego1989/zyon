@@ -39,7 +39,8 @@ function makeSuggestionSetup() {
   const promoRepo = new InMemoryCrossSellPromotionRepository();
   const suggestionRepo = new InMemoryCrossSellSuggestionRepository();
   const outbox = new InMemoryOutboxRepository();
-  const acceptUseCase = new AcceptCrossSellSuggestionUseCase(suggestionRepo, promoRepo, outbox);
+  const prismaStub = { checkoutEvent: { findFirst: async () => null, create: async () => ({}) } } as never;
+  const acceptUseCase = new AcceptCrossSellSuggestionUseCase(suggestionRepo, promoRepo, outbox, prismaStub);
   const listUseCase = new ListEligibleCrossSellsUseCase(promoRepo, suggestionRepo, outbox);
   return { promoRepo, suggestionRepo, outbox, acceptUseCase, listUseCase };
 }

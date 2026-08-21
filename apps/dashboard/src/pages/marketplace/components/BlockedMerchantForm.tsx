@@ -76,9 +76,9 @@ export function BlockedMerchantForm({
           style={{
             padding: "8px 12px",
             background: "oklch(60% 0.18 25 / 0.15)",
-            border: "1px solid var(--danger)",
+            border: "1px solid var(--color-error)",
             borderRadius: 6,
-            color: "var(--danger)",
+            color: "var(--color-error)",
             fontSize: 12,
             marginBottom: 12,
           }}
@@ -105,8 +105,8 @@ export function BlockedMerchantForm({
                 padding: "10px 14px",
                 background: "var(--color-surface-alt)",
                 borderRadius: 6,
-                font: "400 13px var(--mono)",
-                color: "var(--ink)",
+                font: "400 13px var(--font-mono)",
+                color: "var(--color-text)",
               }}
             >
               <span>{id}</span>
@@ -118,7 +118,7 @@ export function BlockedMerchantForm({
                   background: "transparent",
                   border: "none",
                   cursor: saving ? "not-allowed" : "pointer",
-                  color: "var(--danger)",
+                  color: "var(--color-error)",
                   padding: 4,
                   borderRadius: 4,
                   display: "flex",

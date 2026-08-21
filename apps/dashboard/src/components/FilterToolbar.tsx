@@ -24,20 +24,20 @@ const TAB_STYLE_BASE: React.CSSProperties = {
   alignItems: "center",
   padding: "0 14px",
   borderRadius: 7,
-  font: "600 12px var(--sans)",
+  font: "600 12px var(--font-sans)",
   cursor: "pointer",
   boxSizing: "border-box",
   lineHeight: 1,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--color-border)",
   background: "transparent",
-  color: "var(--ink)",
+  color: "var(--color-text)",
   transition: "background 0.12s, border-color 0.12s",
 };
 
 const TAB_STYLE_ACTIVE: React.CSSProperties = {
   ...TAB_STYLE_BASE,
-  background: "var(--accent-dark)",
-  borderColor: "var(--accent-dark)",
+  background: "var(--color-brand-hover)",
+  borderColor: "var(--color-brand-hover)",
   color: "#fff",
 };
 
@@ -52,7 +52,7 @@ export function FilterToolbar({
   extra,
 }: FilterToolbarProps) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 22px", borderBottom: "1px solid var(--border)" }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 22px", borderBottom: "1px solid var(--color-border)" }}>
       <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
         {tabs.map((tab) => (
           <button
@@ -93,10 +93,10 @@ export function FilterSelect(props: {
         height: 32,
         padding: "0 26px 0 12px",
         borderRadius: 7,
-        border: "1px solid var(--border)",
-        font: "600 12px var(--sans)",
-        color: "var(--ink)",
-        background: "var(--bg)",
+        border: "1px solid var(--color-border)",
+        font: "600 12px var(--font-sans)",
+        color: "var(--color-text)",
+        background: "var(--surface-1)",
         cursor: "pointer",
         outline: "none",
         boxSizing: "border-box",

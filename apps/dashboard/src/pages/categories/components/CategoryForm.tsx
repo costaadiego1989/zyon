@@ -122,10 +122,10 @@ export function CategoryForm({
     width: "100%",
     padding: "9px 12px",
     borderRadius: 7,
-    border: "1px solid var(--border)",
-    font: "13px var(--sans)",
-    color: "var(--ink)",
-    background: "var(--bg)",
+    border: "1px solid var(--color-border)",
+    font: "13px var(--font-sans)",
+    color: "var(--color-text)",
+    background: "var(--surface-1)",
     outline: "none",
   };
 
@@ -137,16 +137,16 @@ export function CategoryForm({
         right: 0,
         bottom: 0,
         width: 420,
-        background: "var(--card)",
-        borderLeft: "1px solid var(--border)",
+        background: "var(--surface-2)",
+        borderLeft: "1px solid var(--color-border)",
         display: "flex",
         flexDirection: "column",
         boxShadow: "-8px 0 24px rgba(0,0,0,0.2)",
         zIndex: 1000,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--border)" }}>
-        <h2 style={{ font: "600 14px var(--sans)", color: "var(--accent)", margin: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--color-border)" }}>
+        <h2 style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", margin: 0 }}>
           {mode === "edit" ? `Editar: ${category?.name ?? ""}` : "Nova categoria"}
         </h2>
         <button
@@ -154,7 +154,7 @@ export function CategoryForm({
           onClick={onCancel}
           disabled={saving}
           aria-label="Fechar"
-          style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--border)", background: "var(--card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}
+          style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}
         >
           <X size={20} />
         </button>
@@ -163,23 +163,23 @@ export function CategoryForm({
       <form onSubmit={handleSubmit} style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
           {error && (
-            <div style={{ padding: "8px 12px", borderRadius: 6, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "12px var(--sans)", color: "var(--danger)" }}>
+            <div style={{ padding: "8px 12px", borderRadius: 6, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "12px var(--font-sans)", color: "var(--color-error)" }}>
               {error}
             </div>
           )}
 
           <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Nome *</span>
+            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Nome *</span>
             <input type="text" value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Ex: Camisetas" disabled={saving} style={inputStyle} />
           </label>
 
           <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Slug</span>
-            <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="camisetas" disabled={saving} style={{ ...inputStyle, fontFamily: "var(--mono)" }} />
+            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Slug</span>
+            <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="camisetas" disabled={saving} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
           </label>
 
           <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Categoria pai</span>
+            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Categoria pai</span>
             <select value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={saving} style={inputStyle}>
               <option value="">— Nenhuma (raiz) —</option>
               {parentOptions.map((cat) => (
@@ -189,21 +189,21 @@ export function CategoryForm({
           </label>
 
           <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Descrição</span>
+            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Descrição</span>
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva esta categoria..." disabled={saving} rows={3} style={{ ...inputStyle, minHeight: 72, resize: "vertical" }} />
           </label>
 
           <div>
-            <span style={{ font: "600 11px var(--sans)", color: "var(--ink)", display: "block", marginBottom: 6 }}>Imagem</span>
+            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Imagem</span>
             <input ref={fileRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
             {imagePreview ? (
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <img src={imagePreview} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid var(--border)" }} />
+                <img src={imagePreview} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid var(--color-border)" }} />
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <button type="button" onClick={() => fileRef.current?.click()} disabled={saving || uploading} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--bg)", color: "var(--ink)", cursor: "pointer", font: "600 11px var(--sans)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <button type="button" onClick={() => fileRef.current?.click()} disabled={saving || uploading} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", cursor: "pointer", font: "600 11px var(--font-sans)", display: "inline-flex", alignItems: "center", gap: 4 }}>
                     <Upload size={11} /> {uploading ? "Enviando..." : "Trocar"}
                   </button>
-                  <button type="button" onClick={() => { setImageUrl(""); setImagePreview(""); }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--danger)", background: "transparent", color: "var(--danger)", cursor: "pointer", font: "600 11px var(--sans)" }}>
+                  <button type="button" onClick={() => { setImageUrl(""); setImagePreview(""); }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--color-error)", background: "transparent", color: "var(--color-error)", cursor: "pointer", font: "600 11px var(--font-sans)" }}>
                     Remover
                   </button>
                 </div>
@@ -213,7 +213,7 @@ export function CategoryForm({
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={saving || uploading}
-                style={{ width: "100%", padding: "20px", borderRadius: 8, border: "2px dashed var(--border)", background: "var(--bg)", color: "var(--faint)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, font: "12px var(--sans)" }}
+                style={{ width: "100%", padding: "20px", borderRadius: 8, border: "2px dashed var(--color-border)", background: "var(--surface-1)", color: "var(--color-text-faint)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, font: "12px var(--font-sans)" }}
               >
                 <ImageIcon size={20} />
                 {uploading ? "Enviando..." : "Clique para fazer upload"}
@@ -222,7 +222,7 @@ export function CategoryForm({
           </div>
         </div>
 
-        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border)", display: "flex", gap: 12 }}>
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 12 }}>
           <ModalButton variant="secondary" onClick={onCancel} disabled={saving}>
             Cancelar
           </ModalButton>

@@ -53,14 +53,14 @@ export function NotificationBell({ notifications, onClear, onClickNotification }
           width: 36,
           height: 36,
           borderRadius: 9,
-          border: "1px solid var(--border)",
-          background: "var(--card)",
+          border: "1px solid var(--color-border)",
+          background: "var(--surface-2)",
           cursor: "pointer",
           position: "relative",
           transition: "background 0.15s",
         }}
       >
-        <Bell size={16} style={{ color: count > 0 ? "var(--accent)" : "var(--muted)" }} />
+        <Bell size={16} style={{ color: count > 0 ? "var(--color-brand)" : "var(--color-text-muted)" }} />
         {count > 0 ? (
           <span
             style={{
@@ -70,7 +70,7 @@ export function NotificationBell({ notifications, onClear, onClickNotification }
               width: 16,
               height: 16,
               borderRadius: "50%",
-              background: "var(--accent)",
+              background: "var(--color-brand)",
               color: "#fff",
               fontSize: 9,
               fontWeight: 700,
@@ -94,8 +94,8 @@ export function NotificationBell({ notifications, onClear, onClickNotification }
             width: 300,
             maxHeight: 360,
             overflowY: "auto",
-            background: "var(--card)",
-            border: "1px solid var(--border)",
+            background: "var(--surface-2)",
+            border: "1px solid var(--color-border)",
             borderRadius: 12,
             boxShadow: "0 8px 32px rgba(0,0,0,0.3)",
             zIndex: 9999,
@@ -103,12 +103,12 @@ export function NotificationBell({ notifications, onClear, onClickNotification }
           }}
         >
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 8px 4px" }}>
-            <span style={{ font: "600 11px var(--mono)", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Notificações</span>
+            <span style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Notificações</span>
             {count > 0 ? (
               <button
                 type="button"
                 onClick={() => { onClear(); setOpen(false); }}
-                style={{ font: "11px var(--sans)", color: "var(--accent)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                style={{ font: "11px var(--font-sans)", color: "var(--color-brand)", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
               >
                 Limpar
               </button>
@@ -143,8 +143,8 @@ export function NotificationBell({ notifications, onClear, onClickNotification }
                   onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-raised, rgba(255,255,255,0.04))"}
                   onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                 >
-                  <span style={{ fontSize: 12, color: "var(--ink)", fontWeight: 500 }}>{n.title}</span>
-                  <span style={{ fontSize: 10, color: "var(--faint)" }}>
+                  <span style={{ fontSize: 12, color: "var(--color-text)", fontWeight: 500 }}>{n.title}</span>
+                  <span style={{ fontSize: 10, color: "var(--color-text-faint)" }}>
                     {new Date(n.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </span>
                 </button>

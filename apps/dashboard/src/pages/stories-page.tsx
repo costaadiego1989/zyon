@@ -55,11 +55,11 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
   }
 
   if (vm.loading) {
-    return <div style={{ padding: "40px", color: "var(--muted)" }}>Carregando stories...</div>;
+    return <div style={{ padding: "40px", color: "var(--color-text-muted)" }}>Carregando stories...</div>;
   }
 
   return (
-    <div>
+    <div className="page-container">
       <ConfirmDialog
         open={!!confirmDelete}
         title={confirmDelete?.type === "category" ? "Excluir categoria" : "Excluir story"}
@@ -71,48 +71,48 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
         onConfirm={executeDelete}
         onCancel={() => setConfirmDelete(null)}
       />
-      {/* Header — same pattern as CategoriesPage */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+      {/* Header */}
+      <header className="page-head">
         <div>
-          <span className="eyebrow">LOJA</span>
-          <h1 >Stories</h1>
+          <span className="eyebrow">Loja</span>
+          <h1>Stories</h1>
           <p className="page-lead">Crie stories visuais para engajar compradores com promoções, destaques e novidades</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={() => vm.setShowCreateCategory(true)}>
           <Plus size={14} /> Nova Categoria
         </Button>
-      </div>
+      </header>
 
-      {/* Stat cards — same as CategoriesPage StatCard pattern */}
+      {/* Stat cards */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
-        <div style={{ padding: "16px 20px", borderRadius: 10, border: "1px solid var(--rule)", background: "var(--card)" }}>
+        <div style={{ padding: "16px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textTransform: "uppercase" }}>Categorias</span>
-            <FolderOpen size={15} style={{ color: "var(--accent)" }} />
+            <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Categorias</span>
+            <FolderOpen size={15} style={{ color: "var(--color-brand)" }} />
           </div>
-          <div style={{ font: "700 26px var(--sans)", color: "var(--ink)" }}>{vm.categories.length}</div>
+          <div style={{ font: "700 26px var(--font-sans)", color: "var(--color-text)" }}>{vm.categories.length}</div>
         </div>
-        <div style={{ padding: "16px 20px", borderRadius: 10, border: "1px solid var(--rule)", background: "var(--card)" }}>
+        <div style={{ padding: "16px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textTransform: "uppercase" }}>Stories Ativos</span>
-            <Image size={15} style={{ color: "var(--accent)" }} />
+            <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Stories Ativos</span>
+            <Image size={15} style={{ color: "var(--color-brand)" }} />
           </div>
-          <div style={{ font: "700 26px var(--sans)", color: "var(--accent)" }}>{vm.stories.length}</div>
+          <div style={{ font: "700 26px var(--font-sans)", color: "var(--color-brand)" }}>{vm.stories.length}</div>
         </div>
-        <div style={{ padding: "16px 20px", borderRadius: 10, border: "1px solid var(--rule)", background: "var(--card)" }}>
+        <div style={{ padding: "16px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-            <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", textTransform: "uppercase" }}>Selecionada</span>
-            <Clock size={15} style={{ color: "var(--faint)" }} />
+            <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Selecionada</span>
+            <Clock size={15} style={{ color: "var(--color-text-faint)" }} />
           </div>
-          <div style={{ font: "600 15px var(--sans)", color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vm.selectedCategory?.name ?? "—"}</div>
+          <div style={{ font: "600 15px var(--font-sans)", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{vm.selectedCategory?.name ?? "—"}</div>
         </div>
       </div>
 
       {/* Layout — categories sidebar + stories grid */}
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 16, minHeight: "400px" }}>
         {/* Categories sidebar */}
-        <div style={{ background: "var(--card)", border: "1px solid var(--rule)", borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
-          <h3 style={{ font: "600 14px var(--sans)", color: "var(--accent)", margin: "0 0 8px" }}>
+        <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: 16, display: "flex", flexDirection: "column", gap: 8 }}>
+          <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", margin: "0 0 8px" }}>
             Categorias ({vm.categories.length})
           </h3>
           {vm.categories.map((cat) => (
@@ -121,23 +121,23 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
               onClick={() => vm.setSelectedCategory(cat)}
               style={{
                 display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px",
-                borderRadius: "8px", cursor: "pointer",
-                background: vm.selectedCategory?.id === cat.id ? "var(--accent-bg, rgba(16,185,129,0.08))" : "transparent",
-                border: vm.selectedCategory?.id === cat.id ? "1px solid var(--accent)" : "1px solid transparent",
+                borderRadius: "var(--radius-sm)", cursor: "pointer",
+                background: vm.selectedCategory?.id === cat.id ? "rgba(16,185,129,0.08)" : "transparent",
+                border: vm.selectedCategory?.id === cat.id ? "1px solid var(--color-brand)" : "1px solid transparent",
               }}
             >
-              <GripVertical size={14} style={{ color: "var(--faint)", cursor: "grab" }} />
-              <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
+              <GripVertical size={14} style={{ color: "var(--color-text-faint)", cursor: "grab" }} />
+              <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: "var(--surface-1)", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0 }}>
                 {cat.coverImage ? (
                   <img src={cat.coverImage} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="" />
                 ) : (
-                  <FolderOpen size={16} style={{ color: "var(--faint)" }} />
+                  <FolderOpen size={16} style={{ color: "var(--color-text-faint)" }} />
                 )}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--ink)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cat.name}</div>
               </div>
-              <button onClick={(e) => { e.stopPropagation(); requestDeleteCategory(cat.id, cat.name); }} style={{ padding: "4px", borderRadius: "4px", border: "none", background: "transparent", color: "var(--faint)", cursor: "pointer" }}>
+              <button onClick={(e) => { e.stopPropagation(); requestDeleteCategory(cat.id, cat.name); }} style={{ padding: "4px", borderRadius: "4px", border: "none", background: "transparent", color: "var(--color-text-faint)", cursor: "pointer" }}>
                 <Trash2 size={14} />
               </button>
             </div>
@@ -148,18 +148,18 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
         </div>
 
         {/* Stories grid */}
-        <div style={{ background: "var(--card)", border: "1px solid var(--rule)", borderRadius: 10, padding: "20px" }}>
+        <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", padding: "20px" }}>
           {vm.selectedCategory ? (
             <>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
-                <h3 style={{ font: "600 14px var(--sans)", margin: 0, color: "var(--accent)" }}>{vm.selectedCategory.name}</h3>
-                <button onClick={() => vm.openCreateStory()} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--accent)", background: "transparent", color: "var(--accent)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
+                <h3 style={{ font: "600 14px var(--font-sans)", margin: 0, color: "var(--color-brand)" }}>{vm.selectedCategory.name}</h3>
+                <button onClick={() => vm.openCreateStory()} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-brand)", background: "transparent", color: "var(--color-brand)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
                   <Plus size={14} /> Adicionar Story
                 </button>
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "16px" }}>
                 {vm.stories.map((story) => (
-                  <div key={story.id} style={{ position: "relative", aspectRatio: "9/16", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--rule)", background: "var(--bg)" }}>
+                  <div key={story.id} style={{ position: "relative", aspectRatio: "9/16", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
                     <img src={story.imageUrl} alt={story.title ?? ""} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     {story.title && (
                       <div style={{
@@ -186,7 +186,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
                   </div>
                 ))}
                 {vm.stories.length === 0 && (
-                  <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "var(--faint)", fontSize: "14px" }}>
+                  <div style={{ gridColumn: "1 / -1", textAlign: "center", padding: "40px", color: "var(--color-text-faint)", fontSize: "14px" }}>
                     <Image size={32} style={{ marginBottom: "8px", opacity: 0.4 }} />
                     <div>Nenhum story nesta categoria</div>
                     <div style={{ fontSize: "12px", marginTop: "4px" }}>Clique em "Adicionar Story" para começar</div>
@@ -195,7 +195,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
               </div>
             </>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--faint)" }}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--color-text-faint)" }}>
               <FolderOpen size={48} style={{ opacity: 0.3, marginBottom: "12px" }} />
               <div style={{ fontSize: "14px" }}>Selecione uma categoria</div>
             </div>
@@ -247,15 +247,15 @@ function SidePanel({ title, subtitle, onClose, children, width = 420 }: {
     <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={onClose}>
       <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.5)", backdropFilter: "blur(2px)" }} />
       <aside
-        style={{ position: "relative", width, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--card)", borderLeft: "1px solid var(--rule)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: "20px", animation: "slideInRight 0.2s ease-out" }}
+        style={{ position: "relative", width, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--surface-2)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: "20px", animation: "slideInRight 0.2s ease-out" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
           <div>
-            <h2 style={{ fontSize: "14px", fontWeight: 600, color: "var(--accent)", margin: 0 }}>{title}</h2>
-            {subtitle && <p style={{ fontSize: "12px", color: "var(--muted)", margin: "4px 0 0" }}>{subtitle}</p>}
+            <h2 style={{ fontSize: "14px", fontWeight: 600, color: "var(--color-brand)", margin: 0 }}>{title}</h2>
+            {subtitle && <p style={{ fontSize: "12px", color: "var(--color-text-muted)", margin: "4px 0 0" }}>{subtitle}</p>}
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 44, height: 44, borderRadius: 10, border: "1px solid var(--rule)", background: "var(--bg)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--ink)" }}>
+          <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 44, height: 44, borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}>
             <X size={22} />
           </button>
         </div>
@@ -267,9 +267,9 @@ function SidePanel({ title, subtitle, onClose, children, width = 420 }: {
 
 function PanelFooter({ onCancel, onSubmit, disabled, label }: { onCancel: () => void; onSubmit: () => void; disabled: boolean; label: string }) {
   return (
-    <div style={{ marginTop: "auto", display: "flex", gap: "8px", justifyContent: "flex-end", paddingTop: "16px", borderTop: "1px solid var(--rule)" }}>
-      <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "8px", border: "1px solid var(--rule)", background: "transparent", color: "var(--muted)", fontSize: "14px", cursor: "pointer" }}>Cancelar</button>
-      <button onClick={onSubmit} disabled={disabled} style={{ padding: "10px 20px", borderRadius: "8px", border: "none", background: "var(--accent)", color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer", opacity: disabled ? 0.5 : 1 }}>{label}</button>
+    <div style={{ marginTop: "auto", display: "flex", gap: "8px", justifyContent: "flex-end", paddingTop: "16px", borderTop: "1px solid var(--color-border)" }}>
+      <button onClick={onCancel} style={{ padding: "10px 20px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", fontSize: "14px", cursor: "pointer" }}>Cancelar</button>
+      <button onClick={onSubmit} disabled={disabled} style={{ padding: "10px 20px", borderRadius: "var(--radius-sm)", border: "none", background: "var(--color-brand)", color: "#fff", fontSize: "14px", fontWeight: 600, cursor: "pointer", opacity: disabled ? 0.5 : 1 }}>{label}</button>
     </div>
   );
 }
@@ -289,15 +289,15 @@ function StoryEditorContent({ vm }: { vm: ReturnType<typeof useStoriesPage> }) {
 
         {!editor.imagePreview ? (
           <div>
-            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: "100%", padding: "40px 16px", borderRadius: "12px", border: "2px dashed var(--rule)", background: "var(--bg)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", color: "var(--muted)", transition: "border-color 0.15s" }}>
+            <button type="button" onClick={() => fileInputRef.current?.click()} style={{ width: "100%", padding: "40px 16px", borderRadius: "12px", border: "2px dashed var(--color-border)", background: "var(--surface-1)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", color: "var(--color-text-muted)", transition: "border-color 0.15s" }}>
               <Upload size={28} style={{ opacity: 0.4 }} />
               <span style={{ fontSize: "13px", fontWeight: 600 }}>Enviar imagem do story</span>
-              <span style={{ fontSize: "11px", color: "var(--faint)" }}>JPEG, PNG ou WebP · Máx 5MB</span>
+              <span style={{ fontSize: "11px", color: "var(--color-text-faint)" }}>JPEG, PNG ou WebP · Máx 5MB</span>
             </button>
-            <div style={{ marginTop: "10px", padding: "10px 14px", borderRadius: "8px", background: "color-mix(in srgb, var(--accent) 8%, var(--card))", border: "1px solid color-mix(in srgb, var(--accent) 20%, transparent)", display: "flex", alignItems: "center", gap: "8px" }}>
+            <div style={{ marginTop: "10px", padding: "10px 14px", borderRadius: "var(--radius-sm)", background: "color-mix(in srgb, var(--color-brand) 8%, var(--surface-2))", border: "1px solid color-mix(in srgb, var(--color-brand) 20%, transparent)", display: "flex", alignItems: "center", gap: "8px" }}>
               <span style={{ fontSize: "16px" }}>📐</span>
-              <span style={{ fontSize: "11px", color: "var(--muted)", lineHeight: 1.4 }}>
-                Tamanho recomendado: <strong style={{ color: "var(--ink)" }}>1080 × 1920px</strong> (9:16 vertical). A imagem será exibida em tela cheia no storefront.
+              <span style={{ fontSize: "11px", color: "var(--color-text-muted)", lineHeight: 1.4 }}>
+                Tamanho recomendado: <strong style={{ color: "var(--color-text)" }}>1080 × 1920px</strong> (9:16 vertical). A imagem será exibida em tela cheia no storefront.
               </span>
             </div>
           </div>
@@ -308,12 +308,12 @@ function StoryEditorContent({ vm }: { vm: ReturnType<typeof useStoriesPage> }) {
 
       {/* Duration */}
       <div>
-        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>
+        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--color-text-muted)", marginBottom: "6px" }}>
           <Clock size={12} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
           Duração: {editor.duration}s
         </label>
-        <input type="range" min={3} max={15} value={editor.duration} onChange={(e) => updateEditorField("duration", Number(e.target.value))} style={{ width: "100%", accentColor: "var(--accent)" }} />
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--faint)", marginTop: "2px" }}><span>3s</span><span>15s</span></div>
+        <input type="range" min={3} max={15} value={editor.duration} onChange={(e) => updateEditorField("duration", Number(e.target.value))} style={{ width: "100%", accentColor: "var(--color-brand)" }} />
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "10px", color: "var(--color-text-faint)", marginTop: "2px" }}><span>3s</span><span>15s</span></div>
       </div>
 
       {/* Title */}
@@ -326,59 +326,59 @@ function StoryEditorContent({ vm }: { vm: ReturnType<typeof useStoriesPage> }) {
 
       {/* Title Config */}
       {editor.title && (
-        <div style={{ padding: "20px", borderRadius: "12px", border: "1px solid var(--rule)", background: "var(--bg)" }}>
-          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Estilo do Título</div>
+        <div style={{ padding: "20px", borderRadius: "12px", border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
+          <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--color-text-muted)", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.06em" }}>Estilo do Título</div>
 
           {/* Row 1: Font + Size */}
           <div style={{ display: "flex", gap: "12px", marginBottom: "14px" }}>
             <div style={{ flex: 1 }}>
-              <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Fonte</label>
-              <select value={editor.titleConfig.font} onChange={(e) => updateTitleConfig({ font: e.target.value })} style={{ width: "100%", padding: "9px 10px", borderRadius: "8px", border: "1px solid var(--rule)", fontSize: "12px", background: "var(--card)", color: "var(--text-primary, #fff)", colorScheme: "dark", appearance: "none", WebkitAppearance: "none", height: "38px" }}>
+              <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--color-text-faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Fonte</label>
+              <select value={editor.titleConfig.font} onChange={(e) => updateTitleConfig({ font: e.target.value })} style={{ width: "100%", padding: "9px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", fontSize: "12px", background: "var(--surface-2)", color: "var(--text-primary, #fff)", colorScheme: "dark", appearance: "none", WebkitAppearance: "none", height: "38px" }}>
                 {FONT_OPTIONS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
               </select>
             </div>
             <div style={{ width: "100px" }}>
-              <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Tamanho</label>
-              <input type="number" min={10} max={48} value={editor.titleConfig.fontSize} onChange={(e) => updateTitleConfig({ fontSize: Number(e.target.value) })} style={{ width: "100%", height: "38px", padding: "0 10px", borderRadius: "8px", border: "1px solid var(--rule)", fontSize: "14px", fontWeight: 600, background: "var(--card)", color: "var(--text-primary, #fff)", textAlign: "center", boxSizing: "border-box" }} />
+              <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--color-text-faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Tamanho</label>
+              <input type="number" min={10} max={48} value={editor.titleConfig.fontSize} onChange={(e) => updateTitleConfig({ fontSize: Number(e.target.value) })} style={{ width: "100%", height: "38px", padding: "0 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", fontSize: "14px", fontWeight: 600, background: "var(--surface-2)", color: "var(--text-primary, #fff)", textAlign: "center", boxSizing: "border-box" }} />
             </div>
           </div>
 
           {/* Row 2: Text color + Bg toggle */}
           <div style={{ display: "flex", gap: "12px", alignItems: "flex-end", marginBottom: "14px" }}>
             <div style={{ flex: 1 }}>
-              <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Cor do texto</label>
+              <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--color-text-faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Cor do texto</label>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <input type="color" value={editor.titleConfig.color} onChange={(e) => updateTitleConfig({ color: e.target.value })} style={{ width: "36px", height: "36px", borderRadius: "8px", border: "1px solid var(--rule)", cursor: "pointer", padding: 0 }} />
-                <span style={{ fontSize: "11px", fontFamily: "monospace", color: "var(--muted)" }}>{editor.titleConfig.color}</span>
+                <input type="color" value={editor.titleConfig.color} onChange={(e) => updateTitleConfig({ color: e.target.value })} style={{ width: "36px", height: "36px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", cursor: "pointer", padding: 0 }} />
+                <span style={{ fontSize: "11px", fontFamily: "monospace", color: "var(--color-text-muted)" }}>{editor.titleConfig.color}</span>
               </div>
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", padding: "8px 0" }}>
-              <input type="checkbox" checked={editor.titleConfig.hasBg} onChange={(e) => updateTitleConfig({ hasBg: e.target.checked })} style={{ width: "16px", height: "16px", accentColor: "var(--accent)", borderRadius: "4px" }} />
-              <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--muted)" }}>Fundo</span>
+              <input type="checkbox" checked={editor.titleConfig.hasBg} onChange={(e) => updateTitleConfig({ hasBg: e.target.checked })} style={{ width: "16px", height: "16px", accentColor: "var(--color-brand)", borderRadius: "4px" }} />
+              <span style={{ fontSize: "11px", fontWeight: 500, color: "var(--color-text-muted)" }}>Fundo</span>
             </label>
           </div>
 
           {/* Row 3: Background settings (conditional) */}
           {editor.titleConfig.hasBg && (
-            <div style={{ display: "flex", gap: "16px", alignItems: "flex-end", paddingTop: "14px", borderTop: "1px solid var(--rule)" }}>
+            <div style={{ display: "flex", gap: "16px", alignItems: "flex-end", paddingTop: "14px", borderTop: "1px solid var(--color-border)" }}>
               <div>
-                <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Cor fundo</label>
-                <input type="color" value={editor.titleConfig.bgColor} onChange={(e) => updateTitleConfig({ bgColor: e.target.value })} style={{ width: "38px", height: "38px", borderRadius: "8px", border: "1px solid var(--rule)", cursor: "pointer", padding: 0 }} />
+                <label style={{ display: "block", fontSize: "10px", fontWeight: 600, color: "var(--color-text-faint)", marginBottom: "5px", textTransform: "uppercase", letterSpacing: "0.04em" }}>Cor fundo</label>
+                <input type="color" value={editor.titleConfig.bgColor} onChange={(e) => updateTitleConfig({ bgColor: e.target.value })} style={{ width: "38px", height: "38px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", cursor: "pointer", padding: 0 }} />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "5px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Opacidade</label>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink)" }}>{Math.round(editor.titleConfig.bgOpacity * 100)}%</span>
+                  <label style={{ fontSize: "10px", fontWeight: 600, color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Opacidade</label>
+                  <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--color-text)" }}>{Math.round(editor.titleConfig.bgOpacity * 100)}%</span>
                 </div>
-                <input type="range" min={0} max={100} value={editor.titleConfig.bgOpacity * 100} onChange={(e) => updateTitleConfig({ bgOpacity: Number(e.target.value) / 100 })} style={{ width: "100%", accentColor: "var(--accent)", height: "6px" }} />
+                <input type="range" min={0} max={100} value={editor.titleConfig.bgOpacity * 100} onChange={(e) => updateTitleConfig({ bgOpacity: Number(e.target.value) / 100 })} style={{ width: "100%", accentColor: "var(--color-brand)", height: "6px" }} />
               </div>
             </div>
           )}
 
           {editor.imagePreview && (
-            <div style={{ marginTop: "14px", padding: "8px 12px", borderRadius: "6px", background: "color-mix(in srgb, var(--accent, #10b981) 6%, transparent)", display: "flex", alignItems: "center", gap: "6px" }}>
+            <div style={{ marginTop: "14px", padding: "8px 12px", borderRadius: "6px", background: "color-mix(in srgb, var(--color-brand, #10b981) 6%, transparent)", display: "flex", alignItems: "center", gap: "6px" }}>
               <span style={{ fontSize: "12px" }}>↕</span>
-              <span style={{ fontSize: "10px", color: "var(--muted)" }}>Arraste o título no preview para posicionar</span>
+              <span style={{ fontSize: "10px", color: "var(--color-text-muted)" }}>Arraste o título no preview para posicionar</span>
             </div>
           )}
         </div>
@@ -418,7 +418,7 @@ function DraggablePreview({ editor, updateTitleConfig, onReplace }: {
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px" }}>
       <div
         ref={containerRef}
-        style={{ position: "relative", width: "220px", aspectRatio: "9/16", borderRadius: "14px", overflow: "hidden", border: "2px solid var(--rule)", background: "#111" }}
+        style={{ position: "relative", width: "220px", aspectRatio: "9/16", borderRadius: "var(--radius-md)", overflow: "hidden", border: "2px solid var(--color-border)", background: "#111" }}
       >
         <img src={editor.imagePreview} style={{ width: "100%", height: "100%", objectFit: "cover" }} alt="Preview" />
         {editor.uploading && (

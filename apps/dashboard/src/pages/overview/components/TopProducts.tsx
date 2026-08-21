@@ -27,8 +27,8 @@ export function TopProducts({ products }: TopProductsProps) {
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
         borderRadius: 14,
         padding: 20,
         display: "flex",
@@ -40,9 +40,9 @@ export function TopProducts({ products }: TopProductsProps) {
         style={{
           fontSize: 14,
           fontWeight: 700,
-          color: "var(--ink)",
+          color: "var(--color-brand)",
           margin: 0,
-          fontFamily: "var(--sans)",
+          fontFamily: "var(--font-sans)",
           letterSpacing: -0.3,
         }}
       >
@@ -54,7 +54,7 @@ export function TopProducts({ products }: TopProductsProps) {
           style={{
             padding: 24,
             textAlign: "center",
-            color: "var(--muted)",
+            color: "var(--color-text-muted)",
             fontSize: 12,
           }}
         >
@@ -70,7 +70,7 @@ export function TopProducts({ products }: TopProductsProps) {
         >
           {top.map((product, i) => {
             const progressWidth = (product.revenue / maxRevenue) * 100;
-            const rankColors = ["var(--accent)", "var(--good)", "var(--warn)", "var(--muted)", "var(--muted)"];
+            const rankColors = ["var(--color-brand)", "var(--color-success)", "var(--color-warning)", "var(--color-text-muted)", "var(--color-text-muted)"];
 
             return (
               <div
@@ -81,7 +81,7 @@ export function TopProducts({ products }: TopProductsProps) {
                   gap: 12,
                   padding: "10px 0",
                   borderBottom:
-                    i < top.length - 1 ? "1px solid var(--border)" : "none",
+                    i < top.length - 1 ? "1px solid var(--color-border)" : "none",
                 }}
               >
                 {/* Rank badge */}
@@ -96,7 +96,7 @@ export function TopProducts({ products }: TopProductsProps) {
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: 12,
-                    fontFamily: "var(--mono)",
+                    fontFamily: "var(--font-mono)",
                     fontWeight: 800,
                     color: rankColors[i],
                     flexShrink: 0,
@@ -115,7 +115,7 @@ export function TopProducts({ products }: TopProductsProps) {
                       height: 36,
                       borderRadius: 10,
                       objectFit: "cover",
-                      border: "1px solid var(--border)",
+                      border: "1px solid var(--color-border)",
                       flexShrink: 0,
                     }}
                   />
@@ -127,12 +127,12 @@ export function TopProducts({ products }: TopProductsProps) {
                       height: 36,
                       borderRadius: 10,
                       background: "oklch(16% 0.003 145)",
-                      border: "1px solid var(--border)",
+                      border: "1px solid var(--color-border)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 13,
-                      color: "var(--muted)",
+                      color: "var(--color-text-muted)",
                       fontWeight: 700,
                       flexShrink: 0,
                     }}
@@ -146,7 +146,7 @@ export function TopProducts({ products }: TopProductsProps) {
                   <div
                     style={{
                       fontSize: 13,
-                      color: "var(--ink)",
+                      color: "var(--color-text)",
                       fontWeight: 500,
                       whiteSpace: "nowrap",
                       overflow: "hidden",
@@ -183,10 +183,10 @@ export function TopProducts({ products }: TopProductsProps) {
                 <span
                   style={{
                     fontSize: 11,
-                    fontFamily: "var(--mono)",
-                    color: "var(--muted)",
+                    fontFamily: "var(--font-mono)",
+                    color: "var(--color-text-muted)",
                     background: "oklch(16% 0.003 145)",
-                    border: "1px solid var(--border)",
+                    border: "1px solid var(--color-border)",
                     borderRadius: 6,
                     padding: "3px 8px",
                     flexShrink: 0,
@@ -200,9 +200,9 @@ export function TopProducts({ products }: TopProductsProps) {
                 <span
                   style={{
                     fontSize: 12,
-                    fontFamily: "var(--mono)",
+                    fontFamily: "var(--font-mono)",
                     fontWeight: 700,
-                    color: "var(--ink)",
+                    color: "var(--color-text)",
                     minWidth: 85,
                     textAlign: "right",
                     flexShrink: 0,

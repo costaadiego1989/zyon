@@ -15,10 +15,10 @@ export type ActivityFeedProps = {
 };
 
 const TYPE_COLOR: Record<ActivityType, string> = {
-  order: "var(--accent)",
+  order: "var(--color-brand)",
   session: "oklch(70% 0.14 250)",
-  offer: "var(--warn)",
-  payment: "var(--good)",
+  offer: "var(--color-warning)",
+  payment: "var(--color-success)",
 };
 
 const TYPE_ICON: Record<ActivityType, string> = {
@@ -62,8 +62,8 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
         borderRadius: 14,
         padding: 20,
         height: "100%",
@@ -74,17 +74,17 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
       }}
     >
       <div style={{ marginBottom: 12 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--accent)", margin: 0, fontFamily: "var(--sans)", letterSpacing: "-0.01em" }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--color-brand)", margin: 0, fontFamily: "var(--font-sans)", letterSpacing: "-0.01em" }}>
           Atividade Recente
         </h3>
-        <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>Últimos eventos</p>
+        <p style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 2 }}>Últimos eventos</p>
       </div>
       {visible.length === 0 ? (
         <div
           style={{
             padding: 32,
             textAlign: "center",
-            color: "var(--muted)",
+            color: "var(--color-text-muted)",
             fontSize: 13,
           }}
         >
@@ -105,7 +105,7 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
               top: 8,
               bottom: 8,
               width: 2,
-              background: "var(--border)",
+              background: "var(--color-border)",
               borderRadius: 999,
             }}
           />
@@ -133,7 +133,7 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
                     width: 12,
                     height: 12,
                     borderRadius: 999,
-                    background: "var(--card)",
+                    background: "var(--surface-2)",
                     border: `2px solid ${color}`,
                     boxShadow: `0 0 0 3px oklch(18.5% 0.004 145)`,
                     zIndex: 2,
@@ -155,7 +155,7 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
                     <div
                       style={{
                         fontSize: 13,
-                        color: "var(--ink)",
+                        color: "var(--color-text)",
                         fontWeight: 500,
                         whiteSpace: "nowrap",
                         overflow: "hidden",
@@ -182,7 +182,7 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
                           background: color + "1a",
                           padding: "2px 6px",
                           borderRadius: 4,
-                          fontFamily: "var(--sans)",
+                          fontFamily: "var(--font-sans)",
                         }}
                       >
                         {TYPE_LABEL[item.type]}
@@ -190,8 +190,8 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
                       <span
                         style={{
                           fontSize: 11,
-                          color: "var(--muted)",
-                          fontFamily: "var(--mono)",
+                          color: "var(--color-text-muted)",
+                          fontFamily: "var(--font-mono)",
                         }}
                       >
                         {relativeTime(item.timestamp)}
@@ -203,11 +203,11 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
                     <span
                       style={{
                         fontSize: 13,
-                        fontFamily: "var(--mono)",
+                        fontFamily: "var(--font-mono)",
                         fontWeight: 700,
-                        color: "var(--ink)",
+                        color: "var(--color-text)",
                         flexShrink: 0,
-                        background: "var(--accent-soft)",
+                        background: "var(--color-brand-subtle)",
                         padding: "4px 10px",
                         borderRadius: 8,
                       }}

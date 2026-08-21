@@ -14,7 +14,7 @@ export function RevenueChart({
   data,
   type = "line",
   label = "Receita",
-  color = "var(--accent)",
+  color = "var(--color-brand)",
   valueFormat = "number",
 }: RevenueChartProps) {
   if (!data || data.length === 0) {
@@ -23,11 +23,11 @@ export function RevenueChart({
         style={{
           padding: "32px 16px",
           textAlign: "center",
-          color: "var(--muted)",
+          color: "var(--color-text-muted)",
           fontSize: 13,
-          background: "var(--card)",
+          background: "var(--surface-2)",
           borderRadius: 14,
-          border: "1px solid var(--border)",
+          border: "1px solid var(--color-border)",
         }}
       >
         Sem dados no período
@@ -96,8 +96,8 @@ export function RevenueChart({
   return (
     <div
       style={{
-        background: "var(--card)",
-        border: "1px solid var(--border)",
+        background: "var(--surface-2)",
+        border: "1px solid var(--color-border)",
         borderRadius: 14,
         padding: 20,
         display: "flex",
@@ -118,9 +118,9 @@ export function RevenueChart({
           <div
             style={{
               fontSize: 14,
-              color: "var(--ink)",
+              color: "var(--color-brand)",
               fontWeight: 700,
-              fontFamily: "var(--sans)",
+              fontFamily: "var(--font-sans)",
               letterSpacing: -0.3,
             }}
           >
@@ -129,9 +129,9 @@ export function RevenueChart({
           <div
             style={{
               fontSize: 11,
-              color: "var(--muted)",
+              color: "var(--color-text-muted)",
               marginTop: 2,
-              fontFamily: "var(--sans)",
+              fontFamily: "var(--font-sans)",
             }}
           >
             {data.length} pontos · período atual
@@ -140,9 +140,9 @@ export function RevenueChart({
         <div
           style={{
             fontSize: 22,
-            fontFamily: "var(--mono)",
+            fontFamily: "var(--font-mono)",
             fontWeight: 700,
-            color: "var(--ink)",
+            color: "var(--color-text)",
             letterSpacing: -0.5,
           }}
         >

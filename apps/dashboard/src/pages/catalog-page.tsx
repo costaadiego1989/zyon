@@ -182,6 +182,7 @@ export function CatalogPage(props: CatalogPageProps) {
       <>
         <header className="page-head">
           <div>
+            <span className="eyebrow">Loja</span>
             <h1>Catálogo</h1>
             <p className="page-lead">Login necessário</p>
           </div>
@@ -193,11 +194,13 @@ export function CatalogPage(props: CatalogPageProps) {
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <div>
-          <span className="eyebrow">LOJA</span>
-          <h1 >Catálogo</h1>
-          <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
-        </div>
+        <header className="page-head">
+          <div>
+            <span className="eyebrow">Loja</span>
+            <h1>Catálogo</h1>
+            <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
+          </div>
+        </header>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <Button variant="outline" size="sm" onClick={() => setShowCsvModal(true)}>
             <Upload size={14} /> Importar CSV
@@ -209,19 +212,19 @@ export function CatalogPage(props: CatalogPageProps) {
       </div>
 
       {pageError || error ? (
-        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--danger-soft)", border: "1px solid var(--danger)", font: "13px var(--sans)", color: "var(--danger)", marginBottom: 16 }}>
+        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
           {pageError ?? error}
         </div>
       ) : null}
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 20 }}>
         <StatCard label="Produtos" value={totals.total} icon={<Package size={16} />} />
-        <StatCard label="Em estoque" value={totals.inStock} icon={<ShoppingBag size={16} />} accent="var(--good)" />
-        <StatCard label="Inativos" value={totals.inactive} icon={<Pause size={16} />} accent="var(--faint)" />
+        <StatCard label="Em estoque" value={totals.inStock} icon={<ShoppingBag size={16} />} accent="var(--color-success)" />
+        <StatCard label="Inativos" value={totals.inactive} icon={<Pause size={16} />} accent="var(--color-text-faint)" />
       </div>
 
       <SectionErrorBoundary sectionName="Tabela do Catálogo">
-      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden" }}>
         <FilterToolbar
           tabs={[
             { key: "all", label: "Todos" },
@@ -246,7 +249,7 @@ export function CatalogPage(props: CatalogPageProps) {
         />
 
         {loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>Carregando produtos...</div>
+          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produtos...</div>
         ) : filteredItems.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
@@ -259,7 +262,7 @@ export function CatalogPage(props: CatalogPageProps) {
             <thead>
               <tr>
                 {["NOME", "TIPO", "PREÇO", "ESTOQUE", "STATUS", ""].map((c) => (
-                  <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--mono)", letterSpacing: "0.05em", color: "var(--faint)", borderBottom: "1px solid var(--border)" }}>{c}</th>
+                  <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
                 ))}
               </tr>
             </thead>
@@ -273,20 +276,20 @@ export function CatalogPage(props: CatalogPageProps) {
                     onClick={() => props.onEdit?.(p.id)}
                     onMouseEnter={() => setHoveredRow(p.id)}
                     onMouseLeave={() => setHoveredRow(null)}
-                    style={{ cursor: "pointer", background: hoveredRow === p.id ? "var(--bg)" : "transparent", transition: "background 0.15s" }}
+                    style={{ cursor: "pointer", background: hoveredRow === p.id ? "var(--surface-1)" : "transparent", transition: "background 0.15s" }}
                   >
-                    <td style={{ padding: "12px 22px", font: "13px var(--sans)", color: "var(--ink)", borderBottom: "1px solid var(--border)" }}>{p.name}</td>
-                    <td style={{ padding: "12px 22px", font: "11px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{PRODUCT_TYPE_LABELS[p.type ?? "simple"] || p.type || "—"}</td>
-                    <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: "var(--muted)", borderBottom: "1px solid var(--border)" }}>{formatPrice(price, currency)}</td>
-                    <td style={{ padding: "12px 22px", font: "13px var(--mono)", color: stock > 0 ? "var(--good)" : "var(--danger)", borderBottom: "1px solid var(--border)" }}>{stock}</td>
-                    <td style={{ padding: "12px 22px", font: "12px var(--mono)", color: p.isActive ? "var(--good)" : "var(--faint)", borderBottom: "1px solid var(--border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>
-                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--border)", textAlign: "right" }}>
+                    <td style={{ padding: "12px 22px", font: "13px var(--font-sans)", color: "var(--color-text)", borderBottom: "1px solid var(--color-border)" }}>{p.name}</td>
+                    <td style={{ padding: "12px 22px", font: "11px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{PRODUCT_TYPE_LABELS[p.type ?? "simple"] || p.type || "—"}</td>
+                    <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{formatPrice(price, currency)}</td>
+                    <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: stock > 0 ? "var(--color-success)" : "var(--color-error)", borderBottom: "1px solid var(--color-border)" }}>{stock}</td>
+                    <td style={{ padding: "12px 22px", font: "12px var(--font-mono)", color: p.isActive ? "var(--color-success)" : "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>
+                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
                         <button
                           type="button"
                           onClick={() => props.onEdit?.(p.id)}
                           aria-label={`Editar ${p.name}`}
-                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: "var(--ink)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)" }}
+                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
                         >
                           <Pencil size={12} /> Editar
                         </button>
@@ -295,7 +298,7 @@ export function CatalogPage(props: CatalogPageProps) {
                           onClick={() => void toggleActive(p)}
                           disabled={togglingId === p.id}
                           aria-label={p.isActive ? `Pausar ${p.name}` : `Ativar ${p.name}`}
-                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--border)", background: "var(--card)", color: p.isActive ? "var(--muted)" : "var(--good)", cursor: togglingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)", opacity: togglingId === p.id ? 0.6 : 1 }}
+                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: p.isActive ? "var(--color-text-muted)" : "var(--color-success)", cursor: togglingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: togglingId === p.id ? 0.6 : 1 }}
                         >
                           {p.isActive ? <><Pause size={12} /> Pausar</> : <><Play size={12} /> Ativar</>}
                         </button>
@@ -304,7 +307,7 @@ export function CatalogPage(props: CatalogPageProps) {
                           onClick={() => void confirmDelete(p)}
                           disabled={deletingId === p.id}
                           aria-label={`Remover ${p.name}`}
-                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--danger)", background: "var(--danger-soft)", color: "var(--danger)", cursor: deletingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--sans)", opacity: deletingId === p.id ? 0.6 : 1 }}
+                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: deletingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: deletingId === p.id ? 0.6 : 1 }}
                         >
                           <Trash2 size={12} /> Remover
                         </button>

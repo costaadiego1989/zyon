@@ -42,8 +42,8 @@ export function ImageUploadField({
 
   return (
     <div>
-      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--ink)", marginBottom: 4 }}>{label}</div>
-      {hint && <div style={{ fontSize: 11, color: "var(--faint)", marginBottom: 10 }}>{hint}</div>}
+      <div style={{ fontWeight: 600, fontSize: 13, color: "var(--color-text)", marginBottom: 4 }}>{label}</div>
+      {hint && <div style={{ fontSize: 11, color: "var(--color-text-faint)", marginBottom: 10 }}>{hint}</div>}
 
       {value ? (
         <div style={{ position: "relative", display: "inline-block" }}>
@@ -56,7 +56,7 @@ export function ImageUploadField({
               maxHeight: previewSize * 1.5,
               objectFit: "cover",
               borderRadius: previewRound ? "50%" : 10,
-              border: "1px solid var(--rule, #333)",
+              border: "1px solid var(--color-border, #333)",
               display: "block",
             }}
           />
@@ -71,9 +71,9 @@ export function ImageUploadField({
               width: 24,
               height: 24,
               borderRadius: 8,
-              border: "1px solid var(--rule, #333)",
-              background: "var(--card, #222)",
-              color: "var(--ink, #fff)",
+              border: "1px solid var(--color-border, #333)",
+              background: "var(--surface-2, #222)",
+              color: "var(--color-text, #fff)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -92,11 +92,11 @@ export function ImageUploadField({
           justifyContent: "center",
           padding: "16px 20px",
           borderRadius: 8,
-          border: "2px dashed var(--rule)",
-          background: "var(--bg)",
+          border: "2px dashed var(--color-border)",
+          background: "var(--surface-1)",
           cursor: "pointer",
           fontSize: 12,
-          color: "var(--muted)",
+          color: "var(--color-text-muted)",
           transition: "border-color 0.15s",
         }}>
           Arraste ou clique para enviar
