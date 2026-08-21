@@ -1,6 +1,7 @@
 import React from "react";
 import { Save } from "lucide-react";
 import { Button } from "../../components/Button.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useCrossSellPage, type CrossSellContext } from "./useCrossSellPage.js";
 import type { CrossSellTouchpoint, CrossSellStrategy, CrossSellDisplayMode } from "@zyon/shared-types";
 
@@ -55,12 +56,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
               <h3 style={{ font: "600 14px var(--sans)", color: "var(--ink)", margin: "0 0 4px" }}>Cross Sell ativo</h3>
               <p style={{ font: "12px var(--sans)", color: "var(--muted)", margin: 0 }}>Habilita sugestões de produtos complementares pela IA</p>
             </div>
-            <label style={{ position: "relative", width: 42, height: 24, cursor: "pointer" }}>
-              <input type="checkbox" checked={config.enabled} onChange={() => patchConfig({ enabled: !config.enabled })} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
-              <span style={{ position: "absolute", inset: 0, borderRadius: 12, background: config.enabled ? "var(--accent)" : "var(--border)", transition: "background 0.2s" }}>
-                <span style={{ position: "absolute", top: 2, left: config.enabled ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-              </span>
-            </label>
+            <ToggleSwitch checked={config.enabled} onChange={() => patchConfig({ enabled: !config.enabled })} />
           </div>
         </section>
 
@@ -76,12 +72,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                       <div style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>{TOUCHPOINT_LABELS[tp].title}</div>
                       <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginTop: 2 }}>{TOUCHPOINT_LABELS[tp].desc}</div>
                     </div>
-                    <label style={{ position: "relative", width: 38, height: 22, cursor: "pointer", flexShrink: 0 }}>
-                      <input type="checkbox" checked={config.touchpoints[tp]} onChange={() => toggleTouchpoint(tp)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
-                      <span style={{ position: "absolute", inset: 0, borderRadius: 11, background: config.touchpoints[tp] ? "var(--accent)" : "var(--border)", transition: "background 0.2s" }}>
-                        <span style={{ position: "absolute", top: 2, left: config.touchpoints[tp] ? 18 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
-                      </span>
-                    </label>
+                    <ToggleSwitch checked={config.touchpoints[tp]} onChange={() => toggleTouchpoint(tp)} />
                   </div>
                 ))}
               </div>
@@ -138,12 +129,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
                     <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Desconto no cross-sell</span>
                     <span style={{ font: "11px var(--sans)", color: "var(--muted)", display: "block", marginTop: 2 }}>Oferecer desconto no produto sugerido</span>
                   </div>
-                  <label style={{ position: "relative", width: 38, height: 22, cursor: "pointer" }}>
-                    <input type="checkbox" checked={config.discount.enabled} onChange={() => patchConfig({ discount: { ...config.discount, enabled: !config.discount.enabled } })} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
-                    <span style={{ position: "absolute", inset: 0, borderRadius: 11, background: config.discount.enabled ? "var(--accent)" : "var(--border)", transition: "background 0.2s" }}>
-                      <span style={{ position: "absolute", top: 2, left: config.discount.enabled ? 18 : 2, width: 18, height: 18, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
-                    </span>
-                  </label>
+                  <ToggleSwitch checked={config.discount.enabled} onChange={() => patchConfig({ discount: { ...config.discount, enabled: !config.discount.enabled } })} />
                 </div>
                 {config.discount.enabled && (
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
