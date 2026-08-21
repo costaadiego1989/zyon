@@ -51,9 +51,16 @@ export interface FunnelResult {
 
 const STEP_DEFINITIONS = [
   { name: "checkout_started", label: "Checkout Iniciado", events: [] as string[] },
+  { name: "auth_phone_submitted", label: "Informou telefone", events: ["auth_phone_submitted"] },
+  { name: "auth_phone_verified", label: "Verificou OTP", events: ["auth_phone_verified"] },
+  { name: "auth_identity_confirmed", label: "Confirmou identidade", events: ["auth_identity_confirmed"] },
+  { name: "auth_registration_completed", label: "Cadastro concluído", events: ["auth_registration_completed"] },
   { name: "shipping", label: "Frete", events: ["shipping_calculated", "shipping_option_selected"] },
+  { name: "cross_sell_added", label: "Aceitou cross-sell", events: ["cross_sell_accepted", "cross_sell_added"] },
+  { name: "coupon_applied", label: "Aplicou cupom", events: ["coupon_applied", "coupon_field_clicked"] },
   { name: "payment", label: "Pagamento", events: ["payment_method_selected"] },
   { name: "completed", label: "Concluído", events: ["order_completed"] },
+  { name: "sale_declined", label: "Venda recusada", events: ["payment_failed", "sale_declined"] },
 ] as const;
 
 @Injectable()
@@ -116,34 +123,19 @@ export class GetFunnelUseCase {
 
     const totalSessions = sessionEvents.size;
 
-    // Step 1: any session with any event = checkout_started
-    const step1Count = totalSessions;
-
-    // Step 2: sessions with shipping_calculated or shipping_option_selected
-    const step2Sessions = new Set<string>();
-    for (const [sid, evts] of sessionEvents) {
-      if (evts.some(e => e.eventName === "shipping_calculated" || e.eventName === "shipping_option_selected")) {
-        step2Sessions.add(sid);
+    // Compute step counts dynamically for all steps
+    const stepCounts = STEP_DEFINITIONS.map((def) => {
+      let count = 0;
+      for (const [, evts] of sessionEvents) {
+        // For checkout_started, count is total sessions (any event = started)
+        if (def.name === "checkout_started") {
+          count = totalSessions;
+        } else if (def.events.some(e => evts.some(ev => ev.eventName === e))) {
+          count++;
+        }
       }
-    }
-
-    // Step 3: sessions with payment_method_selected
-    const step3Sessions = new Set<string>();
-    for (const [sid, evts] of sessionEvents) {
-      if (evts.some(e => e.eventName === "payment_method_selected")) {
-        step3Sessions.add(sid);
-      }
-    }
-
-    // Step 4: sessions with order_completed
-    const step4Sessions = new Set<string>();
-    for (const [sid, evts] of sessionEvents) {
-      if (evts.some(e => e.eventName === "order_completed")) {
-        step4Sessions.add(sid);
-      }
-    }
-
-    const stepCounts = [step1Count, step2Sessions.size, step3Sessions.size, step4Sessions.size];
+      return count;
+    });
 
     const steps: FunnelStep[] = STEP_DEFINITIONS.map((def, i) => ({
       name: def.name,
@@ -189,8 +181,10 @@ export class GetFunnelUseCase {
       }
     }
 
+    const completedStepIdx = STEP_DEFINITIONS.findIndex(d => d.name === "completed");
+    const completedCount = completedStepIdx >= 0 ? stepCounts[completedStepIdx] : 0;
     const overallConversion = totalSessions > 0
-      ? Math.round((step4Sessions.size / totalSessions) * 10000) / 100
+      ? Math.round((completedCount / totalSessions) * 10000) / 100
       : 0;
 
     return {
@@ -331,11 +325,12 @@ export class GetFunnelUseCase {
     }
 
     const total = sessionEventNames.size;
-    const step2 = [...sessionEventNames.values()].filter(s => s.has("shipping_calculated") || s.has("shipping_option_selected")).length;
-    const step3 = [...sessionEventNames.values()].filter(s => s.has("payment_method_selected")).length;
-    const step4 = [...sessionEventNames.values()].filter(s => s.has("order_completed")).length;
+    const allSets = [...sessionEventNames.values()];
 
-    const stepCounts = [total, step2, step3, step4];
+    const stepCounts = STEP_DEFINITIONS.map((def) => {
+      if (def.name === "checkout_started") return total;
+      return allSets.filter(s => def.events.some(e => s.has(e))).length;
+    });
 
     const steps: FunnelStep[] = STEP_DEFINITIONS.map((def, i) => ({
       name: def.name,
@@ -344,15 +339,22 @@ export class GetFunnelUseCase {
       percentage: total > 0 ? Math.round((stepCounts[i] / total) * 10000) / 100 : 0,
     }));
 
+    const completedIdx = STEP_DEFINITIONS.findIndex(d => d.name === "completed");
+    const completedCount = completedIdx >= 0 ? stepCounts[completedIdx] : 0;
+
     return {
       steps,
-      overallConversion: total > 0 ? Math.round((step4 / total) * 10000) / 100 : 0,
+      overallConversion: total > 0 ? Math.round((completedCount / total) * 10000) / 100 : 0,
     };
   }
 }
 
 function buildMockSteps(baseCount: number): FunnelStep[] {
-  const counts = [baseCount, Math.round(baseCount * 0.7), Math.round(baseCount * 0.45), Math.round(baseCount * 0.25)];
+  // Generate a declining funnel from baseCount for each step definition
+  const counts = STEP_DEFINITIONS.map((_, i) => {
+    const decay = 1 - (i / (STEP_DEFINITIONS.length - 1)) * 0.75;
+    return Math.round(baseCount * decay);
+  });
   return STEP_DEFINITIONS.map((def, i) => ({
     name: def.name,
     label: def.label,

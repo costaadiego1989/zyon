@@ -31,9 +31,16 @@ const STOREFRONT_STEP_DEFINITIONS = [
   { name: "checkout_started", label: "Visitou a loja", events: ["checkout_started"] },
   { name: "product_viewed", label: "Viu produto", events: ["product_viewed"] },
   { name: "cart_viewed", label: "Adicionou ao carrinho", events: ["cart_viewed"] },
+  { name: "auth_phone_submitted", label: "Informou telefone", events: ["auth_phone_submitted"] },
+  { name: "auth_phone_verified", label: "Verificou OTP", events: ["auth_phone_verified"] },
+  { name: "auth_identity_confirmed", label: "Confirmou identidade", events: ["auth_identity_confirmed"] },
+  { name: "auth_registration_completed", label: "Cadastro concluído", events: ["auth_registration_completed"] },
   { name: "shipping_calculated", label: "Calculou frete", events: ["shipping_calculated", "shipping_option_selected"] },
+  { name: "cross_sell_added", label: "Aceitou cross-sell", events: ["cross_sell_accepted", "cross_sell_added"] },
+  { name: "coupon_applied", label: "Aplicou cupom", events: ["coupon_applied", "coupon_field_clicked"] },
   { name: "payment_method_selected", label: "Selecionou pagamento", events: ["payment_method_selected"] },
   { name: "order_completed", label: "Pedido confirmado", events: ["order_completed"] },
+  { name: "sale_declined", label: "Venda recusada", events: ["payment_failed", "sale_declined"] },
 ] as const;
 
 @Injectable()

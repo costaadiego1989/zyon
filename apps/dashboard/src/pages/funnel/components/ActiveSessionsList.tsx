@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Activity } from "lucide-react";
 import { EmptyState } from "../../../components/EmptyState.js";
+import { SectionHeader } from "../../../components/SectionHeader.js";
 import type { FunnelSession } from "../useFunnelPage.js";
 
 interface ActiveSessionsListProps {
@@ -27,10 +28,11 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
 
   return (
     <div className="fnl-sessions-card">
-      <div className="fnl-sessions-head">
-        <h3 className="fnl-sessions-title">Sessões Ativas</h3>
-        <span className="fnl-sessions-badge">{sessions.length}</span>
-      </div>
+      <SectionHeader
+        variant="secondary"
+        title="Sessões Ativas"
+        trailing={<span className="fnl-sessions-badge">{sessions.length}</span>}
+      />
 
       {sessions.length === 0 ? (
         loading ? (

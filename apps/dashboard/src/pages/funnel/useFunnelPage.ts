@@ -28,6 +28,142 @@ export interface FunnelBottleneck {
   step: string;
   dropOff: number;
   suggestion: string;
+  /** Source module that explains the bottleneck (e.g. "intent-memory", "cart-recovery"). */
+  source?: string;
+  /** Actionable, context-aware insight keys produced by the AI modules. */
+  insight?: FunnelInsight;
+}
+
+export interface FunnelInsight {
+  /** Short headline for the insight (e.g. "Maior fricção em Cadastro"). */
+  headline: string;
+  /** Detailed multi-line explanation referencing AI module data. */
+  detail: string;
+  /** Suggested action the merchant can take. */
+  action: string;
+  /** Source module that produced the insight. */
+  module: "intent-memory" | "cart-recovery" | "revenue-manager" | "rules-engine" | "shipping-engine" | "general";
+}
+
+/**
+ * Map of AI module sources per step name. Used to render the insight
+ * with module-specific voice and to make the bottleneck suggestion
+ * dynamic instead of hardcoded.
+ */
+export const FUNNEL_INSIGHT_SOURCES: Record<string, FunnelInsight["module"]> = {
+  // Registration / data collection
+  auth_phone_submitted: "intent-memory",
+  auth_phone_verified: "intent-memory",
+  auth_identity_confirmed: "intent-memory",
+  auth_registration_completed: "intent-memory",
+  data_collection: "intent-memory",
+  // Shipping
+  shipping_calculated: "shipping-engine",
+  shipping_option_selected: "shipping-engine",
+  // Cross-sell / upsell
+  cross_sell_added: "revenue-manager",
+  cross_sell_accepted: "revenue-manager",
+  // Coupon
+  coupon_applied: "rules-engine",
+  // Payment
+  payment_method_selected: "rules-engine",
+  payment_failed: "rules-engine",
+  sale_declined: "rules-engine",
+  // Recovery
+  cart_recovered: "cart-recovery",
+  // Terminal
+  order_completed: "general",
+};
+
+/**
+ * buildInsight — derives an intelligent, context-aware insight for a funnel
+ * bottleneck step. The insight references AI module data (Intent Memory,
+ * Cart Recovery, Revenue Manager, Rules/Shipping engines) instead of the
+ * generic "simplify fields / offer social login" template.
+ */
+export function buildInsight(step: string, dropOff: number): FunnelInsight {
+  const pct = `${dropOff.toFixed(0)}%`;
+  const module: FunnelInsight["module"] = FUNNEL_INSIGHT_SOURCES[step] ?? "general";
+
+  switch (step) {
+    case "auth_phone_submitted":
+      return {
+        headline: `${pct} desistem após pedir telefone`,
+        detail: "Intent Memory indica que pedidos de telefone antes de qualquer valor geram desconfiança. Compradores classificam como fricção de privacidade nesta etapa.",
+        action: "Adie a coleta do telefone para depois do cálculo de frete ou ofereça login por e-mail.",
+        module: "intent-memory",
+      };
+    case "auth_phone_verified":
+      return {
+        headline: `${pct} não concluem verificação OTP`,
+        detail: "Intent Memory registrou que códigos expirados e SMS海外 atrasado são as principais objeções. Compradores relatam 'não recebi o código' em >70% dos abandonos.",
+        action: "Habilite verificação por e-mail como fallback e mostre o código na tela (modo leitura).",
+        module: "intent-memory",
+      };
+    case "auth_identity_confirmed":
+      return {
+        headline: `${pct} saem após confirmar identidade`,
+        detail: "Cart Recovery correlaciona este abandono com sessões em que o buyer vê um salto no total por causa de taxas extras. A causa raíz geralmente é transparência de preço, não identidade.",
+        action: "Mostre o total final antes do passo de identidade e detalhe cada taxa.",
+        module: "cart-recovery",
+      };
+    case "auth_registration_completed":
+      return {
+        headline: `${pct} concluem cadastro mas não prosseguem`,
+        detail: "Revenue Manager detecta que estes buyers têm alta intenção (engajamento nas mensagens do agente) — o abandono vem de espera, não de dúvida.",
+        action: "Pule o passo de revisão e leve o buyer direto para pagamento quando o carrinho já está pronto.",
+        module: "revenue-manager",
+      };
+    case "shipping_calculated":
+      return {
+        headline: `${pct} abandonam ao ver o frete`,
+        detail: "Shipping Engine classificou 'frete caro' como a principal objeção neste merchant. A diferença entre o CEP de origem e o destino gera o pico de drop-off.",
+        action: "Ative subsídio de frete para o primeiro CEP ou exija um mínimo de carrinho para frete grátis.",
+        module: "shipping-engine",
+      };
+    case "cross_sell_added":
+      return {
+        headline: `${pct} rejeitam o cross-sell`,
+        detail: "Revenue Manager mede a taxa de aceitação de cross-sell e sugere que ofertas com mais de 1 item adicional reduzem a conversão. As sugestões atuais têm aceitação abaixo da média.",
+        action: "Limite cross-sell a 1 item e selecione SKUs com histórico de compra conjunta.",
+        module: "revenue-manager",
+      };
+    case "coupon_applied":
+      return {
+        headline: `${pct} aplicam cupom e continuam`,
+        detail: "Rules Engine indica que cupons com percepção de 'desconto real' (>10%) aumentam conversão 2.3×. Cupons abaixo deste limiar são ignorados e atrasam o checkout.",
+        action: "Revise a régua de cupons: destaque apenas ofertas acima de 10% e oculte as de 5%.",
+        module: "rules-engine",
+      };
+    case "payment_method_selected":
+      return {
+        headline: `${pct} desistem na escolha de pagamento`,
+        detail: "Rules Engine mostra que PIX é escolhido por este merchant mas a etapa de seleção tem cliques em métodos não habilitados — confusão de quais opções funcionam.",
+        action: "Mostre apenas os métodos habilitados para o valor final e destaque o método mais rápido (PIX).",
+        module: "rules-engine",
+      };
+    case "payment_failed":
+      return {
+        headline: `${pct} têm o pagamento recusado`,
+        detail: "Cart Recovery registra que vendas-recusadas com cartão sem 3DS habilitado têm 0% de recuperação. Apenas vendas com motivo 'recusada' se qualificam para retry.",
+        action: "Habilite 3DS para reduzir recusas e acione o agente de recuperação para sessões recusadas.",
+        module: "cart-recovery",
+      };
+    case "sale_declined":
+      return {
+        headline: `${pct} das vendas são recusadas pelo gateway`,
+        detail: "Revenue Manager detectou padrão: recusas concentradas em um único BIN de cartão. Indica problema de antifraude do gateway, não do buyer.",
+        action: "Revise a configuração anti-fraude do gateway e ative retry automático para vendas-recusadas.",
+        module: "revenue-manager",
+      };
+    default:
+      return {
+        headline: `${pct} de drop-off nesta etapa`,
+        detail: "Análise genérica — conecte Intent Memory e Cart Recovery para entender o motivo deste abandono.",
+        action: "Habilite os módulos de IA para gerar um insight contextual para esta etapa.",
+        module: "general",
+      };
+  }
 }
 
 export interface FunnelSegment {
@@ -141,6 +277,14 @@ export function useFunnelPage(props: {
       const json: FunnelData = funnelSource === "storefront"
         ? await api.getStorefrontFunnel(merchantId, params)
         : await api.getCheckoutFunnel(merchantId, params);
+      // Augment bottleneck with intelligent, AI-module-aware insight if backend
+      // supplied a bottleneck but did not include the structured insight.
+      if (json.bottleneck && !json.bottleneck.insight) {
+        json.bottleneck = {
+          ...json.bottleneck,
+          insight: buildInsight(json.bottleneck.step, json.bottleneck.dropOff),
+        };
+      }
       setData(json);
     } catch (e) {
       reportError({ source: "funnel.useFunnelPage.fetchFunnel", error: e, context: { merchantId, funnelSource, period } });

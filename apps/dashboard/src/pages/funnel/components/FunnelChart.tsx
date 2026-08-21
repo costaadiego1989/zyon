@@ -1,4 +1,5 @@
 import React from "react";
+import { SectionHeader } from "../../../components/SectionHeader.js";
 import type { FunnelStep, FunnelTransition } from "../useFunnelPage.js";
 
 interface FunnelChartProps {
@@ -9,12 +10,15 @@ interface FunnelChartProps {
 export function FunnelChart({ steps, transitions }: FunnelChartProps): React.ReactElement {
   return (
     <div className="fnl-chart-card">
-      <div className="fnl-chart-head">
-        <h3 className="fnl-chart-title">Funil de Etapas</h3>
-        <span className="fnl-chart-conversion">
-          {steps.length > 0 ? `${steps[steps.length - 1]?.percentage.toFixed(1)}% conversão` : "—"}
-        </span>
-      </div>
+      <SectionHeader
+        variant="secondary"
+        title="Funil de Etapas"
+        trailing={
+          <span className="fnl-chart-conversion">
+            {steps.length > 0 ? `${steps[steps.length - 1]?.percentage.toFixed(1)}% conversão` : "—"}
+          </span>
+        }
+      />
       <div className="fnl-bars">
         {steps.map((step, i) => {
           const transition = transitions.find((t) => t.from === step.name);

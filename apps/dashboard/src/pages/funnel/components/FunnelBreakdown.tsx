@@ -1,4 +1,5 @@
 import React from "react";
+import { SectionHeader } from "../../../components/SectionHeader.js";
 import type { FunnelSegment } from "../useFunnelPage.js";
 
 interface FunnelBreakdownProps {
@@ -40,9 +41,10 @@ export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps)
 
   return (
     <div className="fnl-breakdown-card">
-      <h3 className="fnl-breakdown-title">
-        Por {DIMENSION_LABELS[dimension] ?? dimension}
-      </h3>
+      <SectionHeader
+        variant="secondary"
+        title={`Por ${DIMENSION_LABELS[dimension] ?? dimension}`}
+      />
       <div className="fnl-breakdown-items">
         {entries.map(([key, segment]) => (
           <div key={key} className="fnl-breakdown-item">
