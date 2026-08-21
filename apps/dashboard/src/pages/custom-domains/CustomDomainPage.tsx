@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Globe, Settings, Shield, CheckCircle2 } from "lucide-react";
 import { Button } from "../../components/Button.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { useDomainsPage } from "./useDomainsPage.js";
 import { showToast } from "../../components/Toast.js";
 
@@ -18,22 +20,21 @@ export function CustomDomainPage() {
     showToast("success", "Copiado!");
   };
 
+  const pendingCount = state.domains.filter((d) => !d.verified).length;
+
   return (
     <div>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
-          <div>
-            <span className="eyebrow">LOJA</span>
-            <h1 style={{ marginBottom: 4 }}>Domínio</h1>
-          </div>
-          {state.domains.some((d) => !d.verified) && (
+      <SectionHeader
+        title="Domínio personalizado"
+        subtitle="Use seu próprio endereço (ex: sua-loja.com.br) para a sua loja"
+        trailing={
+          pendingCount > 0 ? (
             <div style={{ background: "#fef3c7", border: "1px solid #fcd34d", color: "#92400e", padding: "6px 10px", borderRadius: 6, fontSize: 11, fontWeight: 500, whiteSpace: "nowrap" }}>
-              {state.domains.filter((d) => !d.verified).length} pendente{state.domains.filter((d) => !d.verified).length !== 1 ? "s" : ""}
+              {pendingCount} pendente{pendingCount !== 1 ? "s" : ""}
             </div>
-          )}
-        </div>
-        <p className="page-lead">Configure um domínio personalizado para sua loja (ex: athom.com.br)</p>
-      </div>
+          ) : null
+        }
+      />
 
       <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, overflow: "hidden" }}>
         <div style={{ padding: "20px 22px" }}>
@@ -52,7 +53,7 @@ export function CustomDomainPage() {
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <input
                 type="text"
-                placeholder="athom.com.br ou www.athom.com.br"
+                placeholder="sua-loja.com.br ou www.sua-loja.com.br"
                 value={state.newDomain}
                 onChange={(e) => setNewDomain(e.target.value)}
                 disabled={state.adding}
@@ -69,16 +70,16 @@ export function CustomDomainPage() {
               </Button>
             </div>
             <p style={{ fontSize: 11, color: "var(--faint)", margin: "10px 0 0" }}>
-              Suporte para CNAME (recomendado) e ANAME. Apex domains funcionam com ANAME no seu provedor.
+              Você pode usar o domínio principal (sua-loja.com.br) ou um subdomínio como loja.sua-loja.com.br.
             </p>
           </div>
 
           {state.domains.length === 0 ? (
-            <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--muted)", fontSize: 13 }}>
-              <div style={{ marginBottom: 12, fontSize: 28 }}>🌐</div>
-              <p style={{ margin: 0, fontWeight: 500 }}>Nenhum domínio configurado</p>
-              <p style={{ margin: "4px 0 0", fontSize: 12 }}>Adicione seu domínio customizado acima para começar</p>
-            </div>
+            <EmptyState
+              icon={Globe}
+              title="Nenhum domínio configurado"
+              description="Adicione seu domínio acima e siga o passo a passo para ativar sua loja em um endereço próprio."
+            />
           ) : (
             <div>
               <h3 style={{ font: "600 13px var(--sans)", letterSpacing: "0.08em", marginBottom: 12, color: "var(--muted)", textTransform: "uppercase" }}>Domínios registrados</h3>
@@ -103,7 +104,7 @@ export function CustomDomainPage() {
                           <p style={{ fontSize: 11, color: "var(--muted)", margin: 0 }}>
                             {domain.verified_at
                               ? `Verificado em ${new Date(domain.verified_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}`
-                              : "Aguardando verificação DNS"}
+                              : "Aguardando configuração no seu provedor"}
                           </p>
                         </div>
                         <div style={{ display: "flex", gap: 8 }}>
@@ -130,11 +131,8 @@ export function CustomDomainPage() {
 
                       {!verified && (
                         <div style={{ background: "var(--bg)", borderRadius: 6, padding: 12, fontSize: 12, marginTop: 12 }}>
-                          <p style={{ color: "var(--muted)", margin: "0 0 12px", fontWeight: 500 }}>Próximas etapas:</p>
-                          <ol style={{ margin: 0, paddingLeft: 18, color: "var(--muted)", lineHeight: 1.8 }}>
-                            <li><strong>Configure no seu provedor DNS:</strong></li>
-                          </ol>
-                          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: 10, margin: "12px 0", fontSize: 11, fontFamily: "monospace" }}>
+                          <p style={{ color: "var(--muted)", margin: "0 0 12px", fontWeight: 500 }}>Configure no seu provedor de domínio:</p>
+                          <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 6, padding: 10, margin: "0 0 12px", fontSize: 11, fontFamily: "monospace" }}>
                             <div><strong>Tipo:</strong> CNAME</div>
                             <div><strong>Nome:</strong> {domain.domain}</div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
@@ -160,9 +158,9 @@ export function CustomDomainPage() {
                             </div>
                           </div>
                           <ol style={{ margin: 0, paddingLeft: 18, color: "var(--muted)", lineHeight: 1.8 }}>
-                            <li style={{ marginTop: 4 }}>Aguarde propagação DNS (normalmente 1-15 minutos)</li>
-                            <li style={{ marginTop: 4 }}>Volte aqui e clique "Verificar"</li>
-                            <li style={{ marginTop: 4 }}>SSL será ativado automaticamente após verificação</li>
+                            <li>Aguarde alguns minutos para a alteração propagar</li>
+                            <li>Volte aqui e clique "Verificar"</li>
+                            <li>O certificado de segurança (SSL) é ativado automaticamente</li>
                           </ol>
                         </div>
                       )}
@@ -175,13 +173,65 @@ export function CustomDomainPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 28, padding: 16, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, lineHeight: 1.7 }}>
-        <p style={{ margin: "0 0 8px" }}>
-          <strong>💡 Como funciona:</strong>
-        </p>
+      <SectionHeader
+        title="Como funciona"
+        subtitle="Em poucos minutos sua loja fica no seu domínio"
+        variant="secondary"
+      />
+
+      <div style={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 14, padding: 20, marginBottom: 24 }}>
+        <ol style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 16 }}>
+          <li style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft, rgba(15,118,110,0.08))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Globe size={18} style={{ color: "var(--accent, #0f766e)" }} />
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--ink)", display: "block", marginBottom: 2 }}>1. Adicione seu domínio</strong>
+              <p style={{ fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                Digite o endereço que você quer usar. Pode ser o principal (sua-loja.com.br) ou um subdomínio (loja.sua-loja.com.br).
+              </p>
+            </div>
+          </li>
+          <li style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft, rgba(15,118,110,0.08))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Settings size={18} style={{ color: "var(--accent, #0f766e)" }} />
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--ink)", display: "block", marginBottom: 2 }}>2. Configure no seu provedor de domínio</strong>
+              <p style={{ fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                Copie o endereço que mostramos e adicione como um registro CNAME no local onde você comprou o domínio (Registro.br, GoDaddy, Cloudflare, etc.).
+              </p>
+            </div>
+          </li>
+          <li style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft, rgba(15,118,110,0.08))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <Shield size={18} style={{ color: "var(--accent, #0f766e)" }} />
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--ink)", display: "block", marginBottom: 2 }}>3. Certificado de segurança (SSL)</strong>
+              <p style={{ fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                Depois da verificação, ativamos o SSL automaticamente. Sua loja passa a usar o cadeado de segurança (https).
+              </p>
+            </div>
+          </li>
+          <li style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft, rgba(15,118,110,0.08))", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <CheckCircle2 size={18} style={{ color: "var(--accent, #0f766e)" }} />
+            </div>
+            <div>
+              <strong style={{ fontSize: 13, color: "var(--ink)", display: "block", marginBottom: 2 }}>4. Sua loja no ar!</strong>
+              <p style={{ fontSize: 12, color: "var(--muted)", margin: 0, lineHeight: 1.5 }}>
+                Pronto. Seu domínio já leva os clientes até sua loja, com segurança e sem perder posicionamento no Google.
+              </p>
+            </div>
+          </li>
+        </ol>
+      </div>
+
+      <div style={{ padding: 14, background: "var(--bg)", borderRadius: 8, border: "1px solid var(--border)", fontSize: 12, lineHeight: 1.6 }}>
+        <p style={{ margin: "0 0 6px", color: "var(--ink)", fontWeight: 500 }}>Posso usar um subdomínio?</p>
         <p style={{ margin: 0, color: "var(--muted)" }}>
-          Ao configurar o CNAME, sua loja fica acessível em <code style={{ background: "var(--card)", padding: "2px 4px", borderRadius: 2, color: "var(--accent)", fontFamily: "monospace", fontSize: 11 }}>athom.com.br</code>.
-          SSL é provisionado automaticamente (Let's Encrypt), sem penalidade SEO. Google indexará seu domínio customizado normalmente.
+          Sim! Você pode adicionar quantos subdomínios quiser, por exemplo <code style={{ background: "var(--card)", padding: "1px 5px", borderRadius: 3, color: "var(--accent)", fontFamily: "monospace", fontSize: 11 }}>loja.seusite.com.br</code> ou <code style={{ background: "var(--card)", padding: "1px 5px", borderRadius: 3, color: "var(--accent)", fontFamily: "monospace", fontSize: 11 }}>www.seusite.com.br</code>. Cada um segue o mesmo passo a passo.
         </p>
       </div>
     </div>
