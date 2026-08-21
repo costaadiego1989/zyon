@@ -1,6 +1,8 @@
 import React from "react";
-import { TrendingUp, DollarSign, Brain } from "lucide-react";
+import { TrendingUp, DollarSign, Beaker } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
+import { StatCard, StatCardGrid } from "../../components/stat-card.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { useRevenueLiftPage } from "./useRevenueLiftPage.js";
 
 export interface RevenueLiftPageProps {
@@ -26,7 +28,7 @@ const BADGE: React.CSSProperties = {
 };
 
 export function RevenueLiftPage(props: RevenueLiftPageProps) {
-  const { summary, trend, loading, error } = useRevenueLiftPage();
+  const { summary, trend, loading, error, isDemo } = useRevenueLiftPage();
 
   if (!props.me) {
     return <p style={{ color: "var(--faint)", font: "13px var(--sans)" }}>Login necessário</p>;
@@ -53,66 +55,58 @@ export function RevenueLiftPage(props: RevenueLiftPageProps) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Header */}
-      <div>
-        <span style={{ font: "600 10px var(--mono)", letterSpacing: "0.06em", color: "var(--faint)" }}>INTELIGÊNCIA</span>
-        <h1 style={{ font: "600 26px var(--serif)", margin: "4px 0 6px", color: "var(--ink)" }}>Revenue Lift</h1>
-        <p style={{ font: "13px var(--sans)", color: "var(--muted)", margin: 0 }}>
-          Impacto incremental da IA nas conversões do checkout
-        </p>
-      </div>
+      <SectionHeader
+        title="Revenue Lift"
+        subtitle="Quanto a IA gerou de receita a mais para sua loja — comparação entre vendas com IA vs sem IA em períodos equivalentes. ROI = receita adicional / custo do plano."
+        trailing={
+          isDemo ? (
+            <span style={{ ...BADGE, background: "var(--warn-soft)", color: "var(--warn)" }}>
+              <Beaker size={12} aria-hidden /> Dados de demonstração
+            </span>
+          ) : null
+        }
+      />
 
       {error && (
         <div style={{ ...BADGE, background: "var(--warn-soft)", color: "var(--warn)" }}>
-          ⚠ {error} — dados mock exibidos
+          ⚠ {error}
         </div>
       )}
 
-      {/* Hero metric + ROI row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        {/* Hero Metric */}
-        <div style={{ ...CARD, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "40px 28px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <TrendingUp size={22} color="var(--accent)" />
-            <span style={{ font: "600 10px var(--mono)", color: "var(--faint)", letterSpacing: "0.04em" }}>REVENUE LIFT</span>
-          </div>
-          <div style={{ font: "700 56px var(--serif)", color: "var(--accent)", letterSpacing: "-0.02em" }}>
-            +{summary.lift_percent.toFixed(1)}%
-          </div>
-          <span style={{ ...BADGE, background: summary.confidence === "significant" ? "var(--good-soft)" : "var(--warn-soft)", color: confidenceColor }}>
-            {confidenceLabel}
-          </span>
-        </div>
+      <StatCardGrid>
+        <StatCard
+          icon={TrendingUp}
+          value={`+${summary.lift_percent.toFixed(1)}%`}
+          label="Revenue Lift"
+          trend={{
+            direction: summary.confidence === "significant" ? "up" : "flat",
+            text: confidenceLabel,
+          }}
+          hero
+        />
+        <StatCard
+          icon={DollarSign}
+          value={`R$ ${summary.net_lift_brl.toLocaleString("pt-BR")}`}
+          label="Lift líquido"
+        />
+        <StatCard
+          icon={DollarSign}
+          value={`${summary.roi_percent.toLocaleString("pt-BR")}%`}
+          label="ROI"
+        />
+        <StatCard
+          icon={DollarSign}
+          value={`R$ ${summary.ai_cost_brl.toLocaleString("pt-BR")}`}
+          label="Custo da IA"
+        />
+      </StatCardGrid>
 
-        {/* ROI */}
-        <div style={{ ...CARD, display: "flex", flexDirection: "column", gap: 18 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <DollarSign size={18} color="var(--accent)" />
-            <span style={{ font: "600 10px var(--mono)", color: "var(--faint)", letterSpacing: "0.04em" }}>RETORNO SOBRE INVESTIMENTO</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16 }}>
-            <div>
-              <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginBottom: 4 }}>Custo IA</div>
-              <div style={{ font: "600 20px var(--serif)", color: "var(--ink)" }}>R$ {summary.ai_cost_brl.toLocaleString("pt-BR")}</div>
-            </div>
-            <div>
-              <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginBottom: 4 }}>Lift Líquido</div>
-              <div style={{ font: "600 20px var(--serif)", color: "var(--good)" }}>R$ {summary.net_lift_brl.toLocaleString("pt-BR")}</div>
-            </div>
-            <div>
-              <div style={{ font: "11px var(--sans)", color: "var(--muted)", marginBottom: 4 }}>ROI</div>
-              <div style={{ font: "600 20px var(--serif)", color: "var(--accent)" }}>{summary.roi_percent.toLocaleString("pt-BR")}%</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Feature breakout */}
       <div style={CARD}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-          <Brain size={16} color="var(--accent)" />
-          <span style={{ font: "600 12px var(--sans)", color: "var(--ink)" }}>Contribuição por Feature</span>
-        </div>
+        <SectionHeader
+          title="Contribuição por Feature"
+          subtitle="Cada IA autônoma contribui com uma fatia do lift total. Use para priorizar o que está gerando mais resultado."
+          variant="secondary"
+        />
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {summary.feature_breakout.map((f) => (
             <div key={f.feature} style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -126,9 +120,12 @@ export function RevenueLiftPage(props: RevenueLiftPageProps) {
         </div>
       </div>
 
-      {/* Trend */}
       <div style={CARD}>
-        <div style={{ font: "600 12px var(--sans)", color: "var(--ink)", marginBottom: 14 }}>Tendência Diária</div>
+        <SectionHeader
+          title="Tendência Diária"
+          subtitle="Comparação dia a dia entre grupo controle (sem IA) e tratamento (com IA). Mantido enquanto o motor holdout roda em background."
+          variant="secondary"
+        />
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", font: "12px var(--sans)" }}>
             <thead>

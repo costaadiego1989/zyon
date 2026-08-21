@@ -34,6 +34,7 @@ export function useRevenueLiftPage() {
   const [trend, setTrend] = useState<RevenueLiftTrend[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,14 +47,18 @@ export function useRevenueLiftPage() {
           api.getRevenueLiftTrend().catch(() => null),
         ]);
         if (cancelled) return;
-        setSummary(summaryData ?? MOCK_SUMMARY);
-        setTrend(trendData ?? MOCK_TREND);
+        const summaryReal = summaryData ?? MOCK_SUMMARY;
+        const trendReal = trendData ?? MOCK_TREND;
+        setSummary(summaryReal);
+        setTrend(trendReal);
+        setIsDemo(summaryData === null || trendData === null);
       } catch (e) {
         reportError({ source: "revenue-lift.load", error: e });
         if (!cancelled) {
           setError("Configuração pendente");
           setSummary(MOCK_SUMMARY);
           setTrend(MOCK_TREND);
+          setIsDemo(true);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -62,5 +67,5 @@ export function useRevenueLiftPage() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { summary, trend, loading, error };
+  return { summary, trend, loading, error, isDemo };
 }
