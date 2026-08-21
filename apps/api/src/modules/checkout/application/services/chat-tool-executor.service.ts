@@ -1,5 +1,6 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import type { AuthorizedOffer } from "@zyon/shared-types";
 
 export interface ToolCall {
   name: string;
@@ -13,7 +14,8 @@ export interface ToolExecutionResult {
 
 /**
  * Executes LLM tool calls (discount, shipping, coupon, marketplace search).
- * Single Responsibility: take a tool_call from the LLM and produce a result string.
+ * CRITICAL: Every commercial tool call is validated against authorizedOffer.
+ * LLM cannot apply discounts/shipping that the rules-engine didn't approve.
  */
 @Injectable()
 export class ChatToolExecutorService {
@@ -25,10 +27,11 @@ export class ChatToolExecutorService {
 
   async executeToolCalls(
     toolCalls: Array<{ function?: { name: string; arguments: string | object } }>,
-    context: { merchantId: string },
+    context: { merchantId: string; authorizedOffer?: AuthorizedOffer },
   ): Promise<ToolExecutionResult> {
     const executed: ToolCall[] = [];
     const results: string[] = [];
+    const offer = context.authorizedOffer;
 
     for (const tc of toolCalls) {
       const fn = tc.function?.name ?? "";
@@ -39,17 +42,34 @@ export class ChatToolExecutorService {
       executed.push({ name: fn, args });
 
       switch (fn) {
-        case "apply_discount":
-          results.push(`✅ Desconto de ${args.percent}% aplicado no carrinho`);
+        case "apply_discount": {
+          // SAFETY: Only apply if rules-engine authorized a discount >= requested
+          const requestedPercent = Number(args.percent) || 0;
+          if (offer?.approved && offer.type === "discount_percent" && offer.value >= requestedPercent) {
+            results.push(`✅ Desconto de ${offer.value}% aplicado no carrinho`);
+          } else {
+            this.logger.warn(`Blocked unauthorized discount tool call: ${requestedPercent}% (authorized: ${offer?.value ?? 0}%)`);
+            results.push("Vou verificar a melhor condição disponível para o seu pedido.");
+          }
           break;
+        }
 
-        case "apply_free_shipping":
-          results.push(`✅ Frete grátis aplicado`);
+        case "apply_free_shipping": {
+          // SAFETY: Only apply if rules-engine authorized free shipping
+          if (offer?.approved && offer.type === "shipping_free") {
+            results.push(`✅ Frete grátis aplicado`);
+          } else {
+            this.logger.warn("Blocked unauthorized free shipping tool call");
+            results.push("Vou verificar as opções de frete disponíveis para sua região.");
+          }
           break;
+        }
 
-        case "apply_coupon":
-          results.push(`✅ Cupom ${args.code} aplicado`);
+        case "apply_coupon": {
+          // Coupons are validated separately by coupon module — allow passthrough
+          results.push(`Verificando cupom ${args.code}...`);
           break;
+        }
 
         case "search_marketplace":
           if (args.query) {

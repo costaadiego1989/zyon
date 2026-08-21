@@ -127,10 +127,7 @@ export class SendChatMessageUseCase {
 
     const stage = deriveChatStage(working);
     const missingFields = missingFieldsForStage(working, stage);
-
-    // Revenue Lift: check cohort early for offer suppression
     const cohortForOffer = (working as any).cohort;
-    // Holdout users get NO offers — skip authorizeOffer entirely
     const offer = cohortForOffer === "holdout"
       ? SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId)
       : await this.offerService.authorizeOffer(input.user_message, working, rules, stage, missingFields);
@@ -171,7 +168,6 @@ export class SendChatMessageUseCase {
 
       merchantRules = [];
 
-      // Progressive discount stages → natural language rules
       const policy = setting?.interventionPolicy as { progressiveDiscount?: { enabled: boolean; stages?: { initial_coupon?: number; exit_intent?: number; abandoned_cart?: number; payment_nudge?: number } } } | null;
       if (policy?.progressiveDiscount?.enabled && policy.progressiveDiscount.stages) {
         const s = policy.progressiveDiscount.stages;
@@ -181,7 +177,6 @@ export class SendChatMessageUseCase {
         if (s.payment_nudge) merchantRules.push(`SE comprador hesita no pagamento ENTÃO ofereça até ${s.payment_nudge}% para fechar agora`);
       }
 
-      // Advanced rules → natural language
       if (setting?.advancedRules) {
         const rules2 = setting.advancedRules as Array<{ enabled: boolean; priority: number; conditions: Array<{ field: string; operator: string; value: string | number | boolean }>; action: { type: string; params: Record<string, string | number> } }>;
         const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto", category_in_cart: "categoria", coupon_applied: "cupom", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens" };
@@ -202,20 +197,14 @@ export class SendChatMessageUseCase {
       this.logger.error("rules.load.failed", { error: rulesErr instanceof Error ? rulesErr.message : String(rulesErr) });
     }
 
-    // Revenue Lift: check if user is in holdout cohort
     const isHoldout = (working as any).cohort === "holdout";
 
-    // LLM-first: always route to LLM (tools: marketplace, discount, etc)
-    // Conversation engine is fallback only when LLM is unavailable
-    // HOLDOUT USERS: skip LLM entirely, use deterministic reply only
     let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] };
     this.logger.debug("chat.routing", { stage, missingFields, rulesCount: merchantRules?.length ?? 0, isHoldout });
 
     let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] } | null = null;
 
-    // If holdout: skip LLM and NegotiationDiscount entirely
     if (!isHoldout) {
-      // Load experiment variant prompt override (A/B test)
       let experimentPromptOverride: string | undefined;
       try {
         const running = await this.prisma?.promptExperiment?.findFirst?.({
@@ -241,13 +230,12 @@ export class SendChatMessageUseCase {
         // Non-critical — continue without experiment override
       }
 
-      llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride);
+      llmReply = await this.callLocalLlm(input.user_message, merchantRules ?? [], merchant?.name, working.cart, input.merchant_id, experimentPromptOverride, offer);
     }
 
     if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
       reply = llmReply;
     } else {
-      // Fallback: deterministic conversation engine (no LLM available OR holdout user)
       reply = await this.conversation.reply({
         userMessage: input.user_message,
         brandVoice: rules.brandVoice,
@@ -296,7 +284,6 @@ export class SendChatMessageUseCase {
     const chatActions: any[] = [];
     let suggestedProducts: SuggestedProduct[] = [];
 
-    // Revenue Lift: suppress cross-sell for holdout users
     if (!isHoldout && stage === "payment" && previousStage === "shipping" && this.crossSellUseCase) {
       try {
         const suggestions = await this.crossSellUseCase.execute({
@@ -342,7 +329,6 @@ export class SendChatMessageUseCase {
 
     const authorizedOfferResponse = offer.toAuthorizedOffer();
 
-    // Persist conversation history for 30-day buyer recall
     if (this.conversationRepo && updated.globalUserId) {
       try {
         await this.conversationRepo.upsertFromCheckout({
@@ -374,27 +360,6 @@ export class SendChatMessageUseCase {
     };
   }
 
-  private detectOffScript(message: string, stage?: string, missingFields?: string[]): boolean {
-    if (!stage || !missingFields?.length) return true;
-    const msg = message.toLowerCase();
-    // Product search intent — route to LLM with marketplace tools
-    if (/(quero|procur|busc|preciso|tem |quer|comprar|gostaria).*(produto|item|calça|camis|fone|tênis|jaqueta|bolsa|relóg|mochilaeletrônic)/i.test(msg)) return true;
-    if (/(quero comprar|quero uma?|procurando|tem algum|vocês têm|buscando)/i.test(msg)) return true;
-    // Question or objection patterns
-    if (/\?$/.test(msg)) return true;
-    if (/(cupom|desconto|promoç|oferta|parcel|frete.*caro|caro.*frete)/i.test(msg)) return true;
-    if (/(quanto|qual|como|onde|quando|posso|pode|tem |aceita)/i.test(msg)) return true;
-    if (/(troca|devoluç|garantia|prazo|politic)/i.test(msg)) return true;
-    if (/(não quero|não vou|desist|cancel)/i.test(msg)) return true;
-    // Data patterns = on-script
-    if (/^\d{2,3}\.?\d{3}\.?\d{3}-?\d{2}$/.test(msg)) return false; // CPF
-    if (/^\d{2}\s?\d{4,5}-?\d{4}$/.test(msg)) return false; // phone
-    if (/^\d{5}-?\d{3}$/.test(msg)) return false; // CEP
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(msg)) return false; // email
-    if (msg.length > 40) return true; // long messages are likely questions
-    return false;
-  }
-
   private async callLocalLlm(
     userMessage: string,
     merchantRules: string[],
@@ -402,6 +367,7 @@ export class SendChatMessageUseCase {
     cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number },
     merchantId?: string,
     experimentPromptOverride?: string,
+    authorizedOffer?: SafeAuthorizedOffer,
   ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[] }> {
     if (!this.chatLlmGateway || !this.chatToolExecutor) {
       return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
@@ -425,7 +391,7 @@ export class SendChatMessageUseCase {
     if (result.toolCalls.length > 0) {
       const execution = await this.chatToolExecutor.executeToolCalls(
         result.toolCalls,
-        { merchantId: merchantId || "" },
+        { merchantId: merchantId || "", authorizedOffer },
       );
       const textContent = result.content?.trim() || "";
       const finalMsg = execution.message
@@ -437,7 +403,6 @@ export class SendChatMessageUseCase {
     return { message: result.content || "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
   }
 
-  /** Deterministic hash for consistent variant assignment per session */
   private hashSessionId(str: string): number {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
