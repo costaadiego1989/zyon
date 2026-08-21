@@ -11,6 +11,7 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -18,9 +19,7 @@ import {
   ApiQuery,
   ApiTags,
 } from "@nestjs/swagger";
-import type { TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
-import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
-import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { ApproveHypothesisUseCase } from "../../application/use-cases/approve-hypothesis.use-case.js";
 import { RejectHypothesisUseCase } from "../../application/use-cases/reject-hypothesis.use-case.js";
 import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../../domain/ports/observation-repository.port.js";
@@ -38,7 +37,7 @@ import {
 
 @ApiTags("Revenue Manager")
 @Controller("revenue-manager")
-@UseGuards(TenantAccessGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth("JWT")
 export class RevenueManagerController {
   constructor(
@@ -55,9 +54,9 @@ export class RevenueManagerController {
   @ApiOperation({ summary: "List observations for merchant" })
   @ApiOkResponse({ type: [ObservationResponseDto] })
   @ApiQuery({ name: "limit", required: false, type: Number })
-  async listObservations(@Req() req: TenantPrincipalRequest, @Query("limit") limit?: string): Promise<ObservationResponseDto[]> {
-    const { tenantId } = currentTenantPrincipal(req);
-    const observations = await this.observationRepo.findByMerchant(tenantId, limit ? parseInt(limit, 10) : undefined);
+  async listObservations(@Req() req: Request, @Query("limit") limit?: string): Promise<ObservationResponseDto[]> {
+    const user = currentUser(req);
+    const observations = await this.observationRepo.findByMerchant(user.merchantId, limit ? parseInt(limit, 10) : undefined);
     return observations.map((obs) => {
       const snap = obs.snapshot();
       return {
@@ -86,12 +85,12 @@ export class RevenueManagerController {
   @ApiQuery({ name: "status", required: false, type: String })
   @ApiQuery({ name: "limit", required: false, type: Number })
   async listHypotheses(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Query("status") status?: string,
     @Query("limit") limit?: string,
   ): Promise<HypothesisResponseDto[]> {
-    const { tenantId } = currentTenantPrincipal(req);
-    const hypotheses = await this.hypothesisRepo.findByMerchant(tenantId, {
+    const user = currentUser(req);
+    const hypotheses = await this.hypothesisRepo.findByMerchant(user.merchantId, {
       status,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
@@ -127,13 +126,13 @@ export class RevenueManagerController {
   async approve(
     @Param("id") id: string,
     @Body() body: ApproveHypothesisDto,
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
   ): Promise<ApproveHypothesisResponseDto> {
-    const { tenantId } = currentTenantPrincipal(req);
+    const user = currentUser(req);
     try {
       return await this.approveHypothesis.execute({
         hypothesis_id: id,
-        merchant_id: tenantId,
+        merchant_id: user.merchantId,
         approved_by: body.approved_by,
         approval_reason: body.approval_reason,
       });
@@ -151,16 +150,16 @@ export class RevenueManagerController {
   async reject(
     @Param("id") id: string,
     @Body() body: RejectHypothesisDto,
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
   ): Promise<RejectHypothesisResponseDto> {
-    const { tenantId } = currentTenantPrincipal(req);
+    const user = currentUser(req);
     if (!body.reason || body.reason.trim().length === 0) {
       throw new BadRequestException("Rejection reason is required");
     }
     try {
       return await this.rejectHypothesis.execute({
         hypothesis_id: id,
-        merchant_id: tenantId,
+        merchant_id: user.merchantId,
         reason: body.reason,
       });
     } catch (err) {
@@ -177,9 +176,9 @@ export class RevenueManagerController {
   @ApiOperation({ summary: "List strategy lessons for merchant" })
   @ApiOkResponse({ type: [StrategyLessonResponseDto] })
   @ApiQuery({ name: "limit", required: false, type: Number })
-  async listStrategyLessons(@Req() req: TenantPrincipalRequest, @Query("limit") limit?: string): Promise<StrategyLessonResponseDto[]> {
-    const { tenantId } = currentTenantPrincipal(req);
-    const lessons = await this.lessonRepo.findByMerchant(tenantId, limit ? parseInt(limit, 10) : undefined);
+  async listStrategyLessons(@Req() req: Request, @Query("limit") limit?: string): Promise<StrategyLessonResponseDto[]> {
+    const user = currentUser(req);
+    const lessons = await this.lessonRepo.findByMerchant(user.merchantId, limit ? parseInt(limit, 10) : undefined);
     return lessons.map((l) => {
       const snap = l.snapshot();
       return {

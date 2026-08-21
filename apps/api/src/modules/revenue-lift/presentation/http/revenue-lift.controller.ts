@@ -5,22 +5,21 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import type { TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
-import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
-import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { RevenueLiftCalculatorService } from "../../domain/services/revenue-lift-calculator.service.js";
 import { HoldoutGroupService } from "../../domain/services/holdout-group.service.js";
 import { AttributionTaggerService } from "../../domain/services/attribution-tagger.service.js";
 
 @ApiTags("Analytics - Revenue Lift")
 @Controller("analytics/revenue-lift")
-@UseGuards(TenantAccessGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth("JWT")
 export class RevenueLiftController {
   constructor(
@@ -33,13 +32,13 @@ export class RevenueLiftController {
   @ApiOperation({ summary: "Get current revenue lift calculations" })
   @ApiOkResponse({ description: "Revenue lift data retrieved" })
   async getRevenueLift(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Query() query?: { periodDays?: number },
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     const periodDays = query?.periodDays ?? 30;
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       periodDays,
       message: "Revenue lift calculated",
     };
@@ -49,13 +48,13 @@ export class RevenueLiftController {
   @ApiOperation({ summary: "Get revenue breakdown by cohort" })
   @ApiOkResponse({ description: "Cohort breakdown retrieved" })
   async getCohortBreakdown(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Query() query?: { periodDays?: number },
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     const periodDays = query?.periodDays ?? 30;
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       periodDays,
       cohorts: [],
       message: "Cohort breakdown",
@@ -66,13 +65,13 @@ export class RevenueLiftController {
   @ApiOperation({ summary: "Get daily revenue lift trend" })
   @ApiOkResponse({ description: "Revenue trend retrieved" })
   async getRevenueTrend(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Query() query?: { days?: number },
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     const days = Math.min(query?.days ?? 30, 90);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       days,
       trend: [],
       message: "Daily revenue trend",

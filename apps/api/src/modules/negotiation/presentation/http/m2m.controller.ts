@@ -9,16 +9,15 @@ import {
   Req,
   UseGuards,
 } from "@nestjs/common";
+import type { Request } from "express";
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
-import type { TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
-import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 
 @ApiTags("M2M - Machine-to-Machine Protocol")
 @Controller("m2m")
-@UseGuards(TenantAccessGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth("JWT")
 export class M2mController {
   constructor(
@@ -29,12 +28,12 @@ export class M2mController {
   @ApiOperation({ summary: "Register buyer agent for M2M protocol" })
   @ApiOkResponse({ description: "Agent registered" })
   async registerAgent(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Body() body: any,
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       agentId: body?.agentId,
       message: "Agent registered",
     };
@@ -44,12 +43,12 @@ export class M2mController {
   @ApiOperation({ summary: "Search catalog via M2M protocol" })
   @ApiOkResponse({ description: "Catalog search results" })
   async discoverProducts(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Body() body: any,
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       query: body?.query,
       results: [],
       message: "Catalog search results",
@@ -60,12 +59,12 @@ export class M2mController {
   @ApiOperation({ summary: "Initiate negotiation session via M2M" })
   @ApiOkResponse({ description: "Negotiation initiated" })
   async initiateNegotiation(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Body() body: any,
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       sessionId: body?.sessionId,
       message: "Negotiation session created",
     };
@@ -75,12 +74,12 @@ export class M2mController {
   @ApiOperation({ summary: "Get quote (pricing + shipping) via M2M" })
   @ApiOkResponse({ description: "Quote generated" })
   async getQuote(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Body() body: any,
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       cart: body?.cart,
       quote: {
         subtotalCents: 0,
@@ -95,12 +94,12 @@ export class M2mController {
   @ApiOperation({ summary: "Create order via M2M protocol" })
   @ApiOkResponse({ description: "Order created" })
   async createOrder(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Body() body: any,
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       orderId: body?.orderId,
       message: "Order created",
     };
@@ -110,12 +109,12 @@ export class M2mController {
   @ApiOperation({ summary: "Track order fulfillment status via M2M" })
   @ApiOkResponse({ description: "Order status retrieved" })
   async trackOrder(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Param("orderId") orderId: string,
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       orderId,
       status: "pending",
       message: "Order status",
