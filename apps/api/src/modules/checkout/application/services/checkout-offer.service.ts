@@ -8,6 +8,31 @@ import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js
 import { EvaluateNegotiationUseCase } from "../../../negotiation/application/evaluate-negotiation.use-case.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 
+interface NegotiationPolicyRange {
+  minOfferDiscountPercent?: number;
+  maxDiscountPercent?: number;
+}
+
+function clipToNegotiationPolicy(
+  percent: number,
+  range: NegotiationPolicyRange | null | undefined
+): { effective: number; clipped: boolean; direction: "min" | "max" | "none" } {
+  if (!range) return { effective: percent, clipped: false, direction: "none" };
+  const min = typeof range.minOfferDiscountPercent === "number" ? range.minOfferDiscountPercent : null;
+  const max = typeof range.maxDiscountPercent === "number" ? range.maxDiscountPercent : null;
+  let effective = percent;
+  let direction: "min" | "max" | "none" = "none";
+  if (min !== null && effective < min) {
+    effective = min;
+    direction = "min";
+  }
+  if (max !== null && effective > max) {
+    effective = max;
+    direction = direction === "min" ? "min" : "max";
+  }
+  return { effective, clipped: effective !== percent, direction };
+}
+
 @Injectable()
 export class CheckoutOfferService {
   private readonly logger = new Logger(CheckoutOfferService.name);
@@ -60,6 +85,22 @@ export class CheckoutOfferService {
     // Objection handling belongs to `conversation-engine` (copy only).
     const discountCapPercent = rules.maxDiscountPercent;
 
+    // Load negotiation policy (if any) to clip discount to merchant min/max bounds.
+    let negotiationRange: NegotiationPolicyRange | null = null;
+    if (this.prisma?.merchantNegotiationPolicy) {
+      try {
+        const np = await this.prisma.merchantNegotiationPolicy.findUnique({
+          where: { merchantId: sessionObj.merchantId }
+        });
+        const raw = (np?.policy ?? np) as { global?: NegotiationPolicyRange } | NegotiationPolicyRange | null;
+        negotiationRange = (raw && "global" in (raw as object)
+          ? (raw as { global?: NegotiationPolicyRange }).global
+          : (raw as NegotiationPolicyRange)) ?? null;
+      } catch (err) {
+        this.logger.warn("negotiation.policy.load.failed", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     // Deal Engine: at payment stage, attempt negotiation if merchant has policy
     if (stage === "payment" && this.evaluateNegotiation && this.prisma) {
       try {
@@ -92,7 +133,16 @@ export class CheckoutOfferService {
             }
           });
           if (result.agreement) {
-            const negotiatedDiscount = Math.round(result.selectedDiscountPercent * (sessionObj.cart.total ?? 0) / 100);
+            const clip = clipToNegotiationPolicy(result.selectedDiscountPercent, negotiationRange);
+            if (clip.clipped) {
+              this.logger.log("negotiation.discount.clipped", {
+                merchantId: sessionObj.merchantId,
+                sessionId: sessionObj.sessionId,
+                raw: result.selectedDiscountPercent,
+                effective: clip.effective,
+                direction: clip.direction
+              });
+            }
             const offer = createAuthorizedOffer({
               merchantId: sessionObj.merchantId,
               sessionId: sessionObj.sessionId,
@@ -100,8 +150,10 @@ export class CheckoutOfferService {
               evaluation: {
                 approved: true,
                 type: "discount_percent",
-                value: result.selectedDiscountPercent,
-                reason: `negotiation_agreement_${result.selectedScope}`,
+                value: clip.effective,
+                reason: clip.clipped
+                  ? `negotiation_agreement_${result.selectedScope}_clipped_${clip.direction}`
+                  : `negotiation_agreement_${result.selectedScope}`,
                 marginAfterOffer: 0
               }
             });
@@ -126,11 +178,31 @@ export class CheckoutOfferService {
       })
       : evaluateDiscountOffer(sessionObj.cart, rules, discountCapPercent);
 
+    // Clip evaluated discount to merchant negotiation policy min/max bounds.
+    let effectiveEvaluation = evaluation;
+    if (!wantsShipping && effectiveEvaluation.approved && effectiveEvaluation.type === "discount_percent") {
+      const clip = clipToNegotiationPolicy(effectiveEvaluation.value, negotiationRange);
+      if (clip.clipped) {
+        this.logger.log("discount.clipped.to.negotiation.policy", {
+          merchantId: sessionObj.merchantId,
+          sessionId: sessionObj.sessionId,
+          raw: effectiveEvaluation.value,
+          effective: clip.effective,
+          direction: clip.direction
+        });
+        effectiveEvaluation = {
+          ...effectiveEvaluation,
+          value: clip.effective,
+          reason: `${effectiveEvaluation.reason}_clipped_${clip.direction}`
+        };
+      }
+    }
+
     const offer = createAuthorizedOffer({
       merchantId: sessionObj.merchantId,
       sessionId: sessionObj.sessionId,
       rules,
-      evaluation
+      evaluation: effectiveEvaluation
     });
     const saved = await this.repository.saveOffer(offer);
     // Type-system barrier: wrap in SafeAuthorizedOffer to enforce that only engines authorize.

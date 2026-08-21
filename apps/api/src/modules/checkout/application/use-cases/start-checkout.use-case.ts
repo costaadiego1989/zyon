@@ -159,17 +159,12 @@ export class StartCheckoutUseCase {
 
         const rules: string[] = [];
 
-        // Progressive discount stages → natural language rules
-        const policy = setting?.interventionPolicy as { progressiveDiscount?: { enabled: boolean; stages?: { initial_coupon?: number; exit_intent?: number; abandoned_cart?: number; payment_nudge?: number } } } | null;
-        if (policy?.progressiveDiscount?.enabled && policy.progressiveDiscount.stages) {
-          const s = policy.progressiveDiscount.stages;
-          if (s.initial_coupon) rules.push(`SE comprador pede cupom ENTÃO ofereça até ${s.initial_coupon}% de desconto`);
-          if (s.exit_intent) rules.push(`SE comprador ameaça sair ENTÃO ofereça até ${s.exit_intent}% de desconto para ficar`);
-          if (s.abandoned_cart) rules.push(`SE carrinho abandonado ENTÃO ofereça até ${s.abandoned_cart}% para recuperar`);
-          if (s.payment_nudge) rules.push(`SE comprador hesita no pagamento ENTÃO ofereça até ${s.payment_nudge}% para fechar agora`);
-        }
-
-        // Advanced rules → natural language
+        // Advanced rules → natural language (built first so we can derive their triggers).
+        // Priority chain: advanced rules > progressive discount.
+        // If an advanced rule already covers a trigger (e.g. trigger_fired=coupon_field_clicked),
+        // then the corresponding progressive NL rule for that same trigger is suppressed.
+        const advancedNlRules: string[] = [];
+        const advancedTriggers = new Set<string>();
         if (setting?.advancedRules) {
           const rules2 = setting.advancedRules as Array<{ enabled: boolean; priority: number; conditions: Array<{ field: string; operator: string; value: string | number | boolean }>; action: { type: string; params: Record<string, string | number> } }>;
           const fieldLabels: Record<string, string> = { cart_total: "carrinho", shipping_cost: "frete", product_in_cart: "produto", category_in_cart: "categoria", coupon_applied: "cupom", buyer_type: "comprador", payment_method: "pagamento", trigger_fired: "trigger", cart_item_count: "itens" };
@@ -177,12 +172,43 @@ export class StartCheckoutUseCase {
             const map: Record<string, string> = { offer_discount: `ofereça ${a.params.percent || "?"}% de desconto`, offer_free_shipping: "ofereça frete grátis", suggest_product: `sugira ${a.params.productName || "produto"}`, show_message: `diga: "${a.params.message || ""}"`, offer_installments: `ofereça ${a.params.maxInstallments || "?"}x`, do_nothing: "não intervenha", offer_coupon: `ofereça o cupom ${a.params.code || ""}` };
             return map[a.type] || "aja conforme melhor";
           };
-          const advRules = rules2.filter(r => r.enabled).sort((a, b) => a.priority - b.priority).map(r => {
+          for (const r of rules2.filter(r => r.enabled).sort((a, b) => a.priority - b.priority)) {
             const conds = r.conditions.map(c => `${fieldLabels[c.field] || c.field} ${c.operator} ${c.value}`).join(" E ");
-            return `SE ${conds} ENTÃO ${actionLabels(r.action)}`;
-          });
-          rules.push(...advRules);
+            advancedNlRules.push(`SE ${conds} ENTÃO ${actionLabels(r.action)}`);
+            for (const c of r.conditions) {
+              if (c.field === "trigger_fired") {
+                advancedTriggers.add(String(c.value));
+              }
+            }
+          }
         }
+
+        // Progressive discount stages → natural language rules,
+        // filtered out when an advanced rule already covers the trigger.
+        const progressiveByTrigger: Record<string, string> = {
+          coupon_field_clicked: "SE comprador pede cupom ENTÃO ofereça até {p}% de desconto",
+          exit_intent_detected: "SE comprador ameaça sair ENTÃO ofereça até {p}% de desconto para ficar",
+          idle_30_seconds: "SE comprador ameaça sair ENTÃO ofereça até {p}% de desconto para ficar",
+          checkout_abandoned: "SE carrinho abandonado ENTÃO ofereça até {p}% para recuperar",
+          payment_method_selected: "SE comprador hesita no pagamento ENTÃO ofereça até {p}% para fechar agora",
+          payment_failed: "SE comprador hesita no pagamento ENTÃO ofereça até {p}% para fechar agora"
+        };
+        const policy = setting?.interventionPolicy as { progressiveDiscount?: { enabled: boolean; stages?: { initial_coupon?: number; exit_intent?: number; abandoned_cart?: number; payment_nudge?: number } } } | null;
+        if (policy?.progressiveDiscount?.enabled && policy.progressiveDiscount.stages) {
+          const s = policy.progressiveDiscount.stages;
+          for (const [trigger, template] of Object.entries(progressiveByTrigger)) {
+            let pct = 0;
+            if (trigger === "coupon_field_clicked") pct = s.initial_coupon ?? 0;
+            else if (trigger === "exit_intent_detected" || trigger === "idle_30_seconds") pct = s.exit_intent ?? 0;
+            else if (trigger === "checkout_abandoned") pct = s.abandoned_cart ?? 0;
+            else if (trigger === "payment_method_selected" || trigger === "payment_failed") pct = s.payment_nudge ?? 0;
+            if (!pct) continue;
+            if (advancedTriggers.has(trigger)) continue;
+            rules.push(template.replace("{p}", String(pct)));
+          }
+        }
+
+        rules.push(...advancedNlRules);
 
         if (rules.length > 0) advancedRules = rules;
       }
