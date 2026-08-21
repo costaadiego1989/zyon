@@ -5,6 +5,7 @@ import { useCatalogApi } from "../hooks/api/useCatalogApi.js";
 import { Pagination } from "../components/Pagination.js";
 import { Button } from "../components/Button.js";
 import { EmptyState } from "../components/EmptyState.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { CsvImportModal, type CsvRow } from "../components/CsvImportModal.js";
@@ -57,6 +58,7 @@ export function CatalogPage(props: CatalogPageProps) {
   const [pageError, setPageError] = useState<string | null>(null);
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [categoryFilter, setCategoryFilter] = useState<string>("");
 
@@ -119,13 +121,16 @@ export function CatalogPage(props: CatalogPageProps) {
   }, [filteredItems, total]);
 
   async function confirmDelete(product: Product) {
-    const ok = window.confirm(`Remover "${product.name}"? Esta ação não pode ser desfeita.`);
-    if (!ok) return;
-    if (!merchantId) return;
-    setDeletingId(product.id);
+    setDeleteTarget(product);
+  }
+
+  async function executeDelete() {
+    if (!deleteTarget || !merchantId) return;
+    setDeletingId(deleteTarget.id);
+    setDeleteTarget(null);
     setPageError(null);
     try {
-      await catalog.deleteProduct(merchantId, product.id);
+      await catalog.deleteProduct(merchantId, deleteTarget.id);
       await load();
     } catch (e) {
       setPageError(e instanceof Error ? e.message : String(e));
@@ -334,6 +339,17 @@ export function CatalogPage(props: CatalogPageProps) {
         isOpen={showCsvModal}
         onClose={() => setShowCsvModal(false)}
         onImport={handleCsvImport}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Remover "${deleteTarget?.name ?? ""}"?`}
+        description="Esta ação não pode ser desfeita. O produto será removido permanentemente do catálogo."
+        confirmLabel="Remover produto"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={executeDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );
