@@ -61,6 +61,7 @@ const M2MAgentsPage = lazy(() => import("../pages/m2m-agents/M2MAgentsPage.js").
 const ProtocolPage = lazy(() => import("../pages/checkout-protocol/ProtocolPage.js").then(m => ({ default: m.ProtocolPage })));
 const IntentMemoryPage = lazy(() => import("../pages/intent-memory/IntentMemoryPage.js").then(m => ({ default: m.IntentMemoryPage })));
 const NegotiationPolicyPage = lazy(() => import("../pages/negotiation-policy/NegotiationPolicyPage.js").then(m => ({ default: m.NegotiationPolicyPage })));
+const ChargebacksPage = lazy(() => import("../pages/chargebacks/ChargebacksPage.js").then(m => ({ default: m.ChargebacksPage })));
 
 function LoadingFallback() {
   return (
@@ -275,6 +276,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "checkout-protocol" ? <ProtocolPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "intent-memory" ? <IntentMemoryPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "negotiation-policy" ? <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "chargebacks" ? <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             </Suspense>
           </PageErrorBoundary>
         </section>

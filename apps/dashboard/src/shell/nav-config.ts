@@ -1,5 +1,6 @@
 import {
   Activity,
+  AlertTriangle,
   Bot,
   Brain,
   Code2,
@@ -78,7 +79,8 @@ export type TabKey =
   | "negotiation-policy"
   | "revenue-lift"
   | "revenue-manager"
-  | "cart-recovery";
+  | "cart-recovery"
+  | "chargebacks";
 
 export const NAV_ITEMS: Array<{
   key: TabKey;
@@ -130,6 +132,7 @@ export const NAV_ITEMS: Array<{
   { key: "cart-recovery", label: "Cart Recovery", section: "Inteligência IA", icon: ShoppingCart, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
 
   // ─── Conta ───
+  { key: "chargebacks", label: "Chargebacks", section: "Conta", icon: AlertTriangle },
   { key: "team", label: "Equipe", section: "Conta", icon: Users },
   { key: "account-settings", label: "Configurações", section: "Conta", icon: Settings },
   { key: "billing", label: "Faturamento", section: "Conta", icon: CreditCard },
