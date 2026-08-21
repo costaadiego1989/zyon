@@ -2043,3 +2043,17 @@ model NegotiationAttempt {
   @@index([cartFingerprint, createdAt])
   @@map("negotiation_attempts")
 }
+
+/// Per-merchant cart recovery strategy toggles. `escalate_discount` is
+/// intentionally excluded — progressive discounts are governed separately by
+/// the negotiation / rules engines, not a binary toggle.
+model CartRecoveryStrategyPref {
+  id         String   @id @default(cuid())
+  merchantId String   @unique @map("merchant_id")
+  strategies Json     @default("{}")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([merchantId])
+  @@map("cart_recovery_strategy_prefs")
+}

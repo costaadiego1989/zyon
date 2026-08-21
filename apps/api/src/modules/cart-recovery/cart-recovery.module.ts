@@ -4,8 +4,12 @@ import { RecoveryScannerJob } from "./infrastructure/jobs/recovery-scanner.job.j
 import { AttemptCartRecoveryUseCase } from "./application/use-cases/attempt-cart-recovery.use-case.js";
 import { TrackRecoveryOutcomeUseCase } from "./application/use-cases/track-recovery-outcome.use-case.js";
 import { GetRecoveryMetricsUseCase } from "./application/use-cases/get-recovery-metrics.use-case.js";
+import { GetStrategyPreferencesUseCase } from "./application/use-cases/get-strategy-preferences.use-case.js";
+import { UpdateStrategyPreferencesUseCase } from "./application/use-cases/update-strategy-preferences.use-case.js";
 import { RECOVERY_ATTEMPT_REPOSITORY } from "./domain/ports/recovery-attempt-repository.port.js";
+import { STRATEGY_PREFERENCES_REPOSITORY } from "./domain/ports/strategy-preferences-repository.port.js";
 import { InMemoryRecoveryAttemptRepository } from "./infrastructure/repositories/in-memory-recovery-attempt.repository.js";
+import { PrismaStrategyPreferencesRepository } from "./infrastructure/repositories/prisma-strategy-preferences.repository.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -15,6 +19,8 @@ import { CartRecoveryController } from "./presentation/http/cart-recovery.contro
 export const ATTEMPT_CART_RECOVERY_USE_CASE = Symbol("ATTEMPT_CART_RECOVERY_USE_CASE");
 export const TRACK_RECOVERY_OUTCOME_USE_CASE = Symbol("TRACK_RECOVERY_OUTCOME_USE_CASE");
 export const GET_RECOVERY_METRICS_USE_CASE = Symbol("GET_RECOVERY_METRICS_USE_CASE");
+export const GET_STRATEGY_PREFERENCES_USE_CASE = Symbol("GET_STRATEGY_PREFERENCES_USE_CASE");
+export const UPDATE_STRATEGY_PREFERENCES_USE_CASE = Symbol("UPDATE_STRATEGY_PREFERENCES_USE_CASE");
 
 /**
  * CartRecoveryModule — Background scanner that detects abandoned sessions
@@ -38,6 +44,11 @@ export const GET_RECOVERY_METRICS_USE_CASE = Symbol("GET_RECOVERY_METRICS_USE_CA
       },
       inject: [PRISMA_CLIENT],
     },
+    {
+      provide: STRATEGY_PREFERENCES_REPOSITORY,
+      useFactory: (prisma: PrismaClient) => new PrismaStrategyPreferencesRepository(prisma),
+      inject: [PRISMA_CLIENT],
+    },
     RecoveryScannerJob,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
@@ -59,14 +70,39 @@ export const GET_RECOVERY_METRICS_USE_CASE = Symbol("GET_RECOVERY_METRICS_USE_CA
       useFactory: (repo) => new GetRecoveryMetricsUseCase(repo),
       inject: [RECOVERY_ATTEMPT_REPOSITORY],
     },
+    {
+      provide: GET_STRATEGY_PREFERENCES_USE_CASE,
+      useFactory: (repo) => new GetStrategyPreferencesUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: GetStrategyPreferencesUseCase,
+      useFactory: (repo) => new GetStrategyPreferencesUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: UPDATE_STRATEGY_PREFERENCES_USE_CASE,
+      useFactory: (repo) => new UpdateStrategyPreferencesUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
+    {
+      provide: UpdateStrategyPreferencesUseCase,
+      useFactory: (repo) => new UpdateStrategyPreferencesUseCase(repo),
+      inject: [STRATEGY_PREFERENCES_REPOSITORY],
+    },
   ],
   exports: [
     RECOVERY_ATTEMPT_REPOSITORY,
+    STRATEGY_PREFERENCES_REPOSITORY,
     RecoveryScannerJob,
     ATTEMPT_CART_RECOVERY_USE_CASE,
     TRACK_RECOVERY_OUTCOME_USE_CASE,
     GET_RECOVERY_METRICS_USE_CASE,
+    GET_STRATEGY_PREFERENCES_USE_CASE,
+    UPDATE_STRATEGY_PREFERENCES_USE_CASE,
     GetRecoveryMetricsUseCase,
+    GetStrategyPreferencesUseCase,
+    UpdateStrategyPreferencesUseCase,
   ]
 })
 export class CartRecoveryModule {}

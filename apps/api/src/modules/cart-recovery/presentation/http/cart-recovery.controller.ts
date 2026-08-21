@@ -1,45 +1,48 @@
 import {
+  Body,
   Controller,
   Get,
-  Inject,
+  Patch,
   Query,
   Req,
   UseGuards,
-  ValidationPipe,
 } from "@nestjs/common";
+import type { Request } from "express";
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
-import type { TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
-import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
-import { TenantAccessGuard } from "../../../integrations/presentation/http/tenant-access.guard.js";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { GetRecoveryMetricsUseCase } from "../../application/use-cases/get-recovery-metrics.use-case.js";
+import { GetStrategyPreferencesUseCase } from "../../application/use-cases/get-strategy-preferences.use-case.js";
+import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/update-strategy-preferences.use-case.js";
 
 @ApiTags("Cart Recovery")
 @Controller("cart-recovery")
-@UseGuards(TenantAccessGuard)
+@UseGuards(AuthGuard)
 @ApiBearerAuth("JWT")
 export class CartRecoveryController {
   constructor(
     private readonly getRecoveryMetrics: GetRecoveryMetricsUseCase,
+    private readonly getStrategyPreferences: GetStrategyPreferencesUseCase,
+    private readonly updateStrategyPreferences: UpdateStrategyPreferencesUseCase,
   ) {}
 
   @Get("metrics")
   @ApiOperation({ summary: "Get recovery metrics and statistics" })
   @ApiOkResponse({ description: "Recovery metrics retrieved" })
   async getMetrics(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Query() query?: { daysBack?: number },
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     const daysBack = query?.daysBack ?? 30;
     const to = new Date();
     const from = new Date(to.getTime() - daysBack * 24 * 60 * 60 * 1000);
     return this.getRecoveryMetrics.execute({
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       from,
       to,
     });
@@ -49,19 +52,45 @@ export class CartRecoveryController {
   @ApiOperation({ summary: "List recovery attempts" })
   @ApiOkResponse({ description: "Recovery attempts retrieved" })
   async listAttempts(
-    @Req() req: TenantPrincipalRequest,
+    @Req() req: Request,
     @Query() query?: { status?: string; limit?: number; offset?: number },
   ) {
-    const principal = currentTenantPrincipal(req);
+    const user = currentUser(req);
     const status = query?.status ?? "all";
     const limit = Math.min(query?.limit ?? 50, 100);
     const offset = query?.offset ?? 0;
     return {
-      merchantId: principal.tenantId,
+      merchantId: user.merchantId,
       status,
       limit,
       offset,
       message: "Recovery attempts endpoint",
     };
+  }
+
+  @Get("strategies")
+  @ApiOperation({ summary: "Get cart recovery strategy toggles" })
+  @ApiOkResponse({ description: "Strategy preferences retrieved" })
+  async getStrategies(@Req() req: Request) {
+    const user = currentUser(req);
+    const strategies = await this.getStrategyPreferences.execute({
+      merchantId: user.merchantId,
+    });
+    return { strategies };
+  }
+
+  @Patch("strategies")
+  @ApiOperation({ summary: "Update cart recovery strategy toggles" })
+  @ApiOkResponse({ description: "Strategy preferences updated" })
+  async patchStrategies(
+    @Req() req: Request,
+    @Body() body: { strategies?: Record<string, boolean> },
+  ) {
+    const user = currentUser(req);
+    const strategies = await this.updateStrategyPreferences.execute({
+      merchantId: user.merchantId,
+      strategies: body?.strategies ?? {},
+    });
+    return { strategies };
   }
 }

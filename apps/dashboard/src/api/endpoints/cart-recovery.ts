@@ -10,6 +10,14 @@ export interface CartRecoveryMetrics {
   revenue_recovered_brl: number;
 }
 
+export type CartRecoveryStrategyKey =
+  | "offer_free_shipping"
+  | "personalized_cross_sell"
+  | "address_objection"
+  | "wait_and_retry";
+
+export type CartRecoveryStrategyPreferences = Record<CartRecoveryStrategyKey, boolean>;
+
 export interface CartRecoveryStrategy {
   tier: "free_shipping" | "escalate_discount" | "cross_sell" | "address_objection" | "wait";
   enabled: boolean;
@@ -39,6 +47,25 @@ export function cartRecoveryEndpoints(base: string, f: typeof fetch) {
         base, path, { method: "GET" }, f
       );
       return Array.isArray(res) ? res : res.data;
+    },
+
+    async getCartRecoveryStrategies(): Promise<CartRecoveryStrategyPreferences> {
+      const res = await dashboardJson<{ strategies: CartRecoveryStrategyPreferences }>(
+        base, `${PREFIX}/strategies`, { method: "GET" }, f
+      );
+      return res.strategies;
+    },
+
+    async patchCartRecoveryStrategies(
+      strategies: Partial<CartRecoveryStrategyPreferences>,
+    ): Promise<CartRecoveryStrategyPreferences> {
+      const res = await dashboardJson<{ strategies: CartRecoveryStrategyPreferences }>(
+        base, `${PREFIX}/strategies`, {
+          method: "PATCH",
+          jsonBody: { strategies },
+        }, f
+      );
+      return res.strategies;
     },
   };
 }

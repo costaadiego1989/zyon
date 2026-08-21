@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React from "react";
 import { ShoppingCart, Send, CheckCircle, XCircle, Clock, Wallet, Target, RefreshCw } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { StatCard } from "../../components/stat-card.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
+import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
 
 export interface CartRecoveryPageProps {
   apiBaseUrl: string;
@@ -18,22 +19,28 @@ const CARD: React.CSSProperties = {
   padding: "24px 28px",
 };
 
-interface StrategyConfig {
-  tier: string;
+interface StrategyDisplayConfig {
+  key: CartRecoveryStrategyKey;
   label: string;
   description: string;
-  enabled: boolean;
 }
 
+const STRATEGY_DISPLAY: StrategyDisplayConfig[] = [
+  { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo" },
+  { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares" },
+  { key: "address_objection", label: "Endereçar Objeção", description: "Responder à objeção principal do comprador" },
+  { key: "wait_and_retry", label: "Esperar", description: "Aguardar antes de novo contato" },
+];
+
 export function CartRecoveryPage(props: CartRecoveryPageProps) {
-  const { metrics, attempts, loading } = useCartRecoveryPage();
-  const [strategies, setStrategies] = useState<StrategyConfig[]>([
-    { tier: "free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo", enabled: true },
-    { tier: "escalate_discount", label: "Desconto Escalonado", description: "Aumentar desconto progressivamente", enabled: true },
-    { tier: "cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares", enabled: true },
-    { tier: "address_objection", label: "Endereçar Objeção", description: "Responder à objeção principal do comprador", enabled: true },
-    { tier: "wait", label: "Esperar", description: "Aguardar antes de novo contato", enabled: false },
-  ]);
+  const {
+    metrics,
+    attempts,
+    strategies,
+    savingKey,
+    loading,
+    toggleStrategy,
+  } = useCartRecoveryPage();
 
   if (!props.me) {
     return <p style={{ color: "var(--faint)", font: "13px var(--sans)" }}>Login necessário</p>;
@@ -46,10 +53,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       </div>
     );
   }
-
-  const toggleStrategy = (tier: string) => {
-    setStrategies(prev => prev.map(s => s.tier === tier ? { ...s, enabled: !s.enabled } : s));
-  };
 
   const statusIcon = (status: string) => {
     switch (status) {
@@ -124,9 +127,13 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       <div style={CARD}>
         <div style={{ font: "600 12px var(--sans)", color: "var(--ink)", marginBottom: 16 }}>Configuração de Estratégias</div>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {strategies.map((s) => (
-            <div key={s.tier} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-              <ToggleSwitch checked={s.enabled} onChange={() => toggleStrategy(s.tier)} />
+          {STRATEGY_DISPLAY.map((s) => (
+            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+              <ToggleSwitch
+                checked={strategies[s.key]}
+                onChange={() => toggleStrategy(s.key)}
+                disabled={savingKey === s.key}
+              />
               <div style={{ flex: 1 }}>
                 <div style={{ font: "13px var(--sans)", color: "var(--ink)", fontWeight: 500 }}>{s.label}</div>
                 <div style={{ font: "12px var(--sans)", color: "var(--muted)" }}>{s.description}</div>

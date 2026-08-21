@@ -1,7 +1,20 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
-import type { CartRecoveryMetrics, CartRecoveryAttempt } from "../../api/endpoints/cart-recovery.js";
+import { showToast } from "../../components/Toast.js";
+import type {
+  CartRecoveryMetrics,
+  CartRecoveryAttempt,
+  CartRecoveryStrategyPreferences,
+  CartRecoveryStrategyKey,
+} from "../../api/endpoints/cart-recovery.js";
+
+const DEFAULT_STRATEGIES: CartRecoveryStrategyPreferences = {
+  offer_free_shipping: true,
+  personalized_cross_sell: true,
+  address_objection: true,
+  wait_and_retry: true,
+};
 
 const MOCK_METRICS: CartRecoveryMetrics = {
   total_abandoned: 2847,
@@ -53,6 +66,9 @@ export function useCartRecoveryPage() {
   const api = useApi();
   const [metrics, setMetrics] = useState<CartRecoveryMetrics | null>(null);
   const [attempts, setAttempts] = useState<CartRecoveryAttempt[]>([]);
+  const [strategies, setStrategies] = useState<CartRecoveryStrategyPreferences>(DEFAULT_STRATEGIES);
+  const [strategiesLoaded, setStrategiesLoaded] = useState(false);
+  const [savingKey, setSavingKey] = useState<CartRecoveryStrategyKey | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,13 +76,18 @@ export function useCartRecoveryPage() {
     (async () => {
       setLoading(true);
       try {
-        const [metData, attData] = await Promise.all([
+        const [metData, attData, stratData] = await Promise.all([
           api.getCartRecoveryMetrics?.().catch(() => null),
           api.getCartRecoveryAttempts?.().catch(() => null),
+          api.getCartRecoveryStrategies?.().catch(() => null),
         ]);
         if (cancelled) return;
         setMetrics(metData ?? MOCK_METRICS);
         setAttempts(attData ?? MOCK_ATTEMPTS);
+        if (stratData) {
+          setStrategies({ ...DEFAULT_STRATEGIES, ...stratData });
+          setStrategiesLoaded(true);
+        }
       } catch (e) {
         reportError({ source: "cart-recovery.load", error: e });
         if (!cancelled) {
@@ -74,11 +95,42 @@ export function useCartRecoveryPage() {
           setAttempts(MOCK_ATTEMPTS);
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setStrategiesLoaded(true);
+          setLoading(false);
+        }
       }
     })();
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return { metrics, attempts, loading };
+  const toggleStrategy = useCallback(async (key: CartRecoveryStrategyKey) => {
+    const previous = strategies[key];
+    const next = !previous;
+    // Optimistic update — flip locally so the toggle feels instant.
+    setStrategies((prev) => ({ ...prev, [key]: next }));
+    setSavingKey(key);
+    try {
+      const saved = await api.patchCartRecoveryStrategies({ [key]: next });
+      setStrategies((prev) => ({ ...prev, ...saved }));
+      showToast("success", next ? "Estratégia ativada" : "Estratégia desativada");
+    } catch (e) {
+      // Rollback on failure.
+      setStrategies((prev) => ({ ...prev, [key]: previous }));
+      reportError({ source: "cart-recovery.toggle", error: e });
+      showToast("error", e instanceof Error ? e.message : "Erro ao salvar estratégia");
+    } finally {
+      setSavingKey(null);
+    }
+  }, [api, strategies]);
+
+  return {
+    metrics,
+    attempts,
+    strategies,
+    strategiesLoaded,
+    savingKey,
+    loading,
+    toggleStrategy,
+  };
 }
