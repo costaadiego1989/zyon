@@ -38,7 +38,7 @@ function CouponSearchDropdown({ value, onChange, coupons, loaded }: {
   }, []);
 
   const filtered = coupons.filter((c) =>
-    c.code.toLowerCase().includes(search.toLowerCase())
+    (c.code ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   const selected = coupons.find((c) => c.code === value);
@@ -203,7 +203,7 @@ export function TriggerEditor({
 
   useEffect(() => {
     api.listCoupons?.().then((list: CouponOption[]) => {
-      setCoupons(list.filter((c) => c.isActive));
+      setCoupons(list.filter((c) => c.isActive && typeof c.code === "string"));
       setCouponsLoaded(true);
     }).catch(() => setCouponsLoaded(true));
   }, [api]);

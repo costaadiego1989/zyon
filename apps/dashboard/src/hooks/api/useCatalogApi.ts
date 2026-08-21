@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useApi } from "../useApi.js";
 
 /**
@@ -15,18 +16,21 @@ import { useApi } from "../useApi.js";
  */
 export function useCatalogApi() {
   const api = useApi();
-  return {
-    listProducts: api.listProducts,
-    getProduct: api.getProduct,
-    createProduct: api.createProduct,
-    updateProduct: api.updateProduct,
-    deleteProduct: api.deleteProduct,
-    updateVariant: api.updateVariant,
-    uploadProductMedia: api.uploadProductMedia,
-    deleteProductMedia: api.deleteProductMedia,
-    listCategories: api.listCategories,
-    createCategory: api.createCategory,
-    updateCategory: api.updateCategory,
-    deleteCategory: api.deleteCategory,
-  };
+  return useMemo(
+    () => ({
+      listProducts: api.listProducts,
+      getProduct: api.getProduct,
+      createProduct: api.createProduct,
+      updateProduct: api.updateProduct,
+      deleteProduct: api.deleteProduct,
+      updateVariant: api.updateVariant,
+      uploadProductMedia: api.uploadProductMedia,
+      deleteProductMedia: api.deleteProductMedia,
+      listCategories: api.listCategories,
+      createCategory: api.createCategory,
+      updateCategory: api.updateCategory,
+      deleteCategory: api.deleteCategory,
+    }),
+    [api],
+  );
 }

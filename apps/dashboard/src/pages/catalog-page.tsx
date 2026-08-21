@@ -23,6 +23,7 @@ const PRODUCT_TYPE_LABELS: Record<string, string> = {
   variable: "Variável",
   digital: "Digital",
   service: "Serviço",
+  food: "Alimentação",
 };
 
 export function formatPrice(cents: number, currency: string): string {
@@ -109,10 +110,6 @@ export function CatalogPage(props: CatalogPageProps) {
     if (statusFilter === "active") return items.filter(p => p.isActive);
     return items.filter(p => !p.isActive);
   }, [items, statusFilter]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
 
   const totals = useMemo(() => {
     const totalCount = total;

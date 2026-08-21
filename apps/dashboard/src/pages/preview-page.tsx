@@ -420,6 +420,10 @@ export function CheckoutPreviewPage(props: { apiBaseUrl: string; me: MerchantPro
                   display: "block",
                   background: "var(--bg)",
                 }}
+                onError={() => {
+                  // T-004: graceful fallback if storefront fails to load
+                  console.warn("Storefront preview failed to load:", storefrontUrl);
+                }}
               />
             )}
           </div>

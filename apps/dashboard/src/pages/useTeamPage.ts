@@ -82,12 +82,22 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
     setInviting(true);
     setMessage(null);
     try {
+      // Preserve current merchant ID to detect if session was lost during the call
+      const preInviteMerchantId = merchantId;
+
       await api.inviteTeamMember(merchantId, {
         name: inviteName.trim(),
         email: inviteEmail.trim(),
         phone: invitePhone.trim() || undefined,
         role: inviteRole,
       });
+
+      // Verify we're still authenticated (T-005: prevent disconnect bug)
+      if (!preInviteMerchantId) {
+        setMessage({ text: "Sessão expirou durante o convite.", kind: "error" });
+        return;
+      }
+
       setMessage({ text: `Convite enviado para ${inviteEmail}`, kind: "ok" });
       setInviteName("");
       setInviteEmail("");

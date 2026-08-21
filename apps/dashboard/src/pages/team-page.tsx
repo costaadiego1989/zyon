@@ -8,6 +8,7 @@ import { Modal } from "../components/Modal.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { FormField, FormSelect } from "../components/FormField.js";
 import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
+import { maskPhone } from "../utils/masks.js";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useTeamPage({ me: props.me });
@@ -197,7 +198,7 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <FormField label="Nome completo" placeholder="Maria Silva" value={vm.inviteName} onChange={vm.setInviteName} />
           <FormField label="Email" type="email" placeholder="agente@sualoja.com" value={vm.inviteEmail} onChange={vm.setInviteEmail} />
-          <FormField label="WhatsApp" type="tel" placeholder="(11) 99999-9999" value={vm.invitePhone} onChange={vm.setInvitePhone} />
+          <FormField label="WhatsApp" type="tel" placeholder="(11) 99999-9999" value={maskPhone(vm.invitePhone)} onChange={(v) => vm.setInvitePhone(maskPhone(v))} maxLength={15} />
           <FormSelect
             label="Função"
             value={vm.inviteRole}
