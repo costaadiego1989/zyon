@@ -170,6 +170,8 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
     return "shipping";
   }
   if (!session.paymentMethod) return "payment";
+  // payment_pending: method selected but payment not yet confirmed via webhook
+  if (!(session as any).paymentConfirmed) return "payment_pending" as any;
   return "completed";
 }
 
