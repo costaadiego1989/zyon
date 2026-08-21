@@ -2057,3 +2057,19 @@ model CartRecoveryStrategyPref {
   @@index([merchantId])
   @@map("cart_recovery_strategy_prefs")
 }
+
+// ─── Cross-Sell Context: Global Buyer Profile ─────────────────────────────────
+
+model BuyerGlobalProfile {
+  globalUserId        String   @id @map("global_user_id")
+  topCategories       String[] @map("top_categories")
+  recentSkus          String[] @map("recent_skus")
+  preferredBrands     String[] @map("preferred_brands")
+  avgOrderValueCents  Int      @map("avg_order_value_cents")
+  totalOrders         Int      @map("total_orders")
+  discountSensitivity String   @map("discount_sensitivity")
+  lastPurchaseAt      DateTime? @map("last_purchase_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@map("buyer_global_profiles")
+}
