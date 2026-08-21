@@ -29,7 +29,10 @@ function firstHeader(value: string | string[] | undefined): string | undefined {
 }
 
 function readEmbedToken(headers: Record<string, string | string[] | undefined>): string | undefined {
-  const embed = firstHeader(headers["x-aacp-embed-token"] ?? headers["X-AACP-Embed-Token"]);
+  const embed = firstHeader(
+    headers["x-aacp-embed-token"] ?? headers["X-AACP-Embed-Token"] ??
+    headers["x-embed-session-token"] ?? headers["X-Embed-Session-Token"]
+  );
   if (embed) return embed;
 
   const auth = firstHeader(headers.authorization ?? headers.Authorization);
