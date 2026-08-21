@@ -20,13 +20,15 @@ import { PrismaNegotiationStore } from "./infrastructure/prisma-negotiation.stor
 import { NegotiationController } from "./presentation/http/negotiation.controller.js";
 import { MerchantNegotiationPolicyController } from "./presentation/http/merchant-negotiation-policy.controller.js";
 import { BuyerAgentNegotiationPreferencesController } from "./presentation/http/buyer-agent-negotiation-preferences.controller.js";
+import { M2mController } from "./presentation/http/m2m.controller.js";
 
 @Module({
   imports: [AuthModule, CheckoutModule, MerchantModule],
   controllers: [
     NegotiationController,
     MerchantNegotiationPolicyController,
-    BuyerAgentNegotiationPreferencesController
+    BuyerAgentNegotiationPreferencesController,
+    M2mController,
   ],
   providers: [
     EvaluateNegotiationUseCase,

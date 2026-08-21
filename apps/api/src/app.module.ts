@@ -38,6 +38,7 @@ import { ExperimentsModule } from "./modules/experiments/experiments.module.js";
 import { MarketplaceModule } from "./modules/marketplace/marketplace.module.js";
 import { DashboardMarketplaceModule } from "./modules/dashboard/dashboard-marketplace.module.js";
 import { RevenueManagerModule } from "./modules/revenue-manager/revenue-manager.module.js";
+import { RevenueLiftModule } from "./modules/revenue-lift/revenue-lift.module.js";
 import { CartRecoveryModule } from "./modules/cart-recovery/cart-recovery.module.js";
 import { IntentMemoryModule } from "./modules/intent-memory/intent-memory.module.js";
 // import { PublicApiModule } from "./modules/public-api/public-api.module.js"; // TODO: fix DI (AuthenticateMerchantApiKeyService)
@@ -125,6 +126,7 @@ const REDACTED_LOG_PATHS = [
     StorageModule,
     ExperimentsModule,
     RevenueManagerModule,
+    RevenueLiftModule,
     MarketplaceModule,
     DashboardMarketplaceModule,
     CartRecoveryModule,

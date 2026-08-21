@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { EXPERIMENT_REPOSITORY_PORT, type ExperimentRepositoryPort } from "../../domain/ports/experiment-repository.port.js";
+import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { createExperimentEventEnvelope } from "../../domain/events/experiment-domain-event.js";
 
 @Injectable()
 export class PromoteWinnerUseCase {
@@ -10,6 +12,7 @@ export class PromoteWinnerUseCase {
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(EXPERIMENT_REPOSITORY_PORT) private readonly experimentRepo: ExperimentRepositoryPort,
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
   ) {}
 
   async execute(experimentId: string, merchantId: string, winnerVariantId: string): Promise<void> {
@@ -39,6 +42,18 @@ export class PromoteWinnerUseCase {
 
       // Persist
       await this.experimentRepo.save(withWinner);
+
+      // Emit outbox event for revenue-manager to react
+      const event = createExperimentEventEnvelope({
+        eventType: "experiment.completed",
+        merchantId,
+        payload: {
+          experiment_id: experimentId,
+          winner_variant_id: winnerVariantId,
+          winner_variant_name: winner.name,
+        },
+      });
+      await this.outbox.appendOutbox(event);
 
       this.logger.log(
         `Promoted winner: experiment=${experimentId} winner=${winner.name} (${winnerVariantId})`,

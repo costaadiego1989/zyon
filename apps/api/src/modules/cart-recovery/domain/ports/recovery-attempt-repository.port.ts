@@ -1,5 +1,7 @@
 import type { RecoveryAttempt, RecoveryAttemptStatus } from "../entities/recovery-attempt.entity.js";
 
+export const RECOVERY_ATTEMPT_REPOSITORY = Symbol("RECOVERY_ATTEMPT_REPOSITORY");
+
 export interface RecoveryAttemptRepositoryPort {
   save(attempt: RecoveryAttempt): Promise<void>;
   findById(id: string): Promise<RecoveryAttempt | null>;

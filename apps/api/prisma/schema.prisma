@@ -1927,3 +1927,119 @@ model ProtocolSession {
   @@index([merchantId, currentState])
   @@map("protocol_sessions")
 }
+
+model RecoveryAttempt {
+  id                  String   @id @default(cuid())
+  merchantId          String   @map("merchant_id")
+  sessionId           String   @map("session_id")
+  globalUserId        String   @map("global_user_id")
+  abandonmentReason   String   @map("abandonment_reason")
+  abandonmentScore    Float    @map("abandonment_score")
+  strategyJson        Json     @map("strategy_json")
+  channel             String   @default("in_session")
+  sentAt              DateTime? @map("sent_at")
+  status              String   @default("pending")
+  recoveredAt         DateTime? @map("recovered_at")
+  recoveredOrderId    String?  @map("recovered_order_id")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, status])
+  @@index([merchantId, createdAt])
+  @@index([sessionId])
+  @@map("recovery_attempts")
+}
+
+model BuyerIntentMemoryConsent {
+  merchantId    String   @map("merchant_id")
+  globalUserId  String   @map("global_user_id")
+  optedIn       Boolean  @map("opted_in")
+  expiresAt     DateTime @map("expires_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@id([merchantId, globalUserId])
+  @@map("buyer_intent_memory_consents")
+}
+
+model CustomerIntentRecord {
+  id                        String   @id @default(cuid())
+  merchantId                String   @map("merchant_id")
+  globalUserId              String   @map("global_user_id")
+  primaryIntent             String   @map("primary_intent")
+  urgency                   String
+  budgetTier                String   @map("budget_tier")
+  categoryFocus             String[] @map("category_focus")
+  painPoints                String[] @map("pain_points")
+  conversionLikelihoodPct   Int      @map("conversion_likelihood_pct")
+  behavioralSignalsJson     Json     @map("behavioral_signals_json")
+  generatedAt               DateTime @map("generated_at")
+
+  @@index([merchantId, globalUserId])
+  @@index([merchantId, generatedAt])
+  @@map("customer_intent_records")
+}
+
+model HoldoutGroupAssignment {
+  globalUserId    String   @map("global_user_id")
+  merchantId      String   @map("merchant_id")
+  cohort          String
+  assignedAt      DateTime @default(now()) @map("assigned_at")
+
+  @@id([globalUserId, merchantId])
+  @@index([merchantId, cohort])
+  @@map("holdout_group_assignments")
+}
+
+model AttributionTag {
+  id                              String   @id @default(cuid())
+  merchantId                      String   @map("merchant_id")
+  orderId                         String   @map("order_id")
+  sessionId                       String   @map("session_id")
+  globalUserId                    String   @map("global_user_id")
+  cohort                          String
+  negotiationApplied              Boolean  @default(false) @map("negotiation_applied")
+  crossSellApplied                Boolean  @default(false) @map("cross_sell_applied")
+  progressiveDiscountApplied      Boolean  @default(false) @map("progressive_discount_applied")
+  cartRecoveryApplied             Boolean  @default(false) @map("cart_recovery_applied")
+  intentPersonalizationApplied    Boolean  @default(false) @map("intent_personalization_applied")
+  experimentVariantId             String?  @map("experiment_variant_id")
+  orderValueCents                 Int      @map("order_value_cents")
+  discountGivenCents              Int      @default(0) @map("discount_given_cents")
+  shippingSubsidyCents            Int      @default(0) @map("shipping_subsidy_cents")
+  aiCostCents                     Int      @default(0) @map("ai_cost_cents")
+  createdAt                       DateTime @default(now()) @map("created_at")
+
+  @@unique([merchantId, orderId])
+  @@index([merchantId, cohort, createdAt])
+  @@map("attribution_tags")
+}
+
+model RevenueLiftSnapshot {
+  id              String   @id @default(cuid())
+  merchantId      String   @map("merchant_id")
+  periodFrom      DateTime @map("period_from")
+  periodTo        DateTime @map("period_to")
+  holdoutJson     Json     @map("holdout_json")
+  treatmentJson   Json     @map("treatment_json")
+  liftJson        Json     @map("lift_json")
+  breakoutJson    Json     @map("breakout_json")
+  confidenceJson  Json     @map("confidence_json")
+  calculatedAt    DateTime @default(now()) @map("calculated_at")
+
+  @@index([merchantId, calculatedAt])
+  @@map("revenue_lift_snapshots")
+}
+
+model NegotiationAttempt {
+  id                    String   @id @default(cuid())
+  merchantId            String   @map("merchant_id")
+  sessionId             String   @map("session_id")
+  globalUserId          String   @map("global_user_id")
+  cartFingerprint       String   @map("cart_fingerprint")
+  negotiationResultJson Json     @map("negotiation_result_json")
+  authorizedOfferJson   Json?    @map("authorized_offer_json")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  @@index([merchantId, sessionId])
+  @@index([cartFingerprint, createdAt])
+  @@map("negotiation_attempts")
+}

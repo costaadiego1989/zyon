@@ -148,7 +148,7 @@ test("E2E: Full experiment lifecycle (create → start → assign → complete �
   const startUseCase = new StartExperimentUseCase(experimentRepo, outboxRepo);
   const assignUseCase = new AssignVariantToSessionUseCase(experimentRepo);
   const getResultsUseCase = new GetExperimentResultsUseCase(experimentRepo, {} as any);
-  const promoteUseCase = new PromoteWinnerUseCase(null as any, experimentRepo);
+  const promoteUseCase = new PromoteWinnerUseCase(null as any, experimentRepo, outboxRepo);
 
   const merchantId = "mrc_e2e_lifecycle";
 
@@ -443,7 +443,7 @@ test("Integration: Promoted winner becomes default system prompt for new session
   const createUseCase = new CreateExperimentUseCase(experimentRepo, outboxRepo);
   const startUseCase = new StartExperimentUseCase(experimentRepo, outboxRepo);
   const assignUseCase = new AssignVariantToSessionUseCase(experimentRepo);
-  const promoteUseCase = new PromoteWinnerUseCase(null as any, experimentRepo);
+  const promoteUseCase = new PromoteWinnerUseCase(null as any, experimentRepo, outboxRepo);
 
   const merchantId = "mrc_promotion_integration";
 
