@@ -51,6 +51,7 @@ const AccountSettingsPage = lazy(() => import("../pages/account-settings-page.js
 const CustomDomainPage = lazy(() => import("../pages/custom-domains/index.js").then(m => ({ default: m.CustomDomainPage })));
 const CrossSellPage = lazy(() => import("../pages/cross-sell/index.js").then(m => ({ default: m.CrossSellPage })));
 const MarketplacePage = lazy(() => import("../pages/marketplace/index.js").then(m => ({ default: m.MarketplacePage })));
+const WhatsAppSellerPage = lazy(() => import("../pages/whatsapp-seller/WhatsAppSellerPage.js").then(m => ({ default: m.WhatsAppSellerPage })));
 const ExperimentsPage = lazy(() => import("../pages/experiments-page.js").then(m => ({ default: m.ExperimentsPage })));
 const CouponsPage = lazy(() => import("../pages/coupons/index.js").then(m => ({ default: m.CouponsPage })));
 const RevenueLiftPage = lazy(() => import("../pages/revenue-lift/index.js").then(m => ({ default: m.RevenueLiftPage })));
@@ -264,6 +265,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "team" ? <TeamPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "account-settings" ? <AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "marketplace" ? <MarketplacePage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "whatsapp-seller" ? <WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "coupons" ? <CouponsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "experiments" ? <ExperimentsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "revenue-lift" ? <RevenueLiftPage apiBaseUrl={API_BASE_URL} me={me} /> : null}

@@ -141,5 +141,31 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     removeTeamMember(merchantId: string, userId: string): Promise<{ ok: true }> {
       return dashboardJson(base, `/merchants/${merchantId}/team/${userId}`, { method: "DELETE" }, f);
     },
+
+    // ─── WhatsApp Seller ───────────────────────────────────────────────────
+
+    getWhatsAppConfig(merchantId: string): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/connection`, { method: "GET" }, f);
+    },
+
+    connectWhatsApp(merchantId: string, payload: { provider: string; phoneNumber: string }): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/twilio/connect`, { method: "POST", jsonBody: payload }, f);
+    },
+
+    verifyWhatsApp(merchantId: string, payload: { code: string }): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/twilio/verify`, { method: "POST", jsonBody: payload }, f);
+    },
+
+    disconnectWhatsApp(merchantId: string): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/disconnect`, { method: "POST" }, f);
+    },
+
+    testWhatsApp(merchantId: string): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/test`, { method: "POST" }, f);
+    },
+
+    toggleWhatsApp(merchantId: string, enabled: boolean): Promise<any> {
+      return dashboardJson(base, `/merchants/${merchantId}/whatsapp/toggle`, { method: "POST", jsonBody: { enabled } }, f);
+    },
   };
 }

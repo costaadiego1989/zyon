@@ -31,6 +31,7 @@ import {
   CircleDashed,
   TrendingUp,
   ShoppingCart,
+  Smartphone,
   type LucideIcon
 } from "lucide-react";
 
@@ -70,6 +71,7 @@ export type TabKey =
   | "team"
   | "account-settings"
   | "marketplace"
+  | "whatsapp-seller"
   | "m2m-agents"
   | "checkout-protocol"
   | "intent-memory"
@@ -118,6 +120,7 @@ export const NAV_ITEMS: Array<{
   { key: "commerce-connections", label: "Commerce", section: "Integrações", icon: Store },
   { key: "payment-connections", label: "Pagamentos", section: "Integrações", icon: Zap },
   { key: "marketplace", label: "Marketplace", section: "Integrações", icon: ShoppingBag },
+  { key: "whatsapp-seller", label: "WhatsApp Seller", section: "Integrações", icon: Smartphone },
 
   // ─── Inteligência IA ───
   { key: "m2m-agents", label: "M2M Agents", section: "Inteligência IA", icon: Bot, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
