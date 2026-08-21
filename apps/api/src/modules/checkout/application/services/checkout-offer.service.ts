@@ -60,6 +60,32 @@ export class CheckoutOfferService {
     const isDataCollection = stage === "data_collection";
     const isIncompleteShipping = stage === "shipping";
 
+    // MARKETPLACE GUARD: cross-store items NEVER receive discounts, free shipping, or coupons.
+    // Host merchant cannot subsidize another seller's product margin.
+    const hasCrossStoreItems = Boolean((sessionObj as any).crossStoreItems?.length > 0);
+    const hasOnlyCrossStoreItems = hasCrossStoreItems && (!sessionObj.cart.items || sessionObj.cart.items.length === 0);
+    if (hasOnlyCrossStoreItems) {
+      this.logger.log("offer.marketplace_guard: cart has only cross-store items, no discounts allowed", {
+        merchantId: sessionObj.merchantId,
+        sessionId: sessionObj.sessionId,
+      });
+      const saved = await this.repository.saveOffer(
+        createAuthorizedOffer({
+          merchantId: sessionObj.merchantId,
+          sessionId: sessionObj.sessionId,
+          rules,
+          evaluation: {
+            approved: false,
+            type: "none",
+            value: 0,
+            reason: "marketplace_items_no_discount",
+            marginAfterOffer: 0
+          }
+        })
+      );
+      return SafeAuthorizedOffer.fromRulesEngine(saved);
+    }
+
     if (isDataCollection || isIncompleteShipping) {
       const saved = await this.repository.saveOffer(
         createAuthorizedOffer({

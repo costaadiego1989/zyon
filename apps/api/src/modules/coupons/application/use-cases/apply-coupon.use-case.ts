@@ -57,6 +57,12 @@ export class ApplyCouponUseCase {
     const limitCheck = checkCouponLimits(snap, globalCount, buyerCount);
     if (!limitCheck.allowed) throw new BadRequestException(limitCheck.reason);
 
+    // MARKETPLACE GUARD: cross-store items never receive coupons or discounts.
+    // Host merchant cannot subsidize another seller's product margin.
+    if (input.cart?.items?.length === 0 && (input.cart as any).crossStoreItems?.length > 0) {
+      throw new BadRequestException("marketplace_items_no_coupons");
+    }
+
     // P0 fix: raw calculated discount must be authorized by the rules-engine
     // before persisting — enforces maxDiscountPercent and minimumMarginPercent.
     // Shipping-type coupons skip cart discount authorization (applied to freight).
