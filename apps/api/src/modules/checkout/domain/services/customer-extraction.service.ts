@@ -3,7 +3,8 @@ import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-t
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
 const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;
 
-export function extractEmail(text: string): string | undefined {
+export function extractEmail(text: string | undefined | null): string | undefined {
+  if (!text) return undefined;
   const match = text.match(EMAIL_RE);
   if (!match) return undefined;
   const value = match[0];
