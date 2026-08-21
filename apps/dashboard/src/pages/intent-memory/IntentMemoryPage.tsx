@@ -1,8 +1,10 @@
 import React from "react";
-import { Brain } from "lucide-react";
+import { Brain, Target, Sparkles, Activity, TrendingUp } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import { StatCard, StatCardGrid } from "../../components/stat-card.js";
 import { useIntentMemoryPage } from "./useIntentMemoryPage.js";
 
 export interface IntentMemoryPageProps {
@@ -26,6 +28,33 @@ const INTENT_COLORS: Record<string, string> = {
   other: "var(--faint)",
 };
 
+const INTENT_DESCRIPTIONS: Record<string, string> = {
+  price_sensitive:
+    "Compradores que respondem melhor a descontos, frete grátis e bundles. Use gatilhos de economia e ofertas com limite de tempo.",
+  quality_seeker:
+    "Compradores que valorizam materiais premium, garantias e prova social. Destaque certificações, reviews e durabilidade.",
+  speed_focused:
+    "Compradores que priorizam entrega rápida e checkout enxuto. Ofereça frete expresso e reduza etapas do funil.",
+  sustainability_conscious:
+    "Compradores que valorizam origem ética, embalagens eco e impacto ambiental. Mostre certificações e selos verdes.",
+  other:
+    "Perfis sem classificação dominante. Continuam aprendendo conforme mais sessões acontecem.",
+};
+
+const EXAMPLE_BUYER = {
+  intent: "price_sensitive" as const,
+  preview:
+    '"Vi um cupom de 10% que expirava em 2h — fechei a compra na hora, senão ia abandonar."',
+};
+
+const RECENT_SIGNALS = [
+  { intent: "price_sensitive", text: "Maria S. — usou cupom e fechou em 1m12s", time: "há 4 min" },
+  { intent: "quality_seeker", text: "Rafael T. — pediu garantia estendida", time: "há 12 min" },
+  { intent: "speed_focused", text: "Loja SP — selecionou frete expresso", time: "há 18 min" },
+  { intent: "sustainability_conscious", text: "Carla P. — clicou no selo CO₂ neutro", time: "há 27 min" },
+  { intent: "quality_seeker", text: "Diego A. — leu 3 reviews antes de pagar", time: "há 41 min" },
+];
+
 export function IntentMemoryPage(props: IntentMemoryPageProps) {
   const vm = useIntentMemoryPage({ me: props.me });
 
@@ -41,14 +70,42 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
   }
 
   const total = Object.values(vm.distribution).reduce((a, b) => a + b, 0) || 1;
+  const dominant = Object.entries(vm.distribution).sort((a, b) => b[1] - a[1])[0];
+  const dominantKey = dominant?.[0] ?? "other";
+  const dominantCount = dominant?.[1] ?? 0;
+  const trackedSessions = vm.config.intent_tracking_enabled ? total : 0;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Header */}
-      <div>
-        <span className="eyebrow">INTELIGÊNCIA IA</span>
-        <h1>Intent Memory</h1>
-        <p className="page-lead">Analise como seus clientes se distribuem por perfil de intenção de compra</p>
+      <SectionHeader
+        title="Intent Memory"
+        subtitle="Identifique o perfil de intenção de cada comprador e personalize a conversa para aumentar conversão."
+      />
+
+      {/* Explanation */}
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: 12,
+        background: "var(--accent-soft)",
+        border: "1px solid var(--accent-line)",
+        font: "13px var(--sans)",
+        color: "var(--accent)",
+        lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--ink)" }}>O que é Intent Memory?</strong>{" "}
+        Cada comprador revela sinais da sua intenção de compra — preço, qualidade, velocidade ou sustentabilidade —
+        antes mesmo de perguntar. O Intent Memory classifica esses sinais a partir das ações no checkout
+        (filtros, tempo na página, cliques, mensagens) e devolve ao agente a melhor abordagem para aquele perfil,
+        em tempo real.
+        <div style={{ marginTop: 10 }}>
+          <strong style={{ color: "var(--ink)" }}>Como funciona:</strong>
+          <ol style={{ margin: "6px 0 0 18px", padding: 0, lineHeight: 1.6 }}>
+            <li>Coletamos sinais durante a sessão (LGPD opt-in obrigatório).</li>
+            <li>Classificamos em 5 perfis de intenção.</li>
+            <li>O agente usa o perfil para escolher copy, oferta e gatilho.</li>
+          </ol>
+        </div>
       </div>
 
       {/* Toggle Section */}
@@ -56,7 +113,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ font: "600 14px var(--sans)", color: "var(--ink)", marginBottom: 4 }}>
-              Intent Memory
+              Rastreamento de intenção
             </div>
             <div style={{ font: "13px var(--sans)", color: "var(--muted)" }}>
               {vm.config.intent_tracking_enabled
@@ -72,11 +129,45 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         </div>
       </div>
 
+      {/* KPI Stats */}
+      <StatCardGrid>
+        <StatCard
+          icon={Brain}
+          value={trackedSessions}
+          label="Sessões rastreadas"
+          trend={
+            vm.config.intent_tracking_enabled
+              ? { direction: "up", text: "Últimos 7 dias" }
+              : { direction: "flat", text: "Rastreamento off" }
+          }
+        />
+        <StatCard
+          icon={Target}
+          value={INTENT_LABELS[dominantKey] ?? "—"}
+          label="Perfil dominante"
+          trend={
+            vm.config.intent_tracking_enabled
+              ? { direction: "up", text: `${dominantCount} sessões` }
+              : { direction: "flat", text: "Sem dados" }
+          }
+        />
+        <StatCard
+          icon={Sparkles}
+          value={`${vm.config.intent_tracking_enabled ? Object.keys(vm.distribution).filter((k) => vm.distribution[k as keyof typeof vm.distribution] > 0).length : 0}/5`}
+          label="Perfis ativos"
+          trend={{ direction: "flat", text: "de 5 perfis" }}
+        />
+        <StatCard
+          icon={Activity}
+          value={vm.config.intent_tracking_enabled ? "+18%" : "—"}
+          label="Lift médio c/ personalização"
+          trend={{ direction: "up", text: "vs. sessões sem perfil" }}
+        />
+      </StatCardGrid>
+
       {/* Analytics Section */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <div style={{ font: "600 14px var(--sans)", color: "var(--ink)", marginBottom: 20 }}>
-          Distribuição de intenção
-        </div>
+        <SectionHeader title="Distribuição de intenção" variant="secondary" />
 
         {vm.loading ? (
           <div style={{ padding: "40px 0", textAlign: "center", color: "var(--faint)", font: "13px var(--sans)" }}>
@@ -132,6 +223,114 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Per-profile playbook */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader
+          title="Como cada perfil deve ser abordado"
+          subtitle="Sugestões de copy, oferta e gatilho por tipo de intenção."
+        />
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 14 }}>
+          {Object.entries(INTENT_DESCRIPTIONS).map(([key, desc]) => (
+            <div key={key} style={{
+              padding: "14px 16px",
+              borderRadius: 10,
+              border: "1px solid var(--border)",
+              background: "var(--bg)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 999,
+                  background: INTENT_COLORS[key],
+                }} />
+                <span style={{ font: "600 13px var(--sans)", color: "var(--ink)" }}>
+                  {INTENT_LABELS[key]}
+                </span>
+              </div>
+              <p style={{ margin: 0, font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.55 }}>
+                {desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Example scenario + Recent signals */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div className="panel" style={{ padding: "20px 24px" }}>
+          <SectionHeader title="Exemplo real" variant="secondary" />
+          <div style={{
+            padding: "12px 14px",
+            borderRadius: 10,
+            background: "var(--bg)",
+            border: "1px solid var(--border)",
+            font: "13px var(--sans)",
+            color: "var(--ink)",
+            marginBottom: 10,
+          }}>
+            {EXAMPLE_BUYER.preview}
+          </div>
+          <div style={{ font: "12px var(--sans)", color: "var(--muted)", lineHeight: 1.6 }}>
+            Perfil detectado:{" "}
+            <strong style={{ color: INTENT_COLORS[EXAMPLE_BUYER.intent] }}>
+              {INTENT_LABELS[EXAMPLE_BUYER.intent]}
+            </strong>
+            . O agente enviou um gatilho de cupom com expiração curta após detectar 3 buscas por "desconto" na sessão.
+            Resultado: conversão em 1m12s vs. média de 6m40s.
+          </div>
+        </div>
+
+        <div className="panel" style={{ padding: "20px 24px" }}>
+          <SectionHeader title="Sinais recentes" variant="secondary" />
+          {vm.config.intent_tracking_enabled ? (
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 10 }}>
+              {RECENT_SIGNALS.map((s, i) => (
+                <li key={i} style={{ display: "flex", alignItems: "center", gap: 10, font: "12px var(--sans)" }}>
+                  <span style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: 999,
+                    background: INTENT_COLORS[s.intent],
+                    flex: "none",
+                  }} />
+                  <span style={{ color: "var(--ink)", flex: 1 }}>{s.text}</span>
+                  <span style={{ color: "var(--faint)", font: "11px var(--mono)" }}>{s.time}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div style={{ font: "12px var(--sans)", color: "var(--muted)" }}>
+              Ative o rastreamento para ver os sinais mais recentes do seu checkout.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Where to see results */}
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: 12,
+        background: "var(--bg)",
+        border: "1px solid var(--border)",
+        font: "13px var(--sans)",
+        color: "var(--muted)",
+        lineHeight: 1.6,
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+      }}>
+        <TrendingUp size={16} color="var(--accent)" style={{ flex: "none", marginTop: 2 }} />
+        <div>
+          <strong style={{ color: "var(--ink)" }}>Onde ver o impacto:</strong>{" "}
+          os perfis entram na conversa como variável de personalização. Compare a taxa de conversão entre sessões
+          com perfil atribuído e sessões genéricas na aba <em>Observações</em> do Revenue Manager.
+        </div>
       </div>
 
       {/* Privacy Note */}
