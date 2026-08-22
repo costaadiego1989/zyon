@@ -234,8 +234,9 @@
   letter-spacing: 0.04em;
 }
 .cfg-section-head h2 {
-  font-size: 14px;
-  font-weight: 700;
+  font: 600 14px var(--font-sans);
+  letter-spacing: -0.01em;
+  color: var(--color-brand);
   line-height: 1.3;
 }
 .cfg-section-heading p {
