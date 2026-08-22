@@ -136,6 +136,7 @@ export interface SeoGtmTabProps {
   seo: SeoSettings;
   gtm: GtmSettings;
   slug: string;
+  customDomain?: string;
   errors: Record<string, string>;
   saving: boolean;
   generatingAi: boolean;
@@ -154,7 +155,7 @@ export interface SeoGtmTabProps {
 }
 
 export function SeoGtmTab({
-  seo, gtm, slug, errors, saving, generatingAi, showGeneratorModal, suggestions, expandedSections,
+  seo, gtm, slug, customDomain, errors, saving, generatingAi, showGeneratorModal, suggestions, expandedSections,
   onSeoChange, onGtmChange, onSlugChange, onSave, onGenerate, onApplySuggestion, onOpenModal, onCloseModal, onToggleSection,
 }: SeoGtmTabProps) {
   const [keywordInput, setKeywordInput] = useState("");
@@ -200,7 +201,7 @@ export function SeoGtmTab({
               style={{ flex: 1, padding: "10px 12px", font: "13px var(--font-mono)", color: "var(--color-text)", border: "none", outline: "none", background: "transparent" }}
             />
           </div>
-          {slug && <span className="form-field-hint">URL: https://stores.zyon.com/store/{slug}</span>}
+          {slug && <span className="form-field-hint">URL: {customDomain ? `https://${customDomain}` : `https://stores.zyon.com/store/${slug}`}</span>}
           {errors.slug && <span className="form-field-error">{errors.slug}</span>}
         </div>
 

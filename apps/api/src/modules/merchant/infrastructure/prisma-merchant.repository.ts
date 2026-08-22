@@ -72,11 +72,20 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   }
 
   async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
+    // Merge with existing settings — partial updates (e.g. { slug }) must not
+    // wipe other fields (theme, domain, seo). PUT here is upsert-merge semantics.
+    const current = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { storeSettings: true },
+    });
+    const existing = (current?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
+    const merged = { ...existing, ...settings };
+
     const updated = await this.prisma.merchant.update({
       where: { id: merchantId },
-      data: { storeSettings: settings as unknown as object }
+      data: { storeSettings: merged as unknown as object }
     });
-    return (updated.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? settings;
+    return (updated.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? merged;
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {
