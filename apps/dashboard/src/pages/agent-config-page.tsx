@@ -92,6 +92,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   {vm.errors.persona && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.persona}</span>}
                 </label>
               </div>
+              {(props.me?.plan === "STORE_ONLY" || props.me?.plan === "BOTH") && (
               <div style={{ marginTop: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
@@ -102,6 +103,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   {vm.errors.greeting && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.greeting}</span>}
                 </label>
               </div>
+              )}
 
               <div style={{ marginTop: 12 }}>
                 <label>
