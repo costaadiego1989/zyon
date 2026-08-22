@@ -191,7 +191,7 @@ export class StartCheckoutUseCase {
           idle_30_seconds: "SE comprador ameaça sair ENTÃO ofereça até {p}% de desconto para ficar",
           checkout_abandoned: "SE carrinho abandonado ENTÃO ofereça até {p}% para recuperar",
           payment_method_selected: "SE comprador hesita no pagamento ENTÃO ofereça até {p}% para fechar agora",
-          payment_failed: "SE pagamento falhou ENTÃO sugira outro método de pagamento (PIX se era cartão, cartão se era PIX, ou boleto como alternativa). Ofereça até {p}% de desconto adicional se trocar para PIX. Diga algo como: 'Parece que houve um problema com esse pagamento. Que tal tentar via PIX? É instantâneo e posso te dar {p}% de desconto extra.'"
+          payment_failed: "SE pagamento falhou ENTÃO sugira outro método de pagamento (PIX se era cartão, cartão se era PIX, ou boleto como alternativa). Se o comprador não tem nenhum desconto ativo, ofereça até {p}% para incentivar a troca. Se já tem cupom ou desconto aplicado, apenas sugira o método alternativo sem desconto extra."
         };
         const policy = setting?.interventionPolicy as { progressiveDiscount?: { enabled: boolean; stages?: { initial_coupon?: number; exit_intent?: number; abandoned_cart?: number; payment_nudge?: number } } } | null;
         if (policy?.progressiveDiscount?.enabled && policy.progressiveDiscount.stages) {
