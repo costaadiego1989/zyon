@@ -61,8 +61,12 @@ export function useDomainsPage() {
       }));
       showToast("success", `Domínio adicionado. Configure o CNAME para: ${result.cname_target}`);
     } catch (e) {
-      const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : "Erro ao adicionar domínio";
-      setState((p) => ({ ...p, adding: false, error: msg }));
+      const raw = e instanceof DashboardHttpError ? e.responseBody : e instanceof Error ? e.message : "Erro desconhecido";
+      const msg = raw.includes("merchant_not_found") ? "Erro de autenticação. Recarregue a página."
+        : raw.includes("domain_already_registered") ? "Domínio já registrado por outra loja."
+        : raw.includes("invalid_domain") ? "Formato de domínio inválido. Ex: meusite.com.br"
+        : "Erro ao adicionar domínio. Tente novamente.";
+      setState((p) => ({ ...p, adding: false, error: null }));
       showToast("error", msg);
     }
   }

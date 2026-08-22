@@ -39,16 +39,6 @@ export function CustomDomainPage() {
 
       <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
         <div style={{ padding: "20px 22px" }}>
-          {state.error && (
-            <div style={{ background: "#fee2e2", border: "1px solid #fecaca", borderRadius: 8, padding: 12, marginBottom: 16, display: "flex", gap: 8, alignItems: "flex-start" }}>
-              <div style={{ width: 16, height: 16, borderRadius: "50%", background: "#dc2626", flexShrink: 0, marginTop: 2 }} />
-              <div style={{ flex: 1 }}>
-                <strong style={{ color: "#dc2626", fontSize: 13 }}>Erro</strong>
-                <p style={{ fontSize: 12, color: "#991b1b", margin: "4px 0 0" }}>{state.error}</p>
-              </div>
-            </div>
-          )}
-
           <div style={{ marginBottom: 28 }}>
             <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", marginBottom: 14, color: "var(--color-text-faint)", textTransform: "uppercase" }}>Adicionar domínio</h3>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>

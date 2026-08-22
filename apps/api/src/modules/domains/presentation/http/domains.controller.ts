@@ -15,11 +15,12 @@ import {
 } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CurrentTenant } from "../../../../shared/tenant/current-tenant.decorator.js";
 import { RegisterDomainUseCase } from "../../application/use-cases/register-domain.use-case.js";
 import { VerifyDomainUseCase } from "../../application/use-cases/verify-domain.use-case.js";
 import { ListDomainsUseCase } from "../../application/use-cases/list-domains.use-case.js";
 
-@Controller("merchants/:merchantId/domains")
+@Controller("merchants/me/domains")
 export class DomainsController {
   constructor(
     private readonly registerDomain: RegisterDomainUseCase,
@@ -29,13 +30,13 @@ export class DomainsController {
   ) {}
 
   @Get()
-  async list(@Param("merchantId") merchantId: string) {
+  async list(@CurrentTenant() merchantId: string) {
     return this.listDomains.execute(merchantId);
   }
 
   @Post()
   async register(
-    @Param("merchantId") merchantId: string,
+    @CurrentTenant() merchantId: string,
     @Body() body: { domain: string },
   ) {
     return this.registerDomain.execute({
@@ -46,7 +47,7 @@ export class DomainsController {
 
   @Post(":domainId/verify")
   async verify(
-    @Param("merchantId") merchantId: string,
+    @CurrentTenant() merchantId: string,
     @Param("domainId") domainId: string,
   ) {
     return this.verifyDomain.execute({
@@ -57,7 +58,7 @@ export class DomainsController {
 
   @Delete(":domainId")
   async remove(
-    @Param("merchantId") merchantId: string,
+    @CurrentTenant() merchantId: string,
     @Param("domainId") domainId: string,
   ) {
     const record = await this.prisma.merchantDomain.findFirst({
