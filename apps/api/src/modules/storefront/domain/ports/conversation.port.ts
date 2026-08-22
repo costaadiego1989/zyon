@@ -24,7 +24,7 @@ export interface StorefrontConversationInput {
   merchantName?: string;
   storeCategory: string;
   storeSettings?: Record<string, any>;
-  agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
+  agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string };
   merchantPolicy?: MerchantPolicy;
   advancedRules?: string[];
   /** Experiment variant system prompt — overrides default when A/B test is running */

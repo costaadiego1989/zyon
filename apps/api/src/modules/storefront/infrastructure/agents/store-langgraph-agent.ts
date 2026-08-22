@@ -58,7 +58,7 @@ export interface StorefrontAgentInput {
   merchantName?: string;
   storeCategory: string;
   storeSettings?: Record<string, any>;
-  agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string };
+  agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string };
   merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
   advancedRules?: string[];
   callbacks?: StorefrontAgentCallbacks;
@@ -670,7 +670,7 @@ export class StorefrontLangGraphAgent {
     };
   }
 
-  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string }, merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number }, advancedRules?: string[]): string {
+  private buildDefaultSystem(merchantName?: string, storeCategory?: string, storeSettings?: Record<string, any>, agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string }, merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number }, advancedRules?: string[]): string {
     const name = merchantName ? ` da loja ${merchantName}` : "";
     const agentNameLabel = agentIdentity?.agentName || "Assistente";
     const categoryContext = storeCategory && storeCategory !== "others"
@@ -723,6 +723,7 @@ export class StorefrontLangGraphAgent {
       `Você é ${agentNameLabel}, assistente de vendas${name}.${categoryContext}${companyContext}${policiesContext}${personaContext}${policyContext}`,
       "Ajude o cliente a encontrar produtos, comparar, adicionar ao carrinho e finalizar compra.",
       `Seja breve, direto e ${agentIdentity?.tone || "amigável"}. Não use markdown nem tabelas — a interface renderiza os dados visualmente.`,
+      `Idioma obrigatório: ${agentIdentity?.language || "pt-BR"}. Toda comunicação com o cliente DEVE ser neste idioma.`,
       "",
       "REGRAS CRÍTICAS:",
       "- Use as ferramentas para TODOS os dados. NUNCA invente produtos, preços ou estoque.",

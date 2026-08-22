@@ -51,14 +51,14 @@ export class SendStoreMessageUseCase {
     let storeSettings: Record<string, any> | undefined;
     try { storeSettings = await this.merchant.getStoreSettings(input.merchant_id) as any; } catch { /* optional */ }
 
-    // Load agent identity from agent_rules (source of truth for agent name/persona/tone)
-    let agentIdentity: { agentName?: string; persona?: string; tone?: string; greeting?: string } | undefined;
+    // Load agent identity from agent_rules (source of truth for agent name/persona/tone/language)
+    let agentIdentity: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | undefined;
     try {
       const agentRule = await this.prisma.agentRule.findFirst({
         where: { merchantId: input.merchant_id },
         select: { identity: true },
       });
-      const identity = agentRule?.identity as { agentName?: string; persona?: string; tone?: string; greeting?: string } | null;
+      const identity = agentRule?.identity as { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | null;
       if (identity) agentIdentity = identity;
     } catch { /* optional — fallback to no identity */ }
 
