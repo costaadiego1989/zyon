@@ -437,17 +437,17 @@ export default function ProductCardBlock({
                   fontFamily: "var(--aacp-font-display)",
                 }}
               >
-                Variantes
+                Variantes ({variants.length})
               </span>
               {selectedVariant && (
                 <span
                   style={{
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    color: "var(--aacp-fg)",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    color: "var(--aacp-accent)",
                   }}
                 >
-                  {selectedVariant.name}: {selectedVariant.value}
+                  {selectedVariant.priceFormatted ?? (selectedVariant.price ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100) : null)}
                 </span>
               )}
             </div>
@@ -560,6 +560,31 @@ export default function ProductCardBlock({
                     </button>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Selected variant detail */}
+            {selectedVariant && (
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  background: "color-mix(in srgb, var(--aacp-accent) 6%, var(--aacp-surface-2))",
+                  border: "1px solid color-mix(in srgb, var(--aacp-accent) 20%, var(--aacp-line))",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                }}
+              >
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)" }}>
+                  {selectedVariant.name}: <span style={{ color: "var(--aacp-accent)" }}>{selectedVariant.value}</span>
+                </span>
+                {selectedVariant.price !== undefined && selectedVariant.price > 0 && (
+                  <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent)", fontFamily: "var(--aacp-font-display)" }}>
+                    {selectedVariant.priceFormatted ?? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100)}
+                  </span>
+                )}
               </div>
             )}
           </div>
