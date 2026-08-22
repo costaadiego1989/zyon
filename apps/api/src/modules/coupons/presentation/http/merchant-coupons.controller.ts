@@ -26,7 +26,8 @@ export class MerchantCouponsController {
   @Get()
   async list(@Req() req: unknown) {
     const { merchantId } = currentUser(req as { user?: unknown });
-    return this.repo.findAllByMerchant(merchantId);
+    const entities = await this.repo.findAllByMerchant(merchantId);
+    return entities.map((c) => c.snapshot());
   }
 
   @Patch(":id")
