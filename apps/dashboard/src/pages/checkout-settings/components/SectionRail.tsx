@@ -9,7 +9,7 @@ export function SectionRail({
   children,
 }: {
   icon: React.ReactNode;
-  index: string;
+  index?: string;
   title: string;
   desc: string;
   aside?: React.ReactNode;
@@ -22,12 +22,7 @@ export function SectionRail({
           {icon}
         </div>
         <div className="cfg-section-heading">
-          <div className="cfg-section-titlerow">
-            <span className="cfg-section-index" aria-hidden="true">
-              {index}
-            </span>
-            <h2>{title}</h2>
-          </div>
+          <h2>{title}</h2>
           <p>{desc}</p>
         </div>
         {aside ? <div className="cfg-section-aside">{aside}</div> : null}
