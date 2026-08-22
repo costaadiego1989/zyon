@@ -249,7 +249,7 @@ export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
   display: { mode: "inline" },
 };
 
-export type ChatStage = "data_collection" | "shipping" | "payment" | "completed";
+export type ChatStage = "data_collection" | "shipping" | "payment" | "payment_pending" | "completed";
 
 export type PaymentMethod = "pix" | "credit_card" | "boleto" | "crypto";
 

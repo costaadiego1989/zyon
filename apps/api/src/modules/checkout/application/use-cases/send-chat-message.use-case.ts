@@ -418,12 +418,14 @@ export class SendChatMessageUseCase {
       }
     }
 
-    // Re-derive stage so a payment-method selection reports `completed`
-    // (and empty missing_fields) to the widget on the very next turn.
+    // Re-derive stage so a payment-method selection reports `payment_pending`
+    // (waiting for Asaas webhook to confirm payment before going to `completed`).
     const finalStage = selectedPaymentMethod && working.paymentMethod
-      ? "completed"
+      ? "payment_pending"
       : stage;
-    const finalMissingFields = finalStage === "completed" ? [] : missingFields;
+    const finalMissingFields = finalStage === "payment_pending" || finalStage === "completed"
+      ? []
+      : missingFields;
 
     return {
       message: safeMessage,
