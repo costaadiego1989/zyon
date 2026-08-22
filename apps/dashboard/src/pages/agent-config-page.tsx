@@ -10,10 +10,12 @@ import type { AgentTone } from "@zyon/shared-types";
 export interface AgentConfigPageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
+  context?: "storefront" | "checkout";
 }
 
 export function AgentConfigPage(props: AgentConfigPageProps) {
   const vm = useAgentConfigPage({ me: props.me });
+  const isStorefront = props.context === "storefront";
 
   if (!props.me) {
     return (
@@ -92,11 +94,11 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                   {vm.errors.persona && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.persona}</span>}
                 </label>
               </div>
-              {(props.me?.plan === "STORE_ONLY" || props.me?.plan === "BOTH") && (
+              {isStorefront && (
               <div style={{ marginTop: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
-                    Texto de Apresentação (Storefront)
+                    Texto de Apresentação
                     <span title="Primeiro texto que o cliente vê ao abrir o chat na loja. Apresente o agente e diga como ele pode ajudar." style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                   </span>
                   <textarea value={vm.form.greeting} onChange={(e) => vm.patch({ greeting: e.target.value })} placeholder={"Olá! Sou a Micha 👋\nA partir de agora serei sua vendedora particular..."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.greeting ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)", resize: "vertical", lineHeight: 1.5 }} />

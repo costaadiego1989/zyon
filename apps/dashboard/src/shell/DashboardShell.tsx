@@ -260,8 +260,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "custom-domain" ? <CustomDomainPage /> : null}
             {tab === "cross-sell" ? <CrossSellPage context="store" /> : null}
             {tab === "cross-sell-checkout" ? <CrossSellPage context="checkout" /> : null}
-            {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
-            {tab === "agent-config-checkout" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
+            {tab === "agent-config" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="storefront" /> : null}
+            {tab === "agent-config-checkout" ? <AgentConfigPage apiBaseUrl={API_BASE_URL} me={me} context="checkout" /> : null}
             {tab === "stories" ? <StoriesPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "team" ? <TeamPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
             {tab === "account-settings" ? <AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /> : null}
