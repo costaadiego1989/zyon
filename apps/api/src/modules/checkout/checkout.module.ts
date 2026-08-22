@@ -68,6 +68,7 @@ import { BuyerAccountPersistenceService } from "./application/services/buyer-acc
 import { ExperimentsModule } from "../experiments/experiments.module.js";
 import { CartRecoveryModule } from "../cart-recovery/cart-recovery.module.js";
 import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
+import { PaymentModule } from "../payment/payment.module.js";
 
 @Module({
   imports: [
@@ -77,6 +78,7 @@ import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
     MerchantModule,
     forwardRef(() => ShippingModule),
     forwardRef(() => MarketplaceModule),
+    forwardRef(() => PaymentModule),
     BuyerAccountRepositoryModule,
     ExperimentsModule,
     RevenueLiftModule,

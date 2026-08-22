@@ -380,7 +380,10 @@ export class SendChatMessageUseCase {
         };
         this.logger.log(`[chat] payment.intent.created ${intent.id} status=${intent.status} method=${intentMethod}`);
       } catch (payErr) {
-        this.logger.error(`[chat] payment.intent.failed session=${input.session_id}`, payErr instanceof Error ? payErr.stack : String(payErr));
+        const errMsg = payErr instanceof Error ? payErr.message : String(payErr);
+        const errStack = payErr instanceof Error ? payErr.stack : '';
+        this.logger.error(`[chat] payment.intent.FAILED session=${input.session_id} method=${intentMethod} error="${errMsg}"`, errStack);
+        this.logger.error(`[chat] payment.intent.FAILED detail:`, { merchant_id: input.merchant_id, session_id: input.session_id, method: intentMethod, offerApplied, errorMessage: errMsg });
         responseExperience.payment_intent = undefined;
       }
     }
