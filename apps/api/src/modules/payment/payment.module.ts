@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
@@ -83,7 +83,7 @@ import {
 
 @Module({
   imports: [
-    CheckoutModule,
+    forwardRef(() => CheckoutModule),
     CommerceModule,
     MerchantModule,
     IntegrationsModule,

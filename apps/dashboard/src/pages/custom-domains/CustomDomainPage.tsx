@@ -122,12 +122,12 @@ export function CustomDomainPage() {
 
                       {!verified && (
                         <div style={{ background: "var(--surface-1)", borderRadius: 6, padding: 12, fontSize: 12, marginTop: 12 }}>
-                          <p style={{ color: "var(--color-text-muted)", margin: "0 0 12px", fontWeight: 500 }}>Configure no seu provedor de domínio:</p>
+                          <p style={{ color: "var(--color-text-muted)", margin: "0 0 12px", fontWeight: 500 }}>Configure no painel DNS do seu provedor de domínio:</p>
                           <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 6, padding: 10, margin: "0 0 12px", fontSize: 11, fontFamily: "monospace" }}>
                             <div><strong>Tipo:</strong> CNAME</div>
-                            <div><strong>Nome:</strong> {domain.domain}</div>
+                            <div><strong>Nome (Host):</strong> {domain.domain.split(".").length > 2 ? domain.domain.split(".")[0] : "@"}</div>
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
-                              <strong>Valor:</strong>
+                              <strong>Valor (Aponta para):</strong>
                               <code style={{ flex: 1, color: "var(--color-brand)" }}>{domain.cname_target}</code>
                               <button
                                 onClick={() => copyToClipboard(domain.cname_target, domain.id)}
@@ -149,10 +149,19 @@ export function CustomDomainPage() {
                             </div>
                           </div>
                           <ol style={{ margin: 0, paddingLeft: 18, color: "var(--color-text-muted)", lineHeight: 1.8 }}>
-                            <li>Aguarde alguns minutos para a alteração propagar</li>
+                            <li>Acesse o painel DNS do seu provedor (Cloudflare, GoDaddy, Registro.br, etc)</li>
+                            <li>Adicione um registro CNAME apontando para <code style={{ color: "var(--color-brand)" }}>{domain.cname_target}</code></li>
+                            <li>Aguarde a propagação DNS (pode levar até 24h, geralmente minutos)</li>
                             <li>Volte aqui e clique "Verificar"</li>
-                            <li>O certificado de segurança (SSL) é ativado automaticamente</li>
+                            <li>O certificado SSL é gerado automaticamente após verificação</li>
                           </ol>
+                          {domain.domain.split(".").length <= 2 && (
+                            <p style={{ margin: "10px 0 0", fontSize: 11, color: "var(--color-warning)", lineHeight: 1.5 }}>
+                              ⚠️ Domínios raiz (sem www) podem não suportar CNAME em alguns provedores.
+                              Se seu provedor não aceitar, use Cloudflare (gratuito) que suporta CNAME no root via proxy,
+                              ou configure um redirecionamento de <code>{domain.domain}</code> → <code>www.{domain.domain}</code>.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
