@@ -377,6 +377,7 @@ export interface SuggestedProduct {
   category?: string;
   variant?: string;
   description?: string;
+  display_mode?: CrossSellDisplayMode;
 }
 
 export interface CheckoutTotalsSnapshot {

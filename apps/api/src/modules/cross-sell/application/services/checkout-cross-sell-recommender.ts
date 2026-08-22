@@ -24,17 +24,41 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
     const touchpoint = (input as any).touchpoint as string | undefined;
     if (touchpoint && !this.isTouchpointActive(config, touchpoint)) return [];
 
+    // Cooldown enforcement: skip if last suggestion for this session is within cooldownSeconds
+    if (config.limits.cooldownSeconds > 0) {
+      try {
+        const lastSuggestion = await this.prisma.crossSellSuggestion.findFirst({
+          where: { sessionId: input.session_id, merchantId: input.merchant_id },
+          orderBy: { suggestedAt: "desc" },
+          select: { suggestedAt: true },
+        });
+        if (lastSuggestion) {
+          const elapsed = Date.now() - lastSuggestion.suggestedAt.getTime();
+          if (elapsed < config.limits.cooldownSeconds * 1000) {
+            this.logger.debug(`[cross-sell] cooldown active (${Math.round(elapsed / 1000)}s / ${config.limits.cooldownSeconds}s)`);
+            return [];
+          }
+        }
+      } catch (err) {
+        this.logger.warn("[cross-sell] cooldown check failed, proceeding without", err);
+      }
+    }
+
     const suggestions = await this.listEligible.execute({
       merchant_id: input.merchant_id,
       session_id: input.session_id,
       cart: input.cart,
+      enabled_strategies: config.strategies,
     });
 
     const max = config.limits.maxSuggestionsPerSession;
     const limited = suggestions.slice(0, max);
 
     return limited.flatMap((suggestion) =>
-      suggestion.ranked_items.map((sku) => resolveCrossSellProduct(sku, suggestion.id))
+      suggestion.ranked_items.map((sku) => ({
+        ...resolveCrossSellProduct(sku, suggestion.id),
+        display_mode: config.display.mode
+      }))
     );
   }
 

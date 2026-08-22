@@ -32,6 +32,8 @@ import {
   PendingOfferBannerView,
 } from "../../features/conversation/CheckoutActionPanels.js";
 import { CrossSellBanner } from "./CrossSellBanner.js";
+import { CrossSellInline } from "./CrossSellInline.js";
+import { CrossSellModal } from "./CrossSellModal.js";
 import { ProductSearchResults } from "./ProductSearchResults.js";
 import { CreditCardForm } from "./CreditCardForm.js";
 import { CryptoPaymentPanel } from "./CryptoPaymentPanel.js";
@@ -142,13 +144,40 @@ export function ChatThread({ vm }: { vm: CheckoutAgentViewModel }) {
       ) : null}
 
       {panels.crossSell ? (
-        <CrossSellBanner
-          products={panels.crossSell.products}
-          currency={panels.crossSell.currency}
-          onAdd={panels.crossSell.onAdd}
-          onDismiss={panels.crossSell.onDismiss}
-          onProceedToPayment={panels.crossSell.onProceedToPayment}
-        />
+        (() => {
+          const displayMode = panels.crossSell.products[0]?.display_mode ?? "banner";
+          if (displayMode === "modal") {
+            return (
+              <CrossSellModal
+                products={panels.crossSell.products}
+                currency={panels.crossSell.currency}
+                onAdd={panels.crossSell.onAdd}
+                onDismiss={panels.crossSell.onDismiss}
+                onProceedToPayment={panels.crossSell.onProceedToPayment}
+              />
+            );
+          }
+          if (displayMode === "inline") {
+            return (
+              <CrossSellInline
+                products={panels.crossSell.products}
+                currency={panels.crossSell.currency}
+                onAdd={panels.crossSell.onAdd}
+                onDismiss={panels.crossSell.onDismiss}
+                onProceedToPayment={panels.crossSell.onProceedToPayment}
+              />
+            );
+          }
+          return (
+            <CrossSellBanner
+              products={panels.crossSell.products}
+              currency={panels.crossSell.currency}
+              onAdd={panels.crossSell.onAdd}
+              onDismiss={panels.crossSell.onDismiss}
+              onProceedToPayment={panels.crossSell.onProceedToPayment}
+            />
+          );
+        })()
       ) : null}
 
       {panels.pendingOffer ? <PendingOfferBannerView model={panels.pendingOffer} /> : null}
