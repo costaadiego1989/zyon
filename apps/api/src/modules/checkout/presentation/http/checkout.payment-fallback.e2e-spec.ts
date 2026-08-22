@@ -38,7 +38,7 @@ function makeSettingsPort(mode: "silent_until_trigger" | "proactive" | "manual_o
           },
         },
       },
-    } as CheckoutSettingsContext),
+    } as unknown as CheckoutSettingsContext),
   };
 }
 

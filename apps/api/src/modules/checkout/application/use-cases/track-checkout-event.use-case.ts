@@ -244,11 +244,17 @@ export class TrackCheckoutEventUseCase {
     if (!settings) return session;
     const configured = settings.checkout_settings;
     const eventCanTrigger = configured.enabled_triggers.some((trigger) => trigger === eventName);
+
+    // High-priority triggers bypass abandonment score — they represent
+    // critical moments where the agent MUST intervene regardless of score.
+    const HIGH_PRIORITY_TRIGGERS = new Set(["payment_failed", "checkout_abandoned"]);
+    const bypassScore = HIGH_PRIORITY_TRIGGERS.has(eventName);
+
     const shouldTrigger =
       configured.mode !== "manual_only" &&
       eventCanTrigger &&
-      session.abandonmentScore >= configured.minimum_abandonment_score &&
-      session.triggerAgent;
+      (bypassScore || session.abandonmentScore >= configured.minimum_abandonment_score) &&
+      (bypassScore || session.triggerAgent);
     const finalTrigger = shouldTrigger;
     if (session.triggerAgent === finalTrigger) return session;
     const next = { ...session, triggerAgent: finalTrigger, updatedAt: new Date().toISOString() };
