@@ -198,25 +198,32 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         let resolvedVariantId = args.variantId;
 
         try {
-          // First try: args.variantId is a productId in local catalog
-          let product = await this.productRepo.findById(merchantId, args.variantId);
+          // First try: args.variantId is actually a variant ID (most specific — user explicitly selected)
+          let product = await this.productRepo.findById(merchantId, "dummy").catch(() => null);
+          let foundVariant = null;
+
+          // Search for the variant across all products
+          const searchResult = await this.productRepo.search({ merchantId, limit: 100 });
+          product = searchResult.products.find(p =>
+            p.variants.some(v => v.id === args.variantId || v.sku === args.variantId)
+          ) ?? null;
+
           if (product) {
-            productName = product.name;
-            const variant = product.variants[0];
-            if (variant) {
-              resolvedVariantId = variant.id;
-              unitPriceCents = variant.basePriceInCents;
-              imageUrl = variant.media?.[0]?.url;
+            foundVariant = product.variants.find(v => v.id === args.variantId || v.sku === args.variantId);
+            if (foundVariant) {
+              productName = product.name;
+              resolvedVariantId = foundVariant.id;
+              unitPriceCents = foundVariant.basePriceInCents;
+              imageUrl = foundVariant.media?.[0]?.url;
             }
-          } else {
-            // Second try: args.variantId is actually a variant ID, find parent product
-            const searchResult = await this.productRepo.search({ merchantId, limit: 100 });
-            product = searchResult.products.find(p =>
-              p.variants.some(v => v.id === args.variantId || v.sku === args.variantId)
-            ) ?? null;
+          }
+
+          // Fallback: if not found as variantId, try as productId
+          if (!foundVariant) {
+            product = await this.productRepo.findById(merchantId, args.variantId);
             if (product) {
               productName = product.name;
-              const variant = product.variants.find(v => v.id === args.variantId || v.sku === args.variantId) ?? product.variants[0];
+              const variant = product.variants[0];
               if (variant) {
                 resolvedVariantId = variant.id;
                 unitPriceCents = variant.basePriceInCents;

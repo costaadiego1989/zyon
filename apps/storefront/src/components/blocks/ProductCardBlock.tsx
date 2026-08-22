@@ -168,6 +168,24 @@ export default function ProductCardBlock({
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
 
+  // Derive displayed price from selected variant (falls back to card-level price)
+  const displayedPrice = useMemo(() => {
+    if (selectedVariant?.price !== undefined && selectedVariant.price > 0) {
+      return selectedVariant.price;
+    }
+    return data.price;
+  }, [selectedVariant, data.price]);
+
+  const displayedPriceFormatted = useMemo(() => {
+    if (selectedVariant?.priceFormatted) {
+      return selectedVariant.priceFormatted;
+    }
+    if (selectedVariant?.price !== undefined && selectedVariant.price > 0) {
+      return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(selectedVariant.price / 100);
+    }
+    return data.priceFormatted;
+  }, [selectedVariant, data.priceFormatted, data.price]);
+
   const quickReplies = [
     `Calcular frete para ${data.name}`,
     `Ver variações de ${data.name}`,
@@ -176,10 +194,11 @@ export default function ProductCardBlock({
     `Tirar dúvida sobre ${data.name}`,
   ];
 
-  const buildCtaText = (verb: string) =>
-    `${verb} ${data.name}${
-      selectedVariant ? ` (${selectedVariant.name}: ${selectedVariant.value})` : ""
-    }`;
+  const buildCtaText = (verb: string) => {
+    const variantSuffix = selectedVariant ? ` (${selectedVariant.name}: ${selectedVariant.value})` : "";
+    const variantIdTag = selectedVariantId ? ` [variantId:${selectedVariantId}]` : "";
+    return `${verb} ao carrinho ${data.name}${variantSuffix}${variantIdTag}`;
+  };
 
   return (
     <article
@@ -615,7 +634,7 @@ export default function ProductCardBlock({
                 lineHeight: 1.1,
               }}
             >
-              {data.priceFormatted}
+              {displayedPriceFormatted}
             </span>
           </div>
 

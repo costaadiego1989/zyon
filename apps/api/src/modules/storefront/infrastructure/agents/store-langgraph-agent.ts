@@ -421,7 +421,7 @@ export class StorefrontLangGraphAgent {
             inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
             rating: p.rating ?? 4.3,
             reviewCount: p.reviewCount ?? 0,
-            variants: p.variants?.map((v: any) => ({ id: v.id ?? v.sku, name: Object.keys(v.attributes ?? {})[0] ?? "SKU", value: Object.values(v.attributes ?? {})[0] ?? v.sku })),
+            variants: p.variants?.map((v: any) => ({ id: v.id ?? v.sku, name: Object.keys(v.attributes ?? {})[0] ?? "SKU", value: Object.values(v.attributes ?? {})[0] ?? v.sku, price: v.basePriceInCents ?? undefined, priceFormatted: v.basePriceInCents ? formatPrice(v.basePriceInCents) : undefined })),
           }
         });
       } else {

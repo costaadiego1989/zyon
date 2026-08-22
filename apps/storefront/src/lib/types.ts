@@ -7,7 +7,7 @@ export interface ProductCardBlock {
     price: number;
     priceFormatted: string;
     image?: string;
-    variants?: Array<{ id: string; name: string; value: string }>;
+    variants?: Array<{ id: string; name: string; value: string; price?: number; priceFormatted?: string }>;
     inStock: boolean;
     rating?: number;
     reviewCount?: number;
