@@ -64,7 +64,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
           <>
             {/* Touchpoints */}
             <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-brand)", textTransform: "uppercase", marginBottom: 14 }}>Onde sugerir</h3>
+              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Onde sugerir</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {visibleTouchpoints.map((tp) => (
                   <div key={tp} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: config.touchpoints[tp] ? "rgba(15,118,110,0.04)" : "transparent" }}>
@@ -80,7 +80,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
 
             {/* Strategies */}
             <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-brand)", textTransform: "uppercase", marginBottom: 14 }}>Estratégias de recomendação</h3>
+              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Estratégias de recomendação</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {(Object.keys(STRATEGY_LABELS) as CrossSellStrategy[]).map((s) => (
                   <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, border: "1px solid var(--color-border)", cursor: "pointer", background: config.strategies.includes(s) ? "rgba(15,118,110,0.04)" : "transparent" }}>
@@ -96,7 +96,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
 
             {/* Limits + Discount + Display */}
             <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-brand)", textTransform: "uppercase", marginBottom: 14 }}>Limites e apresentação</h3>
+              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Limites e apresentação</h3>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                 <div>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>Máx. sugestões por sessão</span>
