@@ -43,7 +43,7 @@ export class RegisterDomainUseCase {
     });
     if (existing) throw new BadRequestException("domain_already_registered");
 
-    const cnameTarget = "stores.zyon.com";
+    const cnameTarget = process.env.STOREFRONT_CNAME_TARGET?.trim() || "stores.zyon.com";
     const created = await this.prisma.merchantDomain.create({
       data: {
         merchantId: input.merchant_id,
