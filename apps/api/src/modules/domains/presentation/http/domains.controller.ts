@@ -12,14 +12,17 @@ import {
   Body,
   NotFoundException,
   Inject,
+  UseGuards,
 } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CurrentTenant } from "../../../../shared/tenant/current-tenant.decorator.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { RegisterDomainUseCase } from "../../application/use-cases/register-domain.use-case.js";
 import { VerifyDomainUseCase } from "../../application/use-cases/verify-domain.use-case.js";
 import { ListDomainsUseCase } from "../../application/use-cases/list-domains.use-case.js";
 
+@UseGuards(AuthGuard)
 @Controller("merchants/me/domains")
 export class DomainsController {
   constructor(
