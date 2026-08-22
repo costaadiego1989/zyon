@@ -271,9 +271,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           if (crossSellConfig.enabled && crossSellConfig.touchpoints.pre_cart) {
             const products = await this.productRepo.search({ merchantId, limit: 10, isActiveOnly: true });
             // Exclude the product just added (by name match, most reliable)
+            const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 2;
             crossSellSuggestions = products.products
               .filter((p) => p.name !== productName && p.hasStock)
-              .slice(0, 2)
+              .slice(0, maxSuggestions)
               .map((p) => ({
                 name: p.name,
                 sku: p.variants[0]?.sku ?? p.id,

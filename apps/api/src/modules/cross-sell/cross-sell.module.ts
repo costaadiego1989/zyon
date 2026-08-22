@@ -14,6 +14,7 @@ import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept
 import { AcceptCrossSellFromWidgetUseCase } from "./application/use-cases/accept-cross-sell-from-widget.use-case.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
+import { CrossSellContextResolverService } from "./domain/services/cross-sell-context-resolver.service.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER } from "../checkout/domain/ports/cross-sell-recommender.port.js";
 import { MerchantCrossSellController } from "./presentation/http/merchant-cross-sell.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
