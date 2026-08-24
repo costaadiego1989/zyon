@@ -24,6 +24,7 @@ import { RejectHypothesisUseCase } from "../../application/use-cases/reject-hypo
 import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../../domain/ports/observation-repository.port.js";
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } from "../../domain/ports/strategy-lesson-repository.port.js";
+import { DailyObservationWorker } from "../../infrastructure/jobs/daily-observation.job.js";
 import {
   ApproveHypothesisDto,
   RejectHypothesisDto,
@@ -45,6 +46,7 @@ export class RevenueManagerController {
     @Inject(OBSERVATION_REPOSITORY_PORT) private readonly observationRepo: ObservationRepositoryPort,
     @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepo: HypothesisRepositoryPort,
     @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
+    private readonly dailyObservationWorker: DailyObservationWorker,
   ) {}
 
   // ===== Observations =====
@@ -199,4 +201,18 @@ export class RevenueManagerController {
       };
     });
   }
+
+  // ===== Admin: Manual Trigger =====
+
+  @Post("trigger")
+  @ApiOperation({ summary: "Trigger daily observation cycle immediately (admin only)" })
+  @ApiOkResponse({ description: "Observation cycle triggered successfully" })
+  async triggerObservation(): Promise<{ processed: number; message: string }> {
+    const processed = await this.dailyObservationWorker.runObservationCycle();
+    return {
+      processed,
+      message: `Daily observation cycle completed for ${processed} merchants`,
+    };
+  }
 }
+

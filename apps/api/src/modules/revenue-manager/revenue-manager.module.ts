@@ -78,6 +78,7 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
     ObserveMetricsUseCase,
     GenerateHypothesisUseCase,
     CreateExperimentFromHypothesisUseCase,
+    DailyObservationWorker,
   ],
 })
 export class RevenueManagerModule implements OnModuleInit {
