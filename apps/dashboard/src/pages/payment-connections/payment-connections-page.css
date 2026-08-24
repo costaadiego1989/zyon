@@ -64,9 +64,10 @@
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: var(--space-4);
+  align-items: start;
 }
 .payment-connections-page__grid--nested {
-  align-items: stretch;
+  align-items: start;
 }
 .payment-connections-page__grid--nested > .gateway-card,
 .payment-connections-page__grid--nested > .wallet-section {
