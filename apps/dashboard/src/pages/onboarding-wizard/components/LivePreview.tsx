@@ -1,27 +1,21 @@
 import React from "react";
-import type { ThemeDraft } from "../useOnboardingWizard.js";
-import { CheckoutPreviewWidget } from "../../../components/CheckoutPreviewWidget.js";
-import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
+import type { MerchantProfile } from "../../../api-client.js";
+import { LivePreviewPanel } from "../../../components/LivePreviewPanel.js";
 
 interface LivePreviewProps {
-  themeDraft: ThemeDraft;
+  apiBaseUrl: string;
+  me: MerchantProfile;
 }
 
-export function LivePreview({ themeDraft }: LivePreviewProps) {
+export function LivePreview({ apiBaseUrl, me }: LivePreviewProps) {
   return (
     <aside className="onb-preview">
-      <CheckoutPreviewWidget
-        theme={{
-          ...DEFAULT_MERCHANT_THEME,
-          accentColor: themeDraft.accentColor,
-          secondaryColor: themeDraft.secondaryColor,
-          fontFamily: themeDraft.bodyFont,
-          fontDisplay: themeDraft.headingFont,
-          agentName: themeDraft.agentName,
-          headerTitle: themeDraft.headerTitle,
-          logoUrl: themeDraft.logoUrl,
-        }}
-        merchantName={themeDraft.headerTitle}
+      <LivePreviewPanel
+        apiBaseUrl={apiBaseUrl}
+        me={me}
+        presentation="floating"
+        hideControls
+        width="100%"
       />
     </aside>
   );
