@@ -102,10 +102,9 @@ function apiDocumentationRoot(base: string): string {
 
 function embedSessionQuickstart(root: string): string {
   return [
-    `curl -X POST ${root}/embed-sessions \\`,
+    `curl ${root}/v1/products \\`,
     `  -H "Authorization: Bearer YOUR_API_KEY" \\`,
-    `  -H "Content-Type: application/json" \\`,
-    `  -d '{"ttl_seconds": 3600, "allowed_origin": "https://seusite.com"}'`,
+    `  -H "Content-Type: application/json"`,
   ].join("\n");
 }
 

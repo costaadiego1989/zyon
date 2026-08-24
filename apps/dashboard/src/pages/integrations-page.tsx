@@ -117,16 +117,15 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       <section className="panel developer-quickstart">
         <div>
           <p className="eyebrow">Backend quickstart</p>
-          <h2>Emita uma sessão curta para o widget</h2>
+          <h2>Consuma a API headless</h2>
           <p>
-            A chave vive somente no servidor. O navegador recebe apenas o token
-            efemero vinculado ao tenant, origem e escopos permitidos.
+            Sua API Key vive somente no servidor. Use-a para acessar catálogo, criar sessões de checkout, receber webhooks de pedidos e sincronizar estoque com seu ERP.
           </p>
           <ol className="developer-steps">
-            <li>Crie uma chave de sandbox com o menor conjunto de escopos.</li>
-            <li>Cadastre a origem permitida em Instalações.</li>
-            <li>Emita a embed session no seu backend.</li>
-            <li>Inicialize o widget com o token retornado.</li>
+            <li>Crie uma API Key com os escopos necessários.</li>
+            <li>Configure webhooks para receber eventos em tempo real.</li>
+            <li>Consulte catálogo, pedidos e sessões via REST.</li>
+            <li>Integre com seu ERP/CRM para sync de estoque e clientes.</li>
           </ol>
           <a className="developer-inline-link" href={`${documentationRoot}/openapi.json`} target="_blank" rel="noreferrer">
             Ver OpenAPI machine-readable
@@ -316,67 +315,6 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
         </div>
       </section>
 
-      <section className="panel stacked" style={{ marginTop: 16 }}>
-        <SectionHeader title="Tokens de sessão" subtitle="Autentique o widget no seu site" />
-        <div className="table-wrap">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Nome</th>
-                <th>Plataforma</th>
-                <th>Status</th>
-                <th>Health</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {installations.map((inst) => (
-                <tr key={inst.id}>
-                  <td><code>{inst.id}</code></td>
-                  <td>{inst.name ?? "—"}</td>
-                  <td>{inst.platform ?? "—"}</td>
-                  <td>
-                    <span className={inst.status === "active" ? "badge ok" : "badge bad"}>
-                      {inst.status}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={
-                      (installationHealth[inst.id] ?? inst.health) === "healthy" ? "badge ok" :
-                      (installationHealth[inst.id] ?? inst.health) === "degraded" ? "badge bad" :
-                      "badge muted"
-                    }>
-                      {installationHealth[inst.id] ?? inst.health ?? "desconhecido"}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void checkHealth(inst.id)}
-                      title="Verificar health"
-                    >
-                      <Activity size={14} />
-                      Health
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {installations.length === 0 && !loading ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center" }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--color-text-faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
-                      <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>Nenhuma instalação encontrada.</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </>
   );
 }
