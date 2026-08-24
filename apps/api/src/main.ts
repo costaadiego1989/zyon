@@ -48,7 +48,7 @@ async function bootstrap() {
   }
 
   app.use(json({ limit: "10mb" }));
-  app.use(urlencoded({ extended: true, limit: "10mb" }));
+  app.use(urlencoded({ extended: true, limit: "5mb" }));
   app.use(apiVersioningMiddleware);
 
   const securityHeaders = resolveSecurityHeaders();
