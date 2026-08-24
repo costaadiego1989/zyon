@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Plus, RefreshCw, Save } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
+import { TabBar } from "../../components/TabBar.js";
 import { showToast } from "../../components/Toast.js";
 import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
 import { createDashboardApi } from "../../api-client.js";
@@ -10,6 +11,11 @@ import { SupportTicketsTab } from "./tabs/SupportTicketsTab.js";
 import { useSupportSocket } from "../../hooks/useSupportSocket.js";
 
 type Tab = "faq" | "tickets";
+
+const TABS = [
+  { key: "faq" as const, label: "FAQ automático" },
+  { key: "tickets" as const, label: "Escalonamento" },
+];
 
 export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {
   const api = useMemo(() => createDashboardApi({ baseUrl: props.apiBaseUrl }), [props.apiBaseUrl]);
@@ -30,8 +36,7 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
   }
 
   return (
-    <div className="dashboard-content">
-      {/* ── Page Head ── */}
+    <div className="page-container">
       <header className="page-head">
         <div>
           <span className="eyebrow">Atendimento</span>
@@ -40,45 +45,8 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
         </div>
       </header>
 
-      {/* ── Tab Navigation ── */}
-      <div style={{ display: "flex", gap: 8, marginBottom: "var(--space-5)", borderBottom: "1px solid var(--color-border)", paddingBottom: "var(--space-3)" }}>
-        <button
-          type="button"
-          onClick={() => setActiveTab("faq")}
-          style={{
-            padding: "var(--space-2) var(--space-3)",
-            fontSize: 14,
-            fontWeight: activeTab === "faq" ? 700 : 500,
-            color: activeTab === "faq" ? "var(--color-brand)" : "var(--color-text-muted)",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            borderBottom: activeTab === "faq" ? "2px solid var(--color-brand)" : "none",
-            marginBottom: -13,
-          }}
-        >
-          FAQ automático
-        </button>
-        <button
-          type="button"
-          onClick={() => setActiveTab("tickets")}
-          style={{
-            padding: "var(--space-2) var(--space-3)",
-            fontSize: 14,
-            fontWeight: activeTab === "tickets" ? 700 : 500,
-            color: activeTab === "tickets" ? "var(--color-brand)" : "var(--color-text-muted)",
-            background: "transparent",
-            border: "none",
-            cursor: "pointer",
-            borderBottom: activeTab === "tickets" ? "2px solid var(--color-brand)" : "none",
-            marginBottom: -13,
-          }}
-        >
-          Escalonamento
-        </button>
-      </div>
+      <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(k) => setActiveTab(k as Tab)} />
 
-      {/* ── Tab Content ── */}
       {activeTab === "faq" && <SupportFaqTab api={api} />}
       {activeTab === "tickets" && <SupportTicketsTab api={api} socket={socket} />}
     </div>
