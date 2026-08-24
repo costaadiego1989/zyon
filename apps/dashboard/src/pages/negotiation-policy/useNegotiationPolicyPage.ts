@@ -3,6 +3,7 @@ import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import type { MerchantProfile } from "../../api-client.js";
+import type { NegotiationPolicy as ApiNegotiationPolicy, NegotiationPolicyResponse } from "../../api/types.js";
 
 export interface NegotiationAttempt {
   id: string;
@@ -19,25 +20,46 @@ export interface NegotiationPolicy {
   max_discount_percent: number;
 }
 
+function apiToLocal(api: ApiNegotiationPolicy): NegotiationPolicy {
+  return {
+    negotiation_enabled: api.enabled,
+    min_discount_percent: api.global.minOfferDiscountPercent,
+    max_discount_percent: api.global.maxDiscountPercent,
+  };
+}
+
+function localToApi(local: NegotiationPolicy, existing?: ApiNegotiationPolicy): ApiNegotiationPolicy {
+  return {
+    enabled: local.negotiation_enabled,
+    global: {
+      minOfferDiscountPercent: local.min_discount_percent,
+      maxDiscountPercent: local.max_discount_percent,
+    },
+    categories: existing?.categories,
+    items: existing?.items,
+    maxRounds: existing?.maxRounds ?? 3,
+    maxAiCostCents: existing?.maxAiCostCents,
+    estimatedCostPerAiCallCents: existing?.estimatedCostPerAiCallCents ?? 5,
+  };
+}
+
+const DEFAULT_POLICY: NegotiationPolicy = {
+  negotiation_enabled: false,
+  min_discount_percent: 5,
+  max_discount_percent: 25,
+};
+
 export function useNegotiationPolicyPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [attempts, setAttempts] = useState<NegotiationAttempt[]>([]);
-  const [policy, setPolicy] = useState<NegotiationPolicy>({
-    negotiation_enabled: false,
-    min_discount_percent: 5,
-    max_discount_percent: 25,
-  });
+  const [policy, setPolicy] = useState<NegotiationPolicy>(DEFAULT_POLICY);
+  const [rawApiPolicy, setRawApiPolicy] = useState<ApiNegotiationPolicy | undefined>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [isEditingPolicy, setIsEditingPolicy] = useState(false);
-  const [tempPolicy, setTempPolicy] = useState<NegotiationPolicy>({
-    negotiation_enabled: false,
-    min_discount_percent: 5,
-    max_discount_percent: 25,
-  });
+  const [tempPolicy, setTempPolicy] = useState<NegotiationPolicy>(DEFAULT_POLICY);
 
-  // Load data on mount
   useEffect(() => {
     if (!props.me) {
       setLoaded(true);
@@ -47,17 +69,12 @@ export function useNegotiationPolicyPage(props: { me: MerchantProfile | null }) 
     (async () => {
       setLoading(true);
       try {
-        // Mock API calls — replace with real endpoints
-        const policyData = (await Promise.resolve({
-          negotiation_enabled: false,
-          min_discount_percent: 5,
-          max_discount_percent: 25,
-        })) as NegotiationPolicy | undefined;
-        const attemptsData = (await Promise.resolve([])) as NegotiationAttempt[] | undefined;
+        const res: NegotiationPolicyResponse = await api.getNegotiationPolicy();
         if (cancelled) return;
-        setPolicy(policyData ?? { negotiation_enabled: false, min_discount_percent: 5, max_discount_percent: 25 });
-        setTempPolicy(policyData ?? { negotiation_enabled: false, min_discount_percent: 5, max_discount_percent: 25 });
-        setAttempts(attemptsData ?? []);
+        const local = apiToLocal(res.policy);
+        setRawApiPolicy(res.policy);
+        setPolicy(local);
+        setTempPolicy(local);
       } catch (e) {
         reportError({ source: "negotiation-policy.load", error: e });
         if (!cancelled) {
@@ -82,8 +99,12 @@ export function useNegotiationPolicyPage(props: { me: MerchantProfile | null }) 
     }
     setSaving(true);
     try {
-      // Mock API call — replace with real endpoint
-      setPolicy(tempPolicy);
+      const payload = localToApi(tempPolicy, rawApiPolicy);
+      const res: NegotiationPolicyResponse = await api.putNegotiationPolicy(payload);
+      const local = apiToLocal(res.policy);
+      setRawApiPolicy(res.policy);
+      setPolicy(local);
+      setTempPolicy(local);
       setIsEditingPolicy(false);
       showToast("success", "Política de negociação atualizada");
     } catch (e) {

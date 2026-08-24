@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
 import { useNegotiationPolicyPage } from "./useNegotiationPolicyPage.js";
 
 export interface NegotiationPolicyPageProps {
@@ -71,12 +72,12 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
 
       {/* Policy Config Section */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-          <div>
-            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>Negociação</div>
-            <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-              {vm.policy.negotiation_enabled ? "Negociação habilitada" : "Negociação desabilitada"}
-            </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ flex: 1 }}>
+            <SectionHeader
+              variant="secondary"
+              title="Negociação"
+            />
           </div>
           <ToggleSwitch
             checked={vm.tempPolicy.negotiation_enabled}
@@ -168,12 +169,10 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
 
       {/* Recent Attempts */}
       <div className="panel" style={{ padding: "20px 24px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-          <BarChart3 size={16} color="var(--color-brand)" />
-          <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>
-            Últimas tentativas de negociação
-          </span>
-        </div>
+        <SectionHeader
+          variant="secondary"
+          title="Últimas tentativas de negociação"
+        />
 
         {vm.loading ? (
           <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
