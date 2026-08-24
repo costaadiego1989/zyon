@@ -216,7 +216,7 @@ export function OverviewPage(props: OverviewPageProps) {
   const CHECKOUT_FUNNEL = [
     { name: "checkout_started", label: "Checkout iniciado", color: "var(--color-brand)" },
     { name: "shipping", label: "Frete selecionado", color: "oklch(70% 0.14 250)" },
-    { name: "payment", label: "Método de pagamento selecionado", color: "oklch(65% 0.16 200)" },
+    { name: "payment", label: "Pagamento selecionado", color: "oklch(65% 0.16 200)" },
     { name: "coupon_applied", label: "Cupom visto", color: "var(--color-warning)" },
     { name: "cross_sell_added", label: "Cross-sell aceito", color: "oklch(72% 0.15 320)" },
     { name: "completed", label: "Sucesso", color: "var(--color-success)" },
