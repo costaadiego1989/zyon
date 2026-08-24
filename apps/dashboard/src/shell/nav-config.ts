@@ -75,6 +75,7 @@ export type TabKey =
   | "whatsapp-seller"
   | "m2m-agents"
   | "checkout-protocol"
+  | "checkout-programavel"
   | "intent-memory"
   | "negotiation-policy"
   | "revenue-lift"
@@ -115,6 +116,7 @@ export const NAV_ITEMS: Array<{
   { key: "experiments", label: "Testes A/B", section: "Checkout", icon: Zap, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "negotiation-policy", label: "Negociação", section: "Checkout", icon: Handshake, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "checkout-protocol", label: "Protocol", section: "Checkout", icon: Code2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
+  { key: "checkout-programavel", label: "Checkout Programável", section: "Checkout", icon: Code2, requiredPlan: ["CHECKOUT_ONLY", "BOTH"] },
   { key: "coupons", label: "Cupons", section: "Checkout", icon: Tag, requiredPlan: ["CHECKOUT_ONLY", "STORE_ONLY", "BOTH"] },
 
   // ─── Integrações ───

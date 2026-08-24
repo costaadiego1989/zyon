@@ -22,6 +22,7 @@ import { billingEndpoints } from "./endpoints/billing.js";
 import { onboardingEndpoints } from "./endpoints/onboarding.js";
 import { agentEndpoints } from "./endpoints/agent.js";
 import { negotiationEndpoints } from "./endpoints/negotiation.js";
+import { m2mManagementEndpoints } from "./endpoints/m2m-management.js";
 import { auditEndpoints } from "./endpoints/audit.js";
 import { funnelEndpoints } from "./endpoints/funnel.js";
 import {
@@ -68,6 +69,7 @@ export function createDashboardApi(options: {
     ...onboardingEndpoints(base, f),
     ...agentEndpoints(base, f),
     ...negotiationEndpoints(base, f),
+    ...m2mManagementEndpoints(base, f),
     ...auditEndpoints(base, f),
     ...integrationEndpoints(base, f),
     ...commerceEndpoints(base, f),
