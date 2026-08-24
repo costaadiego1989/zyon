@@ -40,6 +40,7 @@ import { FinalizeSettlementsJob } from "./infrastructure/jobs/finalize-settlemen
 import { MarketplaceCatalogSyncScheduler, MarketplaceCatalogSyncWorker } from "./application/handlers/marketplace-catalog-sync.handler.js";
 
 import { MarketplaceController } from "./presentation/http/marketplace.controller.js";
+import { MarketplaceDiscoveryController } from "./presentation/http/marketplace-discovery.controller.js";
 
 const prismaProvider = {
   provide: PrismaClient,
@@ -48,7 +49,7 @@ const prismaProvider = {
 
 
 @Module({
-  controllers: [MarketplaceController],
+  controllers: [MarketplaceController, MarketplaceDiscoveryController],
   providers: [
     prismaProvider,
 

@@ -10,6 +10,7 @@ import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
 import { SettlementDetailPanel } from "./components/SettlementDetailPanel.js";
 import { BlockedMerchantForm } from "./components/BlockedMerchantForm.js";
+import { StoreDiscoveryGrid } from "./components/StoreDiscoveryGrid.js";
 import "./marketplace-page.css";
 
 interface MarketplacePageProps {
@@ -67,6 +68,8 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               ? "Acompanhe repasses, janelas e status de cada transação cross-store"
               : tab === "chargebacks"
               ? "Visualize chargebacks recebidos e impacto nos repasses"
+              : tab === "stores"
+              ? "Descubra e habilite lojas parceiras para vender seus produtos"
               : "Pedidos recebidos de lojas parceiras que vendem seus produtos"}
           </p>
         </div>
@@ -74,14 +77,21 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
 
       <TabBar
         tabs={[
+          { key: "stores", label: "Lojas" },
           { key: "orders", label: "Pedidos" },
           { key: "settlements", label: "Repasses" },
           { key: "chargebacks", label: "Chargebacks" },
           { key: "settings", label: "Configurações" },
         ]}
         activeTab={tab}
-        onTabChange={(key) => setTab(key as "orders" | "settlements" | "chargebacks" | "settings")}
+        onTabChange={(key) => setTab(key as "stores" | "orders" | "settlements" | "chargebacks" | "settings")}
       />
+
+      {tab === "stores" && (
+        <SectionErrorBoundary sectionName="Lojas Parceiras">
+          <StoreDiscoveryGrid apiBaseUrl={apiBaseUrl} />
+        </SectionErrorBoundary>
+      )}
 
       {tab === "settings" && (
         <div className="marketplace-page__settings">

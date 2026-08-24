@@ -7,6 +7,22 @@ import type {
 
 // ────────────────────────────────────────────────────────────────────────────────
 
+export interface AvailableStore {
+  id: string;
+  name: string;
+  category: string;
+  commissionPercent: number;
+  logoUrl: string | null;
+  connected: boolean;
+}
+
+export interface ListAvailableStoresResponse {
+  stores: AvailableStore[];
+  nextCursor: string | null;
+}
+
+// ────────────────────────────────────────────────────────────────────────────────
+
 export interface MarketplaceSettlement {
   id: string;
   orderId: string;
@@ -228,6 +244,50 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
     }> {
       const qs = params?.since ? `?since=${encodeURIComponent(params.since)}` : "";
       return dashboardJson(base, `/marketplace/dashboard/events${qs}`, { method: "GET" }, f);
+    },
+
+    async listAvailableStores(params?: {
+      category?: string;
+      search?: string;
+      limit?: number;
+      cursor?: string;
+    }): Promise<ListAvailableStoresResponse> {
+      const query = new URLSearchParams();
+      if (params?.category) query.set("category", params.category);
+      if (params?.search) query.set("search", params.search);
+      if (params?.limit) query.set("limit", String(params.limit));
+      if (params?.cursor) query.set("cursor", params.cursor);
+      const qs = query.toString();
+      return dashboardJson(
+        base,
+        `/marketplace/stores${qs ? `?${qs}` : ""}`,
+        { method: "GET" },
+        f
+      );
+    },
+
+    async connectStore(sellerId: string): Promise<{ connected: boolean }> {
+      return dashboardJson(
+        base,
+        `/marketplace/stores/${encodeURIComponent(sellerId)}/connect`,
+        { method: "POST", jsonBody: {} },
+        f
+      );
+    },
+
+    async disconnectStore(sellerId: string): Promise<{ connected: boolean }> {
+      return dashboardJson(
+        base,
+        `/marketplace/stores/${encodeURIComponent(sellerId)}/connect`,
+        { method: "DELETE" },
+        f
+      );
+    },
+
+    async getMyConnections(): Promise<{
+      connections: Array<{ sellerMerchantId: string; createdAt: string }>;
+    }> {
+      return dashboardJson(base, "/marketplace/stores/my-connections", { method: "GET" }, f);
     },
   };
 }

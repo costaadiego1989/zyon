@@ -1780,6 +1780,18 @@ model MarketplaceConfig {
   @@map("marketplace_configs")
 }
 
+model MarketplaceConnection {
+  id                String   @id @default(cuid())
+  buyerMerchantId   String   @map("buyer_merchant_id")
+  sellerMerchantId  String   @map("seller_merchant_id")
+  status            String   @default("active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([buyerMerchantId, sellerMerchantId])
+  @@index([buyerMerchantId, status])
+  @@map("marketplace_connections")
+}
+
 model FederatedProduct {
   id                String   @id @default(cuid())
   sourceMerchantId  String   @map("source_merchant_id")
