@@ -175,10 +175,8 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
           {/* Evolução diária */}
           {trendTotal > 0 && (
-            <div className="panel" style={{ overflow: "hidden" }}>
-              <div style={{ padding: "20px 24px 0" }}>
-                <SectionHeader variant="secondary" title="Evolução diária" />
-              </div>
+            <div className="panel" style={{ overflow: "hidden", padding: "20px 24px" }}>
+              <SectionHeader variant="secondary" title="Evolução diária" />
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
@@ -225,12 +223,14 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
               {/* Paginação */}
               {trendTotal > PAGE_SIZE && (
-                <Pagination
-                  page={trendPage + 1}
-                  pageSize={PAGE_SIZE}
-                  total={trendTotal}
-                  onChange={(p) => setTrendPage(p - 1)}
-                />
+                <div style={{ padding: "0 0 20px" }}>
+                  <Pagination
+                    page={trendPage + 1}
+                    pageSize={PAGE_SIZE}
+                    total={trendTotal}
+                    onChange={(p) => setTrendPage(p - 1)}
+                  />
+                </div>
               )}
             </div>
           )}
