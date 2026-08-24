@@ -8,11 +8,13 @@ import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useCheckoutProgramavel } from "./useCheckoutProgramavel.js";
 import { ConfigTab } from "./tabs/ConfigTab.js";
 import { AgentsTab } from "./tabs/AgentsTab.js";
+import { AuditTab } from "./tabs/AuditTab.js";
 import type { MerchantProfile } from "../../api-client.js";
 
 const TABS = [
   { key: "config" as const, label: "Configuração" },
   { key: "agents" as const, label: "Agentes" },
+  { key: "audit" as const, label: "Auditoria" },
 ] as const;
 
 export function CheckoutProgramavelPage({ me }: { apiBaseUrl: string; me: MerchantProfile | null }) {
@@ -81,6 +83,8 @@ export function CheckoutProgramavelPage({ me }: { apiBaseUrl: string; me: Mercha
           onSuspend={vm.handleSuspendAgent}
         />
       )}
+
+      {vm.tab === "audit" && <AuditTab />}
     </div>
   );
 }

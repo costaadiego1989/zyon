@@ -21,6 +21,18 @@ export interface M2MProtocolConfigResponse {
   maxSessionTtlMinutes: number;
 }
 
+export interface M2MAuditEntry {
+  id: string;
+  actorType: string;
+  actorId: string;
+  action: string;
+  resourceType: string;
+  resourceId: string | null;
+  outcome: string;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
+}
+
 export function m2mManagementEndpoints(base: string, f: typeof fetch) {
   return {
     async getM2MAgents(): Promise<{ agents: M2MAgentResponse[]; total: number }> {
@@ -41,6 +53,13 @@ export function m2mManagementEndpoints(base: string, f: typeof fetch) {
 
     async putProtocolConfig(data: { enabled?: boolean; webhookUrl?: string | null; maxSessionTtlMinutes?: number }): Promise<M2MProtocolConfigResponse> {
       return dashboardJson(base, "/m2m/protocol/config", { method: "PUT", jsonBody: data }, f);
+    },
+
+    async getM2MAuditLog(params?: { limit?: number; resourceType?: string }): Promise<{ data: M2MAuditEntry[]; nextCursor: string | null }> {
+      const query = new URLSearchParams();
+      query.set("resourceType", params?.resourceType ?? "m2m");
+      if (params?.limit) query.set("limit", String(params.limit));
+      return dashboardJson(base, `/audit/events?${query}`, { method: "GET" }, f);
     },
   };
 }

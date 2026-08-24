@@ -4,7 +4,7 @@ import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import type { M2MAgentResponse, M2MProtocolConfigResponse } from "../../api/endpoints/m2m-management.js";
 
-export type M2MTab = "config" | "agents" | "sessions" | "webhooks";
+export type M2MTab = "config" | "agents" | "audit";
 
 export interface CheckoutProgramavelVM {
   tab: M2MTab;
