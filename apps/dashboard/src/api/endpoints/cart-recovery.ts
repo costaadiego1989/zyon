@@ -13,14 +13,10 @@ export interface CartRecoveryMetrics {
 export type CartRecoveryStrategyKey =
   | "offer_free_shipping"
   | "personalized_cross_sell"
-  | "offer_coupon";
+  | "offer_coupon"
+  | "advanced_rule";
 
 export type CartRecoveryStrategyPreferences = Record<CartRecoveryStrategyKey, boolean>;
-
-export interface CartRecoveryStrategy {
-  tier: "free_shipping" | "cross_sell" | "coupon";
-  enabled: boolean;
-}
 
 export interface CartRecoveryAttempt {
   id: string;

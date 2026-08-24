@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
-import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -13,23 +12,17 @@ export interface CartRecoveryPageProps {
   me: MerchantProfile | null;
 }
 
-const PANEL: React.CSSProperties = {
-  background: "var(--surface-2)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius-md)",
-  padding: "24px 28px",
-};
-
-interface StrategyDisplayConfig {
+interface StrategyOption {
   key: CartRecoveryStrategyKey;
   label: string;
   description: string;
 }
 
-const STRATEGY_DISPLAY: StrategyDisplayConfig[] = [
-  { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo" },
-  { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares" },
-  { key: "offer_coupon", label: "Cupom", description: "Oferecer cupom de desconto para fechar" },
+const STRATEGY_OPTIONS: StrategyOption[] = [
+  { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo para fechar a compra" },
+  { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares baseados no histórico do comprador" },
+  { key: "offer_coupon", label: "Cupom de Desconto", description: "Enviar cupom de desconto via WhatsApp para incentivar a conversão" },
+  { key: "advanced_rule", label: "Regra Avançada", description: "Usar regras do engine de negociação (desconto progressivo, objeção, timing)" },
 ];
 
 const PAGE_SIZE = 10;
@@ -41,7 +34,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
     strategies,
     savingKey,
     loading,
-    toggleStrategy,
+    selectStrategy,
   } = useCartRecoveryPage();
 
   const [page, setPage] = useState(1);
@@ -86,30 +79,51 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
   const strategyLabel = (strategy: string) => {
     switch (strategy) {
-      case "free_shipping": return "Frete Grátis";
-      case "coupon": return "Cupom";
-      case "cross_sell": return "Cross-sell";
+      case "free_shipping":
+      case "offer_free_shipping": return "Frete Grátis";
+      case "coupon":
+      case "offer_coupon":
+      case "escalate_discount": return "Cupom";
+      case "cross_sell":
+      case "personalized_cross_sell": return "Cross-sell";
+      case "address_objection":
+      case "advanced_rule": return "Regra Avançada";
+      case "wait_and_retry": return "Aguardar e tentar";
       default: return strategy;
     }
   };
 
-  // Pagination logic
   const totalAttempts = attempts.length;
   const startIdx = (page - 1) * PAGE_SIZE;
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
+  const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
 
   return (
     <div className="page-container">
-      {/* Header */}
       <header className="page-head">
         <div>
           <span className="eyebrow">Inteligência IA</span>
           <h1>Cart Recovery</h1>
-          <p className="page-lead">Métricas de recuperação de carrinhos e configuração de estratégias</p>
+          <p className="page-lead">Recuperação automática de carrinhos abandonados via WhatsApp</p>
         </div>
       </header>
 
-      {/* KPI cards — official StatCard from overview */}
+      {/* Explicação */}
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: "var(--radius-md)",
+        background: "var(--accent-soft)",
+        border: "1px solid var(--accent-line)",
+        font: "13px var(--font-sans)",
+        color: "var(--color-brand)",
+        lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
+        Quando um comprador abandona o carrinho, o sistema detecta automaticamente e envia uma mensagem de recuperação
+        via WhatsApp com a estratégia configurada abaixo. Apenas uma estratégia pode estar ativa por vez.
+      </div>
+
+      {/* KPI cards */}
       {metrics && (
         <div className="grid-4" style={{ gap: 14 }}>
           <StatCard
@@ -137,23 +151,74 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         </div>
       )}
 
-      {/* Strategy config */}
-      <div style={PANEL}>
-        <SectionHeader variant="secondary" title="Configuração de Estratégias" />
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {STRATEGY_DISPLAY.map((s) => (
-            <div key={s.key} style={{ display: "flex", alignItems: "center", gap: 14, padding: "10px 0", borderBottom: "1px solid var(--color-border)" }}>
-              <ToggleSwitch
-                checked={strategies[s.key]}
-                onChange={() => toggleStrategy(s.key)}
-                disabled={savingKey === s.key}
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)", fontWeight: 500 }}>{s.label}</div>
-                <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>{s.description}</div>
-              </div>
-            </div>
-          ))}
+      {/* Strategy selection — radio (only 1 active) */}
+      <div className="panel" style={{ padding: "20px 24px" }}>
+        <SectionHeader title="Estratégia de recuperação" subtitle="Escolha o que enviar via WhatsApp quando um carrinho for abandonado. Apenas uma opção pode estar ativa." />
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          {STRATEGY_OPTIONS.map((opt) => {
+            const isActive = activeKey === opt.key;
+            const isSaving = savingKey === opt.key;
+            return (
+              <label
+                key={opt.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 14,
+                  padding: "14px 16px",
+                  borderRadius: "var(--radius-sm)",
+                  border: `1.5px solid ${isActive ? "var(--color-brand)" : "var(--color-border)"}`,
+                  background: isActive ? "var(--accent-soft)" : "transparent",
+                  cursor: isSaving ? "wait" : "pointer",
+                  transition: "border-color 0.15s, background 0.15s",
+                  opacity: isSaving ? 0.6 : 1,
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (!isSaving && !isActive) selectStrategy(opt.key);
+                }}
+              >
+                <span style={{
+                  width: 18,
+                  height: 18,
+                  borderRadius: "50%",
+                  border: `2px solid ${isActive ? "var(--color-brand)" : "var(--color-border)"}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}>
+                  {isActive && (
+                    <span style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      background: "var(--color-brand)",
+                    }} />
+                  )}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <div style={{ font: "500 13px var(--font-sans)", color: isActive ? "var(--color-brand)" : "var(--color-text)" }}>
+                    {opt.label}
+                  </div>
+                  <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
+                    {opt.description}
+                  </div>
+                </div>
+                {isActive && (
+                  <span style={{
+                    padding: "2px 8px",
+                    borderRadius: "var(--radius-full)",
+                    font: "600 10px var(--font-mono)",
+                    background: "var(--color-success-bg)",
+                    color: "var(--color-success)",
+                  }}>
+                    Ativa
+                  </span>
+                )}
+              </label>
+            );
+          })}
         </div>
       </div>
 
@@ -165,7 +230,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         total={totalAttempts}
         onPageChange={setPage}
         isEmpty={attempts.length === 0}
-        empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme os agentes tentam recuperar carrinhos abandonados." }}
+        empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme o sistema tenta recuperar carrinhos abandonados via WhatsApp." }}
       >
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>

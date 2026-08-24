@@ -10,9 +10,10 @@ import type {
 } from "../../api/endpoints/cart-recovery.js";
 
 const DEFAULT_STRATEGIES: CartRecoveryStrategyPreferences = {
-  offer_free_shipping: true,
-  personalized_cross_sell: true,
+  offer_free_shipping: false,
+  personalized_cross_sell: false,
   offer_coupon: true,
+  advanced_rule: false,
 };
 
 const EMPTY_METRICS: CartRecoveryMetrics = {
@@ -65,18 +66,31 @@ export function useCartRecoveryPage() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const toggleStrategy = useCallback(async (key: CartRecoveryStrategyKey) => {
-    const previous = strategies[key];
-    const next = !previous;
-    setStrategies((prev) => ({ ...prev, [key]: next }));
+  /**
+   * Only one strategy active at a time.
+   * Selecting a key disables all others and enables the selected one.
+   */
+  const selectStrategy = useCallback(async (key: CartRecoveryStrategyKey) => {
+    if (strategies[key]) return; // already active
+
+    const previous = { ...strategies };
+    const next: CartRecoveryStrategyPreferences = {
+      offer_free_shipping: false,
+      personalized_cross_sell: false,
+      offer_coupon: false,
+      advanced_rule: false,
+      [key]: true,
+    };
+
+    setStrategies(next);
     setSavingKey(key);
     try {
-      const saved = await api.patchCartRecoveryStrategies({ [key]: next });
-      setStrategies((prev) => ({ ...prev, ...saved }));
-      showToast("success", next ? "Estratégia ativada" : "Estratégia desativada");
+      const saved = await api.patchCartRecoveryStrategies(next);
+      setStrategies({ ...DEFAULT_STRATEGIES, ...saved });
+      showToast("success", "Estratégia ativada");
     } catch (e) {
-      setStrategies((prev) => ({ ...prev, [key]: previous }));
-      reportError({ source: "cart-recovery.toggle", error: e });
+      setStrategies(previous);
+      reportError({ source: "cart-recovery.select", error: e });
       showToast("error", e instanceof Error ? e.message : "Erro ao salvar estratégia");
     } finally {
       setSavingKey(null);
@@ -90,6 +104,6 @@ export function useCartRecoveryPage() {
     strategiesLoaded,
     savingKey,
     loading,
-    toggleStrategy,
+    selectStrategy,
   };
 }
