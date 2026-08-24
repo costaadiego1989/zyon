@@ -1,9 +1,11 @@
 import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search, Pause, Play, TrendingUp, Percent, Truck } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Modal } from "../../components/Modal.js";
 import { Pagination } from "../../components/Pagination.js";
+import { ConfirmDialog } from "../../components/ConfirmDialog.js";
+import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useApi } from "../../hooks/useApi.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useCouponsPage } from "./useCouponsPage.js";
@@ -152,8 +154,24 @@ export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
   const merchantId = _props.me?.id ?? "";
   const [page, setPage] = useState(1);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "paused">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; code: string } | null>(null);
   const PAGE_SIZE = 10;
-  const paginatedCoupons = vm.coupons.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const filteredCoupons = useMemo(() => {
+    let list = vm.coupons;
+    if (statusFilter === "active") list = list.filter((c) => c.isActive);
+    else if (statusFilter === "expired") list = list.filter((c) => c.expiresAt && new Date(c.expiresAt) < new Date());
+    else if (statusFilter === "paused") list = list.filter((c) => !c.isActive);
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter((c) => c.code.toLowerCase().includes(q));
+    }
+    return list;
+  }, [vm.coupons, statusFilter, searchQuery]);
+
+  const paginatedCoupons = filteredCoupons.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="page-container">
@@ -261,7 +279,20 @@ export function CouponsPage(_props: CouponsPageProps) {
       <style>{FIELD_STYLES}</style>
 
       {/* Coupons List */}
-      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
+      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", overflow: "hidden" }}>
+      <FilterToolbar
+        tabs={[
+          { key: "all", label: "Todos" },
+          { key: "active", label: "Ativos" },
+          { key: "paused", label: "Pausados" },
+          { key: "expired", label: "Expirados" },
+        ]}
+        activeTab={statusFilter}
+        onTabChange={(k) => { setStatusFilter(k as typeof statusFilter); setPage(1); }}
+        search={searchQuery}
+        onSearchChange={(v) => { setSearchQuery(v); setPage(1); }}
+      />
+      <div style={{ padding: "20px 22px" }}>
       {vm.loading ? (
         <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando cupons...</div>
       ) : vm.coupons.length === 0 ? (
@@ -301,7 +332,7 @@ export function CouponsPage(_props: CouponsPageProps) {
                   <button type="button" onClick={() => { void navigator.clipboard.writeText(coupon.code); }} title="Copiar código" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Copy size={18} />
                   </button>
-                  <button type="button" onClick={() => void vm.handleDelete(coupon.id)} title="Excluir" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-error)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <button type="button" onClick={() => setDeleteTarget({ id: coupon.id, code: coupon.code })} title="Excluir" style={{ width: 36, height: 36, borderRadius: 9, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-error)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Trash2 size={18} />
                   </button>
                 </div>
@@ -328,10 +359,22 @@ export function CouponsPage(_props: CouponsPageProps) {
           ))}
         </div>
       )}
-      {vm.coupons.length > PAGE_SIZE && (
-        <Pagination page={page} pageSize={PAGE_SIZE} total={vm.coupons.length} onChange={setPage} />
+      {filteredCoupons.length > PAGE_SIZE && (
+        <Pagination page={page} pageSize={PAGE_SIZE} total={filteredCoupons.length} onChange={setPage} />
       )}
+      </div>
       </section>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title={`Excluir cupom "${deleteTarget?.code ?? ""}"?`}
+        description="Esta ação não pode ser desfeita. O cupom será removido permanentemente."
+        confirmLabel="Excluir cupom"
+        cancelLabel="Cancelar"
+        variant="danger"
+        onConfirm={() => { if (deleteTarget) { void vm.handleDelete(deleteTarget.id); setDeleteTarget(null); } }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
