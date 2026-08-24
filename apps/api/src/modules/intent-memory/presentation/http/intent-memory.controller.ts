@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Inject,
   Post,
   Req,
   UseGuards,
@@ -13,6 +14,8 @@ import {
   ApiOperation,
   ApiTags,
 } from "@nestjs/swagger";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { ClassifyCustomerIntentUseCase, RecordIntentIfConsentedUseCase } from "../../application/use-cases/classify-customer-intent.use-case.js";
 
@@ -24,6 +27,7 @@ export class IntentMemoryController {
   constructor(
     private readonly classifyCustomerIntent: ClassifyCustomerIntentUseCase,
     private readonly recordIntentIfConsented: RecordIntentIfConsentedUseCase,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   @Get("me")
@@ -85,5 +89,26 @@ export class IntentMemoryController {
     } catch (error: any) {
       throw new BadRequestException(error.message);
     }
+  }
+
+  @Get("records")
+  @ApiOperation({ summary: "List all intent records for this merchant" })
+  @ApiOkResponse({ description: "Intent records list" })
+  async listRecords(@Req() req: any) {
+    const user = currentUser(req);
+    const records = await this.prisma.customerIntentRecord.findMany({
+      where: { merchantId: user.merchantId },
+      orderBy: { generatedAt: "desc" },
+      take: 100,
+    });
+    return records.map((r: any) => ({
+      id: r.id,
+      global_user_id: r.globalUserId,
+      primary_intent: r.primaryIntent,
+      urgency: r.urgency,
+      budget_tier: r.budgetTier,
+      pain_points: r.painPoints ?? [],
+      created_at: r.generatedAt?.toISOString(),
+    }));
   }
 }
