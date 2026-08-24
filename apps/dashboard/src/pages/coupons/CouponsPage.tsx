@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Modal } from "../../components/Modal.js";
+import { Pagination } from "../../components/Pagination.js";
 import { useApi } from "../../hooks/useApi.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useCouponsPage } from "./useCouponsPage.js";
@@ -150,6 +151,9 @@ input[type="date"].field-input { color-scheme: dark; }
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
   const merchantId = _props.me?.id ?? "";
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 10;
+  const paginatedCoupons = vm.coupons.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   return (
     <div className="page-container">
@@ -273,7 +277,7 @@ export function CouponsPage(_props: CouponsPageProps) {
         />
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
-          {vm.coupons.map((coupon) => (
+          {paginatedCoupons.map((coupon) => (
             <div key={coupon.id} style={{ padding: "18px 20px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 12 }}>
               {/* Top row: code + badge + actions */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
@@ -323,6 +327,9 @@ export function CouponsPage(_props: CouponsPageProps) {
             </div>
           ))}
         </div>
+      )}
+      {vm.coupons.length > PAGE_SIZE && (
+        <Pagination page={page} pageSize={PAGE_SIZE} total={vm.coupons.length} onChange={setPage} />
       )}
       </section>
     </div>
