@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { readError } from "../utils/read-error.js";
 import { useApi } from "../hooks/useApi.js";
+import { showToast } from "../components/Toast.js";
 import type { MerchantProfile } from "../api-client.js";
 
 export type MemberRole = "OWNER" | "ADMIN" | "STAFF";
@@ -94,17 +95,17 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
 
       // Verify we're still authenticated (T-005: prevent disconnect bug)
       if (!preInviteMerchantId) {
-        setMessage({ text: "Sessão expirou durante o convite.", kind: "error" });
+        showToast("error", "Sessão expirou durante o convite.");
         return;
       }
 
-      setMessage({ text: `Convite enviado para ${inviteEmail}`, kind: "ok" });
+      showToast("success", `Convite enviado para ${inviteEmail}`);
       setInviteName("");
       setInviteEmail("");
       setInvitePhone("");
       void load();
     } catch (e) {
-      setMessage({ text: readError(e), kind: "error" });
+      showToast("error", readError(e));
     } finally {
       setInviting(false);
     }
@@ -112,26 +113,24 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
 
   const updateRole = useCallback(async (userId: string, role: MemberRole) => {
     if (!merchantId) return;
-    setMessage(null);
     try {
       await api.updateTeamMemberRole(merchantId, userId, role);
       setMembers((prev) => prev.map((m) => m.userId === userId ? { ...m, role } : m));
-      setMessage({ text: "Função atualizada.", kind: "ok" });
+      showToast("success", "Função atualizada");
     } catch (e) {
-      setMessage({ text: readError(e), kind: "error" });
+      showToast("error", readError(e));
     }
   }, [api, merchantId]);
 
   const removeMember = useCallback(async (userId: string) => {
     if (!merchantId) return;
     setRemovingId(userId);
-    setMessage(null);
     try {
       await api.removeTeamMember(merchantId, userId);
       setMembers((prev) => prev.filter((m) => m.userId !== userId));
-      setMessage({ text: "Membro removido.", kind: "ok" });
+      showToast("success", "Membro removido");
     } catch (e) {
-      setMessage({ text: readError(e), kind: "error" });
+      showToast("error", readError(e));
     } finally {
       setRemovingId(null);
     }
