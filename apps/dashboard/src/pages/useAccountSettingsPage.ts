@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { readError } from "../utils/read-error.js";
 import { useApi } from "../hooks/useApi.js";
+import { showToast } from "../components/Toast.js";
 import type { MerchantProfile } from "../api-client.js";
 
 export interface AccountForm {
@@ -64,21 +65,20 @@ export function useAccountSettingsPage(props: { me: MerchantProfile | null }) {
   const changePassword = useCallback(async () => {
     if (!passwordForm.newPassword || !passwordForm.currentPassword) return;
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setMessage({ text: "Nova senha e confirmação não coincidem.", kind: "error" });
+      showToast("error", "Nova senha e confirmação não coincidem.");
       return;
     }
-    if (passwordForm.newPassword.length < 6) {
-      setMessage({ text: "Nova senha deve ter no mínimo 6 caracteres.", kind: "error" });
+    if (passwordForm.newPassword.length < 8) {
+      showToast("error", "Nova senha deve ter no mínimo 8 caracteres.");
       return;
     }
     setSavingPassword(true);
-    setMessage(null);
     try {
       await api.changePassword(passwordForm.currentPassword, passwordForm.newPassword);
-      setMessage({ text: "Senha alterada com sucesso.", kind: "ok" });
+      showToast("success", "Senha alterada com sucesso");
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
     } catch (e) {
-      setMessage({ text: readError(e), kind: "error" });
+      showToast("error", readError(e));
     } finally {
       setSavingPassword(false);
     }
