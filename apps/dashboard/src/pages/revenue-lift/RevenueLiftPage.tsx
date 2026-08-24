@@ -62,12 +62,19 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
       </header>
 
       {/* Explicação do cálculo */}
-      <div className="panel" style={{ padding: "14px 20px", background: "color-mix(in srgb, var(--color-brand) 4%, var(--surface-2))", border: "1px solid color-mix(in srgb, var(--color-brand) 20%, var(--color-border))" }}>
-        <p style={{ font: "13px/1.6 var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
-          <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> 5% dos compradores passam pelo checkout sem o assistente IA (grupo de controle).
-          Os outros 95% usam todos os recursos IA. Comparamos a receita média por sessão entre os dois grupos para calcular
-          quanto a mais a IA está gerando. O ganho é real — medido a partir dos pedidos pagos, não estimativas.
-        </p>
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: "var(--radius-md)",
+        background: "var(--color-brand-subtle)",
+        border: "1px solid var(--color-brand-ring)",
+        font: "13px var(--font-sans)",
+        color: "var(--color-brand)",
+        lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
+        5% dos compradores passam pelo checkout sem o assistente IA (grupo de controle).
+        Os outros 95% usam todos os recursos IA. Comparamos a receita média por sessão entre os dois grupos para calcular
+        quanto a mais a IA está gerando. O ganho é real — medido a partir dos pedidos pagos, não estimativas.
       </div>
 
       {vm.loading ? (
