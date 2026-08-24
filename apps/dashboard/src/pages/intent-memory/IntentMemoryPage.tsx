@@ -5,6 +5,7 @@ import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useIntentMemoryPage } from "./useIntentMemoryPage.js";
 
@@ -99,8 +100,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         color: "var(--color-brand)",
         lineHeight: 1.65,
       }}>
-        <strong style={{ color: "var(--color-text)" }}>O que é Intent Memory?</strong>{" "}
-        Memória comercial dos seus compradores. Após a primeira compra, o sistema classifica intenção, urgência e orçamento de cada buyer para personalizar abordagens futuras.
+        <strong style={{ color: "var(--color-text)" }}>O que é Intent Memory?</strong>
+        <br />Memória comercial dos seus compradores. Após a primeira compra, o sistema classifica intenção, urgência e orçamento de cada buyer para personalizar abordagens futuras.
         <div style={{ marginTop: 10 }}>
           <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>
           <ol style={{ margin: "6px 0 0 18px", padding: 0, lineHeight: 1.6 }}>
@@ -358,47 +359,46 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
 
       {/* Signals Tab */}
       {tab === "signals" && (
-        <div className="panel" style={{ padding: "20px 24px" }}>
-          <SectionHeader title="Sinais recentes" subtitle="Classificação de intenção por comprador" variant="primary" />
-          {vm.signals.length === 0 ? (
-            <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-muted)", font: "13px var(--font-sans)" }}>
-              Nenhum sinal registrado ainda. Sinais aparecem após pedidos concluídos com consent LGPD ativo.
-            </div>
-          ) : (
-            <div className="table-wrap">
-              <table className="data-table">
+        <DataPanel
+          title="Sinais recentes"
+          isEmpty={vm.signals.length === 0}
+          empty={{ icon: Brain, title: "Nenhum sinal registrado", description: "Sinais aparecem após pedidos concluídos com consent LGPD ativo." }}
+        >
+          {vm.signals.length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th>Intenção</th>
-                    <th>Urgência</th>
-                    <th>Orçamento</th>
-                    <th>Objeções</th>
-                    <th>Data</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Intenção</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Urgência</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Orçamento</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Objeções</th>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
                   </tr>
                 </thead>
                 <tbody>
                   {vm.signals.map((s, i) => (
-                    <tr key={i}>
-                      <td>
+                    <tr key={i} style={{ borderBottom: i < vm.signals.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                      <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                           <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)", flexShrink: 0 }} />
                           {s.intent}
                         </span>
                       </td>
-                      <td>
-                        <span className={`badge ${s.urgency === "high" ? "bad" : s.urgency === "medium" ? "warn" : "muted"}`}>
+                      <td style={{ padding: "12px 20px" }}>
+                        <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: s.urgency === "high" ? "var(--color-error-bg)" : s.urgency === "medium" ? "var(--color-warning-bg)" : "var(--surface-2)", color: s.urgency === "high" ? "var(--color-error)" : s.urgency === "medium" ? "var(--color-warning)" : "var(--color-text-faint)" }}>
                           {s.urgency === "high" ? "Alta" : s.urgency === "medium" ? "Média" : "Baixa"}
                         </span>
                       </td>
-                      <td>
-                        <span className={`badge ${s.budget === "premium" ? "ok" : s.budget === "mid" ? "warn" : "muted"}`}>
+                      <td style={{ padding: "12px 20px" }}>
+                        <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: s.budget === "premium" ? "var(--color-success-bg)" : s.budget === "mid" ? "var(--color-warning-bg)" : "var(--surface-2)", color: s.budget === "premium" ? "var(--color-success)" : s.budget === "mid" ? "var(--color-warning)" : "var(--color-text-faint)" }}>
                           {s.budget === "premium" ? "Premium" : s.budget === "mid" ? "Médio" : "Econômico"}
                         </span>
                       </td>
-                      <td style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                      <td style={{ padding: "12px 20px", font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
                         {s.pain_points.length > 0 ? s.pain_points.join(", ") : "—"}
                       </td>
-                      <td style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
+                      <td style={{ padding: "12px 20px", font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
                         {new Date(s.created_at).toLocaleDateString("pt-BR")}
                       </td>
                     </tr>
@@ -407,7 +407,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
               </table>
             </div>
           )}
-        </div>
+        </DataPanel>
       )}
     </div>
   );
