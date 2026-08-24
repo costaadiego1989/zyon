@@ -17,6 +17,7 @@ interface StorefrontFunnelTransition {
   to: string;
   rate: number;
   dropOff: number;
+  avgTimeSeconds: number;
 }
 
 export interface StorefrontFunnelResult {
@@ -28,19 +29,14 @@ export interface StorefrontFunnelResult {
 }
 
 const STOREFRONT_STEP_DEFINITIONS = [
-  { name: "checkout_started", label: "Visitou a loja", events: ["checkout_started"] },
-  { name: "product_viewed", label: "Viu produto", events: ["product_viewed"] },
-  { name: "cart_viewed", label: "Adicionou ao carrinho", events: ["cart_viewed"] },
-  { name: "auth_phone_submitted", label: "Informou telefone", events: ["auth_phone_submitted"] },
-  { name: "auth_phone_verified", label: "Verificou OTP", events: ["auth_phone_verified"] },
+  { name: "checkout_started", label: "Sessão iniciada", events: ["checkout_started"] },
+  { name: "product_viewed", label: "Produto visualizado", events: ["product_viewed"] },
+  { name: "cart_viewed", label: "Produto adicionado ao carrinho", events: ["cart_viewed"] },
+  { name: "auth_phone_submitted", label: "Cadastro iniciado", events: ["auth_phone_submitted"] },
+  { name: "auth_phone_verified", label: "Verificou telefone", events: ["auth_phone_verified"] },
   { name: "auth_identity_confirmed", label: "Confirmou identidade", events: ["auth_identity_confirmed"] },
-  { name: "auth_registration_completed", label: "Cadastro concluído", events: ["auth_registration_completed"] },
-  { name: "shipping_calculated", label: "Calculou frete", events: ["shipping_calculated", "shipping_option_selected"] },
-  { name: "cross_sell_added", label: "Aceitou cross-sell", events: ["cross_sell_accepted", "cross_sell_added"] },
-  { name: "coupon_applied", label: "Aplicou cupom", events: ["coupon_applied", "coupon_field_clicked"] },
-  { name: "payment_method_selected", label: "Selecionou pagamento", events: ["payment_method_selected"] },
-  { name: "order_completed", label: "Pedido confirmado", events: ["order_completed"] },
-  { name: "sale_declined", label: "Venda recusada", events: ["payment_failed", "sale_declined"] },
+  { name: "auth_registration_completed", label: "Cadastro completo", events: ["auth_registration_completed"] },
+  { name: "login_completed", label: "Login realizado", events: ["login_completed"] },
 ] as const;
 
 @Injectable()
@@ -63,12 +59,14 @@ export class GetStorefrontFunnelUseCase {
       orderBy: { occurredAt: "asc" },
     });
 
-    // Group events by session
-    const sessionEvents = new Map<string, Set<string>>();
+    // Group events by session — keep first occurrence timestamp per event
+    const sessionEvents = new Map<string, Map<string, Date>>();
     for (const ev of events) {
-      const set = sessionEvents.get(ev.sessionId) ?? new Set();
-      set.add(ev.eventName);
-      sessionEvents.set(ev.sessionId, set);
+      const map = sessionEvents.get(ev.sessionId) ?? new Map<string, Date>();
+      if (!map.has(ev.eventName)) {
+        map.set(ev.eventName, ev.occurredAt);
+      }
+      sessionEvents.set(ev.sessionId, map);
     }
 
     const totalSessions = sessionEvents.size;
@@ -76,8 +74,8 @@ export class GetStorefrontFunnelUseCase {
     // Count sessions reaching each step
     const stepCounts = STOREFRONT_STEP_DEFINITIONS.map((def) => {
       let count = 0;
-      for (const [, eventNames] of sessionEvents) {
-        if (def.events.some((e) => eventNames.has(e))) {
+      for (const [, eventMap] of sessionEvents) {
+        if (def.events.some((e) => eventMap.has(e))) {
           count++;
         }
       }
@@ -99,11 +97,33 @@ export class GetStorefrontFunnelUseCase {
       const rate = fromCount > 0 ? Math.round((toCount / fromCount) * 10000) / 100 : 0;
       const dropOff = fromCount > 0 ? Math.round(((fromCount - toCount) / fromCount) * 10000) / 100 : 0;
 
+      // Compute average time between steps
+      const fromEvents = STOREFRONT_STEP_DEFINITIONS[i].events;
+      const toEvents = STOREFRONT_STEP_DEFINITIONS[i + 1].events;
+      let totalTimeSec = 0;
+      let timeCount = 0;
+      for (const [, eventMap] of sessionEvents) {
+        const fromTime = fromEvents.reduce<Date | null>((earliest, e) => {
+          const t = eventMap.get(e);
+          return t && (!earliest || t < earliest) ? t : earliest;
+        }, null);
+        const toTime = toEvents.reduce<Date | null>((earliest, e) => {
+          const t = eventMap.get(e);
+          return t && (!earliest || t < earliest) ? t : earliest;
+        }, null);
+        if (fromTime && toTime && toTime > fromTime) {
+          totalTimeSec += (toTime.getTime() - fromTime.getTime()) / 1000;
+          timeCount++;
+        }
+      }
+      const avgTimeSeconds = timeCount > 0 ? Math.round(totalTimeSec / timeCount) : 0;
+
       transitions.push({
         from: STOREFRONT_STEP_DEFINITIONS[i].name,
         to: STOREFRONT_STEP_DEFINITIONS[i + 1].name,
         rate,
         dropOff,
+        avgTimeSeconds,
       });
     }
 

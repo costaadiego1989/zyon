@@ -50,17 +50,12 @@ export interface FunnelResult {
 }
 
 const STEP_DEFINITIONS = [
-  { name: "checkout_started", label: "Checkout Iniciado", events: [] as string[] },
-  { name: "auth_phone_submitted", label: "Informou telefone", events: ["auth_phone_submitted"] },
-  { name: "auth_phone_verified", label: "Verificou OTP", events: ["auth_phone_verified"] },
-  { name: "auth_identity_confirmed", label: "Confirmou identidade", events: ["auth_identity_confirmed"] },
-  { name: "auth_registration_completed", label: "Cadastro concluído", events: ["auth_registration_completed"] },
-  { name: "shipping", label: "Frete", events: ["shipping_calculated", "shipping_option_selected"] },
-  { name: "cross_sell_added", label: "Aceitou cross-sell", events: ["cross_sell_accepted", "cross_sell_added"] },
-  { name: "coupon_applied", label: "Aplicou cupom", events: ["coupon_applied", "coupon_field_clicked"] },
-  { name: "payment", label: "Pagamento", events: ["payment_method_selected"] },
-  { name: "completed", label: "Concluído", events: ["order_completed"] },
-  { name: "sale_declined", label: "Venda recusada", events: ["payment_failed", "sale_declined"] },
+  { name: "checkout_started", label: "Checkout iniciado", events: [] as string[] },
+  { name: "shipping_calculated", label: "Frete selecionado", events: ["shipping_calculated", "shipping_option_selected"] },
+  { name: "coupon_applied", label: "Cupom aplicado", events: ["coupon_applied", "coupon_field_clicked"] },
+  { name: "payment_method_selected", label: "Pagamento selecionado", events: ["payment_method_selected"] },
+  { name: "order_completed", label: "Pagamento concluído", events: ["order_completed"] },
+  { name: "payment_failed", label: "Pagamento falhado", events: ["payment_failed", "sale_declined"] },
 ] as const;
 
 @Injectable()
@@ -181,7 +176,7 @@ export class GetFunnelUseCase {
       }
     }
 
-    const completedStepIdx = STEP_DEFINITIONS.findIndex(d => d.name === "completed");
+    const completedStepIdx = STEP_DEFINITIONS.findIndex(d => d.name === "order_completed");
     const completedCount = completedStepIdx >= 0 ? stepCounts[completedStepIdx] : 0;
     const overallConversion = totalSessions > 0
       ? Math.round((completedCount / totalSessions) * 10000) / 100
@@ -339,7 +334,7 @@ export class GetFunnelUseCase {
       percentage: total > 0 ? Math.round((stepCounts[i] / total) * 10000) / 100 : 0,
     }));
 
-    const completedIdx = STEP_DEFINITIONS.findIndex(d => d.name === "completed");
+    const completedIdx = STEP_DEFINITIONS.findIndex(d => d.name === "order_completed");
     const completedCount = completedIdx >= 0 ? stepCounts[completedIdx] : 0;
 
     return {

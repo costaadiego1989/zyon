@@ -155,7 +155,7 @@ export class StorefrontController {
       // Emit to CheckoutEvent table for funnel analytics (best-effort)
       const funnelEvents = new Set([
         "auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed",
-        "auth_registration_completed", "product_viewed", "cart_viewed",
+        "auth_registration_completed", "login_completed", "product_viewed", "cart_viewed",
         "cross_sell_accepted", "cross_sell_added",
       ]);
       if (funnelEvents.has(body.event)) {
