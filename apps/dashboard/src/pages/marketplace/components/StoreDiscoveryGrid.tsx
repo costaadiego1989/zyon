@@ -3,6 +3,7 @@ import { Search, Store } from "lucide-react";
 import { useApi } from "../../../hooks/useApi.js";
 import { showToast } from "../../../components/Toast.js";
 import { EmptyState } from "../../../components/EmptyState.js";
+import { PageLoader } from "../../../components/PageLoader.js";
 import { reportError } from "../../../lib/observability/error-reporter.js";
 import type { AvailableStore } from "../../../api/endpoints/marketplace-v2.js";
 
@@ -118,9 +119,7 @@ export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
   if (loading && stores.length === 0) {
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-          Carregando lojas...
-        </div>
+        <PageLoader variant="section" />
       </div>
     );
   }

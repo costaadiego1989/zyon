@@ -5,6 +5,7 @@ import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
+import { PageLoader } from "../../components/PageLoader.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
@@ -51,6 +52,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             <h1>Marketplace</h1>
           </div>
         </header>
+        <PageLoader />
       </div>
     );
   }
@@ -314,39 +316,37 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
       {tab === "settlements" && (
         <SectionErrorBoundary sectionName="Repasses">
         <div className="marketplace-page__settlements">
-          {settlements.length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
-              <StatCard
-                label="Total repassado"
-                value={new Intl.NumberFormat("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                }).format(settlements.reduce((sum, s) => sum + s.sellerNetCents, 0) / 100)}
-                icon={<DollarSign size={16} />}
-                accent="var(--color-brand)"
-              />
-              <StatCard
-                label="Comissão arrecadada"
-                value={new Intl.NumberFormat("pt-BR", {
-                  style: "currency",
-                  currency: "BRL",
-                }).format(settlements.reduce((sum, s) => sum + s.commissionCents, 0) / 100)}
-                icon={<TrendingUp size={16} />}
-                accent="var(--color-success)"
-              />
-              <StatCard
-                label="Repasses pendentes"
-                value={settlements.filter(s => s.status === "awaiting_return_window" || s.status === "transfer_scheduled").length}
-                icon={<Clock size={16} />}
-              />
-              <StatCard
-                label="Repasses concluídos"
-                value={settlements.filter(s => s.status === "transferred" || s.status === "finalized").length}
-                icon={<CheckCircle size={16} />}
-                accent="var(--color-success)"
-              />
-            </div>
-          )}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
+            <StatCard
+              label="Total repassado"
+              value={new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              }).format(settlements.reduce((sum, s) => sum + s.sellerNetCents, 0) / 100)}
+              icon={<DollarSign size={16} />}
+              accent="var(--color-brand)"
+            />
+            <StatCard
+              label="Comissão arrecadada"
+              value={new Intl.NumberFormat("pt-BR", {
+                style: "currency",
+                currency: "BRL",
+              }).format(settlements.reduce((sum, s) => sum + s.commissionCents, 0) / 100)}
+              icon={<TrendingUp size={16} />}
+              accent="var(--color-success)"
+            />
+            <StatCard
+              label="Repasses pendentes"
+              value={settlements.filter(s => s.status === "awaiting_return_window" || s.status === "transfer_scheduled").length}
+              icon={<Clock size={16} />}
+            />
+            <StatCard
+              label="Repasses concluídos"
+              value={settlements.filter(s => s.status === "transferred" || s.status === "finalized").length}
+              icon={<CheckCircle size={16} />}
+              accent="var(--color-success)"
+            />
+          </div>
           {settlements.length === 0 ? (
             <div className="panel">
               <EmptyState
