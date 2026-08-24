@@ -17,6 +17,7 @@ import { createHash } from "node:crypto";
 import { randomBytes } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { M2mDualAuthGuard } from "./m2m-dual-auth.guard.js";
 import { EvaluateNegotiationUseCase } from "../../application/evaluate-negotiation.use-case.js";
 import { GetMerchantNegotiationPolicyUseCase } from "../../application/merchant-negotiation-policy.use-cases.js";
 import { GetBuyerAgentPreferencesUseCase } from "../../application/buyer-agent-preferences.use-cases.js";
@@ -34,7 +35,7 @@ import { M2MWebhookDispatcherService } from "../../infrastructure/m2m-webhook-di
 
 @ApiTags("M2M - Machine-to-Machine Protocol")
 @Controller("m2m")
-@UseGuards(AuthGuard)
+@UseGuards(M2mDualAuthGuard)
 @ApiBearerAuth("JWT")
 export class M2mController {
   constructor(

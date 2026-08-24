@@ -32,6 +32,8 @@ import { MerchantNegotiationPolicyController } from "./presentation/http/merchan
 import { BuyerAgentNegotiationPreferencesController } from "./presentation/http/buyer-agent-negotiation-preferences.controller.js";
 import { M2mController } from "./presentation/http/m2m.controller.js";
 import { M2MManagementController } from "./presentation/http/m2m-management.controller.js";
+import { M2mHmacGuard } from "./presentation/http/m2m-hmac.guard.js";
+import { M2mDualAuthGuard } from "./presentation/http/m2m-dual-auth.guard.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 
@@ -58,6 +60,8 @@ import { PaymentModule } from "../payment/payment.module.js";
     GetProtocolConfigUseCase,
     UpsertProtocolConfigUseCase,
     M2MWebhookDispatcherService,
+    M2mHmacGuard,
+    M2mDualAuthGuard,
     {
       provide: NEGOTIATION_STORE,
       useFactory: (prisma: PrismaClient) => new PrismaNegotiationStore(prisma),
