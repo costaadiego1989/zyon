@@ -31,6 +31,19 @@ const DEFAULT_CONFIG: CartRecoveryStrategyConfig = {
   rule_id: undefined,
 };
 
+export interface CouponOption {
+  id: string;
+  code: string;
+  type: string;
+  value: number;
+  isActive: boolean;
+}
+
+export interface RuleOption {
+  id: string;
+  name: string;
+}
+
 export function useCartRecoveryPage() {
   const api = useApi();
   const [metrics, setMetrics] = useState<CartRecoveryMetrics | null>(null);
@@ -40,20 +53,26 @@ export function useCartRecoveryPage() {
   const [savingKey, setSavingKey] = useState<CartRecoveryStrategyKey | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Available coupons and rules for selection
+  const [coupons, setCoupons] = useState<CouponOption[]>([]);
+  const [rules, setRules] = useState<RuleOption[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const [metRaw, attData, stratData, cfgData] = await Promise.all([
+        const [metRaw, attData, stratData, cfgData, couponData, settingsData] = await Promise.all([
           api.getCartRecoveryMetrics?.().catch(() => null),
           api.getCartRecoveryAttempts?.().catch(() => null),
           api.getCartRecoveryStrategies?.().catch(() => null),
           api.getCartRecoveryConfig?.().catch(() => null),
+          api.listCoupons?.().catch(() => null),
+          api.getCheckoutSettings?.().catch(() => null),
         ]);
         if (cancelled) return;
 
-        // Normalize metrics (API field names may differ from dashboard type)
+        // Normalize metrics
         const raw = metRaw as Record<string, any> | null;
         const normalizedMetrics: CartRecoveryMetrics = raw ? {
           total_abandoned: raw.total_abandoned ?? 0,
@@ -67,6 +86,19 @@ export function useCartRecoveryPage() {
         setAttempts(attData ?? []);
         if (stratData) setStrategies({ ...DEFAULT_STRATEGIES, ...stratData });
         if (cfgData) setConfig(cfgData);
+
+        // Load available coupons (only active)
+        if (couponData) {
+          setCoupons(couponData.filter((c: CouponOption) => c.isActive));
+        }
+
+        // Load available rules from checkout settings
+        if (settingsData && (settingsData as any).advancedRules) {
+          setRules(((settingsData as any).advancedRules as any[]).map((r: any) => ({
+            id: r.id,
+            name: r.name ?? r.label ?? r.id,
+          })));
+        }
       } catch (e) {
         reportError({ source: "cart-recovery.load", error: e });
         if (!cancelled) {
@@ -80,11 +112,6 @@ export function useCartRecoveryPage() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /**
-   * Only one strategy active at a time.
-   * Selecting a key disables all others and enables the selected one.
-   * Also updates config.active_strategy.
-   */
   const selectStrategy = useCallback(async (key: CartRecoveryStrategyKey) => {
     if (strategies[key]) return;
 
@@ -119,9 +146,6 @@ export function useCartRecoveryPage() {
     }
   }, [api, strategies, config]);
 
-  /**
-   * Save coupon_code or rule_id config
-   */
   const saveConfig = useCallback(async (patch: Partial<CartRecoveryStrategyConfig>) => {
     const prevConfig = { ...config };
     const merged = { ...config, ...patch };
@@ -146,5 +170,7 @@ export function useCartRecoveryPage() {
     loading,
     selectStrategy,
     saveConfig,
+    coupons,
+    rules,
   };
 }

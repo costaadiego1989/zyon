@@ -32,7 +32,7 @@ const STRATEGY_OPTIONS: StrategyOption[] = [
 const WHATSAPP_TEMPLATES: Record<CartRecoveryStrategyKey, (config: { coupon_code?: string; rule_id?: string }) => string> = {
   offer_free_shipping: () => "🚚 *Frete grátis pra você!*\n\nSeu carrinho está esperando. Volte agora e ganhe frete grátis em todos os itens! Oferta por tempo limitado.",
   personalized_cross_sell: () => "🛒 *Esqueceu algo no carrinho?*\n\nVocê deixou itens incríveis esperando. Volte e descubra produtos que combinam com o que você escolheu!",
-  offer_coupon: (cfg) => `🎫 *Cupom exclusivo pra você!*\n\nUse o código *${cfg.coupon_code || "VOLTA10"}* e ganhe desconto especial na sua compra. Corre que é por tempo limitado!`,
+  offer_coupon: (cfg) => `🎫 *Cupom exclusivo pra você!*\n\nUse o código *${cfg.coupon_code || "—"}* e ganhe desconto especial na sua compra. Corre que é por tempo limitado!`,
   advanced_rule: (cfg) => `💡 *Oferta personalizada!*\n\nPreparamos uma condição especial pra você finalizar sua compra. Volte ao carrinho e confira!${cfg.rule_id ? `\n\n_Regra: ${cfg.rule_id}_` : ""}`,
 };
 
@@ -48,12 +48,12 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
     loading,
     selectStrategy,
     saveConfig,
+    coupons,
+    rules,
   } = useCartRecoveryPage();
 
   const [page, setPage] = useState(1);
   const [panelOpen, setPanelOpen] = useState<"coupon" | "rule" | null>(null);
-  const [editCouponCode, setEditCouponCode] = useState("");
-  const [editRuleId, setEditRuleId] = useState("");
 
   if (!props.me) {
     return (
@@ -113,26 +113,6 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const startIdx = (page - 1) * PAGE_SIZE;
   const paginatedAttempts = attempts.slice(startIdx, startIdx + PAGE_SIZE);
   const activeKey = (Object.entries(strategies).find(([, v]) => v)?.[0] ?? "offer_coupon") as CartRecoveryStrategyKey;
-
-  const openCouponPanel = () => {
-    setEditCouponCode(config.coupon_code ?? "");
-    setPanelOpen("coupon");
-  };
-
-  const openRulePanel = () => {
-    setEditRuleId(config.rule_id ?? "");
-    setPanelOpen("rule");
-  };
-
-  const handleSaveCoupon = () => {
-    saveConfig({ coupon_code: editCouponCode });
-    setPanelOpen(null);
-  };
-
-  const handleSaveRule = () => {
-    saveConfig({ rule_id: editRuleId });
-    setPanelOpen(null);
-  };
 
   return (
     <div className="page-container">
@@ -241,15 +221,14 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                     <span style={{ font: "500 13px var(--font-sans)", color: isActive ? "var(--color-brand)" : "var(--color-text)" }}>
                       {opt.label}
                     </span>
-                    {/* Config indicator for coupon/rule */}
                     {isActive && opt.key === "offer_coupon" && config.coupon_code && (
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
                         {config.coupon_code}
                       </span>
                     )}
                     {isActive && opt.key === "advanced_rule" && config.rule_id && (
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
-                        {config.rule_id}
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-brand-subtle)", color: "var(--color-brand)" }}>
+                        {rules.find(r => r.id === config.rule_id)?.name ?? config.rule_id}
                       </span>
                     )}
                   </div>
@@ -258,15 +237,14 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                   </div>
                 </div>
 
-                {/* Edit button (pen icon) for coupon/rule when active */}
+                {/* Edit button for coupon/rule when active */}
                 {isActive && opt.needsConfig && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      if (opt.key === "offer_coupon") openCouponPanel();
-                      else openRulePanel();
+                      setPanelOpen(opt.key === "offer_coupon" ? "coupon" : "rule");
                     }}
                     style={{
                       border: "1px solid var(--color-border)",
@@ -284,11 +262,10 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
                     title={opt.configLabel}
                   >
                     <Edit size={14} />
-                    Configurar
+                    Vincular
                   </button>
                 )}
 
-                {/* Active badge */}
                 {isActive && !opt.needsConfig && (
                   <span style={{
                     padding: "2px 8px",
@@ -365,135 +342,153 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         </div>
       </DataPanel>
 
-      {/* Side Panel — Coupon Config */}
+      {/* Side Panel — Coupon Selection */}
       <SidePanel
         isOpen={panelOpen === "coupon"}
-        title="Configurar Cupom"
+        title="Vincular Cupom"
         onClose={() => setPanelOpen(null)}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
-            Selecione o código do cupom que será enviado na mensagem WhatsApp quando o carrinho for abandonado.
+            Selecione o cupom que será enviado na mensagem WhatsApp de recuperação.
           </div>
 
-          <div>
-            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
-              Código do cupom
-            </label>
-            <input
-              type="text"
-              value={editCouponCode}
-              onChange={(e) => setEditCouponCode(e.target.value.toUpperCase())}
-              placeholder="Ex: VOLTA10"
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-border)",
-                background: "var(--surface-0)",
-                font: "14px var(--font-mono)",
-                color: "var(--color-text)",
-                outline: "none",
-              }}
-            />
-            <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 6 }}>
-              Deve ser um cupom ativo cadastrado na aba Cupons
+          {coupons.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>
+              Nenhum cupom ativo. Crie um cupom na aba Cupons primeiro.
             </div>
-          </div>
-
-          {/* Preview */}
-          <div>
-            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
-              Preview da mensagem
-            </label>
-            <div style={{
-              padding: "14px 16px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--surface-0)",
-              border: "1px solid var(--color-border)",
-              font: "12px var(--font-sans)",
-              color: "var(--color-text-muted)",
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-            }}>
-              {WHATSAPP_TEMPLATES.offer_coupon({ coupon_code: editCouponCode || "VOLTA10" })}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {coupons.map((c) => {
+                const isSelected = config.coupon_code === c.code;
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      saveConfig({ coupon_code: c.code });
+                      setPanelOpen(null);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 14px",
+                      borderRadius: "var(--radius-sm)",
+                      border: `1.5px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
+                      background: isSelected ? "var(--accent-soft)" : "var(--surface-1)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      width: "100%",
+                      font: "inherit",
+                      transition: "border-color 0.15s",
+                    }}
+                  >
+                    <span style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: "50%",
+                      border: `2px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}>
+                      {isSelected && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-brand)" }} />}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>
+                        {c.code}
+                      </div>
+                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
+                        {c.type === "percent" ? `${c.value}% off` : `R$ ${c.value} off`}
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <span style={{ padding: "2px 6px", borderRadius: "var(--radius-full)", font: "600 9px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
+                        Vinculado
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <Button variant="primary" size="sm" onClick={handleSaveCoupon} disabled={!editCouponCode.trim()}>
-              Salvar cupom
-            </Button>
-            <Button size="sm" onClick={() => setPanelOpen(null)}>
-              Cancelar
-            </Button>
-          </div>
+          )}
         </div>
       </SidePanel>
 
-      {/* Side Panel — Rule Config */}
+      {/* Side Panel — Rule Selection */}
       <SidePanel
         isOpen={panelOpen === "rule"}
-        title="Configurar Regra Avançada"
+        title="Vincular Regra Avançada"
         onClose={() => setPanelOpen(null)}
       >
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
-            Selecione a regra do engine de negociação que será aplicada na recuperação. A regra define desconto progressivo, tratamento de objeções ou timing de envio.
+            Selecione a regra que será usada na recuperação. A regra define desconto progressivo, tratamento de objeções ou timing.
           </div>
 
-          <div>
-            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
-              ID da regra
-            </label>
-            <input
-              type="text"
-              value={editRuleId}
-              onChange={(e) => setEditRuleId(e.target.value)}
-              placeholder="Ex: progressive_discount_10"
-              style={{
-                width: "100%",
-                padding: "10px 14px",
-                borderRadius: "var(--radius-sm)",
-                border: "1px solid var(--color-border)",
-                background: "var(--surface-0)",
-                font: "14px var(--font-mono)",
-                color: "var(--color-text)",
-                outline: "none",
-              }}
-            />
-            <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 6 }}>
-              Deve corresponder a uma regra configurada em Configurações de IA
+          {rules.length === 0 ? (
+            <div style={{ padding: "24px 16px", textAlign: "center", font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>
+              Nenhuma regra configurada. Crie regras em Configurações de IA → Regras.
             </div>
-          </div>
-
-          {/* Preview */}
-          <div>
-            <label style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
-              Preview da mensagem
-            </label>
-            <div style={{
-              padding: "14px 16px",
-              borderRadius: "var(--radius-sm)",
-              background: "var(--surface-0)",
-              border: "1px solid var(--color-border)",
-              font: "12px var(--font-sans)",
-              color: "var(--color-text-muted)",
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-            }}>
-              {WHATSAPP_TEMPLATES.advanced_rule({ rule_id: editRuleId || "progressive_discount" })}
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {rules.map((r) => {
+                const isSelected = config.rule_id === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => {
+                      saveConfig({ rule_id: r.id });
+                      setPanelOpen(null);
+                    }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      padding: "12px 14px",
+                      borderRadius: "var(--radius-sm)",
+                      border: `1.5px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
+                      background: isSelected ? "var(--accent-soft)" : "var(--surface-1)",
+                      cursor: "pointer",
+                      textAlign: "left",
+                      width: "100%",
+                      font: "inherit",
+                      transition: "border-color 0.15s",
+                    }}
+                  >
+                    <span style={{
+                      width: 14,
+                      height: 14,
+                      borderRadius: "50%",
+                      border: `2px solid ${isSelected ? "var(--color-brand)" : "var(--color-border)"}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}>
+                      {isSelected && <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-brand)" }} />}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>
+                        {r.name}
+                      </div>
+                      <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 2 }}>
+                        {r.id}
+                      </div>
+                    </div>
+                    {isSelected && (
+                      <span style={{ padding: "2px 6px", borderRadius: "var(--radius-full)", font: "600 9px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>
+                        Vinculada
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
-            <Button variant="primary" size="sm" onClick={handleSaveRule} disabled={!editRuleId.trim()}>
-              Salvar regra
-            </Button>
-            <Button size="sm" onClick={() => setPanelOpen(null)}>
-              Cancelar
-            </Button>
-          </div>
+          )}
         </div>
       </SidePanel>
     </div>
