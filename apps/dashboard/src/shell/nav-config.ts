@@ -44,6 +44,7 @@ export type TabKey =
   | "integrations"
   | "shipments"
   | "customers"
+  | "returns"
   | "funnel"
   | "embed"
   | "preview"
@@ -98,6 +99,7 @@ export const NAV_ITEMS: Array<{
   { key: "categories", label: "Categorias", section: "Loja", icon: FolderTree, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "stories", label: "Stories", section: "Loja", icon: CircleDashed, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "shipments", label: "Pedidos e envios", section: "Loja", icon: PackageSearch, requiredPlan: ["STORE_ONLY", "BOTH"] },
+  { key: "returns", label: "Trocas e Devoluções", section: "Loja", icon: PackageSearch, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "customers", label: "Clientes", section: "Loja", icon: UsersRound, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "agent-config", label: "Agente IA", section: "Loja", icon: Bot, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "theme", label: "Tema", section: "Loja", icon: Palette, requiredPlan: ["STORE_ONLY", "BOTH"] },
