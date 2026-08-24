@@ -51,6 +51,7 @@ export interface ReturnRepositoryPort {
   create(input: CreateReturnInput): Promise<ReturnEntity>;
   findById(merchantId: string, returnId: string): Promise<ReturnEntity | null>;
   findByOrderId(merchantId: string, orderId: string): Promise<ReturnEntity[]>;
+  findByBuyerId(buyerId: string): Promise<ReturnEntity[]>;
   list(input: ListReturnsInput): Promise<ListReturnsResult>;
   updateStatus(returnId: string, status: ReturnStatus): Promise<void>;
   saveLabel(input: SaveLabelInput): Promise<ReturnLabelProps>;
