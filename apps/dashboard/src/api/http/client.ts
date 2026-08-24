@@ -94,7 +94,7 @@ export async function dashboardJson<T>(
   const res = await dashboardFetch(apiBaseUrl, path, init, fetchImpl);
   const text = await res.text();
   if (!res.ok) {
-    if (res.status === 401) {
+    if (res.status === 401 && !path.includes("/embed/")) {
       emitSessionExpired();
     }
     throw new DashboardHttpError(res.status, text);

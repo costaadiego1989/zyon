@@ -75,7 +75,13 @@ export const LivePreviewPanel = forwardRef<LivePreviewPanelRef, LivePreviewPanel
         setToken(session.embed_session_token);
         onTokenIssued?.(session.expires_at_unix);
       } catch (e) {
-        setErrorMsg(errorText(e));
+        const msg = errorText(e);
+        // Don't propagate 401 as session-expired — it's an embed token issue, not login
+        if (msg.includes("401") || msg.includes("issuer") || msg.includes("Unauthorized")) {
+          setErrorMsg("Não foi possível gerar preview. Verifique se a API está rodando e tente recarregar a página.");
+        } else {
+          setErrorMsg(msg);
+        }
       } finally {
         setBusy(false);
       }
