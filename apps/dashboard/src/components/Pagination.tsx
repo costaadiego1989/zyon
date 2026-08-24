@@ -49,7 +49,7 @@ export function Pagination({ page, pageSize, total, onChange, disabled }: Pagina
   });
 
   return (
-    <div role="navigation" aria-label="Paginação" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 22px", borderTop: "1px solid var(--color-border)" }}>
+    <div role="navigation" aria-label="Paginação" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderTop: "1px solid var(--color-border)" }}>
       <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>
         {total === 0 ? "Nenhum item" : `${start}–${end} de ${total}`}
       </span>
