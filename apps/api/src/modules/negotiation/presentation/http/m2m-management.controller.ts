@@ -21,34 +21,34 @@ export class M2MManagementController {
 
   @Get("agents")
   async getAgents(@Req() req: any) {
-    const merchantId = req.user?.merchant_id;
+    const merchantId = req.user?.merchantId;
     const agents = await this.listAgents.execute(merchantId);
     return { agents, total: agents.length };
   }
 
   @Post("agents")
   async registerAgent(@Req() req: any, @Body() body: { displayName: string; globalUserId: string; scopes?: string[] }) {
-    const merchantId = req.user?.merchant_id;
+    const merchantId = req.user?.merchantId;
     const agent = await this.createAgent.execute(merchantId, body);
     return agent;
   }
 
   @Put("agents/:id/suspend")
   async toggleSuspend(@Req() req: any, @Param("id") agentId: string, @Body() body: { suspend: boolean }) {
-    const merchantId = req.user?.merchant_id;
+    const merchantId = req.user?.merchantId;
     await this.suspendAgent.execute(merchantId, agentId, body.suspend);
     return { ok: true };
   }
 
   @Get("protocol/config")
   async getProtocolConfig(@Req() req: any) {
-    const merchantId = req.user?.merchant_id;
+    const merchantId = req.user?.merchantId;
     return this.getConfig.execute(merchantId);
   }
 
   @Put("protocol/config")
   async putProtocolConfig(@Req() req: any, @Body() body: { enabled?: boolean; webhookUrl?: string | null; maxSessionTtlMinutes?: number }) {
-    const merchantId = req.user?.merchant_id;
+    const merchantId = req.user?.merchantId;
     return this.upsertConfig.execute(merchantId, body);
   }
 }
