@@ -11,6 +11,7 @@ import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BUYER_IDENTITY_REPOSITORY, type BuyerIdentityRepository } from "../../../buyer-purchase-history/domain/ports/buyer-identity.repository.port.js";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { CHECKOUT_SETTINGS_PORT, type CheckoutSettingsPort } from "../../domain/ports/checkout-settings.port.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
@@ -49,7 +50,8 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: any,
     @Optional() private readonly holdoutGroupService?: HoldoutGroupService,
     @Optional() @Inject(INTENT_MEMORY_REPOSITORY) private readonly intentMemory?: IntentMemoryRepositoryPort,
-    @Optional() @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly intentConsent?: BuyerIntentConsentRepositoryPort
+    @Optional() @Inject(BUYER_INTENT_CONSENT_REPOSITORY) private readonly intentConsent?: BuyerIntentConsentRepositoryPort,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY) private readonly buyerAccount?: BuyerAccountRepository
   ) { }
 
   async execute(input: StartCheckoutRequest): Promise<StartCheckoutResponse> {
@@ -58,6 +60,28 @@ export class StartCheckoutUseCase {
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
     const sessionId = input.session_id ?? `chk_${crypto.randomUUID()}`;
     const globalUserId = await this.identity.resolveGlobalUserId(input.merchant_id, input.customer);
+
+    // Hydrate customer from buyer-account when available (logged buyer → session gets full data)
+    if (this.buyerAccount && globalUserId && (!input.customer?.fullName || !input.customer?.email)) {
+      try {
+        const account = await this.buyerAccount.findByGlobalUserId(globalUserId);
+        if (account) {
+          input = {
+            ...input,
+            customer: {
+              ...input.customer,
+              fullName: input.customer?.fullName || account.displayName || undefined,
+              email: input.customer?.email || account.email || undefined,
+              phone: input.customer?.phone || account.phone || undefined,
+              cpf: input.customer?.cpf || (account as any).cpf || undefined,
+            },
+          };
+        }
+      } catch (err) {
+        this.logger.warn(`buyer-account hydration failed (non-blocking)`, { globalUserId, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+
     const agent = await this.agentContext?.get({
       merchantId: input.merchant_id,
       globalUserId
