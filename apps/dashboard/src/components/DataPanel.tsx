@@ -21,7 +21,7 @@ export interface DataPanelProps {
   pageSize?: number;
   total?: number;
   onPageChange?: (page: number) => void;
-  empty?: { icon: LucideIcon; title: string; description: string };
+  empty?: { icon: LucideIcon; title: string; description: string; action?: ReactNode };
   isEmpty?: boolean;
 }
 
@@ -52,7 +52,7 @@ export function DataPanel({
       {/* Content or Empty */}
       {showEmpty ? (
         <div style={{ padding: "0 20px 24px" }}>
-          <EmptyState icon={empty.icon} title={empty.title} description={empty.description} />
+          <EmptyState icon={empty.icon} title={empty.title} description={empty.description} action={empty.action} />
         </div>
       ) : (
         children

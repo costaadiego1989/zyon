@@ -2,9 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
 import { useCatalogApi } from "../hooks/api/useCatalogApi.js";
-import { Pagination } from "../components/Pagination.js";
+import { DataPanel } from "../components/DataPanel.js";
 import { Button } from "../components/Button.js";
-import { EmptyState } from "../components/EmptyState.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import { FilterToolbar, FilterSelect } from "../components/FilterToolbar.js";
 import { StatCard } from "./overview/components/StatCard.js";
@@ -253,85 +252,80 @@ export function CatalogPage(props: CatalogPageProps) {
           }
         />
 
-        {loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produtos...</div>
-        ) : filteredItems.length === 0 ? (
-          <EmptyState
-            icon={ShoppingBag}
-            title="Nenhum produto cadastrado"
-            description="Clique em 'Novo produto' para começar."
-            action={<Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}><Plus size={14} /> Novo produto</Button>}
-          />
-        ) : (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {["NOME", "TIPO", "PREÇO", "ESTOQUE", "STATUS", ""].map((c) => (
-                  <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.map((p) => {
-                const stock = totalStock(p);
-                const { price, currency } = variantPrice(p);
-                return (
-                  <tr
-                    key={p.id}
-                    onClick={() => props.onEdit?.(p.id)}
-                    onMouseEnter={() => setHoveredRow(p.id)}
-                    onMouseLeave={() => setHoveredRow(null)}
-                    style={{ cursor: "pointer", background: hoveredRow === p.id ? "var(--surface-1)" : "transparent", transition: "background 0.15s" }}
-                  >
-                    <td style={{ padding: "12px 22px", font: "13px var(--font-sans)", color: "var(--color-text)", borderBottom: "1px solid var(--color-border)" }}>{p.name}</td>
-                    <td style={{ padding: "12px 22px", font: "11px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{PRODUCT_TYPE_LABELS[p.type ?? "simple"] || p.type || "—"}</td>
-                    <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{formatPrice(price, currency)}</td>
-                    <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: stock > 0 ? "var(--color-success)" : "var(--color-error)", borderBottom: "1px solid var(--color-border)" }}>{stock}</td>
-                    <td style={{ padding: "12px 22px", font: "12px var(--font-mono)", color: p.isActive ? "var(--color-success)" : "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>
-                    <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
-                      <div style={{ display: "inline-flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => props.onEdit?.(p.id)}
-                          aria-label={`Editar ${p.name}`}
-                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
-                        >
-                          <Pencil size={12} /> Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void toggleActive(p)}
-                          disabled={togglingId === p.id}
-                          aria-label={p.isActive ? `Pausar ${p.name}` : `Ativar ${p.name}`}
-                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: p.isActive ? "var(--color-text-muted)" : "var(--color-success)", cursor: togglingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: togglingId === p.id ? 0.6 : 1 }}
-                        >
-                          {p.isActive ? <><Pause size={12} /> Pausar</> : <><Play size={12} /> Ativar</>}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void confirmDelete(p)}
-                          disabled={deletingId === p.id}
-                          aria-label={`Remover ${p.name}`}
-                          style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: deletingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: deletingId === p.id ? 0.6 : 1 }}
-                        >
-                          <Trash2 size={12} /> Remover
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-
-        <Pagination
+        <DataPanel
+          title="Produtos"
           page={page}
           pageSize={PAGE_SIZE}
           total={total}
-          onChange={setPage}
-          disabled={loading}
-        />
+          onPageChange={setPage}
+          isEmpty={filteredItems.length === 0 && !loading}
+          empty={{ icon: ShoppingBag, title: "Nenhum produto cadastrado", description: "Clique em 'Novo produto' para começar.", action: <Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}><Plus size={14} /> Novo produto</Button> }}
+        >
+          {loading ? (
+            <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produtos...</div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {["NOME", "TIPO", "PREÇO", "ESTOQUE", "STATUS", ""].map((c) => (
+                    <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((p) => {
+                  const stock = totalStock(p);
+                  const { price, currency } = variantPrice(p);
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={() => props.onEdit?.(p.id)}
+                      onMouseEnter={() => setHoveredRow(p.id)}
+                      onMouseLeave={() => setHoveredRow(null)}
+                      style={{ cursor: "pointer", background: hoveredRow === p.id ? "var(--surface-1)" : "transparent", transition: "background 0.15s" }}
+                    >
+                      <td style={{ padding: "12px 22px", font: "13px var(--font-sans)", color: "var(--color-text)", borderBottom: "1px solid var(--color-border)" }}>{p.name}</td>
+                      <td style={{ padding: "12px 22px", font: "11px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{PRODUCT_TYPE_LABELS[p.type ?? "simple"] || p.type || "—"}</td>
+                      <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: "var(--color-text-muted)", borderBottom: "1px solid var(--color-border)" }}>{formatPrice(price, currency)}</td>
+                      <td style={{ padding: "12px 22px", font: "13px var(--font-mono)", color: stock > 0 ? "var(--color-success)" : "var(--color-error)", borderBottom: "1px solid var(--color-border)" }}>{stock}</td>
+                      <td style={{ padding: "12px 22px", font: "12px var(--font-mono)", color: p.isActive ? "var(--color-success)" : "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>
+                      <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
+                        <div style={{ display: "inline-flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => props.onEdit?.(p.id)}
+                            aria-label={`Editar ${p.name}`}
+                            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
+                          >
+                            <Pencil size={12} /> Editar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void toggleActive(p)}
+                            disabled={togglingId === p.id}
+                            aria-label={p.isActive ? `Pausar ${p.name}` : `Ativar ${p.name}`}
+                            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: p.isActive ? "var(--color-text-muted)" : "var(--color-success)", cursor: togglingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: togglingId === p.id ? 0.6 : 1 }}
+                          >
+                            {p.isActive ? <><Pause size={12} /> Pausar</> : <><Play size={12} /> Ativar</>}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void confirmDelete(p)}
+                            disabled={deletingId === p.id}
+                            aria-label={`Remover ${p.name}`}
+                            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: deletingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: deletingId === p.id ? 0.6 : 1 }}
+                          >
+                            <Trash2 size={12} /> Remover
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </DataPanel>
       </div>
       </SectionErrorBoundary>
 

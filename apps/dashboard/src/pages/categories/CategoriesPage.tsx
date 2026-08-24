@@ -5,12 +5,11 @@ import { useCategoriesPage } from "./useCategoriesPage.js";
 import { CategoryTree } from "./components/CategoryTree.js";
 import { CategoryForm } from "./components/CategoryForm.js";
 import { StatCard } from "../overview/components/StatCard.js";
-import { Pagination } from "../../components/Pagination.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
 import { Button } from "../../components/Button.js";
-import { EmptyState } from "../../components/EmptyState.js";
 
 const PAGE_SIZE = 20;
 
@@ -136,36 +135,29 @@ export function CategoriesPage(props: CategoriesPageProps) {
           searchPlaceholder="Buscar por nome..."
         />
 
-        {vm.loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando categorias...</div>
-        ) : filteredTree.length === 0 ? (
-          <EmptyState
-            icon={FolderTree}
-            title="Nenhuma categoria criada"
-            description="Clique em 'Nova categoria' para começar a organizar seus produtos."
-            action={<Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}><Plus size={14} /> Nova categoria</Button>}
-          />
-        ) : (
-          <CategoryTree
-            tree={paginatedTree}
-            onEdit={vm.startEdit}
-            onDelete={(id) => setConfirmDeleteId(id)}
-            onToggleActive={vm.toggleActive}
-            onAddChild={(parentId) => vm.startCreate(parentId)}
-            onReparent={vm.reparentCategory}
-          />
-        )}
-      </div>
-
-      {filteredTree.length > PAGE_SIZE && (
-        <Pagination
+        <DataPanel
+          title="Categorias"
           page={page}
           pageSize={PAGE_SIZE}
           total={filteredTree.length}
-          onChange={setPage}
-          disabled={vm.loading}
-        />
-      )}
+          onPageChange={setPage}
+          isEmpty={filteredTree.length === 0 && !vm.loading}
+          empty={{ icon: FolderTree, title: "Nenhuma categoria criada", description: "Clique em 'Nova categoria' para começar a organizar seus produtos.", action: <Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}><Plus size={14} /> Nova categoria</Button> }}
+        >
+          {vm.loading ? (
+            <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando categorias...</div>
+          ) : (
+            <CategoryTree
+              tree={paginatedTree}
+              onEdit={vm.startEdit}
+              onDelete={(id) => setConfirmDeleteId(id)}
+              onToggleActive={vm.toggleActive}
+              onAddChild={(parentId) => vm.startCreate(parentId)}
+              onReparent={vm.reparentCategory}
+            />
+          )}
+        </DataPanel>
+      </div>
 
       {vm.showForm ? (
         <CategoryForm

@@ -1,9 +1,8 @@
 import { Plus, Trash2, Copy, RefreshCw, Tag, X, Search, Pause, Play, TrendingUp, Percent, Truck } from "lucide-react";
 import { useState, useMemo } from "react";
 import { Button } from "../../components/Button.js";
-import { EmptyState } from "../../components/EmptyState.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { Modal } from "../../components/Modal.js";
-import { Pagination } from "../../components/Pagination.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useApi } from "../../hooks/useApi.js";
@@ -292,20 +291,18 @@ export function CouponsPage(_props: CouponsPageProps) {
         search={searchQuery}
         onSearchChange={(v) => { setSearchQuery(v); setPage(1); }}
       />
+      <DataPanel
+        title="Cupons"
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={filteredCoupons.length}
+        onPageChange={setPage}
+        isEmpty={vm.coupons.length === 0 && !vm.loading}
+        empty={{ icon: Tag, title: "Nenhum cupom criado ainda", description: "Crie cupons para usar em triggers de abandono, campanhas de email ou compartilhar com clientes nas redes sociais." }}
+      >
       <div style={{ padding: "20px 22px" }}>
       {vm.loading ? (
         <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando cupons...</div>
-      ) : vm.coupons.length === 0 ? (
-        <EmptyState
-          icon={Tag}
-          title="Nenhum cupom criado ainda"
-          description="Crie cupons para usar em triggers de abandono, campanhas de email ou compartilhar com clientes nas redes sociais."
-          action={
-            <Button variant="primary" size="sm" onClick={() => vm.setShowForm(true)}>
-              <Plus size={14} /> Criar primeiro cupom
-            </Button>
-          }
-        />
       ) : (
         <div style={{ display: "grid", gap: 12 }}>
           {paginatedCoupons.map((coupon) => (
@@ -359,10 +356,8 @@ export function CouponsPage(_props: CouponsPageProps) {
           ))}
         </div>
       )}
-      {filteredCoupons.length > PAGE_SIZE && (
-        <Pagination page={page} pageSize={PAGE_SIZE} total={filteredCoupons.length} onChange={setPage} />
-      )}
       </div>
+      </DataPanel>
       </section>
 
       <ConfirmDialog

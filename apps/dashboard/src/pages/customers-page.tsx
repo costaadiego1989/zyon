@@ -1,10 +1,9 @@
 import React, { useMemo } from "react";
 import { UsersRound, UserPlus, Repeat, Download, X } from "lucide-react";
-import { EmptyState } from "../components/EmptyState.js";
+import { DataPanel } from "../components/DataPanel.js";
 import { StatCard } from "./overview/components/StatCard.js";
 import { type MerchantProfile } from "../api-client.js";
 import { type TenantCustomer } from "../api/types.js";
-import { Pagination } from "../components/Pagination.js";
 import { FilterToolbar } from "../components/FilterToolbar.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
 import { useCustomersPage } from "./useCustomersPage.js";
@@ -196,41 +195,43 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           searchWidth={300}
         />
 
-        {loading ? (
-          <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando clientes...</div>
-        ) : (
-          <div className="table-wrap">
-          <table className="data-table">
-            <thead><tr>
-              {["", "NOME", "E-MAIL", "TELEFONE", "PRIMEIRA VISITA", "ÚLTIMA VISITA"].map((c) => (
-                <th key={c} style={{ cursor: c ? "pointer" : "default" }}>{c}</th>
-              ))}
-            </tr></thead>
-            <tbody>
-              {paginatedRows.map((row) => (
-                <tr key={row.globalUserId} onClick={() => openCustomerDetail(row.globalUserId)} style={{ cursor: "pointer" }}>
-                  <td>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-brand-subtle)", color: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 11px var(--font-sans)" }}>{row.initials}</div>
-                  </td>
-                  <td style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{row.name}</td>
-                  <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{row.email}</td>
-                  <td style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{row.phone}</td>
-                  <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.firstSeen)}</td>
-                  <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.lastSeen)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          </div>
-        )}
-
-        {filteredRows.length === 0 && !loading ? (
-          <EmptyState icon={UsersRound} title="Nenhum comprador registrado ainda" description="Clientes aparecerão aqui após a primeira interação no checkout." />
-        ) : null}
-
-        {filteredRows.length > 0 ? (
-          <Pagination page={page} pageSize={PAGE_SIZE} total={filteredRows.length} onChange={setPage} disabled={loading} />
-        ) : null}
+        <DataPanel
+          title="Clientes"
+          page={page}
+          pageSize={PAGE_SIZE}
+          total={filteredRows.length}
+          onPageChange={setPage}
+          isEmpty={filteredRows.length === 0 && !loading}
+          empty={{ icon: UsersRound, title: "Nenhum comprador registrado ainda", description: "Clientes aparecerão aqui após a primeira interação no checkout." }}
+        >
+          {loading ? (
+            <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando clientes...</div>
+          ) : (
+            <div className="table-wrap">
+            <table className="data-table">
+              <thead><tr>
+                {["", "NOME", "E-MAIL", "TELEFONE", "PRIMEIRA VISITA", "ÚLTIMA VISITA"].map((c) => (
+                  <th key={c} style={{ cursor: c ? "pointer" : "default" }}>{c}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {paginatedRows.map((row) => (
+                  <tr key={row.globalUserId} onClick={() => openCustomerDetail(row.globalUserId)} style={{ cursor: "pointer" }}>
+                    <td>
+                      <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--color-brand-subtle)", color: "var(--color-brand)", display: "flex", alignItems: "center", justifyContent: "center", font: "600 11px var(--font-sans)" }}>{row.initials}</div>
+                    </td>
+                    <td style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{row.name}</td>
+                    <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{row.email}</td>
+                    <td style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{row.phone}</td>
+                    <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.firstSeen)}</td>
+                    <td style={{ font: "13px var(--font-mono)", color: "var(--color-text-muted)" }}>{formatDate(row.lastSeen)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          )}
+        </DataPanel>
       </div>
       </SectionErrorBoundary>
 
