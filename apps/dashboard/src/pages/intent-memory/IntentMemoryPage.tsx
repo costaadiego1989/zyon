@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState } from "react";
 import { Brain, Target, Sparkles, Activity, TrendingUp } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
+import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
-import { StatCard, StatCardGrid } from "../../components/stat-card.js";
+import { StatCard } from "../overview/components/StatCard.js";
 import { useIntentMemoryPage } from "./useIntentMemoryPage.js";
 
 export interface IntentMemoryPageProps {
@@ -57,6 +58,7 @@ const RECENT_SIGNALS = [
 
 export function IntentMemoryPage(props: IntentMemoryPageProps) {
   const vm = useIntentMemoryPage({ me: props.me });
+  const [tab, setTab] = useState<"overview" | "signals">("overview");
 
   if (!props.me) {
     return (
@@ -130,41 +132,45 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         </div>
       </div>
 
-      {/* KPI Stats */}
-      <StatCardGrid>
+      {/* KPI Stats — using official StatCard from overview */}
+      <div className="grid-4" style={{ gap: 14 }}>
         <StatCard
-          icon={Brain}
+          icon={<Brain size={16} />}
           value={trackedSessions}
           label="Sessões rastreadas"
-          trend={
-            vm.config.intent_tracking_enabled
-              ? { direction: "up", text: "Últimos 7 dias" }
-              : { direction: "flat", text: "Rastreamento off" }
-          }
+          accent="var(--color-brand)"
         />
         <StatCard
-          icon={Target}
+          icon={<Target size={16} />}
           value={INTENT_LABELS[dominantKey] ?? "—"}
           label="Perfil dominante"
-          trend={
-            vm.config.intent_tracking_enabled
-              ? { direction: "up", text: `${dominantCount} sessões` }
-              : { direction: "flat", text: "Sem dados" }
-          }
+          accent="var(--color-brand)"
         />
         <StatCard
-          icon={Sparkles}
+          icon={<Sparkles size={16} />}
           value={`${vm.config.intent_tracking_enabled ? Object.keys(vm.distribution).filter((k) => vm.distribution[k as keyof typeof vm.distribution] > 0).length : 0}/5`}
           label="Perfis ativos"
-          trend={{ direction: "flat", text: "de 5 perfis" }}
         />
         <StatCard
-          icon={Activity}
-          value={vm.config.intent_tracking_enabled ? "+18%" : "—"}
-          label="Lift médio c/ personalização"
-          trend={{ direction: "up", text: "vs. sessões sem perfil" }}
+          icon={<Activity size={16} />}
+          value={vm.signals.length}
+          label="Sinais coletados"
+          accent="var(--color-success)"
         />
-      </StatCardGrid>
+      </div>
+
+      {/* Tabs */}
+      <TabBar
+        tabs={[
+          { key: "overview", label: "Visão geral" },
+          { key: "signals", label: `Sinais recentes (${vm.signals.length})` },
+        ]}
+        activeTab={tab}
+        onTabChange={(k) => setTab(k as "overview" | "signals")}
+      />
+
+      {tab === "overview" && (
+      <>
 
       {/* Analytics Section */}
       <div className="panel" style={{ padding: "20px 24px" }}>
@@ -338,8 +344,8 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
       <div style={{
         padding: "16px 20px",
         borderRadius: "var(--radius-md)",
-        background: "var(--accent-soft)",
-        border: "1px solid var(--accent-line)",
+        background: "var(--color-brand-subtle)",
+        border: "1px solid var(--color-brand-ring)",
         font: "12px var(--font-sans)",
         color: "var(--color-brand)",
         lineHeight: 1.6,
@@ -347,6 +353,62 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
         <strong>Conformidade LGPD:</strong> Dados de intenção são coletados apenas com consentimento explícito do comprador.
         Todos os dados são armazenados com encriptação em repouso e acesso restrito.
       </div>
+      </>
+      )}
+
+      {/* Signals Tab */}
+      {tab === "signals" && (
+        <div className="panel" style={{ padding: "20px 24px" }}>
+          <SectionHeader title="Sinais recentes" subtitle="Classificação de intenção por comprador" variant="primary" />
+          {vm.signals.length === 0 ? (
+            <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-muted)", font: "13px var(--font-sans)" }}>
+              Nenhum sinal registrado ainda. Sinais aparecem após pedidos concluídos com consent LGPD ativo.
+            </div>
+          ) : (
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Intenção</th>
+                    <th>Urgência</th>
+                    <th>Orçamento</th>
+                    <th>Objeções</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {vm.signals.map((s, i) => (
+                    <tr key={i}>
+                      <td>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--color-brand)", flexShrink: 0 }} />
+                          {s.intent}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${s.urgency === "high" ? "bad" : s.urgency === "medium" ? "warn" : "muted"}`}>
+                          {s.urgency === "high" ? "Alta" : s.urgency === "medium" ? "Média" : "Baixa"}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`badge ${s.budget === "premium" ? "ok" : s.budget === "mid" ? "warn" : "muted"}`}>
+                          {s.budget === "premium" ? "Premium" : s.budget === "mid" ? "Médio" : "Econômico"}
+                        </span>
+                      </td>
+                      <td style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                        {s.pain_points.length > 0 ? s.pain_points.join(", ") : "—"}
+                      </td>
+                      <td style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
+                        {new Date(s.created_at).toLocaleDateString("pt-BR")}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
