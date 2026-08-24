@@ -1,6 +1,6 @@
 import React from "react";
 
-export type MerchantPlanType = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH";
+export type MerchantPlanType = "STORE_ONLY" | "BOTH" | "API";
 
 export interface FeatureGateProps {
   plan: MerchantPlanType | MerchantPlanType[];

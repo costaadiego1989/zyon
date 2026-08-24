@@ -46,7 +46,7 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const plan = (props.me as any).plan ?? "BOTH";
-  const showCheckout = plan === "CHECKOUT_ONLY" || plan === "BOTH";
+  const showCheckout = plan === "BOTH" || plan === "STORE_ONLY";
   const showStore = plan === "STORE_ONLY" || plan === "BOTH";
   const hasData = !!(checkoutOverview || storeOverview);
 

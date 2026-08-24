@@ -7,9 +7,9 @@ datasource db {
 }
 
 enum MerchantPlan {
-  CHECKOUT_ONLY
   STORE_ONLY
   BOTH
+  API
 }
 
 model Merchant {
@@ -27,7 +27,7 @@ model Merchant {
   budgetEmail             String?      @map("budget_email")
   budgetWhatsapp          String?      @map("budget_whatsapp")
   checkoutReturnUrl       String?      @map("checkout_return_url")
-  plan                    MerchantPlan @default(CHECKOUT_ONLY)
+  plan                    MerchantPlan @default(BOTH)
   eventVersion            Int          @default(0) @map("event_version")
   shardId                 Int?         @map("shard_id")
   createdAt               DateTime     @default(now()) @map("created_at")

@@ -51,7 +51,7 @@ export type DashboardRegisterPayload = {
 export type MerchantProfile = {
   id: string;
   name: string;
-  plan?: "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH";
+  plan?: "STORE_ONLY" | "BOTH" | "API";
 };
 
 export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {

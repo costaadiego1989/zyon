@@ -7,7 +7,7 @@ import { reportError } from "../../hooks/useErrorReporter.js";
 export type FunnelPeriod = "today" | "7d" | "30d" | "90d";
 export type FunnelBreakdownDimension = "none" | "device" | "buyer_type" | "payment_method";
 export type FunnelSource = "storefront" | "checkout";
-export type FunnelPlan = "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH";
+export type FunnelPlan = "STORE_ONLY" | "BOTH" | "API";
 
 export interface FunnelStep {
   name: string;
@@ -86,6 +86,27 @@ export function buildInsight(step: string, dropOff: number): FunnelInsight {
   const module: FunnelInsight["module"] = FUNNEL_INSIGHT_SOURCES[step] ?? "general";
 
   switch (step) {
+    case "checkout_started":
+      return {
+        headline: `${pct} não avançam após iniciar`,
+        detail: "Compradores iniciam sessão mas não prosseguem para a próxima etapa. Pode indicar carregamento lento, confusão na interface ou falta de produtos visíveis.",
+        action: "Verifique o tempo de carregamento da página e se os produtos aparecem imediatamente ao entrar.",
+        module: "general",
+      };
+    case "product_viewed":
+      return {
+        headline: `${pct} visualizam mas não adicionam ao carrinho`,
+        detail: "Intent Memory detecta que compradores visualizam produtos mas não avançam — pode indicar preço fora da expectativa, falta de variantes ou informação insuficiente.",
+        action: "Adicione fotos detalhadas, depoimentos e destaque promoções ativas na página do produto.",
+        module: "intent-memory",
+      };
+    case "cart_viewed":
+      return {
+        headline: `${pct} abandonam o carrinho antes do cadastro`,
+        detail: "Revenue Manager identifica que o abandono nesta etapa correlaciona com ausência de urgência — sem countdown, sem estoque baixo, sem incentivo visível.",
+        action: "Adicione indicadores de escassez (estoque limitado) ou ofereça um incentivo para iniciar o cadastro.",
+        module: "revenue-manager",
+      };
     case "auth_phone_submitted":
       return {
         headline: `${pct} desistem após pedir telefone`,
@@ -96,8 +117,8 @@ export function buildInsight(step: string, dropOff: number): FunnelInsight {
     case "auth_phone_verified":
       return {
         headline: `${pct} não concluem verificação OTP`,
-        detail: "Intent Memory registrou que códigos expirados e SMS海外 atrasado são as principais objeções. Compradores relatam 'não recebi o código' em >70% dos abandonos.",
-        action: "Habilite verificação por e-mail como fallback e mostre o código na tela (modo leitura).",
+        detail: "Intent Memory registrou que códigos expirados e SMS atrasado são as principais objeções. Compradores relatam 'não recebi o código' em >70% dos abandonos.",
+        action: "Habilite verificação por e-mail como fallback e reduza o tempo de expiração do código.",
         module: "intent-memory",
       };
     case "auth_identity_confirmed":
@@ -109,10 +130,17 @@ export function buildInsight(step: string, dropOff: number): FunnelInsight {
       };
     case "auth_registration_completed":
       return {
-        headline: `${pct} concluem cadastro mas não prosseguem`,
-        detail: "Revenue Manager detecta que estes buyers têm alta intenção (engajamento nas mensagens do agente) — o abandono vem de espera, não de dúvida.",
-        action: "Pule o passo de revisão e leve o buyer direto para pagamento quando o carrinho já está pronto.",
+        headline: `${pct} concluem cadastro mas não fazem login`,
+        detail: "Revenue Manager detecta que estes buyers têm alta intenção (engajamento nas mensagens do agente) — o abandono vem de espera ou confusão no fluxo pós-cadastro.",
+        action: "Faça login automático após cadastro — elimine a etapa manual de 'entrar' após registro.",
         module: "revenue-manager",
+      };
+    case "login_completed":
+      return {
+        headline: `${pct} fazem login mas não vão para checkout`,
+        detail: "Intent Memory mostra que após login o comprador espera ser direcionado automaticamente. Uma tela intermediária gera hesitação.",
+        action: "Redirecione automaticamente para o checkout após login bem-sucedido.",
+        module: "intent-memory",
       };
     case "shipping_calculated":
       return {
@@ -121,16 +149,9 @@ export function buildInsight(step: string, dropOff: number): FunnelInsight {
         action: "Ative subsídio de frete para o primeiro CEP ou exija um mínimo de carrinho para frete grátis.",
         module: "shipping-engine",
       };
-    case "cross_sell_added":
-      return {
-        headline: `${pct} rejeitam o cross-sell`,
-        detail: "Revenue Manager mede a taxa de aceitação de cross-sell e sugere que ofertas com mais de 1 item adicional reduzem a conversão. As sugestões atuais têm aceitação abaixo da média.",
-        action: "Limite cross-sell a 1 item e selecione SKUs com histórico de compra conjunta.",
-        module: "revenue-manager",
-      };
     case "coupon_applied":
       return {
-        headline: `${pct} aplicam cupom e continuam`,
+        headline: `${pct} desistem após etapa de cupom`,
         detail: "Rules Engine indica que cupons com percepção de 'desconto real' (>10%) aumentam conversão 2.3×. Cupons abaixo deste limiar são ignorados e atrasam o checkout.",
         action: "Revise a régua de cupons: destaque apenas ofertas acima de 10% e oculte as de 5%.",
         module: "rules-engine",
@@ -140,6 +161,13 @@ export function buildInsight(step: string, dropOff: number): FunnelInsight {
         headline: `${pct} desistem na escolha de pagamento`,
         detail: "Rules Engine mostra que PIX é escolhido por este merchant mas a etapa de seleção tem cliques em métodos não habilitados — confusão de quais opções funcionam.",
         action: "Mostre apenas os métodos habilitados para o valor final e destaque o método mais rápido (PIX).",
+        module: "rules-engine",
+      };
+    case "order_completed":
+      return {
+        headline: `${pct} completam o pagamento com sucesso`,
+        detail: "Esta etapa representa pagamentos concluídos. Um drop-off alto aqui indica falhas no processamento do gateway.",
+        action: "Verifique logs do gateway de pagamento e ative retry automático para transações com timeout.",
         module: "rules-engine",
       };
     case "payment_failed":
@@ -224,16 +252,19 @@ export interface FunnelPageVM {
 
 // ── Default empty funnel (page always renders structure) ────────────────────
 
-const EMPTY_FUNNEL: FunnelData = {
+const EMPTY_CHECKOUT_FUNNEL: FunnelData = {
   steps: [
-    { name: "checkout_started", label: "Iniciou checkout", count: 0, percentage: 0 },
-    { name: "shipping_calculated", label: "Calculou frete", count: 0, percentage: 0 },
-    { name: "payment_method_selected", label: "Selecionou pagamento", count: 0, percentage: 0 },
-    { name: "order_completed", label: "Pedido confirmado", count: 0, percentage: 0 },
+    { name: "checkout_started", label: "Checkout iniciado", count: 0, percentage: 0 },
+    { name: "shipping_calculated", label: "Frete selecionado", count: 0, percentage: 0 },
+    { name: "coupon_applied", label: "Cupom aplicado", count: 0, percentage: 0 },
+    { name: "payment_method_selected", label: "Pagamento selecionado", count: 0, percentage: 0 },
+    { name: "order_completed", label: "Pagamento concluído", count: 0, percentage: 0 },
+    { name: "payment_failed", label: "Pagamento falhado", count: 0, percentage: 0 },
   ],
   transitions: [
     { from: "checkout_started", to: "shipping_calculated", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
-    { from: "shipping_calculated", to: "payment_method_selected", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "shipping_calculated", to: "coupon_applied", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "coupon_applied", to: "payment_method_selected", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
     { from: "payment_method_selected", to: "order_completed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
   ],
   bottleneck: null,
@@ -241,6 +272,73 @@ const EMPTY_FUNNEL: FunnelData = {
   totalSessions: 0,
   overallConversion: 0,
 };
+
+const EMPTY_STOREFRONT_FUNNEL: FunnelData = {
+  steps: [
+    { name: "checkout_started", label: "Sessão iniciada", count: 0, percentage: 0 },
+    { name: "product_viewed", label: "Produto visualizado", count: 0, percentage: 0 },
+    { name: "cart_viewed", label: "Produto adicionado ao carrinho", count: 0, percentage: 0 },
+    { name: "auth_phone_submitted", label: "Cadastro iniciado", count: 0, percentage: 0 },
+    { name: "auth_phone_verified", label: "Verificou telefone", count: 0, percentage: 0 },
+    { name: "auth_identity_confirmed", label: "Confirmou identidade", count: 0, percentage: 0 },
+    { name: "auth_registration_completed", label: "Cadastro completo", count: 0, percentage: 0 },
+    { name: "login_completed", label: "Login realizado", count: 0, percentage: 0 },
+  ],
+  transitions: [
+    { from: "checkout_started", to: "product_viewed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "product_viewed", to: "cart_viewed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "cart_viewed", to: "auth_phone_submitted", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "auth_phone_submitted", to: "auth_phone_verified", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "auth_phone_verified", to: "auth_identity_confirmed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "auth_identity_confirmed", to: "auth_registration_completed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+    { from: "auth_registration_completed", to: "login_completed", rate: 0, dropOff: 0, avgTimeSeconds: 0 },
+  ],
+  bottleneck: null,
+  period: { from: new Date().toISOString().slice(0, 10), to: new Date().toISOString().slice(0, 10) },
+  totalSessions: 0,
+  overallConversion: 0,
+};
+
+function getEmptyFunnel(source: FunnelSource): FunnelData {
+  return source === "storefront" ? EMPTY_STOREFRONT_FUNNEL : EMPTY_CHECKOUT_FUNNEL;
+}
+
+/**
+ * Steps that belong to the store journey context.
+ * Store journey: session → product view → cart → registration/login flow.
+ */
+const STOREFRONT_CONTEXT_STEPS = new Set([
+  "checkout_started",
+  "product_viewed",
+  "cart_viewed",
+  "auth_phone_submitted",
+  "auth_phone_verified",
+  "auth_identity_confirmed",
+  "auth_registration_completed",
+  "login_completed",
+]);
+
+/**
+ * Steps that belong to the checkout journey context.
+ * Checkout journey: checkout start → shipping → coupon → payment → completion.
+ */
+const CHECKOUT_CONTEXT_STEPS = new Set([
+  "checkout_started",
+  "shipping_calculated",
+  "coupon_applied",
+  "payment_method_selected",
+  "order_completed",
+  "payment_failed",
+]);
+
+function filterFunnelByContext(data: FunnelData, source: FunnelSource): FunnelData {
+  const allowedSteps = source === "storefront" ? STOREFRONT_CONTEXT_STEPS : CHECKOUT_CONTEXT_STEPS;
+  const steps = data.steps.filter((s) => allowedSteps.has(s.name));
+  const stepNames = new Set(steps.map((s) => s.name));
+  const transitions = data.transitions.filter((t) => stepNames.has(t.from) && stepNames.has(t.to));
+  const bottleneck = data.bottleneck && stepNames.has(data.bottleneck.step) ? data.bottleneck : null;
+  return { ...data, steps, transitions, bottleneck };
+}
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -257,13 +355,18 @@ export function useFunnelPage(props: {
   const showSourceTabs = resolvedPlan === "BOTH";
 
   const initialSource: FunnelSource =
-    resolvedPlan === "CHECKOUT_ONLY" ? "checkout" : "storefront";
+    "storefront";
 
-  const [funnelSource, setFunnelSource] = useState<FunnelSource>(initialSource);
+  const [funnelSource, setFunnelSourceRaw] = useState<FunnelSource>(initialSource);
+
+  const setFunnelSource = useCallback((source: FunnelSource) => {
+    setFunnelSourceRaw(source);
+    setData(getEmptyFunnel(source));
+  }, []);
   const [period, setPeriod] = useState<FunnelPeriod>("7d");
   const [breakdown, setBreakdown] = useState<FunnelBreakdownDimension>("none");
   const [compareEnabled, setCompareEnabled] = useState(false);
-  const [data, setData] = useState<FunnelData | null>(EMPTY_FUNNEL);
+  const [data, setData] = useState<FunnelData | null>(getEmptyFunnel(initialSource));
   const [sessions, setSessions] = useState<FunnelSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -277,20 +380,23 @@ export function useFunnelPage(props: {
       const json: FunnelData = funnelSource === "storefront"
         ? await api.getStorefrontFunnel(merchantId, params)
         : await api.getCheckoutFunnel(merchantId, params);
+      // Filter steps by context — store journey shows only store steps,
+      // checkout journey shows only checkout-specific steps.
+      const filtered = filterFunnelByContext(json, funnelSource);
       // Augment bottleneck with intelligent, AI-module-aware insight if backend
       // supplied a bottleneck but did not include the structured insight.
-      if (json.bottleneck && !json.bottleneck.insight) {
-        json.bottleneck = {
-          ...json.bottleneck,
-          insight: buildInsight(json.bottleneck.step, json.bottleneck.dropOff),
+      if (filtered.bottleneck && !filtered.bottleneck.insight) {
+        filtered.bottleneck = {
+          ...filtered.bottleneck,
+          insight: buildInsight(filtered.bottleneck.step, filtered.bottleneck.dropOff),
         };
       }
-      setData(json);
+      setData(filtered);
     } catch (e) {
       reportError({ source: "funnel.useFunnelPage.fetchFunnel", error: e, context: { merchantId, funnelSource, period } });
       setError(e instanceof Error ? e.message : String(e));
       // Show empty structure even on error so page isn't blank
-      if (!data) setData(EMPTY_FUNNEL);
+      if (!data) setData(getEmptyFunnel(funnelSource));
     } finally {
       setLoading(false);
     }

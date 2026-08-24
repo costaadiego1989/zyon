@@ -5,15 +5,15 @@ export const REDIS_CLIENT_TOKEN = "REDIS_CLIENT";
 type RedisClient = any; // ioredis v5 ESM compatibility
 
 export enum MerchantPlan {
-  CHECKOUT_ONLY = "CHECKOUT_ONLY",
   STORE_ONLY = "STORE_ONLY",
-  BOTH = "BOTH"
+  BOTH = "BOTH",
+  API = "API"
 }
 
 const PLAN_LIMITS: Record<MerchantPlan, number> = {
-  [MerchantPlan.CHECKOUT_ONLY]: 500,
   [MerchantPlan.STORE_ONLY]: 2000,
-  [MerchantPlan.BOTH]: 5000
+  [MerchantPlan.BOTH]: 5000,
+  [MerchantPlan.API]: 10000
 };
 
 @Injectable()

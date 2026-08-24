@@ -49,7 +49,7 @@ export function useAutoRenewal(expiresAtUnix: number | null, reload: () => void)
 }
 
 function pickInitialMode(plan: MerchantProfile["plan"] | undefined): PreviewMode {
-  if (plan === "CHECKOUT_ONLY") return "checkout";
+  if (plan === "API") return "checkout";
   return "storefront";
 }
 
