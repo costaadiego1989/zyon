@@ -35,6 +35,7 @@ export class HandleStripeWebhookUseCase {
     private readonly paymentDispatch: PaymentDispatchService,
     @Optional() private readonly metrics?: MetricsService,
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
+    @Optional() @Inject("PRISMA_CLIENT") private readonly prisma?: any,
   ) {
     const { secretKey } = readStripeConnection();
     if (!secretKey) {
@@ -279,6 +280,17 @@ export class HandleStripeWebhookUseCase {
 
     const reason = `dispute_created:${dispute.reason ?? "unknown"}`;
     await this.paymentDispatch.markRefunded(intentEntity, reason);
+
+    // Mark PaymentHold as chargebacked (if held)
+    try {
+      await (this.prisma as any).paymentHold?.updateMany({
+        where: { paymentIntentId: intentId, status: "held" },
+        data: { status: "chargebacked" },
+      });
+    } catch {
+      // PaymentHold table may not exist yet — graceful degradation
+    }
+
     return "payment_disputed";
   }
 
