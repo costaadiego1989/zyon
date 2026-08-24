@@ -325,7 +325,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           {/* Toggle + Info */}
           <div className="panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px" }}>
             <div>
-              <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)" }}>Canal WhatsApp</div>
+              <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)" }}>Canal WhatsApp</div>
               <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
                 Número: <strong>+{config?.whatsappNumber?.replace(/(\d{2})(\d{2})(\d{5})(\d{4})/, "$1 $2 $3-$4")}</strong>
                 {config?.connectedAt && ` · Desde ${new Date(config.connectedAt).toLocaleDateString("pt-BR")}`}
@@ -354,7 +354,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
           {/* How it works */}
           <div className="panel" style={{ padding: "20px 24px" }}>
-            <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-brand)", marginBottom: 12 }}>Como funciona</div>
+            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", marginBottom: 14 }}>Como funciona</div>
             <ol style={{ font: "13px/1.8 var(--font-sans)", color: "var(--color-text-muted)", paddingLeft: 20, margin: 0 }}>
               <li>Cliente envia mensagem para seu número WhatsApp</li>
               <li>Nosso agente responde automaticamente com catálogo, preços e opções</li>
@@ -371,7 +371,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
         <div className="panel" style={{ padding: "32px 28px", maxWidth: 480 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <Loader2 size={20} className="spin" style={{ color: "var(--color-brand)" }} />
-            <span style={{ font: "600 15px var(--font-sans)", color: "var(--color-text)" }}>Verificação pendente</span>
+            <span style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)" }}>Verificação pendente</span>
           </div>
           <p style={{ font: "13px/1.6 var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 20px" }}>
             Enviamos um código de verificação para o número cadastrado via SMS.
@@ -398,10 +398,8 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
       {(status === "disconnected" || status === "inactive" || status === "error") && (
         <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Value proposition */}
-          <div className="panel" style={{ padding: "24px 28px", borderLeft: "3px solid var(--color-brand)" }}>
-            <div style={{ font: "600 15px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>
-              Venda pelo WhatsApp sem instalar nada
-            </div>
+          <div className="panel" style={{ padding: "24px 28px" }}>
+            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", marginBottom: 14 }}>Venda pelo WhatsApp sem instalar nada</div>
             <p style={{ font: "13px/1.6 var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
               Seus clientes compram produtos, escolhem frete e pagam — tudo dentro da conversa no WhatsApp.
               O agente de IA faz tudo automaticamente usando menus numerados.
@@ -409,8 +407,8 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           </div>
 
           {/* Embedded Signup CTA */}
-          <div className="panel" style={{ padding: "28px", maxWidth: 520 }}>
-            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 6 }}>
+          <div className="panel" style={{ padding: "28px" }}>
+            <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", marginBottom: 14 }}>
               Conectar seu WhatsApp Business
             </div>
             <p style={{ font: "12px/1.5 var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 20px" }}>
