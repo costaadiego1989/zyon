@@ -52,7 +52,10 @@ export class RequirePlanGuard implements CanActivate {
       return true;
     }
 
-    if (!requiredPlans.includes(merchant.plan)) {
+    // Legacy CHECKOUT_ONLY merchants are treated as BOTH (full platform)
+    const effectivePlan = merchant.plan === "CHECKOUT_ONLY" ? "BOTH" : merchant.plan;
+
+    if (!requiredPlans.includes(effectivePlan as MerchantPlan)) {
       logger.debug(
         `Merchant ${merchantId} plan ${merchant.plan} not in allowed plans [${requiredPlans.join(", ")}]`,
       );
