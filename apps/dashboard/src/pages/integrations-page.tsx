@@ -150,12 +150,21 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       <div className="ops-grid">
         <section className="panel stacked">
           <SectionHeader title="Chaves de acesso" subtitle="Autentique chamadas à API do Zyon" />
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 12, alignItems: "end" }}>
-            <FormField label="Nome" value={newKeyName} onChange={setNewKeyName} placeholder="Ex: Backend principal" />
-            <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()} className="zyn-btn zyn-btn--primary zyn-btn--md" style={{ height: 40, marginBottom: 1 }}>
-              <KeyRound size={14} />
-              Gerar nova chave
-            </button>
+          <div>
+            <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Nome</label>
+            <div style={{ display: "flex", gap: 12 }}>
+              <input
+                type="text"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="Ex: Backend principal"
+                style={{ flex: 1, height: 40, padding: "0 12px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "13px var(--font-sans)" }}
+              />
+              <button type="button" disabled={busy || selectedScopes.length === 0} onClick={() => void createKey()} className="zyn-btn zyn-btn--primary zyn-btn--md" style={{ height: 40, flexShrink: 0 }}>
+                <KeyRound size={14} />
+                Gerar nova chave
+              </button>
+            </div>
           </div>
           <details className="scope-disclosure">
             <summary>
@@ -262,12 +271,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
       </div>
 
       <section className="panel stacked" style={{ marginTop: 16 }}>
-        <SectionHeader title="Delivery log" variant="secondary" trailing={
-          <button type="button" disabled={busy} onClick={() => void load()}>
-            <RefreshCw size={14} />
-            Recarregar
-          </button>
-        } />
+        <SectionHeader title="Delivery log" variant="secondary" />
+        {deliveries.length === 0 ? (
+          <EmptyState icon={Send} title="Nenhuma entrega registrada" description="Tentativas de entrega de webhooks aparecerão aqui após o primeiro evento." />
+        ) : (
         <div className="table-wrap">
           <table className="data-table">
             <thead>
@@ -300,19 +307,10 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
                   </td>
                 </tr>
               ))}
-              {deliveries.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: "32px 22px", textAlign: "center" }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
-                      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--color-text-faint)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
-                      <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-faint)" }}>As tentativas de entrega aparecerão aqui após o primeiro evento.</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : null}
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
     </>
