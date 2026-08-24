@@ -150,27 +150,48 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
           {/* Trend */}
           {vm.trend && vm.trend.trend.length > 0 && (
-            <div className="panel" style={{ padding: "18px 20px" }}>
-              <SectionHeader variant="secondary" title="Tendência Diária" />
+            <div className="panel" style={{ overflow: "hidden" }}>
+              <div style={{ padding: "18px 20px 0", marginBottom: 0 }}>
+                <SectionHeader variant="secondary" title="Tendência Diária" />
+              </div>
               <div style={{ overflowX: "auto" }}>
-                <table className="fnl-sessions-table">
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th>Data</th>
-                      <th>Lift</th>
-                      <th>Tratamento</th>
-                      <th>Holdout</th>
+                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
+                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Lift</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Tratamento</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Holdout</th>
+                      <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Sessões</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {vm.trend.trend.slice(-14).map((d) => (
-                      <tr key={d.date}>
-                        <td style={{ font: "12px var(--font-data)" }}>{new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}</td>
-                        <td style={{ font: "600 12px var(--font-data)", color: d.liftPercent != null && d.liftPercent > 0 ? "var(--color-success)" : "var(--color-error)" }}>
-                          {d.liftPercent != null ? `${d.liftPercent.toFixed(1)}%` : "—"}
+                    {vm.trend.trend.slice(-14).map((d, i) => (
+                      <tr key={d.date} style={{ borderBottom: i < vm.trend!.trend.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                        <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>
+                          {new Date(d.date).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
                         </td>
-                        <td style={{ font: "12px var(--font-data)", color: "var(--color-brand)" }}>{formatBRL(d.treatmentRevenueCents)}</td>
-                        <td style={{ font: "12px var(--font-data)", color: "var(--color-text-muted)" }}>{formatBRL(d.holdoutRevenueCents)}</td>
+                        <td style={{ padding: "12px 20px" }}>
+                          <span style={{
+                            display: "inline-block",
+                            padding: "2px 8px",
+                            borderRadius: "var(--radius-full)",
+                            font: "600 11px var(--font-data)",
+                            background: d.liftPercent != null && d.liftPercent > 0 ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                            color: d.liftPercent != null && d.liftPercent > 0 ? "var(--color-success)" : "var(--color-error)",
+                          }}>
+                            {d.liftPercent != null ? `${d.liftPercent > 0 ? "+" : ""}${d.liftPercent.toFixed(1)}%` : "—"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-brand)", textAlign: "right" }}>
+                          {formatBRL(d.treatmentRevenueCents)}
+                        </td>
+                        <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>
+                          {formatBRL(d.holdoutRevenueCents)}
+                        </td>
+                        <td style={{ padding: "12px 20px", font: "12px var(--font-data)", color: "var(--color-text-faint)", textAlign: "right" }}>
+                          {d.treatmentSessions + d.holdoutSessions}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
