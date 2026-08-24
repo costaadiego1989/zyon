@@ -1,9 +1,7 @@
 import React, { useState } from "react";
-import { Bot, Plus } from "lucide-react";
+import { Bot } from "lucide-react";
 import { SectionHeader } from "../../../components/SectionHeader.js";
-import { Button } from "../../../components/Button.js";
 import { EmptyState } from "../../../components/EmptyState.js";
-import { StatCard } from "../../overview/components/StatCard.js";
 import type { M2MAgentResponse } from "../../../api/endpoints/m2m-management.js";
 
 interface AgentsTabProps {
@@ -19,12 +17,6 @@ export function AgentsTab({ agents, loading, saving, onCreate, onSuspend }: Agen
   const [name, setName] = useState("");
   const [userId, setUserId] = useState("");
 
-  const activeCount = agents.filter((a) => a.status === "active").length;
-  const totalTransactions = agents.reduce((s, a) => s + (a.reputation?.transactionCount ?? 0), 0);
-  const avgReputation = agents.length > 0
-    ? Math.round(agents.reduce((s, a) => s + (a.reputation?.reputationScore ?? 0), 0) / agents.length)
-    : 0;
-
   async function handleSubmit() {
     if (!name.trim() || !userId.trim()) return;
     await onCreate({ displayName: name.trim(), globalUserId: userId.trim() });
@@ -34,102 +26,102 @@ export function AgentsTab({ agents, loading, saving, onCreate, onSuspend }: Agen
   }
 
   return (
-    <>
-      <div className="fnl-metrics" style={{ marginBottom: "var(--space-4)" }}>
-        <StatCard label="Total Agentes" value={agents.length} icon={<Bot size={16} />} />
-        <StatCard label="Ativos" value={activeCount} icon={<Bot size={16} />} accent="var(--color-success)" />
-        <StatCard label="Transações" value={totalTransactions} icon={<Bot size={16} />} />
-        <StatCard label="Reputação Média" value={`${avgReputation}%`} icon={<Bot size={16} />} />
-      </div>
+    <div className="panel">
+      <SectionHeader
+        variant="secondary"
+        title="Agentes Registrados"
+        trailing={
+          <button
+            type="button"
+            className="zyn-btn zyn-btn--primary"
+            onClick={() => setShowForm(!showForm)}
+            style={{ fontSize: 12, padding: "6px 14px" }}
+          >
+            + Novo agente
+          </button>
+        }
+      />
 
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader
-          variant="secondary"
-          title="Agentes Registrados"
-          trailing={
-            <Button variant="ghost" size="sm" onClick={() => setShowForm(!showForm)}>
-              <Plus size={12} /> Novo agente
-            </Button>
-          }
-        />
-
-        {showForm && (
-          <div style={{ display: "flex", gap: 12, marginBottom: 16, alignItems: "flex-end" }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 4 }}>Nome</label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Bot Procurement"
-                style={{ width: "100%", padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "12px var(--font-sans)" }}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginBottom: 4 }}>Global User ID</label>
-              <input
-                value={userId}
-                onChange={(e) => setUserId(e.target.value)}
-                placeholder="agent-procurement-001"
-                style={{ width: "100%", padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "12px var(--font-sans)" }}
-              />
-            </div>
-            <Button variant="primary" size="sm" onClick={handleSubmit} disabled={saving}>Criar</Button>
+      {showForm && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 12, marginBottom: 16, alignItems: "flex-end" }}>
+          <div>
+            <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-muted)", letterSpacing: "0.04em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Nome</label>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Bot Procurement"
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "13px var(--font-sans)" }}
+            />
           </div>
-        )}
+          <div>
+            <label style={{ font: "600 10px var(--font-mono)", color: "var(--color-text-muted)", letterSpacing: "0.04em", textTransform: "uppercase", display: "block", marginBottom: 6 }}>Global User ID</label>
+            <input
+              value={userId}
+              onChange={(e) => setUserId(e.target.value)}
+              placeholder="agent-procurement-001"
+              style={{ width: "100%", padding: "10px 14px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", font: "13px var(--font-mono)" }}
+            />
+          </div>
+          <button type="button" className="zyn-btn zyn-btn--primary" onClick={handleSubmit} disabled={saving} style={{ padding: "10px 20px" }}>
+            Criar
+          </button>
+        </div>
+      )}
 
-        {loading ? (
-          <div style={{ padding: 32, textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando...</div>
-        ) : agents.length === 0 ? (
-          <EmptyState icon={Bot} title="Nenhum agente registrado" description="Crie um agente para permitir checkout programático via API" />
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="fnl-sessions-table">
-              <thead>
-                <tr>
-                  <th>Nome</th>
-                  <th>Status</th>
-                  <th>Transações</th>
-                  <th>Reputação</th>
-                  <th>Criado em</th>
-                  <th></th>
+      {loading ? (
+        <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando...</div>
+      ) : agents.length === 0 ? (
+        <EmptyState icon={Bot} title="Nenhum agente registrado" description="Crie um agente para permitir checkout programático via API" />
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="fnl-sessions-table">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Status</th>
+                <th>Transações</th>
+                <th>Reputação</th>
+                <th>Criado em</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {agents.map((agent) => (
+                <tr key={agent.id}>
+                  <td style={{ font: "500 13px var(--font-sans)" }}>{agent.displayName}</td>
+                  <td>
+                    <span style={{
+                      display: "inline-block",
+                      padding: "3px 10px",
+                      borderRadius: "var(--radius-full)",
+                      font: "600 10px var(--font-mono)",
+                      background: agent.status === "active" ? "var(--color-success-bg)" : "var(--color-error-bg)",
+                      color: agent.status === "active" ? "var(--color-success)" : "var(--color-error)",
+                    }}>
+                      {agent.status === "active" ? "Ativo" : "Suspenso"}
+                    </span>
+                  </td>
+                  <td style={{ font: "600 13px var(--font-data)", color: "var(--color-text-muted)" }}>{agent.reputation?.transactionCount ?? 0}</td>
+                  <td style={{ font: "600 13px var(--font-data)", color: "var(--color-brand)" }}>{agent.reputation?.reputationScore ?? 0}%</td>
+                  <td style={{ font: "12px var(--font-data)", color: "var(--color-text-muted)" }}>
+                    {new Date(agent.createdAt).toLocaleDateString("pt-BR")}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => onSuspend(agent.id, agent.status === "active")}
+                      style={{ font: "500 11px var(--font-sans)", padding: "5px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", cursor: "pointer" }}
+                    >
+                      {agent.status === "active" ? "Suspender" : "Reativar"}
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {agents.map((agent) => (
-                  <tr key={agent.id}>
-                    <td style={{ font: "500 13px var(--font-sans)" }}>{agent.displayName}</td>
-                    <td>
-                      <span style={{
-                        padding: "3px 8px",
-                        borderRadius: "var(--radius-full)",
-                        font: "600 10px var(--font-mono)",
-                        background: agent.status === "active" ? "var(--color-success-bg)" : "var(--color-error-bg)",
-                        color: agent.status === "active" ? "var(--color-success)" : "var(--color-error)",
-                      }}>
-                        {agent.status === "active" ? "Ativo" : "Suspenso"}
-                      </span>
-                    </td>
-                    <td style={{ font: "13px var(--font-data)" }}>{agent.reputation?.transactionCount ?? 0}</td>
-                    <td style={{ font: "13px var(--font-data)" }}>{agent.reputation?.reputationScore ?? 0}%</td>
-                    <td style={{ font: "12px var(--font-data)", color: "var(--color-text-muted)" }}>
-                      {new Date(agent.createdAt).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onSuspend(agent.id, agent.status === "active")}
-                      >
-                        {agent.status === "active" ? "Suspender" : "Reativar"}
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }

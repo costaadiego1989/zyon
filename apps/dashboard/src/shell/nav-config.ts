@@ -115,7 +115,6 @@ export const NAV_ITEMS: Array<{
   { key: "funnel", label: "Funil de conversão", section: "Checkout", icon: BarChart3, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "experiments", label: "Testes A/B", section: "Checkout", icon: Zap, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "negotiation-policy", label: "Negociação", section: "Checkout", icon: Handshake, requiredPlan: ["STORE_ONLY", "BOTH"] },
-  { key: "checkout-protocol", label: "Protocol", section: "Checkout", icon: Code2, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "checkout-programavel", label: "Checkout Programável", section: "Checkout", icon: Code2, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "coupons", label: "Cupons", section: "Checkout", icon: Tag, requiredPlan: ["STORE_ONLY", "BOTH"] },
 
@@ -127,7 +126,6 @@ export const NAV_ITEMS: Array<{
   { key: "whatsapp-seller", label: "WhatsApp Seller", section: "Integrações", icon: Smartphone },
 
   // ─── Inteligência IA ───
-  { key: "m2m-agents", label: "M2M Agents", section: "Inteligência IA", icon: Bot, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "intent-memory", label: "Intent Memory", section: "Inteligência IA", icon: Brain, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "revenue-lift", label: "Revenue Lift", section: "Inteligência IA", icon: TrendingUp, requiredPlan: ["STORE_ONLY", "BOTH"] },
   { key: "revenue-manager", label: "Revenue Manager", section: "Inteligência IA", icon: Brain, requiredPlan: ["STORE_ONLY", "BOTH"] },

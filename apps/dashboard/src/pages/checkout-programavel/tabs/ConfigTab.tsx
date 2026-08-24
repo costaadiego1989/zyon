@@ -1,7 +1,5 @@
-import React, { useState } from "react";
-import { Globe, Clock } from "lucide-react";
+import React, { useState, useEffect } from "react";
 import { SectionHeader } from "../../../components/SectionHeader.js";
-import { Button } from "../../../components/Button.js";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
 import type { M2MProtocolConfigResponse } from "../../../api/endpoints/m2m-management.js";
 
@@ -17,9 +15,14 @@ export function ConfigTab({ config, saving, onSave }: ConfigTabProps) {
   const [ttl, setTtl] = useState(config.maxSessionTtlMinutes);
   const [dirty, setDirty] = useState(false);
 
-  function handleChange<T>(setter: (v: T) => void) {
-    return (value: T) => { setter(value); setDirty(true); };
-  }
+  useEffect(() => {
+    setEnabled(config.enabled);
+    setWebhookUrl(config.webhookUrl ?? "");
+    setTtl(config.maxSessionTtlMinutes);
+    setDirty(false);
+  }, [config]);
+
+  function markDirty() { setDirty(true); }
 
   async function handleSave() {
     await onSave({ enabled, webhookUrl: webhookUrl.trim() || null, maxSessionTtlMinutes: ttl });
@@ -27,72 +30,76 @@ export function ConfigTab({ config, saving, onSave }: ConfigTabProps) {
   }
 
   return (
-    <div className="panel" style={{ padding: "20px 24px" }}>
+    <div className="panel" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <SectionHeader variant="secondary" title="Protocolo M2M" />
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
-            <div style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>Habilitar protocolo</div>
-            <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
-              Permite agentes externos realizarem checkout via API
-            </div>
-          </div>
-          <ToggleSwitch checked={enabled} onChange={handleChange(setEnabled)} />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>Habilitar protocolo</span>
+          <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+            Permite agentes externos completarem checkout via API
+          </span>
         </div>
-
-        <div>
-          <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Globe size={12} /> Webhook URL
-          </label>
-          <input
-            type="url"
-            placeholder="https://seu-sistema.com/webhooks/m2m"
-            value={webhookUrl}
-            onChange={(e) => handleChange(setWebhookUrl)(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "8px 12px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
-              background: "var(--surface-1)",
-              color: "var(--color-text)",
-              font: "13px var(--font-mono)",
-            }}
-          />
-          <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 4 }}>
-            Eventos: m2m.session.started, m2m.negotiation.completed, m2m.checkout.completed
-          </div>
-        </div>
-
-        <div>
-          <label style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Clock size={12} /> TTL da sessão (minutos)
-          </label>
-          <input
-            type="number"
-            min={1}
-            max={1440}
-            value={ttl}
-            onChange={(e) => handleChange(setTtl)(Number(e.target.value))}
-            style={{
-              width: 120,
-              padding: "8px 12px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
-              background: "var(--surface-1)",
-              color: "var(--color-text)",
-              font: "13px var(--font-mono)",
-            }}
-          />
-        </div>
-
-        {dirty && (
-          <Button variant="primary" size="sm" onClick={handleSave} disabled={saving}>
-            {saving ? "Salvando..." : "Salvar configuração"}
-          </Button>
-        )}
+        <ToggleSwitch checked={enabled} onChange={(v) => { setEnabled(v); markDirty(); }} />
       </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          Webhook URL
+        </label>
+        <input
+          type="url"
+          placeholder="https://seu-sistema.com/webhooks/m2m"
+          value={webhookUrl}
+          onChange={(e) => { setWebhookUrl(e.target.value); markDirty(); }}
+          style={{
+            width: "100%",
+            padding: "10px 14px",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+            background: "var(--surface-2)",
+            color: "var(--color-text)",
+            font: "13px var(--font-mono)",
+          }}
+        />
+        <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>
+          Eventos: m2m.session.started · m2m.negotiation.completed · m2m.checkout.completed
+        </span>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label style={{ font: "600 11px var(--font-mono)", color: "var(--color-text-muted)", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+          TTL da sessão (minutos)
+        </label>
+        <input
+          type="number"
+          min={1}
+          max={1440}
+          value={ttl}
+          onChange={(e) => { setTtl(Number(e.target.value)); markDirty(); }}
+          style={{
+            width: 140,
+            padding: "10px 14px",
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--color-border)",
+            background: "var(--surface-2)",
+            color: "var(--color-text)",
+            font: "13px var(--font-mono)",
+          }}
+        />
+      </div>
+
+      {dirty && (
+        <button
+          type="button"
+          className="zyn-btn zyn-btn--primary"
+          onClick={handleSave}
+          disabled={saving}
+          style={{ alignSelf: "flex-start" }}
+        >
+          {saving ? "Salvando..." : "Salvar configuração"}
+        </button>
+      )}
     </div>
   );
 }
