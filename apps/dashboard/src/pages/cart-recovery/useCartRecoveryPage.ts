@@ -45,14 +45,25 @@ export function useCartRecoveryPage() {
     (async () => {
       setLoading(true);
       try {
-        const [metData, attData, stratData, cfgData] = await Promise.all([
+        const [metRaw, attData, stratData, cfgData] = await Promise.all([
           api.getCartRecoveryMetrics?.().catch(() => null),
           api.getCartRecoveryAttempts?.().catch(() => null),
           api.getCartRecoveryStrategies?.().catch(() => null),
           api.getCartRecoveryConfig?.().catch(() => null),
         ]);
         if (cancelled) return;
-        setMetrics(metData ?? EMPTY_METRICS);
+
+        // Normalize metrics (API field names may differ from dashboard type)
+        const raw = metRaw as Record<string, any> | null;
+        const normalizedMetrics: CartRecoveryMetrics = raw ? {
+          total_abandoned: raw.total_abandoned ?? 0,
+          total_attempts: raw.total_attempts ?? raw.recovery_attempts ?? 0,
+          total_recovered: raw.total_recovered ?? raw.recovered ?? 0,
+          recovery_rate_percent: raw.recovery_rate_percent ?? (raw.recovery_rate != null ? raw.recovery_rate * 100 : 0),
+          revenue_recovered_brl: raw.revenue_recovered_brl ?? (raw.revenue_recovered_cents != null ? raw.revenue_recovered_cents / 100 : 0),
+        } : EMPTY_METRICS;
+
+        setMetrics(normalizedMetrics);
         setAttempts(attData ?? []);
         if (stratData) setStrategies({ ...DEFAULT_STRATEGIES, ...stratData });
         if (cfgData) setConfig(cfgData);

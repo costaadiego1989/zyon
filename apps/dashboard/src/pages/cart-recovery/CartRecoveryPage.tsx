@@ -165,23 +165,23 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
           <StatCard
             icon={<ShoppingCart size={16} />}
             label="Carrinhos abandonados"
-            value={metrics.total_abandoned.toLocaleString("pt-BR")}
+            value={(metrics.total_abandoned ?? 0).toLocaleString("pt-BR")}
           />
           <StatCard
             icon={<Activity size={16} />}
             label="Tentativas de recuperação"
-            value={metrics.total_attempts.toLocaleString("pt-BR")}
+            value={(metrics.total_attempts ?? 0).toLocaleString("pt-BR")}
           />
           <StatCard
             icon={<CheckCircle size={16} />}
             label="Recuperados"
-            value={metrics.total_recovered.toLocaleString("pt-BR")}
+            value={(metrics.total_recovered ?? 0).toLocaleString("pt-BR")}
             accent="var(--color-success)"
           />
           <StatCard
             icon={<DollarSign size={16} />}
             label="Receita recuperada"
-            value={`R$ ${metrics.revenue_recovered_brl.toLocaleString("pt-BR")}`}
+            value={`R$ ${(metrics.revenue_recovered_brl ?? 0).toLocaleString("pt-BR")}`}
             accent="var(--color-brand)"
           />
         </div>
