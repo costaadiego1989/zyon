@@ -19,6 +19,7 @@ import {
 import type { CreateProviderPaymentOutput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { PAYMENT_PROVIDER_PORT } from "../domain/ports/payment-provider.port.js";
 import type { CheckoutSession, CurrencyCode } from "@zyon/shared-types";
+import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { isStripeConfigured, readPlatformFeeCents } from "../infrastructure/stripe-env.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import { CHECKOUT_PAYMENT_PORT, type CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
@@ -135,6 +136,8 @@ export class CreatePaymentIntentUseCase {
     private readonly platformConnections?: PaymentPlatformRepository,
     @Optional() @Inject(OFFER_REPOSITORY)
     private readonly offers?: OfferRepository,
+    @Optional() @Inject(BUYER_ACCOUNT_REPOSITORY)
+    private readonly buyerAccount?: BuyerAccountRepository,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -143,7 +146,7 @@ export class CreatePaymentIntentUseCase {
     const idempotencyKey = body.idempotency_key.trim();
     if (!merchantId || !sessionId || !idempotencyKey) throw new BadRequestException("payment_intent_scope_invalid");
 
-    const session = await this.checkout.getSession(merchantId, sessionId);
+    let session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     assertCheckoutReadyForPayment(session);
 
@@ -195,7 +198,26 @@ export class CreatePaymentIntentUseCase {
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
 
     if (usesAsaas && !asaasCustomer) {
-      const customer = session.customer;
+      let customer = session.customer;
+
+      // Hydrate customer from buyer-account if session is missing required fields
+      if ((!customer?.fullName || !customer?.email || !customer?.cpf) && session.globalUserId && this.buyerAccount) {
+        const account = await this.buyerAccount.findByGlobalUserId(session.globalUserId).catch(() => null);
+        if (account) {
+          customer = {
+            ...customer,
+            fullName: customer?.fullName || account.displayName || undefined,
+            email: customer?.email || account.email || undefined,
+            phone: customer?.phone || account.phone || undefined,
+            cpf: customer?.cpf || (account as any).cpf || undefined,
+          };
+          // Persist hydrated customer to session for future use
+          const hydrated: CheckoutSession = { ...session, customer, updatedAt: new Date().toISOString() };
+          await this.checkout.saveSession(hydrated);
+          session = hydrated;
+        }
+      }
+
       if (!customer?.fullName || !customer?.email || !customer?.cpf) {
         throw new BadRequestException("asaas_customer_data_incomplete");
       }

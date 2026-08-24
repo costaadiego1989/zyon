@@ -4,6 +4,7 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { CommerceModule } from "../commerce/commerce.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
@@ -87,6 +88,7 @@ import {
     CommerceModule,
     MerchantModule,
     IntegrationsModule,
+    BuyerAccountRepositoryModule,
   ],
   controllers: [
     PaymentHttpController,

@@ -128,6 +128,10 @@ export class BillingPlanMeteringService {
   }
 
   async assertAllowed(merchantId: string, requirement: PlanLimitRequirement): Promise<void> {
+    // In development mode, bypass plan limits entirely
+    if (process.env.NODE_ENV === "development" && process.env.BILLING_BYPASS === "true") {
+      return;
+    }
     const plan = await this.getEffectivePlan(merchantId);
     const config = BILLING_PLANS[plan];
     if (requirement.kind === "feature") {
