@@ -1,11 +1,12 @@
-import { PrismaClient } from "@prisma/client";
 import { config } from "dotenv";
 import { resolve } from "path";
 
 // Load .env from apps/api
-config({ path: resolve(import.meta.dirname ?? __dirname, "../.env") });
+config({ path: resolve(import.meta.dirname ?? __dirname, "..", ".env") });
 
-const prisma = new PrismaClient();
+import { createPrismaClient } from "../src/shared/persistence/prisma-client.js";
+
+const prisma = createPrismaClient();
 
 // Simple UUID-like ID generator
 const generateId = () => `buyer_${Math.random().toString(36).substr(2, 9)}`;
