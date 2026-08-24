@@ -51,6 +51,7 @@ export class PrismaM2MManagementStore implements M2MManagementStore {
       status: row.status,
       m2mSecretHash: row.m2mSecretHash,
       scopes: row.scopes,
+      expiresAt: row.expiresAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       reputation: row.reputation
@@ -73,6 +74,7 @@ export class PrismaM2MManagementStore implements M2MManagementStore {
       status: row.status,
       m2mSecretHash: row.m2mSecretHash,
       scopes: row.scopes,
+      expiresAt: row.expiresAt,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       reputation: row.reputation
