@@ -4,8 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
-import { Pagination } from "../../components/Pagination.js";
-import { EmptyState } from "../../components/EmptyState.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { useCartRecoveryPage } from "./useCartRecoveryPage.js";
 import type { CartRecoveryStrategyKey } from "../../api/endpoints/cart-recovery.js";
 
@@ -159,56 +158,45 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       </div>
 
       {/* Attempts table */}
-      <div style={PANEL}>
-        <SectionHeader variant="secondary" title="Tentativas Recentes" />
-        {attempts.length === 0 ? (
-          <EmptyState
-            icon={ShoppingCart}
-            title="Nenhuma tentativa registrada"
-            description="As tentativas aparecerão aqui conforme os agentes tentam recuperar carrinhos abandonados."
-          />
-        ) : (
-          <>
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", font: "12px var(--font-sans)" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid var(--color-border)" }}>
-                    <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Sessão</th>
-                    <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Estratégia</th>
-                    <th style={{ textAlign: "left", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Status</th>
-                    <th style={{ textAlign: "right", padding: "8px 12px", color: "var(--color-text-faint)", fontWeight: 600, font: "11px var(--font-mono)" }}>Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedAttempts.map((a) => (
-                    <tr key={a.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                      <td style={{ padding: "8px 12px", color: "var(--color-text-muted)", font: "12px var(--font-mono)" }}>{a.session_id.slice(0, 12)}...</td>
-                      <td style={{ padding: "8px 12px", color: "var(--color-text)" }}>{strategyLabel(a.strategy)}</td>
-                      <td style={{ padding: "8px 12px" }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                          {statusIcon(a.status)}
-                          <span style={{ color: "var(--color-text-muted)" }}>{statusLabel(a.status)}</span>
-                        </span>
-                      </td>
-                      <td style={{ padding: "8px 12px", textAlign: "right", color: "var(--color-text-faint)", font: "12px var(--font-mono)" }}>
-                        {new Date(a.created_at).toLocaleString("pt-BR")}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {totalAttempts > PAGE_SIZE && (
-              <Pagination
-                page={page}
-                pageSize={PAGE_SIZE}
-                total={totalAttempts}
-                onChange={setPage}
-              />
-            )}
-          </>
-        )}
-      </div>
+      <DataPanel
+        title="Tentativas Recentes"
+        page={page}
+        pageSize={PAGE_SIZE}
+        total={totalAttempts}
+        onPageChange={setPage}
+        isEmpty={attempts.length === 0}
+        empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme os agentes tentam recuperar carrinhos abandonados." }}
+      >
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Sessão</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Estratégia</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Status</th>
+                <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedAttempts.map((a, i) => (
+                <tr key={a.id} style={{ borderBottom: i < paginatedAttempts.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
+                  <td style={{ padding: "12px 20px", color: "var(--color-text-muted)", font: "12px var(--font-mono)" }}>{a.session_id.slice(0, 12)}...</td>
+                  <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{strategyLabel(a.strategy)}</td>
+                  <td style={{ padding: "12px 20px" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                      {statusIcon(a.status)}
+                      <span style={{ color: "var(--color-text-muted)", font: "12px var(--font-sans)" }}>{statusLabel(a.status)}</span>
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px 20px", textAlign: "right", color: "var(--color-text-faint)", font: "12px var(--font-mono)" }}>
+                    {new Date(a.created_at).toLocaleString("pt-BR")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </DataPanel>
     </div>
   );
 }
