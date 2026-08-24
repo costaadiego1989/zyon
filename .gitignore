@@ -50,3 +50,7 @@ wp-config.php
 test-pix-flow.mjs
 apps/widget/verify-widget.mjs
 apps/widget/cart-*.png
+
+# Build artifacts
+*.tsbuildinfo
+.audit/
