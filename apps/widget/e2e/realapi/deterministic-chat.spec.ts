@@ -42,6 +42,7 @@ test.describe("@realapi deterministic chat", () => {
         .catch(() => null);
     }
 
-    await expect(page.locator('[role="log"]')).toBeVisible();
+    // Verify chat thread is still visible after response
+    await expect(page.locator('[role="log"]')).toBeVisible({ timeout: 5_000 });
   });
 });
