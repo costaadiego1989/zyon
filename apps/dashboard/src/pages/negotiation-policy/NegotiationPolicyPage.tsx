@@ -66,8 +66,17 @@ export function NegotiationPolicyPage(props: NegotiationPolicyPageProps) {
       </header>
 
       {/* Priority Warning */}
-      <div role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px 16px", borderRadius: 6, font: "13px var(--font-sans)", color: "#92400e" }}>
-        <strong>Aviso:</strong> Negociação dinâmica tem prioridade sobre desconto progressivo. Quando uma negociação M2M ou Deal Engine autoriza uma oferta, o progressivo é ignorado para essa sessão.
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: "var(--radius-md)",
+        background: "var(--color-brand-subtle)",
+        border: "1px solid var(--color-brand-ring)",
+        font: "13px var(--font-sans)",
+        color: "var(--color-brand)",
+        lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
+        Negociação dinâmica tem prioridade sobre desconto progressivo. Quando uma negociação M2M ou Deal Engine autoriza uma oferta, o progressivo é ignorado para essa sessão.
       </div>
 
       {/* Policy Config Section */}

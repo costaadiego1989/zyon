@@ -81,12 +81,19 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       </header>
 
       {/* Explicação */}
-      <div className="panel" style={{ padding: "14px 20px", background: "color-mix(in srgb, var(--color-brand) 4%, var(--surface-2))", border: "1px solid color-mix(in srgb, var(--color-brand) 20%, var(--color-border))" }}>
-        <p style={{ font: "13px/1.6 var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>
-          <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Todo dia a IA observa o funil de checkout (conversão, abandonos, objeções),
-          gera sugestões de melhoria com estimativa de impacto, e cria testes A/B automaticamente quando você aprova.
-          Após o teste terminar, o sistema registra o resultado e usa para gerar sugestões cada vez melhores.
-        </p>
+      <div style={{
+        padding: "16px 20px",
+        borderRadius: "var(--radius-md)",
+        background: "var(--color-brand-subtle)",
+        border: "1px solid var(--color-brand-ring)",
+        font: "13px var(--font-sans)",
+        color: "var(--color-brand)",
+        lineHeight: 1.65,
+      }}>
+        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
+        Todo dia a IA observa o funil de checkout (conversão, abandonos, objeções),
+        gera sugestões de melhoria com estimativa de impacto, e cria testes A/B automaticamente quando você aprova.
+        Após o teste terminar, o sistema registra o resultado e usa para gerar sugestões cada vez melhores.
       </div>
 
       {/* KPIs */}
@@ -103,7 +110,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* Sugestões */}
       {tab === "hypotheses" && (
         <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "18px 20px 0" }}>
+          <div style={{ padding: "16px 20px 0" }}>
             <SectionHeader variant="secondary" title="Sugestões de melhoria" />
           </div>
           {vm.hypotheses.length === 0 ? (
@@ -154,7 +161,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* Observações */}
       {tab === "observations" && (
         <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "18px 20px 0" }}>
+          <div style={{ padding: "16px 20px 0" }}>
             <SectionHeader variant="secondary" title="Análises diárias" />
           </div>
           {vm.observations.length === 0 ? (
@@ -196,7 +203,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* Aprendizados */}
       {tab === "lessons" && (
         <div className="panel" style={{ overflow: "hidden" }}>
-          <div style={{ padding: "18px 20px 0" }}>
+          <div style={{ padding: "16px 20px 0" }}>
             <SectionHeader variant="secondary" title="O que a IA aprendeu" />
           </div>
           {vm.lessons.length === 0 ? (
