@@ -116,7 +116,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
           {/* Comparação */}
           <div className="grid-2" style={{ gap: 14 }}>
-            <div className="panel" style={{ padding: "18px 20px" }}>
+            <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="Com IA (95% dos compradores)" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
@@ -129,7 +129,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
                 </div>
               </div>
             </div>
-            <div className="panel" style={{ padding: "18px 20px" }}>
+            <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="Sem IA (5% controle)" />
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div>
@@ -146,7 +146,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
           {/* Contribuição por recurso */}
           {vm.summary.featureBreakout.length > 0 && (
-            <div className="panel" style={{ padding: "18px 20px" }}>
+            <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="O que mais contribuiu" />
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {vm.summary.featureBreakout.map((f) => {
@@ -176,7 +176,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           {/* Evolução diária */}
           {trendTotal > 0 && (
             <div className="panel" style={{ overflow: "hidden" }}>
-              <div style={{ padding: "18px 20px 0" }}>
+              <div style={{ padding: "20px 24px 0" }}>
                 <SectionHeader variant="secondary" title="Evolução diária" />
               </div>
               <div style={{ overflowX: "auto" }}>
