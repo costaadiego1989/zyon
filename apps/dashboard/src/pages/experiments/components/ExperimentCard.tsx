@@ -24,6 +24,12 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
     archived: "var(--color-text-muted)",
   }[experiment.status];
 
+  // Detect auto-generated experiments from Revenue Manager (named "Hipótese: ..." or containing hypothesis marker)
+  const isAuto = /hip[oó]tese[:\s]/i.test(experiment.name)
+    || Boolean((experiment as any).hypothesis_id)
+    || (experiment as any).source === "auto"
+    || (experiment as any).source === "revenue_manager";
+
   return (
     <button
       onClick={onSelect}
@@ -57,6 +63,24 @@ export function ExperimentCard({ experiment, selected, onSelect }: ExperimentCar
           }}
         >
           {statusLabel}
+        </span>
+      </div>
+
+      {/* Row 1.5: Origin badge */}
+      <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+        <span
+          style={{
+            background: isAuto ? "var(--color-brand-subtle)" : "var(--surface-3)",
+            color: isAuto ? "var(--color-brand)" : "var(--color-text-muted)",
+            font: "600 10px var(--font-mono)",
+            padding: "2px 8px",
+            borderRadius: 999,
+            textTransform: "uppercase",
+            letterSpacing: "0.03em",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isAuto ? "🤖 AUTO" : "✏️ MANUAL"}
         </span>
       </div>
 

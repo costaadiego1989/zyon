@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SearchInput } from "../../components/SearchInput.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useExperimentsPage } from "./hooks/useExperimentsPage.js";
 import { ExperimentCard } from "./components/ExperimentCard.js";
 import { ExperimentDetail } from "./components/ExperimentDetail.js";
@@ -39,6 +40,7 @@ const FILTER_CHIP_ACTIVE: React.CSSProperties = {
 
 export function ExperimentsPage(props: ExperimentsPageProps) {
   const vm = useExperimentsPage({ me: props.me });
+  const [autoEnabled, setAutoEnabled] = React.useState(true);
 
   if (!props.me) {
     return (
@@ -65,12 +67,24 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
         <div>
           <span className="eyebrow">AGENTE IA</span>
           <h1>Testes A/B</h1>
-          <p className="page-lead">Compare estratégias de abordagem e meça conversão</p>
+          <p className="page-lead">Compare variantes de prompt e copy do agente. Testes podem ser criados manualmente ou gerados automaticamente pelo Revenue Manager ao aprovar hipóteses.</p>
         </div>
         <Button variant="primary" size="sm" arrow onClick={vm.openCreateForm}>
           <Plus size={14} /> Novo Teste
         </Button>
       </div>
+
+      {/* Auto-Test Toggle */}
+      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>Testes automáticos</div>
+          <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>Revenue Manager cria experimentos automaticamente a partir de hipóteses aprovadas</div>
+        </div>
+        <ToggleSwitch checked={autoEnabled} onChange={setAutoEnabled} />
+      </div>
+      <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>
+        Experimentos com significância estatística são promovidos automaticamente a cada 6 horas.
+      </p>
 
       {/* Content */}
       {vm.loading ? (
